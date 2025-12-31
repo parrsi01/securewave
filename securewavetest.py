@@ -294,12 +294,14 @@ class SecureWaveTest:
 
         try:
             headers = {
-                "Authorization": f"Bearer {self.access_token}"
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type": "application/json"
             }
 
             response = self.session.post(
                 f"{self.base_url}/api/vpn/generate",
                 headers=headers,
+                json={},
                 timeout=10
             )
 
@@ -323,12 +325,14 @@ class SecureWaveTest:
 
         try:
             headers = {
-                "Authorization": f"Bearer {self.access_token}"
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type": "application/json"
             }
 
-            response = self.session.get(
+            response = self.session.post(
                 f"{self.base_url}/api/vpn/config/download",
                 headers=headers,
+                json={},
                 timeout=10
             )
 
@@ -503,11 +507,11 @@ class SecureWaveTest:
     def test_static_css(self):
         """Test 18: Static CSS Loading"""
         try:
-            response = self.session.get(f"{self.base_url}/static/css/global.css", timeout=10)
+            response = self.session.get(f"{self.base_url}/css/professional.css", timeout=10)
 
             passed = (
                 response.status_code == 200 and
-                "purple" in response.text.lower()
+                ("primary" in response.text.lower() or "gradient" in response.text.lower())
             )
 
             self.print_test(
@@ -523,7 +527,7 @@ class SecureWaveTest:
     def test_static_js(self):
         """Test 19: Static JavaScript Loading"""
         try:
-            response = self.session.get(f"{self.base_url}/static/js/main.js", timeout=10)
+            response = self.session.get(f"{self.base_url}/js/main.js", timeout=10)
 
             passed = (
                 response.status_code == 200 and
@@ -543,7 +547,7 @@ class SecureWaveTest:
     def test_logo_svg(self):
         """Test 20: Logo SVG Loading"""
         try:
-            response = self.session.get(f"{self.base_url}/static/assets/logo.svg", timeout=10)
+            response = self.session.get(f"{self.base_url}/img/logo.svg", timeout=10)
 
             passed = (
                 response.status_code == 200 and
