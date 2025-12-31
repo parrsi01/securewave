@@ -1,0 +1,5 @@
+<svg width="140" height="40" viewBox="0 0 140 40" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <rect x="1" y="1" width="138" height="38" rx="8" fill="#0a0f24" stroke="#00e5ff" stroke-width="2"/>
+  <path d="M20 28c4-6 6-9 10-9 4 0 6 3 10 9 4-6 6-9 10-9s6 3 10 9" stroke="#00e5ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="72" y="25" fill="#00e5ff" font-family="'Space Grotesk', 'Segoe UI', sans-serif" font-size="16" font-weight="700">SecureWave</text>
+</svg>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureWave VPN</title>
+  <link rel="stylesheet" href="/css/global.css">
+  <link rel="stylesheet" href="/css/neon.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+  <header>
+    <div class="navbar">
+      <a class="brand" href="/home.html">
+        <img src="/assets/logo.svg" alt="SecureWave logo">
+        <span>SecureWave</span>
+      </a>
+      <div class="nav-links">
+        <a href="/home.html" class="active">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/vpn.html">VPN</a>
+        <a href="/subscription.html">Subscription</a>
+        <a href="/dashboard.html" data-auth-only>Dashboard</a>
+        <a href="/login.html" class="btn btn-primary" data-anon-only>Login</a>
+        <a href="/register.html" class="btn" data-anon-only>Join</a>
+        <a href="#" class="btn btn-ghost" data-logout>Logout</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <div class="hero-badge">Enterprise-grade VPN • Single Azure deployment</div>
+        <h1 class="hero-title glow-text">SecureWave: Cyber-neon VPN that ships as one app</h1>
+        <p class="hero-subtitle">FastAPI backend, neon static frontend, and WireGuard profiles delivered from a single, secure Azure endpoint.</p>
+        <div class="actions" style="margin-top:1.4rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
+          <a class="btn btn-primary" href="/register.html">Start Now</a>
+          <a class="btn" href="/vpn.html">Get Config</a>
+          <a class="btn btn-ghost" href="/docs">API Docs</a>
+        </div>
+        <div style="margin-top:1.25rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
+          <span class="chip">Zero client install needed for web onboarding</span>
+          <span class="chip">WireGuard-ready in seconds</span>
+        </div>
+      </div>
+      <div class="hero-visual bg-neon pulse fade-in">
+        <img class="bg" src="/assets/background.svg" alt="cyber grid">
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="glow-text">Security built for speed</h2>
+      <div class="card-grid">
+        <div class="card fade-in" style="animation-delay:0.05s">
+          <div class="tag">WireGuard</div>
+          <div class="card-line"></div>
+          <h3>Instant configs</h3>
+          <p>Generate per-user keys, configs, and QR codes. Automatic Azure-safe mock mode if kernel modules are unavailable.</p>
+        </div>
+        <div class="card fade-in" style="animation-delay:0.1s">
+          <div class="tag">JWT Auth</div>
+          <div class="card-line"></div>
+          <h3>Secure sessions</h3>
+          <p>Access and refresh tokens with bcrypt hashing and Pydantic validation keep identities locked down.</p>
+        </div>
+        <div class="card fade-in" style="animation-delay:0.15s">
+          <div class="tag">Payments</div>
+          <div class="card-line"></div>
+          <h3>Stripe & PayPal</h3>
+          <p>Subscription-ready checkout flows wired to a single app URL. Nothing else to deploy.</p>
+        </div>
+        <div class="card fade-in" style="animation-delay:0.2s">
+          <div class="tag">Azure-first</div>
+          <div class="card-line"></div>
+          <h3>Unified deploy</h3>
+          <p>FastAPI serves the neon frontend via StaticFiles. Zip once, ship once, run everywhere.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="grid-two">
+        <div class="glow-box">
+          <h3>Real-time dashboard</h3>
+          <p>Monitor subscription status, regenerate configs, and pull QR codes directly from your browser.</p>
+          <div class="stat">
+            <span>Average setup time</span>
+            <strong> &lt; 2 minutes</strong>
+          </div>
+          <a class="btn" href="/dashboard.html">Open dashboard</a>
+        </div>
+        <div class="glow-box">
+          <h3>Developer friendly</h3>
+          <p>Interactive docs at <code>/docs</code>, clean REST routes, and a deployment process that keeps everything in one repo.</p>
+          <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin:0.75rem 0;">
+            <span class="chip">FastAPI</span>
+            <span class="chip">Alembic</span>
+            <span class="chip">SQLAlchemy</span>
+            <span class="chip">Vanilla JS</span>
+          </div>
+          <a class="btn btn-ghost" href="/about.html">Learn more</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">SecureWave — cyber-neon VPN SaaS on a single Azure URL.</footer>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

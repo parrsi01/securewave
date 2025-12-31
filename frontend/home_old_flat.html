@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureWave VPN - Enterprise-Grade Privacy & Security</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="/home.html" class="navbar-brand">
+        <img src="/static/img/logo.svg" alt="SecureWave VPN">
+        <span>SecureWave</span>
+      </a>
+      <button class="navbar-toggle" id="navToggle">☰</button>
+      <ul class="navbar-menu" id="navMenu">
+        <li><a href="/home.html" class="active">Home</a></li>
+        <li><a href="/services.html">Features</a></li>
+        <li><a href="/vpn.html">VPN Config</a></li>
+        <li><a href="/subscription.html">Pricing</a></li>
+        <li><a href="/dashboard.html" class="d-none" id="dashLink">Dashboard</a></li>
+        <li><a href="/login.html" class="btn btn-secondary btn-sm" id="loginBtn">Login</a></li>
+        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
+        <li><button class="btn btn-outline btn-sm d-none" id="logoutBtn">Logout</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Hero Section - Flat, Clean Design -->
+    <section class="hero">
+      <div class="container">
+        <div class="badge">Enterprise-Grade VPN • Powered by WireGuard</div>
+        <h1>Protect Your Digital Identity with Military-Grade Encryption</h1>
+        <p class="hero-subtitle">
+          Connect to blazing-fast VPN servers in 50+ countries. AI-powered server selection ensures optimal speeds while keeping your online activity private and secure from prying eyes.
+        </p>
+        <div class="hero-actions">
+          <a href="/register.html" class="btn btn-primary btn-lg">Get SecureWave VPN</a>
+          <a href="/vpn.html" class="btn btn-secondary btn-lg">Download Config</a>
+        </div>
+
+        <!-- Trust Indicators -->
+        <div class="trust-indicators">
+          <div class="trust-item">
+            <div class="trust-value">256-bit</div>
+            <div class="trust-label">Encryption</div>
+          </div>
+          <div class="trust-item">
+            <div class="trust-value">50+</div>
+            <div class="trust-label">Countries</div>
+          </div>
+          <div class="trust-item">
+            <div class="trust-value">Zero</div>
+            <div class="trust-label">Logs</div>
+          </div>
+          <div class="trust-item">
+            <div class="trust-value">24/7</div>
+            <div class="trust-label">Support</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features-section">
+      <div class="container">
+        <div class="section-header">
+          <h2>Enterprise-Level Security for Everyone</h2>
+          <p class="section-subtitle">
+            SecureWave VPN combines cutting-edge technology with user-friendly design to deliver uncompromising privacy and blazing-fast speeds.
+          </p>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="feature">
+            <img src="/static/img/icons/ai-icon.svg" alt="AI-Powered" class="feature-icon-svg">
+            <h3>Lightning Fast Speeds</h3>
+            <p>AI-powered server selection using MARL + XGBoost algorithms automatically connects you to the fastest available server based on your location and network conditions.</p>
+          </div>
+
+          <div class="feature">
+            <img src="/static/img/icons/encryption-icon.svg" alt="Encryption" class="feature-icon-svg">
+            <h3>Military-Grade Encryption</h3>
+            <p>WireGuard protocol with ChaCha20 encryption ensures your data remains secure from hackers, ISPs, and government surveillance agencies.</p>
+          </div>
+
+          <div class="feature">
+            <img src="/static/img/icons/server-icon.svg" alt="Global Network" class="feature-icon-svg">
+            <h3>Global Server Network</h3>
+            <p>Access content from anywhere with our network of high-speed servers spanning 50+ countries. Unlimited bandwidth and zero throttling guaranteed.</p>
+          </div>
+
+          <div class="feature">
+            <img src="/static/img/icons/security-icon.svg" alt="Secure Payments" class="feature-icon-svg">
+            <h3>Secure Payments</h3>
+            <p>Integrated Stripe & PayPal checkout with flexible subscription plans. Instant activation and hassle-free cancellation anytime.</p>
+          </div>
+
+          <div class="feature">
+            <img src="/static/img/icons/vpn-icon.svg" alt="All Devices" class="feature-icon-svg">
+            <h3>All Your Devices</h3>
+            <p>Works seamlessly on Windows, macOS, Linux, iOS, Android, and routers. One subscription protects unlimited devices simultaneously.</p>
+          </div>
+
+          <div class="feature">
+            <img src="/static/img/icons/dns-icon.svg" alt="Instant Setup" class="feature-icon-svg">
+            <h3>Instant Setup</h3>
+            <p>Generate your WireGuard config in seconds with QR code support for easy mobile setup. No technical knowledge required.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard Preview -->
+    <section class="dashboard-preview">
+      <div class="container">
+        <div class="grid grid-2">
+          <div>
+            <div class="badge">DASHBOARD</div>
+            <h2>Manage Everything in One Place</h2>
+            <p class="section-subtitle">
+              Monitor your VPN usage, download configurations, manage subscriptions, and access detailed analytics from your personal dashboard.
+            </p>
+            <ul class="feature-list">
+              <li>One-click WireGuard config download</li>
+              <li>QR code generation for mobile devices</li>
+              <li>Real-time subscription management</li>
+              <li>Detailed usage analytics and insights</li>
+            </ul>
+            <a href="/dashboard.html" class="btn btn-primary btn-lg">Access Dashboard</a>
+          </div>
+          <div class="dashboard-card">
+            <div class="dashboard-header">
+              <h3>Connection Status</h3>
+              <span class="status-badge status-active">ACTIVE</span>
+            </div>
+            <div class="connection-info">
+              <div class="status-indicator"></div>
+              <div>
+                <div class="connection-label">Connected to</div>
+                <div class="connection-value">US East - New York</div>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <div class="stat-value">128</div>
+                <div class="stat-label">GB Used</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">45</div>
+                <div class="stat-label">Days Active</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Developer Section -->
+    <section class="tech-section">
+      <div class="container">
+        <div class="section-header">
+          <div class="badge">FOR DEVELOPERS</div>
+          <h2>Built with Modern Technology</h2>
+          <p class="section-subtitle">
+            SecureWave is built with cutting-edge technologies for developers who care about security, performance, and scalability.
+          </p>
+        </div>
+        <div class="tech-stack">
+          <span class="tech-badge">FastAPI</span>
+          <span class="tech-badge">WireGuard</span>
+          <span class="tech-badge">XGBoost AI</span>
+          <span class="tech-badge">PostgreSQL</span>
+          <span class="tech-badge">Azure Cloud</span>
+          <span class="tech-badge">Docker</span>
+          <span class="tech-badge">Python 3.12</span>
+          <span class="tech-badge">Stripe API</span>
+        </div>
+        <div style="text-align: center; margin-top: var(--space-2xl);">
+          <a href="/api/docs" class="btn btn-secondary btn-lg">View API Documentation</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+      <div class="container">
+        <div class="cta-card">
+          <h2>Ready to Protect Your Privacy?</h2>
+          <p class="cta-subtitle">
+            Join thousands of users who trust SecureWave VPN for their online security.
+          </p>
+          <div class="cta-actions">
+            <a href="/register.html" class="btn btn-primary btn-lg">Start Your Free Trial</a>
+            <a href="/subscription.html" class="btn btn-secondary btn-lg">View Pricing Plans</a>
+          </div>
+          <p class="cta-terms">
+            No credit card required • 30-day money-back guarantee • Cancel anytime
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p style="margin-bottom: 0.5rem; font-size: 1rem;">© 2025 SecureWave VPN. Enterprise-grade security for everyone.</p>
+      <p style="font-size: 0.875rem; color: var(--gray-500);">Military-grade encryption • Zero-log policy • 24/7 support</p>
+    </div>
+  </footer>
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>

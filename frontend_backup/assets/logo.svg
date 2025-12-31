@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Shield background -->
+  <defs>
+    <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6B46C1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#9333EA;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#A78BFA;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#C4B5FD;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Shield outline -->
+  <path d="M 100 20 L 160 40 L 160 100 Q 160 150 100 180 Q 40 150 40 100 L 40 40 Z"
+        fill="url(#shieldGradient)"
+        stroke="#E9D5FF"
+        stroke-width="2"
+        filter="url(#glow)"/>
+
+  <!-- VPN Signal Waves -->
+  <g transform="translate(100, 90)">
+    <!-- Center dot -->
+    <circle cx="0" cy="0" r="6" fill="#FFFFFF"/>
+
+    <!-- Inner wave -->
+    <path d="M -15 -15 Q -20 0 -15 15"
+          fill="none"
+          stroke="url(#waveGradient)"
+          stroke-width="3"
+          stroke-linecap="round"/>
+    <path d="M 15 -15 Q 20 0 15 15"
+          fill="none"
+          stroke="url(#waveGradient)"
+          stroke-width="3"
+          stroke-linecap="round"/>
+
+    <!-- Middle wave -->
+    <path d="M -25 -25 Q -32 0 -25 25"
+          fill="none"
+          stroke="url(#waveGradient)"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          opacity="0.8"/>
+    <path d="M 25 -25 Q 32 0 25 25"
+          fill="none"
+          stroke="url(#waveGradient)"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          opacity="0.8"/>
+
+    <!-- Outer wave -->
+    <path d="M -35 -35 Q -44 0 -35 35"
+          fill="none"
+          stroke="url(#waveGradient)"
+          stroke-width="2"
+          stroke-linecap="round"
+          opacity="0.6"/>
+    <path d="M 35 -35 Q 44 0 35 35"
+          fill="none"
+          stroke="url(#waveGradient)"
+          stroke-width="2"
+          stroke-linecap="round"
+          opacity="0.6"/>
+  </g>
+
+  <!-- Lock icon at bottom of shield -->
+  <g transform="translate(100, 135)">
+    <rect x="-8" y="0" width="16" height="12" rx="2" fill="#FFFFFF"/>
+    <path d="M -5 0 L -5 -6 Q -5 -10 0 -10 Q 5 -10 5 -6 L 5 0"
+          fill="none"
+          stroke="#FFFFFF"
+          stroke-width="2.5"
+          stroke-linecap="round"/>
+    <circle cx="0" cy="6" r="2" fill="#6B46C1"/>
+  </g>
+</svg>

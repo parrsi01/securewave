@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(./validate_deployment.sh:*)",
+      "Bash(curl:*)",
+      "Bash(az webapp log tail:*)",
+      "Bash(az webapp log:*)",
+      "Bash(unzip:*)",
+      "Bash(az webapp show:*)",
+      "Bash(az webapp config container show:*)",
+      "Bash(az acr list:*)",
+      "Bash(az acr repository list:*)",
+      "Bash(az acr repository show-tags:*)",
+      "Bash(az acr credential show:*)",
+      "Bash(az webapp config:*)",
+      "Bash(az webapp restart:*)",
+      "Bash(az acr build:*)",
+      "Bash(.)",
+      "Bash(cat:*)",
+      "Bash(az webapp delete:*)",
+      "Bash(az webapp create:*)",
+      "Bash(WEBSITES_PORT=8080:*)",
+      "Bash(WG_MOCK_MODE=true )",
+      "Bash(PAYMENTS_MOCK=true:*)",
+      "Bash(RUN_MIGRATIONS=false )",
+      "Bash(GUNICORN_TIMEOUT=120:*)",
+      "Bash(WEB_CONCURRENCY=2:*)",
+      "Bash(DATABASE_URL=\"sqlite:///./securewave.db\":*)",
+      "Bash(APP_BASE_URL=\"https://securewave-app.azurewebsites.net\":*)",
+      "Bash(CORS_ORIGINS=\"*\" )",
+      "Bash(./quick_redeploy.sh)",
+      "Bash(python3:*)",
+      "Bash(az webapp list:*)",
+      "Bash(timeout 90 tail:*)",
+      "Bash(timeout 180 tail:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

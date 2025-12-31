@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard • SecureWave</title>
+  <link rel="stylesheet" href="/css/global.css">
+  <link rel="stylesheet" href="/css/neon.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+  <header>
+    <div class="navbar">
+      <a class="brand" href="/home.html">
+        <img src="/assets/logo.svg" alt="SecureWave logo">
+        <span>SecureWave</span>
+      </a>
+      <div class="nav-links">
+        <a href="/home.html">Home</a>
+        <a href="/vpn.html">VPN</a>
+        <a href="/subscription.html">Subscription</a>
+        <a href="#" class="btn btn-ghost" data-logout>Logout</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="section">
+      <div class="hero-badge">Control center</div>
+      <h1 class="hero-title">Your SecureWave dashboard</h1>
+      <p class="hero-subtitle">Monitor your identity, regenerate WireGuard configs, and launch payments — all from one cyber-neon panel.</p>
+      <div id="dashboardMessage"></div>
+
+      <div class="card-grid" style="margin-top:1rem;">
+        <div class="card">
+          <div class="tag">Identity</div>
+          <div class="card-line"></div>
+          <h3>Account</h3>
+          <p>Email: <strong id="userEmail">-</strong></p>
+          <p>Status: <strong id="subStatus">-</strong></p>
+          <button class="btn" id="generateConfig">Generate config</button>
+        </div>
+
+        <div class="card">
+          <div class="tag">WireGuard</div>
+          <div class="card-line"></div>
+          <div class="actions">
+            <button class="btn" id="downloadConfig">Download</button>
+            <button class="btn btn-ghost" id="viewQr">QR Code</button>
+          </div>
+          <img id="qrImage" alt="WireGuard QR" style="margin-top:1rem; display:none; max-width:200px; border-radius:10px; border:1px solid rgba(0,229,255,0.4);" />
+        </div>
+
+        <div class="card">
+          <div class="tag">Subscription</div>
+          <div class="card-line"></div>
+          <div id="subscriptionBox"></div>
+          <div class="actions" style="margin-top:1rem;">
+            <button class="btn btn-primary" id="payStripe">Stripe</button>
+            <button class="btn" id="payPaypal">PayPal</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/main.js"></script>
+  <script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Features • SecureWave VPN</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="/home.html" class="navbar-brand">
+        <img src="/static/img/logo.svg" alt="SecureWave VPN">
+        <span>SecureWave</span>
+      </a>
+      <button class="navbar-toggle" id="navToggle">☰</button>
+      <ul class="navbar-menu" id="navMenu">
+        <li><a href="/home.html">Home</a></li>
+        <li><a href="/services.html" class="active">Features</a></li>
+        <li><a href="/vpn.html">VPN Config</a></li>
+        <li><a href="/subscription.html">Pricing</a></li>
+        <li><a href="/dashboard.html" class="d-none" id="dashLink">Dashboard</a></li>
+        <li><a href="/login.html" class="btn btn-secondary btn-sm" id="loginBtn">Login</a></li>
+        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
+        <li><button class="btn btn-outline btn-sm d-none" id="logoutBtn">Logout</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero">
+      <div class="container text-center">
+        <div class="badge mb-4">🚀 Enterprise-Grade Features</div>
+        <h1 class="hero-title">Powerful VPN Services Built for Security</h1>
+        <p class="hero-subtitle">
+          SecureWave combines cutting-edge technology with user-friendly design to deliver the ultimate VPN experience.
+        </p>
+      </div>
+    </section>
+
+    <section class="container" style="padding: 4rem 0;">
+      <!-- Core Features -->
+      <h2 class="text-center mb-4">Core Security Features</h2>
+      <div class="grid grid-3">
+        <div class="card">
+          <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">🔐</div>
+          <h3>WireGuard Protocol</h3>
+          <p class="text-muted">State-of-the-art VPN protocol that's faster, simpler, and more secure than OpenVPN and IPSec. Built with modern cryptography for maximum performance.</p>
+          <div class="badge mt-3">ChaCha20 Encryption</div>
+          <div class="badge mt-2">Curve25519 Key Exchange</div>
+        </div>
+
+        <div class="card">
+          <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">🤖</div>
+          <h3>AI Server Selection</h3>
+          <p class="text-muted">MARL (Multi-Agent Reinforcement Learning) combined with XGBoost optimizes server selection based on latency, bandwidth, and security metrics in real-time.</p>
+          <div class="badge badge-success mt-3">NordVPN-Level Performance</div>
+        </div>
+
+        <div class="card">
+          <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">🌍</div>
+          <h3>Global Network</h3>
+          <p class="text-muted">Connect to 50+ strategically located servers across 6 continents. Optimized routing ensures you always get the fastest possible connection.</p>
+          <div class="badge mt-3">50+ Countries</div>
+          <div class="badge mt-2">99.9% Uptime</div>
+        </div>
+
+        <div class="card">
+          <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">🛡️</div>
+          <h3>Kill Switch Protection</h3>
+          <p class="text-muted">Automatically blocks all internet traffic if your VPN connection drops, ensuring your real IP address and data are never exposed.</p>
+          <div class="badge badge-error mt-3">Always Protected</div>
+        </div>
+
+        <div class="card">
+          <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">🔍</div>
+          <h3>Zero-Log Policy</h3>
+          <p class="text-muted">We don't track, collect, or store any of your online activity. Your privacy is guaranteed by design, not just by promise.</p>
+          <div class="badge mt-3">Audited & Verified</div>
+        </div>
+
+        <div class="card">
+          <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">⚡</div>
+          <h3>Unlimited Bandwidth</h3>
+          <p class="text-muted">No speed throttling, no data caps. Stream, download, and browse at maximum speeds without limitations.</p>
+          <div class="badge badge-info mt-3">10 Gbps Connections</div>
+        </div>
+      </div>
+
+      <!-- Technical Excellence -->
+      <div class="card mt-5" style="background: rgba(20, 184, 166, 0.05); border-color: var(--primary-500);">
+        <h2 class="text-center">🔬 Technical Excellence</h2>
+        <div class="grid grid-2 mt-4">
+          <div>
+            <h3>Advanced Encryption</h3>
+            <ul style="list-style: none; padding: 0;">
+              <li class="mb-2">✓ ChaCha20 symmetric encryption</li>
+              <li class="mb-2">✓ Poly1305 message authentication</li>
+              <li class="mb-2">✓ BLAKE2s cryptographic hash</li>
+              <li class="mb-2">✓ Curve25519 for ECDH key exchange</li>
+              <li class="mb-2">✓ Perfect forward secrecy</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Network Security</h3>
+            <ul style="list-style: none; padding: 0;">
+              <li class="mb-2">✓ DNS leak protection (Cloudflare 1.1.1.1)</li>
+              <li class="mb-2">✓ IPv6 leak prevention</li>
+              <li class="mb-2">✓ WebRTC leak blocking</li>
+              <li class="mb-2">✓ Automatic MTU detection</li>
+              <li class="mb-2">✓ NAT traversal support</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deployment Features -->
+      <h2 class="text-center mt-5 mb-4">Deployment & Integration</h2>
+      <div class="grid grid-3">
+        <div class="card">
+          <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">☁️</div>
+          <h3>Azure Cloud</h3>
+          <p class="text-muted">Deployed on Microsoft Azure for enterprise-grade reliability, security, and scalability. Single container architecture for optimal performance.</p>
+        </div>
+
+        <div class="card">
+          <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">🔄</div>
+          <h3>FastAPI Backend</h3>
+          <p class="text-muted">Modern Python backend with async/await support, automatic API documentation, and type-safe request validation.</p>
+        </div>
+
+        <div class="card">
+          <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">💳</div>
+          <h3>Payment Integration</h3>
+          <p class="text-muted">Seamless Stripe and PayPal integration for secure subscription management with automatic activation and billing.</p>
+        </div>
+      </div>
+
+      <!-- User Experience -->
+      <h2 class="text-center mt-5 mb-4">User Experience</h2>
+      <div class="grid grid-2">
+        <div class="card">
+          <h3>📱 Multi-Platform Support</h3>
+          <p class="text-muted mb-3">Works seamlessly across all your devices:</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            <span class="badge">Windows</span>
+            <span class="badge">macOS</span>
+            <span class="badge">Linux</span>
+            <span class="badge">iOS</span>
+            <span class="badge">Android</span>
+            <span class="badge">Routers</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>⚙️ Easy Configuration</h3>
+          <p class="text-muted mb-3">Multiple ways to set up your VPN:</p>
+          <ul style="list-style: none; padding: 0;">
+            <li class="mb-2">✓ One-click config download</li>
+            <li class="mb-2">✓ QR code scanning for mobile</li>
+            <li class="mb-2">✓ Manual configuration support</li>
+            <li class="mb-2">✓ Automated client setup</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Call to Action -->
+      <div class="card mt-5 text-center" style="background: var(--gradient-primary); color: white;">
+        <h2 style="color: white;">Ready to Secure Your Connection?</h2>
+        <p style="color: rgba(255,255,255,0.9); margin: 1rem 0 2rem 0;">
+          Start your free trial today and experience enterprise-grade VPN security.
+        </p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+          <a href="/register.html" class="btn btn-secondary btn-lg">Start Free Trial</a>
+          <a href="/subscription.html" class="btn btn-outline btn-lg" style="border-color: white; color: white;">View Pricing</a>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="grid grid-4 mt-4">
+        <div class="card text-center" style="background: rgba(20, 184, 166, 0.05); border-color: var(--primary-500);">
+          <h3 style="font-size: 2.5rem; margin: 0; color: var(--primary-400);">50+</h3>
+          <p class="text-muted" style="margin: 0;">Server Locations</p>
+        </div>
+        <div class="card text-center" style="background: rgba(20, 184, 166, 0.05); border-color: var(--primary-500);">
+          <h3 style="font-size: 2.5rem; margin: 0; color: var(--primary-400);">10K+</h3>
+          <p class="text-muted" style="margin: 0;">Active Users</p>
+        </div>
+        <div class="card text-center" style="background: rgba(20, 184, 166, 0.05); border-color: var(--primary-500);">
+          <h3 style="font-size: 2.5rem; margin: 0; color: var(--primary-400);">99.9%</h3>
+          <p class="text-muted" style="margin: 0;">Uptime SLA</p>
+        </div>
+        <div class="card text-center" style="background: rgba(20, 184, 166, 0.05); border-color: var(--primary-500);">
+          <h3 style="font-size: 2.5rem; margin: 0; color: var(--primary-400);">24/7</h3>
+          <p class="text-muted" style="margin: 0;">Support</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>© 2025 SecureWave VPN. Enterprise-grade security for everyone.</p>
+    </div>
+  </footer>
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureWave VPN - Enterprise-Grade Privacy & Security</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/professional.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="/home.html" class="navbar-brand">
+        <img src="/img/logo.svg" alt="SecureWave VPN">
+        <span>SecureWave</span>
+      </a>
+      <ul class="navbar-menu">
+        <li><a href="/home.html">Home</a></li>
+        <li><a href="/services.html">Features</a></li>
+        <li><a href="/vpn.html">VPN Config</a></li>
+        <li><a href="/subscription.html">Pricing</a></li>
+        <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
+        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
+        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
+        <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="badge">
+        <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        Enterprise-Grade VPN Powered by WireGuard
+      </div>
+      <h1>
+        Protect Your Digital Identity<br>
+        <span class="text-gradient">with Military-Grade Encryption</span>
+      </h1>
+      <p>
+        Connect to blazing-fast VPN servers in 50+ countries. AI-powered server selection ensures optimal speeds while keeping your online activity private and secure from prying eyes.
+      </p>
+      <div style="display: flex; gap: 1rem; margin-bottom: 4rem; flex-wrap: wrap;">
+        <a href="/register.html" class="btn btn-primary btn-lg">Get SecureWave VPN</a>
+        <a href="/vpn.html" class="btn btn-secondary btn-lg">Download Config</a>
+      </div>
+
+      <!-- Trust Indicators -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 2rem; max-width: 48rem;">
+        <div style="text-align: center;">
+          <div style="font-size: 2.5rem; font-weight: 800; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">256-bit</div>
+          <div style="font-size: 0.75rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.5rem; font-weight: 600;">Encryption</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 2.5rem; font-weight: 800; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">50+</div>
+          <div style="font-size: 0.75rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.5rem; font-weight: 600;">Countries</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 2.5rem; font-weight: 800; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Zero</div>
+          <div style="font-size: 0.75rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.5rem; font-weight: 600;">Logs</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 2.5rem; font-weight: 800; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">24/7</div>
+          <div style="font-size: 0.75rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.5rem; font-weight: 600;">Support</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="section" style="background-color: var(--gray-50);">
+    <div class="container">
+      <div class="section-header">
+        <h2>Enterprise-Level Security for Everyone</h2>
+        <p>
+          SecureWave VPN combines cutting-edge technology with user-friendly design to deliver uncompromising privacy and blazing-fast speeds.
+        </p>
+      </div>
+
+      <div class="grid grid-3">
+        <!-- Feature 1 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--gray-900); margin-bottom: 1rem;">Lightning Fast Speeds</h3>
+          <p style="color: var(--gray-600); line-height: 1.75;">AI-powered server selection using MARL + XGBoost algorithms automatically connects you to the fastest available server based on your location and network conditions.</p>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--gray-900); margin-bottom: 1rem;">Military-Grade Encryption</h3>
+          <p style="color: var(--gray-600); line-height: 1.75;">WireGuard protocol with ChaCha20 encryption ensures your data remains secure from hackers, ISPs, and government surveillance agencies.</p>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--gray-900); margin-bottom: 1rem;">Global Server Network</h3>
+          <p style="color: var(--gray-600); line-height: 1.75;">Access content from anywhere with our network of high-speed servers spanning 50+ countries. Unlimited bandwidth and zero throttling guaranteed.</p>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+            </svg>
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--gray-900); margin-bottom: 1rem;">Secure Payments</h3>
+          <p style="color: var(--gray-600); line-height: 1.75;">Integrated Stripe & PayPal checkout with flexible subscription plans. Instant activation and hassle-free cancellation anytime.</p>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--gray-900); margin-bottom: 1rem;">All Your Devices</h3>
+          <p style="color: var(--gray-600); line-height: 1.75;">Works seamlessly on Windows, macOS, Linux, iOS, Android, and routers. One subscription protects unlimited devices simultaneously.</p>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+            </svg>
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--gray-900); margin-bottom: 1rem;">Instant Setup</h3>
+          <p style="color: var(--gray-600); line-height: 1.75;">Generate your WireGuard config in seconds with QR code support for easy mobile setup. No technical knowledge required.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section style="padding: 6rem 0; background: var(--gradient-primary); color: white; position: relative; overflow: hidden;">
+    <div style="position: absolute; top: 0; right: 0; width: 600px; height: 600px; background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%); border-radius: 50%;"></div>
+    <div class="container text-center" style="position: relative; z-index: 1;">
+      <h2 style="color: white; font-size: 2.5rem; font-weight: 800; margin-bottom: 1.5rem;">Ready to Protect Your Privacy?</h2>
+      <p style="font-size: 1.25rem; margin-bottom: 2.5rem; color: rgba(255,255,255,0.9); max-width: 42rem; margin-left: auto; margin-right: auto; line-height: 1.75;">
+        Join thousands of users who trust SecureWave VPN for their online security.
+      </p>
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <a href="/register.html" class="btn btn-lg" style="background-color: white; color: var(--primary-600); border: none; box-shadow: var(--shadow-xl);">Start Your Free Trial</a>
+        <a href="/subscription.html" class="btn btn-lg" style="background-color: transparent; color: white; border: 2px solid white;">View Pricing Plans</a>
+      </div>
+      <p style="margin-top: 2rem; font-size: 0.875rem; color: rgba(255,255,255,0.8);">
+        No credit card required • 30-day money-back guarantee • Cancel anytime
+      </p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p style="font-size: 1rem; margin-bottom: 0.5rem;">© 2025 SecureWave VPN. Enterprise-grade security for everyone.</p>
+      <p style="font-size: 0.875rem;">Military-grade encryption • Zero-log policy • 24/7 support</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

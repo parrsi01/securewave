@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WireGuard • SecureWave</title>
+  <link rel="stylesheet" href="/css/global.css">
+  <link rel="stylesheet" href="/css/neon.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+  <header>
+    <div class="navbar">
+      <a class="brand" href="/home.html">
+        <img src="/assets/logo.svg" alt="SecureWave logo">
+        <span>SecureWave</span>
+      </a>
+      <div class="nav-links">
+        <a href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/dashboard.html" data-auth-only>Dashboard</a>
+        <a href="#" class="btn btn-ghost" data-logout>Logout</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="section">
+      <div class="grid-two">
+        <div>
+          <div class="hero-badge">WireGuard control</div>
+          <h1 class="hero-title">Generate. Download. Scan.</h1>
+          <p class="hero-subtitle">SecureWave allocates your 10.8.0.x address, produces configs, and renders QR codes in one place.</p>
+          <div class="stat">
+            <span>Endpoint</span>
+            <strong>securewave-app.azurewebsites.net:51820</strong>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Actions</h3>
+          <div id="dashboardMessage"></div>
+          <div class="actions" style="margin-bottom:1rem;">
+            <button class="btn" id="generateConfig">Generate config</button>
+            <button class="btn btn-ghost" id="downloadConfig">Download</button>
+          </div>
+          <button class="btn" id="viewQr">Show QR</button>
+          <img id="qrImage" alt="WireGuard QR" style="margin-top:1rem; display:none; max-width:240px; border-radius:10px; border:1px solid rgba(0,229,255,0.4);" />
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/main.js"></script>
+  <script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login • SecureWave VPN</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="/home.html" class="navbar-brand">
+        <img src="/static/img/logo.svg" alt="SecureWave VPN">
+        <span>SecureWave</span>
+      </a>
+      <button class="navbar-toggle" id="navToggle">☰</button>
+      <ul class="navbar-menu" id="navMenu">
+        <li><a href="/home.html">Home</a></li>
+        <li><a href="/services.html">Features</a></li>
+        <li><a href="/vpn.html">VPN Config</a></li>
+        <li><a href="/subscription.html">Pricing</a></li>
+        <li><a href="/register.html" class="btn btn-primary btn-sm">Get Started</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+    <section class="auth-section">
+      <div class="container-sm">
+        <div class="auth-header">
+          <div class="badge">Secure Authentication</div>
+          <h1>Welcome Back</h1>
+          <p class="auth-subtitle">
+            Log in to access your SecureWave VPN dashboard and manage your security
+          </p>
+        </div>
+
+        <div class="auth-card">
+          <form id="loginForm">
+            <div class="form-group">
+              <label for="email">Email Address</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                placeholder="you@example.com"
+                required
+                autocomplete="email"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="password">Password</label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                placeholder="Enter your password"
+                required
+                autocomplete="current-password"
+              >
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block btn-lg">
+              Login to Dashboard
+            </button>
+          </form>
+
+          <div class="auth-footer">
+            <p>
+              Don't have an account?
+              <a href="/register.html" class="auth-link">Create one now</a>
+            </p>
+          </div>
+        </div>
+
+        <div class="benefits-card">
+          <h3>Why SecureWave VPN?</h3>
+          <ul class="feature-list">
+            <li>Military-grade ChaCha20 encryption</li>
+            <li>Strict zero-log policy guaranteed</li>
+            <li>AI-powered server selection (MARL)</li>
+            <li>Instant WireGuard config generation</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p style="margin-bottom: 0.5rem;">© 2025 SecureWave VPN. Enterprise-grade security for everyone.</p>
+      <p style="font-size: 0.875rem; color: var(--gray-500);">Protected by 256-bit encryption • Zero-log policy</p>
+    </div>
+  </footer>
+
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/auth.js"></script>
+</body>
+</html>

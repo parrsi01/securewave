@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard • SecureWave VPN</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="/home.html" class="navbar-brand">
+        <img src="/static/img/logo.svg" alt="SecureWave VPN">
+        <span>SecureWave</span>
+      </a>
+      <button class="navbar-toggle" id="navToggle">☰</button>
+      <ul class="navbar-menu" id="navMenu">
+        <li><a href="/home.html">Home</a></li>
+        <li><a href="/services.html">Features</a></li>
+        <li><a href="/vpn.html">VPN Config</a></li>
+        <li><a href="/subscription.html">Pricing</a></li>
+        <li><a href="/dashboard.html" class="active">Dashboard</a></li>
+        <li><button class="btn btn-outline btn-sm" id="logoutBtn">Logout</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+    <section class="container" style="padding: 3rem 0;">
+      <!-- Dashboard Header -->
+      <div class="dashboard-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+          <div>
+            <div class="badge mb-3" style="display: inline-flex;">
+              <span style="margin-right: 8px;">🎯</span>
+              Control Center
+            </div>
+            <h1 style="margin-bottom: 0.5rem; font-size: 2.5rem;">Welcome Back</h1>
+            <p style="color: var(--gray-400); font-size: 1.125rem; margin: 0;">
+              Manage your VPN configuration and account settings
+            </p>
+          </div>
+          <div>
+            <span class="badge badge-success" style="font-size: 1rem; padding: 0.75rem 1.5rem;">ACCOUNT ACTIVE</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Grid -->
+      <div class="grid grid-3" style="margin-bottom: 2rem;">
+        <!-- Account Info Card -->
+        <div class="card">
+          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="width: 50px; height: 50px; background: var(--gradient-primary); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; box-shadow: var(--shadow-glow);">👤</div>
+            <div>
+              <h3 style="margin: 0; margin-bottom: 0.25rem;">Your Account</h3>
+              <small style="color: var(--gray-400);">Profile Information</small>
+            </div>
+          </div>
+          <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; color: var(--gray-400); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Email Address</label>
+            <div id="userEmail" style="font-weight: 600; color: var(--primary-400); font-size: 1.0625rem;">Loading...</div>
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 0.5rem; color: var(--gray-400); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Subscription</label>
+            <span id="subscriptionStatus" class="badge">Loading...</span>
+          </div>
+        </div>
+
+        <!-- VPN Config Card -->
+        <div class="card">
+          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="width: 50px; height: 50px; background: var(--gradient-primary); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; box-shadow: var(--shadow-glow);">🔐</div>
+            <div>
+              <h3 style="margin: 0; margin-bottom: 0.25rem;">VPN Configuration</h3>
+              <small style="color: var(--gray-400);">WireGuard Setup</small>
+            </div>
+          </div>
+          <button id="generateConfig" class="btn btn-primary btn-block mb-3 glow">
+            Generate New Config
+          </button>
+          <button id="downloadConfig" class="btn btn-secondary btn-block mb-3 d-none">
+            📥 Download Config File
+          </button>
+          <button id="showQR" class="btn btn-outline btn-block d-none">
+            📱 Show QR Code
+          </button>
+          <div id="qrCodeDisplay" style="margin-top: 1.5rem; text-align: center;"></div>
+        </div>
+
+        <!-- Quick Actions Card -->
+        <div class="card">
+          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="width: 50px; height: 50px; background: var(--gradient-primary); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; box-shadow: var(--shadow-glow);">⚡</div>
+            <div>
+              <h3 style="margin: 0; margin-bottom: 0.25rem;">Quick Actions</h3>
+              <small style="color: var(--gray-400);">Common Tasks</small>
+            </div>
+          </div>
+          <a href="/vpn.html" class="btn btn-outline btn-block mb-3">
+            🌐 Browse VPN Servers
+          </a>
+          <a href="/subscription.html" class="btn btn-outline btn-block mb-3">
+            💳 Manage Subscription
+          </a>
+          <a href="/services.html" class="btn btn-outline btn-block">
+            📊 View All Features
+          </a>
+        </div>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid" style="margin-bottom: 2rem;">
+        <div class="stat-card">
+          <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🌍</div>
+          <div class="stat-value">50+</div>
+          <div class="stat-label">Global Servers</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">⚡</div>
+          <div class="stat-value">99.9%</div>
+          <div class="stat-label">Uptime</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🔒</div>
+          <div class="stat-value">256-bit</div>
+          <div class="stat-label">Encryption</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">📱</div>
+          <div class="stat-value">∞</div>
+          <div class="stat-label">Devices</div>
+        </div>
+      </div>
+
+      <!-- Security Features -->
+      <div class="card" style="background: rgba(20, 184, 166, 0.05); border-color: var(--primary-500);">
+        <h2 style="margin-bottom: 2rem; text-align: center;">
+          <span style="margin-right: 0.5rem;">🛡️</span>
+          Active Security Features
+        </h2>
+        <div class="grid grid-2" style="gap: 2rem;">
+          <div style="display: flex; gap: 1rem;">
+            <div style="flex-shrink: 0;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--success); box-shadow: 0 0 15px var(--success); margin-top: 0.25rem;"></div>
+            </div>
+            <div>
+              <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem;">Kill Switch Enabled</h3>
+              <p style="color: var(--gray-400); margin: 0; font-size: 0.9375rem;">Automatic traffic blocking if VPN connection drops to prevent data leaks</p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 1rem;">
+            <div style="flex-shrink: 0;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--success); box-shadow: 0 0 15px var(--success); margin-top: 0.25rem;"></div>
+            </div>
+            <div>
+              <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem;">DNS Leak Protection</h3>
+              <p style="color: var(--gray-400); margin: 0; font-size: 0.9375rem;">Your DNS requests are encrypted and routed through our secure servers</p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 1rem;">
+            <div style="flex-shrink: 0;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--success); box-shadow: 0 0 15px var(--success); margin-top: 0.25rem;"></div>
+            </div>
+            <div>
+              <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem;">AI Server Selection</h3>
+              <p style="color: var(--gray-400); margin: 0; font-size: 0.9375rem;">MARL + XGBoost algorithms optimize your connection for maximum speed</p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 1rem;">
+            <div style="flex-shrink: 0;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--success); box-shadow: 0 0 15px var(--success); margin-top: 0.25rem;"></div>
+            </div>
+            <div>
+              <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem;">Zero Logging Policy</h3>
+              <p style="color: var(--gray-400); margin: 0; font-size: 0.9375rem;">We don't track, collect, or store any of your browsing activity or connection logs</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connection Status Mockup -->
+      <div class="card mt-5" style="background: rgba(30, 41, 59, 0.7);">
+        <h2 style="margin-bottom: 2rem;">
+          <span style="margin-right: 0.5rem;">📡</span>
+          Connection Status
+        </h2>
+        <div class="vpn-status">
+          <div class="status-indicator"></div>
+          <div>
+            <div style="font-size: 0.875rem; color: var(--gray-400); margin-bottom: 0.5rem;">Ready to connect</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: var(--primary-400);">Generate your config to get started</div>
+          </div>
+        </div>
+        <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(20, 184, 166, 0.05); border-radius: var(--radius-lg); border: 1px solid rgba(20, 184, 166, 0.2);">
+          <p style="margin: 0; color: var(--gray-300); font-size: 0.9375rem; text-align: center;">
+            <strong style="color: var(--primary-400);">Pro Tip:</strong> After generating your config, download it and import into the WireGuard app on your device for instant VPN access
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p style="margin-bottom: 0.5rem;">© 2025 SecureWave VPN. Enterprise-grade security for everyone.</p>
+      <p style="font-size: 0.875rem; color: var(--gray-500);">Protected by WireGuard • Military-grade encryption • Zero logs</p>
+    </div>
+  </footer>
+
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
