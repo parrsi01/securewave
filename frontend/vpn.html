@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VPN Configuration • SecureWave VPN</title>
+  <title>VPN Configuration - SecureWave VPN</title>
+  <meta name="description" content="Generate and download your WireGuard VPN configuration. Quick setup with QR code support for mobile devices.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,29 +16,40 @@
   </style>
 </head>
 <body>
+  <!-- Skip to main content for accessibility -->
+  <a href="#main-content" class="skip-to-main">Skip to main content</a>
+
   <!-- Navigation -->
   <nav class="navbar">
     <div class="navbar-container">
       <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN">
+        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
         <span>SecureWave</span>
       </a>
       <ul class="navbar-menu">
         <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Features</a></li>
-        <li><a href="/vpn.html" class="active">VPN Config</a></li>
+        <li><a href="/services.html">Services</a></li>
         <li><a href="/subscription.html">Pricing</a></li>
+        <li><a href="/about.html">About</a></li>
+        <li><a href="/contact.html">Contact</a></li>
         <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
-        <li><a href="/login.html" class="btn btn-secondary btn-sm" id="loginBtn">Login</a></li>
+        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
         <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
-        <li><button class="btn btn-outline btn-sm hidden" id="logoutBtn">Logout</button></li>
+        <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
       </ul>
+
+      <!-- Mobile menu toggle -->
+      <button class="navbar-toggle" aria-label="Toggle navigation menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </div>
   </nav>
 
-  <main>
+  <main id="main-content">
     <!-- Page Header -->
-    <div style="background-color: var(--gray-50); border-bottom: 1px solid var(--gray-200); padding: 2rem 0;">
+    <div style="background-color: var(--bg-secondary); border-bottom: 1px solid var(--border-primary); padding: 2rem 0;">
       <div class="container">
         <div class="badge">WireGuard Configuration</div>
         <h1 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">VPN Configuration Center</h1>
@@ -83,7 +95,7 @@
               Generate New Config
             </button>
 
-            <div style="background-color: var(--gray-50); border-radius: var(--radius-md); padding: 1rem; margin-top: 1rem;">
+            <div style="background-color: var(--bg-secondary); border-radius: var(--radius-md); padding: 1rem; margin-top: 1rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <span style="font-size: 0.75rem; font-weight: 600; color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.05em;">Server Endpoint</span>
                 <span class="badge">Active</span>
@@ -92,11 +104,11 @@
             </div>
 
             <div class="grid grid-2" style="gap: 1rem; margin-top: 1.5rem;">
-              <div style="text-align: center; padding: 1rem; background-color: var(--gray-50); border-radius: var(--radius-md);">
+              <div style="text-align: center; padding: 1rem; background-color: var(--bg-secondary); border-radius: var(--radius-md);">
                 <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🌍</div>
                 <p style="margin: 0; font-size: 0.875rem; color: var(--gray-600);">50+ Locations</p>
               </div>
-              <div style="text-align: center; padding: 1rem; background-color: var(--gray-50); border-radius: var(--radius-md);">
+              <div style="text-align: center; padding: 1rem; background-color: var(--bg-secondary); border-radius: var(--radius-md);">
                 <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚡</div>
                 <p style="margin: 0; font-size: 0.875rem; color: var(--gray-600);">AI Optimized</p>
               </div>
@@ -137,7 +149,7 @@
               Show QR Code
             </button>
 
-            <div id="qrCodeDisplay" style="text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center; background-color: var(--gray-50); border-radius: var(--radius-lg); padding: 2rem;">
+            <div id="qrCodeDisplay" style="text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center; background-color: var(--bg-secondary); border-radius: var(--radius-lg); padding: 2rem;">
               <p style="margin: 0; color: var(--gray-400);">Generate a config to view QR code</p>
             </div>
           </div>
@@ -243,8 +255,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p style="font-size: 1rem; margin-bottom: 0.5rem;">© 2025 SecureWave VPN. Enterprise-grade security for everyone.</p>
-      <p style="font-size: 0.875rem; color: var(--gray-500);">Military-grade encryption • Zero-log policy • 24/7 support</p>
+      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
     </div>
   </footer>
 

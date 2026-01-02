@@ -9,8 +9,12 @@ from typing import Tuple
 
 import qrcode
 from cryptography.fernet import Fernet
+from dotenv import load_dotenv
 
 from models.user import User
+
+# Load environment variables
+load_dotenv()
 
 
 class WireGuardService:
@@ -113,6 +117,46 @@ class WireGuardService:
         if not config_path.exists():
             raise FileNotFoundError("Configuration not generated")
         return config_path.read_text()
+
+    def generate_client_config_for_server(self, user: User, server) -> Tuple[Path, str]:
+        """
+        Generate client config for a specific VPN server
+
+        Args:
+            user: User object
+            server: VPNServer object with endpoint and wg_public_key
+
+        Returns:
+            Tuple of (config_path, config_content)
+        """
+        # Generate or retrieve user's keys
+        if not user.wg_private_key_encrypted or not user.wg_public_key:
+            private_key, public_key = self.generate_keypair()
+            user.wg_private_key_encrypted = self.encrypt_private_key(private_key)
+            user.wg_public_key = public_key
+        else:
+            private_key = self.decrypt_private_key(user.wg_private_key_encrypted)
+            public_key = user.wg_public_key
+
+        client_ip = self.allocate_ip(user.id)
+
+        # Use server-specific endpoint and public key
+        config_content = (
+            "[Interface]\n"
+            f"PrivateKey = {private_key}\n"
+            f"Address = {client_ip}\n"
+            f"DNS = {self.dns}\n\n"
+            "[Peer]\n"
+            f"PublicKey = {server.wg_public_key}\n"
+            f"Endpoint = {server.endpoint}\n"
+            "AllowedIPs = 0.0.0.0/0, ::/0\n"
+            "PersistentKeepalive = 25\n"
+        )
+
+        # Save config with server_id in filename
+        config_path = self.users_dir / f"{user.id}_{server.server_id}.conf"
+        config_path.write_text(config_content)
+        return config_path, config_content
 
     def qr_from_config(self, config_text: str) -> str:
         img = qrcode.make(config_text)

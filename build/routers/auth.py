@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from models.user import User
 from services.hashing_service import hash_password, verify_password
-from services.jwt_service import create_access_token, create_refresh_token, verify_refresh_token
+from services.jwt_service import create_access_token, create_refresh_token, verify_refresh_token, get_current_user
 from database.session import get_db
 
 router = APIRouter()
@@ -25,11 +25,6 @@ class LoginRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
-
-
-class ResetPasswordRequest(BaseModel):
-    email: EmailStr
-    new_password: str
 
 
 class TokenResponse(BaseModel):
@@ -81,11 +76,23 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/reset-password")
-def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    user.hashed_password = hash_password(payload.new_password)
-    db.commit()
-    return {"message": "Password updated"}
+# TODO: Implement email-based password reset with verification
+# The previous reset-password endpoint was removed due to security vulnerability
+# (allowed anyone to reset any user's password without verification)
+# Future implementation should:
+# 1. Generate secure one-time token
+# 2. Send token to user's email
+# 3. Verify token before allowing password change
+# 4. Expire tokens after 15 minutes
+
+
+@router.get("/users/me")
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """Get current user information"""
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "subscription_active": current_user.subscription_status == "active",
+        "subscription_status": current_user.subscription_status
+    }

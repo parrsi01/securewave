@@ -3,31 +3,45 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pricing • SecureWave VPN</title>
-  <link rel="stylesheet" href="/static/css/global.css">
+  <title>Pricing - SecureWave VPN</title>
+  <meta name="description" content="Choose your SecureWave VPN plan. Enterprise-grade security starting at $9.99/month with 7-day free trial, unlimited bandwidth, and 30-day money-back guarantee.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/professional.css">
 </head>
 <body>
+  <!-- Skip to main content for accessibility -->
+  <a href="#main-content" class="skip-to-main">Skip to main content</a>
+
   <nav class="navbar">
     <div class="navbar-container">
       <a href="/home.html" class="navbar-brand">
-        <img src="/static/img/logo.svg" alt="SecureWave VPN">
+        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
         <span>SecureWave</span>
       </a>
-      <button class="navbar-toggle" id="navToggle">☰</button>
-      <ul class="navbar-menu" id="navMenu">
+      <ul class="navbar-menu">
         <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Features</a></li>
-        <li><a href="/vpn.html">VPN Config</a></li>
-        <li><a href="/subscription.html" class="active">Pricing</a></li>
-        <li><a href="/dashboard.html" class="d-none" id="dashLink">Dashboard</a></li>
-        <li><a href="/login.html" class="btn btn-secondary btn-sm" id="loginBtn">Login</a></li>
+        <li><a href="/services.html">Services</a></li>
+        <li><a href="/subscription.html" aria-current="page">Pricing</a></li>
+        <li><a href="/about.html">About</a></li>
+        <li><a href="/contact.html">Contact</a></li>
+        <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
+        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
         <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
-        <li><button class="btn btn-outline btn-sm d-none" id="logoutBtn">Logout</button></li>
+        <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
       </ul>
+
+      <!-- Mobile menu toggle -->
+      <button class="navbar-toggle" aria-label="Toggle navigation menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </div>
   </nav>
 
-  <main>
+  <main id="main-content">
     <section class="hero">
       <div class="container text-center">
         <div class="badge mb-4">💎 Simple Transparent Pricing</div>
@@ -200,11 +214,11 @@
 
   <footer class="footer">
     <div class="container">
-      <p>© 2025 SecureWave VPN. Enterprise-grade security for everyone.</p>
+      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
     </div>
   </footer>
 
-  <script src="/static/js/main.js"></script>
+  <script src="/js/main.js"></script>
   <script>
     // Placeholder for payment functionality
     document.getElementById('payStripe')?.addEventListener('click', () => {

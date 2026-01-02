@@ -1,0 +1,11 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Security Shield with Checkmark -->
+  <path d="M 32 8 L 52 18 L 52 32 Q 52 48 32 58 Q 12 48 12 32 L 12 18 Z" fill="#14b8a6"/>
+  <path d="M 32 8 L 52 18 L 52 32 Q 52 48 32 58 Q 12 48 12 32 L 12 18 Z" stroke="#2dd4bf" stroke-width="2" fill="none"/>
+
+  <!-- Inner shield layer -->
+  <path d="M 32 14 L 46 21 L 46 32 Q 46 44 32 52 Q 18 44 18 32 L 18 21 Z" fill="#2dd4bf" opacity="0.3"/>
+
+  <!-- Checkmark -->
+  <path d="M 24 32 L 30 38 L 42 26" stroke="#5eead4" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

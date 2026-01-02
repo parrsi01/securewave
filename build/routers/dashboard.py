@@ -20,6 +20,29 @@ def user_info(current_user: User = Depends(get_current_user)):
     }
 
 
+@router.get("/info")
+def dashboard_info(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get dashboard information including user and subscription details"""
+    latest_sub = subscription_service.get_latest_subscription(db, current_user)
+
+    subscription_data = None
+    if latest_sub:
+        subscription_data = {
+            "provider": latest_sub.provider,
+            "status": latest_sub.status,
+            "is_active": latest_sub.status == "active",
+            "expires_at": latest_sub.expires_at,
+        }
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "subscription_status": current_user.subscription_status,
+        "subscription": subscription_data,
+        "wg_public_key": current_user.wg_public_key,
+    }
+
+
 @router.get("/subscription")
 def subscription(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     latest = subscription_service.get_latest_subscription(db, current_user)

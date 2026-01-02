@@ -1,86 +1,88 @@
-const apiBase = '';
+// SecureWave VPN - Main JavaScript with Working API Routes
 
-export function getTokens() {
-  return {
-    access: localStorage.getItem('access_token'),
-    refresh: localStorage.getItem('refresh_token'),
-  };
+const API_BASE = '/api';
+
+// Mobile menu toggle
+document.addEventListener('DOMContentLoaded', () => {
+  const navToggle = document.getElementById('navToggle');
+  const navMenu = document.getElementById('navMenu');
+  
+  if (navToggle && navMenu) {
+    navToggle.addEventListener('click', () => {
+      navMenu.classList.toggle('active');
+    });
+  }
+
+  // Check auth state and update UI
+  checkAuthState();
+});
+
+function checkAuthState() {
+  const token = localStorage.getItem('access_token');
+  const loginBtn = document.getElementById('loginBtn');
+  const registerBtn = document.getElementById('registerBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const dashLink = document.getElementById('dashLink');
+
+  if (token) {
+    // User is logged in
+    if (loginBtn) loginBtn.classList.add('hidden');
+    if (registerBtn) registerBtn.classList.add('hidden');
+    if (logoutBtn) {
+      logoutBtn.classList.remove('hidden');
+      logoutBtn.addEventListener('click', logout);
+    }
+    if (dashLink) dashLink.classList.remove('hidden');
+  } else {
+    // User is not logged in
+    if (loginBtn) loginBtn.classList.remove('hidden');
+    if (registerBtn) registerBtn.classList.remove('hidden');
+    if (logoutBtn) logoutBtn.classList.add('hidden');
+    if (dashLink) dashLink.classList.add('hidden');
+  }
 }
 
-export function setTokens(access, refresh) {
-  if (access) localStorage.setItem('access_token', access);
-  if (refresh) localStorage.setItem('refresh_token', refresh);
-}
-
-export function clearTokens() {
+function logout() {
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
+  window.location.href = '/home.html';
 }
 
-export async function apiFetch(path, options = {}) {
-  const tokens = getTokens();
-  const headers = options.headers || {};
-  if (tokens.access) headers['Authorization'] = `Bearer ${tokens.access}`;
-  headers['Content-Type'] = headers['Content-Type'] || 'application/json';
-  const response = await fetch(`${apiBase}${path}`, { ...options, headers });
-  if (response.status === 401 && tokens.refresh) {
-    const refreshed = await refreshToken(tokens.refresh);
-    if (refreshed) {
-      headers['Authorization'] = `Bearer ${refreshed}`;
-      return fetch(`${apiBase}${path}`, { ...options, headers });
-    }
-  }
-  return response;
-}
+async function apiCall(endpoint, options = {}) {
+  const token = localStorage.getItem('access_token');
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...options.headers
+  };
 
-async function refreshToken(refreshTokenValue) {
   try {
-    const res = await fetch('/auth/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshTokenValue }),
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers
     });
-    if (!res.ok) return null;
-    const data = await res.json();
-    setTokens(data.access_token, data.refresh_token);
-    return data.access_token;
-  } catch (err) {
-    console.error('Refresh failed', err);
-    clearTokens();
+
+    if (response.status === 401) {
+      // Token expired
+      localStorage.removeItem('access_token');
+      window.location.href = '/login.html';
+      return null;
+    }
+
+    return response;
+  } catch (error) {
+    console.error('API Error:', error);
     return null;
   }
 }
 
-export function bindNavHighlight() {
-  const links = document.querySelectorAll('.nav-links a');
-  links.forEach((link) => {
-    if (link.href === window.location.href) {
-      link.classList.add('active');
-    }
-  });
+function showAlert(message, type = 'info') {
+  const alert = document.createElement('div');
+  alert.className = `alert alert-${type}`;
+  alert.textContent = message;
+  
+  const container = document.querySelector('.container') || document.body;
+  container.insertBefore(alert, container.firstChild);
+  
+  setTimeout(() => alert.remove(), 5000);
 }
-
-export function ensureAuthUI() {
-  const authButtons = document.querySelectorAll('[data-auth-only]');
-  const tokens = getTokens();
-  authButtons.forEach((btn) => {
-    btn.style.display = tokens.access ? 'inline-flex' : 'none';
-  });
-  const anonButtons = document.querySelectorAll('[data-anon-only]');
-  anonButtons.forEach((btn) => {
-    btn.style.display = tokens.access ? 'none' : 'inline-flex';
-  });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  bindNavHighlight();
-  ensureAuthUI();
-  const logoutButtons = document.querySelectorAll('[data-logout]');
-  logoutButtons.forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      clearTokens();
-      window.location.href = '/login.html';
-    });
-  });
-});

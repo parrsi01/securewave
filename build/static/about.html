@@ -3,45 +3,233 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>About • SecureWave</title>
-  <link rel="stylesheet" href="/css/global.css">
-  <link rel="stylesheet" href="/css/neon.css">
-  <link rel="stylesheet" href="/css/responsive.css">
+  <title>About Us - SecureWave VPN</title>
+  <meta name="description" content="Learn about SecureWave VPN - a modern, secure VPN service built with cutting-edge technology to protect your privacy online.">
+  <link rel="stylesheet" href="/css/professional.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-  <header>
-    <div class="navbar">
-      <a class="brand" href="/home.html">
-        <img src="/assets/logo.svg" alt="SecureWave logo">
+  <!-- Skip to main content for accessibility -->
+  <a href="#main-content" class="skip-to-main">Skip to main content</a>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="/home.html" class="navbar-brand">
+        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
         <span>SecureWave</span>
       </a>
-      <div class="nav-links">
-        <a href="/home.html">Home</a>
-        <a href="/services.html">Services</a>
-        <a href="/contact.html">Contact</a>
-      </div>
+
+      <ul class="navbar-menu">
+        <li><a href="/home.html">Home</a></li>
+        <li><a href="/services.html">Services</a></li>
+        <li><a href="/subscription.html">Pricing</a></li>
+        <li><a href="/about.html" aria-current="page">About</a></li>
+        <li><a href="/contact.html">Contact</a></li>
+        <li><a href="/login.html" class="btn btn-sm btn-primary">Login</a></li>
+      </ul>
+
+      <!-- Mobile menu toggle -->
+      <button class="navbar-toggle" aria-label="Toggle navigation menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </div>
-  </header>
+  </nav>
 
-  <main>
+  <!-- Main Content -->
+  <main id="main-content">
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container">
+        <div class="badge">About SecureWave</div>
+        <h1>Protecting Your Privacy,<br>One Connection at a Time</h1>
+        <p>SecureWave is a modern VPN service built with cutting-edge technology to provide you with secure, private, and fast internet access anywhere in the world.</p>
+      </div>
+    </section>
+
+    <!-- Mission Section -->
     <section class="section">
-      <div class="hero-badge">Our mission</div>
-      <h1 class="hero-title">One deploy. Full-stack VPN.</h1>
-      <p class="hero-subtitle">SecureWave is a cyber-neon VPN SaaS that merges backend and frontend into a single FastAPI-powered Azure deployment.</p>
-
-      <div class="grid-two" style="margin-top:1.25rem;">
-        <div class="glow-box">
-          <h3>Built for operators</h3>
-          <p>DevOps teams can ship everything as one ZIP. Static files live alongside APIs, cutting complexity and time-to-ship.</p>
+      <div class="container">
+        <div class="section-header">
+          <h2>Our Mission</h2>
+          <p>To make online privacy accessible, simple, and reliable for everyone</p>
         </div>
-        <div class="glow-box">
-          <h3>Resilient by design</h3>
-          <p>WireGuard mock mode ensures Azure compatibility while preserving real key generation when supported.</p>
+
+        <div class="grid grid-2">
+          <div class="feature-card animate-fade-in">
+            <div class="feature-icon">
+              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+            </div>
+            <h3>Privacy First</h3>
+            <p>We believe privacy is a fundamental right. No logging, no tracking, no compromises. Your data stays yours.</p>
+          </div>
+
+          <div class="feature-card animate-fade-in">
+            <div class="feature-icon">
+              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+            </div>
+            <h3>Lightning Fast</h3>
+            <p>Built on WireGuard® protocol, the fastest and most secure VPN protocol available today.</p>
+          </div>
+
+          <div class="feature-card animate-fade-in">
+            <div class="feature-icon">
+              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+              </svg>
+            </div>
+            <h3>Military-Grade Security</h3>
+            <p>256-bit encryption, perfect forward secrecy, and cutting-edge cryptography protect every byte.</p>
+          </div>
+
+          <div class="feature-card animate-fade-in">
+            <div class="feature-icon">
+              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <h3>Global Coverage</h3>
+            <p>Servers in strategic locations worldwide, optimized for speed and reliability.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Technology Stack Section -->
+    <section class="section" style="background-color: var(--bg-secondary);">
+      <div class="container">
+        <div class="section-header">
+          <h2>Built with Modern Technology</h2>
+          <p>Enterprise-grade infrastructure powering your security</p>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="card hover-lift">
+            <div class="card-body">
+              <h3 class="mb-4">🔐 WireGuard Protocol</h3>
+              <p>Next-generation VPN protocol with state-of-the-art cryptography. Faster, simpler, and more secure than traditional protocols.</p>
+            </div>
+          </div>
+
+          <div class="card hover-lift">
+            <div class="card-body">
+              <h3 class="mb-4">☁️ Cloud Infrastructure</h3>
+              <p>Deployed on Microsoft Azure for maximum reliability, scalability, and global reach with 99.9% uptime guarantee.</p>
+            </div>
+          </div>
+
+          <div class="card hover-lift">
+            <div class="card-body">
+              <h3 class="mb-4">⚡ FastAPI Backend</h3>
+              <p>Modern Python framework delivering blazing-fast API responses and efficient resource utilization.</p>
+            </div>
+          </div>
+
+          <div class="card hover-lift">
+            <div class="card-body">
+              <h3 class="mb-4">🗄️ PostgreSQL Database</h3>
+              <p>Enterprise-grade database ensuring your account data is secure, consistent, and always available.</p>
+            </div>
+          </div>
+
+          <div class="card hover-lift">
+            <div class="card-body">
+              <h3 class="mb-4">🔄 CI/CD Pipeline</h3>
+              <p>Continuous integration and deployment ensure you always get the latest features and security updates.</p>
+            </div>
+          </div>
+
+          <div class="card hover-lift">
+            <div class="card-body">
+              <h3 class="mb-4">📊 Real-time Monitoring</h3>
+              <p>24/7 server monitoring and automated health checks keep your connection stable and secure.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Values Section -->
+    <section class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>Our Core Values</h2>
+          <p>The principles that guide everything we do</p>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card card-body">
+            <h3 class="text-gradient mb-4">🕵️ Zero Logging</h3>
+            <p class="mb-4">We don't track, log, or store any of your online activity. Your browsing history, IP addresses, DNS queries, and connection metadata are never recorded.</p>
+            <p class="text-muted">What you do online is your business, not ours.</p>
+          </div>
+
+          <div class="card card-body">
+            <h3 class="text-gradient mb-4">🛡️ Transparency</h3>
+            <p class="mb-4">Open source components, regular security audits, and clear privacy policies. We believe in earning your trust through transparency.</p>
+            <p class="text-muted">No hidden terms, no dark patterns, no surprises.</p>
+          </div>
+
+          <div class="card card-body">
+            <h3 class="text-gradient mb-4">⚙️ Simplicity</h3>
+            <p class="mb-4">VPN protection should be one click away. We've built SecureWave to be powerful yet simple, with no complex configuration required.</p>
+            <p class="text-muted">Connect and forget - we handle the complexity.</p>
+          </div>
+
+          <div class="card card-body">
+            <h3 class="text-gradient mb-4">🌍 Accessibility</h3>
+            <p class="mb-4">Privacy shouldn't be a luxury. We offer competitive pricing and a forever-free tier so everyone can protect their online privacy.</p>
+            <p class="text-muted">Security for all, not just the few.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Team/Story Section -->
+    <section class="section" style="background: var(--gradient-hero);">
+      <div class="container">
+        <div class="container-sm" style="text-align: center;">
+          <h2 class="mb-6">Built by Privacy Advocates</h2>
+          <p class="mb-8" style="font-size: var(--font-size-lg); color: var(--text-secondary);">
+            SecureWave was created by a team of security engineers and privacy advocates who were frustrated with complex, slow, and invasive VPN services. We built the VPN we wanted to use ourselves - fast, simple, and genuinely private.
+          </p>
+          <p style="font-size: var(--font-size-lg); color: var(--text-secondary);">
+            Today, we're proud to help thousands of users protect their online privacy, whether they're securing their home network, protecting sensitive work data, or simply browsing freely without surveillance.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="section">
+      <div class="container text-center">
+        <h2 class="mb-4">Ready to Protect Your Privacy?</h2>
+        <p class="mb-8" style="font-size: var(--font-size-lg); color: var(--text-secondary); max-width: 600px; margin-left: auto; margin-right: auto;">
+          Join thousands of users who trust SecureWave to keep their online activity private and secure.
+        </p>
+        <div style="display: flex; gap: var(--space-4); justify-content: center; flex-wrap: wrap;">
+          <a href="/register.html" class="btn btn-primary btn-lg">Get Started Free</a>
+          <a href="/services.html" class="btn btn-secondary btn-lg">Learn More</a>
         </div>
       </div>
     </section>
   </main>
 
-  <script type="module" src="/js/main.js"></script>
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
 </body>
 </html>
