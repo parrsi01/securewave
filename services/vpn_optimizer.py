@@ -412,8 +412,36 @@ def get_vpn_optimizer() -> VPNOptimizer:
     return _optimizer_instance
 
 
+def load_servers_from_database(optimizer: VPNOptimizer, db):
+    """Load VPN servers from database into optimizer"""
+    from models.vpn_server import VPNServer
+
+    servers = db.query(VPNServer).filter(
+        VPNServer.status.in_(["active", "demo"])
+    ).all()
+
+    loaded_count = 0
+    for server in servers:
+        optimizer.add_server(
+            server_id=server.server_id,
+            location=server.location,
+            initial_metrics={
+                "latency_ms": server.latency_ms or 50.0,
+                "bandwidth_mbps": server.bandwidth_in_mbps or 1000.0,
+                "cpu_load": server.cpu_load or 0.3,
+                "active_connections": server.current_connections or 0,
+                "packet_loss": server.packet_loss or 0.0,
+                "jitter_ms": server.jitter_ms or 2.0,
+                "security_score": 0.95,  # Could be calculated from server config
+            }
+        )
+        loaded_count += 1
+
+    return loaded_count
+
+
 def _initialize_demo_servers(optimizer: VPNOptimizer):
-    """Initialize demo servers for testing"""
+    """Initialize demo servers for testing (deprecated - use load_servers_from_database)"""
     demo_servers = [
         {"id": "us-east-1", "location": "New York", "latency": 25, "bandwidth": 1000},
         {"id": "us-west-1", "location": "San Francisco", "latency": 30, "bandwidth": 1000},

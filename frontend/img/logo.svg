@@ -1,32 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
-  <!-- Gradient Definitions -->
+  <!-- Gradient Definitions - Indigo/Purple Theme -->
   <defs>
-    <linearGradient id="waveGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#5eead4;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#2dd4bf;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#14b8a6;stop-opacity:1" />
+    <!-- Primary Gradient (Indigo to Purple) -->
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
     </linearGradient>
 
-    <linearGradient id="waveGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#14b8a6;stop-opacity:0.8" />
-      <stop offset="100%" style="stop-color:#0d9488;stop-opacity:0.8" />
+    <!-- Secondary Gradient (Lighter Purple) -->
+    <linearGradient id="secondaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a78bfa;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#c084fc;stop-opacity:0.8" />
     </linearGradient>
 
-    <linearGradient id="wifiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.9" />
-      <stop offset="100%" style="stop-color:#5eead4;stop-opacity:0.9" />
+    <!-- Shield Gradient (Deep Purple) -->
+    <linearGradient id="shieldGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
     </linearGradient>
 
+    <!-- Glow Effect -->
     <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
 
+    <!-- Strong Glow for Key Elements -->
     <filter id="strongGlow">
-      <feGaussianBlur stdDeviation="5" result="coloredBlur"/>
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
         <feMergeNode in="SourceGraphic"/>
@@ -34,93 +39,118 @@
     </filter>
   </defs>
 
-  <!-- Main Wave Shape (3 Layered Waves) -->
-  <!-- Back Wave (Largest, most transparent) -->
-  <path d="M 30 120 Q 50 80, 70 90 T 110 100 T 150 90 T 170 110 L 170 160 Q 100 180, 30 160 Z"
-        fill="url(#waveGrad2)"
-        opacity="0.3"/>
+  <!-- Main Shield Shape -->
+  <g transform="translate(100, 100)">
+    <!-- Shield Background -->
+    <path d="M 0 -70
+             L 35 -55 C 45 -50, 50 -40, 50 -25
+             L 50 30 C 50 45, 40 58, 25 65
+             L 0 75
+             L -25 65 C -40 58, -50 45, -50 30
+             L -50 -25 C -50 -40, -45 -50, -35 -55
+             Z"
+          fill="url(#shieldGrad)"
+          filter="url(#glow)"
+          opacity="0.95"/>
 
-  <!-- Middle Wave -->
-  <path d="M 30 130 Q 50 95, 70 105 T 110 115 T 150 105 T 170 125 L 170 165 Q 100 180, 30 165 Z"
-        fill="url(#waveGrad2)"
-        opacity="0.5"/>
-
-  <!-- Front Wave (Most prominent) -->
-  <path d="M 30 140 Q 50 110, 70 120 T 110 130 T 150 120 T 170 140 L 170 170 Q 100 185, 30 170 Z"
-        fill="url(#waveGrad1)"
-        filter="url(#glow)"/>
-
-  <!-- WiFi Signal Icon (Centered above waves) -->
-  <!-- WiFi signal emanates from center -->
-  <g transform="translate(100, 80)">
-    <!-- WiFi base point (dot) -->
-    <circle cx="0" cy="15" r="4" fill="url(#wifiGrad)" filter="url(#strongGlow)"/>
-
-    <!-- WiFi arc 1 (smallest, strongest signal) -->
-    <path d="M -12 8 Q 0 -2, 12 8"
+    <!-- Shield Border Accent -->
+    <path d="M 0 -70
+             L 35 -55 C 45 -50, 50 -40, 50 -25
+             L 50 30 C 50 45, 40 58, 25 65
+             L 0 75
+             L -25 65 C -40 58, -50 45, -50 30
+             L -50 -25 C -50 -40, -45 -50, -35 -55
+             Z"
           fill="none"
-          stroke="url(#wifiGrad)"
-          stroke-width="3.5"
-          stroke-linecap="round"
-          filter="url(#glow)"/>
-
-    <!-- WiFi arc 2 (medium) -->
-    <path d="M -22 12 Q 0 -10, 22 12"
-          fill="none"
-          stroke="url(#wifiGrad)"
-          stroke-width="3"
-          stroke-linecap="round"
-          opacity="0.85"
-          filter="url(#glow)"/>
-
-    <!-- WiFi arc 3 (largest, weakest signal) -->
-    <path d="M -32 18 Q 0 -18, 32 18"
-          fill="none"
-          stroke="url(#wifiGrad)"
+          stroke="url(#primaryGrad)"
           stroke-width="2.5"
-          stroke-linecap="round"
-          opacity="0.7"
-          filter="url(#glow)"/>
+          opacity="0.7"/>
+
+    <!-- VPN Signal Waves (Three Curved Lines) -->
+    <g transform="translate(0, -5)">
+      <!-- Inner Wave (Strongest) -->
+      <path d="M -15 -10 Q 0 -20, 15 -10"
+            fill="none"
+            stroke="url(#primaryGrad)"
+            stroke-width="4"
+            stroke-linecap="round"
+            filter="url(#strongGlow)"/>
+
+      <!-- Middle Wave -->
+      <path d="M -25 0 Q 0 -15, 25 0"
+            fill="none"
+            stroke="url(#primaryGrad)"
+            stroke-width="3.5"
+            stroke-linecap="round"
+            opacity="0.85"
+            filter="url(#glow)"/>
+
+      <!-- Outer Wave (Widest) -->
+      <path d="M -35 10 Q 0 -10, 35 10"
+            fill="none"
+            stroke="url(#secondaryGrad)"
+            stroke-width="3"
+            stroke-linecap="round"
+            opacity="0.7"
+            filter="url(#glow)"/>
+    </g>
+
+    <!-- Lock Icon (Security Symbol) -->
+    <g transform="translate(0, 25)">
+      <!-- Lock Body -->
+      <rect x="-12" y="5" width="24" height="20" rx="3"
+            fill="url(#primaryGrad)"
+            filter="url(#glow)"/>
+
+      <!-- Lock Shackle -->
+      <path d="M -8 5 L -8 0 C -8 -6, -4 -10, 0 -10 C 4 -10, 8 -6, 8 0 L 8 5"
+            fill="none"
+            stroke="url(#primaryGrad)"
+            stroke-width="3.5"
+            stroke-linecap="round"
+            filter="url(#glow)"/>
+
+      <!-- Lock Keyhole -->
+      <circle cx="0" cy="13" r="3" fill="rgba(255,255,255,0.9)"/>
+      <rect x="-1.5" y="15" width="3" height="6" rx="1.5" fill="rgba(255,255,255,0.9)"/>
+    </g>
+
+    <!-- Decorative Light Particles -->
+    <g opacity="0.8">
+      <circle cx="-30" cy="-35" r="2" fill="#c084fc">
+        <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="30" cy="-35" r="2" fill="#a78bfa">
+        <animate attributeName="opacity" values="0.4;1;0.4" dur="2.5s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="-38" cy="0" r="1.5" fill="#8b5cf6">
+        <animate attributeName="opacity" values="0.3;1;0.3" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="38" cy="0" r="1.5" fill="#a855f7">
+        <animate attributeName="opacity" values="0.3;1;0.3" dur="2.8s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- Data Flow Lines (Abstract) -->
+    <g opacity="0.5">
+      <path d="M -20 50 L -15 55" stroke="#c084fc" stroke-width="2" stroke-linecap="round">
+        <animate attributeName="opacity" values="0;1;0" dur="1.5s" repeatCount="indefinite"/>
+      </path>
+      <path d="M 20 50 L 15 55" stroke="#a78bfa" stroke-width="2" stroke-linecap="round">
+        <animate attributeName="opacity" values="0;1;0" dur="1.8s" repeatCount="indefinite"/>
+      </path>
+    </g>
+
+    <!-- Center Glow Point -->
+    <circle cx="0" cy="-15" r="2.5" fill="#ffffff" opacity="0.9" filter="url(#strongGlow)">
+      <animate attributeName="r" values="2.5;3.5;2.5" dur="2s" repeatCount="indefinite"/>
+    </circle>
   </g>
 
-  <!-- Decorative Wave Crest Highlights -->
-  <path d="M 70 120 Q 80 115, 90 120"
-        fill="none"
-        stroke="rgba(255, 255, 255, 0.4)"
-        stroke-width="2"
-        stroke-linecap="round"/>
-
-  <path d="M 110 130 Q 120 125, 130 130"
-        fill="none"
-        stroke="rgba(255, 255, 255, 0.4)"
-        stroke-width="2"
-        stroke-linecap="round"/>
-
-  <!-- Security Lock Integrated into Wave -->
-  <g transform="translate(140, 145)" opacity="0.7">
-    <!-- Mini lock body -->
-    <rect x="0" y="4" width="12" height="10" rx="2"
-          fill="url(#wifiGrad)" opacity="0.8"/>
-    <!-- Mini lock shackle -->
-    <path d="M 3 4 L 3 2 Q 3 0 6 0 Q 9 0 9 2 L 9 4"
+  <!-- Subtle Outer Ring -->
+  <circle cx="100" cy="100" r="82"
           fill="none"
-          stroke="url(#wifiGrad)"
-          stroke-width="2"
-          stroke-linecap="round"
-          opacity="0.8"/>
-  </g>
-
-  <!-- Particle Effects (Optional - small dots for dynamic feel) -->
-  <circle cx="45" cy="125" r="1.5" fill="#5eead4" opacity="0.6">
-    <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="85" cy="108" r="1.5" fill="#2dd4bf" opacity="0.6">
-    <animate attributeName="opacity" values="0.6;1;0.6" dur="2.5s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="125" cy="118" r="1.5" fill="#14b8a6" opacity="0.6">
-    <animate attributeName="opacity" values="0.6;1;0.6" dur="3s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="155" cy="112" r="1.5" fill="#5eead4" opacity="0.6">
-    <animate attributeName="opacity" values="0.6;1;0.6" dur="2.2s" repeatCount="indefinite"/>
-  </circle>
+          stroke="url(#secondaryGrad)"
+          stroke-width="1.5"
+          opacity="0.3"/>
 </svg>

@@ -26,19 +26,19 @@ function checkAuthState() {
 
   if (token) {
     // User is logged in
-    if (loginBtn) loginBtn.classList.add('d-none');
-    if (registerBtn) registerBtn.classList.add('d-none');
+    if (loginBtn) loginBtn.classList.add('hidden');
+    if (registerBtn) registerBtn.classList.add('hidden');
     if (logoutBtn) {
-      logoutBtn.classList.remove('d-none');
+      logoutBtn.classList.remove('hidden');
       logoutBtn.addEventListener('click', logout);
     }
-    if (dashLink) dashLink.classList.remove('d-none');
+    if (dashLink) dashLink.classList.remove('hidden');
   } else {
     // User is not logged in
-    if (loginBtn) loginBtn.classList.remove('d-none');
-    if (registerBtn) registerBtn.classList.remove('d-none');
-    if (logoutBtn) logoutBtn.classList.add('d-none');
-    if (dashLink) dashLink.classList.add('d-none');
+    if (loginBtn) loginBtn.classList.remove('hidden');
+    if (registerBtn) registerBtn.classList.remove('hidden');
+    if (logoutBtn) logoutBtn.classList.add('hidden');
+    if (dashLink) dashLink.classList.add('hidden');
   }
 }
 

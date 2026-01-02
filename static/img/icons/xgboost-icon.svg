@@ -1,0 +1,23 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- XGBoost - Gradient Boosted Decision Trees -->
+  <circle cx="32" cy="12" r="4" fill="#5eead4"/>
+  <circle cx="20" cy="28" r="3.5" fill="#2dd4bf"/>
+  <circle cx="44" cy="28" r="3.5" fill="#2dd4bf"/>
+  <circle cx="12" cy="44" r="3" fill="#14b8a6"/>
+  <circle cx="28" cy="44" r="3" fill="#14b8a6"/>
+  <circle cx="36" cy="44" r="3" fill="#14b8a6"/>
+  <circle cx="52" cy="44" r="3" fill="#14b8a6"/>
+
+  <!-- Tree connections -->
+  <line x1="32" y1="16" x2="20" y2="24" stroke="#2dd4bf" stroke-width="2"/>
+  <line x1="32" y1="16" x2="44" y2="24" stroke="#2dd4bf" stroke-width="2"/>
+  <line x1="20" y1="31" x2="12" y2="41" stroke="#14b8a6" stroke-width="2"/>
+  <line x1="20" y1="31" x2="28" y2="41" stroke="#14b8a6" stroke-width="2"/>
+  <line x1="44" y1="31" x2="36" y2="41" stroke="#14b8a6" stroke-width="2"/>
+  <line x1="44" y1="31" x2="52" y2="41" stroke="#14b8a6" stroke-width="2"/>
+
+  <!-- Boost arrows -->
+  <path d="M 54 16 L 58 16 L 56 14 M 58 16 L 56 18" stroke="#5eead4" stroke-width="2" fill="none"/>
+  <path d="M 54 24 L 58 24 L 56 22 M 58 24 L 56 26" stroke="#2dd4bf" stroke-width="2" fill="none"/>
+  <path d="M 54 32 L 58 32 L 56 30 M 58 32 L 56 34" stroke="#14b8a6" stroke-width="2" fill="none"/>
+</svg>

@@ -3,153 +3,385 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Register • SecureWave VPN</title>
+  <title>Register - SecureWave VPN</title>
+  <meta name="description" content="Create your SecureWave VPN account and start protecting your privacy with military-grade encryption and zero-log policy.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
 </head>
 <body>
+  <!-- Skip to main content for accessibility -->
+  <a href="#main-content" class="skip-to-main">Skip to main content</a>
+
   <!-- Navigation -->
   <nav class="navbar">
     <div class="navbar-container">
       <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN">
+        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
         <span>SecureWave</span>
       </a>
+
       <ul class="navbar-menu">
         <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Features</a></li>
-        <li><a href="/vpn.html">VPN Config</a></li>
+        <li><a href="/services.html">Services</a></li>
         <li><a href="/subscription.html">Pricing</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm">Login</a></li>
+        <li><a href="/about.html">About</a></li>
+        <li><a href="/contact.html">Contact</a></li>
+        <li><a href="/login.html" class="btn btn-sm btn-primary">Login</a></li>
       </ul>
+
+      <!-- Mobile menu toggle -->
+      <button class="navbar-toggle" aria-label="Toggle navigation menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </div>
   </nav>
 
   <!-- Auth Section -->
-  <section class="auth-section">
-    <div class="container-sm">
-      <div class="auth-header">
-        <div class="badge">
-          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-          </svg>
-          Start Your Free Trial
-        </div>
-        <h1>Create Your Account</h1>
-        <p style="font-size: 1.125rem; color: var(--gray-500); margin-top: 0.5rem;">
-          Join thousands of users protecting their privacy with SecureWave VPN
-        </p>
-      </div>
-
-      <div class="auth-card">
-        <form id="registerForm">
-          <div class="form-group">
-            <label for="email">Email Address</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              placeholder="you@example.com"
-              required
-              autocomplete="email"
-            >
+  <main id="main-content">
+    <section class="auth-section">
+      <div class="container-sm">
+        <div class="auth-header">
+          <div class="badge">
+            <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Start Your Free Trial
           </div>
-
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              placeholder="Create a strong password"
-              required
-              autocomplete="new-password"
-              minlength="8"
-            >
-            <small style="color: var(--gray-500); font-size: 0.875rem;">Minimum 8 characters required</small>
-          </div>
-
-          <button type="submit" class="btn btn-primary btn-block btn-lg">
-            Create Account
-          </button>
-        </form>
-
-        <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--gray-200);">
-          <p style="margin: 0; color: var(--gray-600);">
-            Already have an account?
-            <a href="/login.html" style="color: var(--primary-600); font-weight: 600; text-decoration: none;">Login here</a>
+          <h1>Create Your Account</h1>
+          <p style="font-size: 1.125rem; color: var(--text-secondary); margin-top: 0.5rem;">
+            Join thousands of users protecting their privacy with SecureWave VPN
           </p>
         </div>
-      </div>
 
-      <!-- Benefits Grid -->
-      <div class="grid grid-2" style="gap: 1.5rem; margin-top: 2rem;">
-        <div class="card">
-          <div class="card-body">
-            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-              <div class="feature-icon" style="width: 48px; height: 48px; margin-bottom: 0;">
-                <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                </svg>
+        <div class="auth-card">
+          <form id="registerForm">
+            <!-- Email Field -->
+            <div class="form-group">
+              <label for="email">Email Address <span style="color: var(--error);">*</span></label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                placeholder="you@example.com"
+                required
+                autocomplete="email"
+                aria-required="true"
+              >
+              <span class="form-error-message hidden" id="email-error">Please enter a valid email address</span>
+            </div>
+
+            <!-- Password Field with Toggle -->
+            <div class="form-group">
+              <label for="password">Password <span style="color: var(--error);">*</span></label>
+              <div class="password-toggle">
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  placeholder="Create a strong password"
+                  required
+                  autocomplete="new-password"
+                  aria-required="true"
+                  aria-describedby="password-requirements"
+                >
+                <button type="button" class="password-toggle-btn" id="togglePassword" aria-label="Toggle password visibility">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="eyeIcon">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                </button>
               </div>
-              <div>
-                <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700; color: var(--gray-900);">Flexible Payments</h3>
+              <span class="form-error-message hidden" id="password-error">Please enter a password</span>
+            </div>
+
+            <!-- Password Strength Indicator -->
+            <div class="password-strength-container" id="strengthContainer" style="display: none;">
+              <div class="password-strength-label">
+                <span>Password Strength:</span>
+                <span id="strengthText" class="password-strength-text">Weak</span>
+              </div>
+              <div class="password-strength-bar">
+                <div class="password-strength-progress" id="strengthBar"></div>
               </div>
             </div>
-            <p style="color: var(--gray-600); margin: 0; line-height: 1.75;">Integrated with Stripe and PayPal for secure subscription management and instant activation</p>
-          </div>
-        </div>
 
-        <div class="card">
-          <div class="card-body">
-            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-              <div class="feature-icon" style="width: 48px; height: 48px; margin-bottom: 0;">
-                <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            <!-- Password Requirements Checklist -->
+            <div class="password-requirements" id="password-requirements">
+              <div class="requirement" id="req-length">
+                <svg class="requirement-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
+                <span>At least 8 characters</span>
               </div>
-              <div>
-                <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700; color: var(--gray-900);">Instant Setup</h3>
+              <div class="requirement" id="req-uppercase">
+                <svg class="requirement-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                <span>One uppercase letter</span>
+              </div>
+              <div class="requirement" id="req-lowercase">
+                <svg class="requirement-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                <span>One lowercase letter</span>
+              </div>
+              <div class="requirement" id="req-number">
+                <svg class="requirement-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                <span>One number</span>
+              </div>
+              <div class="requirement" id="req-special">
+                <svg class="requirement-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                <span>One special character (!@#$%^&*)</span>
               </div>
             </div>
-            <p style="color: var(--gray-600); margin: 0; line-height: 1.75;">Generate your WireGuard config immediately after registration with QR code support</p>
-          </div>
-        </div>
-      </div>
 
-      <!-- Features List -->
-      <div class="card" style="margin-top: 2rem; background: linear-gradient(145deg, var(--primary-50) 0%, var(--white) 100%); border: 1px solid var(--primary-200);">
-        <div class="card-body">
-          <h3 style="text-align: center; margin-bottom: 2rem; color: var(--primary-900); font-weight: 700;">What You Get with SecureWave</h3>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
-            <div class="badge" style="justify-content: center;">50+ Global Servers</div>
-            <div class="badge" style="justify-content: center;">Unlimited Bandwidth</div>
-            <div class="badge" style="justify-content: center;">AI Server Selection</div>
-            <div class="badge" style="justify-content: center;">Multi-Device Support</div>
-            <div class="badge" style="justify-content: center;">24/7 Support</div>
-            <div class="badge" style="justify-content: center;">Zero Logs Policy</div>
-          </div>
-          <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--primary-200);">
-            <p style="color: var(--primary-700); font-size: 0.875rem; margin: 0; font-weight: 500;">
-              No credit card required for trial • 30-day money-back guarantee • Cancel anytime
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary btn-block btn-lg" id="submitBtn">
+              Create Account
+            </button>
+
+            <!-- Error Alert -->
+            <div class="alert alert-error mt-6 hidden" id="errorAlert">
+              <div class="alert-content">
+                <div class="alert-title">Registration Failed</div>
+                <div class="alert-message" id="errorMessage">An error occurred. Please try again.</div>
+              </div>
+            </div>
+          </form>
+
+          <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-primary);">
+            <p style="margin: 0; color: var(--text-secondary);">
+              Already have an account?
+              <a href="/login.html" style="color: var(--primary-600); font-weight: 600; text-decoration: none;">Login here</a>
             </p>
           </div>
         </div>
+
+        <!-- Benefits Grid -->
+        <div class="grid grid-2" style="gap: 1.5rem; margin-top: 2rem;">
+          <div class="card hover-lift">
+            <div class="card-body">
+              <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                <div class="feature-icon" style="width: 48px; height: 48px; margin-bottom: 0;">
+                  <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700; color: var(--text-primary);">Flexible Payments</h3>
+                </div>
+              </div>
+              <p style="color: var(--text-secondary); margin: 0; line-height: 1.75;">Integrated with Stripe and PayPal for secure subscription management and instant activation</p>
+            </div>
+          </div>
+
+          <div class="card hover-lift">
+            <div class="card-body">
+              <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                <div class="feature-icon" style="width: 48px; height: 48px; margin-bottom: 0;">
+                  <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700; color: var(--text-primary);">Instant Setup</h3>
+                </div>
+              </div>
+              <p style="color: var(--text-secondary); margin: 0; line-height: 1.75;">Generate your WireGuard config immediately after registration with QR code support</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Features List -->
+        <div class="card hover-lift" style="margin-top: 2rem; background: linear-gradient(145deg, var(--primary-50) 0%, var(--bg-primary) 100%); border: 1px solid var(--primary-200);">
+          <div class="card-body">
+            <h3 style="text-align: center; margin-bottom: 2rem; color: var(--primary-900); font-weight: 700;">What You Get with SecureWave</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+              <div class="badge" style="justify-content: center;">
+                <svg style="width: 16px; height: 16px; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                50+ Global Servers
+              </div>
+              <div class="badge" style="justify-content: center;">
+                <svg style="width: 16px; height: 16px; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Unlimited Bandwidth
+              </div>
+              <div class="badge" style="justify-content: center;">
+                <svg style="width: 16px; height: 16px; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                AI Server Selection
+              </div>
+              <div class="badge" style="justify-content: center;">
+                <svg style="width: 16px; height: 16px; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Multi-Device Support
+              </div>
+              <div class="badge" style="justify-content: center;">
+                <svg style="width: 16px; height: 16px; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                24/7 Support
+              </div>
+              <div class="badge" style="justify-content: center;">
+                <svg style="width: 16px; height: 16px; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Zero Logs Policy
+              </div>
+            </div>
+            <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--primary-200);">
+              <p style="color: var(--primary-700); font-size: 0.875rem; margin: 0; font-weight: 500;">
+                No credit card required for trial • 30-day money-back guarantee • Cancel anytime
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  </main>
 
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p style="font-size: 1rem; margin-bottom: 0.5rem;">© 2025 SecureWave VPN. Enterprise-grade security for everyone.</p>
-      <p style="font-size: 0.875rem;">Military-grade encryption • Zero-log policy • 24/7 support</p>
+      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
     </div>
   </footer>
 
   <script src="/js/main.js"></script>
   <script src="/js/auth.js"></script>
+  <script>
+    // Password visibility toggle and validation functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      const togglePassword = document.getElementById('togglePassword');
+      const passwordInput = document.getElementById('password');
+      const eyeIcon = document.getElementById('eyeIcon');
+      const strengthContainer = document.getElementById('strengthContainer');
+      const strengthBar = document.getElementById('strengthBar');
+      const strengthText = document.getElementById('strengthText');
+
+      // Password toggle functionality
+      if (togglePassword) {
+        togglePassword.addEventListener('click', function() {
+          const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+          passwordInput.setAttribute('type', type);
+
+          // Update icon
+          if (type === 'text') {
+            eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>';
+          } else {
+            eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>';
+          }
+        });
+      }
+
+      // Password strength and requirements validation
+      passwordInput.addEventListener('input', function() {
+        const password = this.value;
+
+        // Show/hide strength indicator
+        if (password.length > 0) {
+          strengthContainer.style.display = 'block';
+        } else {
+          strengthContainer.style.display = 'none';
+        }
+
+        // Check requirements
+        const hasLength = password.length >= 8;
+        const hasUppercase = /[A-Z]/.test(password);
+        const hasLowercase = /[a-z]/.test(password);
+        const hasNumber = /[0-9]/.test(password);
+        const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+        // Update requirement indicators
+        updateRequirement('req-length', hasLength);
+        updateRequirement('req-uppercase', hasUppercase);
+        updateRequirement('req-lowercase', hasLowercase);
+        updateRequirement('req-number', hasNumber);
+        updateRequirement('req-special', hasSpecial);
+
+        // Calculate password strength
+        let strength = 0;
+        if (hasLength) strength++;
+        if (hasUppercase) strength++;
+        if (hasLowercase) strength++;
+        if (hasNumber) strength++;
+        if (hasSpecial) strength++;
+
+        // Update strength bar and text
+        updateStrengthBar(strength);
+
+        // Clear error on input
+        this.closest('.form-group').classList.remove('error');
+        document.getElementById('password-error').classList.add('hidden');
+      });
+
+      function updateRequirement(id, met) {
+        const element = document.getElementById(id);
+        const icon = element.querySelector('.requirement-icon');
+
+        if (met) {
+          element.classList.add('met');
+          icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>';
+        } else {
+          element.classList.remove('met');
+          icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>';
+        }
+      }
+
+      function updateStrengthBar(strength) {
+        const percentage = (strength / 5) * 100;
+        strengthBar.style.width = percentage + '%';
+
+        // Remove all strength classes
+        strengthBar.classList.remove('weak', 'medium', 'strong');
+
+        if (strength <= 2) {
+          strengthBar.classList.add('weak');
+          strengthText.textContent = 'Weak';
+          strengthText.style.color = 'var(--error)';
+        } else if (strength <= 4) {
+          strengthBar.classList.add('medium');
+          strengthText.textContent = 'Medium';
+          strengthText.style.color = 'var(--warning)';
+        } else {
+          strengthBar.classList.add('strong');
+          strengthText.textContent = 'Strong';
+          strengthText.style.color = 'var(--success)';
+        }
+      }
+
+      // Real-time email validation
+      const emailInput = document.getElementById('email');
+      emailInput.addEventListener('blur', function() {
+        const emailError = document.getElementById('email-error');
+        if (this.value && !this.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+          this.closest('.form-group').classList.add('error');
+          emailError.classList.remove('hidden');
+        } else {
+          this.closest('.form-group').classList.remove('error');
+          emailError.classList.add('hidden');
+        }
+      });
+
+      // Clear error on input
+      emailInput.addEventListener('input', function() {
+        this.closest('.form-group').classList.remove('error');
+        document.getElementById('email-error').classList.add('hidden');
+      });
+    });
+  </script>
 </body>
 </html>

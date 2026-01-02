@@ -1,5 +1,80 @@
-<svg width="140" height="40" viewBox="0 0 140 40" xmlns="http://www.w3.org/2000/svg" fill="none">
-  <rect x="1" y="1" width="138" height="38" rx="8" fill="#0a0f24" stroke="#00e5ff" stroke-width="2"/>
-  <path d="M20 28c4-6 6-9 10-9 4 0 6 3 10 9 4-6 6-9 10-9s6 3 10 9" stroke="#00e5ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="72" y="25" fill="#00e5ff" font-family="'Space Grotesk', 'Segoe UI', sans-serif" font-size="16" font-weight="700">SecureWave</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#E9D5FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#C4B5FD;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9333EA;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6B46C1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle with glow -->
+  <circle cx="100" cy="100" r="90" fill="url(#shieldGradient)" opacity="0.15"/>
+
+  <!-- Main Shield Shape -->
+  <path d="M 100 25 L 165 48 L 165 105 Q 165 150 100 175 Q 35 150 35 105 L 35 48 Z"
+        fill="url(#shieldGradient)"
+        stroke="url(#accentGradient)"
+        stroke-width="3"
+        filter="drop-shadow(0 4px 12px rgba(147, 51, 234, 0.4))"/>
+
+  <!-- Signal Wave Layers (centered on shield) -->
+  <g transform="translate(100, 85)">
+    <!-- Outer wave arc -->
+    <path d="M -35 15 Q -35 -25, 0 -40 Q 35 -25, 35 15"
+          stroke="#6B46C1"
+          stroke-width="4"
+          fill="none"
+          stroke-linecap="round"
+          opacity="0.9"/>
+
+    <!-- Middle wave arc -->
+    <path d="M -22 12 Q -22 -8, 0 -18 Q 22 -8, 22 12"
+          stroke="#7C3AED"
+          stroke-width="4"
+          fill="none"
+          stroke-linecap="round"/>
+
+    <!-- Inner wave arc -->
+    <path d="M -11 9 Q -11 2, 0 -3 Q 11 2, 11 9"
+          stroke="#9333EA"
+          stroke-width="4"
+          fill="none"
+          stroke-linecap="round"/>
+
+    <!-- Center signal dot -->
+    <circle cx="0" cy="14" r="5" fill="#9333EA"/>
+  </g>
+
+  <!-- Lock Icon (security symbol) -->
+  <g transform="translate(100, 135)">
+    <!-- Lock body -->
+    <rect x="-12" y="2" width="24" height="20" rx="2"
+          fill="url(#accentGradient)"
+          stroke="#FFFFFF"
+          stroke-width="1.5"/>
+
+    <!-- Lock shackle -->
+    <path d="M -8 2 L -8 -5 Q -8 -12, 0 -12 Q 8 -12, 8 -5 L 8 2"
+          stroke="url(#accentGradient)"
+          stroke-width="3"
+          fill="none"
+          stroke-linecap="round"/>
+
+    <!-- Keyhole -->
+    <circle cx="0" cy="9" r="3" fill="#FFFFFF"/>
+    <rect x="-1.5" y="9" width="3" height="7" fill="#FFFFFF" rx="1"/>
+  </g>
+
+  <!-- Optional brand text -->
+  <text x="100" y="195"
+        text-anchor="middle"
+        font-family="Inter, Arial, sans-serif"
+        font-size="11"
+        font-weight="800"
+        fill="#FFFFFF"
+        letter-spacing="1">SECUREWAVE</text>
 </svg>

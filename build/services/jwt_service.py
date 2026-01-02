@@ -1,4 +1,5 @@
 import os
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -10,11 +11,31 @@ from sqlalchemy.orm import Session
 from database.session import get_db
 from models.user import User
 
+logger = logging.getLogger(__name__)
+
+# Load JWT secrets
 ACCESS_SECRET = os.getenv("ACCESS_TOKEN_SECRET", "dev_access_secret")
 REFRESH_SECRET = os.getenv("REFRESH_TOKEN_SECRET", "dev_refresh_secret")
 ALGORITHM = "HS256"
 ACCESS_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 REFRESH_EXPIRE_MINUTES = int(os.getenv("REFRESH_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 14)))
+
+# Validate secrets in production
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+if ENVIRONMENT == "production":
+    if ACCESS_SECRET == "dev_access_secret" or REFRESH_SECRET == "dev_refresh_secret":
+        raise RuntimeError(
+            "CRITICAL SECURITY ERROR: Production requires secure ACCESS_TOKEN_SECRET and "
+            "REFRESH_TOKEN_SECRET environment variables. Default development secrets detected. "
+            "Generate secure secrets with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+        )
+    logger.info("JWT secrets validated for production environment")
+else:
+    if ACCESS_SECRET == "dev_access_secret" or REFRESH_SECRET == "dev_refresh_secret":
+        logger.warning(
+            "WARNING: Using default development JWT secrets. "
+            "This is acceptable in development but NEVER use these in production!"
+        )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 

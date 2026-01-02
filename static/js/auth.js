@@ -1,66 +1,128 @@
-import { setTokens } from './main.js';
+// Authentication handlers with correct API routes
 
-async function handleLogin() {
-  const form = document.getElementById('loginForm');
-  const message = document.getElementById('authMessage');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    message.textContent = '';
-    const payload = {
-      email: form.email.value,
-      password: form.password.value,
-    };
-    const res = await fetch('/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      message.textContent = data.detail || 'Login failed';
-      message.className = 'alert error';
-      return;
-    }
-    setTokens(data.access_token, data.refresh_token);
-    message.textContent = 'Login successful. Redirecting...';
-    message.className = 'alert';
-    setTimeout(() => window.location.href = '/dashboard.html', 800);
-  });
-}
-
-async function handleRegister() {
-  const form = document.getElementById('registerForm');
-  const message = document.getElementById('registerMessage');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    message.textContent = '';
-    const payload = {
-      email: form.email.value,
-      password: form.password.value,
-    };
-    const res = await fetch('/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      message.textContent = data.detail || 'Registration failed';
-      message.className = 'alert error';
-      return;
-    }
-    setTokens(data.access_token, data.refresh_token);
-    message.textContent = 'Account created. Redirecting...';
-    message.className = 'alert';
-    setTimeout(() => window.location.href = '/dashboard.html', 800);
-  });
-}
-
-export function initAuthPages() {
+document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('loginForm');
-  if (loginForm) handleLogin();
   const registerForm = document.getElementById('registerForm');
-  if (registerForm) handleRegister();
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleLogin);
+  }
+
+  if (registerForm) {
+    registerForm.addEventListener('submit', handleRegister);
+  }
+});
+
+async function handleLogin(e) {
+  e.preventDefault();
+
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Logging in...';
+
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.access_token) {
+      localStorage.setItem('access_token', data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
+      window.location.href = '/dashboard.html';
+    } else {
+      const errorMessage = getErrorMessage(data);
+      showAlert(errorMessage, 'error');
+    }
+  } catch (error) {
+    showAlert('Login failed. Please try again.', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Login to Dashboard';
+  }
 }
 
-document.addEventListener('DOMContentLoaded', initAuthPages);
+async function handleRegister(e) {
+  e.preventDefault();
+  
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Creating account...';
+
+  try {
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      // Registration now returns tokens directly, so store them and redirect to dashboard
+      localStorage.setItem('access_token', data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
+      showAlert('Account created successfully! Redirecting to dashboard...', 'success');
+      setTimeout(() => window.location.href = '/dashboard.html', 1500);
+    } else {
+      const errorMessage = getErrorMessage(data);
+      showAlert(errorMessage, 'error');
+    }
+  } catch (error) {
+    showAlert('Registration failed. Please try again.', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Create Account';
+  }
+}
+
+function getErrorMessage(data) {
+  // Handle different error response formats from FastAPI
+  if (typeof data.detail === 'string') {
+    return data.detail;
+  }
+
+  // Handle validation errors (array of error objects)
+  if (Array.isArray(data.detail)) {
+    return data.detail.map(err => err.msg || JSON.stringify(err)).join(', ');
+  }
+
+  // Handle object error details
+  if (typeof data.detail === 'object') {
+    if (data.detail.msg) {
+      return data.detail.msg;
+    }
+    return JSON.stringify(data.detail);
+  }
+
+  // Fallback error messages
+  if (data.message) {
+    return data.message;
+  }
+
+  return 'An error occurred. Please try again.';
+}
+
+function showAlert(message, type = 'info') {
+  const alert = document.createElement('div');
+  alert.className = `alert alert-${type}`;
+  alert.textContent = message;
+
+  const container = document.querySelector('.container-sm') || document.querySelector('.container');
+  container.insertBefore(alert, container.firstChild);
+
+  setTimeout(() => alert.remove(), 5000);
+}

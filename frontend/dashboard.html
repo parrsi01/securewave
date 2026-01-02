@@ -4,211 +4,560 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard • SecureWave VPN</title>
-  <link rel="stylesheet" href="/static/css/global.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/professional.css">
+  <style>
+    /* VPN Toggle Switch */
+    .vpn-toggle-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 2rem;
+      background: linear-gradient(135deg, var(--primary-50) 0%, var(--white) 100%);
+      border-radius: var(--radius-2xl);
+      border: 2px solid var(--primary-100);
+      margin-bottom: 2.5rem;
+    }
+
+    .vpn-status-text {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .vpn-status-text.connected {
+      color: var(--success);
+    }
+
+    .vpn-status-text.disconnected {
+      color: var(--gray-500);
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      margin-bottom: 2rem;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--gray-200);
+      border-radius: 50%;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 4px solid var(--gray-300);
+    }
+
+    .toggle-slider:before {
+      content: "OFF";
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--text-secondary);
+      transition: all 0.4s;
+    }
+
+    input:checked + .toggle-slider {
+      background: var(--gradient-primary);
+      border-color: var(--primary-600);
+      box-shadow: var(--shadow-glow), var(--shadow-xl);
+    }
+
+    input:checked + .toggle-slider:before {
+      content: "ON";
+      color: var(--white);
+    }
+
+    input:focus + .toggle-slider {
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2), var(--shadow-xl);
+    }
+
+    .connection-details {
+      text-align: center;
+      padding: 1.5rem;
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--gray-200);
+      margin-top: 1.5rem;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .connection-detail-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      margin: 0.5rem 0;
+      font-size: 1rem;
+      color: var(--gray-700);
+    }
+
+    .connection-detail-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 12px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+      }
+    }
+
+    .server-selector {
+      width: 100%;
+      max-width: 500px;
+      margin: 0 auto 2rem;
+    }
+
+    .server-selector label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--gray-700);
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .server-selector select {
+      width: 100%;
+      padding: 1rem 1.25rem;
+      font-size: 1.0625rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      background-color: var(--white);
+      border: 2px solid var(--gray-300);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all var(--transition-base);
+      font-family: var(--font-family);
+    }
+
+    .server-selector select:hover {
+      border-color: var(--primary-400);
+    }
+
+    .server-selector select:focus {
+      outline: none;
+      border-color: var(--primary-600);
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 2rem;
+    }
+
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1.5rem;
+      margin: 2.5rem 0;
+    }
+
+    .stat-box {
+      text-align: center;
+      padding: 1.5rem;
+      background: var(--white);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--gray-200);
+      transition: all var(--transition-base);
+    }
+
+    .stat-box:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--primary-200);
+    }
+
+    .stat-icon {
+      font-size: 2rem;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .section-divider {
+      margin: 3rem 0;
+      border: none;
+      border-top: 1px solid var(--gray-200);
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1.25rem;
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--gray-200);
+      transition: all var(--transition-base);
+    }
+
+    .feature-item:hover {
+      border-color: var(--primary-300);
+      box-shadow: var(--shadow-md);
+    }
+
+    .feature-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 12px var(--success);
+      flex-shrink: 0;
+      margin-top: 0.25rem;
+    }
+
+    .feature-content h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0 0 0.5rem 0;
+    }
+
+    .feature-content p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    /* Dashboard Alerts */
+    .dashboard-alert {
+      padding: 1rem 1.5rem;
+      border-radius: var(--radius-lg);
+      margin-bottom: 1.5rem;
+      font-weight: 500;
+      animation: slideInDown 0.3s ease-out;
+    }
+
+    @keyframes slideInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .alert-success {
+      background: rgba(34, 197, 94, 0.1);
+      color: #16a34a;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .alert-error {
+      background: rgba(239, 68, 68, 0.1);
+      color: #dc2626;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .alert-warning {
+      background: rgba(245, 158, 11, 0.1);
+      color: #d97706;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .alert-info {
+      background: rgba(59, 130, 246, 0.1);
+      color: #2563eb;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    /* Connection Status Colors */
+    .connection-status.connected {
+      color: var(--success);
+      font-weight: 700;
+    }
+
+    .connection-status.disconnected {
+      color: var(--gray-500);
+      font-weight: 600;
+    }
+
+    .connection-status.connecting,
+    .connection-status.disconnecting {
+      color: var(--primary-500);
+      font-weight: 600;
+    }
+  </style>
 </head>
 <body>
+  <!-- Skip to main content for accessibility -->
+  <a href="#main-content" class="skip-to-main">Skip to main content</a>
+
+  <!-- Navigation -->
   <nav class="navbar">
     <div class="navbar-container">
       <a href="/home.html" class="navbar-brand">
-        <img src="/static/img/logo.svg" alt="SecureWave VPN">
+        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
         <span>SecureWave</span>
       </a>
-      <button class="navbar-toggle" id="navToggle">☰</button>
-      <ul class="navbar-menu" id="navMenu">
+      <ul class="navbar-menu">
         <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Features</a></li>
-        <li><a href="/vpn.html">VPN Config</a></li>
+        <li><a href="/services.html">Services</a></li>
         <li><a href="/subscription.html">Pricing</a></li>
-        <li><a href="/dashboard.html" class="active">Dashboard</a></li>
-        <li><button class="btn btn-outline btn-sm" id="logoutBtn">Logout</button></li>
+        <li><a href="/about.html">About</a></li>
+        <li><a href="/contact.html">Contact</a></li>
+        <li><a href="/dashboard.html" aria-current="page">Dashboard</a></li>
+        <li><button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button></li>
       </ul>
+
+      <!-- Mobile menu toggle -->
+      <button class="navbar-toggle" aria-label="Toggle navigation menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </div>
   </nav>
 
-  <main>
-    <section class="container" style="padding: 3rem 0;">
-      <!-- Dashboard Header -->
-      <div class="dashboard-header">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
-          <div>
-            <div class="badge mb-3" style="display: inline-flex;">
-              <span style="margin-right: 8px;">🎯</span>
-              Control Center
-            </div>
-            <h1 style="margin-bottom: 0.5rem; font-size: 2.5rem;">Welcome Back</h1>
-            <p style="color: var(--gray-400); font-size: 1.125rem; margin: 0;">
-              Manage your VPN configuration and account settings
-            </p>
+  <!-- Main Content -->
+  <main id="main-content">
+    <section class="container" style="padding: 3rem 0 4rem;">
+
+      <!-- Page Header -->
+      <div style="text-align: center; margin-bottom: 3rem;">
+        <div class="badge" style="display: inline-flex; margin-bottom: 1rem;">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+          VPN Control Center
+        </div>
+        <h1 style="font-size: 2.5rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.75rem;">
+          Welcome Back, <span id="userName">User</span>
+        </h1>
+        <p style="font-size: 1.125rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto;">
+          Manage your VPN connection and protect your digital identity with military-grade encryption
+        </p>
+      </div>
+
+      <!-- VPN Toggle Section -->
+      <div class="vpn-toggle-container">
+        <div class="vpn-status-text disconnected" id="statusText">DISCONNECTED</div>
+
+        <label class="toggle-switch">
+          <input type="checkbox" id="vpnToggle">
+          <span class="toggle-slider"></span>
+        </label>
+
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+          <div style="font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Status</div>
+          <div class="connection-status disconnected" id="connectionStatus">Disconnected</div>
+        </div>
+
+        <div class="server-selector">
+          <label for="serverSelect">Select VPN Server Location</label>
+          <select id="serverSelect">
+            <option value="">Loading servers...</option>
+          </select>
+        </div>
+
+        <div class="connection-details" id="connectionDetails" style="display: none;">
+          <div style="color: var(--gray-500); font-size: 0.9375rem;">
+            Select a server and toggle ON to connect
           </div>
-          <div>
-            <span class="badge badge-success" style="font-size: 1rem; padding: 0.75rem 1.5rem;">ACCOUNT ACTIVE</span>
-          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button class="btn btn-primary btn-lg" id="downloadConfigBtn" style="display: none;">
+            <svg style="width: 20px; height: 20px; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Download WireGuard Config
+          </button>
         </div>
       </div>
 
-      <!-- Main Grid -->
-      <div class="grid grid-3" style="margin-bottom: 2rem;">
-        <!-- Account Info Card -->
-        <div class="card">
-          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-            <div style="width: 50px; height: 50px; background: var(--gradient-primary); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; box-shadow: var(--shadow-glow);">👤</div>
-            <div>
-              <h3 style="margin: 0; margin-bottom: 0.25rem;">Your Account</h3>
-              <small style="color: var(--gray-400);">Profile Information</small>
-            </div>
+      <!-- Connection Statistics -->
+      <div class="stats-container">
+        <div class="stat-box">
+          <span class="stat-icon">⚡</span>
+          <div class="stat-value" id="statLatency">--</div>
+          <div class="stat-label">Latency (ms)</div>
+        </div>
+        <div class="stat-box">
+          <span class="stat-icon">📊</span>
+          <div class="stat-value" id="statBandwidth">--</div>
+          <div class="stat-label">Bandwidth (Mbps)</div>
+        </div>
+        <div class="stat-box">
+          <span class="stat-icon">🌍</span>
+          <div class="stat-value" id="statLocation">--</div>
+          <div class="stat-label">Server Location</div>
+        </div>
+        <div class="stat-box">
+          <span class="stat-icon">🔒</span>
+          <div class="stat-value" id="statEncryption">ChaCha20</div>
+          <div class="stat-label">Encryption</div>
+        </div>
+      </div>
+
+      <hr class="section-divider">
+
+      <!-- Account Information -->
+      <div style="background: var(--gray-50); padding: 2rem; border-radius: var(--radius-xl); border: 1px solid var(--gray-200); margin-bottom: 2.5rem;">
+        <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1.5rem; text-align: center;">
+          Your Account
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; max-width: 600px; margin: 0 auto;">
+          <div style="text-align: center;">
+            <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Email</div>
+            <div id="userEmail" style="font-size: 1.0625rem; font-weight: 600; color: var(--primary-600);">Loading...</div>
           </div>
-          <div style="margin-bottom: 1.5rem;">
-            <label style="display: block; margin-bottom: 0.5rem; color: var(--gray-400); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Email Address</label>
-            <div id="userEmail" style="font-weight: 600; color: var(--primary-400); font-size: 1.0625rem;">Loading...</div>
-          </div>
-          <div>
-            <label style="display: block; margin-bottom: 0.5rem; color: var(--gray-400); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Subscription</label>
+          <div style="text-align: center;">
+            <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Subscription</div>
             <span id="subscriptionStatus" class="badge">Loading...</span>
           </div>
         </div>
-
-        <!-- VPN Config Card -->
-        <div class="card">
-          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-            <div style="width: 50px; height: 50px; background: var(--gradient-primary); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; box-shadow: var(--shadow-glow);">🔐</div>
-            <div>
-              <h3 style="margin: 0; margin-bottom: 0.25rem;">VPN Configuration</h3>
-              <small style="color: var(--gray-400);">WireGuard Setup</small>
-            </div>
-          </div>
-          <button id="generateConfig" class="btn btn-primary btn-block mb-3 glow">
-            Generate New Config
-          </button>
-          <button id="downloadConfig" class="btn btn-secondary btn-block mb-3 d-none">
-            📥 Download Config File
-          </button>
-          <button id="showQR" class="btn btn-outline btn-block d-none">
-            📱 Show QR Code
-          </button>
-          <div id="qrCodeDisplay" style="margin-top: 1.5rem; text-align: center;"></div>
-        </div>
-
-        <!-- Quick Actions Card -->
-        <div class="card">
-          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-            <div style="width: 50px; height: 50px; background: var(--gradient-primary); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; box-shadow: var(--shadow-glow);">⚡</div>
-            <div>
-              <h3 style="margin: 0; margin-bottom: 0.25rem;">Quick Actions</h3>
-              <small style="color: var(--gray-400);">Common Tasks</small>
-            </div>
-          </div>
-          <a href="/vpn.html" class="btn btn-outline btn-block mb-3">
-            🌐 Browse VPN Servers
-          </a>
-          <a href="/subscription.html" class="btn btn-outline btn-block mb-3">
-            💳 Manage Subscription
-          </a>
-          <a href="/services.html" class="btn btn-outline btn-block">
-            📊 View All Features
-          </a>
-        </div>
       </div>
 
-      <!-- Stats Grid -->
-      <div class="stats-grid" style="margin-bottom: 2rem;">
-        <div class="stat-card">
-          <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🌍</div>
-          <div class="stat-value">50+</div>
-          <div class="stat-label">Global Servers</div>
-        </div>
-        <div class="stat-card">
-          <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">⚡</div>
-          <div class="stat-value">99.9%</div>
-          <div class="stat-label">Uptime</div>
-        </div>
-        <div class="stat-card">
-          <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🔒</div>
-          <div class="stat-value">256-bit</div>
-          <div class="stat-label">Encryption</div>
-        </div>
-        <div class="stat-card">
-          <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">📱</div>
-          <div class="stat-value">∞</div>
-          <div class="stat-label">Devices</div>
-        </div>
-      </div>
-
-      <!-- Security Features -->
-      <div class="card" style="background: rgba(20, 184, 166, 0.05); border-color: var(--primary-500);">
-        <h2 style="margin-bottom: 2rem; text-align: center;">
-          <span style="margin-right: 0.5rem;">🛡️</span>
+      <!-- Active Security Features -->
+      <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%); padding: 2.5rem; border-radius: var(--radius-2xl); border: 1px solid var(--primary-200);">
+        <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 2rem; text-align: center;">
+          <svg style="width: 24px; height: 24px; display: inline-block; vertical-align: middle; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
           Active Security Features
         </h2>
-        <div class="grid grid-2" style="gap: 2rem;">
-          <div style="display: flex; gap: 1rem;">
-            <div style="flex-shrink: 0;">
-              <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--success); box-shadow: 0 0 15px var(--success); margin-top: 0.25rem;"></div>
-            </div>
-            <div>
-              <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem;">Kill Switch Enabled</h3>
-              <p style="color: var(--gray-400); margin: 0; font-size: 0.9375rem;">Automatic traffic blocking if VPN connection drops to prevent data leaks</p>
-            </div>
-          </div>
-          <div style="display: flex; gap: 1rem;">
-            <div style="flex-shrink: 0;">
-              <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--success); box-shadow: 0 0 15px var(--success); margin-top: 0.25rem;"></div>
-            </div>
-            <div>
-              <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem;">DNS Leak Protection</h3>
-              <p style="color: var(--gray-400); margin: 0; font-size: 0.9375rem;">Your DNS requests are encrypted and routed through our secure servers</p>
+
+        <div class="feature-grid">
+          <div class="feature-item">
+            <div class="feature-indicator"></div>
+            <div class="feature-content">
+              <h4>WireGuard Protocol</h4>
+              <p>Modern, fast, and cryptographically sound VPN protocol with ChaCha20 encryption</p>
             </div>
           </div>
-          <div style="display: flex; gap: 1rem;">
-            <div style="flex-shrink: 0;">
-              <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--success); box-shadow: 0 0 15px var(--success); margin-top: 0.25rem;"></div>
-            </div>
-            <div>
-              <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem;">AI Server Selection</h3>
-              <p style="color: var(--gray-400); margin: 0; font-size: 0.9375rem;">MARL + XGBoost algorithms optimize your connection for maximum speed</p>
+
+          <div class="feature-item">
+            <div class="feature-indicator"></div>
+            <div class="feature-content">
+              <h4>Kill Switch Protection</h4>
+              <p>Automatically blocks all traffic if VPN connection drops to prevent data leaks</p>
             </div>
           </div>
-          <div style="display: flex; gap: 1rem;">
-            <div style="flex-shrink: 0;">
-              <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--success); box-shadow: 0 0 15px var(--success); margin-top: 0.25rem;"></div>
+
+          <div class="feature-item">
+            <div class="feature-indicator"></div>
+            <div class="feature-content">
+              <h4>DNS Leak Protection</h4>
+              <p>All DNS requests are encrypted and routed through our secure servers</p>
             </div>
-            <div>
-              <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem;">Zero Logging Policy</h3>
-              <p style="color: var(--gray-400); margin: 0; font-size: 0.9375rem;">We don't track, collect, or store any of your browsing activity or connection logs</p>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-indicator"></div>
+            <div class="feature-content">
+              <h4>AI Server Selection</h4>
+              <p>MARL + XGBoost algorithms optimize your connection for maximum speed</p>
+            </div>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-indicator"></div>
+            <div class="feature-content">
+              <h4>Zero-Log Policy</h4>
+              <p>We never track, collect, or store your browsing activity or connection logs</p>
+            </div>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-indicator"></div>
+            <div class="feature-content">
+              <h4>Multi-Device Support</h4>
+              <p>Connect unlimited devices simultaneously with one subscription</p>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Connection Status Mockup -->
-      <div class="card mt-5" style="background: rgba(30, 41, 59, 0.7);">
-        <h2 style="margin-bottom: 2rem;">
-          <span style="margin-right: 0.5rem;">📡</span>
-          Connection Status
-        </h2>
-        <div class="vpn-status">
-          <div class="status-indicator"></div>
-          <div>
-            <div style="font-size: 0.875rem; color: var(--gray-400); margin-bottom: 0.5rem;">Ready to connect</div>
-            <div style="font-size: 1.25rem; font-weight: 700; color: var(--primary-400);">Generate your config to get started</div>
-          </div>
-        </div>
-        <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(20, 184, 166, 0.05); border-radius: var(--radius-lg); border: 1px solid rgba(20, 184, 166, 0.2);">
-          <p style="margin: 0; color: var(--gray-300); font-size: 0.9375rem; text-align: center;">
-            <strong style="color: var(--primary-400);">Pro Tip:</strong> After generating your config, download it and import into the WireGuard app on your device for instant VPN access
-          </p>
+      <!-- Quick Actions -->
+      <div style="margin-top: 2.5rem; text-align: center;">
+        <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1.5rem;">Need Help?</h3>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+          <a href="/services.html" class="btn btn-secondary">
+            View All Features
+          </a>
+          <a href="/subscription.html" class="btn btn-secondary">
+            Manage Subscription
+          </a>
         </div>
       </div>
+
     </section>
   </main>
 
+  <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p style="margin-bottom: 0.5rem;">© 2025 SecureWave VPN. Enterprise-grade security for everyone.</p>
-      <p style="font-size: 0.875rem; color: var(--gray-500);">Protected by WireGuard • Military-grade encryption • Zero logs</p>
+      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
     </div>
   </footer>
 
-  <script src="/static/js/main.js"></script>
-  <script src="/static/js/dashboard.js"></script>
+  <script src="/js/main.js"></script>
+  <script src="/js/dashboard.js"></script>
 </body>
 </html>
