@@ -1,0 +1,5 @@
+# Development Requirements (includes everything + ML packages)
+# Use this for local development if you want full ML capabilities
+
+-r requirements.txt
+-r requirements_ml.txt
