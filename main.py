@@ -2,7 +2,7 @@ import os
 import shutil
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,9 +11,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from database import base  # noqa: F401
-from database.session import SessionLocal, engine
-# Import all models for SQLAlchemy registration
+from database.session import SessionLocal
+# Import all models for SQLAlchemy registration - needed for ORM
 from models import user, subscription, audit_log, vpn_server, vpn_connection  # noqa: F401
 from routers import auth, contact, dashboard, optimizer, payment_paypal, payment_stripe, vpn
 from services.wireguard_service import WireGuardService
@@ -97,6 +96,16 @@ async def startup_event():
     import logging
     logger = logging.getLogger(__name__)
 
+    # Initialize database tables
+    try:
+        from database import base
+        from database.session import engine
+        logger.info("Creating database tables...")
+        base.Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.warning(f"Database initialization failed: {e}")
+
     try:
         sync_static_assets()
     except Exception as e:
@@ -107,7 +116,7 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"WireGuard service init failed: {e}")
 
-    # Initialize VPN optimizer with database servers
+    # Initialize VPN optimizer with database servers (auto-detects ML availability)
     try:
         from services.vpn_optimizer import get_vpn_optimizer, load_servers_from_database
 
@@ -117,11 +126,12 @@ async def startup_event():
         # Load servers from database
         try:
             server_count = load_servers_from_database(optimizer, db)
-            logger.info(f"VPN Optimizer initialized with {server_count} servers from database")
+            ml_status = "with ML" if optimizer.use_ml else "without ML (dependencies not available)"
+            logger.info(f"VPN Optimizer initialized {ml_status} - {server_count} servers from database")
 
-            # If no servers in database, initialize demo servers for development
+            # If no servers in database, log warning
             if server_count == 0:
-                logger.warning("No servers in database. Run: python3 infrastructure/init_demo_servers.py")
+                logger.warning("No VPN servers in database. Run: python3 infrastructure/init_demo_servers.py")
         except Exception as db_err:
             logger.warning(f"Could not load servers from database: {db_err}. VPN optimizer will start empty.")
 

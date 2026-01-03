@@ -1,3 +1,7 @@
+# Full Development Requirements (includes ML packages)
+# For production deployment, use requirements_production.txt instead
+# to avoid heavy ML dependencies and speed up deployment
+
 # FastAPI and ASGI server
 fastapi==0.115.12
 uvicorn[standard]==0.32.1
