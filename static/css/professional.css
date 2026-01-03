@@ -431,6 +431,61 @@ body {
   border-color: var(--gray-400);
 }
 
+.btn-gradient {
+  background: var(--gradient-primary);
+  border: none;
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-gradient::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.btn-gradient:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.5);
+  color: white;
+}
+
+.btn-gradient:hover::before {
+  opacity: 1;
+}
+
+.btn-gradient-outline {
+  background: transparent;
+  border: 2px solid transparent;
+  background-image: linear-gradient(white, white), var(--gradient-primary);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  color: #667eea;
+  font-weight: 600;
+  padding: 0.65rem 1.5rem;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.btn-gradient-outline:hover {
+  background-image: var(--gradient-primary), var(--gradient-primary);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
 .btn-sm {
   padding: var(--space-2) var(--space-4);
   font-size: var(--font-size-sm);
@@ -1983,4 +2038,132 @@ body {
   max-width: 400px;
   margin-left: auto;
   margin-right: auto;
+}
+
+/* =================================================================
+   Responsive Design Fixes - All Devices
+   ================================================================= */
+
+/* Consistent Container Padding */
+.container,
+.container-fluid {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* Prevent Text Overflow */
+p, .text-content, .description {
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Responsive Card Padding */
+.card, .glass-card {
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Mobile-First Responsive Breakpoints */
+@media (max-width: 576px) {
+  /* Mobile Phones */
+  .container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  
+  .card, .glass-card {
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .btn, .btn-gradient, .btn-gradient-outline {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+  
+  .navbar-brand {
+    font-size: 1rem;
+  }
+}
+
+@media (min-width: 577px) and (max-width: 768px) {
+  /* Tablets Portrait */
+  .container {
+    max-width: 100%;
+  }
+  
+  .card, .glass-card {
+    padding: 1.25rem;
+  }
+  
+  .btn, .btn-gradient, .btn-gradient-outline {
+    padding: 0.625rem 1.25rem;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 992px) {
+  /* Tablets Landscape / Small Laptops */
+  .container {
+    max-width: 720px;
+  }
+}
+
+@media (min-width: 993px) and (max-width: 1200px) {
+  /* Laptops */
+  .container {
+    max-width: 960px;
+  }
+}
+
+@media (min-width: 1201px) {
+  /* Desktops */
+  .container {
+    max-width: 1140px;
+  }
+}
+
+/* iOS Specific Fixes */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari */
+  input, textarea, select {
+    font-size: 16px; /* Prevents auto-zoom */
+  }
+  
+  .btn {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+/* Fix Overflowing Content */
+img {
+  height: auto;
+  max-width: 100%;
+}
+
+/* Consistent Spacing */
+section {
+  padding: 2rem 0;
+}
+
+@media (min-width: 768px) {
+  section {
+    padding: 3rem 0;
+  }
+}
+
+@media (min-width: 992px) {
+  section {
+    padding: 4rem 0;
+  }
 }
