@@ -1,0 +1,11 @@
+# Optional ML Enhancement Packages
+# Install these ONLY if you want ML-enhanced VPN optimization
+# The optimizer works fine without them using MARL-only mode
+
+# Machine Learning for VPN Optimization (Optional)
+xgboost==2.1.3
+numpy==1.26.4
+scikit-learn==1.5.2
+
+# Note: If these are not installed, the optimizer automatically
+# falls back to MARL-only mode with rule-based optimization

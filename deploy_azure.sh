@@ -1,8 +1,13 @@
 #!/bin/bash
-set -e
+set -e  # Exit on any error
+# Simple Azure deployment script
+echo "Deploying SecureWave VPN to Azure..."
 
-echo "Installing dependencies..."
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+# Install Python dependencies
+if [ -f "requirements.txt" ]; then
+    echo "Installing dependencies..."
+    python3 -m pip install --upgrade pip
+    python3 -m pip install -r requirements.txt
+fi
 
-echo "Setup complete"
+echo "Deployment complete!"

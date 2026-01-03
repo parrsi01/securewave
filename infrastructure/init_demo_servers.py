@@ -10,7 +10,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database.session import SessionLocal
+# Import all models to resolve SQLAlchemy relationships
+from models.user import User
+from models.subscription import Subscription
 from models.vpn_server import VPNServer
+from models.vpn_connection import VPNConnection
+from models.audit_log import AuditLog
 from services.wireguard_service import WireGuardService
 
 def init_demo_servers():

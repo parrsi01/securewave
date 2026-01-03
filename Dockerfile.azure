@@ -1,0 +1,62 @@
+# Azure-optimized Dockerfile for SecureWave VPN
+FROM python:3.12-slim
+
+# Build argument for optional ML support
+ARG ENABLE_ML=false
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PORT=8000 \
+    PYTHONPATH=/app \
+    DATABASE_URL=sqlite:////tmp/securewave.db \
+    WG_MOCK_MODE=true \
+    WG_DATA_DIR=/tmp/wg_data \
+    ENABLE_ML=${ENABLE_ML}
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy requirements first for layer caching
+COPY requirements_production.txt .
+COPY requirements_ml.txt .
+
+# Install Python dependencies (production optimized)
+RUN pip install --no-cache-dir -r requirements_production.txt
+
+# Optionally install ML packages (if ENABLE_ML=true)
+RUN if [ "$ENABLE_ML" = "true" ]; then \
+        echo "Installing ML packages for enhanced optimization..." && \
+        pip install --no-cache-dir -r requirements_ml.txt; \
+    else \
+        echo "Skipping ML packages - optimizer will use MARL-only mode"; \
+    fi
+
+# Copy application code
+COPY main.py .
+COPY background_tasks.py .
+COPY database/ ./database/
+COPY models/ ./models/
+COPY routers/ ./routers/
+COPY services/ ./services/
+COPY infrastructure/ ./infrastructure/
+COPY static/ ./static/
+
+# Create necessary directories
+RUN mkdir -p /app/data /tmp/wg_data /tmp/data
+
+# Expose port
+EXPOSE 8000
+
+# Set default PORT if not provided
+ENV PORT=8000
+
+# Run Gunicorn directly
+CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --worker-class uvicorn.workers.UvicornWorker --timeout 120 --access-logfile - --error-logfile - --log-level info main:app

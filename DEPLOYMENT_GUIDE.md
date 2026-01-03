@@ -1,81 +1,104 @@
-# SecureWave VPN - Azure Deployment Status
+# SecureWave VPN - Production Deployment Guide
 
-## Current Status: ⚠️ TROUBLESHOOTING
+## 🚀 Quick Start
 
-The application has been deployed to Azure but is encountering startup issues.
-
-### What Was Done
-
-1. ✅ UI fixed and verified locally
-   - Professional design system applied
-   - All pages using professional.css
-   - JavaScript fixed (hidden class consistency)
-   - Mobile navigation working
-
-2. ✅ Code deployed to Azure
-   - App Name: securewave-web
-   - Resource Group: SecureWaveRG
-   - URL: https://securewave-web.azurewebsites.net
-
-3. ⚠️ Application Status: FAILING TO START
-   - Returns "Application Error"
-   - Likely issue: Missing dependencies or startup script problems
-
-### Known Issues
-
-1. **Azure Build**: Enabled SCM_DO_BUILD_DURING_DEPLOYMENT=true
-2. **Startup Script**: Using simplified gunicorn startup
-3. **Python Version**: 3.12 configured
-
-### Next Steps to Fix
-
-**Option 1: Use Docker Container (Recommended)**
-- Build a Docker image instead of relying on Azure's Python buildpack
-- More reliable and consistent deployment
-
-**Option 2: Fix Current Deployment**
-- SSH into the webapp and check logs
-- Verify all dependencies are installed
-- Check if PORT environment variable is set correctly
-
-### Quick Fix Commands
+Deploy SecureWave VPN to Azure in minutes with the automated deployment script:
 
 ```bash
-# Check if app is running
-curl -I https://securewave-web.azurewebsites.net/api/health
-
-# View live logs
-az webapp log tail -n securewave-web -g SecureWaveRG
-
-# Restart app
-az webapp restart -n securewave-web -g SecureWaveRG
-
-# SSH into webapp
-az webapp ssh -n securewave-web -g SecureWaveRG
+./deploy_production.sh
 ```
 
-### Working Local Version
-
-The application works perfectly locally:
-```bash
-./start_dev.sh
-# Visit http://localhost:8000
-```
-
-### UI is Production-Ready
-
-All frontend files are professional and ready:
-- Modern, responsive design
-- Professional color scheme (Indigo/Purple)
-- All pages consistent
-- Mobile-friendly navigation
-- Proper API integration
+Your application will be live at: `https://securewave-web.azurewebsites.net`
 
 ---
 
-## For User
+## 📋 Prerequisites
 
-Your UI is **100% ready** and looks professional. The only issue is the Azure deployment configuration, which needs debugging. The app works locally, so the code is fine - it's just the Azure startup process that needs fixing.
+### Required Tools
 
-**To test locally:** `./start_dev.sh`
-**Live site (currently down):** https://securewave-web.azurewebsites.net
+1. **Azure CLI** (version 2.50+)
+   ```bash
+   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+   ```
+
+2. **Python 3.12+**
+   ```bash
+   python3 --version
+   ```
+
+3. **zip utility**
+   ```bash
+   sudo apt-get install zip
+   ```
+
+### Azure Account Setup
+
+1. Login to Azure:
+   ```bash
+   az login
+   ```
+
+2. Set your subscription (if you have multiple):
+   ```bash
+   az account set --subscription "YOUR_SUBSCRIPTION_NAME"
+   ```
+
+---
+
+## 🎯 Deployment Options
+
+### Option 1: One-Click Deployment (Recommended)
+
+Use the automated production deployment script:
+
+```bash
+./deploy_production.sh
+```
+
+**Expected deployment time:** 5-10 minutes
+
+---
+
+## 🔧 Configuration
+
+### Key Environment Variables
+
+- `PORT=8000` - Application port
+- `DATABASE_URL=sqlite:////tmp/securewave.db` - Database path
+- `PYTHONPATH=/home/site/wwwroot` - Python module path
+- `WG_MOCK_MODE=true` - WireGuard mock mode
+- `ENVIRONMENT=production` - Environment mode
+
+---
+
+## 🔍 Monitoring & Diagnostics
+
+### Diagnostic Script
+
+```bash
+./diagnose_and_fix.sh       # Interactive menu
+./diagnose_and_fix.sh health # Health checks
+./diagnose_and_fix.sh logs   # View logs
+./diagnose_and_fix.sh fix    # Restart app
+```
+
+### View Logs
+
+```bash
+az webapp log tail -g SecureWaveRG -n securewave-web
+```
+
+---
+
+## 📱 Access Your Application
+
+- **Home:** `https://securewave-web.azurewebsites.net/home.html`
+- **Login:** `https://securewave-web.azurewebsites.net/login.html`
+- **Dashboard:** `https://securewave-web.azurewebsites.net/dashboard.html`
+- **API Docs:** `https://securewave-web.azurewebsites.net/api/docs`
+
+---
+
+## ✅ Deployment Complete!
+
+**Last Updated:** 2026-01-02

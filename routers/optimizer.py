@@ -1,6 +1,7 @@
 """
 VPN Optimizer API Router
-Exposes MARL + XGBoost optimization endpoints
+Exposes ML-enhanced VPN server optimization endpoints
+Auto-detects ML availability and adapts
 """
 from typing import Optional
 
@@ -31,7 +32,7 @@ def select_optimal_server(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Select optimal VPN server using MARL + XGBoost algorithm
+    Select optimal VPN server using intelligent routing algorithm
     Returns best server based on current network conditions and user profile
     """
     optimizer = get_vpn_optimizer()
@@ -81,7 +82,7 @@ def report_connection_quality(
 def get_optimizer_stats(current_user: User = Depends(get_current_user)):
     """
     Get VPN optimizer performance statistics
-    Shows MARL training progress and model accuracy
+    Shows optimizer metrics and server status
     """
     optimizer = get_vpn_optimizer()
     stats = optimizer.get_stats()
