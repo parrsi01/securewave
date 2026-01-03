@@ -1,7 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="refresh" content="0; url=/home.html">
+  <title>SecureWave VPN - Redirecting...</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: white;
+    }
+    .loader {
+      text-align: center;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0;
+    }
+    p {
+      margin: 0.5rem 0 0;
+      opacity: 0.9;
+    }
+  </style>
 </head>
-<body></body>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <h1>SecureWave VPN</h1>
+    <p>Loading your secure connection...</p>
+  </div>
+  <script>
+    // Immediate redirect (in case meta refresh fails)
+    setTimeout(() => {
+      window.location.href = '/home.html';
+    }, 100);
+  </script>
+</body>
 </html>
