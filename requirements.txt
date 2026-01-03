@@ -1,6 +1,6 @@
-# Full Development Requirements (includes ML packages)
-# For production deployment, use requirements_production.txt instead
-# to avoid heavy ML dependencies and speed up deployment
+# Production Requirements for Azure Deployment
+# Optimized for fast deployment - ML dependencies are OPTIONAL
+# The VPN optimizer auto-detects ML availability and adapts accordingly
 
 # FastAPI and ASGI server
 fastapi==0.115.12
@@ -19,19 +19,13 @@ passlib==1.7.4
 bcrypt==4.1.2
 cryptography==42.0.8
 
-# Payment Processing (Python 3.12 compatible)
+# Payment Processing
 stripe>=14.0.0,<15.0.0
 httpx==0.27.0
 
 # VPN & Networking
 qrcode==7.4.2
 pillow==10.4.0
-
-# Machine Learning for VPN Optimization
-xgboost==2.1.3
-numpy==1.26.4
-scikit-learn==1.5.2
-pandas==2.2.3
 
 # Environment & Configuration
 python-dotenv==1.0.1
@@ -42,3 +36,7 @@ email-validator==2.2.0
 # Security & Rate Limiting
 slowapi==0.1.9
 redis==5.0.1
+
+# NOTE: ML packages (xgboost, numpy, scikit-learn) are OPTIONAL
+# To enable ML-enhanced optimization, install requirements_ml.txt separately
+# The app works perfectly without them using MARL-only mode
