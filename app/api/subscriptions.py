@@ -16,10 +16,12 @@ def get_subscription(current_user: User = Depends(get_current_user), db: Session
         return {
             "plan": "free",
             "status": "inactive",
+            "device_limit": None,
             "current_period_end": None,
         }
     return {
         "plan": subscription.plan,
         "status": subscription.status,
+        "device_limit": subscription.device_limit,
         "current_period_end": subscription.current_period_end.isoformat() if subscription.current_period_end else None,
     }

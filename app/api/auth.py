@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
@@ -38,15 +38,19 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
     user = auth_service.register_user(db, payload.email, payload.password)
     tokens = auth_service.issue_tokens(user)
+    auth_service.update_refresh_token_hash(db, user, tokens["refresh_token"])
     return TokenResponse(**tokens)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     user = auth_service.authenticate_user(db, payload.email, payload.password)
     if not user:
+        auth_service.record_login_attempt(db, None, payload.email, request.client.host if request.client else None, False)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     tokens = auth_service.issue_tokens(user)
+    auth_service.update_refresh_token_hash(db, user, tokens["refresh_token"])
+    auth_service.record_login_attempt(db, user, payload.email, request.client.host if request.client else None, True)
     return TokenResponse(**tokens)
 
 
@@ -58,7 +62,10 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     user = auth_service.get_user_by_id(db, int(token_data.get("sub")))
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+    if not user.refresh_token_hash or security.hash_token(payload.refresh_token) != user.refresh_token_hash:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
     tokens = auth_service.issue_tokens(user)
+    auth_service.update_refresh_token_hash(db, user, tokens["refresh_token"])
     return TokenResponse(**tokens)
 
 

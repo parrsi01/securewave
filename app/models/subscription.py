@@ -12,5 +12,6 @@ class Subscription(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     plan = Column(String, default="free")
     status = Column(String, default="inactive")
+    device_limit = Column(Integer, nullable=True)
     current_period_end = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

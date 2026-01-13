@@ -12,6 +12,7 @@ Backend-only SaaS control plane for CloudSecure/SecureWave VPN.
 - **Devices**: per-user device registration with device tokens.
 - **VPN**: stateless config issuance for authenticated devices.
 - **DB**: SQLAlchemy models and session management.
+ - **Security**: login lockout + refresh token rotation + device token hashing.
 
 ## Structure
 - `app/main.py`: FastAPI app entrypoint (gunicorn-compatible).
@@ -25,6 +26,11 @@ Backend-only SaaS control plane for CloudSecure/SecureWave VPN.
 ```bash
 ./scripts/init_db.sh
 ./scripts/dev_run.sh
+```
+
+## Migrations
+```bash
+alembic upgrade head
 ```
 
 ## Notes

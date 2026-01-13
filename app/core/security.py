@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import hmac
+import hashlib
 
 from jose import jwt
 from passlib.context import CryptContext
@@ -35,3 +37,13 @@ def create_refresh_token(subject: str, expires_days: Optional[int] = None) -> st
 
 def decode_token(token: str) -> dict:
     return jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
+
+
+def token_prefix(token: str, length: int = 6) -> str:
+    return token[:length]
+
+
+def hash_token(token: str) -> str:
+    secret = config.JWT_SECRET.encode()
+    digest = hmac.new(secret, token.encode(), hashlib.sha256).hexdigest()
+    return digest
