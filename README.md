@@ -33,6 +33,12 @@ Backend-only SaaS control plane for CloudSecure/SecureWave VPN.
 alembic upgrade head
 ```
 
+## Seed a VPN Server
+```bash
+WG_PUBLIC_KEY=... ENDPOINT=your-vm-ip:51820 ./scripts/seed_vpn_server.sh
+```
+
 ## Notes
 - VPN server control is out-of-scope here; this service only issues configs/tokens.
 - TODOs are marked in service layers for future hardening and billing enforcement.
+- Admin access is controlled by `ADMIN_EMAILS` (comma-separated).

@@ -17,7 +17,8 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
 
 
 def register_user(db: Session, email: str, password: str) -> User:
-    user = User(email=email, hashed_password=security.hash_password(password))
+    is_admin = email.lower() in config.ADMIN_EMAILS
+    user = User(email=email, hashed_password=security.hash_password(password), is_admin=is_admin)
     db.add(user)
     db.commit()
     db.refresh(user)

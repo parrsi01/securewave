@@ -24,3 +24,4 @@ MAX_DEVICES_PER_USER = int(os.getenv("MAX_DEVICES_PER_USER", "5"))
 FREE_DEVICE_LIMIT = int(os.getenv("FREE_DEVICE_LIMIT", "1"))
 MAX_FAILED_LOGIN_ATTEMPTS = int(os.getenv("MAX_FAILED_LOGIN_ATTEMPTS", "5"))
 LOCKOUT_MINUTES = int(os.getenv("LOCKOUT_MINUTES", "15"))
+ADMIN_EMAILS = [email.strip().lower() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip()]
