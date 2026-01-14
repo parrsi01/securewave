@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - SecureWave VPN</title>
+  <title>Login - SecureWave Demo</title>
   <meta name="description" content="Log in to your SecureWave VPN account to manage your subscription and connect to secure servers worldwide.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -195,15 +195,9 @@
         });
       }
 
-      // Real-time email validation
+      // REMOVED aggressive blur validation
+      // Only clear errors on input - validation happens on form submit via auth.js
       const emailInput = document.getElementById('email');
-      emailInput.addEventListener('blur', function() {
-        if (this.value && !this.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-          this.classList.add('is-invalid');
-        } else {
-          this.classList.remove('is-invalid');
-        }
-      });
 
       emailInput.addEventListener('input', function() {
         this.classList.remove('is-invalid');

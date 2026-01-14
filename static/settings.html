@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - SecureWave VPN</title>
+  <meta name="description" content="Manage SecureWave VPN settings, protocols, and connection preferences.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/professional.css">
+  <style>
+    .settings-grid {
+      display: grid;
+      gap: 1.5rem;
+    }
+    .settings-section {
+      display: grid;
+      gap: 1rem;
+    }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border-primary);
+    }
+    .setting-row:last-child {
+      border-bottom: none;
+    }
+    .setting-label h4 {
+      margin: 0;
+      font-size: 1rem;
+    }
+    .setting-label p {
+      margin: 0.25rem 0 0 0;
+      color: var(--text-tertiary);
+      font-size: 0.875rem;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 28px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: var(--gray-300);
+      transition: 0.2s;
+      border-radius: 999px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 22px;
+      width: 22px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.2s;
+      border-radius: 50%;
+      box-shadow: var(--shadow-md);
+    }
+    input:checked + .slider {
+      background-color: var(--primary-600);
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    .settings-select {
+      min-width: 220px;
+      padding: 0.6rem 0.75rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-primary);
+      background: white;
+      font-size: 0.95rem;
+    }
+    .protocol-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--primary-50);
+      color: var(--primary-700);
+      border: 1px solid var(--primary-200);
+    }
+    .disabled-option {
+      color: var(--text-tertiary);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="/home.html" class="navbar-brand">
+        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
+        <span>SecureWave</span>
+      </a>
+      <ul class="navbar-menu">
+        <li><a href="/home.html">Home</a></li>
+        <li><a href="/services.html">Services</a></li>
+        <li><a href="/subscription.html">Pricing</a></li>
+        <li><a href="/dashboard.html">Dashboard</a></li>
+        <li><a href="/settings.html" aria-current="page">Settings</a></li>
+        <li><a href="/diagnostics.html">Diagnostics</a></li>
+        <li><button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button></li>
+      </ul>
+      <button class="navbar-toggle" aria-label="Toggle navigation menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main id="main-content">
+    <div style="background-color: var(--bg-secondary); border-bottom: 1px solid var(--border-primary); padding: 2rem 0;">
+      <div class="container">
+        <div class="badge">VPN Settings</div>
+        <h1 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">Connection & Security</h1>
+        <p style="font-size: 1.125rem; color: var(--gray-500); max-width: 46rem;">
+          Configure SecureWave like a premium VPN: protocol, auto-connect, kill switch, and preferred countries.
+        </p>
+      </div>
+    </div>
+
+    <div class="container" style="padding: 3rem 0;">
+      <div class="settings-grid">
+        <div class="card">
+          <div class="card-body">
+            <h2 style="margin-bottom: 0.25rem;">Account Settings</h2>
+            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">Profile and password controls (demo).</p>
+            <div class="settings-section">
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Email</h4>
+                  <p id="accountEmail">Loading...</p>
+                </div>
+                <span class="protocol-badge">Read-only</span>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Password</h4>
+                  <p>Update your password (demo placeholder).</p>
+                </div>
+                <button class="btn btn-outline btn-sm" disabled>Change Password</button>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Logout</h4>
+                  <p>Sign out from the demo control panel.</p>
+                </div>
+                <button class="btn btn-ghost btn-sm" id="settingsLogout">Logout</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <h2 style="margin-bottom: 0.25rem;">Quick Status</h2>
+            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">Your current VPN state and routing preferences.</p>
+            <div class="settings-section">
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>VPN Status</h4>
+                  <p>Use the dashboard toggle to connect/disconnect.</p>
+                </div>
+                <span class="protocol-badge">Controlled in Dashboard</span>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Preferred Country</h4>
+                  <p>Used by the optimizer when auto-connecting.</p>
+                </div>
+                <select class="settings-select" data-setting="preferred_country">
+                  <option value="auto">Auto (Optimizer)</option>
+                  <option value="us">United States</option>
+                  <option value="uk">United Kingdom</option>
+                  <option value="de">Germany</option>
+                  <option value="nl">Netherlands</option>
+                  <option value="sg">Singapore</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Preferred Region</h4>
+                  <p>Keep your traffic local when possible.</p>
+                </div>
+                <select class="settings-select" data-setting="preferred_region">
+                  <option value="auto">Auto</option>
+                  <option value="north_america">North America</option>
+                  <option value="europe">Europe</option>
+                  <option value="asia_pacific">Asia Pacific</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h2 style="margin-bottom: 0.25rem;">Connection Preferences</h2>
+            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">Behavior on launch, reconnects, and routing rules.</p>
+            <div class="settings-section">
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Auto-connect on Startup</h4>
+                  <p>Connect when the app launches.</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" data-setting="auto_connect">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Always-on VPN</h4>
+                  <p>Force reconnect if connection drops.</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" data-setting="always_on">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Kill Switch</h4>
+                  <p>Block traffic if VPN disconnects unexpectedly.</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" data-setting="kill_switch">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Split Tunneling</h4>
+                  <p>Allow selected apps to bypass the VPN.</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" data-setting="split_tunneling">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h2 style="margin-bottom: 0.25rem;">Protocol & DNS</h2>
+            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">WireGuard is default. More protocols can be added later.</p>
+            <div class="settings-section">
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>VPN Protocol</h4>
+                  <p>Recommended: WireGuard for speed and battery life.</p>
+                </div>
+                <select class="settings-select" data-setting="protocol">
+                  <option value="wireguard">WireGuard (Recommended)</option>
+                  <option value="openvpn" disabled>OpenVPN (Coming soon)</option>
+                  <option value="ikev2" disabled>IKEv2 (Coming soon)</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>DNS Provider</h4>
+                  <p>Reduce tracking and protect against leaks.</p>
+                </div>
+                <select class="settings-select" data-setting="dns_provider">
+                  <option value="cloudflare">Cloudflare (1.1.1.1)</option>
+                  <option value="quad9">Quad9 (9.9.9.9)</option>
+                  <option value="custom">Custom (set in app)</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Encryption</h4>
+                  <p>ChaCha20-Poly1305 (WireGuard standard).</p>
+                </div>
+                <span class="protocol-badge">ChaCha20</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h2 style="margin-bottom: 0.25rem;">Account & Plan</h2>
+            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">Upgrade inside the app and unlock more regions.</p>
+            <div class="settings-section">
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Plan Upgrade</h4>
+                  <p>Unlock premium regions and higher bandwidth.</p>
+                </div>
+                <a class="btn btn-primary btn-sm" href="/subscription.html">Upgrade</a>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <h4>Payment & Billing</h4>
+                  <p>Manage subscription, invoices, and billing details.</p>
+                </div>
+                <a class="btn btn-outline btn-sm" href="/subscription.html">Manage Billing</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border: 1px solid var(--error);">
+          <div class="card-body">
+            <h2 style="margin-bottom: 0.25rem; color: var(--error);">Reset Settings</h2>
+            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">Clear preferences and restore defaults.</p>
+            <button class="btn btn-outline btn-sm" id="resetSettings">Reset to Defaults</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+  <script src="/js/settings.js"></script>
+</body>
+</html>

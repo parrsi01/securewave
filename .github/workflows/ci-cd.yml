@@ -1,0 +1,310 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  # ===========================
+  # CODE QUALITY & LINTING
+  # ===========================
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black isort mypy
+
+      - name: Run Black (code formatter check)
+        run: black --check .
+        continue-on-error: true
+
+      - name: Run isort (import sorting check)
+        run: isort --check-only .
+        continue-on-error: true
+
+      - name: Run Flake8 (linting)
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        continue-on-error: true
+
+  # ===========================
+  # UNIT TESTS
+  # ===========================
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_securewave
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio httpx
+
+      - name: Set environment variables
+        run: |
+          echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_securewave" >> $GITHUB_ENV
+          echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+          echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
+          echo "ENABLE_APP_INSIGHTS=false" >> $GITHUB_ENV
+          echo "ENABLE_SENTRY=false" >> $GITHUB_ENV
+
+      - name: Run database migrations
+        run: |
+          python -m alembic upgrade head
+
+      - name: Run pytest
+        run: |
+          pytest tests/ -v --cov=. --cov-report=xml --cov-report=html
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  # ===========================
+  # SECURITY SCANNING
+  # ===========================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security tools
+        run: |
+          pip install safety bandit
+
+      - name: Run Safety (check dependencies for vulnerabilities)
+        run: safety check --json
+        continue-on-error: true
+
+      - name: Run Bandit (security linter)
+        run: bandit -r . -f json -o bandit-report.json
+        continue-on-error: true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+        if: always()
+
+  # ===========================
+  # BUILD DOCKER IMAGE
+  # ===========================
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [lint, test, security]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: securewave:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ===========================
+  # DEPLOY TO STAGING
+  # ===========================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://securewave-staging.azurewebsites.net
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_STAGING }}
+
+      - name: Deploy to Azure Web App (Staging)
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: securewave-staging
+          package: .
+
+      - name: Run database migrations (Staging)
+        run: |
+          # SSH or use Azure CLI to run migrations
+          az webapp ssh --name securewave-staging --resource-group securewave-staging-rg --command "cd /home/site/wwwroot && python -m alembic upgrade head"
+
+      - name: Run smoke tests
+        run: |
+          curl -f https://securewave-staging.azurewebsites.net/api/health || exit 1
+
+  # ===========================
+  # DEPLOY TO PRODUCTION
+  # ===========================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    environment:
+      name: production
+      url: https://securewave.azurewebsites.net
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create backup before deployment
+        run: |
+          # Backup database
+          az postgres flexible-server backup create \
+            --resource-group securewave-rg \
+            --server-name securewave-db \
+            --backup-name "pre-deploy-$(date +%Y%m%d-%H%M%S)"
+
+      - name: Deploy to Azure Web App (Production)
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: securewave
+          package: .
+          slot-name: production
+
+      - name: Run database migrations (Production)
+        run: |
+          az webapp ssh --name securewave --resource-group securewave-rg --command "cd /home/site/wwwroot && python -m alembic upgrade head"
+
+      - name: Warm up application
+        run: |
+          for i in {1..5}; do
+            curl -f https://securewave.azurewebsites.net/api/health
+            sleep 2
+          done
+
+      - name: Run smoke tests
+        run: |
+          curl -f https://securewave.azurewebsites.net/api/health || exit 1
+          curl -f https://securewave.azurewebsites.net/ || exit 1
+
+      - name: Purge CDN cache (if configured)
+        run: |
+          az cdn endpoint purge \
+            --resource-group securewave-rg \
+            --profile-name securewave-cdn \
+            --name securewave \
+            --content-paths "/*"
+        continue-on-error: true
+
+      - name: Notify team (Slack/Teams)
+        if: success()
+        run: |
+          # Send deployment notification
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"✅ SecureWave VPN deployed to production successfully!"}'
+        continue-on-error: true
+
+  # ===========================
+  # ROLLBACK ON FAILURE
+  # ===========================
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: failure()
+    steps:
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Rollback to previous version
+        run: |
+          # Swap back to previous slot or redeploy previous version
+          az webapp deployment slot swap \
+            --resource-group securewave-rg \
+            --name securewave \
+            --slot staging \
+            --target-slot production \
+            --action revert
+
+      - name: Notify team of rollback
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"⚠️ SecureWave VPN deployment failed - rolled back to previous version!"}'
+        continue-on-error: true

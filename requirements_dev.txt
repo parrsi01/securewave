@@ -3,3 +3,4 @@
 
 -r requirements.txt
 -r requirements_ml.txt
+pytest==8.2.2
