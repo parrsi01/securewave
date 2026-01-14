@@ -19,6 +19,7 @@ os.environ["ENABLE_SENTRY"] = "false"
 from database.base import Base
 from database.session import get_db
 from main import app
+from services.jwt_service import create_access_token
 
 
 # Test database setup
@@ -36,11 +37,11 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 def db():
     """Create test database"""
     Base.metadata.create_all(bind=engine)
-    db = TestingSessionLocal()
+    session = TestingSessionLocal()
     try:
-        yield db
+        yield session
     finally:
-        db.close()
+        session.close()
         Base.metadata.drop_all(bind=engine)
 
 
@@ -48,10 +49,11 @@ def db():
 def client(db):
     """Create test client"""
     def override_get_db():
+        session = TestingSessionLocal()
         try:
-            yield db
+            yield session
         finally:
-            pass
+            session.close()
 
     app.dependency_overrides[get_db] = override_get_db
 
@@ -106,20 +108,12 @@ def test_admin(db):
 @pytest.fixture
 def auth_headers(client, test_user):
     """Get authentication headers for test user"""
-    response = client.post(
-        "/api/auth/login",
-        json={"email": "test@example.com", "password": "testpassword123"}
-    )
-    access_token = response.json()["access_token"]
+    access_token = create_access_token(test_user)
     return {"Authorization": f"Bearer {access_token}"}
 
 
 @pytest.fixture
 def admin_auth_headers(client, test_admin):
     """Get authentication headers for admin user"""
-    response = client.post(
-        "/api/auth/login",
-        json={"email": "admin@example.com", "password": "adminpassword123"}
-    )
-    access_token = response.json()["access_token"]
+    access_token = create_access_token(test_admin)
     return {"Authorization": f"Bearer {access_token}"}

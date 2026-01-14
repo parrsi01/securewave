@@ -102,7 +102,12 @@ async def initialize_app_background():
     """Background initialization that happens AFTER the app starts responding to health checks"""
     import logging
     import asyncio
+    import os
     logger = logging.getLogger(__name__)
+
+    if os.getenv("TESTING", "").lower() == "true":
+        logger.info("Skipping background initialization in test mode")
+        return
 
     # Wait a bit to ensure app is fully started
     await asyncio.sleep(2)
@@ -173,6 +178,7 @@ async def initialize_app_background():
 async def startup_event():
     import logging
     import asyncio
+    import os
     logger = logging.getLogger(__name__)
 
     logger.info("FastAPI startup: Quick initialization only")
@@ -185,7 +191,10 @@ async def startup_event():
         logger.warning(f"Could not create data directory: {e}")
 
     # Schedule background initialization to run after startup completes
-    asyncio.create_task(initialize_app_background())
+    if os.getenv("TESTING", "").lower() != "true":
+        asyncio.create_task(initialize_app_background())
+    else:
+        logger.info("Skipping background initialization in test mode")
 
     logger.info("FastAPI startup complete - background initialization scheduled")
 
