@@ -13,6 +13,12 @@ export AZURE_APP_NAME="your-app-name"
 bash deploy_securewave_single_app.sh
 ```
 
+## App URL
+After deploy, your app is live at:
+```
+https://securewave-web.azurewebsites.net
+```
+
 ## Startup command
 The script sets the startup command to:
 ```bash

@@ -23,6 +23,7 @@ class VPNDashboard {
 
     // State
     this.isConnected = false;
+    this.connectionState = 'DISCONNECTED';
     this.currentServer = null;
     this.accessToken = localStorage.getItem('access_token');
     this.vpnConfig = null;
@@ -84,16 +85,19 @@ class VPNDashboard {
       });
       if (!response.ok) return;
       const data = await response.json();
-      if (data.status === 'CONNECTED') {
-        this.isConnected = true;
-        if (data.connected_since) {
+      if (data.status) {
+        this.setConnectionState(data.status);
+        if (data.status === 'CONNECTED' && data.connected_since) {
           this.connectionStartTime = new Date(data.connected_since).getTime();
+          this.startConnectionTracking();
         }
-        this.startConnectionTracking();
-        this.updateConnectionDetails({
-          location: data.region || (this.currentServer ? this.currentServer.location : 'Auto'),
-          public_ip: data.mock_ip || '10.8.0.10'
-        });
+        if (['CONNECTED', 'CONNECTING', 'DISCONNECTING'].includes(data.status)) {
+          this.updateConnectionDetails({
+            location: data.region || (this.currentServer ? this.currentServer.location : 'Auto'),
+            public_ip: data.mock_ip || '10.8.0.10'
+          });
+        }
+        this.ensureStatusPolling();
         this.updateUI();
       }
     } catch (error) {
@@ -181,9 +185,11 @@ class VPNDashboard {
       this.currentServer = JSON.parse(selectedOption.dataset.server);
       this.updateServerStats();
 
-      // If VPN is already on, regenerate config with new server
-      if (this.isConnected) {
-        this.generateVPNConfig();
+      if (['CONNECTED', 'CONNECTING', 'DISCONNECTING'].includes(this.connectionState)) {
+        this.updateConnectionDetails({
+          location: this.currentServer.location,
+          public_ip: '10.8.0.10'
+        });
       }
     } else {
       this.currentServer = null;
@@ -231,6 +237,7 @@ class VPNDashboard {
 
   async connectVPN() {
     try {
+      this.setConnectionState('CONNECTING');
       this.connectionStatus.textContent = 'Connecting...';
       this.connectionStatus.className = 'connection-status connecting';
 
@@ -247,11 +254,14 @@ class VPNDashboard {
 
       if (response.ok) {
         const data = await response.json();
-        this.isConnected = true;
+        this.setConnectionState(data.status || 'CONNECTING');
         this.connectionId = data.session_id || null;
         this.connectionStatus.textContent = data.status === 'CONNECTING' ? 'Connecting...' : 'Connected (Demo)';
-        this.connectionStatus.className = 'connection-status connecting';
-        this.startConnectionTracking();
+        this.connectionStatus.className = data.status === 'CONNECTING' ? 'connection-status connecting' : 'connection-status connected';
+        if (data.status === 'CONNECTED') {
+          this.startConnectionTracking();
+        }
+        this.ensureStatusPolling();
         this.updateConnectionDetails({
           location: data.region || (this.currentServer ? this.currentServer.location : 'Auto'),
           public_ip: data.mock_ip || '10.8.0.10'
@@ -267,13 +277,14 @@ class VPNDashboard {
       console.error('Failed to connect VPN:', error);
       this.showAlert('Failed to connect VPN. Please try again.', 'error');
       this.vpnToggle.checked = false;
-      this.isConnected = false;
+      this.setConnectionState('DISCONNECTED');
       this.updateUI();
     }
   }
 
   async disconnectVPN() {
     try {
+      this.setConnectionState('DISCONNECTING');
       this.connectionStatus.textContent = 'Disconnecting...';
       this.connectionStatus.className = 'connection-status disconnecting';
 
@@ -296,7 +307,7 @@ class VPNDashboard {
       this.connectionId = null;
 
       // Update state
-      this.isConnected = false;
+      this.setConnectionState('DISCONNECTING');
       this.updateUI();
 
       this.showAlert('VPN disconnecting (Demo Mode)', 'info');
@@ -326,9 +337,6 @@ class VPNDashboard {
       this.updateDataTransfer();
     }, 2000);
 
-    this.statusInterval = setInterval(() => {
-      this.fetchStatus();
-    }, 5000);
   }
 
   stopConnectionTracking() {
@@ -339,10 +347,6 @@ class VPNDashboard {
     if (this.dataTransferInterval) {
       clearInterval(this.dataTransferInterval);
       this.dataTransferInterval = null;
-    }
-    if (this.statusInterval) {
-      clearInterval(this.statusInterval);
-      this.statusInterval = null;
     }
     this.connectionStartTime = null;
   }
@@ -384,7 +388,12 @@ class VPNDashboard {
     }
   }
 
-  async requestVPNConnect() {}
+  ensureStatusPolling() {
+    if (this.statusInterval) return;
+    this.statusInterval = setInterval(() => {
+      this.fetchStatus();
+    }, 5000);
+  }
 
   updateConnectionDetails(serverInfo) {
     if (this.connectionDetails) {
@@ -399,13 +408,30 @@ class VPNDashboard {
   }
 
   updateUI() {
-    if (this.isConnected) {
+    const isActive = ['CONNECTED', 'CONNECTING', 'DISCONNECTING'].includes(this.connectionState);
+    const isConnected = this.connectionState === 'CONNECTED';
+
+    this.vpnToggle.checked = isActive;
+
+    if (isConnected) {
       // Connected state
       this.connectionStatus.textContent = 'Connected (Demo)';
       this.connectionStatus.className = 'connection-status connected';
       this.connectionDetails.style.display = 'block';
       this.downloadBtn.style.display = 'inline-flex';
       this.serverSelect.disabled = false; // Allow changing servers while connected
+    } else if (this.connectionState === 'CONNECTING') {
+      this.connectionStatus.textContent = 'Connecting...';
+      this.connectionStatus.className = 'connection-status connecting';
+      this.connectionDetails.style.display = 'block';
+      this.downloadBtn.style.display = 'none';
+      this.serverSelect.disabled = false;
+    } else if (this.connectionState === 'DISCONNECTING') {
+      this.connectionStatus.textContent = 'Disconnecting...';
+      this.connectionStatus.className = 'connection-status disconnecting';
+      this.connectionDetails.style.display = 'block';
+      this.downloadBtn.style.display = 'none';
+      this.serverSelect.disabled = false;
     } else {
       // Disconnected state
       this.connectionStatus.textContent = 'Disconnected';
@@ -447,27 +473,39 @@ class VPNDashboard {
       if (!response.ok) return;
       const data = await response.json();
       if (data.status === 'CONNECTED') {
-        this.connectionStatus.textContent = 'Connected (Demo)';
-        this.connectionStatus.className = 'connection-status connected';
+        this.setConnectionState('CONNECTED');
         if (!this.connectionStartTime && data.connected_since) {
           this.connectionStartTime = new Date(data.connected_since).getTime();
         }
+        if (!this.connectionTimer) {
+          this.startConnectionTracking();
+        }
+        this.updateConnectionDetails({
+          location: data.region || (this.currentServer ? this.currentServer.location : 'Auto'),
+          public_ip: data.mock_ip || '10.8.0.10'
+        });
       }
       if (data.status === 'CONNECTING') {
-        this.connectionStatus.textContent = 'Connecting...';
-        this.connectionStatus.className = 'connection-status connecting';
+        this.setConnectionState('CONNECTING');
       }
       if (data.status === 'DISCONNECTING') {
-        this.connectionStatus.textContent = 'Disconnecting...';
-        this.connectionStatus.className = 'connection-status disconnecting';
+        this.setConnectionState('DISCONNECTING');
       }
       if (data.status === 'DISCONNECTED') {
-        this.connectionStatus.textContent = 'Disconnected';
-        this.connectionStatus.className = 'connection-status disconnected';
+        this.setConnectionState('DISCONNECTED');
+        this.stopConnectionTracking();
+        this.vpnConfig = null;
+        this.connectionId = null;
       }
+      this.updateUI();
     } catch (error) {
       console.error('Status check failed:', error);
     }
+  }
+
+  setConnectionState(state) {
+    this.connectionState = state;
+    this.isConnected = state === 'CONNECTED';
   }
 
   downloadConfigFromText(configText, filename, showAlert = true) {

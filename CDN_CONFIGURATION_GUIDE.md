@@ -100,9 +100,9 @@ az cdn profile create \
 3. Fill in the details:
    - **Name**: `securewave` (results in `securewave.azureedge.net`)
    - **Origin type**: Web App
-   - **Origin hostname**: `securewave.azurewebsites.net` (your app service)
+   - **Origin hostname**: `securewave-web.azurewebsites.net` (your app service)
    - **Origin path**: Leave blank
-   - **Origin host header**: `securewave.azurewebsites.net`
+   - **Origin host header**: `securewave-web.azurewebsites.net`
    - **Protocol**: HTTPS only
    - **Origin port**: 443
    - **Optimized for**: General web delivery
@@ -113,7 +113,7 @@ az cdn profile create \
 ```bash
 # Set variables
 ENDPOINT_NAME="securewave"
-ORIGIN_HOSTNAME="securewave.azurewebsites.net"
+ORIGIN_HOSTNAME="securewave-web.azurewebsites.net"
 
 # Create CDN endpoint
 az cdn endpoint create \

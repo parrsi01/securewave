@@ -411,7 +411,7 @@ az postgres flexible-server geo-restore \
   --location westeurope
 
 # 4. Verify secondary region
-curl https://securewave-westeu.azurewebsites.net/api/health
+curl https://securewave-web.azurewebsites.net/api/health
 
 # 5. Update monitoring
 # Monitor secondary region performance
@@ -767,8 +767,8 @@ az network traffic-manager endpoint update \
 az network front-door create \
   --name securewave-fd \
   --resource-group securewave-rg \
-  --backend-address securewave-eastus.azurewebsites.net \
-  --backend-address securewave-westeu.azurewebsites.net \
+  --backend-address securewave-web.azurewebsites.net \
+  --backend-address securewave-web.azurewebsites.net \
   --accepted-protocols Https \
   --forwarding-protocol HttpsOnly
 
@@ -1146,10 +1146,10 @@ az webapp deployment source config \
   --branch develop
 
 # Verify deployment
-curl https://securewave-staging.azurewebsites.net/api/health
+curl https://securewave-web.azurewebsites.net/api/health
 
 # Run smoke tests
-pytest tests/smoke/ --base-url https://securewave-staging.azurewebsites.net
+pytest tests/smoke/ --base-url https://securewave-web.azurewebsites.net
 ```
 
 ### Production Deployment

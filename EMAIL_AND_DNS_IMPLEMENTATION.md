@@ -323,8 +323,8 @@ AWS_SES_FROM_EMAIL=noreply@securewave.com
 AWS_SES_FROM_NAME=SecureWave VPN
 
 # Application URLs
-APP_URL=https://securewave.azurewebsites.net
-FRONTEND_URL=https://securewave.azurewebsites.net
+APP_URL=https://securewave-web.azurewebsites.net
+FRONTEND_URL=https://securewave-web.azurewebsites.net
 ```
 
 #### Provider Setup Guide
@@ -528,7 +528,7 @@ verified, error = domain_manager.verify_domain_ownership(
 ```
 Type: CNAME
 Host: vpn.example.com
-Value: securewave.azurewebsites.net
+Value: securewave-web.azurewebsites.net
 TTL: 3600
 ```
 
@@ -690,9 +690,9 @@ AWS_REGION=us-east-1
 AWS_SES_FROM_EMAIL=noreply@securewave.com
 
 # Domain Configuration
-DEFAULT_DOMAIN=securewave.azurewebsites.net
-APP_URL=https://securewave.azurewebsites.net
-FRONTEND_URL=https://securewave.azurewebsites.net
+DEFAULT_DOMAIN=securewave-web.azurewebsites.net
+APP_URL=https://securewave-web.azurewebsites.net
+FRONTEND_URL=https://securewave-web.azurewebsites.net
 ```
 
 ### Dependencies Added
@@ -906,7 +906,7 @@ print(f"Verified: {verified}, Error: {error}")
 
 ```python
 # Check domain health
-health = domain_manager.check_domain_health("securewave.azurewebsites.net")
+health = domain_manager.check_domain_health("securewave-web.azurewebsites.net")
 print(f"Overall status: {health['overall_status']}")
 print(f"DNS resolution: {health['checks']['dns_resolution']}")
 print(f"HTTPS accessible: {health['checks']['https_accessible']}")
@@ -953,7 +953,7 @@ print(f"SSL certificate: {health['checks']['ssl_certificate']}")
 ### Domain Configuration
 
 **Custom Domain (Optional)**:
-- [ ] Add CNAME record: `vpn.yourdomain.com` → `securewave.azurewebsites.net`
+- [ ] Add CNAME record: `vpn.yourdomain.com` → `securewave-web.azurewebsites.net`
 - [ ] Verify domain ownership using TXT record
 - [ ] Add custom domain in Azure Portal
 - [ ] Create SSL certificate (Azure managed or Let's Encrypt)
