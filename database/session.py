@@ -45,8 +45,11 @@ if DATABASE_URL.startswith("sqlite:///"):
     # Extract the path after sqlite:///
     db_path = DATABASE_URL.replace("sqlite:///", "")
 
+    # Preserve in-memory SQLite for tests/dev
+    if db_path == ":memory:":
+        DATABASE_URL = "sqlite:///:memory:"
     # For Azure/Cloud: use /tmp if not absolute path
-    if not db_path.startswith("/"):
+    elif not db_path.startswith("/"):
         db_path = f"/tmp/{db_path}"
         DATABASE_URL = f"sqlite:///{db_path}"
 

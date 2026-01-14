@@ -21,7 +21,7 @@ cryptography==42.0.8
 pyotp==2.9.0
 
 # Payment Processing
-stripe==10.16.0
+stripe==10.12.0
 httpx==0.27.0
 
 # VPN & Networking
