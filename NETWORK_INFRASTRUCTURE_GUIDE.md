@@ -219,9 +219,9 @@ az network application-gateway waf-policy managed-rule rule-set add \
 az network front-door create \
   --resource-group securewave-rg \
   --name securewave-fd \
-  --backend-address securewave-eastus.azurewebsites.net \
-  --backend-address securewave-westeu.azurewebsites.net \
-  --backend-address securewave-apsouth.azurewebsites.net \
+  --backend-address securewave-web.azurewebsites.net \
+  --backend-address securewave-web.azurewebsites.net \
+  --backend-address securewave-web.azurewebsites.net \
   --accepted-protocols Http Https \
   --forwarding-protocol HttpsOnly
 
@@ -230,8 +230,8 @@ az network front-door backend-pool create \
   --resource-group securewave-rg \
   --front-door-name securewave-fd \
   --name WebAppBackend \
-  --address securewave-eastus.azurewebsites.net \
-  --address securewave-westeu.azurewebsites.net \
+  --address securewave-web.azurewebsites.net \
+  --address securewave-web.azurewebsites.net \
   --http-port 80 \
   --https-port 443
 

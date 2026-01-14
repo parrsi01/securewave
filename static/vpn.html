@@ -274,6 +274,11 @@
     let currentFilename = 'securewave.conf';
     let currentQr = null;
     const statusEl = document.getElementById('vpnStatus');
+    const statusAlert = document.getElementById('statusAlert');
+    const statusMessage = document.getElementById('statusMessage');
+    const connectBtn = document.getElementById('connectVpn');
+    const disconnectBtn = document.getElementById('disconnectVpn');
+    const downloadBtn = document.getElementById('downloadConfig');
 
     async function loadStatus() {
       try {
@@ -286,18 +291,27 @@
         const data = await response.json();
         if (data.status === 'CONNECTED') {
           statusEl.textContent = 'Status: Connected (Demo)';
-          document.getElementById('disconnectVpn').classList.remove('hidden');
-          document.getElementById('downloadConfig').classList.remove('hidden');
+          disconnectBtn.classList.remove('hidden');
+          downloadBtn.classList.remove('hidden');
+          connectBtn.classList.add('hidden');
         }
         if (data.status === 'CONNECTING') {
           statusEl.textContent = 'Status: Connecting (Demo)';
-          document.getElementById('disconnectVpn').classList.remove('hidden');
+          disconnectBtn.classList.remove('hidden');
+          downloadBtn.classList.add('hidden');
+          connectBtn.classList.add('hidden');
         }
         if (data.status === 'DISCONNECTING') {
           statusEl.textContent = 'Status: Disconnecting (Demo)';
+          disconnectBtn.classList.remove('hidden');
+          downloadBtn.classList.add('hidden');
+          connectBtn.classList.add('hidden');
         }
         if (data.status === 'DISCONNECTED') {
           statusEl.textContent = 'Status: Disconnected';
+          disconnectBtn.classList.add('hidden');
+          downloadBtn.classList.add('hidden');
+          connectBtn.classList.remove('hidden');
         }
       } catch (error) {
         // Silent fail for demo
@@ -309,9 +323,6 @@
 
     document.getElementById('connectVpn').addEventListener('click', async () => {
       const btn = document.getElementById('connectVpn');
-      const disconnectBtn = document.getElementById('disconnectVpn');
-      const statusAlert = document.getElementById('statusAlert');
-      const statusMessage = document.getElementById('statusMessage');
 
       btn.disabled = true;
       btn.textContent = 'Connecting...';
@@ -332,9 +343,11 @@
           currentQr = null;
 
           statusAlert.classList.remove('hidden');
-          statusMessage.textContent = 'VPN ready (Demo Mode). Download the mock config.';
+          statusMessage.textContent = 'VPN connecting (Demo Mode). Download the mock config once connected.';
           statusEl.textContent = 'Status: Connecting (Demo)';
           disconnectBtn.classList.remove('hidden');
+          downloadBtn.classList.add('hidden');
+          connectBtn.classList.add('hidden');
         } else if (response.status === 401) {
           window.location.href = '/login.html';
         } else {
@@ -352,7 +365,6 @@
     });
 
     document.getElementById('disconnectVpn').addEventListener('click', async () => {
-      const disconnectBtn = document.getElementById('disconnectVpn');
       disconnectBtn.disabled = true;
       try {
         await fetch('/api/vpn/disconnect', {
@@ -365,6 +377,8 @@
         });
         statusEl.textContent = 'Status: Disconnecting (Demo)';
         disconnectBtn.classList.add('hidden');
+        downloadBtn.classList.add('hidden');
+        connectBtn.classList.add('hidden');
       } catch (error) {
         statusAlert.classList.remove('hidden');
         statusAlert.style.backgroundColor = 'var(--error)';

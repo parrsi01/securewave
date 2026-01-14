@@ -9,11 +9,15 @@ def test_vpn_demo_flow(client, auth_headers):
     connect = client.post("/api/vpn/connect", json={"region": "us-east"}, headers=auth_headers)
     assert connect.status_code == 200
     connect_data = connect.json()
-    assert connect_data["status"] == "CONNECTED"
+    assert connect_data["status"] in {"CONNECTING", "CONNECTED"}
 
-    status = client.get("/api/vpn/status", headers=auth_headers)
-    assert status.status_code == 200
-    status_data = status.json()
+    for _ in range(5):
+        status = client.get("/api/vpn/status", headers=auth_headers)
+        assert status.status_code == 200
+        status_data = status.json()
+        if status_data["status"] == "CONNECTED":
+            break
+        time.sleep(0.3)
     assert status_data["status"] == "CONNECTED"
 
     config = client.get("/api/vpn/config", headers=auth_headers)
@@ -22,3 +26,4 @@ def test_vpn_demo_flow(client, auth_headers):
 
     disconnect = client.post("/api/vpn/disconnect", json={"reason": "test"}, headers=auth_headers)
     assert disconnect.status_code == 200
+import time
