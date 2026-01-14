@@ -1,0 +1,15 @@
+[Unit]
+Description=SecureWave Database Maintenance Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=azureuser
+WorkingDirectory=/home/sp/cyber-course/projects/securewave
+ExecStart=/home/sp/cyber-course/projects/securewave/infrastructure/database_maintenance_scheduler.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=securewave-db-maintenance
+
+[Install]
+WantedBy=multi-user.target

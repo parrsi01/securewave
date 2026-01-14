@@ -112,8 +112,20 @@ class WireGuardService:
     def config_exists(self, user_id: int) -> bool:
         return (self.users_dir / f"{user_id}.conf").exists()
 
+    def config_path_for_server(self, user_id: int, server_id: str) -> Path:
+        return self.users_dir / f"{user_id}_{server_id}.conf"
+
+    def config_exists_for_server(self, user_id: int, server_id: str) -> bool:
+        return self.config_path_for_server(user_id, server_id).exists()
+
     def get_config(self, user_id: int) -> str:
         config_path = self.users_dir / f"{user_id}.conf"
+        if not config_path.exists():
+            raise FileNotFoundError("Configuration not generated")
+        return config_path.read_text()
+
+    def get_config_for_server(self, user_id: int, server_id: str) -> str:
+        config_path = self.config_path_for_server(user_id, server_id)
         if not config_path.exists():
             raise FileNotFoundError("Configuration not generated")
         return config_path.read_text()
@@ -154,7 +166,7 @@ class WireGuardService:
         )
 
         # Save config with server_id in filename
-        config_path = self.users_dir / f"{user.id}_{server.server_id}.conf"
+        config_path = self.config_path_for_server(user.id, server.server_id)
         config_path.write_text(config_content)
         return config_path, config_content
 

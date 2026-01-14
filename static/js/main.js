@@ -135,14 +135,26 @@ async function apiCall(endpoint, options = {}, retryCount = 0) {
 }
 
 // Check authentication state
-function checkAuthState() {
+async function checkAuthState() {
   const token = localStorage.getItem('access_token');
   const loginBtn = document.getElementById('loginBtn');
   const registerBtn = document.getElementById('registerBtn');
   const logoutBtn = document.getElementById('logoutBtn');
   const dashLink = document.getElementById('dashLink');
+  const settingsLink = document.getElementById('settingsLink');
 
   if (token) {
+    const profileResponse = await apiCall('/auth/me', { method: 'GET' });
+    if (!profileResponse || !profileResponse.ok) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      if (loginBtn) loginBtn.classList.remove('d-none');
+      if (registerBtn) registerBtn.classList.remove('d-none');
+      if (logoutBtn) logoutBtn.classList.add('d-none');
+      if (dashLink) dashLink.classList.add('d-none');
+      if (settingsLink) settingsLink.classList.add('d-none');
+      return;
+    }
     // User is logged in
     if (loginBtn) loginBtn.classList.add('d-none');
     if (registerBtn) registerBtn.classList.add('d-none');
@@ -154,6 +166,7 @@ function checkAuthState() {
       }
     }
     if (dashLink) dashLink.classList.remove('d-none');
+    if (settingsLink) settingsLink.classList.remove('d-none');
 
     // Start token refresh interval
     startTokenRefresh();
@@ -163,6 +176,7 @@ function checkAuthState() {
     if (registerBtn) registerBtn.classList.remove('d-none');
     if (logoutBtn) logoutBtn.classList.add('d-none');
     if (dashLink) dashLink.classList.add('d-none');
+    if (settingsLink) settingsLink.classList.add('d-none');
   }
 }
 
@@ -320,9 +334,16 @@ function debounce(func, wait) {
 }
 
 // Initialize on DOM load
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  const protectedRoutes = ['/dashboard.html', '/dashboard', '/vpn.html', '/vpn', '/settings.html', '/settings', '/subscription.html', '/subscription', '/diagnostics.html', '/diagnostics'];
+  const path = window.location.pathname;
+  const token = localStorage.getItem('access_token');
+  if (protectedRoutes.includes(path) && !token) {
+    window.location.href = '/login.html?redirect=' + encodeURIComponent(path);
+    return;
+  }
   // Check authentication state
-  checkAuthState();
+  await checkAuthState();
 
   // Mobile menu toggle (if exists)
   const navToggle = document.querySelector('.navbar-toggler');

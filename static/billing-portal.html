@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Billing Portal - SecureWave VPN</title>
+  <meta name="description" content="Manage your SecureWave VPN subscription, view invoices, and update payment methods.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/professional.css">
+  <style>
+    .billing-section {
+      margin-bottom: 2rem;
+    }
+
+    .subscription-card {
+      background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
+      color: white;
+      padding: 2rem;
+      border-radius: 12px;
+      margin-bottom: 2rem;
+    }
+
+    .subscription-card h2 {
+      color: white;
+      margin: 0 0 0.5rem 0;
+    }
+
+    .subscription-card .plan-name {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .subscription-card .price {
+      font-size: 1.5rem;
+      opacity: 0.9;
+    }
+
+    .subscription-status {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-active {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      border: 1px solid #10b981;
+    }
+
+    .status-trialing {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+      border: 1px solid #3b82f6;
+    }
+
+    .status-past_due {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border: 1px solid #f59e0b;
+    }
+
+    .status-canceled {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid #ef4444;
+    }
+
+    .invoice-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    .invoice-table th {
+      text-align: left;
+      padding: 0.75rem;
+      background: var(--background-secondary);
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .invoice-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .invoice-table tr:hover {
+      background: var(--background-secondary);
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--background-primary);
+      padding: 2rem;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-header {
+      margin-bottom: 1.5rem;
+    }
+
+    .modal-header h3 {
+      margin: 0 0 0.5rem 0;
+    }
+
+    .modal-footer {
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 1rem;
+      justify-content: flex-end;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-secondary);
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    .alert {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .alert-warning {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid #f59e0b;
+      color: #f59e0b;
+    }
+
+    .alert-info {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid #3b82f6;
+      color: #3b82f6;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="/home.html" class="navbar-brand">
+        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
+        <span>SecureWave</span>
+      </a>
+      <ul class="navbar-menu">
+        <li><a href="/home.html">Home</a></li>
+        <li><a href="/dashboard.html">Dashboard</a></li>
+        <li><a href="/billing-portal.html" aria-current="page">Billing</a></li>
+        <li><button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button></li>
+      </ul>
+
+      <button class="navbar-toggle" aria-label="Toggle navigation menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main id="main-content" style="padding: 2rem 0;">
+    <div class="container">
+      <h1>Billing Portal</h1>
+      <p class="text-muted mb-4">Manage your subscription, view invoices, and update payment methods.</p>
+
+      <!-- Loading State -->
+      <div id="loadingState" class="text-center" style="padding: 3rem;">
+        <div class="spinner" style="width: 48px; height: 48px; border-width: 4px; margin: 0 auto 1rem;"></div>
+        <p class="text-muted">Loading billing information...</p>
+      </div>
+
+      <!-- Content (hidden initially) -->
+      <div id="billingContent" style="display: none;">
+        <!-- Active Subscription -->
+        <div id="activeSubscription" class="billing-section">
+          <div class="subscription-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+              <div>
+                <span class="subscription-status" id="subscriptionStatus">ACTIVE</span>
+                <div class="plan-name" id="planName">Premium Plan</div>
+                <div class="price" id="planPrice">$14.99/month</div>
+              </div>
+              <div style="text-align: right;">
+                <p style="margin: 0; opacity: 0.9; font-size: 0.875rem;">Next billing date</p>
+                <p style="margin: 0.25rem 0 0 0; font-size: 1.25rem; font-weight: 600;" id="nextBillingDate">Jan 15, 2026</p>
+              </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+              <button class="btn btn-light" id="upgradePlanBtn">Upgrade Plan</button>
+              <button class="btn btn-light" id="updatePaymentBtn">Update Payment Method</button>
+              <button class="btn btn-outline-light" id="cancelSubscriptionBtn">Cancel Subscription</button>
+            </div>
+          </div>
+
+          <!-- Trial Warning -->
+          <div id="trialWarning" class="alert alert-info" style="display: none;">
+            <strong>🎁 Trial Period</strong>
+            <p style="margin: 0.5rem 0 0 0;">Your trial ends on <span id="trialEndDate"></span>. Your payment method will be charged after the trial period.</p>
+          </div>
+
+          <!-- Cancellation Warning -->
+          <div id="cancellationWarning" class="alert alert-warning" style="display: none;">
+            <strong>⚠ Subscription Ending</strong>
+            <p style="margin: 0.5rem 0 0 0;">Your subscription will be canceled on <span id="cancellationDate"></span>. <button class="btn btn-sm btn-warning" id="reactivateBtn">Reactivate Subscription</button></p>
+          </div>
+        </div>
+
+        <!-- No Active Subscription -->
+        <div id="noSubscription" class="card" style="display: none;">
+          <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            <h3>No Active Subscription</h3>
+            <p>You don't have an active subscription. Choose a plan to get started.</p>
+            <a href="/subscription.html" class="btn btn-primary">View Plans</a>
+          </div>
+        </div>
+
+        <!-- Subscription History -->
+        <div class="billing-section">
+          <div class="card">
+            <h2>Subscription History</h2>
+            <div id="subscriptionHistory">
+              <div class="empty-state">
+                <p>No subscription history available.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Invoices -->
+        <div class="billing-section">
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h2 style="margin: 0;">Invoices</h2>
+              <button class="btn btn-sm btn-secondary" id="downloadAllInvoicesBtn">Download All</button>
+            </div>
+
+            <div id="invoicesContainer">
+              <table class="invoice-table">
+                <thead>
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Date</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="invoicesList">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
+                      No invoices found.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Cancel Subscription Modal -->
+  <div id="cancelModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Cancel Subscription</h3>
+        <p class="text-muted">We're sorry to see you go. Your subscription will remain active until the end of your billing period.</p>
+      </div>
+
+      <div style="margin: 1.5rem 0;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Reason for canceling (optional)</label>
+        <textarea id="cancellationReason" class="form-input" rows="3" placeholder="Help us improve by sharing why you're canceling..."></textarea>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="cancelModalCancelBtn">Keep Subscription</button>
+        <button class="btn btn-danger" id="confirmCancelBtn">Cancel Subscription</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upgrade Plan Modal -->
+  <div id="upgradeModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Upgrade Your Plan</h3>
+        <p class="text-muted">Choose a new plan to upgrade or downgrade your subscription.</p>
+      </div>
+
+      <div id="planOptions" style="margin: 1.5rem 0;">
+        <!-- Plan options will be populated dynamically -->
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="upgradeModalCancelBtn">Cancel</button>
+        <button class="btn btn-primary" id="confirmUpgradeBtn">Confirm Upgrade</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+  <script src="/js/billing-portal.js"></script>
+</body>
+</html>

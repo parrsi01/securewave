@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VPN Configuration - SecureWave VPN</title>
-  <meta name="description" content="Generate and download your WireGuard VPN configuration. Quick setup with QR code support for mobile devices.">
+  <meta name="description" content="Demo VPN control panel. Connect instantly and download a mock WireGuard config in demo mode.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -33,6 +33,7 @@
         <li><a href="/about.html">About</a></li>
         <li><a href="/contact.html">Contact</a></li>
         <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
+        <li><a href="/settings.html" class="hidden" id="settingsLink">Settings</a></li>
         <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
         <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
         <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
@@ -51,10 +52,10 @@
     <!-- Page Header -->
     <div style="background-color: var(--bg-secondary); border-bottom: 1px solid var(--border-primary); padding: 2rem 0;">
       <div class="container">
-        <div class="badge">WireGuard Configuration</div>
+        <div class="badge">Demo Mode</div>
         <h1 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">VPN Configuration Center</h1>
         <p style="font-size: 1.125rem; color: var(--gray-500); max-width: 42rem;">
-          Generate, download, and deploy your WireGuard VPN configuration in seconds. No technical knowledge required.
+          Control-plane demo for VPN sessions. This does not establish a real VPN tunnel.
         </p>
       </div>
     </div>
@@ -71,7 +72,7 @@
 
       <!-- Two Column Layout -->
       <div class="grid grid-2" style="margin-bottom: 3rem;">
-        <!-- Left Column: Generate Config -->
+        <!-- Left Column: Connect -->
         <div class="card">
           <div class="card-body">
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
@@ -82,18 +83,25 @@
                 </svg>
               </div>
               <div>
-                <h2 style="margin: 0; font-size: 1.25rem;">Generate Configuration</h2>
-                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--gray-500);">Create your WireGuard config</p>
+                <h2 style="margin: 0; font-size: 1.25rem;">Connect VPN</h2>
+                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--gray-500);">Instant setup with one click</p>
               </div>
             </div>
 
             <p style="color: var(--gray-600); margin-bottom: 1.5rem;">
-              Generate a new WireGuard configuration with AI-optimized server selection. Your private key and IP address will be automatically assigned.
+              Provision a mock WireGuard configuration and simulate a VPN session in demo mode.
             </p>
 
-            <button id="generateConfig" class="btn btn-primary btn-block btn-lg" style="margin-bottom: 1rem;">
-              Generate New Config
+            <button id="connectVpn" class="btn btn-primary btn-block btn-lg" style="margin-bottom: 1rem;">
+              Connect Now
             </button>
+            <button id="disconnectVpn" class="btn btn-outline btn-block btn-lg hidden" style="margin-bottom: 1rem;">
+              Disconnect
+            </button>
+
+            <div id="vpnStatus" style="font-size: 0.9rem; color: var(--gray-500);">
+              Status: Disconnected
+            </div>
 
             <div style="background-color: var(--bg-secondary); border-radius: var(--radius-md); padding: 1rem; margin-top: 1rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
@@ -150,7 +158,7 @@
             </button>
 
             <div id="qrCodeDisplay" style="text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center; background-color: var(--bg-secondary); border-radius: var(--radius-lg); padding: 2rem;">
-              <p style="margin: 0; color: var(--gray-400);">Generate a config to view QR code</p>
+              <p style="margin: 0; color: var(--gray-400);">Connect to view demo QR code</p>
             </div>
           </div>
         </div>
@@ -165,8 +173,8 @@
           <div class="grid grid-3">
             <div>
               <div style="display: inline-block; background-color: var(--primary-100); color: var(--primary-700); padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 600; margin-bottom: 1rem;">Step 1</div>
-              <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Generate Config</h3>
-              <p style="color: var(--gray-600); margin: 0;">Click "Generate New Config" to create your unique WireGuard configuration with AI-optimized server selection.</p>
+              <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Connect</h3>
+              <p style="color: var(--gray-600); margin: 0;">Click "Connect Now" to start a demo VPN session and generate a mock config.</p>
             </div>
             <div>
               <div style="display: inline-block; background-color: var(--primary-100); color: var(--primary-700); padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 600; margin-bottom: 1rem;">Step 2</div>
@@ -262,70 +270,147 @@
   <script src="/js/main.js"></script>
   <script>
     // VPN Configuration Logic
-    document.getElementById('generateConfig').addEventListener('click', async () => {
-      const btn = document.getElementById('generateConfig');
-      const statusAlert = document.getElementById('statusAlert');
-      const statusMessage = document.getElementById('statusMessage');
+    let currentConfig = null;
+    let currentFilename = 'securewave.conf';
+    let currentQr = null;
+    const statusEl = document.getElementById('vpnStatus');
 
-      btn.disabled = true;
-      btn.textContent = 'Generating...';
-
+    async function loadStatus() {
       try {
-        const response = await fetch('/api/vpn/generate', {
-          method: 'POST',
+        const response = await fetch('/api/vpn/status', {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`
           }
         });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.status === 'CONNECTED') {
+          statusEl.textContent = 'Status: Connected (Demo)';
+          document.getElementById('disconnectVpn').classList.remove('hidden');
+          document.getElementById('downloadConfig').classList.remove('hidden');
+        }
+        if (data.status === 'CONNECTING') {
+          statusEl.textContent = 'Status: Connecting (Demo)';
+          document.getElementById('disconnectVpn').classList.remove('hidden');
+        }
+        if (data.status === 'DISCONNECTING') {
+          statusEl.textContent = 'Status: Disconnecting (Demo)';
+        }
+        if (data.status === 'DISCONNECTED') {
+          statusEl.textContent = 'Status: Disconnected';
+        }
+      } catch (error) {
+        // Silent fail for demo
+      }
+    }
+
+    loadStatus();
+    setInterval(loadStatus, 5000);
+
+    document.getElementById('connectVpn').addEventListener('click', async () => {
+      const btn = document.getElementById('connectVpn');
+      const disconnectBtn = document.getElementById('disconnectVpn');
+      const statusAlert = document.getElementById('statusAlert');
+      const statusMessage = document.getElementById('statusMessage');
+
+      btn.disabled = true;
+      btn.textContent = 'Connecting...';
+
+      try {
+        const response = await fetch('/api/vpn/connect', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
         if (response.ok) {
+          await response.json();
+          currentConfig = null;
+          currentFilename = 'securewave-demo.conf';
+          currentQr = null;
+
           statusAlert.classList.remove('hidden');
-          statusMessage.textContent = 'Configuration generated successfully!';
-          document.getElementById('downloadConfig').classList.remove('hidden');
-          document.getElementById('showQR').classList.remove('hidden');
+          statusMessage.textContent = 'VPN ready (Demo Mode). Download the mock config.';
+          statusEl.textContent = 'Status: Connecting (Demo)';
+          disconnectBtn.classList.remove('hidden');
         } else if (response.status === 401) {
           window.location.href = '/login.html';
         } else {
-          throw new Error('Failed to generate config');
+          throw new Error('Failed to connect VPN');
         }
       } catch (error) {
         statusAlert.classList.remove('hidden');
         statusAlert.style.backgroundColor = 'var(--error)';
         statusAlert.style.borderColor = 'var(--error)';
-        statusMessage.textContent = 'Error generating config. Please try again.';
+        statusMessage.textContent = 'Error connecting VPN. Please try again.';
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Generate New Config';
+        btn.textContent = 'Connect Now';
+      }
+    });
+
+    document.getElementById('disconnectVpn').addEventListener('click', async () => {
+      const disconnectBtn = document.getElementById('disconnectVpn');
+      disconnectBtn.disabled = true;
+      try {
+        await fetch('/api/vpn/disconnect', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ reason: 'user' })
+        });
+        statusEl.textContent = 'Status: Disconnecting (Demo)';
+        disconnectBtn.classList.add('hidden');
+      } catch (error) {
+        statusAlert.classList.remove('hidden');
+        statusAlert.style.backgroundColor = 'var(--error)';
+        statusAlert.style.borderColor = 'var(--error)';
+        statusMessage.textContent = 'Failed to disconnect.';
+      } finally {
+        disconnectBtn.disabled = false;
       }
     });
 
     document.getElementById('downloadConfig').addEventListener('click', async () => {
-      window.location.href = '/api/vpn/download';
+      try {
+        const response = await fetch('/api/vpn/config', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          }
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch config');
+        }
+        const data = await response.json();
+        currentConfig = data.config;
+        currentFilename = 'securewave-demo.conf';
+
+        const blob = new Blob([currentConfig], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = currentFilename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        statusAlert.classList.remove('hidden');
+        statusAlert.style.backgroundColor = 'var(--error)';
+        statusAlert.style.borderColor = 'var(--error)';
+        statusMessage.textContent = 'Failed to download config. Connect first.';
+      }
     });
 
     document.getElementById('showQR').addEventListener('click', async () => {
       const qrDisplay = document.getElementById('qrCodeDisplay');
       qrDisplay.innerHTML = '<p style="color: var(--gray-400);">Loading QR code...</p>';
 
-      try {
-        const response = await fetch('/api/vpn/qr', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          }
-        });
-
-        if (response.ok) {
-          const blob = await response.blob();
-          const img = document.createElement('img');
-          img.src = URL.createObjectURL(blob);
-          img.style.maxWidth = '100%';
-          img.style.borderRadius = 'var(--radius-lg)';
-          qrDisplay.innerHTML = '';
-          qrDisplay.appendChild(img);
-        }
-      } catch (error) {
-        qrDisplay.innerHTML = '<p style="color: var(--error);">Failed to load QR code</p>';
-      }
+      qrDisplay.innerHTML = '<p style="color: var(--gray-400);">QR code is disabled in demo mode.</p>';
     });
   </script>
 </body>

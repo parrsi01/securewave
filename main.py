@@ -2,30 +2,34 @@ import os
 import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
-from models import user, subscription, audit_log, vpn_server, vpn_connection  # noqa: F401
-from routers import auth, contact, dashboard, optimizer, payment_paypal, payment_stripe, vpn
+from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session  # noqa: F401
+from routers import auth as old_auth, contact, dashboard, optimizer, payment_paypal, payment_stripe, vpn
+from routes import auth as new_auth, billing, diagnostics
 from services.wireguard_service import WireGuardService
 
 # NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD
 # base.Base.metadata.create_all(bind=engine)  # Commented out to avoid conflicts with migrations
 
+docs_enabled = os.getenv("ENVIRONMENT") != "production" or os.getenv("DEMO_OK", "false").lower() == "true"
+
 app = FastAPI(
     title="SecureWave VPN",
     version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    docs_url="/api/docs" if docs_enabled else None,
+    redoc_url="/api/redoc" if docs_enabled else None,
+    openapi_url="/api/openapi.json" if docs_enabled else None,
 )
 
 # Rate Limiting Configuration
@@ -35,31 +39,34 @@ limiter = Limiter(
     default_limits=["200 per minute"]
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS Configuration - Locked Down for Production
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    if request.url.path.startswith("/api"):
+        return api_error("rate_limited", "Too many requests", status_code=429)
+    return JSONResponse({"detail": "Too many requests"}, status_code=429)
+
+# CORS Configuration - enable only when explicitly set
 origins_env = os.getenv("CORS_ORIGINS", "")
 if origins_env:
     origins = [o.strip() for o in origins_env.split(",") if o.strip()]
-else:
-    # Development defaults
-    origins = ["http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:8000"]
 
-# Security check: No wildcards in production
-if os.getenv("ENVIRONMENT") == "production" and ("*" in origins or not origins_env):
-    raise RuntimeError(
-        "Production requires specific CORS_ORIGINS environment variable. "
-        "Wildcards are not allowed in production."
+    # Security check: No wildcards in production
+    if os.getenv("ENVIRONMENT") == "production" and "*" in origins:
+        raise RuntimeError(
+            "Production requires specific CORS_ORIGINS environment variable. "
+            "Wildcards are not allowed in production."
+        )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods
+        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],  # Explicit headers
+        max_age=3600,
     )
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods
-    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],  # Explicit headers
-    max_age=3600,
-)
 
 # Security Headers Middleware
 @app.middleware("http")
@@ -91,10 +98,16 @@ def sync_static_assets():
         shutil.copytree(frontend_dir, static_dir, dirs_exist_ok=True)
 
 
-@app.on_event("startup")
-async def startup_event():
+async def initialize_app_background():
+    """Background initialization that happens AFTER the app starts responding to health checks"""
     import logging
+    import asyncio
     logger = logging.getLogger(__name__)
+
+    # Wait a bit to ensure app is fully started
+    await asyncio.sleep(2)
+
+    logger.info("Starting background initialization...")
 
     # Initialize database tables
     try:
@@ -108,11 +121,13 @@ async def startup_event():
 
     try:
         sync_static_assets()
+        logger.info("Static assets synced")
     except Exception as e:
         logger.warning(f"Static asset sync failed: {e}")
 
     try:
         app.state.wireguard = WireGuardService()
+        logger.info("WireGuard service initialized")
     except Exception as e:
         logger.warning(f"WireGuard service init failed: {e}")
 
@@ -151,6 +166,29 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"Background tasks initialization failed: {e}. Continuing without background tasks.")
 
+    logger.info("Background initialization completed")
+
+
+@app.on_event("startup")
+async def startup_event():
+    import logging
+    import asyncio
+    logger = logging.getLogger(__name__)
+
+    logger.info("FastAPI startup: Quick initialization only")
+
+    # Create data directory if needed (fast operation)
+    try:
+        data_dir = Path(__file__).resolve().parent / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.warning(f"Could not create data directory: {e}")
+
+    # Schedule background initialization to run after startup completes
+    asyncio.create_task(initialize_app_background())
+
+    logger.info("FastAPI startup complete - background initialization scheduled")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -170,18 +208,35 @@ async def shutdown_event():
         logger.warning(f"Failed to stop background tasks: {e}")
 
 
-app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+# New enhanced routes with email verification, 2FA, password reset
+app.include_router(new_auth.router, tags=["auth"])  # Already has /api/auth prefix
+app.include_router(billing.router, tags=["billing"])  # Already has /api/billing prefix
+
+# Legacy routes (keeping for compatibility)
 app.include_router(vpn.router, prefix="/api/vpn", tags=["vpn"])
 app.include_router(optimizer.router, prefix="/api/optimizer", tags=["optimizer"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(payment_stripe.router, prefix="/api/payments", tags=["payments"])
 app.include_router(payment_paypal.router, prefix="/api/payments", tags=["payments"])
 app.include_router(contact.router, prefix="/api/contact", tags=["contact"])
+app.include_router(diagnostics.router, tags=["diagnostics"])
+
+
+def api_error(code: str, message: str, details=None, status_code: int = 400):
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": {"code": code, "message": message, "details": details}},
+    )
+
+
+@app.get("/health")
+def healthcheck():
+    return {"status": "ok", "service": "securewave-vpn-demo"}
 
 
 @app.get("/api/health")
-def healthcheck():
-    return {"status": "ok", "service": "securewave-vpn"}
+def api_healthcheck():
+    return {"status": "ok", "service": "securewave-vpn-demo"}
 
 
 @app.get("/api/ready")
@@ -197,33 +252,72 @@ def readiness():
 
 static_directory = Path(__file__).resolve().parent / "static"
 
-# Serve individual HTML pages from root
+page_routes = {
+    "/": "index.html",
+    "/home": "home.html",
+    "/login": "login.html",
+    "/register": "register.html",
+    "/dashboard": "dashboard.html",
+    "/vpn": "vpn.html",
+    "/settings": "settings.html",
+    "/diagnostics": "diagnostics.html",
+    "/subscription": "subscription.html",
+    "/services": "services.html",
+    "/about": "about.html",
+    "/contact": "contact.html",
+    "/privacy": "privacy.html",
+    "/terms": "terms.html",
+}
+
 html_pages = [
     "index.html", "home.html", "login.html", "register.html",
     "dashboard.html", "vpn.html", "services.html", "subscription.html",
-    "about.html", "contact.html", "privacy.html", "terms.html"
+    "about.html", "contact.html", "privacy.html", "terms.html",
+    "settings.html", "diagnostics.html"
 ]
 
-for page in html_pages:
-    page_path = static_directory / page
-    if page_path.exists():
-        # Create route for each HTML page
-        def make_page_handler(filepath):
-            async def handler():
-                return FileResponse(filepath)
-            return handler
 
-        route_path = f"/{page}"
-        app.get(route_path, include_in_schema=False)(make_page_handler(page_path))
+def make_page_handler(filepath):
+    async def handler():
+        if filepath.exists():
+            return FileResponse(filepath)
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    return handler
+
+
+for route_path, page in page_routes.items():
+    app.get(route_path, include_in_schema=False)(make_page_handler(static_directory / page))
+
+
+for page in html_pages:
+    app.get(f"/{page}", include_in_schema=False)(make_page_handler(static_directory / page))
 
 # Mount static assets (CSS, JS, images, etc.) under /static and root
+# Note: We mount unconditionally - Starlette will handle missing directories gracefully
+import logging
+_logger = logging.getLogger(__name__)
+_logger.info(f"Static directory path: {static_directory}")
+_logger.info(f"Static directory exists: {static_directory.exists()}")
 if static_directory.exists():
+    _logger.info(f"Static directory contents: {list(static_directory.iterdir()) if static_directory.exists() else 'N/A'}")
+
+try:
     app.mount("/static", StaticFiles(directory=str(static_directory)), name="static")
-    # Also mount at root for assets referenced as /css/style.css, /js/script.js, etc.
-    app.mount("/css", StaticFiles(directory=str(static_directory / "css")), name="css")
-    app.mount("/js", StaticFiles(directory=str(static_directory / "js")), name="js")
-    app.mount("/img", StaticFiles(directory=str(static_directory / "img")), name="img")
-    app.mount("/assets", StaticFiles(directory=str(static_directory / "assets")), name="assets")
+    css_dir = static_directory / "css"
+    js_dir = static_directory / "js"
+    img_dir = static_directory / "img"
+    assets_dir = static_directory / "assets"
+    if css_dir.exists():
+        app.mount("/css", StaticFiles(directory=str(css_dir)), name="css")
+    if js_dir.exists():
+        app.mount("/js", StaticFiles(directory=str(js_dir)), name="js")
+    if img_dir.exists():
+        app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+    _logger.info("Static files mounted successfully")
+except Exception as e:
+    _logger.warning(f"Failed to mount static files: {e}")
 
 
 @app.get("/", include_in_schema=False)
@@ -234,20 +328,51 @@ async def root():
     return {"message": "SecureWave VPN API", "docs": "/api/docs"}
 
 
-if __name__ == "__main__":
-    import uvicorn
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    # Check if it's an API request
+    if request.url.path.startswith("/api"):
+        return api_error("not_found", "Not found", status_code=404)
 
-    # Optimized for VM resource usage
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", 8000)),
-        reload=os.getenv("ENVIRONMENT") != "production",
-        workers=1,  # Single worker for dev/low-resource VMs
-        log_level="info",
-        access_log=True,
-        use_colors=True,
-        limit_concurrency=100,  # Limit concurrent connections
-        limit_max_requests=1000,  # Restart worker after N requests to prevent memory leaks
-        timeout_keep_alive=5,  # Close idle connections faster
-    )
+    # For web requests, show custom 404 page
+    error_404 = static_directory / "404.html"
+    if error_404.exists():
+        return FileResponse(error_404, status_code=404)
+    return JSONResponse({"detail": "Not found"}, status_code=404)
+
+
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.error(f"Internal server error: {exc}")
+
+    # For API requests, return JSON
+    if request.url.path.startswith("/api"):
+        return api_error("internal_error", "Internal server error", status_code=500)
+
+    # For web requests, show error page
+    error_page = static_directory / "error.html"
+    if error_page.exists():
+        return FileResponse(error_page, status_code=500)
+    return JSONResponse({"detail": "Internal server error"}, status_code=500)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if request.url.path.startswith("/api"):
+        return api_error("http_error", exc.detail, status_code=exc.status_code)
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    if request.url.path.startswith("/api"):
+        return api_error("validation_error", "Invalid request", details=exc.errors(), status_code=422)
+    return JSONResponse({"detail": exc.errors()}, status_code=422)
+
+
+"""
+Note: For local dev, use `uvicorn main:app --reload`.
+Azure App Service uses gunicorn with the startup command in AZURE_DEPLOY.md.
+"""
