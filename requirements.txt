@@ -6,3 +6,4 @@ alembic
 python-jose
 passlib[bcrypt]
 python-dotenv
+pytest

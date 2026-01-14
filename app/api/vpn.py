@@ -7,7 +7,7 @@ from app.core import config
 from app.models.device import Device
 from app.models.user import User
 from app.api.auth import get_current_user, require_admin
-from app.services import vpn_service
+from app.services import vpn_service, provisioning_service
 from app.db.session import get_db
 
 router = APIRouter(prefix="/vpn", tags=["vpn"])
@@ -26,6 +26,11 @@ class VPNServerCreateRequest(BaseModel):
     allowed_ips: str | None = None
     persistent_keepalive: str | None = None
     status: str | None = "active"
+
+
+class VPNProvisionRequest(BaseModel):
+    device_id: int
+    server_id: str
 
 
 @router.post("/config")
@@ -104,3 +109,23 @@ def deactivate_server(
     if not server:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
     return {"server_id": server.server_id, "status": "deactivated"}
+
+
+@router.post("/provision")
+def provision_device(
+    payload: VPNProvisionRequest,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    server = vpn_service.get_server(db, payload.server_id)
+    if not server:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
+    device = db.query(Device).filter(Device.id == payload.device_id).first()
+    if not device:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    return provisioning_service.queue_peer_provisioning(
+        db=db,
+        device=device,
+        server=server,
+        initiated_by=current_user.id,
+    )

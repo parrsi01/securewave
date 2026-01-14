@@ -38,6 +38,13 @@ alembic upgrade head
 WG_PUBLIC_KEY=... ENDPOINT=your-vm-ip:51820 ./scripts/seed_vpn_server.sh
 ```
 
+## Provisioning
+- Admin endpoint to queue provisioning: `POST /api/vpn/provision`
+- Current implementation logs and returns `queued` (TODO: add worker + WireGuard push).
+
+## Observability
+- Request logging middleware adds `X-Request-Id` header and duration logs.
+
 ## Notes
 - VPN server control is out-of-scope here; this service only issues configs/tokens.
 - TODOs are marked in service layers for future hardening and billing enforcement.

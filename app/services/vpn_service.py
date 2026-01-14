@@ -38,6 +38,49 @@ def get_server(db: Session, server_id: Optional[str] = None) -> Optional[VPNServ
     return query.filter(VPNServer.status == "active").first()
 
 
+def list_servers(db: Session) -> list[VPNServer]:
+    return db.query(VPNServer).filter(VPNServer.is_active == True).all()
+
+
+def create_server(
+    db: Session,
+    server_id: str,
+    location: str,
+    endpoint: str,
+    wg_public_key: str,
+    region: Optional[str] = None,
+    dns: Optional[str] = None,
+    allowed_ips: Optional[str] = None,
+    persistent_keepalive: Optional[str] = None,
+    status: str = "active",
+) -> VPNServer:
+    server = VPNServer(
+        server_id=server_id,
+        location=location,
+        region=region,
+        endpoint=endpoint,
+        wg_public_key=wg_public_key,
+        dns=dns or config.WG_DNS,
+        allowed_ips=allowed_ips or config.WG_ALLOWED_IPS,
+        persistent_keepalive=persistent_keepalive or config.WG_PERSISTENT_KEEPALIVE,
+        status=status,
+        is_active=True,
+    )
+    db.add(server)
+    db.commit()
+    db.refresh(server)
+    return server
+
+
+def deactivate_server(db: Session, server_id: str) -> Optional[VPNServer]:
+    server = db.query(VPNServer).filter(VPNServer.server_id == server_id).first()
+    if not server:
+        return None
+    server.is_active = False
+    db.commit()
+    return server
+
+
 def build_wireguard_config(device_id: int, server: VPNServer) -> str:
     private_key, _public_key = generate_keypair()
     client_ip = allocate_ip_for_device(device_id)
