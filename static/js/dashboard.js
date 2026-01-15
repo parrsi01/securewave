@@ -20,6 +20,7 @@ class VPNDashboard {
     this.userEmail = document.getElementById('userEmail');
     this.accountStatus = document.getElementById('accountStatus');
     this.joinDate = document.getElementById('joinDate');
+    this.subscriptionStatus = document.getElementById('subscriptionStatus');
 
     // State
     this.isConnected = false;
@@ -49,6 +50,7 @@ class VPNDashboard {
 
     // Load initial data
     await this.loadUserInfo();
+    await this.loadSubscriptionInfo();
     await this.loadServers();
     await this.initializeVPNStatus();
 
@@ -106,6 +108,10 @@ class VPNDashboard {
   }
 
   async loadUserInfo() {
+    // Show loading state
+    if (this.userEmail) this.userEmail.textContent = 'Loading...';
+    if (this.accountStatus) this.setBadge(this.accountStatus, 'Loading...', 'info');
+
     try {
       const response = await fetch('/api/auth/me', {
         headers: {
@@ -116,10 +122,21 @@ class VPNDashboard {
       if (response.ok) {
         const data = await response.json();
         this.userEmail.textContent = data.email || 'N/A';
-        this.accountStatus.textContent = data.subscription_active ? 'Premium Active' : 'Free Trial';
+        this.setBadge(
+          this.accountStatus,
+          data.is_active ? 'Active' : 'Inactive',
+          data.is_active ? 'success' : 'error'
+        );
+
+        // Update user name in header
+        const userNameElement = document.getElementById('userName');
+        if (userNameElement) {
+          const emailName = data.email ? data.email.split('@')[0] : 'User';
+          userNameElement.textContent = emailName.charAt(0).toUpperCase() + emailName.slice(1);
+        }
 
         // Format join date
-        if (data.created_at) {
+        if (data.created_at && this.joinDate) {
           const date = new Date(data.created_at);
           this.joinDate.textContent = date.toLocaleDateString('en-US', {
             year: 'numeric',
@@ -130,10 +147,65 @@ class VPNDashboard {
       } else if (response.status === 401) {
         // Token expired
         this.handleLogout();
+      } else {
+        throw new Error('Failed to load user info');
       }
     } catch (error) {
       console.error('Failed to load user info:', error);
+      if (this.userEmail) this.userEmail.textContent = 'Error loading';
+      if (this.accountStatus) this.setBadge(this.accountStatus, 'Error', 'error');
       this.showAlert('Failed to load account information', 'error');
+    }
+  }
+
+  async loadSubscriptionInfo() {
+    if (!this.subscriptionStatus) return;
+
+    // Show loading state
+    this.setBadge(this.subscriptionStatus, 'Loading...', 'info');
+
+    try {
+      const response = await fetch('/api/billing/subscriptions/current', {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        // For demo mode, show "Demo Active" instead of error
+        this.setBadge(this.subscriptionStatus, 'Demo Active', 'success');
+        return;
+      }
+
+      const data = await response.json();
+      if (!data.subscription) {
+        this.setBadge(this.subscriptionStatus, 'Free Plan', 'info');
+        return;
+      }
+
+      const status = data.subscription.status || 'active';
+      const planName = data.subscription.plan_name || 'Premium';
+      const badgeType = ['active', 'trialing'].includes(status)
+        ? 'success'
+        : ['past_due'].includes(status)
+          ? 'warning'
+          : ['canceled', 'expired', 'inactive'].includes(status)
+            ? 'error'
+            : 'info';
+
+      this.setBadge(this.subscriptionStatus, `${planName} • ${status}`, badgeType);
+    } catch (error) {
+      // For demo mode, show "Demo Active" instead of error
+      this.setBadge(this.subscriptionStatus, 'Demo Active', 'success');
+    }
+  }
+
+  setBadge(element, text, type) {
+    if (!element) return;
+    element.textContent = text;
+    element.classList.remove('badge-success', 'badge-warning', 'badge-error', 'badge-info');
+    if (type) {
+      element.classList.add(`badge-${type}`);
     }
   }
 
@@ -308,6 +380,7 @@ class VPNDashboard {
 
       // Update state
       this.setConnectionState('DISCONNECTING');
+      this.ensureStatusPolling();
       this.updateUI();
 
       this.showAlert('VPN disconnecting (Demo Mode)', 'info');
@@ -397,11 +470,15 @@ class VPNDashboard {
 
   updateConnectionDetails(serverInfo) {
     if (this.connectionDetails) {
+      const location = serverInfo.location || (this.currentServer ? this.currentServer.location : 'Auto');
+      const publicIp = serverInfo.public_ip || '10.8.0.10';
       const detailsHTML = `
-        <p><strong>Server:</strong> ${serverInfo.location || this.currentServer.location}</p>
-        <p><strong>IP Address:</strong> ${serverInfo.public_ip || '10.8.0.10'}</p>
+        <p><strong>Server:</strong> ${location}</p>
+        <p><strong>IP Address:</strong> ${publicIp}</p>
         <p><strong>Protocol:</strong> WireGuard (Demo)</p>
         <p><strong>Mode:</strong> Control Plane Demo</p>
+        <p><strong>Session:</strong> <span id="connectionDuration">00:00:00</span></p>
+        <p><strong>Data:</strong> <span id="dataDownload">0.0 KB</span> down / <span id="dataUpload">0.0 KB</span> up</p>
       `;
       this.connectionDetails.innerHTML = detailsHTML;
     }
@@ -455,7 +532,8 @@ class VPNDashboard {
       }
       const data = await response.json();
       this.vpnConfig = data.config;
-      const filename = `securewave-demo-${this.currentServer.location.toLowerCase().replace(/\s+/g, '-')}.conf`;
+      const serverName = this.currentServer ? this.currentServer.location : 'auto';
+      const filename = `securewave-demo-${serverName.toLowerCase().replace(/\s+/g, '-')}.conf`;
       this.downloadConfigFromText(this.vpnConfig, filename, true);
     } catch (error) {
       console.error('Failed to download config:', error);

@@ -36,7 +36,11 @@ class DashboardTester:
             self.log("Registering new test user for dashboard", "INFO")
             response = self.session.post(
                 f"{self.base_url}/api/auth/register",
-                json={"email": self.test_email, "password": self.test_password},
+                json={
+                    "email": self.test_email,
+                    "password": self.test_password,
+                    "password_confirm": self.test_password
+                },
                 timeout=10
             )
 

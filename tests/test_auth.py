@@ -15,7 +15,8 @@ class TestRegistration:
             "/api/auth/register",
             json={
                 "email": "newuser@example.com",
-                "password": "SecurePass123!"
+                "password": "SecurePass123!",
+                "password_confirm": "SecurePass123!"
             }
         )
         assert response.status_code == status.HTTP_201_CREATED
@@ -28,7 +29,8 @@ class TestRegistration:
             "/api/auth/register",
             json={
                 "email": "test@example.com",
-                "password": "SecurePass123!"
+                "password": "SecurePass123!",
+                "password_confirm": "SecurePass123!"
             }
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -39,7 +41,8 @@ class TestRegistration:
             "/api/auth/register",
             json={
                 "email": "weak@example.com",
-                "password": "123"
+                "password": "123",
+                "password_confirm": "123"
             }
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST

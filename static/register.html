@@ -7,8 +7,9 @@
   <meta name="description" content="Create your SecureWave demo account and access the control-plane experience.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
   <!-- Skip to main content for accessibility -->
@@ -98,6 +99,21 @@
               <span class="form-error-message hidden" id="password-error">Please enter a password</span>
             </div>
 
+            <!-- Confirm Password Field -->
+            <div class="form-group">
+              <label for="passwordConfirm">Confirm Password <span style="color: var(--error);">*</span></label>
+              <input
+                type="password"
+                id="passwordConfirm"
+                name="passwordConfirm"
+                placeholder="Re-enter your password"
+                required
+                autocomplete="new-password"
+                aria-required="true"
+              >
+              <span class="form-error-message hidden" id="passwordConfirm-error">Passwords do not match</span>
+            </div>
+
             <!-- Password Strength Indicator -->
             <div class="password-strength-container" id="strengthContainer" style="display: none;">
               <div class="password-strength-label">
@@ -110,7 +126,7 @@
             </div>
 
             <!-- Password Requirements Checklist -->
-            <div class="password-requirements" id="password-requirements">
+            <div class="password-requirements hidden" id="password-requirements">
               <div class="requirement" id="req-length">
                 <svg class="requirement-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -256,7 +272,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
     </div>
   </footer>
 
@@ -267,10 +283,12 @@
     document.addEventListener('DOMContentLoaded', function() {
       const togglePassword = document.getElementById('togglePassword');
       const passwordInput = document.getElementById('password');
+      const confirmInput = document.getElementById('passwordConfirm');
       const eyeIcon = document.getElementById('eyeIcon');
       const strengthContainer = document.getElementById('strengthContainer');
       const strengthBar = document.getElementById('strengthBar');
       const strengthText = document.getElementById('strengthText');
+      const requirements = document.getElementById('password-requirements');
 
       // Password toggle functionality
       if (togglePassword) {
@@ -294,8 +312,10 @@
         // Show/hide strength indicator
         if (password.length > 0) {
           strengthContainer.style.display = 'block';
+          requirements.classList.remove('hidden');
         } else {
           strengthContainer.style.display = 'none';
+          requirements.classList.add('hidden');
         }
 
         // Check requirements
@@ -326,6 +346,15 @@
         // Clear error on input
         this.closest('.form-group').classList.remove('error');
         document.getElementById('password-error').classList.add('hidden');
+
+        const mismatch = confirmInput.value && confirmInput.value !== passwordInput.value;
+        if (mismatch) {
+          confirmInput.closest('.form-group').classList.add('error');
+          document.getElementById('passwordConfirm-error').classList.remove('hidden');
+        } else {
+          confirmInput.closest('.form-group').classList.remove('error');
+          document.getElementById('passwordConfirm-error').classList.add('hidden');
+        }
       });
 
       function updateRequirement(id, met) {
@@ -380,6 +409,18 @@
       emailInput.addEventListener('input', function() {
         this.closest('.form-group').classList.remove('error');
         document.getElementById('email-error').classList.add('hidden');
+      });
+
+      // Confirm password match
+      confirmInput.addEventListener('input', function() {
+        const mismatch = confirmInput.value && confirmInput.value !== passwordInput.value;
+        if (mismatch) {
+          confirmInput.closest('.form-group').classList.add('error');
+          document.getElementById('passwordConfirm-error').classList.remove('hidden');
+        } else {
+          confirmInput.closest('.form-group').classList.remove('error');
+          document.getElementById('passwordConfirm-error').classList.add('hidden');
+        }
       });
     });
   </script>

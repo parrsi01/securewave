@@ -7,8 +7,9 @@
   <meta name="description" content="Protect your digital identity with military-grade encryption. Connect to 50+ global VPN servers with AI-powered optimization and zero-log policy.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
   <!-- Skip to main content for accessibility -->
@@ -46,37 +47,66 @@
   <main id="main-content">
     <!-- Hero Section -->
     <section class="hero">
-      <div class="container">
-        <div class="badge">
-          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-          </svg>
-          SecureWave SaaS Demo · Control Plane
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <div class="badge">
+            <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+            SecureWave SaaS Demo · Control Plane
+          </div>
+
+          <h1>
+            The VPN Control Plane<br>
+            Built for Real Operators
+          </h1>
+
+          <p>
+            SecureWave is a demo-ready SaaS experience: identity, billing, settings, and VPN configuration lifecycle in one polished cockpit.
+          </p>
+
+          <div class="hero-actions">
+            <a href="/register.html" class="btn btn-primary btn-lg">
+              <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              Start Demo
+            </a>
+            <a href="/dashboard.html" class="btn btn-secondary btn-lg">
+              <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12h18M3 6h18M3 18h18"/>
+              </svg>
+              Open Dashboard
+            </a>
+          </div>
         </div>
 
-        <h1>
-          Build, Manage, and<br>
-          Demo Your VPN<br>
-          <span class="text-gradient">Control Plane</span>
-        </h1>
-
-        <p>
-          This demo showcases auth, subscription management, and mock VPN sessions. Client apps are planned; no real tunnel is created in this build.
-        </p>
-
-        <div class="hero-actions">
-          <a href="/register.html" class="btn btn-primary btn-lg">
-            <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-            Start Demo
-          </a>
-          <a href="/vpn.html" class="btn btn-secondary btn-lg">
-            <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            View Demo VPN
-          </a>
+        <div class="hero-panel">
+          <div class="panel-title">
+            Live Control Snapshot
+            <span class="status-pill">Demo Active</span>
+          </div>
+          <div class="panel-subtitle">Everything you need to run a VPN business, simulated end-to-end.</div>
+          <div class="panel-row">
+            <span class="panel-label">Account Status</span>
+            <span class="panel-value">Ready for activation</span>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Subscription Engine</span>
+            <span class="panel-value">Stripe + PayPal (mock)</span>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">VPN Config</span>
+            <span class="panel-value">WireGuard profiles</span>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Routing Regions</span>
+            <span class="panel-value">4 demo clusters</span>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Security Layer</span>
+            <span class="panel-chip">JWT · MFA ready</span>
+          </div>
         </div>
       </div>
     </section>

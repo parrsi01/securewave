@@ -27,7 +27,11 @@ def test_login_flow():
 
     register_response = requests.post(
         f"{BASE_URL}/api/auth/register",
-        json={"email": test_email, "password": test_password},
+        json={
+            "email": test_email,
+            "password": test_password,
+            "password_confirm": test_password
+        },
         timeout=10
     )
 

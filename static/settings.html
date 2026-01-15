@@ -7,8 +7,9 @@
   <meta name="description" content="Manage SecureWave VPN settings, protocols, and connection preferences.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
     .settings-grid {
       display: grid;
@@ -53,7 +54,7 @@
       position: absolute;
       cursor: pointer;
       inset: 0;
-      background-color: var(--gray-300);
+      background-color: var(--bg-tertiary);
       transition: 0.2s;
       border-radius: 999px;
     }
@@ -80,7 +81,7 @@
       padding: 0.6rem 0.75rem;
       border-radius: var(--radius-md);
       border: 1px solid var(--border-primary);
-      background: white;
+      background: var(--white);
       font-size: 0.95rem;
     }
     .protocol-badge {
@@ -98,6 +99,19 @@
     .disabled-option {
       color: var(--text-tertiary);
       font-size: 0.85rem;
+    }
+    .settings-form {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+    .settings-form .form-group {
+      margin-bottom: 0;
+    }
+    .settings-form-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
     }
   </style>
 </head>
@@ -126,17 +140,17 @@
   </nav>
 
   <main id="main-content">
-    <div style="background-color: var(--bg-secondary); border-bottom: 1px solid var(--border-primary); padding: 2rem 0;">
+    <section class="page-hero">
       <div class="container">
         <div class="badge">VPN Settings</div>
-        <h1 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">Connection & Security</h1>
-        <p style="font-size: 1.125rem; color: var(--gray-500); max-width: 46rem;">
+        <h1 class="page-hero__title">Connection & Security</h1>
+        <p class="page-hero__subtitle">
           Configure SecureWave like a premium VPN: protocol, auto-connect, kill switch, and preferred countries.
         </p>
       </div>
-    </div>
+    </section>
 
-    <div class="container" style="padding: 3rem 0;">
+    <div class="container page-section">
       <div class="settings-grid">
         <div class="card">
           <div class="card-body">
@@ -148,21 +162,60 @@
                   <h4>Email</h4>
                   <p id="accountEmail">Loading...</p>
                 </div>
-                <span class="protocol-badge">Read-only</span>
+                <span class="protocol-badge">Editable</span>
               </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Password</h4>
-                  <p>Update your password (demo placeholder).</p>
-                </div>
-                <button class="btn btn-outline btn-sm" disabled>Change Password</button>
+              <div>
+                <h4 style="margin-bottom: 0.25rem;">Update Email</h4>
+                <p style="margin: 0; color: var(--text-tertiary); font-size: 0.875rem;">Confirm your password to change your login email.</p>
+                <form id="emailUpdateForm" class="settings-form">
+                  <div class="form-group">
+                    <label for="newEmail">New Email</label>
+                    <input type="email" id="newEmail" name="newEmail" placeholder="you@securewave.com" autocomplete="email" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="emailPassword">Current Password</label>
+                    <input type="password" id="emailPassword" name="emailPassword" placeholder="Enter current password" autocomplete="current-password" required>
+                  </div>
+                  <div class="settings-form-actions">
+                    <button class="btn btn-primary btn-sm" type="submit" id="updateEmailBtn">Update Email</button>
+                    <span class="form-success-message hidden" id="emailUpdateSuccess">Email updated.</span>
+                    <span class="form-error-message hidden" id="emailUpdateError">Unable to update email.</span>
+                  </div>
+                </form>
+              </div>
+              <div>
+                <h4 style="margin-bottom: 0.25rem;">Update Password</h4>
+                <p style="margin: 0; color: var(--text-tertiary); font-size: 0.875rem;">Choose a strong password with at least 8 characters.</p>
+                <form id="passwordUpdateForm" class="settings-form">
+                  <div class="form-group">
+                    <label for="currentPassword">Current Password</label>
+                    <input type="password" id="currentPassword" name="currentPassword" placeholder="Enter current password" autocomplete="current-password" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="newPassword">New Password</label>
+                    <input type="password" id="newPassword" name="newPassword" placeholder="New password" autocomplete="new-password" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="confirmPassword">Confirm New Password</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm new password" autocomplete="new-password" required>
+                    <span class="form-error-message hidden" id="passwordMismatchError">Passwords do not match.</span>
+                  </div>
+                  <div class="settings-form-actions">
+                    <button class="btn btn-outline btn-sm" type="submit" id="updatePasswordBtn">Update Password</button>
+                    <span class="form-success-message hidden" id="passwordUpdateSuccess">Password updated.</span>
+                    <span class="form-error-message hidden" id="passwordUpdateError">Unable to update password.</span>
+                  </div>
+                </form>
               </div>
               <div class="setting-row">
                 <div class="setting-label">
                   <h4>Logout</h4>
                   <p>Sign out from the demo control panel.</p>
                 </div>
-                <button class="btn btn-ghost btn-sm" id="settingsLogout">Logout</button>
+                <div class="settings-form-actions">
+                  <button class="btn btn-outline btn-sm" id="logoutAllBtn" type="button">Logout All Sessions</button>
+                  <button class="btn btn-ghost btn-sm" id="settingsLogout" type="button">Logout</button>
+                </div>
               </div>
             </div>
           </div>
@@ -332,7 +385,7 @@
 
   <footer class="footer">
     <div class="container">
-      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
     </div>
   </footer>
 

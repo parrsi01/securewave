@@ -1,5 +1,8 @@
 import os
 import shutil
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException
@@ -11,6 +14,7 @@ from sqlalchemy import text
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
@@ -24,12 +28,52 @@ from services.wireguard_service import WireGuardService
 
 docs_enabled = os.getenv("ENVIRONMENT") != "production" or os.getenv("DEMO_OK", "false").lower() == "true"
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events"""
+    logger = logging.getLogger(__name__)
+
+    # Startup
+    logger.info("FastAPI startup: Quick initialization only")
+
+    # Create data directory if needed (fast operation)
+    try:
+        data_dir = Path(__file__).resolve().parent / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.warning(f"Could not create data directory: {e}")
+
+    # Schedule background initialization to run after startup completes
+    if os.getenv("TESTING", "").lower() != "true":
+        asyncio.create_task(initialize_app_background())
+    else:
+        logger.info("Skipping background initialization in test mode")
+
+    logger.info("FastAPI startup complete - background initialization scheduled")
+
+    yield  # Application runs here
+
+    # Shutdown
+    logger.info("FastAPI shutdown initiated")
+    try:
+        from background_tasks import get_task_manager
+        task_manager = get_task_manager()
+        await task_manager.stop_all()
+        logger.info("Background tasks stopped successfully")
+    except ModuleNotFoundError:
+        pass  # Background tasks weren't loaded, nothing to stop
+    except Exception as e:
+        logger.warning(f"Failed to stop background tasks: {e}")
+
+
 app = FastAPI(
     title="SecureWave VPN",
     version="1.0.0",
     docs_url="/api/docs" if docs_enabled else None,
     redoc_url="/api/redoc" if docs_enabled else None,
     openapi_url="/api/openapi.json" if docs_enabled else None,
+    lifespan=lifespan,
 )
 
 # Rate Limiting Configuration
@@ -39,6 +83,7 @@ limiter = Limiter(
     default_limits=["200 per minute"]
 )
 app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 
 @app.exception_handler(RateLimitExceeded)
@@ -100,9 +145,6 @@ def sync_static_assets():
 
 async def initialize_app_background():
     """Background initialization that happens AFTER the app starts responding to health checks"""
-    import logging
-    import asyncio
-    import os
     logger = logging.getLogger(__name__)
 
     if os.getenv("TESTING", "").lower() == "true":
@@ -174,47 +216,6 @@ async def initialize_app_background():
     logger.info("Background initialization completed")
 
 
-@app.on_event("startup")
-async def startup_event():
-    import logging
-    import asyncio
-    import os
-    logger = logging.getLogger(__name__)
-
-    logger.info("FastAPI startup: Quick initialization only")
-
-    # Create data directory if needed (fast operation)
-    try:
-        data_dir = Path(__file__).resolve().parent / "data"
-        data_dir.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.warning(f"Could not create data directory: {e}")
-
-    # Schedule background initialization to run after startup completes
-    if os.getenv("TESTING", "").lower() != "true":
-        asyncio.create_task(initialize_app_background())
-    else:
-        logger.info("Skipping background initialization in test mode")
-
-    logger.info("FastAPI startup complete - background initialization scheduled")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    import logging
-    logger = logging.getLogger(__name__)
-
-    # Stop background tasks
-    try:
-        from background_tasks import get_task_manager
-
-        task_manager = get_task_manager()
-        await task_manager.stop_all()
-        logger.info("Background tasks stopped successfully")
-    except ModuleNotFoundError:
-        pass  # Background tasks weren't loaded, nothing to stop
-    except Exception as e:
-        logger.warning(f"Failed to stop background tasks: {e}")
 
 
 # New enhanced routes with email verification, 2FA, password reset
