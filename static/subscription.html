@@ -43,15 +43,22 @@
   </nav>
 
   <main id="main-content">
-    <section class="page-hero">
-      <div class="container text-center">
-        <div class="badge mb-4">💎 Demo Billing</div>
-        <h1 class="page-hero__title">SecureWave Plans (Demo)</h1>
-        <p class="page-hero__subtitle">Demo-only billing UI. Upgrades are simulated in this build.</p>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container">
+        <div class="badge mb-4">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+          </svg>
+          Demo Billing
+        </div>
+        <h1>SecureWave Plans</h1>
+        <p>Demo-only billing UI. Upgrades are simulated in this build.</p>
       </div>
     </section>
 
-    <section class="container page-section" id="pricing">
+    <section class="section" id="pricing">
+      <div class="container">
       <div class="panel" id="currentPlanCard" style="margin-bottom: 2.5rem;">
         <div class="pill">Current Plan</div>
         <h2 id="currentPlanName" style="margin-bottom: 0.5rem;">Sign in to view your plan</h2>
@@ -175,6 +182,7 @@
             <p class="text-muted">We accept all major credit cards via Stripe and PayPal for maximum flexibility.</p>
           </div>
         </div>
+      </div>
       </div>
     </section>
   </main>
