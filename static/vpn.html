@@ -7,8 +7,9 @@
   <meta name="description" content="Demo VPN control panel. Connect instantly and download a mock WireGuard config in demo mode.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
     #qrCodeDisplay img {
       border-radius: var(--radius-lg);
@@ -50,18 +51,18 @@
 
   <main id="main-content">
     <!-- Page Header -->
-    <div style="background-color: var(--bg-secondary); border-bottom: 1px solid var(--border-primary); padding: 2rem 0;">
+    <section class="page-hero">
       <div class="container">
         <div class="badge">Demo Mode</div>
-        <h1 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">VPN Configuration Center</h1>
-        <p style="font-size: 1.125rem; color: var(--gray-500); max-width: 42rem;">
+        <h1 class="page-hero__title">VPN Configuration Center</h1>
+        <p class="page-hero__subtitle">
           Control-plane demo for VPN sessions. This does not establish a real VPN tunnel.
         </p>
       </div>
-    </div>
+    </section>
 
     <!-- Main Content -->
-    <div class="container" style="padding: 3rem 0;">
+    <div class="container page-section">
       <!-- Status Alert -->
       <div id="statusAlert" class="hidden" style="background-color: var(--primary-50); border: 1px solid var(--primary-200); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 2rem; display: flex; align-items: center; gap: 0.75rem;">
         <svg style="width: 1.25rem; height: 1.25rem; color: var(--primary-600);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,7 +85,7 @@
               </div>
               <div>
                 <h2 style="margin: 0; font-size: 1.25rem;">Connect VPN</h2>
-                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--gray-500);">Instant setup with one click</p>
+                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Instant setup with one click</p>
               </div>
             </div>
 
@@ -99,7 +100,7 @@
               Disconnect
             </button>
 
-            <div id="vpnStatus" style="font-size: 0.9rem; color: var(--gray-500);">
+            <div id="vpnStatus" style="font-size: 0.9rem; color: var(--text-tertiary);">
               Status: Disconnected
             </div>
 
@@ -135,7 +136,7 @@
               </div>
               <div>
                 <h2 style="margin: 0; font-size: 1.25rem;">Download & Setup</h2>
-                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--gray-500);">Get your configuration</p>
+                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Get your configuration</p>
               </div>
             </div>
 
@@ -263,7 +264,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
     </div>
   </footer>
 

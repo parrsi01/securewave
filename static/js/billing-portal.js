@@ -15,7 +15,7 @@ async function initializeBillingPortal() {
   console.log('🔧 Initializing billing portal...');
 
   // Check authentication
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('access_token');
   if (!token) {
     window.location.href = '/login.html?redirect=/billing-portal.html';
     return;
@@ -57,7 +57,7 @@ async function loadBillingData() {
  */
 async function loadCurrentSubscription() {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     const response = await fetch(`${API_BASE}/subscriptions/current`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -88,7 +88,7 @@ async function loadCurrentSubscription() {
  */
 async function loadInvoices() {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     const response = await fetch(`${API_BASE}/invoices`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -115,7 +115,7 @@ async function loadInvoices() {
  */
 async function loadSubscriptionHistory() {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     const response = await fetch(`${API_BASE}/subscriptions/history`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -295,7 +295,7 @@ function setupEventListeners() {
  */
 async function openStripePortal() {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     const response = await fetch(`${API_BASE}/portal?return_url=${encodeURIComponent(window.location.href)}`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -307,6 +307,15 @@ async function openStripePortal() {
     }
 
     const data = await response.json();
+    if (data.demo) {
+      showError(data.message || 'Billing portal is unavailable in demo mode.');
+      return;
+    }
+
+    if (!data.url) {
+      throw new Error('No billing portal URL returned');
+    }
+
     window.location.href = data.url;
 
   } catch (error) {
@@ -338,7 +347,7 @@ async function confirmCancellation() {
 
   try {
     const reason = document.getElementById('cancellationReason').value;
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
 
     const response = await fetch(`${API_BASE}/subscriptions/${currentSubscription.id}/cancel`, {
       method: 'POST',
@@ -376,7 +385,7 @@ async function reactivateSubscription() {
   if (!currentSubscription) return;
 
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
 
     const response = await fetch(`${API_BASE}/subscriptions/${currentSubscription.id}/reactivate`, {
       method: 'POST',
@@ -452,7 +461,7 @@ async function confirmUpgrade() {
       return;
     }
 
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
 
     const response = await fetch(`${API_BASE}/subscriptions/${currentSubscription.id}/upgrade`, {
       method: 'PUT',

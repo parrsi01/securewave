@@ -47,11 +47,11 @@
   <!-- Main Content -->
   <main id="main-content">
     <!-- Hero Section -->
-    <section class="hero">
-      <div class="container">
+    <section class="page-hero">
+      <div class="container text-center">
         <div class="badge">Get in Touch</div>
-        <h1>We're Here to Help</h1>
-        <p>Have questions about SecureWave? Need technical support? Want to provide feedback? We'd love to hear from you.</p>
+        <h1 class="page-hero__title">We're Here to Help</h1>
+        <p class="page-hero__subtitle">Have questions about SecureWave? Need technical support? Want to provide feedback? We'd love to hear from you.</p>
       </div>
     </section>
 
@@ -217,7 +217,7 @@
 
         <div class="grid grid-3">
           <div class="card card-body text-center hover-lift">
-            <div style="font-size: 3rem; margin-bottom: var(--space-4);"></div>
+            <div style="font-size: 3rem; margin-bottom: var(--space-4);">📚</div>
             <h3 class="mb-3">Documentation</h3>
             <p class="mb-4 text-muted">Step-by-step guides for setup, configuration, and troubleshooting.</p>
             <a href="/services.html" class="btn btn-secondary btn-sm">View Docs</a>
@@ -231,7 +231,7 @@
           </div>
 
           <div class="card card-body text-center hover-lift">
-            <div style="font-size: 3rem; margin-bottom: var(--space-4);"></div>
+            <div style="font-size: 3rem; margin-bottom: var(--space-4);">📡</div>
             <h3 class="mb-3">Status Page</h3>
             <p class="mb-4 text-muted">Check real-time server status and planned maintenance updates.</p>
             <a href="#" class="btn btn-secondary btn-sm">Check Status</a>
@@ -368,16 +368,20 @@
         }
       });
 
-      // Real-time email validation
-      const emailInput = document.getElementById('email');
-      emailInput.addEventListener('blur', function() {
-        if (this.value && !this.value.includes('@')) {
-          this.closest('.form-group').classList.add('error');
-          document.getElementById('email-error').classList.remove('hidden');
-        } else {
-          this.closest('.form-group').classList.remove('error');
-          document.getElementById('email-error').classList.add('hidden');
-        }
+      // Clear errors while typing
+      ['name', 'email', 'subject', 'message'].forEach((id) => {
+        const field = document.getElementById(id);
+        if (!field) return;
+        field.addEventListener('input', function() {
+          const group = this.closest('.form-group');
+          if (group) {
+            group.classList.remove('error');
+          }
+          const errorEl = document.getElementById(`${id}-error`);
+          if (errorEl) {
+            errorEl.classList.add('hidden');
+          }
+        });
       });
     });
   </script>

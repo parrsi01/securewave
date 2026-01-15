@@ -6,9 +6,10 @@
   <title>About Us - SecureWave VPN</title>
   <meta name="description" content="Learn about SecureWave VPN - a modern, secure VPN service built with cutting-edge technology to protect your privacy online.">
   <link rel="stylesheet" href="/css/professional.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <!-- Skip to main content for accessibility -->
@@ -28,7 +29,10 @@
         <li><a href="/subscription.html">Pricing</a></li>
         <li><a href="/about.html" aria-current="page">About</a></li>
         <li><a href="/contact.html">Contact</a></li>
-        <li><a href="/login.html" class="btn btn-sm btn-primary">Login</a></li>
+        <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
+        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
+        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
+        <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
       </ul>
 
       <!-- Mobile menu toggle -->
@@ -226,7 +230,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a> | <a href="/contact.html" style="color: var(--text-tertiary);">Contact</a></p>
     </div>
   </footer>
 

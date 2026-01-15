@@ -4,6 +4,8 @@ FastAPI endpoints for payment processing and subscription management
 """
 
 import logging
+import os
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -16,11 +18,64 @@ from services.billing_automation import BillingAutomationService
 from services.stripe_service import StripeService
 from services.paypal_service import PayPalService
 from services.payment_webhooks import PaymentWebhookHandler
+from models.subscription import Subscription
 from models.user import User
 from services.jwt_service import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
+DEMO_BILLING = os.getenv("DEMO_BILLING", "").lower() == "true" or os.getenv("DEMO_MODE", "").lower() == "true"
+
+
+def _missing_provider_config(provider: str) -> bool:
+    if provider == "stripe":
+        return not os.getenv("STRIPE_SECRET_KEY")
+    if provider == "paypal":
+        return not os.getenv("PAYPAL_CLIENT_ID") or not os.getenv("PAYPAL_CLIENT_SECRET")
+    return True
+
+
+def _base_url(request: Request) -> str:
+    app_url = os.getenv("APP_URL", "").strip().rstrip("/")
+    if app_url:
+        return app_url
+    return str(request.base_url).rstrip("/")
+
+
+def _create_demo_subscription(
+    db: Session,
+    user: User,
+    plan_id: str,
+    billing_cycle: str,
+    provider: str
+) -> Subscription:
+    plan = StripeService.get_plan_details(plan_id) if provider == "stripe" else PayPalService.get_plan_details(plan_id)
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid plan")
+
+    now = datetime.utcnow()
+    period_days = 365 if billing_cycle == "yearly" else 30
+    subscription = Subscription(
+        user_id=user.id,
+        plan_id=plan_id,
+        plan_name=plan["name"],
+        provider=provider,
+        status="active",
+        amount=plan.get(f"price_{billing_cycle}", 0.0),
+        currency="USD",
+        billing_cycle=billing_cycle,
+        activated_at=now,
+        current_period_start=now,
+        current_period_end=now + timedelta(days=period_days),
+        next_billing_date=now + timedelta(days=period_days),
+        auto_renew=True,
+        internal_notes="demo subscription (no payment provider configured)"
+    )
+    db.add(subscription)
+    user.subscription_status = "active"
+    db.commit()
+    db.refresh(subscription)
+    return subscription
 
 
 # ===========================
@@ -72,7 +127,8 @@ class SubscriptionResponse(BaseModel):
 
 @router.post("/subscriptions", response_model=Dict, status_code=status.HTTP_201_CREATED)
 async def create_subscription(
-    request: CreateSubscriptionRequest,
+    payload: CreateSubscriptionRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -93,14 +149,31 @@ async def create_subscription(
                 detail="User already has an active subscription"
             )
 
-        if request.provider == "stripe":
+        demo_mode = DEMO_BILLING or _missing_provider_config(payload.provider)
+        if demo_mode:
+            demo_subscription = _create_demo_subscription(
+                db=db,
+                user=current_user,
+                plan_id=payload.plan_id,
+                billing_cycle=payload.billing_cycle,
+                provider=payload.provider
+            )
+            return {
+                "subscription_id": demo_subscription.id,
+                "status": demo_subscription.status,
+                "provider": demo_subscription.provider,
+                "message": "Subscription created (demo mode)",
+                "demo": True
+            }
+
+        if payload.provider == "stripe":
             # Create Stripe subscription
             subscription = subscription_manager.create_subscription_stripe(
                 user_id=current_user.id,
-                plan_id=request.plan_id,
-                billing_cycle=request.billing_cycle,
-                payment_method_id=request.payment_method_id,
-                trial_days=request.trial_days
+                plan_id=payload.plan_id,
+                billing_cycle=payload.billing_cycle,
+                payment_method_id=payload.payment_method_id,
+                trial_days=payload.trial_days
             )
 
             return {
@@ -110,14 +183,18 @@ async def create_subscription(
                 "message": "Subscription created successfully"
             }
 
-        elif request.provider == "paypal":
+        elif payload.provider == "paypal":
             # Create PayPal subscription (returns approval URL)
+            base_url = _base_url(request)
+            return_url = payload.return_url or f"{base_url}/billing/success"
+            cancel_url = payload.cancel_url or f"{base_url}/subscription.html"
+
             result = subscription_manager.create_subscription_paypal(
                 user_id=current_user.id,
-                plan_id=request.plan_id,
-                billing_cycle=request.billing_cycle,
-                return_url=request.return_url or f"{request.return_url}/billing/success",
-                cancel_url=request.cancel_url or f"{request.cancel_url}/billing/cancel"
+                plan_id=payload.plan_id,
+                billing_cycle=payload.billing_cycle,
+                return_url=return_url,
+                cancel_url=cancel_url
             )
 
             return {
@@ -132,7 +209,7 @@ async def create_subscription(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported payment provider: {request.provider}"
+                detail=f"Unsupported payment provider: {payload.provider}"
             )
 
     except ValueError as e:
@@ -233,12 +310,30 @@ async def upgrade_subscription(
         if not subscription or subscription.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
-        # Upgrade subscription
-        updated_subscription = subscription_manager.upgrade_subscription(
-            subscription_id=subscription_id,
-            new_plan_id=request.new_plan_id,
-            billing_cycle=request.billing_cycle
-        )
+        demo_mode = DEMO_BILLING or _missing_provider_config(subscription.provider)
+        if demo_mode:
+            billing_cycle = request.billing_cycle or subscription.billing_cycle
+            plan = StripeService.get_plan_details(request.new_plan_id) if subscription.provider == "stripe" else PayPalService.get_plan_details(request.new_plan_id)
+            if not plan:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid plan")
+
+            subscription.plan_id = request.new_plan_id
+            subscription.plan_name = plan["name"]
+            subscription.billing_cycle = billing_cycle
+            subscription.amount = plan.get(f"price_{billing_cycle}", subscription.amount)
+            subscription.status = "active"
+            subscription.cancel_at_period_end = False
+            subscription.canceled_at = None
+            db.commit()
+            db.refresh(subscription)
+            updated_subscription = subscription
+        else:
+            # Upgrade subscription
+            updated_subscription = subscription_manager.upgrade_subscription(
+                subscription_id=subscription_id,
+                new_plan_id=request.new_plan_id,
+                billing_cycle=request.billing_cycle
+            )
 
         return {
             "message": "Subscription upgraded successfully",
@@ -276,12 +371,26 @@ async def cancel_subscription(
         if not subscription or subscription.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
-        # Cancel subscription
-        canceled_subscription = subscription_manager.cancel_subscription(
-            subscription_id=subscription_id,
-            cancel_at_period_end=request.cancel_at_period_end,
-            reason=request.reason
-        )
+        demo_mode = DEMO_BILLING or _missing_provider_config(subscription.provider)
+        if demo_mode:
+            if request.cancel_at_period_end:
+                subscription.cancel_at_period_end = True
+                subscription.cancellation_reason = request.reason
+            else:
+                subscription.status = "canceled"
+                subscription.canceled_at = datetime.utcnow()
+                subscription.cancel_at_period_end = False
+            current_user.subscription_status = "active" if subscription.status != "canceled" else "inactive"
+            db.commit()
+            db.refresh(subscription)
+            canceled_subscription = subscription
+        else:
+            # Cancel subscription
+            canceled_subscription = subscription_manager.cancel_subscription(
+                subscription_id=subscription_id,
+                cancel_at_period_end=request.cancel_at_period_end,
+                reason=request.reason
+            )
 
         message = "Subscription will be canceled at period end" if request.cancel_at_period_end else "Subscription canceled immediately"
 
@@ -320,8 +429,19 @@ async def reactivate_subscription(
         if not subscription or subscription.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
-        # Reactivate subscription
-        reactivated_subscription = subscription_manager.reactivate_subscription(subscription_id)
+        demo_mode = DEMO_BILLING or _missing_provider_config(subscription.provider)
+        if demo_mode:
+            subscription.status = "active"
+            subscription.cancel_at_period_end = False
+            subscription.canceled_at = None
+            subscription.cancellation_reason = None
+            current_user.subscription_status = "active"
+            db.commit()
+            db.refresh(subscription)
+            reactivated_subscription = subscription
+        else:
+            # Reactivate subscription
+            reactivated_subscription = subscription_manager.reactivate_subscription(subscription_id)
 
         return {
             "message": "Subscription reactivated successfully",
@@ -358,6 +478,10 @@ async def create_billing_portal_session(
     """
     try:
         subscription_manager = SubscriptionManager(db)
+
+        demo_mode = DEMO_BILLING or _missing_provider_config("stripe")
+        if demo_mode:
+            return {"url": return_url, "message": "Billing portal unavailable in demo mode", "demo": True}
 
         portal_url = subscription_manager.create_billing_portal_session(
             user_id=current_user.id,

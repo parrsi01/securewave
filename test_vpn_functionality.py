@@ -33,7 +33,11 @@ class VPNTester:
         self.log("Registering new test user...", "INFO")
         response = self.session.post(
             f"{BASE_URL}/api/auth/register",
-            json={"email": self.test_email, "password": self.test_password},
+            json={
+                "email": self.test_email,
+                "password": self.test_password,
+                "password_confirm": self.test_password
+            },
             timeout=10
         )
 

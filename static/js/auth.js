@@ -80,11 +80,25 @@ async function handleRegister(e) {
 
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
+  const passwordConfirm = document.getElementById('passwordConfirm')?.value || '';
   const submitBtn = e.target.querySelector('button[type="submit"]');
 
   // Validate password strength on submit only
   if (password.length < 8) {
     showAlert('Password must be at least 8 characters long', 'error');
+    return;
+  }
+
+  if (password !== passwordConfirm) {
+    const confirmInput = document.getElementById('passwordConfirm');
+    const confirmError = document.getElementById('passwordConfirm-error');
+    if (confirmInput) {
+      confirmInput.classList.add('is-invalid');
+    }
+    if (confirmError) {
+      confirmError.classList.remove('hidden');
+    }
+    showAlert('Passwords do not match', 'error');
     return;
   }
 
@@ -98,7 +112,7 @@ async function handleRegister(e) {
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, password_confirm: passwordConfirm })
     });
 
     const data = await response.json();

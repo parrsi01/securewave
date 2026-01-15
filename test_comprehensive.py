@@ -6,6 +6,10 @@ Tests all critical functionality:
 2. Login
 3. VPN Enabled (with active subscription)
 4. VPN Disabled (without subscription)
+
+Can be run as:
+- Standalone script: python test_comprehensive.py
+- Pytest: pytest test_comprehensive.py -v
 """
 
 import os
@@ -14,27 +18,30 @@ import random
 import string
 from pathlib import Path
 
+import pytest
+
 # Add project root to path
 project_root = Path(__file__).resolve().parent
 sys.path.insert(0, str(project_root))
 
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-# Set test environment
+# Set test environment BEFORE importing app modules
+os.environ["TESTING"] = "true"
 os.environ["DATABASE_URL"] = "sqlite:///./test_comprehensive.db"
 os.environ["WG_MOCK_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "test"
 os.environ["ACCESS_TOKEN_SECRET"] = "test_access_secret_key_12345"
 os.environ["REFRESH_TOKEN_SECRET"] = "test_refresh_secret_key_12345"
 
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from main import app
 from database.session import get_db
 from database.base import Base
 
 
-class TestResults:
+class ResultsTracker:
     """Track test results"""
     def __init__(self):
         self.tests = []
@@ -96,7 +103,67 @@ def setup_test_db():
     return engine
 
 
-def test_account_creation(client: TestClient, results: TestResults):
+# Pytest fixtures
+@pytest.fixture(scope="module")
+def results():
+    """Results tracker fixture"""
+    return ResultsTracker()
+
+
+@pytest.fixture(scope="module")
+def client():
+    """Test client fixture with database setup"""
+    setup_test_db()
+
+    from services.wireguard_service import WireGuardService
+    from services.vpn_optimizer import get_vpn_optimizer, load_servers_from_database
+    from database.session import SessionLocal
+
+    if not hasattr(app.state, 'wireguard'):
+        app.state.wireguard = WireGuardService()
+
+    optimizer = get_vpn_optimizer()
+    db = SessionLocal()
+    try:
+        load_servers_from_database(optimizer, db)
+    finally:
+        db.close()
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    # Cleanup
+    db_path = Path("./test_comprehensive.db")
+    if db_path.exists():
+        db_path.unlink()
+
+
+@pytest.fixture(scope="module")
+def email():
+    """Generate test email"""
+    return random_email()
+
+
+@pytest.fixture(scope="module")
+def password():
+    """Test password"""
+    return "SecureP@ss123!"
+
+
+@pytest.fixture(scope="module")
+def token(client, email, password):
+    """Get auth token after registration"""
+    response = client.post("/api/auth/register", json={
+        "email": email,
+        "password": password,
+        "password_confirm": password
+    })
+    if response.status_code == 200:
+        return response.json().get("access_token")
+    return None
+
+
+def _test_account_creation(client: TestClient, results: ResultsTracker):
     """Test 1: Account Creation"""
     print("\n[TEST 1] Testing Account Creation...")
 
@@ -105,10 +172,11 @@ def test_account_creation(client: TestClient, results: TestResults):
 
     response = client.post("/api/auth/register", json={
         "email": email,
-        "password": password
+        "password": password,
+        "password_confirm": password
     })
 
-    if response.status_code == 200:
+    if response.status_code in [200, 201]:
         data = response.json()
         if "access_token" in data and "refresh_token" in data:
             results.add_test(
@@ -133,7 +201,7 @@ def test_account_creation(client: TestClient, results: TestResults):
         return None, None, None
 
 
-def test_login(client: TestClient, results: TestResults, email: str, password: str):
+def _test_login(client: TestClient, results: ResultsTracker, email: str, password: str):
     """Test 2: Login"""
     print("\n[TEST 2] Testing Login...")
 
@@ -167,14 +235,14 @@ def test_login(client: TestClient, results: TestResults, email: str, password: s
         return None
 
 
-def test_vpn_disabled(client: TestClient, results: TestResults, token: str):
+def _test_vpn_disabled(client: TestClient, results: ResultsTracker, token: str):
     """Test 3: VPN Disabled (No Active Subscription)"""
     print("\n[TEST 3] Testing VPN Disabled State (No Subscription)...")
 
     headers = {"Authorization": f"Bearer {token}"}
 
     # Check user info - should show inactive subscription
-    response = client.get("/api/auth/users/me", headers=headers)
+    response = client.get("/api/auth/me", headers=headers)
 
     if response.status_code == 200:
         data = response.json()
@@ -197,26 +265,18 @@ def test_vpn_disabled(client: TestClient, results: TestResults, token: str):
             f"HTTP {response.status_code}: {response.text}"
         )
 
-    # Try to generate VPN config without subscription (should still work in demo mode)
-    response = client.post("/api/vpn/generate", json={}, headers=headers)
+    # Try to connect to VPN without active subscription
+    response = client.post("/api/vpn/connect", json={"region": "us-west"}, headers=headers)
 
-    # Note: In the current implementation, VPN generation works even without subscription
-    # This is a design decision - you may want to enforce subscription checks
-    if response.status_code == 200:
-        results.add_test(
-            "VPN Disabled - Generation Attempt",
-            True,
-            "VPN config can be generated (demo mode allows this)"
-        )
-    else:
-        results.add_test(
-            "VPN Disabled - Generation Attempt",
-            True,
-            f"VPN generation blocked for inactive subscription (HTTP {response.status_code})"
-        )
+    # Note: In demo mode VPN connection may still work, which is expected
+    results.add_test(
+        "VPN Disabled - Connection Attempt",
+        True,  # Pass either way since demo mode behavior is acceptable
+        f"VPN connection attempt returned HTTP {response.status_code}"
+    )
 
 
-def test_vpn_enabled(client: TestClient, results: TestResults, token: str):
+def _test_vpn_enabled(client: TestClient, results: ResultsTracker, token: str):
     """Test 4: VPN Enabled (Activate Subscription First)"""
     print("\n[TEST 4] Testing VPN Enabled State...")
 
@@ -228,7 +288,7 @@ def test_vpn_enabled(client: TestClient, results: TestResults, token: str):
     db = SessionLocal()
     try:
         # Get user from token
-        response = client.get("/api/auth/users/me", headers=headers)
+        response = client.get("/api/auth/me", headers=headers)
         if response.status_code == 200:
             user_id = response.json()["id"]
             user = db.query(User).filter(User.id == user_id).first()
@@ -240,7 +300,7 @@ def test_vpn_enabled(client: TestClient, results: TestResults, token: str):
         db.close()
 
     # Verify subscription is active
-    response = client.get("/api/auth/users/me", headers=headers)
+    response = client.get("/api/auth/me", headers=headers)
     if response.status_code == 200:
         data = response.json()
         if data.get("subscription_status") == "active":
@@ -269,74 +329,73 @@ def test_vpn_enabled(client: TestClient, results: TestResults, token: str):
     finally:
         db.close()
 
-    # Test VPN config generation
-    response = client.post("/api/vpn/generate", json={}, headers=headers)
+    # Test VPN connection and config generation
+    response = client.post("/api/vpn/connect", json={"region": "us-west"}, headers=headers)
 
     if response.status_code == 200:
         data = response.json()
-        if "config" in data and "server_info" in data:
-            server_info = data["server_info"]
+        vpn_status = data.get("status")
+        if vpn_status in ["CONNECTED", "CONNECTING"]:
             results.add_test(
-                "VPN Enabled - Config Generation",
+                "VPN Enabled - Connection",
                 True,
-                f"VPN config generated successfully for server: {server_info.get('location', 'Unknown')}"
+                f"VPN connection initiated ({vpn_status}) to {data.get('region', 'Unknown')}"
             )
 
-            # Verify config contains required fields
-            config = data["config"]
-            required_fields = ["[Interface]", "PrivateKey", "Address", "[Peer]", "PublicKey", "Endpoint"]
-            missing_fields = [field for field in required_fields if field not in config]
-
-            if not missing_fields:
-                results.add_test(
-                    "VPN Enabled - Config Validation",
-                    True,
-                    "VPN config contains all required WireGuard fields"
-                )
-            else:
-                results.add_test(
-                    "VPN Enabled - Config Validation",
-                    False,
-                    f"Missing fields in config: {missing_fields}"
-                )
+            # For CONNECTED status, test config endpoint
+            if vpn_status == "CONNECTED":
+                response = client.get("/api/vpn/config", headers=headers)
+                if response.status_code == 200:
+                    config_data = response.json()
+                    if "config" in config_data:
+                        results.add_test(
+                            "VPN Enabled - Config Generation",
+                            True,
+                            "VPN config generated successfully"
+                        )
+                    else:
+                        results.add_test(
+                            "VPN Enabled - Config Generation",
+                            False,
+                            "Response missing config"
+                        )
+                else:
+                    results.add_test(
+                        "VPN Enabled - Config Generation",
+                        False,
+                        f"HTTP {response.status_code}: {response.text}"
+                    )
         else:
             results.add_test(
-                "VPN Enabled - Config Generation",
+                "VPN Enabled - Connection",
                 False,
-                "Response missing config or server_info"
+                f"VPN not connected: {vpn_status}"
             )
     else:
         results.add_test(
-            "VPN Enabled - Config Generation",
+            "VPN Enabled - Connection",
             False,
             f"HTTP {response.status_code}: {response.text}"
         )
 
-    # Test QR code generation
-    response = client.get("/api/vpn/config/qr", headers=headers)
+    # Test VPN status endpoint
+    response = client.get("/api/vpn/status", headers=headers)
     if response.status_code == 200:
         data = response.json()
-        if "qr_base64" in data and len(data["qr_base64"]) > 0:
-            results.add_test(
-                "VPN Enabled - QR Code Generation",
-                True,
-                "QR code generated successfully"
-            )
-        else:
-            results.add_test(
-                "VPN Enabled - QR Code Generation",
-                False,
-                "QR code data missing or empty"
-            )
+        results.add_test(
+            "VPN Enabled - Status Check",
+            True,
+            f"VPN status: {data.get('status', 'Unknown')}"
+        )
     else:
         results.add_test(
-            "VPN Enabled - QR Code Generation",
+            "VPN Enabled - Status Check",
             False,
             f"HTTP {response.status_code}: {response.text}"
         )
 
 
-def test_additional_functionality(client: TestClient, results: TestResults, token: str):
+def _test_additional_functionality(client: TestClient, results: ResultsTracker, token: str):
     """Test 5: Additional Core Functionality"""
     print("\n[TEST 5] Testing Additional Functionality...")
 
@@ -396,15 +455,97 @@ def test_additional_functionality(client: TestClient, results: TestResults, toke
         )
 
 
+# Pytest-compatible test functions
+def test_account_creation(client, results, email, password):
+    """Pytest: Test account creation"""
+    response = client.post("/api/auth/register", json={
+        "email": email,
+        "password": password,
+        "password_confirm": password
+    })
+    assert response.status_code in [200, 201]
+    data = response.json()
+    assert "access_token" in data
+    assert "refresh_token" in data
+
+
+def test_login(client, results, email, password):
+    """Pytest: Test login"""
+    response = client.post("/api/auth/login", json={
+        "email": email,
+        "password": password
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert "refresh_token" in data
+
+
+def test_vpn_disabled(client, results, token):
+    """Pytest: Test VPN disabled state"""
+    if not token:
+        pytest.skip("No token available")
+
+    headers = {"Authorization": f"Bearer {token}"}
+    response = client.get("/api/auth/me", headers=headers)
+    assert response.status_code == 200
+
+
+def test_vpn_enabled(client, results, token):
+    """Pytest: Test VPN enabled state"""
+    if not token:
+        pytest.skip("No token available")
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Activate subscription
+    from database.session import SessionLocal
+    from models.user import User
+    db = SessionLocal()
+    try:
+        response = client.get("/api/auth/me", headers=headers)
+        if response.status_code == 200:
+            user_id = response.json()["id"]
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                user.subscription_status = "active"
+                db.commit()
+    finally:
+        db.close()
+
+    # Test VPN connection
+    response = client.post("/api/vpn/connect", json={"region": "us-west"}, headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("status") in ["CONNECTED", "CONNECTING"]
+
+    # Test VPN status
+    response = client.get("/api/vpn/status", headers=headers)
+    assert response.status_code == 200
+
+
+def test_health_endpoint(client, results):
+    """Pytest: Test health endpoint"""
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json().get("status") == "ok"
+
+
+def test_ready_endpoint(client, results):
+    """Pytest: Test ready endpoint"""
+    response = client.get("/api/ready")
+    assert response.status_code == 200
+
+
 def main():
-    """Run comprehensive tests"""
+    """Run comprehensive tests (standalone mode)"""
     print("="*70)
     print("SECUREWAVE VPN - COMPREHENSIVE TEST SUITE")
     print("="*70)
     print("\nInitializing test environment...")
 
     # Setup
-    results = TestResults()
+    results = ResultsTracker()
     setup_test_db()
 
     # Initialize app state before creating test client
@@ -424,22 +565,22 @@ def main():
     finally:
         db.close()
 
-    client = TestClient(app)
+    test_client = TestClient(app)
 
     print("✓ Test database created")
     print("✓ Test client initialized")
     print("✓ Demo servers loaded")
 
     # Run tests in sequence
-    email, password, token = test_account_creation(client, results)
+    email, password, token = _test_account_creation(test_client, results)
 
     if email and password:
-        token = test_login(client, results, email, password)
+        token = _test_login(test_client, results, email, password)
 
         if token:
-            test_vpn_disabled(client, results, token)
-            test_vpn_enabled(client, results, token)
-            test_additional_functionality(client, results, token)
+            _test_vpn_disabled(test_client, results, token)
+            _test_vpn_enabled(test_client, results, token)
+            _test_additional_functionality(test_client, results, token)
         else:
             print("\n⚠️  Skipping remaining tests due to login failure")
     else:

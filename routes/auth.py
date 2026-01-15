@@ -36,6 +36,7 @@ limiter = Limiter(key_func=get_remote_address)
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
+    password_confirm: str
 
 
 class LoginRequest(BaseModel):
@@ -46,6 +47,16 @@ class LoginRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class UpdateEmailRequest(BaseModel):
+    new_email: EmailStr
+    password: str
+
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class VerifyEmailRequest(BaseModel):
@@ -107,6 +118,12 @@ async def register(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Password must be at least 8 characters long"
+            )
+
+        if payload.password != payload.password_confirm:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Passwords do not match"
             )
 
         # Create user
@@ -286,6 +303,8 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
     return {
         "id": current_user.id,
         "email": current_user.email,
+        "is_active": current_user.is_active,
+        "account_status": "active" if current_user.is_active else "inactive",
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
         "email_verified": current_user.email_verified,
         "has_2fa": current_user.has_2fa_enabled,
@@ -358,6 +377,111 @@ async def resend_verification_email(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to resend verification email"
         )
+
+
+@router.post("/update-email")
+@limiter.limit("5/hour")
+async def update_email(
+    request: Request,
+    payload: UpdateEmailRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update account email after verifying password"""
+    try:
+        if not verify_password(payload.password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid password"
+            )
+
+        new_email = payload.new_email.strip().lower()
+        if new_email == current_user.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New email must be different"
+            )
+
+        existing = db.query(User).filter(User.email == new_email).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already in use"
+            )
+
+        current_user.email = new_email
+        current_user.email_verified = DEMO_MODE
+        db.commit()
+        db.refresh(current_user)
+
+        if not DEMO_MODE:
+            auth_service = AuthService(db)
+            auth_service.send_verification_email(current_user)
+
+        return {
+            "message": "Email updated successfully",
+            "access_token": create_access_token(current_user),
+            "refresh_token": create_refresh_token(current_user),
+            "token_type": "bearer",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"✗ Email update error: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update email"
+        )
+
+
+@router.post("/update-password")
+@limiter.limit("5/hour")
+async def update_password(
+    request: Request,
+    payload: UpdatePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update account password after verifying current password"""
+    try:
+        if not verify_password(payload.current_password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid current password"
+            )
+
+        if len(payload.new_password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters long"
+            )
+
+        current_user.hashed_password = hash_password(payload.new_password)
+        current_user.failed_login_attempts = 0
+        current_user.account_locked_until = None
+        db.commit()
+
+        return {
+            "message": "Password updated successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"✗ Password update error: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update password"
+        )
+
+
+@router.post("/logout-all")
+async def logout_all():
+    """Demo-friendly endpoint to clear all sessions (stateless JWT)"""
+    return {"status": "ok"}
 
 
 # ===========================

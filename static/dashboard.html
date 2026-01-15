@@ -6,8 +6,9 @@
   <title>Dashboard • SecureWave VPN</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
     /* VPN Toggle Switch */
     .vpn-toggle-container {
@@ -16,7 +17,7 @@
       align-items: center;
       justify-content: center;
       padding: 4rem 2rem;
-      background: linear-gradient(135deg, var(--primary-50) 0%, var(--white) 100%);
+      background: linear-gradient(135deg, rgba(15, 118, 110, 0.08) 0%, rgba(255, 255, 255, 0.96) 55%, rgba(249, 115, 22, 0.08) 100%);
       border-radius: var(--radius-2xl);
       border: 2px solid var(--primary-100);
       margin-bottom: 2.5rem;
@@ -36,7 +37,7 @@
     }
 
     .vpn-status-text.disconnected {
-      color: var(--gray-500);
+      color: var(--text-tertiary);
     }
 
     .toggle-switch {
@@ -80,7 +81,7 @@
     input:checked + .toggle-slider {
       background: var(--gradient-primary);
       border-color: var(--primary-600);
-      box-shadow: var(--shadow-glow), var(--shadow-xl);
+      box-shadow: 0 20px 35px rgba(15, 118, 110, 0.35), var(--shadow-xl);
     }
 
     input:checked + .toggle-slider:before {
@@ -89,7 +90,7 @@
     }
 
     input:focus + .toggle-slider {
-      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2), var(--shadow-xl);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.2), var(--shadow-xl);
     }
 
     .connection-details {
@@ -97,7 +98,7 @@
       padding: 1.5rem;
       background: var(--white);
       border-radius: var(--radius-lg);
-      border: 1px solid var(--gray-200);
+      border: 1px solid var(--border-primary);
       margin-top: 1.5rem;
       min-height: 120px;
       display: flex;
@@ -162,7 +163,7 @@
       border-radius: var(--radius-lg);
       cursor: pointer;
       transition: all var(--transition-base);
-      font-family: var(--font-family);
+      font-family: var(--font-sans);
     }
 
     .server-selector select:hover {
@@ -172,7 +173,7 @@
     .server-selector select:focus {
       outline: none;
       border-color: var(--primary-600);
-      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
     }
 
     .action-buttons {
@@ -195,7 +196,7 @@
       padding: 1.5rem;
       background: var(--white);
       border-radius: var(--radius-xl);
-      border: 1px solid var(--gray-200);
+      border: 1px solid var(--border-primary);
       transition: all var(--transition-base);
     }
 
@@ -232,7 +233,7 @@
     .section-divider {
       margin: 3rem 0;
       border: none;
-      border-top: 1px solid var(--gray-200);
+      border-top: 1px solid var(--border-primary);
     }
 
     .feature-grid {
@@ -249,7 +250,7 @@
       padding: 1.25rem;
       background: var(--white);
       border-radius: var(--radius-lg);
-      border: 1px solid var(--gray-200);
+      border: 1px solid var(--border-primary);
       transition: all var(--transition-base);
     }
 
@@ -333,7 +334,7 @@
     }
 
     .connection-status.disconnected {
-      color: var(--gray-500);
+      color: var(--text-tertiary);
       font-weight: 600;
     }
 
@@ -378,23 +379,22 @@
 
   <!-- Main Content -->
   <main id="main-content">
-    <section class="container" style="padding: 3rem 0 4rem;">
-
-      <!-- Page Header -->
-      <div style="text-align: center; margin-bottom: 3rem;">
-        <div class="badge" style="display: inline-flex; margin-bottom: 1rem;">
+    <section class="page-hero">
+      <div class="container text-center">
+        <div class="badge" style="display: inline-flex;">
           <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
           </svg>
           VPN Control Center · Demo Mode
         </div>
-        <h1 style="font-size: 2.5rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.75rem;">
-          Welcome Back, <span id="userName">User</span>
-        </h1>
-        <p style="font-size: 1.125rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto;">
+        <h1 class="page-hero__title">Welcome Back, <span id="userName">User</span></h1>
+        <p class="page-hero__subtitle">
           Demo control plane for VPN sessions. No real tunnel is established in this build.
         </p>
       </div>
+    </section>
+
+    <section class="container page-section">
 
       <!-- VPN Toggle Section -->
       <div class="vpn-toggle-container">
@@ -418,12 +418,15 @@
         </div>
 
         <div class="connection-details" id="connectionDetails" style="display: none;">
-          <div style="color: var(--gray-500); font-size: 0.9375rem;">
+          <div class="text-muted" style="font-size: 0.9375rem;">
             Select a server and toggle ON to connect
           </div>
         </div>
 
         <div class="action-buttons">
+          <a class="btn btn-secondary btn-lg" href="/vpn.html">
+            Configure VPN
+          </a>
           <button class="btn btn-primary btn-lg" id="downloadConfigBtn" style="display: none;">
             <svg style="width: 20px; height: 20px; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -436,17 +439,17 @@
       <!-- Connection Statistics -->
       <div class="stats-container">
         <div class="stat-box">
-          <span class="stat-icon"></span>
+          <span class="stat-icon">⏱️</span>
           <div class="stat-value" id="statLatency">--</div>
           <div class="stat-label">Latency (ms)</div>
         </div>
         <div class="stat-box">
-          <span class="stat-icon"></span>
+          <span class="stat-icon">📶</span>
           <div class="stat-value" id="statBandwidth">--</div>
           <div class="stat-label">Bandwidth (Mbps)</div>
         </div>
         <div class="stat-box">
-          <span class="stat-icon"></span>
+          <span class="stat-icon">📍</span>
           <div class="stat-value" id="statLocation">--</div>
           <div class="stat-label">Server Location</div>
         </div>
@@ -460,25 +463,27 @@
       <hr class="section-divider">
 
       <!-- Account Information -->
-      <div style="background: var(--gray-50); padding: 2rem; border-radius: var(--radius-xl); border: 1px solid var(--gray-200); margin-bottom: 2.5rem;">
-        <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1.5rem; text-align: center;">
-          Your Account
-        </h2>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; max-width: 600px; margin: 0 auto;">
-          <div style="text-align: center;">
-            <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Email</div>
+      <div class="panel panel-muted" style="margin-bottom: 2.5rem;">
+        <h2 class="panel-title text-center">Your Account</h2>
+        <div class="account-grid">
+          <div class="account-item">
+            <div class="account-label">Email</div>
             <div id="userEmail" style="font-size: 1.0625rem; font-weight: 600; color: var(--primary-600);">Loading...</div>
           </div>
-          <div style="text-align: center;">
-            <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Subscription</div>
+          <div class="account-item">
+            <div class="account-label">Account Status</div>
+            <span id="accountStatus" class="badge">Loading...</span>
+          </div>
+          <div class="account-item">
+            <div class="account-label">Subscription</div>
             <span id="subscriptionStatus" class="badge">Loading...</span>
           </div>
         </div>
       </div>
 
       <!-- Active Security Features -->
-      <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%); padding: 2.5rem; border-radius: var(--radius-2xl); border: 1px solid var(--primary-200);">
-        <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 2rem; text-align: center;">
+      <div class="panel security-panel">
+        <h2 class="panel-title text-center">
           <svg style="width: 24px; height: 24px; display: inline-block; vertical-align: middle; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
           </svg>
@@ -539,7 +544,7 @@
       <!-- Quick Actions -->
       <div style="margin-top: 2.5rem; text-align: center;">
         <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1.5rem;">Need Help?</h3>
-        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <div class="cta-row">
           <a href="/services.html" class="btn btn-secondary">
             View All Features
           </a>
@@ -555,7 +560,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
     </div>
   </footer>
 

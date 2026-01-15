@@ -7,8 +7,9 @@
   <meta name="description" content="Choose your SecureWave VPN plan. Enterprise-grade security starting at $9.99/month with 7-day free trial, unlimited bandwidth, and 30-day money-back guarantee.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
   <!-- Skip to main content for accessibility -->
@@ -42,62 +43,43 @@
   </nav>
 
   <main id="main-content">
-    <section class="hero">
+    <section class="page-hero">
       <div class="container text-center">
         <div class="badge mb-4">💎 Demo Billing</div>
-        <h1 class="hero-title">SecureWave Plans (Demo)</h1>
-        <p class="hero-subtitle">
-          Demo-only billing UI. Upgrades are simulated in this build.
-        </p>
+        <h1 class="page-hero__title">SecureWave Plans (Demo)</h1>
+        <p class="page-hero__subtitle">Demo-only billing UI. Upgrades are simulated in this build.</p>
       </div>
     </section>
 
-    <section class="container" style="padding: 4rem 0;">
-      <div class="grid grid-2">
+    <section class="container page-section" id="pricing">
+      <div class="panel" id="currentPlanCard" style="margin-bottom: 2.5rem;">
+        <div class="pill">Current Plan</div>
+        <h2 id="currentPlanName" style="margin-bottom: 0.5rem;">Sign in to view your plan</h2>
+        <p id="currentPlanStatus" class="text-muted" style="margin-bottom: 1.5rem;">Log in to manage your subscription and billing status.</p>
+        <div id="currentPlanActions"></div>
+      </div>
+
+      <div class="plan-grid">
         <!-- Monthly Plan -->
-        <div class="card" style="border: 2px solid var(--primary-400); position: relative;">
-          <div class="badge badge-success" style="position: absolute; top: -12px; right: 20px;">Most Popular</div>
-          <div style="text-align: center; margin-bottom: 2rem;">
-            <h2 style="font-size: 3rem; margin: 0; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">$9.99</h2>
-            <p class="text-muted">per month</p>
+        <div class="plan-card plan-card--featured">
+          <div class="pill pill-accent plan-card__badge">Most Popular</div>
+          <div class="plan-meta">
+            <div class="plan-price">$9.99</div>
+            <p class="plan-note">per month</p>
           </div>
 
-          <h3>Premium Monthly</h3>
+          <div class="plan-title">Premium Monthly</div>
           <p class="text-muted mb-4">Full access to all SecureWave VPN features with monthly flexibility</p>
 
-          <ul style="list-style: none; padding: 0; margin-bottom: 2rem;">
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>50+ Global Server Locations</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>Unlimited Bandwidth & Speed</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>AI-Powered Server Selection (MARL + XGBoost)</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>WireGuard Protocol (Military-Grade)</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>Unlimited Device Connections</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>Zero-Log Privacy Policy</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>Kill Switch & DNS Leak Protection</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>24/7 Customer Support</span>
-            </li>
+          <ul class="list-check" style="margin-bottom: 2rem;">
+            <li>50+ Global Server Locations</li>
+            <li>Unlimited Bandwidth & Speed</li>
+            <li>AI-Powered Server Selection (MARL + XGBoost)</li>
+            <li>WireGuard Protocol (Military-Grade)</li>
+            <li>Unlimited Device Connections</li>
+            <li>Zero-Log Privacy Policy</li>
+            <li>Kill Switch & DNS Leak Protection</li>
+            <li>24/7 Customer Support</li>
           </ul>
 
           <button class="btn btn-primary btn-block btn-lg" id="payStripe">
@@ -106,36 +88,21 @@
         </div>
 
         <!-- PayPal Alternative -->
-        <div class="card">
-          <div style="text-align: center; margin-bottom: 2rem;">
-            <h2 style="font-size: 3rem; margin: 0; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">$9.99</h2>
-            <p class="text-muted">per month</p>
+        <div class="plan-card">
+          <div class="plan-meta">
+            <div class="plan-price">$9.99</div>
+            <p class="plan-note">per month</p>
           </div>
 
-          <h3>Premium Monthly</h3>
+          <div class="plan-title">Premium Monthly</div>
           <p class="text-muted mb-4">Same great features, pay with PayPal for added convenience</p>
 
-          <ul style="list-style: none; padding: 0; margin-bottom: 2rem;">
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>All Premium Features Included</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>PayPal Buyer Protection</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>Instant Activation</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>Easy Subscription Management</span>
-            </li>
-            <li class="mb-3" style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="color: var(--success); font-size: 1.2rem;">✓</span>
-              <span>Cancel Anytime</span>
-            </li>
+          <ul class="list-check" style="margin-bottom: 2rem;">
+            <li>All Premium Features Included</li>
+            <li>PayPal Buyer Protection</li>
+            <li>Instant Activation</li>
+            <li>Easy Subscription Management</li>
+            <li>Cancel Anytime</li>
           </ul>
 
           <button class="btn btn-secondary btn-block btn-lg" id="payPaypal">
@@ -147,18 +114,18 @@
       </div>
 
       <!-- Free Trial Notice -->
-      <div class="card mt-4 text-center" style="background: rgba(20, 184, 166, 0.05); border-color: var(--primary-500);">
+      <div class="panel panel-muted text-center" style="margin-top: 2rem;">
         <h2>🎁 Start Your Free Trial</h2>
         <p class="text-muted mb-3">New users get 7 days free to test all premium features. No credit card required for trial.</p>
         <a href="/register.html" class="btn btn-primary btn-lg">Create Free Account</a>
       </div>
 
       <!-- Feature Comparison -->
-      <div class="card mt-4">
+      <div class="panel" style="margin-top: 2rem;">
         <h2 class="text-center mb-4">What's Included</h2>
         <div class="grid grid-3">
           <div class="text-center">
-            <div style="font-size: 3rem; margin-bottom: 1rem;"></div>
+            <div style="font-size: 3rem; margin-bottom: 1rem;">🌍</div>
             <h3>Global Coverage</h3>
             <p class="text-muted">Access servers in 50+ countries across 6 continents for optimal speed and privacy</p>
           </div>
@@ -168,7 +135,7 @@
             <p class="text-muted">MARL + XGBoost algorithms automatically select the fastest, most secure server for you</p>
           </div>
           <div class="text-center">
-            <div style="font-size: 3rem; margin-bottom: 1rem;"></div>
+            <div style="font-size: 3rem; margin-bottom: 1rem;">🛡️</div>
             <h3>Military Security</h3>
             <p class="text-muted">WireGuard with ChaCha20 encryption and Curve25519 key exchange for maximum protection</p>
           </div>
@@ -176,7 +143,7 @@
       </div>
 
       <!-- Money Back Guarantee -->
-      <div class="grid grid-2 mt-4">
+      <div class="grid grid-2" style="margin-top: 2rem;">
         <div class="card">
           <h3>💯 30-Day Money Back Guarantee</h3>
           <p class="text-muted">Not satisfied? Get a full refund within 30 days, no questions asked. We're confident you'll love SecureWave VPN.</p>
@@ -188,23 +155,23 @@
       </div>
 
       <!-- FAQ Section -->
-      <div class="card mt-4">
+      <div class="panel" style="margin-top: 2rem;">
         <h2>Frequently Asked Questions</h2>
         <div style="margin-top: 1.5rem;">
-          <div style="margin-bottom: 1.5rem;">
-            <h4 style="color: var(--primary-400);">Can I cancel anytime?</h4>
+          <div class="faq-item" style="margin-bottom: 1.5rem;">
+            <h4>Can I cancel anytime?</h4>
             <p class="text-muted">Yes, you can cancel your subscription at any time from your dashboard. No cancellation fees.</p>
           </div>
-          <div style="margin-bottom: 1.5rem;">
-            <h4 style="color: var(--primary-400);">How many devices can I connect?</h4>
+          <div class="faq-item" style="margin-bottom: 1.5rem;">
+            <h4>How many devices can I connect?</h4>
             <p class="text-muted">Unlimited! Connect as many devices as you want with a single subscription.</p>
           </div>
-          <div style="margin-bottom: 1.5rem;">
-            <h4 style="color: var(--primary-400);">Do you keep logs?</h4>
+          <div class="faq-item" style="margin-bottom: 1.5rem;">
+            <h4>Do you keep logs?</h4>
             <p class="text-muted">Absolutely not. We have a strict zero-log policy. We don't track or store your activity.</p>
           </div>
-          <div>
-            <h4 style="color: var(--primary-400);">What payment methods do you accept?</h4>
+          <div class="faq-item">
+            <h4>What payment methods do you accept?</h4>
             <p class="text-muted">We accept all major credit cards via Stripe and PayPal for maximum flexibility.</p>
           </div>
         </div>
@@ -214,20 +181,11 @@
 
   <footer class="footer">
     <div class="container">
-      <p>&copy; 2024 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
     </div>
   </footer>
 
   <script src="/js/main.js"></script>
-  <script>
-    // Placeholder for payment functionality
-    document.getElementById('payStripe')?.addEventListener('click', () => {
-      alert('Stripe checkout would open here (demo mode)');
-    });
-
-    document.getElementById('payPaypal')?.addEventListener('click', () => {
-      alert('PayPal checkout would open here (demo mode)');
-    });
-  </script>
+  <script src="/js/subscription.js"></script>
 </body>
 </html>
