@@ -345,16 +345,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Check authentication state
   await checkAuthState();
 
-  // Mobile menu toggle (if exists)
-  const navToggle = document.querySelector('.navbar-toggler');
-  if (navToggle) {
-    navToggle.addEventListener('click', () => {
-      const navMenu = document.querySelector('.navbar-collapse');
-      if (navMenu) {
-        navMenu.classList.toggle('show');
-      }
-    });
-  }
+  // Mobile menu toggle
+  initMobileMenu();
 
   // Add smooth scroll to all anchor links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -406,7 +398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Console welcome message
-  console.log('%c🔐 SecureWave VPN', 'font-size: 20px; font-weight: bold; color: #667eea;');
+  console.log('%c🔐 SecureWave VPN', 'font-size: 20px; font-weight: bold; color: #0f766e;');
   console.log('%cVersion 2.0.0 - Modern 2026 Edition', 'font-size: 12px; color: #64748b;');
   console.log('%c⚡ Powered by FastAPI, WireGuard, and Bootstrap 5.3', 'font-size: 10px; color: #94a3b8;');
 });
@@ -434,6 +426,66 @@ document.addEventListener('visibilitychange', () => {
     }
   }
 });
+
+// Mobile menu initialization
+function initMobileMenu() {
+  const navToggle = document.querySelector('.navbar-toggle');
+  const navMenu = document.querySelector('.navbar-menu');
+
+  if (!navToggle || !navMenu) return;
+
+  // Create mobile menu overlay if it doesn't exist
+  let overlay = document.querySelector('.mobile-menu-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'mobile-menu-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  // Toggle menu on hamburger click
+  navToggle.addEventListener('click', () => {
+    const isOpen = navToggle.classList.contains('active');
+
+    if (isOpen) {
+      closeMobileMenu();
+    } else {
+      openMobileMenu();
+    }
+  });
+
+  // Close on overlay click
+  overlay.addEventListener('click', closeMobileMenu);
+
+  // Close on escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && navToggle.classList.contains('active')) {
+      closeMobileMenu();
+    }
+  });
+
+  // Close on link click
+  navMenu.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth < 768) {
+        closeMobileMenu();
+      }
+    });
+  });
+
+  function openMobileMenu() {
+    navToggle.classList.add('active');
+    navMenu.classList.add('mobile-open');
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeMobileMenu() {
+    navToggle.classList.remove('active');
+    navMenu.classList.remove('mobile-open');
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+}
 
 // Export functions for use in other scripts
 window.SecureWave = {
