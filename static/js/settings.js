@@ -73,6 +73,12 @@ document.addEventListener('DOMContentLoaded', () => {
   applySettingsToUI(settings);
   const accessToken = localStorage.getItem('access_token');
 
+  // CRITICAL: Immediate auth guard - redirect if no token exists
+  if (!accessToken) {
+    window.location.href = '/login.html?redirect=/settings.html';
+    return;
+  }
+
   const accountEmail = document.getElementById('accountEmail');
   if (accountEmail) {
     fetch('/api/auth/me', {
@@ -82,6 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }).then(response => {
       if (!response.ok) {
         if (response.status === 401) {
+          // Token invalid - clear and redirect
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
           window.location.href = '/login.html?redirect=/settings.html';
         }
         return null;
@@ -262,9 +271,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       logoutAllArmed = false;
       try {
-        await fetch('/api/auth/logout-all', { method: 'POST' });
+        // Include auth header so server knows which user's sessions to invalidate
+        await fetch('/api/auth/logout-all', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
       } catch (error) {
-        // no-op
+        // no-op - continue with local logout
       } finally {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
@@ -277,9 +292,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if (settingsLogout) {
     settingsLogout.addEventListener('click', async () => {
       try {
-        await fetch('/api/auth/logout', { method: 'POST' });
+        // Include auth header for proper session invalidation
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
       } catch (error) {
-        // no-op
+        // no-op - continue with local logout
       } finally {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
