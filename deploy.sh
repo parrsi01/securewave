@@ -199,12 +199,19 @@ deploy_azure() {
     cp alembic.ini build/ 2>/dev/null || log_warning "alembic.ini not found (optional)"
 
     # Copy application directories
-    for dir in routers routes models database services infrastructure; do
+    for dir in routers routes models database services infrastructure scripts; do
         if [ -d "$dir" ]; then
             cp -r "$dir" build/
             log_info "  ✓ Copied $dir/"
         fi
     done
+
+    # Copy ML models and data
+    if [ -d "data/models" ]; then
+        mkdir -p build/data/models
+        cp -r data/models/* build/data/models/
+        log_info "  ✓ Copied ML models"
+    fi
 
     # Copy alembic if exists
     [ -d "alembic" ] && cp -r alembic build/ && log_info "  ✓ Copied alembic/"
@@ -283,11 +290,14 @@ EOF
             PYTHONPATH=/home/site/wwwroot \
             DATABASE_URL="sqlite:////tmp/securewave.db" \
             ENVIRONMENT="production" \
+            DEMO_OK="true" \
             ACCESS_TOKEN_SECRET="$access_secret" \
             REFRESH_TOKEN_SECRET="$refresh_secret" \
             CORS_ORIGINS="$BASE_URL,https://www.${APP_NAME}.azurewebsites.net" \
             WG_MOCK_MODE="true" \
             WG_DATA_DIR="/tmp/wg_data" \
+            QOS_MODEL_PATH="data/models/qos_model.json" \
+            RISK_MODEL_PATH="data/models/risk_model.json" \
             WEBSITES_PORT=8000 \
             WEBSITES_ENABLE_APP_SERVICE_STORAGE=true \
             SCM_DO_BUILD_DURING_DEPLOYMENT=true \
