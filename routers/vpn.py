@@ -113,6 +113,7 @@ def allocate_vpn_config(
         "status": "allocated",
         "user_id": current_user.id,
         "client_ip": wg_service.allocate_ip(current_user.id),
+        "client_public_key": current_user.wg_public_key,
         "config": config_content,
         "qr_code": f"data:image/png;base64,{qr_base64}",
         "instructions": "Import this config into your WireGuard app or scan the QR code on mobile.",
