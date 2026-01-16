@@ -193,7 +193,20 @@ async def initialize_app_background():
 
             # If no servers in database, log warning
             if server_count == 0:
-                logger.warning("No VPN servers in database. Run: python3 infrastructure/init_demo_servers.py")
+                logger.warning("No VPN servers in database.")
+                demo_mode = os.getenv("DEMO_MODE", "true").lower() == "true"
+                wg_mock = os.getenv("WG_MOCK_MODE", "").lower() == "true"
+                if demo_mode or wg_mock:
+                    logger.info("Seeding demo VPN servers for demo mode...")
+                    try:
+                        from infrastructure.init_demo_servers import init_demo_servers
+                        init_demo_servers()
+                        server_count = load_servers_from_database(optimizer, db)
+                        logger.info(f"Demo servers initialized: {server_count}")
+                    except Exception as seed_err:
+                        logger.warning(f"Demo server seeding failed: {seed_err}")
+                else:
+                    logger.warning("Run: python3 infrastructure/init_demo_servers.py")
         except Exception as db_err:
             logger.warning(f"Could not load servers from database: {db_err}. VPN optimizer will start empty.")
 
