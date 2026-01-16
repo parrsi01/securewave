@@ -304,7 +304,7 @@ EOF
     az webapp config set \
         --resource-group "$RESOURCE_GROUP" \
         --name "$APP_NAME" \
-        --startup-file "/bin/bash /home/site/wwwroot/startup.sh" \
+        --startup-file "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --timeout 600" \
         --output none
 
     log_success "Application settings configured"
