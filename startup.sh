@@ -1,21 +1,11 @@
 #!/bin/bash
 ###############################################################################
-# SecureWave VPN - Azure App Service Startup Script (Simplified)
+# SecureWave VPN - Azure App Service Startup Script (Production)
+# Uses gunicorn with uvicorn workers for stability
 ###############################################################################
 
-echo "SecureWave VPN - Starting..."
-echo "Timestamp: $(date)"
-
-# Activate Azure's virtual environment (created by Oryx)
-if [ -d "/home/site/wwwroot/antenv" ]; then
-    source /home/site/wwwroot/antenv/bin/activate
-fi
-
-# Set environment variables
 export PYTHONUNBUFFERED=1
 export PORT="${PORT:-8000}"
 
-echo "Starting Uvicorn on port $PORT..."
-
-# Start Uvicorn directly - simple and fast
-exec python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+# Use gunicorn with uvicorn workers - production stable
+exec gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT --timeout 600
