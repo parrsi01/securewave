@@ -83,3 +83,37 @@ def vpn_config(
         "mode": "demo",
         "config": build_demo_config(session),
     }
+
+
+@router.post("/allocate")
+def allocate_vpn_config(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Allocate a new WireGuard VPN configuration for the user.
+    Returns the config text and a QR code for mobile setup.
+    (Day 4: /vpn/allocate endpoint)
+    """
+    from services.wireguard_service import WireGuardService
+
+    wg_service = WireGuardService()
+
+    # Generate client config (creates keys if needed)
+    config_path, config_content = wg_service.generate_client_config(current_user)
+
+    # Generate QR code
+    qr_base64 = wg_service.qr_from_config(config_content)
+
+    # Persist updated keys to DB
+    db.add(current_user)
+    db.commit()
+
+    return {
+        "status": "allocated",
+        "user_id": current_user.id,
+        "client_ip": wg_service.allocate_ip(current_user.id),
+        "config": config_content,
+        "qr_code": f"data:image/png;base64,{qr_base64}",
+        "instructions": "Import this config into your WireGuard app or scan the QR code on mobile.",
+    }
