@@ -41,24 +41,56 @@ class VPNDashboard {
   }
 
   async init() {
-    // Check authentication
+    // CRITICAL: Immediate auth guard - redirect if no token exists
     if (!this.accessToken) {
-      this.showAlert('Please login to access the dashboard', 'error');
-      setTimeout(() => window.location.href = '/login.html', 2000);
+      window.location.href = '/login.html?redirect=/dashboard.html';
       return;
     }
 
-    // Load initial data
-    await this.loadUserInfo();
-    await this.loadSubscriptionInfo();
-    await this.loadServers();
-    await this.initializeVPNStatus();
+    // Validate token BEFORE making any other API calls
+    const isValidToken = await this.validateToken();
+    if (!isValidToken) {
+      // Token invalid - already redirected by validateToken
+      return;
+    }
+
+    // Token is valid - now load initial data
+    await Promise.all([
+      this.loadUserInfo(),
+      this.loadSubscriptionInfo(),
+      this.loadServers(),
+      this.initializeVPNStatus()
+    ]);
 
     // Set up event listeners
     this.setupEventListeners();
 
     // Initialize UI
     this.updateUI();
+  }
+
+  async validateToken() {
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        // Token invalid - clear and redirect
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/login.html?redirect=/dashboard.html';
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Token validation failed:', error);
+      window.location.href = '/login.html?redirect=/dashboard.html';
+      return false;
+    }
   }
 
   setupEventListeners() {

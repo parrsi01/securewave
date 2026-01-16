@@ -134,6 +134,9 @@ async function apiCall(endpoint, options = {}, retryCount = 0) {
   }
 }
 
+// Routes that require authentication (excluding subscription which works for guests)
+const PROTECTED_ROUTES = ['/dashboard.html', '/dashboard', '/vpn.html', '/vpn', '/settings.html', '/settings', '/diagnostics.html', '/diagnostics'];
+
 // Check authentication state
 async function checkAuthState() {
   const token = localStorage.getItem('access_token');
@@ -142,12 +145,23 @@ async function checkAuthState() {
   const logoutBtn = document.getElementById('logoutBtn');
   const dashLink = document.getElementById('dashLink');
   const settingsLink = document.getElementById('settingsLink');
+  const currentPath = window.location.pathname;
+  const isProtectedRoute = PROTECTED_ROUTES.includes(currentPath);
 
   if (token) {
     const profileResponse = await apiCall('/auth/me', { method: 'GET' });
     if (!profileResponse || !profileResponse.ok) {
+      // Token is invalid - clear it
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+
+      // CRITICAL: Redirect to login if on a protected route with invalid token
+      if (isProtectedRoute) {
+        window.location.href = '/login.html?redirect=' + encodeURIComponent(currentPath);
+        return;
+      }
+
+      // Update nav for non-protected pages
       if (loginBtn) loginBtn.classList.remove('d-none');
       if (registerBtn) registerBtn.classList.remove('d-none');
       if (logoutBtn) logoutBtn.classList.add('d-none');
@@ -335,10 +349,11 @@ function debounce(func, wait) {
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', async () => {
-  const protectedRoutes = ['/dashboard.html', '/dashboard', '/vpn.html', '/vpn', '/settings.html', '/settings', '/subscription.html', '/subscription', '/diagnostics.html', '/diagnostics'];
   const path = window.location.pathname;
   const token = localStorage.getItem('access_token');
-  if (protectedRoutes.includes(path) && !token) {
+
+  // Immediate redirect if no token on protected route (before any API calls)
+  if (PROTECTED_ROUTES.includes(path) && !token) {
     window.location.href = '/login.html?redirect=' + encodeURIComponent(path);
     return;
   }
