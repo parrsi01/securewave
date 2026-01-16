@@ -27,6 +27,7 @@ class WireGuardService:
         self.server_public_path = self.base_dir / "server_public.key"
         self.endpoint = os.getenv("WG_ENDPOINT", "securewave-app.azurewebsites.net:51820")
         self.dns = os.getenv("WG_DNS", "1.1.1.1")
+        self.server_public_override = os.getenv("WG_SERVER_PUBLIC_KEY", "").strip() or None
         self.fernet = self._load_fernet()
         self.mock_mode = self._detect_mock_mode()
         self.ensure_server_keys()
@@ -71,6 +72,8 @@ class WireGuardService:
         return base64.b64decode(encrypted.encode()).decode()
 
     def ensure_server_keys(self) -> None:
+        if self.server_public_override:
+            return
         if self.server_private_path.exists() and self.server_public_path.exists():
             return
         private_key, public_key = self.generate_keypair()
@@ -91,7 +94,7 @@ class WireGuardService:
             public_key = user.wg_public_key
 
         client_ip = self.allocate_ip(user.id)
-        server_public_key = self.server_public_path.read_text().strip()
+        server_public_key = self.server_public_override or self.server_public_path.read_text().strip()
 
         config_content = (
             "[Interface]\n"
