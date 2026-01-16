@@ -304,7 +304,7 @@ EOF
     az webapp config set \
         --resource-group "$RESOURCE_GROUP" \
         --name "$APP_NAME" \
-        --startup-file "startup.sh" \
+        --startup-file "./startup.sh" \
         --output none
 
     log_success "Application settings configured"
