@@ -287,7 +287,6 @@ EOF
         --settings \
             PORT=8000 \
             PYTHONUNBUFFERED=1 \
-            PYTHONPATH=/home/site/wwwroot \
             DATABASE_URL="sqlite:////tmp/securewave.db" \
             ENVIRONMENT="production" \
             DEMO_OK="true" \
@@ -299,9 +298,7 @@ EOF
             QOS_MODEL_PATH="data/models/qos_model.json" \
             RISK_MODEL_PATH="data/models/risk_model.json" \
             WEBSITES_PORT=8000 \
-            WEBSITES_ENABLE_APP_SERVICE_STORAGE=true \
             SCM_DO_BUILD_DURING_DEPLOYMENT=true \
-            ENABLE_ORYX_BUILD=true \
         --output none
 
     az webapp config set \
