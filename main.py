@@ -19,8 +19,8 @@ from slowapi.middleware import SlowAPIMiddleware
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
 from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session  # noqa: F401
-from routers import auth as old_auth, contact, dashboard, optimizer, payment_paypal, payment_stripe, vpn
-from routes import auth as new_auth, billing, diagnostics
+from routers import auth as old_auth, contact, dashboard, optimizer, payment_paypal, payment_stripe, vpn as legacy_vpn, admin
+from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers
 from services.wireguard_service import WireGuardService
 
 # NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD
@@ -235,8 +235,13 @@ async def initialize_app_background():
 app.include_router(new_auth.router, tags=["auth"])  # Already has /api/auth prefix
 app.include_router(billing.router, tags=["billing"])  # Already has /api/billing prefix
 
-# Legacy routes (keeping for compatibility)
-app.include_router(vpn.router, prefix="/api/vpn", tags=["vpn"])
+# New VPN routes (real WireGuard support)
+app.include_router(new_vpn.router, tags=["vpn"])  # Already has /api/vpn prefix
+app.include_router(servers.router, tags=["admin-servers"])  # Already has /api/admin/servers prefix
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])  # Admin peer management
+
+# Legacy VPN routes (keeping for backwards compatibility)
+app.include_router(legacy_vpn.router, prefix="/api/vpn/legacy", tags=["vpn-legacy"])
 app.include_router(optimizer.router, prefix="/api/optimizer", tags=["optimizer"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(payment_stripe.router, prefix="/api/payments", tags=["payments"])
@@ -290,13 +295,14 @@ page_routes = {
     "/contact": "contact.html",
     "/privacy": "privacy.html",
     "/terms": "terms.html",
+    "/admin-vpn": "admin-vpn.html",
 }
 
 html_pages = [
     "index.html", "home.html", "login.html", "register.html",
     "dashboard.html", "vpn.html", "services.html", "subscription.html",
     "about.html", "contact.html", "privacy.html", "terms.html",
-    "settings.html", "diagnostics.html"
+    "settings.html", "diagnostics.html", "admin-vpn.html"
 ]
 
 

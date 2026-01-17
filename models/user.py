@@ -19,6 +19,7 @@ class User(Base):
     # VPN Keys
     wg_public_key = Column(String, nullable=True)
     wg_private_key_encrypted = Column(String, nullable=True)
+    wg_peer_registered = Column(Boolean, default=False)  # True when peer is added to WG server
 
     # Legacy subscription fields (deprecated - use Subscription model instead)
     subscription_status = Column(String, default="inactive")
