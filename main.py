@@ -163,6 +163,31 @@ def validate_wireguard_production_config(logger: logging.Logger, server_count: i
         )
 
 
+def validate_production_env(logger: logging.Logger) -> None:
+    """Log warnings for missing production environment settings."""
+    if os.getenv("ENVIRONMENT", "").lower() != "production":
+        return
+
+    required = ["ACCESS_TOKEN_SECRET", "REFRESH_TOKEN_SECRET"]
+    for key in required:
+        if not os.getenv(key):
+            logger.warning(f"{key} is not set in production.")
+
+    cors_origins = os.getenv("CORS_ORIGINS", "").strip()
+    if not cors_origins:
+        logger.warning("CORS_ORIGINS not set in production.")
+
+    db_url = os.getenv("DATABASE_URL", "").strip()
+    if not db_url:
+        logger.warning("DATABASE_URL not set in production; SQLite may be used.")
+    elif "sqlite" in db_url.lower():
+        logger.warning("DATABASE_URL points to SQLite in production; use a managed DB.")
+
+    admin_email = os.getenv("ADMIN_EMAIL", "").strip()
+    if admin_email:
+        logger.warning("ADMIN_EMAIL is set in production; ensure this is intended.")
+
+
 async def initialize_app_background():
     """Background initialization that happens AFTER the app starts responding to health checks"""
     logger = logging.getLogger(__name__)
@@ -235,6 +260,11 @@ async def initialize_app_background():
         db.close()
     except Exception as e:
         logger.warning(f"VPN Optimizer initialization failed: {e}. Continuing without optimizer.")
+
+    try:
+        validate_production_env(logger)
+    except Exception as e:
+        logger.warning(f"Production env validation failed: {e}")
 
     # Start background tasks
     try:

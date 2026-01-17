@@ -13,6 +13,8 @@
 ## Azure Demo Deploy
 - Use `deploy_securewave_single_app.sh` for a clean single-app deploy.
 - See `AZURE_DEPLOY.md` for exact steps.
+- Release handoff details: `docs/PHASE_7_RELEASE.md`
+- Operations runbook: `docs/OPERATIONS_RUNBOOK.md`
 
 ## What's Planned
 - Native iOS/macOS clients using WireGuard
