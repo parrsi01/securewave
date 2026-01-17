@@ -33,8 +33,25 @@ class WireGuardService:
         self.ensure_server_keys()
 
     def _detect_mock_mode(self) -> bool:
-        if os.getenv("WG_MOCK_MODE", "").lower() == "true":
+        """
+        Determine if we're in mock mode for WireGuard operations.
+
+        Priority:
+        1. If WG_MOCK_MODE is explicitly set to 'false', use real mode
+        2. If WG_MOCK_MODE is explicitly set to 'true', use mock mode
+        3. If not set, auto-detect based on environment
+        """
+        mock_env = os.getenv("WG_MOCK_MODE", "").lower().strip()
+
+        # Explicit false = real mode (don't auto-detect)
+        if mock_env == "false":
+            return False
+
+        # Explicit true = mock mode
+        if mock_env == "true":
             return True
+
+        # Auto-detect only if not explicitly configured
         wg_binary = shutil.which("wg")
         tun_exists = Path("/dev/net/tun").exists()
         return wg_binary is None or not tun_exists
