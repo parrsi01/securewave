@@ -71,6 +71,14 @@ class AllocateConfigRequest(BaseModel):
     )
 
 
+class VPNConnectRequest(BaseModel):
+    """Compatibility request to initiate a VPN connection."""
+    region: Optional[str] = Field(
+        None,
+        description="Preferred region or server identifier (best effort)."
+    )
+
+
 class AllocateConfigResponse(BaseModel):
     """Response containing the allocated VPN configuration"""
     status: str
@@ -478,6 +486,141 @@ async def get_connection_status(
         )
 
     return ConnectionStatusResponse(connected=False)
+
+
+@router.post("/connect")
+async def connect_vpn(
+    payload: VPNConnectRequest = VPNConnectRequest(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Compatibility endpoint for demo flows and tests.
+
+    - In demo/mock mode: uses the demo VPN session logic.
+    - In live mode: allocates a config and marks a connection as active.
+    """
+    if DEMO_MODE or WG_MOCK_MODE:
+        from services.demo_vpn_service import connect as demo_connect
+
+        session = demo_connect(db, current_user.id, payload.region)
+        return {
+            "mode": "demo",
+            "status": session.status,
+            "session_id": session.id,
+            "connected_since": session.connected_since.isoformat() if session.connected_since else None,
+            "region": session.region,
+            "assigned_node": session.assigned_node,
+            "mock_ip": session.mock_ip,
+        }
+
+    wg_service = WireGuardService()
+    user_tier = get_user_tier(current_user, db)
+
+    server = VPNServerService.allocate_server_for_user(
+        db, current_user, preferred_location=payload.region
+    )
+    if not server:
+        servers = VPNServerService.get_active_servers(db, user_tier)
+        if not servers:
+            raise HTTPException(status_code=503, detail="No VPN servers available. Please try again later.")
+        servers.sort(key=lambda s: (s.performance_score or 0), reverse=True)
+        server = servers[0]
+
+    # Ensure keys/config exist
+    if not current_user.wg_private_key_encrypted or not current_user.wg_public_key:
+        private_key, public_key = wg_service.generate_keypair()
+        current_user.wg_private_key_encrypted = wg_service.encrypt_private_key(private_key)
+        current_user.wg_public_key = public_key
+        current_user.wg_peer_registered = False
+    else:
+        public_key = current_user.wg_public_key
+
+    client_ip = wg_service.allocate_ip(current_user.id)
+    config_path = wg_service.config_path_for_server(current_user.id, server.server_id)
+    if not config_path.exists():
+        config_content = (
+            "[Interface]\n"
+            f"PrivateKey = {wg_service.decrypt_private_key(current_user.wg_private_key_encrypted)}\n"
+            f"Address = {client_ip}\n"
+            f"DNS = {wg_service.dns}\n\n"
+            "[Peer]\n"
+            f"PublicKey = {server.wg_public_key}\n"
+            f"Endpoint = {server.endpoint}\n"
+            "AllowedIPs = 0.0.0.0/0, ::/0\n"
+            "PersistentKeepalive = 25\n"
+        )
+        config_path.write_text(config_content)
+
+    if not current_user.wg_peer_registered:
+        success, _ = await register_peer_on_server(
+            server=server,
+            public_key=public_key,
+            allowed_ips=client_ip,
+        )
+        if success:
+            current_user.wg_peer_registered = True
+
+    active_connection = db.query(VPNConnection).filter(
+        VPNConnection.user_id == current_user.id,
+        VPNConnection.disconnected_at.is_(None)
+    ).first()
+    if not active_connection:
+        active_connection = VPNConnection(
+            user_id=current_user.id,
+            server_id=server.id,
+            client_ip=client_ip,
+            connected_at=datetime.utcnow(),
+        )
+        db.add(active_connection)
+
+    db.add(current_user)
+    db.commit()
+
+    return {
+        "mode": "live",
+        "status": "CONNECTED",
+        "region": server.region or server.location,
+        "server_id": server.server_id,
+        "client_ip": client_ip,
+    }
+
+
+@router.get("/config")
+async def get_vpn_config(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Compatibility endpoint for demo flows and tests.
+    Returns the latest allocated WireGuard config.
+    """
+    if DEMO_MODE or WG_MOCK_MODE:
+        from services.demo_vpn_service import status as demo_status, build_demo_config
+        from database.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            session = demo_status(db, current_user.id)
+            if session.status != "CONNECTED":
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="VPN not connected")
+            return {"mode": "demo", "config": build_demo_config(session)}
+        finally:
+            db.close()
+
+    wg_service = WireGuardService()
+    configs = sorted(
+        wg_service.users_dir.glob(f"{current_user.id}_*.conf"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not configs:
+        default_config = wg_service.users_dir / f"{current_user.id}.conf"
+        if default_config.exists():
+            configs = [default_config]
+    if not configs:
+        raise HTTPException(status_code=404, detail="Configuration not found. Please allocate a config first.")
+
+    return {"mode": "live", "config": configs[0].read_text()}
 
 
 @router.get("/my-configs")
