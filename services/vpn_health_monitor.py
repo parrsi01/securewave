@@ -152,6 +152,9 @@ class VPNHealthMonitor:
             # If we got here, parsing failed but ping succeeded
             return 50.0  # Default reasonable latency
 
+        except FileNotFoundError:
+            logger.warning("Ping binary not available; marking latency as unreachable")
+            return 999.0
         except (asyncio.TimeoutError, subprocess.SubprocessError, ValueError) as e:
             logger.warning(f"Failed to ping {ip}: {e}")
             return 999.0  # Unreachable

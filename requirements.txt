@@ -16,7 +16,7 @@ alembic==1.13.1
 # Authentication & Security
 python-jose[cryptography]==3.3.0
 passlib==1.7.4
-bcrypt==4.1.2
+bcrypt==3.2.2
 cryptography==42.0.8
 pyotp==2.9.0
 

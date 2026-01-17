@@ -657,15 +657,15 @@ def server_connection_from_db(server) -> ServerConnection:
     # Determine the best communication method based on available config
     method: CommunicationMethod = "ssh"  # Default
 
-    if server.azure_vm_name and server.azure_resource_group:
-        # Prefer Azure Run Command for Azure VMs
-        method = "azure_run_command"
-
-    # Check if HTTP API is configured via environment
+    # Prefer HTTP API if configured
     api_key = os.getenv("WG_API_KEY")
     if api_key:
-        # If API key is set, we can try HTTP API
         method = "http_api"
+    elif os.getenv("WG_SSH_KEY_PATH"):
+        method = "ssh"
+    elif server.azure_vm_name and server.azure_resource_group:
+        # Fallback to Azure Run Command for Azure VMs
+        method = "azure_run_command"
 
     return ServerConnection(
         server_id=server.server_id,
