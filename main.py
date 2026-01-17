@@ -20,7 +20,7 @@ from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
 from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session  # noqa: F401
 from routers import auth as old_auth, contact, dashboard, optimizer, payment_paypal, payment_stripe, vpn as legacy_vpn, admin
-from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers
+from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices
 from services.wireguard_service import WireGuardService
 
 # NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD
@@ -289,6 +289,7 @@ app.include_router(billing.router, tags=["billing"])  # Already has /api/billing
 
 # New VPN routes (real WireGuard support)
 app.include_router(new_vpn.router, tags=["vpn"])  # Already has /api/vpn prefix
+app.include_router(devices.router, tags=["devices"])  # Already has /api/vpn/devices prefix
 app.include_router(servers.router, tags=["admin-servers"])  # Already has /api/admin/servers prefix
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])  # Admin peer management
 

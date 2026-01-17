@@ -49,6 +49,7 @@ class WireGuardPeer(Base):
     last_handshake_at = Column(DateTime, nullable=True)  # Last successful WireGuard handshake
     total_data_sent = Column(Integer, default=0)  # Bytes
     total_data_received = Column(Integer, default=0)  # Bytes
+    connection_count = Column(Integer, default=0)  # Number of connection sessions
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
