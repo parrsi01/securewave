@@ -1,6 +1,20 @@
+import os
+
 from passlib.context import CryptContext
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+def _bcrypt_rounds() -> int:
+    env_rounds = os.getenv("BCRYPT_ROUNDS")
+    if env_rounds:
+        try:
+            return max(4, int(env_rounds))
+        except ValueError:
+            return 12
+    if os.getenv("TESTING", "").lower() == "true":
+        return 4
+    return 12
+
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=_bcrypt_rounds())
 
 
 def hash_password(password: str) -> str:
