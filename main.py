@@ -76,6 +76,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+is_testing = os.getenv("TESTING", "").lower() == "true"
+
 # Rate Limiting Configuration
 limiter = Limiter(
     key_func=get_remote_address,
@@ -83,7 +85,8 @@ limiter = Limiter(
     default_limits=["200 per minute"]
 )
 app.state.limiter = limiter
-app.add_middleware(SlowAPIMiddleware)
+if not is_testing:
+    app.add_middleware(SlowAPIMiddleware)
 
 
 @app.exception_handler(RateLimitExceeded)
@@ -141,6 +144,23 @@ def sync_static_assets():
     static_dir.mkdir(parents=True, exist_ok=True)
     if frontend_dir.exists():
         shutil.copytree(frontend_dir, static_dir, dirs_exist_ok=True)
+
+
+def validate_wireguard_production_config(logger: logging.Logger, server_count: int) -> None:
+    """Log warnings for missing WireGuard production configuration."""
+    if os.getenv("WG_MOCK_MODE", "false").lower() == "true":
+        return
+    if os.getenv("DEMO_MODE", "false").lower() == "true":
+        return
+
+    if not os.getenv("WG_ENCRYPTION_KEY"):
+        logger.warning("WG_ENCRYPTION_KEY not set; private keys will not be encrypted at rest.")
+
+    if server_count == 0:
+        logger.warning(
+            "No VPN servers registered. Run infrastructure/init_production_server.py or "
+            "use /api/admin/servers to register a live server."
+        )
 
 
 async def initialize_app_background():
@@ -207,6 +227,8 @@ async def initialize_app_background():
                         logger.warning(f"Demo server seeding failed: {seed_err}")
                 else:
                     logger.warning("Run: python3 infrastructure/init_demo_servers.py")
+
+            validate_wireguard_production_config(logger, server_count)
         except Exception as db_err:
             logger.warning(f"Could not load servers from database: {db_err}. VPN optimizer will start empty.")
 

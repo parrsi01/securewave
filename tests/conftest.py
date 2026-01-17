@@ -15,6 +15,7 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["ENABLE_APP_INSIGHTS"] = "false"
 os.environ["ENABLE_SENTRY"] = "false"
+os.environ["EMAIL_VALIDATOR_CHECK_DELIVERABILITY"] = "false"
 
 from database.base import Base
 from database.session import get_db

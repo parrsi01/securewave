@@ -25,8 +25,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 DEMO_MODE = os.getenv("DEMO_MODE", "true").lower() == "true"
 
-# Rate limiter
+is_testing = os.getenv("TESTING", "").lower() == "true"
+
+# Rate limiter (disabled in tests to avoid hangs)
 limiter = Limiter(key_func=get_remote_address)
+
+def rate_limit(rule: str):
+    if is_testing:
+        def decorator(func):
+            return func
+        return decorator
+    return limiter.limit(rule)
 
 
 # ===========================
@@ -95,7 +104,7 @@ class TokenResponse(BaseModel):
 # ===========================
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
-@limiter.limit("5/hour")  # Prevent abuse
+@rate_limit("5/hour")  # Prevent abuse
 async def register(
     request: Request,
     payload: RegisterRequest,
@@ -176,7 +185,7 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("10/minute")  # Prevent brute force
+@rate_limit("10/minute")  # Prevent brute force
 async def login(
     request: Request,
     payload: LoginRequest,
@@ -245,6 +254,12 @@ async def login(
         # Record successful login
         ip_address = request.client.host if request.client else None
         auth_service.record_login_attempt(user, success=True, ip_address=ip_address)
+
+        admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
+        if admin_email and user.email.lower() == admin_email and not user.is_admin:
+            user.is_admin = True
+            db.commit()
+            logger.info(f"Admin access granted to {user.email} via ADMIN_EMAIL")
 
         logger.info(f"✓ User logged in: {user.email}")
 
