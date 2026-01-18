@@ -1,6 +1,12 @@
 import os
+import crypt
 
-from passlib.context import CryptContext
+try:
+    from passlib.context import CryptContext
+    _HAS_PASSLIB = True
+except ImportError:
+    CryptContext = None
+    _HAS_PASSLIB = False
 
 def _bcrypt_rounds() -> int:
     env_rounds = os.getenv("BCRYPT_ROUNDS")
@@ -14,7 +20,17 @@ def _bcrypt_rounds() -> int:
     return 12
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=_bcrypt_rounds())
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=_bcrypt_rounds()) if _HAS_PASSLIB else None
+
+_CRYPT_BCRYPT = getattr(crypt, "METHOD_BLOWFISH", None)
+_CRYPT_FALLBACK = crypt.METHOD_SHA512
+
+def _crypt_hash(password: str) -> str:
+    method = _CRYPT_BCRYPT or _CRYPT_FALLBACK
+    return crypt.crypt(password, crypt.mksalt(method))
+
+def _crypt_verify(plain_password: str, hashed_password: str) -> bool:
+    return crypt.crypt(plain_password, hashed_password) == hashed_password
 
 
 def hash_password(password: str) -> str:
@@ -22,7 +38,9 @@ def hash_password(password: str) -> str:
     # Limit password length to 72 characters (bcrypt limit)
     if len(password) > 72:
         password = password[:72]
-    return pwd_context.hash(password)
+    if pwd_context:
+        return pwd_context.hash(password)
+    return _crypt_hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -30,4 +48,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     # Limit password length to 72 characters (bcrypt limit)
     if len(plain_password) > 72:
         plain_password = plain_password[:72]
-    return pwd_context.verify(plain_password, hashed_password)
+    if pwd_context:
+        return pwd_context.verify(plain_password, hashed_password)
+    return _crypt_verify(plain_password, hashed_password)
