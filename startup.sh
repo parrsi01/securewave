@@ -17,6 +17,11 @@ REQ_HASH_FILE="${APP_DIR}/.requirements.sha"
 
 echo "[startup] SecureWave startup begin"
 
+if [ "${FORCE_VENV_REBUILD:-false}" = "true" ]; then
+  echo "[startup] force rebuild requested, removing ${VENV_DIR}"
+  rm -rf "${VENV_DIR}"
+fi
+
 if [ ! -x "${VENV_DIR}/bin/python" ]; then
   echo "[startup] creating virtualenv at ${VENV_DIR}"
   "${PYTHON_BIN}" -m venv "${VENV_DIR}"
