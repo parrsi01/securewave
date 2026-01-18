@@ -50,15 +50,19 @@ if [ -f "${REQ_HASH_FILE}" ]; then
   INSTALLED_HASH="$(cat "${REQ_HASH_FILE}" 2>/dev/null || true)"
 fi
 
-python - <<'PY'
+NEEDS_INSTALL=false
+if ! python - <<'PY'
 import importlib.util
 critical = ("uvicorn", "fastapi", "gunicorn", "passlib", "sqlalchemy")
 missing = [m for m in critical if importlib.util.find_spec(m) is None]
 if missing:
     raise SystemExit(1)
 PY
+then
+  NEEDS_INSTALL=true
+fi
 
-if [ $? -ne 0 ] || [ "${REQ_HASH}" != "${INSTALLED_HASH}" ]; then
+if [ "${NEEDS_INSTALL}" = "true" ] || [ "${REQ_HASH}" != "${INSTALLED_HASH}" ]; then
   echo "[startup] installing requirements..."
   pip install --no-input -r "${APP_DIR}/requirements.txt"
   echo "${REQ_HASH}" > "${REQ_HASH_FILE}"
