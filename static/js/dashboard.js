@@ -243,12 +243,35 @@ class VPNDashboard {
 
   async loadServers() {
     try {
-      const servers = [
-        { server_id: 'us-east', location: 'US East', latency_ms: 42, bandwidth_mbps: 900 },
-        { server_id: 'us-west', location: 'US West', latency_ms: 55, bandwidth_mbps: 800 },
-        { server_id: 'eu-central', location: 'EU Central', latency_ms: 80, bandwidth_mbps: 750 },
-        { server_id: 'ap-southeast', location: 'AP Southeast', latency_ms: 110, bandwidth_mbps: 650 }
-      ];
+      const response = await fetch('/api/vpn/servers', {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      });
+
+      if (response.status === 401) {
+        this.handleLogout();
+        return;
+      }
+
+      if (response.status === 402) {
+        this.showAlert('An active subscription is required to connect.', 'warning');
+        this.serverSelect.innerHTML = '<option value="">Subscription required</option>';
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to load server list');
+      }
+
+      const data = await response.json();
+      const servers = (data.servers || []).map(server => ({
+        server_id: server.server_id,
+        location: `${server.city}, ${server.country}`,
+        latency_ms: server.latency_ms || 0,
+        bandwidth_mbps: 1000,
+        health_status: server.health_status || 'unknown'
+      }));
       this.populateServerDropdown(servers);
     } catch (error) {
       console.error('Failed to load servers:', error);
@@ -270,7 +293,8 @@ class VPNDashboard {
     sortedServers.forEach(server => {
       const option = document.createElement('option');
       option.value = server.server_id;
-      option.textContent = `${server.location} (${server.latency_ms}ms, ${server.bandwidth_mbps}Mbps)`;
+      const latencyText = server.latency_ms ? `${server.latency_ms.toFixed(0)}ms` : 'n/a';
+      option.textContent = `${server.location} (${latencyText}, ${server.bandwidth_mbps}Mbps)`;
       option.dataset.server = JSON.stringify(server);
       this.serverSelect.appendChild(option);
     });
@@ -356,11 +380,20 @@ class VPNDashboard {
         })
       });
 
+      if (response.status === 402) {
+        this.showAlert('An active subscription is required to connect.', 'warning');
+        this.vpnToggle.checked = false;
+        this.setConnectionState('DISCONNECTED');
+        this.updateUI();
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
         this.setConnectionState(data.status || 'CONNECTING');
         this.connectionId = data.session_id || null;
-        this.connectionStatus.textContent = data.status === 'CONNECTING' ? 'Connecting...' : 'Connected (Demo)';
+        const modeLabel = data.mode === 'live' ? 'Connected' : 'Connected (Demo)';
+        this.connectionStatus.textContent = data.status === 'CONNECTING' ? 'Connecting...' : modeLabel;
         this.connectionStatus.className = data.status === 'CONNECTING' ? 'connection-status connecting' : 'connection-status connected';
         if (data.status === 'CONNECTED') {
           this.startConnectionTracking();
@@ -368,10 +401,11 @@ class VPNDashboard {
         this.ensureStatusPolling();
         this.updateConnectionDetails({
           location: data.region || (this.currentServer ? this.currentServer.location : 'Auto'),
-          public_ip: data.mock_ip || '10.8.0.10'
+          public_ip: data.client_ip || data.mock_ip || '10.8.0.10',
+          mode: data.mode || 'demo'
         });
         this.updateUI();
-        this.showAlert('VPN connecting (Demo Mode)', 'success');
+        this.showAlert(data.mode === 'live' ? 'VPN connected' : 'VPN connecting (Demo Mode)', 'success');
       } else if (response.status === 401) {
         this.handleLogout();
       } else {
@@ -398,9 +432,7 @@ class VPNDashboard {
           'Authorization': `Bearer ${this.accessToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          reason: 'user'
-        })
+        body: JSON.stringify({ reason: 'user' })
       });
 
       // Stop connection tracking (Phase 4 enhancements)
@@ -415,7 +447,7 @@ class VPNDashboard {
       this.ensureStatusPolling();
       this.updateUI();
 
-      this.showAlert('VPN disconnecting (Demo Mode)', 'info');
+      this.showAlert('VPN disconnecting', 'info');
     } catch (error) {
       console.error('Failed to disconnect VPN:', error);
       this.showAlert('Failed to disconnect VPN', 'error');
@@ -504,11 +536,12 @@ class VPNDashboard {
     if (this.connectionDetails) {
       const location = serverInfo.location || (this.currentServer ? this.currentServer.location : 'Auto');
       const publicIp = serverInfo.public_ip || '10.8.0.10';
+      const mode = serverInfo.mode === 'live' ? 'Live' : 'Control Plane Demo';
       const detailsHTML = `
         <p><strong>Server:</strong> ${location}</p>
         <p><strong>IP Address:</strong> ${publicIp}</p>
-        <p><strong>Protocol:</strong> WireGuard (Demo)</p>
-        <p><strong>Mode:</strong> Control Plane Demo</p>
+        <p><strong>Protocol:</strong> WireGuard</p>
+        <p><strong>Mode:</strong> ${mode}</p>
         <p><strong>Session:</strong> <span id="connectionDuration">00:00:00</span></p>
         <p><strong>Data:</strong> <span id="dataDownload">0.0 KB</span> down / <span id="dataUpload">0.0 KB</span> up</p>
       `;

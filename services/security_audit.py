@@ -124,6 +124,7 @@ class SecurityAuditService:
         request_id: Optional[str] = None,
         severity: Severity = Severity.INFO,
         is_suspicious: bool = False,
+        is_compliance_relevant: bool = True,
         success: bool = True,
         error_message: Optional[str] = None
     ) -> Optional[int]:
@@ -191,7 +192,7 @@ class SecurityAuditService:
                 request_id=request_id,
                 severity=severity.value,
                 is_suspicious=is_suspicious,
-                is_compliance_relevant=True,
+                is_compliance_relevant=is_compliance_relevant,
                 success=success,
                 error_message=error_message
             )
@@ -237,12 +238,12 @@ class SecurityAuditService:
         success: bool,
         method: str = "password",
         error_message: Optional[str] = None
-    ) -> None:
+    ) -> Optional[int]:
         """Log login attempt"""
         event_type = EventType.LOGIN if success else EventType.LOGIN_FAILED
         severity = Severity.INFO if success else Severity.WARNING
 
-        self.log_event(
+        return self.log_event(
             event_type=event_type,
             event_category=EventCategory.AUTHENTICATION,
             action="login",
@@ -337,7 +338,7 @@ class SecurityAuditService:
         action: str,  # accessed, exported, deleted, modified
         ip_address: Optional[str] = None,
         details: Optional[Dict] = None
-    ) -> None:
+    ) -> Optional[int]:
         """Log data access event"""
         event_type_map = {
             "accessed": EventType.USER_DATA_ACCESSED,
@@ -348,7 +349,7 @@ class SecurityAuditService:
 
         severity = Severity.WARNING if action in ["deleted", "exported"] else Severity.INFO
 
-        self.log_event(
+        return self.log_event(
             event_type=event_type_map.get(action, EventType.USER_DATA_ACCESSED),
             event_category=EventCategory.DATA,
             action=action,

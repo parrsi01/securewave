@@ -178,6 +178,27 @@
               </div>
             </div>
 
+            <!-- Device Selection -->
+            <label for="deviceSelect" style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Device</label>
+            <select id="deviceSelect" class="server-select">
+              <option value="">Loading devices...</option>
+            </select>
+            <p id="deviceLimitInfo" style="margin: -0.5rem 0 1rem 0; font-size: 0.75rem; color: var(--gray-500);"></p>
+
+            <div class="grid grid-2" style="gap: 0.75rem; margin-bottom: 1.25rem;">
+              <input id="newDeviceName" class="server-select" style="margin: 0;" type="text" placeholder="Device name (e.g., MacBook Pro)">
+              <select id="newDeviceType" class="server-select" style="margin: 0;">
+                <option value="macos">macOS</option>
+                <option value="windows">Windows</option>
+                <option value="linux">Linux</option>
+                <option value="ios">iOS</option>
+                <option value="android">Android</option>
+                <option value="router">Router</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <button id="addDeviceBtn" class="btn btn-ghost btn-block" style="margin-bottom: 1.5rem;">Add Device</button>
+
             <!-- Server Selection -->
             <label for="serverSelect" style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Server Location</label>
             <select id="serverSelect" class="server-select">
@@ -387,7 +408,9 @@
 
     // State
     let servers = [];
+    let devices = [];
     let selectedServer = null;
+    let selectedDevice = null;
     let currentConfig = null;
     let currentQR = null;
     let currentFilename = 'securewave.conf';
@@ -400,6 +423,11 @@
     const serverLatency = document.getElementById('serverLatency');
     const serverHealth = document.getElementById('serverHealth');
     const serverCount = document.getElementById('serverCount');
+    const deviceSelect = document.getElementById('deviceSelect');
+    const deviceLimitInfo = document.getElementById('deviceLimitInfo');
+    const newDeviceName = document.getElementById('newDeviceName');
+    const newDeviceType = document.getElementById('newDeviceType');
+    const addDeviceBtn = document.getElementById('addDeviceBtn');
     const generateBtn = document.getElementById('generateConfig');
     const downloadBtn = document.getElementById('downloadConfig');
     const downloadBtnText = document.getElementById('downloadBtnText');
@@ -416,6 +444,128 @@
     // =========================================================================
     // API Functions
     // =========================================================================
+
+    async function loadDevices() {
+      try {
+        const response = await fetch('/api/vpn/devices', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          }
+        });
+
+        if (response.status === 401) {
+          window.location.href = '/login.html';
+          return;
+        }
+
+        if (response.status === 402) {
+          deviceSelect.innerHTML = '<option value="">Subscription required</option>';
+          deviceLimitInfo.textContent = 'Upgrade to add devices and generate configs.';
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error('Failed to load devices');
+        }
+
+        const data = await response.json();
+        devices = data.devices || [];
+        populateDeviceSelect(devices);
+        await loadDeviceLimits();
+      } catch (error) {
+        console.error('Failed to load devices:', error);
+        deviceSelect.innerHTML = '<option value="">Error loading devices</option>';
+      }
+    }
+
+    async function loadDeviceLimits() {
+      try {
+        const response = await fetch('/api/vpn/devices/limits/info', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          }
+        });
+
+        if (!response.ok) return;
+        const data = await response.json();
+        deviceLimitInfo.textContent = `Devices: ${data.used}/${data.limit} • Plan: ${data.tier}`;
+      } catch (error) {
+        deviceLimitInfo.textContent = '';
+      }
+    }
+
+    function populateDeviceSelect(deviceList) {
+      deviceSelect.innerHTML = '<option value="">-- Select a device --</option>';
+      if (!deviceList.length) {
+        deviceSelect.innerHTML = '<option value="">No devices yet</option>';
+        selectedDevice = null;
+        return;
+      }
+
+      deviceList.forEach(device => {
+        const option = document.createElement('option');
+        option.value = device.id;
+        option.textContent = `${device.name || 'Unnamed Device'} • ${device.ip_address}`;
+        option.dataset.device = JSON.stringify(device);
+        deviceSelect.appendChild(option);
+      });
+
+      deviceSelect.selectedIndex = 1;
+      const option = deviceSelect.options[deviceSelect.selectedIndex];
+      if (option && option.dataset.device) {
+        selectedDevice = JSON.parse(option.dataset.device);
+      }
+    }
+
+    async function addDevice() {
+      const name = (newDeviceName.value || '').trim();
+      const deviceType = newDeviceType.value;
+
+      if (!name) {
+        showError('Enter a device name to add.');
+        return;
+      }
+
+      addDeviceBtn.disabled = true;
+      addDeviceBtn.textContent = 'Adding...';
+
+      try {
+        const response = await fetch('/api/vpn/devices', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, device_type: deviceType })
+        });
+
+        if (response.status === 401) {
+          window.location.href = '/login.html';
+          return;
+        }
+
+        if (response.status === 402) {
+          showError('Active subscription required to add devices.');
+          return;
+        }
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to add device');
+        }
+
+        newDeviceName.value = '';
+        const data = await response.json();
+        showSuccess(`Device added: ${data.name || name}`);
+        await loadDevices();
+      } catch (error) {
+        console.error('Failed to add device:', error);
+        showError(error.message);
+      } finally {
+        addDeviceBtn.disabled = false;
+        addDeviceBtn.textContent = 'Add Device';
+      }
+    }
 
     async function loadServers() {
       try {
@@ -487,6 +637,11 @@
     }
 
     async function generateConfiguration() {
+      if (!selectedDevice) {
+        showError('Please select a device first');
+        return;
+      }
+
       if (!selectedServer) {
         showError('Please select a server first');
         return;
@@ -496,19 +651,19 @@
       generateBtn.innerHTML = '<span class="loading-spinner"></span> Generating...';
 
       try {
-        const response = await fetch('/api/vpn/allocate', {
-          method: 'POST',
+        const response = await fetch(`/api/vpn/devices/${selectedDevice.id}/config?server_id=${encodeURIComponent(selectedServer.server_id)}`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            server_id: selectedServer.server_id
-          })
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          }
         });
 
         if (response.status === 401) {
           window.location.href = '/login.html';
+          return;
+        }
+
+        if (response.status === 402) {
+          showError('Active subscription required to generate configs.');
           return;
         }
 
@@ -529,20 +684,14 @@
         // Store config data
         currentConfig = data.config;
         currentQR = data.qr_code;
-        currentFilename = data.download_filename;
+        currentFilename = data.filename || 'securewave.conf';
 
         // Update UI
         configPreview.textContent = currentConfig;
         configStatus.classList.remove('hidden', 'warning', 'error');
         configStatus.classList.add('success');
 
-        if (data.peer_registered) {
-          configStatusText.textContent = 'Configuration ready - Peer registered on server';
-        } else {
-          configStatus.classList.remove('success');
-          configStatus.classList.add('warning');
-          configStatusText.textContent = 'Configuration ready - Peer registration pending';
-        }
+        configStatusText.textContent = 'Configuration ready';
 
         // Enable download buttons
         downloadBtn.disabled = false;
@@ -677,6 +826,16 @@
       }
     });
 
+    deviceSelect.addEventListener('change', () => {
+      const option = deviceSelect.options[deviceSelect.selectedIndex];
+      if (option && option.dataset.device) {
+        selectedDevice = JSON.parse(option.dataset.device);
+      } else {
+        selectedDevice = null;
+      }
+    });
+
+    addDeviceBtn.addEventListener('click', addDevice);
     generateBtn.addEventListener('click', generateConfiguration);
     downloadBtn.addEventListener('click', downloadConfigFile);
     copyConfigBtn.addEventListener('click', copyConfigToClipboard);
@@ -706,6 +865,7 @@
     if (!token) {
       window.location.href = '/login.html';
     } else {
+      loadDevices();
       loadServers();
     }
   </script>

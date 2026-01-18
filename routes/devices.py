@@ -26,6 +26,11 @@ from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from services.jwt_service import get_current_user
 from services.vpn_peer_manager import get_peer_manager
+from services.subscription_access import require_active_subscription
+from services.wireguard_server_manager import (
+    get_wireguard_server_manager,
+    server_connection_from_db,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn/devices", tags=["devices"])
@@ -200,6 +205,7 @@ async def add_device(
     Generates WireGuard keys and allocates an IP address.
     Subject to device limits based on subscription tier.
     """
+    await require_active_subscription(db, current_user)
     peer_manager = get_peer_manager(db)
 
     # Check device limit
@@ -248,6 +254,14 @@ async def add_device(
             device_name=request.name,
             device_type=device_type
         )
+
+        if server:
+            try:
+                manager = get_wireguard_server_manager()
+                conn = server_connection_from_db(server)
+                await manager.add_peer(conn, peer.public_key, peer.ipv4_address)
+            except Exception as e:
+                logger.warning(f"Peer registration deferred for device {peer.id}: {e}")
 
         return DeviceResponse(
             id=peer.id,
@@ -387,6 +401,15 @@ async def revoke_device(
         )
 
     peer_manager = get_peer_manager(db)
+    if peer.server_id:
+        server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+        if server:
+            try:
+                manager = get_wireguard_server_manager()
+                conn = server_connection_from_db(server)
+                await manager.remove_peer(conn, peer.public_key)
+            except Exception as e:
+                logger.warning(f"Failed to remove peer {peer.id} from server {server.server_id}: {e}")
     success = peer_manager.revoke_peer(device_id)
 
     if not success:
@@ -410,6 +433,7 @@ async def get_device_config(
 
     Returns the .conf file content and QR code for mobile setup.
     """
+    await require_active_subscription(db, current_user)
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.id == device_id,
         WireGuardPeer.user_id == current_user.id
@@ -449,6 +473,18 @@ async def get_device_config(
     peer_manager = get_peer_manager(db)
 
     try:
+        if peer.server_id != server.id:
+            peer.server_id = server.id
+            db.add(peer)
+            db.commit()
+
+        try:
+            manager = get_wireguard_server_manager()
+            conn = server_connection_from_db(server)
+            await manager.add_peer(conn, peer.public_key, peer.ipv4_address)
+        except Exception as e:
+            logger.warning(f"Peer registration deferred for device {peer.id}: {e}")
+
         config = peer_manager.generate_config(peer, server)
         qr_bytes = peer_manager.generate_config_qr_code(peer, server)
         qr_base64 = f"data:image/png;base64,{base64.b64encode(qr_bytes).decode()}"
@@ -481,6 +517,7 @@ async def download_device_config(
     db: Session = Depends(get_db)
 ):
     """Download WireGuard configuration file."""
+    await require_active_subscription(db, current_user)
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.id == device_id,
         WireGuardPeer.user_id == current_user.id,
@@ -511,6 +548,10 @@ async def download_device_config(
         )
 
     peer_manager = get_peer_manager(db)
+    if peer.server_id != server.id:
+        peer.server_id = server.id
+        db.add(peer)
+        db.commit()
     filename, config = peer_manager.generate_config_file(peer, server)
 
     return Response(
@@ -570,6 +611,7 @@ async def rotate_device_keys(
     Generates new keypair and invalidates old configuration.
     You will need to download a new config after rotation.
     """
+    await require_active_subscription(db, current_user)
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.id == device_id,
         WireGuardPeer.user_id == current_user.id,
@@ -583,9 +625,21 @@ async def rotate_device_keys(
         )
 
     peer_manager = get_peer_manager(db)
+    old_public_key = peer.public_key
 
     try:
         updated_peer = peer_manager.rotate_peer_keys(device_id)
+
+        if updated_peer.server_id:
+            server = db.query(VPNServer).filter(VPNServer.id == updated_peer.server_id).first()
+            if server:
+                try:
+                    manager = get_wireguard_server_manager()
+                    conn = server_connection_from_db(server)
+                    await manager.remove_peer(conn, old_public_key)
+                    await manager.add_peer(conn, updated_peer.public_key, updated_peer.ipv4_address)
+                except Exception as e:
+                    logger.warning(f"Peer rotation sync deferred for device {device_id}: {e}")
 
         return DeviceResponse(
             id=updated_peer.id,
