@@ -298,7 +298,6 @@ EOF
             QOS_MODEL_PATH="data/models/qos_model.json" \
             RISK_MODEL_PATH="data/models/risk_model.json" \
             WEBSITES_PORT=8000 \
-            FORCE_VENV_REBUILD="true" \
             SCM_DO_BUILD_DURING_DEPLOYMENT=true \
         --output none
 
