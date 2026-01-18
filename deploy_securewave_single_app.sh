@@ -19,6 +19,10 @@ cp -R "${ROOT_DIR}/routes" "${BUILD_DIR}/routes"
 cp -R "${ROOT_DIR}/services" "${BUILD_DIR}/services"
 cp -R "${ROOT_DIR}/models" "${BUILD_DIR}/models"
 cp -R "${ROOT_DIR}/database" "${BUILD_DIR}/database"
+if [[ -d "${ROOT_DIR}/securewave-tests" ]]; then
+  cp -R "${ROOT_DIR}/securewave-tests" "${BUILD_DIR}/securewave-tests"
+  rm -rf "${BUILD_DIR}/securewave-tests/results"
+fi
 cp -R "${ROOT_DIR}/alembic" "${BUILD_DIR}/alembic"
 cp "${ROOT_DIR}/alembic.ini" "${BUILD_DIR}/alembic.ini"
 cp "${ROOT_DIR}/requirements.txt" "${BUILD_DIR}/requirements.txt"
@@ -43,7 +47,7 @@ az webapp deploy \
 az webapp config set \
   --resource-group "${AZURE_RESOURCE_GROUP}" \
   --name "${AZURE_APP_NAME}" \
-  --startup-file "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:\$PORT --timeout 600"
+  --startup-file "bash /home/site/wwwroot/startup.sh"
 
 az webapp restart --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_APP_NAME}"
 

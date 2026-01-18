@@ -1,0 +1,95 @@
+# SecureWave VPN Test Suite Configuration
+# ========================================
+
+# Test targets for latency measurements
+latency:
+  targets:
+    - host: 1.1.1.1        # Cloudflare DNS
+      name: cloudflare
+    - host: 8.8.8.8        # Google DNS
+      name: google
+    - host: 9.9.9.9        # Quad9 DNS
+      name: quad9
+  count: 10                 # Pings per target
+  timeout: 5                # Seconds per ping
+
+# Throughput test configuration
+throughput:
+  # Public speed test endpoints (using curl for compatibility)
+  download_urls:
+    - url: http://speedtest.tele2.net/10MB.zip
+      name: tele2_10mb
+    - url: http://proof.ovh.net/files/10Mb.dat
+      name: ovh_10mb
+  # Optional: iperf3 server for precise testing
+  iperf3:
+    server: null           # Set to IP if available
+    port: 5201
+    duration: 10           # Test duration in seconds
+
+# DNS leak detection
+dns_leak:
+  # DNS servers that should be used when VPN is active
+  expected_resolvers:
+    - 1.1.1.1              # Cloudflare (common VPN DNS)
+    - 1.0.0.1
+    - 10.0.0.1             # Common VPN internal DNS
+  # Domains to test resolution
+  test_domains:
+    - whoami.akamai.net
+    - myip.opendns.com
+    - o-o.myaddr.l.google.com
+
+# IPv6 leak detection
+ipv6_leak:
+  test_targets:
+    - host: 2001:4860:4860::8888  # Google IPv6 DNS
+    - host: 2606:4700:4700::1111  # Cloudflare IPv6 DNS
+
+# Ad/Tracker blocking tests
+ad_blocking:
+  # Known ad/tracker domains that should be blocked
+  blocked_domains:
+    - doubleclick.net
+    - googleadservices.com
+    - facebook-tracking.com
+    - ads.yahoo.com
+    - tracking.analytics.com
+    - pixel.facebook.com
+    - ad.doubleclick.net
+    - pagead2.googlesyndication.com
+  # Control domains that should NOT be blocked
+  allowed_domains:
+    - google.com
+    - cloudflare.com
+    - github.com
+
+# Tunnel stability test
+stability:
+  duration: 30             # Test duration in seconds
+  check_interval: 2        # Seconds between checks
+  reconnect_threshold: 3   # Max acceptable reconnects
+
+# VPN interface detection patterns
+vpn_interfaces:
+  patterns:
+    - wg*                  # WireGuard
+    - tun*                 # OpenVPN/generic
+    - utun*                # macOS tunnels
+    - ppp*                 # PPTP/L2TP
+
+# Scoring weights (must sum to 100)
+scoring:
+  latency: 25
+  throughput: 25
+  dns_leak: 20
+  ipv6_leak: 10
+  ad_blocking: 10
+  stability: 10
+
+# Pass/Fail thresholds
+thresholds:
+  max_latency_increase_ms: 50    # Max acceptable latency increase
+  min_throughput_percent: 70     # Min % of baseline throughput
+  max_tunnel_drops: 2            # Max acceptable drops in stability test
+  overall_pass_score: 70         # Min score to pass

@@ -110,6 +110,131 @@
       max-height: 200px;
       overflow-y: auto;
     }
+
+    /* VPN Test Results Styles */
+    .test-loading {
+      text-align: center;
+      padding: 3rem;
+    }
+    .spinner-large {
+      width: 3rem;
+      height: 3rem;
+      border: 3px solid var(--gray-200);
+      border-top-color: var(--primary-600);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    .test-results {
+      background-color: var(--bg-secondary);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+    }
+    .test-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .test-score {
+      text-align: center;
+    }
+    .test-score .score-value {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .test-score .score-label {
+      font-size: 1.25rem;
+      color: var(--gray-500);
+    }
+    .test-score.success .score-value { color: var(--success-600); }
+    .test-score.warning .score-value { color: var(--warning-600); }
+    .test-score.danger .score-value { color: var(--error-600); }
+    .test-status {
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+    .test-status.success {
+      background-color: var(--success-100);
+      color: var(--success-700);
+    }
+    .test-status.danger {
+      background-color: var(--error-100);
+      color: var(--error-700);
+    }
+    .test-vpn-info {
+      margin-bottom: 1.5rem;
+    }
+    .test-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+    }
+    .metric {
+      background-color: var(--bg-primary);
+      padding: 1rem;
+      border-radius: var(--radius-md);
+      text-align: center;
+    }
+    .metric-label {
+      font-size: 0.75rem;
+      color: var(--gray-500);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+    .metric-value {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .metric-value.text-success { color: var(--success-600); }
+    .metric-value.text-danger { color: var(--error-600); }
+    .metric-change {
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+    }
+    .metric-change.good { color: var(--success-600); }
+    .metric-change.bad { color: var(--error-600); }
+    .test-footer {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--gray-200);
+      font-size: 0.75rem;
+      color: var(--gray-500);
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .badge-success {
+      background-color: var(--success-100);
+      color: var(--success-700);
+    }
+    .badge-warning {
+      background-color: var(--warning-100);
+      color: var(--warning-700);
+    }
+    .spinner {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 0.5rem;
+    }
   </style>
 </head>
 <body>
@@ -298,6 +423,55 @@
         </div>
       </div>
 
+      <!-- VPN Performance Test -->
+      <div class="card" style="margin-bottom: 3rem;">
+        <div class="card-body">
+          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem; background-color: var(--accent-600); border-radius: var(--radius-md); box-shadow: var(--shadow-lg);">
+              <svg style="width: 1.5rem; height: 1.5rem; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+            </div>
+            <div>
+              <h2 style="margin: 0; font-size: 1.25rem;">VPN Performance Test</h2>
+              <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Test your active VPN connection</p>
+            </div>
+          </div>
+
+          <p style="color: var(--gray-600); margin-bottom: 1rem;">
+            Run a real-world performance check of your active WireGuard tunnel. Results include latency,
+            throughput, DNS leak detection, IPv6 leak detection, and ad/tracker blocking effectiveness.
+          </p>
+          <p style="color: var(--gray-500); margin-bottom: 1.5rem; font-size: 0.875rem;">
+            Demo Mode: Tests only reflect your device's current VPN connection. If the tunnel is off, results will show
+            "No VPN Detected" and baseline metrics only.
+          </p>
+
+          <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+            <button id="run-vpn-test-btn" class="btn btn-primary">
+              Run Full Test
+            </button>
+            <button id="run-vpn-test-quick-btn" class="btn btn-outline">
+              Quick Test (30s)
+            </button>
+          </div>
+
+          <p id="vpn-test-last-run" style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 1rem;"></p>
+
+          <!-- Test Results Container -->
+          <div id="vpn-test-results">
+            <div style="text-align: center; padding: 3rem; background-color: var(--bg-secondary); border-radius: var(--radius-lg);">
+              <svg style="width: 3rem; height: 3rem; color: var(--gray-400); margin-bottom: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+              <p style="margin: 0; color: var(--gray-500);">
+                Start a test to measure your live tunnel and verify DNS/IPv6 protection.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- How to Use -->
       <div class="card" style="margin-bottom: 3rem;">
         <div class="card-body">
@@ -401,6 +575,7 @@
   </footer>
 
   <script src="/js/main.js"></script>
+  <script src="/js/vpn-tests.js"></script>
   <script>
     // =========================================================================
     // VPN Configuration Page Logic

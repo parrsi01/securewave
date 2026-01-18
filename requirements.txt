@@ -5,7 +5,7 @@
 # FastAPI and ASGI server
 fastapi==0.115.12
 uvicorn[standard]==0.32.1
-gunicorn==21.2.0
+gunicorn==22.0.0
 python-multipart==0.0.9
 
 # Database
@@ -55,6 +55,9 @@ jinja2==3.1.2
 
 # DNS Operations (Section 8)
 dnspython==2.4.2
+
+# VPN Test Suite
+PyYAML==6.0.1
 
 # NOTE: ML packages (xgboost, numpy, scikit-learn) are OPTIONAL
 # To enable ML-enhanced optimization, install requirements_ml.txt separately
