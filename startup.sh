@@ -15,12 +15,29 @@ PYTHON_BIN="/opt/python/3.11.14/bin/python3.11"
 
 REQ_HASH_FILE="${APP_DIR}/.requirements.sha"
 
+echo "[startup] SecureWave startup begin"
+
 if [ ! -x "${VENV_DIR}/bin/python" ]; then
   echo "[startup] creating virtualenv at ${VENV_DIR}"
   "${PYTHON_BIN}" -m venv "${VENV_DIR}"
 fi
 
 source "${VENV_DIR}/bin/activate"
+
+python - <<'PY'
+import importlib.util
+missing = [m for m in ("pip", "setuptools", "_distutils_hack") if importlib.util.find_spec(m) is None]
+if missing:
+    raise SystemExit(1)
+PY
+
+if [ $? -ne 0 ]; then
+  echo "[startup] rebuilding virtualenv due to missing base tooling"
+  rm -rf "${VENV_DIR}"
+  "${PYTHON_BIN}" -m venv "${VENV_DIR}"
+  source "${VENV_DIR}/bin/activate"
+  pip install --no-input --upgrade pip setuptools wheel
+fi
 
 REQ_HASH="$(sha256sum "${APP_DIR}/requirements.txt" | awk '{print $1}')"
 INSTALLED_HASH=""
@@ -42,4 +59,5 @@ if [ $? -ne 0 ] || [ "${REQ_HASH}" != "${INSTALLED_HASH}" ]; then
   echo "${REQ_HASH}" > "${REQ_HASH_FILE}"
 fi
 
+echo "[startup] launching gunicorn"
 exec gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT} --timeout 600
