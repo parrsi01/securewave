@@ -115,7 +115,7 @@ class GDPRComplianceService:
                 "user_id": user_id,
                 "personal_information": {
                     "email": user.email,
-                    "full_name": user.full_name,
+                    "full_name": getattr(user, "full_name", None),
                     "created_at": user.created_at.isoformat() if user.created_at else None,
                     "email_verified": user.email_verified,
                     "totp_enabled": user.totp_enabled,

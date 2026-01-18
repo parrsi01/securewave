@@ -20,9 +20,12 @@ from sqlalchemy.orm import Session
 
 from database.session import get_db
 from models.user import User
+from models.wireguard_peer import WireGuardPeer
 from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
 from services.jwt_service import get_current_user
+from services.subscription_access import require_active_subscription
+from services.vpn_peer_manager import get_peer_manager
 from services.wireguard_service import WireGuardService
 from services.vpn_server_service import VPNServerService
 from services.wireguard_server_manager import (
@@ -35,7 +38,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn", tags=["vpn"])
 
 # Check if we're in demo/mock mode
-DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
+IS_TESTING = os.getenv("TESTING", "").lower() == "true"
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true" or IS_TESTING
 WG_MOCK_MODE = os.getenv("WG_MOCK_MODE", "false").lower() == "true"
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
 
@@ -79,6 +83,18 @@ class VPNConnectRequest(BaseModel):
     )
 
 
+class DeviceCreateRequest(BaseModel):
+    """Compatibility request to create a VPN device."""
+    name: str = Field(..., min_length=1, max_length=50)
+    device_type: Optional[str] = Field(None, description="windows, macos, linux, ios, android")
+    server_id: Optional[str] = Field(None, description="Preferred server ID")
+
+
+class DeviceRevokeRequest(BaseModel):
+    """Compatibility request to revoke a VPN device."""
+    device_id: int = Field(..., description="Device ID to revoke")
+
+
 class AllocateConfigResponse(BaseModel):
     """Response containing the allocated VPN configuration"""
     status: str
@@ -95,6 +111,7 @@ class AllocateConfigResponse(BaseModel):
 
 class ConnectionStatusResponse(BaseModel):
     """VPN connection status response"""
+    status: Optional[str] = None
     connected: bool
     server_id: Optional[str] = None
     server_location: Optional[str] = None
@@ -120,7 +137,7 @@ def get_user_tier(user: User, db: Session) -> str:
     from models.subscription import Subscription
     sub = db.query(Subscription).filter(
         Subscription.user_id == user.id,
-        Subscription.status == "active"
+        Subscription.status.in_(["active", "trialing"])
     ).first()
 
     if sub:
@@ -268,8 +285,10 @@ async def allocate_config(
 
     The configuration can be imported into the WireGuard app on any platform.
     """
+    await require_active_subscription(db, current_user)
     wg_service = WireGuardService()
     user_tier = get_user_tier(current_user, db)
+    peer_manager = get_peer_manager(db)
 
     # Select server
     if request.server_id:
@@ -296,18 +315,40 @@ async def allocate_config(
         servers.sort(key=lambda s: (s.performance_score or 0), reverse=True)
         server = servers[0]
 
-    # Generate or retrieve user's WireGuard keys
-    if not current_user.wg_private_key_encrypted or not current_user.wg_public_key:
-        private_key, public_key = wg_service.generate_keypair()
-        current_user.wg_private_key_encrypted = wg_service.encrypt_private_key(private_key)
-        current_user.wg_public_key = public_key
-        current_user.wg_peer_registered = False
-    else:
-        private_key = wg_service.decrypt_private_key(current_user.wg_private_key_encrypted)
-        public_key = current_user.wg_public_key
+    # Resolve or create a peer device for this user
+    device_name = request.device_name or "Primary Device"
+    peer = db.query(WireGuardPeer).filter(
+        WireGuardPeer.user_id == current_user.id,
+        WireGuardPeer.device_name == device_name,
+        WireGuardPeer.is_revoked == False
+    ).first()
+
+    if not peer:
+        from routes.devices import get_device_limit
+        existing_peers = peer_manager.list_user_peers(current_user.id)
+        active_count = len([p for p in existing_peers if p.is_active and not p.is_revoked])
+        device_limit = get_device_limit(current_user, db)
+        if active_count >= device_limit:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Device limit reached ({device_limit}). Upgrade your plan or revoke an existing device."
+            )
+        peer = peer_manager.create_peer(
+            user=current_user,
+            server=server,
+            device_name=device_name,
+            device_type=None
+        )
+    elif peer.server_id != server.id:
+        peer.server_id = server.id
+        db.add(peer)
+        db.commit()
+
+    private_key = wg_service.decrypt_private_key(peer.private_key_encrypted)
+    public_key = peer.public_key
 
     # Allocate IP address
-    client_ip = wg_service.allocate_ip(current_user.id)
+    client_ip = peer.ipv4_address
 
     # Generate client configuration for this specific server
     config_content = (
@@ -330,19 +371,23 @@ async def allocate_config(
     qr_base64 = wg_service.qr_from_config(config_content)
 
     # Register peer on the WireGuard server
-    peer_registered = current_user.wg_peer_registered
-    if not peer_registered:
-        success, message = await register_peer_on_server(
-            server=server,
-            public_key=public_key,
-            allowed_ips=client_ip,
-        )
-        if success:
-            current_user.wg_peer_registered = True
-            peer_registered = True
-            logger.info(f"Peer registered for user {current_user.id} on server {server.server_id}")
-        else:
-            logger.warning(f"Peer registration failed for user {current_user.id}: {message}")
+    peer_registered = False
+    success, message = await register_peer_on_server(
+        server=server,
+        public_key=public_key,
+        allowed_ips=client_ip,
+    )
+    if success:
+        peer_registered = True
+        logger.info(f"Peer registered for user {current_user.id} on server {server.server_id}")
+    else:
+        logger.warning(f"Peer registration failed for user {current_user.id}: {message}")
+
+    # Sync legacy keys for compatibility
+    if not current_user.wg_public_key:
+        current_user.wg_public_key = public_key
+    if not current_user.wg_private_key_encrypted:
+        current_user.wg_private_key_encrypted = wg_service.encrypt_private_key(private_key)
 
     # Commit user changes
     db.add(current_user)
@@ -383,6 +428,7 @@ async def download_config(
 
     Returns the .conf file as a downloadable attachment.
     """
+    await require_active_subscription(db, current_user)
     wg_service = WireGuardService()
 
     # Check if config exists for this server
@@ -428,6 +474,7 @@ async def get_qr_code(
 
     Returns a base64-encoded PNG image of the QR code.
     """
+    await require_active_subscription(db, current_user)
     wg_service = WireGuardService()
 
     if not wg_service.config_exists_for_server(current_user.id, server_id):
@@ -467,6 +514,19 @@ async def get_connection_status(
     Note: This checks if the user has an active configuration allocated.
     Actual tunnel status is managed by the WireGuard client on the user's device.
     """
+    if DEMO_MODE or WG_MOCK_MODE:
+        from services.demo_vpn_service import status as demo_status
+
+        session = demo_status(db, current_user.id)
+        return ConnectionStatusResponse(
+            status=session.status,
+            connected=session.status == "CONNECTED",
+            server_id=session.assigned_node,
+            server_location=session.region,
+            client_ip=session.mock_ip,
+            connected_since=session.connected_since.isoformat() if session.connected_since else None,
+        )
+
     # Check for active VPN connections (if tracking)
     active_connection = db.query(VPNConnection).filter(
         VPNConnection.user_id == current_user.id,
@@ -476,6 +536,7 @@ async def get_connection_status(
     if active_connection:
         server = VPNServerService.get_server_by_id(db, str(active_connection.server_id))
         return ConnectionStatusResponse(
+            status="CONNECTED",
             connected=True,
             server_id=server.server_id if server else None,
             server_location=f"{server.city}, {server.country}" if server else None,
@@ -485,7 +546,7 @@ async def get_connection_status(
             bytes_received=active_connection.total_bytes_received,
         )
 
-    return ConnectionStatusResponse(connected=False)
+    return ConnectionStatusResponse(status="DISCONNECTED", connected=False)
 
 
 @router.post("/connect")
@@ -514,6 +575,7 @@ async def connect_vpn(
             "mock_ip": session.mock_ip,
         }
 
+    await require_active_subscription(db, current_user)
     wg_service = WireGuardService()
     user_tier = get_user_tier(current_user, db)
 
@@ -586,6 +648,44 @@ async def connect_vpn(
     }
 
 
+@router.post("/disconnect")
+async def disconnect_vpn(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Mark the current VPN connection as disconnected.
+
+    Note: This does not terminate a WireGuard tunnel on the client device.
+    """
+    if DEMO_MODE or WG_MOCK_MODE:
+        from services.demo_vpn_service import disconnect as demo_disconnect
+
+        session = demo_disconnect(db, current_user.id)
+        return {
+            "mode": "demo",
+            "status": session.status,
+            "disconnected_at": datetime.utcnow().isoformat(),
+            "last_error": session.last_error,
+        }
+
+    active_connection = db.query(VPNConnection).filter(
+        VPNConnection.user_id == current_user.id,
+        VPNConnection.disconnected_at.is_(None)
+    ).first()
+
+    if active_connection:
+        active_connection.disconnected_at = datetime.utcnow()
+        db.add(active_connection)
+        db.commit()
+
+    return {
+        "mode": "live",
+        "status": "DISCONNECTED",
+        "disconnected_at": datetime.utcnow().isoformat(),
+    }
+
+
 @router.get("/config")
 async def get_vpn_config(
     current_user: User = Depends(get_current_user),
@@ -606,6 +706,14 @@ async def get_vpn_config(
             return {"mode": "demo", "config": build_demo_config(session)}
         finally:
             db.close()
+
+    # Live mode requires active subscription
+    from database.session import SessionLocal
+    db = SessionLocal()
+    try:
+        await require_active_subscription(db, current_user)
+    finally:
+        db.close()
 
     wg_service = WireGuardService()
     configs = sorted(
@@ -631,6 +739,7 @@ async def list_my_configs(
     """
     List all VPN configurations allocated to the current user.
     """
+    await require_active_subscription(db, current_user)
     wg_service = WireGuardService()
 
     # Find all config files for this user
@@ -666,6 +775,189 @@ async def list_my_configs(
         "total": len(configs),
         "has_keys": bool(current_user.wg_public_key),
         "peer_registered": current_user.wg_peer_registered,
+    }
+
+
+# =============================================================================
+# Compatibility Device & Usage Endpoints (Phase 2)
+# =============================================================================
+
+@router.post("/create-device")
+async def create_device(
+    payload: DeviceCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compatibility endpoint to create a device."""
+    await require_active_subscription(db, current_user)
+    peer_manager = get_peer_manager(db)
+
+    # Enforce device limits
+    from routes.devices import get_device_limit
+    existing_peers = peer_manager.list_user_peers(current_user.id)
+    active_count = len([p for p in existing_peers if p.is_active and not p.is_revoked])
+    device_limit = get_device_limit(current_user, db)
+    if active_count >= device_limit:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Device limit reached ({device_limit}). Upgrade your plan or revoke an existing device."
+        )
+
+    server = None
+    if payload.server_id:
+        server = VPNServerService.get_server_by_id(db, payload.server_id)
+        if not server:
+            raise HTTPException(status_code=404, detail="Server not found")
+
+    peer = peer_manager.create_peer(
+        user=current_user,
+        server=server,
+        device_name=payload.name,
+        device_type=payload.device_type,
+    )
+
+    if server:
+        try:
+            manager = get_wireguard_server_manager()
+            conn = server_connection_from_db(server)
+            await manager.add_peer(conn, peer.public_key, peer.ipv4_address)
+        except Exception as e:
+            logger.warning(f"Peer registration deferred for device {peer.id}: {e}")
+
+    return {
+        "device_id": peer.id,
+        "device_name": peer.device_name,
+        "ip_address": peer.ipv4_address,
+        "server_id": server.server_id if server else None,
+        "status": "created",
+    }
+
+
+@router.post("/revoke-device")
+async def revoke_device(
+    payload: DeviceRevokeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compatibility endpoint to revoke a device."""
+    peer = db.query(WireGuardPeer).filter(
+        WireGuardPeer.id == payload.device_id,
+        WireGuardPeer.user_id == current_user.id
+    ).first()
+    if not peer:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    if peer.is_revoked:
+        return {"device_id": peer.id, "status": "already_revoked"}
+
+    if peer.server_id:
+        server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+        if server:
+            try:
+                manager = get_wireguard_server_manager()
+                conn = server_connection_from_db(server)
+                await manager.remove_peer(conn, peer.public_key)
+            except Exception as e:
+                logger.warning(f"Failed to remove peer {peer.id} from server {server.server_id}: {e}")
+
+    peer_manager = get_peer_manager(db)
+    peer_manager.revoke_peer(peer.id)
+    return {"device_id": peer.id, "status": "revoked"}
+
+
+@router.get("/download-config")
+async def download_config_alias(
+    device_id: Optional[int] = None,
+    server_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compatibility endpoint to download a device config."""
+    await require_active_subscription(db, current_user)
+    peer_manager = get_peer_manager(db)
+
+    if device_id:
+        peer = db.query(WireGuardPeer).filter(
+            WireGuardPeer.id == device_id,
+            WireGuardPeer.user_id == current_user.id,
+            WireGuardPeer.is_revoked == False
+        ).first()
+    else:
+        peer = db.query(WireGuardPeer).filter(
+            WireGuardPeer.user_id == current_user.id,
+            WireGuardPeer.is_revoked == False
+        ).order_by(WireGuardPeer.created_at.desc()).first()
+
+    if not peer:
+        raise HTTPException(status_code=404, detail="Device not found or revoked")
+
+    server = None
+    if server_id:
+        server = VPNServerService.get_server_by_id(db, server_id)
+    elif peer.server_id:
+        server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+
+    if not server:
+        raise HTTPException(status_code=404, detail="No available servers")
+
+    filename, config = peer_manager.generate_config_file(peer, server)
+    return Response(
+        content=config,
+        media_type="application/x-wireguard-profile",
+        headers={"Content-Disposition": f'attachment; filename=\"{filename}\"'}
+    )
+
+
+@router.get("/usage")
+async def get_usage(
+    device_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return usage stats for a device or aggregated across all devices."""
+    await require_active_subscription(db, current_user)
+
+    query = db.query(WireGuardPeer).filter(
+        WireGuardPeer.user_id == current_user.id,
+        WireGuardPeer.is_revoked == False
+    )
+    if device_id:
+        query = query.filter(WireGuardPeer.id == device_id)
+
+    peers = query.all()
+    if not peers:
+        return {"total_devices": 0, "total_data_sent_mb": 0, "total_data_received_mb": 0}
+
+    sent = sum(p.total_data_sent or 0 for p in peers)
+    received = sum(p.total_data_received or 0 for p in peers)
+
+    return {
+        "total_devices": len(peers),
+        "total_data_sent_mb": round(sent / 1024 / 1024, 2),
+        "total_data_received_mb": round(received / 1024 / 1024, 2),
+        "last_handshake": max(
+            (p.last_handshake_at for p in peers if p.last_handshake_at),
+            default=None,
+        ).isoformat() if any(p.last_handshake_at for p in peers) else None,
+    }
+
+
+@router.get("/health")
+async def vpn_health(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return health summary for active VPN servers."""
+    servers = VPNServerService.get_active_servers(db, get_user_tier(current_user, db))
+    summary = {
+        "total": len(servers),
+        "healthy": len([s for s in servers if s.health_status == "healthy"]),
+        "degraded": len([s for s in servers if s.health_status == "degraded"]),
+        "offline": len([s for s in servers if s.health_status not in ["healthy", "degraded"]]),
+    }
+    return {
+        "status": "ok" if summary["healthy"] > 0 else "degraded",
+        "summary": summary,
     }
 
 

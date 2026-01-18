@@ -5,9 +5,7 @@ Pytest configuration and fixtures
 import os
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 # Set test environment
 os.environ["TESTING"] = "true"
@@ -18,25 +16,20 @@ os.environ["ENABLE_SENTRY"] = "false"
 os.environ["EMAIL_VALIDATOR_CHECK_DELIVERABILITY"] = "false"
 
 from database.base import Base
-from database.session import get_db
+from database.session import get_db, engine
 from main import app
 from services.jwt_service import create_access_token
 
 
-# Test database setup
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+# Test database setup (reuse app engine for consistent in-memory access)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 @pytest.fixture(scope="function")
 def db():
     """Create test database"""
+    # Ensure all models are registered before create_all
+    from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session, wireguard_peer, gdpr, support_ticket, usage_analytics, invoice, email_log  # noqa: F401
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     try:
