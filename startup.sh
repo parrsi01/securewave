@@ -21,7 +21,8 @@ source "${VENV_DIR}/bin/activate"
 
 python - <<'PY'
 import importlib.util
-missing = [m for m in ("uvicorn", "fastapi", "gunicorn") if importlib.util.find_spec(m) is None]
+critical = ("uvicorn", "fastapi", "gunicorn", "passlib", "sqlalchemy")
+missing = [m for m in critical if importlib.util.find_spec(m) is None]
 if missing:
     raise SystemExit(1)
 PY
