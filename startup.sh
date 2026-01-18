@@ -11,7 +11,24 @@ export PORT="${PORT:-8000}"
 
 APP_DIR="/home/site/wwwroot"
 VENV_DIR="${APP_DIR}/antenv"
-PYTHON_BIN="/opt/python/3.11.14/bin/python3.11"
+PYTHON_BIN="${PYTHON_BIN:-}"
+if [ -n "${PYTHON_BIN}" ] && [ -x "${PYTHON_BIN}" ]; then
+  : # Use provided python path.
+else
+  PYTHON_BIN=""
+  for candidate in /opt/python/3.12.* /opt/python/3.11.* /opt/python/3.10.*; do
+    if [ -x "${candidate}/bin/python3" ]; then
+      PYTHON_BIN="${candidate}/bin/python3"
+      break
+    fi
+  done
+  if [ -z "${PYTHON_BIN}" ]; then
+    PYTHON_BIN="$(command -v python3 || true)"
+  fi
+  if [ -z "${PYTHON_BIN}" ] || [ ! -x "${PYTHON_BIN}" ]; then
+    PYTHON_BIN="/usr/bin/python3"
+  fi
+fi
 
 REQ_HASH_FILE="${APP_DIR}/.requirements.sha"
 

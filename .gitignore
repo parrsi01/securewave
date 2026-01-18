@@ -121,3 +121,28 @@ yarn-error.log*
 
 # Application specific
 quota_request.json
+
+# Azure deployment artifacts
+azure-logs/
+LogFiles/
+deployments/
+*.log
+deploy.zip
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Local data
+data/models/*.pkl
+data/models/*.json
+results/
+securewave-tests/results/
+securewave-tests/results/*.json

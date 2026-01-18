@@ -22,7 +22,7 @@ https://securewave-web.azurewebsites.net
 ## Startup command
 The script sets the startup command to:
 ```bash
-gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT --timeout 600
+bash /home/site/wwwroot/startup.sh
 ```
 
 ## Logs

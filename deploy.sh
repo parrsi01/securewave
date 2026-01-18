@@ -199,14 +199,14 @@ deploy_azure() {
     cp alembic.ini build/ 2>/dev/null || log_warning "alembic.ini not found (optional)"
 
     # Copy application directories
-    for dir in routers routes models database services infrastructure scripts; do
+    for dir in routers routes models database services infrastructure scripts securewave-tests; do
         if [ -d "$dir" ]; then
             cp -r "$dir" build/
             log_info "  ✓ Copied $dir/"
         fi
     done
 
-    # Copy ML models and data
+    # Copy ML models and data                                 
     if [ -d "data/models" ]; then
         mkdir -p build/data/models
         cp -r data/models/* build/data/models/
@@ -214,7 +214,13 @@ deploy_azure() {
     fi
 
     # Copy alembic if exists
-    [ -d "alembic" ] && cp -r alembic build/ && log_info "  ✓ Copied alembic/"
+    [ -d "alembic" ] && cp -r alembic build/ && log_info "  ✓ Copied alembic/" 
+
+    # Remove local test results from package
+    if [ -d "build/securewave-tests/results" ]; then
+        rm -rf "build/securewave-tests/results"
+        log_info "  ✓ Removed test results from package"
+    fi
 
     # Copy static files (use static/ directory, not frontend/)
     mkdir -p build/static

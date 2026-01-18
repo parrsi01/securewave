@@ -2,6 +2,7 @@ import os
 import shutil
 import asyncio
 import logging
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -19,9 +20,13 @@ from slowapi.middleware import SlowAPIMiddleware
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
 from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session  # noqa: F401
-from routers import auth as old_auth, contact, dashboard, optimizer, payment_paypal, payment_stripe, vpn as legacy_vpn, admin
-from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices
+from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin
+from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests
 from services.wireguard_service import WireGuardService
+
+# Logging configuration (structured logs for Azure log stream)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=LOG_LEVEL, format="%(message)s")
 
 # NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD
 # base.Base.metadata.create_all(bind=engine)  # Commented out to avoid conflicts with migrations
@@ -289,12 +294,12 @@ app.include_router(billing.router, tags=["billing"])  # Already has /api/billing
 
 # New VPN routes (real WireGuard support)
 app.include_router(new_vpn.router, tags=["vpn"])  # Already has /api/vpn prefix
+app.include_router(vpn_tests.router, tags=["vpn-tests"])  # VPN performance testing
 app.include_router(devices.router, tags=["devices"])  # Already has /api/vpn/devices prefix
 app.include_router(servers.router, tags=["admin-servers"])  # Already has /api/admin/servers prefix
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])  # Admin peer management
 
-# Legacy VPN routes (keeping for backwards compatibility)
-app.include_router(legacy_vpn.router, prefix="/api/vpn/legacy", tags=["vpn-legacy"])
+# Supporting routes
 app.include_router(optimizer.router, prefix="/api/optimizer", tags=["optimizer"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(payment_stripe.router, prefix="/api/payments", tags=["payments"])
@@ -340,6 +345,8 @@ page_routes = {
     "/register": "register.html",
     "/dashboard": "dashboard.html",
     "/vpn": "vpn.html",
+    "/vpn/test": "vpn.html",
+    "/vpn/results": "vpn.html",
     "/settings": "settings.html",
     "/diagnostics": "diagnostics.html",
     "/subscription": "subscription.html",
