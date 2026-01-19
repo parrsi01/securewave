@@ -303,17 +303,13 @@ async def allocate_config(
                 detail=f"This server requires a {server.tier_restriction} subscription"
             )
     else:
-        # Auto-select best available server
-        servers = VPNServerService.get_active_servers(db, user_tier)
-        if not servers:
+        # Auto-select best available server via optimizer (Phase 3)
+        server = VPNServerService.allocate_server_for_user(db, current_user)
+        if not server:
             raise HTTPException(
                 status_code=503,
                 detail="No VPN servers available. Please try again later."
             )
-
-        # Sort by performance score and select best
-        servers.sort(key=lambda s: (s.performance_score or 0), reverse=True)
-        server = servers[0]
 
     # Resolve or create a peer device for this user
     device_name = request.device_name or "Primary Device"
