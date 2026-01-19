@@ -458,11 +458,13 @@ async def get_device_config(
             VPNServer.status == "active"
         ).first()
     else:
-        # Get best available server
-        server = db.query(VPNServer).filter(
-            VPNServer.status == "active",
-            VPNServer.health_status.in_(["healthy", "degraded"])
-        ).order_by(VPNServer.performance_score.desc()).first()
+        # Get best available server via optimizer (Phase 3)
+        server = VPNServerService.allocate_server_for_user(db, current_user)
+        if not server:
+            server = db.query(VPNServer).filter(
+                VPNServer.status == "active",
+                VPNServer.health_status.in_(["healthy", "degraded"])
+            ).order_by(VPNServer.performance_score.desc()).first()
 
     if not server:
         raise HTTPException(

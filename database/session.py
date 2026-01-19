@@ -45,6 +45,12 @@ if DATABASE_URL.startswith("sqlite:///"):
     # Extract the path after sqlite:///
     db_path = DATABASE_URL.replace("sqlite:///", "")
 
+    # Ensure production SQLite uses persistent storage on Azure
+    if IS_PRODUCTION:
+        if db_path in ("", ":memory:") or db_path.startswith("/tmp/"):
+            db_path = "/home/site/securewave.db"
+            DATABASE_URL = f"sqlite:///{db_path}"
+
     # Preserve in-memory SQLite for tests/dev
     if db_path == ":memory:":
         DATABASE_URL = "sqlite:///:memory:"

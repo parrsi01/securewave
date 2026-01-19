@@ -293,7 +293,7 @@ EOF
         --settings \
             PORT=8000 \
             PYTHONUNBUFFERED=1 \
-            DATABASE_URL="sqlite:////tmp/securewave.db" \
+            DATABASE_URL="sqlite:////home/site/securewave.db" \
             ENVIRONMENT="production" \
             DEMO_OK="true" \
             ACCESS_TOKEN_SECRET="$access_secret" \
