@@ -19,13 +19,18 @@ import yaml
 # Add tests directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from tests.baseline import measure_baseline, detect_vpn_interface
+from tests.baseline import (
+    measure_baseline,
+    detect_vpn_interface,
+    get_vpn_tunnel_ip,
+)
 from tests.latency import run_latency_test, compare_latency
 from tests.throughput import run_throughput_test, compare_throughput
 from tests.dns_leak import run_dns_leak_test
 from tests.ipv6_leak import run_ipv6_leak_test
 from tests.ads_blocking import run_ad_blocking_test
 from tests.stability import run_stability_test
+from tests.website_smoke import run_website_smoke_test
 
 
 def load_config() -> Dict[str, Any]:
@@ -68,6 +73,10 @@ def load_config() -> Dict[str, Any]:
             'min_throughput_percent': 70,
             'max_tunnel_drops': 2,
             'overall_pass_score': 70
+        },
+        'website': {
+            'base_url': 'http://localhost:8000',
+            'trigger_test_run': True
         }
     }
 
@@ -199,23 +208,38 @@ def run_all_tests(
     """
     config = load_config()
     start_time = time.time()
+    website_config = config.get('website', {})
+    base_url = os.getenv('SECUREWAVE_BASE_URL') or os.getenv('APP_BASE_URL') or website_config.get('base_url', 'http://localhost:8000')
+    trigger_test_run = bool(website_config.get('trigger_test_run', True))
 
     results = {
         'test_suite': 'SecureWave VPN Test Suite',
         'version': '1.0.0',
         'timestamp': datetime.now().isoformat(),
         'unix_timestamp': start_time,
+        'base_url': base_url,
     }
 
     def log(msg: str):
         if verbose:
             print(msg)
 
+    # Website smoke test
+    log("\n[*] Running website smoke test...")
+    website_smoke = run_website_smoke_test(
+        base_url=base_url,
+        trigger_test_run=trigger_test_run,
+    )
+    results['website_smoke'] = asdict(website_smoke)
+    log(f"    Website smoke: {'PASS' if website_smoke.success else 'FAIL'}")
+
     # Detect VPN
     log("\n[*] Detecting VPN interface...")
     vpn_interface = detect_vpn_interface()
+    vpn_tunnel_ip = get_vpn_tunnel_ip()
     results['vpn_detected'] = vpn_interface is not None
     results['vpn_interface'] = vpn_interface
+    results['vpn_tunnel_ip'] = vpn_tunnel_ip
 
     if vpn_interface:
         log(f"[+] VPN interface detected: {vpn_interface}")
@@ -226,7 +250,7 @@ def run_all_tests(
     # Baseline measurements
     if not skip_baseline and baseline_data is None:
         log("\n[*] Running baseline measurements...")
-        log("    (For accurate baseline, VPN should be disconnected)")
+        log("    (Baseline may be less accurate if VPN is active)")
 
         baseline = measure_baseline(
             ping_targets=config.get('latency', {}).get('targets'),
@@ -281,6 +305,7 @@ def run_all_tests(
     log("\n[*] Running DNS leak detection...")
     dns_result = run_dns_leak_test()
     results['dns_leak'] = asdict(dns_result)
+    results['dns_resolvers'] = dns_result.resolvers_detected
     if dns_result.leak_detected:
         log(f"    [!] DNS leak detected: {dns_result.leak_severity}")
     else:
@@ -317,6 +342,9 @@ def run_all_tests(
     # Calculate overall score
     log("\n[*] Calculating overall score...")
     score_result = calculate_score(results, config)
+    if not results.get('vpn_detected'):
+        score_result['passed'] = False
+        score_result['status'] = 'FAILED'
     results['scoring'] = score_result
     log(f"    Overall Score: {score_result['overall_score']}/100")
     log(f"    Status: {score_result['status']}")
@@ -329,9 +357,9 @@ def run_all_tests(
 
 def print_summary(results: Dict[str, Any]):
     """Print formatted test summary to console."""
-    print("\n" + "=" * 50)
-    print("[+] SecureWave VPN Test Suite")
-    print("=" * 50)
+    print("\n--------------------------------")
+    print("SecureWave VPN Test Suite")
+    print("--------------------------------")
 
     # Baseline vs VPN comparison
     baseline = results.get('baseline', {})
@@ -340,13 +368,14 @@ def print_summary(results: Dict[str, Any]):
     latency_cmp = results.get('latency_comparison', {})
     throughput_cmp = results.get('throughput_comparison', {})
 
-    print(f"\nBaseline latency:        {baseline.get('latency_ms', 'N/A')} ms")
+    print(f"Baseline latency:        {baseline.get('latency_ms', 'N/A')} ms")
     if latency:
         diff = latency_cmp.get('difference_ms', 0)
         sign = '+' if diff >= 0 else ''
         print(f"SecureWave latency:      {latency.get('avg_latency_ms', 'N/A')} ms ({sign}{diff:.1f})")
 
-    print(f"\nBaseline download:       {baseline.get('throughput_mbps', 'N/A')} Mbps")
+    print("")
+    print(f"Baseline download:       {baseline.get('throughput_mbps', 'N/A')} Mbps")
     if throughput:
         retained = throughput_cmp.get('retained_percent', 0)
         print(f"SecureWave download:     {throughput.get('avg_download_mbps', 'N/A')} Mbps ({retained:.0f}%)")
@@ -355,28 +384,32 @@ def print_summary(results: Dict[str, Any]):
     dns_leak = results.get('dns_leak', {})
     ipv6_leak = results.get('ipv6_leak', {})
 
-    print(f"\nDNS leaks detected:      {'YES' if dns_leak.get('leak_detected') else 'NO'}")
+    print("")
+    print(f"DNS leaks detected:      {'YES' if dns_leak.get('leak_detected') else 'NO'}")
     print(f"IPv6 leaks detected:     {'YES' if ipv6_leak.get('leak_detected') else 'NO'}")
 
     # Ad blocking
     ad_blocking = results.get('ad_blocking', {})
     if ad_blocking:
-        print(f"\nAds blocked:             {ad_blocking.get('ads_blocked_percent', 0):.0f}%")
+        print("")
+        print(f"Ads blocked:             {ad_blocking.get('ads_blocked_percent', 0):.0f}%")
         print(f"Trackers blocked:        {ad_blocking.get('trackers_blocked_percent', 0):.0f}%")
 
     # Stability
     stability = results.get('stability', {})
     if stability:
-        print(f"\nTunnel drops:            {stability.get('tunnel_drops', 'N/A')}")
+        print("")
+        print(f"Tunnel drops:            {stability.get('tunnel_drops', 'N/A')}")
         avg_reconnect = stability.get('avg_reconnect_time_seconds', 0)
         if avg_reconnect > 0:
             print(f"Avg reconnect time:      {avg_reconnect:.1f} s")
 
     # Final score
     scoring = results.get('scoring', {})
-    print(f"\nOVERALL SCORE:           {scoring.get('overall_score', 0)}/100")
+    print("")
+    print(f"OVERALL SCORE:           {scoring.get('overall_score', 0)} / 100")
     print(f"STATUS:                  {scoring.get('status', 'UNKNOWN')}")
-    print("-" * 50)
+    print("--------------------------------")
     print(f"Results saved to results/latest.json")
 
 

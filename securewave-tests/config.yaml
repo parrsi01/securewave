@@ -78,6 +78,11 @@ vpn_interfaces:
     - utun*                # macOS tunnels
     - ppp*                 # PPTP/L2TP
 
+# Website smoke tests
+website:
+  base_url: http://localhost:8000
+  trigger_test_run: true
+
 # Scoring weights (must sum to 100)
 scoring:
   latency: 25

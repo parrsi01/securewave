@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VPN Configuration - SecureWave VPN</title>
-  <meta name="description" content="Configure your WireGuard VPN connection. Download config files and connect securely.">
+  <meta name="description" content="Configure your SecureWave tunnel and connect securely using WireGuard.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -272,10 +272,10 @@
         <div class="badge" id="modeBadge">Production Ready</div>
         <h1 class="page-hero__title">VPN Configuration Center</h1>
         <p class="page-hero__subtitle">
-          Generate and download your WireGuard configuration. Connect from any device.
+          Prepare your SecureWave tunnel and connect in the WireGuard app.
         </p>
         <p style="margin-top: 0.75rem; color: var(--text-tertiary); font-size: 0.95rem;">
-          VPN connectivity is for demonstration/testing. Use the official WireGuard app to connect.
+          SecureWave provisions your device and keeps your tunnel ready to connect.
         </p>
       </div>
     </section>
@@ -345,10 +345,10 @@
 
             <!-- Generate Button -->
             <button id="generateConfig" class="btn btn-primary btn-block btn-lg" style="margin-bottom: 1rem;">
-              Generate Configuration
+              Enable VPN
             </button>
             <p style="margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--gray-500);">
-              Demo/testing use only. You can revoke devices anytime from Settings.
+              You can revoke devices anytime from Settings.
             </p>
 
             <!-- Config Status -->
@@ -373,7 +373,7 @@
           </div>
         </div>
 
-        <!-- Right Column: Download & QR -->
+        <!-- Right Column: Connect in WireGuard -->
         <div class="card">
           <div class="card-body">
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
@@ -383,21 +383,17 @@
                 </svg>
               </div>
               <div>
-                <h2 style="margin: 0; font-size: 1.25rem;">Download & Import</h2>
-                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Get your configuration file</p>
+                <h2 style="margin: 0; font-size: 1.25rem;">Connect in WireGuard</h2>
+                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Scan or copy your SecureWave tunnel</p>
               </div>
             </div>
 
             <p style="color: var(--gray-600); margin-bottom: 1.5rem;">
-              Download the configuration file for desktop clients or scan the QR code with the WireGuard mobile app.
+              Use the QR code for mobile, or copy the configuration into the WireGuard app on desktop.
             </p>
 
-            <!-- Download Button -->
-            <button id="downloadConfig" class="btn btn-secondary btn-block btn-lg" disabled style="margin-bottom: 0.75rem;">
-              <svg style="width: 1.25rem; height: 1.25rem; margin-right: 0.5rem; display: inline-block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
-              </svg>
-              <span id="downloadBtnText">Generate config first</span>
+            <button id="openWireGuard" class="btn btn-secondary btn-block btn-lg" disabled style="margin-bottom: 0.75rem;">
+              Open WireGuard App
             </button>
 
             <!-- Show QR Toggle -->
@@ -405,7 +401,7 @@
               <svg style="width: 1.25rem; height: 1.25rem; margin-right: 0.5rem; display: inline-block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
               </svg>
-              Show QR Code for Mobile
+              Show QR Code
             </button>
 
             <!-- QR Code Display -->
@@ -449,8 +445,8 @@
             throughput, DNS leak detection, IPv6 leak detection, and ad/tracker blocking effectiveness.
           </p>
           <p style="color: var(--gray-500); margin-bottom: 1.5rem; font-size: 0.875rem;">
-            Demo Mode: Tests only reflect your device's current VPN connection. If the tunnel is off, results will show
-            "No VPN Detected" and baseline metrics only.
+            Tests reflect your device’s current VPN connection. If the tunnel is off, results will show
+            “No VPN Detected” and baseline metrics only.
           </p>
 
           <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
@@ -481,24 +477,24 @@
       <!-- How to Use -->
       <div class="card" style="margin-bottom: 3rem;">
         <div class="card-body">
-          <h2 style="margin-bottom: 0.5rem;">How to Use Your VPN Config</h2>
+          <h2 style="margin-bottom: 0.5rem;">How to Connect</h2>
           <p style="color: var(--gray-600); margin-bottom: 2rem;">Follow these simple steps to get connected in minutes</p>
 
           <div class="grid grid-3">
             <div>
               <div style="display: inline-block; background-color: var(--primary-100); color: var(--primary-700); padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 600; margin-bottom: 1rem;">Step 1</div>
-              <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Generate</h3>
-              <p style="color: var(--gray-600); margin: 0;">Select your preferred server location and click "Generate Configuration" to create your unique VPN profile.</p>
+              <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Enable</h3>
+              <p style="color: var(--gray-600); margin: 0;">Select a server and click “Enable VPN” to provision your tunnel.</p>
             </div>
             <div>
               <div style="display: inline-block; background-color: var(--primary-100); color: var(--primary-700); padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 600; margin-bottom: 1rem;">Step 2</div>
-              <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Download or Scan</h3>
-              <p style="color: var(--gray-600); margin: 0;">Download the .conf file for desktop/laptop or scan the QR code directly with the WireGuard mobile app.</p>
+              <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Scan or Copy</h3>
+              <p style="color: var(--gray-600); margin: 0;">Scan the QR code on mobile, or copy the configuration into WireGuard on desktop.</p>
             </div>
             <div>
               <div style="display: inline-block; background-color: var(--primary-100); color: var(--primary-700); padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 600; margin-bottom: 1rem;">Step 3</div>
               <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Connect</h3>
-              <p style="color: var(--gray-600); margin: 0;">Import the config into WireGuard and activate the tunnel. Your traffic is now encrypted and routed through our servers.</p>
+              <p style="color: var(--gray-600); margin: 0;">Connect in WireGuard. Your traffic is now encrypted and routed through SecureWave.</p>
             </div>
           </div>
         </div>
@@ -507,14 +503,14 @@
       <!-- Supported Platforms -->
       <div style="margin-bottom: 3rem;">
         <h2 style="text-align: center; margin-bottom: 1rem;">Supported Platforms</h2>
-        <p style="text-align: center; color: var(--gray-600); margin-bottom: 3rem; max-width: 42rem; margin-left: auto; margin-right: auto;">Download WireGuard for your platform and import your configuration</p>
+        <p style="text-align: center; color: var(--gray-600); margin-bottom: 3rem; max-width: 42rem; margin-left: auto; margin-right: auto;">Install WireGuard and add your SecureWave tunnel</p>
 
         <div class="grid grid-3">
           <div class="card">
             <div class="card-body" style="text-align: center;">
               <div style="font-size: 3rem; margin-bottom: 1rem;">Windows</div>
               <h3>Windows</h3>
-              <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Download WireGuard for Windows and import your .conf file</p>
+              <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Install WireGuard and paste your SecureWave configuration</p>
               <a href="https://www.wireguard.com/install/" target="_blank" class="btn btn-outline btn-sm">Download for Windows</a>
             </div>
           </div>
@@ -522,7 +518,7 @@
             <div class="card-body" style="text-align: center;">
               <div style="font-size: 3rem; margin-bottom: 1rem;">macOS</div>
               <h3>macOS & iOS</h3>
-              <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Install from App Store and scan QR code or import config</p>
+              <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Install from App Store and scan your SecureWave QR code</p>
               <a href="https://apps.apple.com/us/app/wireguard/id1451685025" target="_blank" class="btn btn-outline btn-sm">Download from App Store</a>
             </div>
           </div>
@@ -530,7 +526,7 @@
             <div class="card-body" style="text-align: center;">
               <div style="font-size: 3rem; margin-bottom: 1rem;">Linux</div>
               <h3>Android & Linux</h3>
-              <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Get WireGuard from Play Store or install via package manager</p>
+              <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Install WireGuard and scan or paste your SecureWave config</p>
               <a href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" class="btn btn-outline btn-sm">Download for Android</a>
             </div>
           </div>
@@ -610,8 +606,7 @@
     const newDeviceType = document.getElementById('newDeviceType');
     const addDeviceBtn = document.getElementById('addDeviceBtn');
     const generateBtn = document.getElementById('generateConfig');
-    const downloadBtn = document.getElementById('downloadConfig');
-    const downloadBtnText = document.getElementById('downloadBtnText');
+    const openWireGuardBtn = document.getElementById('openWireGuard');
     const toggleQRBtn = document.getElementById('toggleQR');
     const qrCodeDisplay = document.getElementById('qrCodeDisplay');
     const configPreview = document.getElementById('configPreview');
@@ -640,8 +635,8 @@
         }
 
         if (response.status === 402) {
-          deviceSelect.innerHTML = '<option value="">Subscription required</option>';
-          deviceLimitInfo.textContent = 'Upgrade to add devices and generate configs.';
+          deviceSelect.innerHTML = '<option value="">Plan limit reached</option>';
+          deviceLimitInfo.textContent = 'Upgrade to Premium to add more devices.';
           return;
         }
 
@@ -726,7 +721,7 @@
         }
 
         if (response.status === 402) {
-          showError('Active subscription required to add devices.');
+          showError('Plan limit reached. Upgrade to Premium to add more devices.');
           return;
         }
 
@@ -844,7 +839,7 @@
         }
 
         if (response.status === 402) {
-          showError('Active subscription required to generate configs.');
+          showError('Plan limit reached. Upgrade to Premium for unlimited data.');
           return;
         }
 
@@ -874,9 +869,8 @@
 
         configStatusText.textContent = 'Configuration ready';
 
-        // Enable download buttons
-        downloadBtn.disabled = false;
-        downloadBtnText.textContent = `Download ${currentFilename}`;
+        // Enable setup controls
+        openWireGuardBtn.disabled = false;
         toggleQRBtn.disabled = false;
 
         // Update QR display if visible
@@ -894,7 +888,7 @@
         configStatusText.textContent = 'Failed to generate configuration';
       } finally {
         generateBtn.disabled = false;
-        generateBtn.textContent = 'Generate Configuration';
+        generateBtn.textContent = 'Enable VPN';
       }
     }
 
@@ -955,23 +949,13 @@
       statusMessage.style.color = 'var(--error-800)';
     }
 
-    function downloadConfigFile() {
+    function openWireGuard() {
       if (!currentConfig) {
-        showError('No configuration available. Generate one first.');
+        showError('Generate your VPN setup first.');
         return;
       }
-
-      const blob = new Blob([currentConfig], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = currentFilename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      showSuccess(`Downloaded ${currentFilename}`);
+      window.location.href = 'wireguard://';
+      showSuccess('Opening WireGuard. If it does not launch, install the app first.');
     }
 
     function copyConfigToClipboard() {
@@ -1018,7 +1002,7 @@
 
     addDeviceBtn.addEventListener('click', addDevice);
     generateBtn.addEventListener('click', generateConfiguration);
-    downloadBtn.addEventListener('click', downloadConfigFile);
+    openWireGuardBtn.addEventListener('click', openWireGuard);
     copyConfigBtn.addEventListener('click', copyConfigToClipboard);
 
     toggleQRBtn.addEventListener('click', () => {
@@ -1032,7 +1016,7 @@
           <svg style="width: 1.25rem; height: 1.25rem; margin-right: 0.5rem; display: inline-block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
           </svg>
-          Show QR Code for Mobile
+          Show QR Code
         `;
       }
     });

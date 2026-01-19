@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 WG_MOCK_MODE = os.getenv("WG_MOCK_MODE", "false").lower() == "true"
+FREE_TIER_MONTHLY_GB = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
+FREE_TIER_MONTHLY_BYTES = int(FREE_TIER_MONTHLY_GB * 1024 * 1024 * 1024)
 
 
 def _get_active_subscription(db: Session, user_id: int) -> Optional[Subscription]:
@@ -82,6 +84,84 @@ async def revoke_user_peers(db: Session, user: User) -> int:
     return revoked
 
 
+async def _sync_user_usage(db: Session, user: User) -> None:
+    """Best-effort sync of peer usage from WireGuard servers."""
+    if DEMO_MODE or WG_MOCK_MODE:
+        return
+
+    peers = (
+        db.query(WireGuardPeer)
+        .filter(
+            WireGuardPeer.user_id == user.id,
+            WireGuardPeer.is_revoked == False,
+            WireGuardPeer.server_id.isnot(None),
+        )
+        .all()
+    )
+    if not peers:
+        return
+
+    manager = get_wireguard_server_manager()
+    servers = {}
+    for peer in peers:
+        if peer.server_id not in servers:
+            server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+            if server:
+                servers[peer.server_id] = server
+
+    for server_id, server in servers.items():
+        try:
+            conn = server_connection_from_db(server)
+            success, remote_peers = await manager.list_peers(conn)
+            if not success:
+                continue
+            peer_map = {p["public_key"]: p for p in remote_peers}
+            for peer in peers:
+                if peer.server_id != server_id:
+                    continue
+                remote = peer_map.get(peer.public_key)
+                if not remote:
+                    continue
+                peer.total_data_received = remote.get("transfer_rx", 0)
+                peer.total_data_sent = remote.get("transfer_tx", 0)
+                handshake = remote.get("latest_handshake")
+                if handshake:
+                    peer.last_handshake_at = datetime.utcfromtimestamp(handshake)
+        except Exception as exc:
+            logger.warning(f"Usage sync failed for server {server.server_id}: {exc}")
+
+    db.commit()
+
+
+def _user_bytes_used(peers: List[WireGuardPeer]) -> int:
+    total = 0
+    for peer in peers:
+        total += (peer.total_data_sent or 0) + (peer.total_data_received or 0)
+    return total
+
+
+async def enforce_free_tier_cap(db: Session, user: User) -> None:
+    """Enforce the free-tier monthly data cap."""
+    await _sync_user_usage(db, user)
+    peers = (
+        db.query(WireGuardPeer)
+        .filter(
+            WireGuardPeer.user_id == user.id,
+            WireGuardPeer.is_revoked == False
+        )
+        .all()
+    )
+    if not peers:
+        return
+    used_bytes = _user_bytes_used(peers)
+    if used_bytes >= FREE_TIER_MONTHLY_BYTES:
+        await revoke_user_peers(db, user)
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Free plan limit reached ({FREE_TIER_MONTHLY_GB:.0f} GB/month). Upgrade to continue."
+        )
+
+
 async def require_active_subscription(db: Session, user: User) -> Subscription:
     """
     Enforce that the user has an active/trialing subscription.
@@ -94,11 +174,8 @@ async def require_active_subscription(db: Session, user: User) -> Subscription:
     subscription = _get_active_subscription(db, user.id)
 
     if not subscription:
-        await revoke_user_peers(db, user)
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Active subscription required to use VPN provisioning."
-        )
+        await enforce_free_tier_cap(db, user)
+        return None
 
     if subscription.current_period_end and subscription.current_period_end < datetime.utcnow():
         subscription.status = "expired"

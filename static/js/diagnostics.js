@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await response.json();
       envStatus.innerHTML = `
         <div><strong>Environment:</strong> ${data.environment}</div>
-        <div><strong>Demo Mode:</strong> ${data.demo_mode ? 'enabled' : 'disabled'}</div>
+        <div><strong>Mode:</strong> ${data.demo_mode ? 'limited' : 'standard'}</div>
         <div><strong>Database:</strong> ${data.database}</div>
       `;
     } else if (response.status === 401) {

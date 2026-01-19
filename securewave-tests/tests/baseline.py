@@ -7,6 +7,7 @@ NOTE: This module measures baseline performance. The caller is responsible
 for ensuring VPN is disabled before running these tests.
 """
 
+import shutil
 import subprocess
 import time
 import statistics
@@ -45,50 +46,135 @@ def detect_vpn_interface() -> Optional[str]:
     patterns = ['wg', 'tun', 'utun', 'ppp']
 
     try:
-        # Get all network interfaces
-        result = subprocess.run(
-            ['ip', 'link', 'show'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        if shutil.which('ip'):
+            result = subprocess.run(
+                ['ip', '-o', 'link', 'show', 'type', 'wireguard'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    parts = line.split(':')
+                    if len(parts) >= 2:
+                        iface = parts[1].strip().split('@')[0]
+                        if iface:
+                            return iface
+        if shutil.which('wg'):
+            result = subprocess.run(
+                ['wg', 'show', 'interfaces'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                iface = result.stdout.strip().split()
+                if iface:
+                    return iface[0]
+        if shutil.which('ip'):
+            result = subprocess.run(
+                ['ip', 'link', 'show'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
 
-        if result.returncode == 0:
-            for line in result.stdout.split('\n'):
-                for pattern in patterns:
-                    if f': {pattern}' in line:
-                        # Extract interface name
-                        parts = line.split(':')
-                        if len(parts) >= 2:
-                            iface = parts[1].strip().split('@')[0]
-                            # Verify interface is UP
-                            if 'UP' in line or 'state UP' in line.upper():
-                                return iface
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    for pattern in patterns:
+                        if f': {pattern}' in line:
+                            parts = line.split(':')
+                            if len(parts) >= 2:
+                                iface = parts[1].strip().split('@')[0]
+                                if 'UP' in line or 'state UP' in line.upper():
+                                    return iface
+        elif shutil.which('ifconfig'):
+            result = subprocess.run(
+                ['ifconfig'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                current_iface = None
+                for line in result.stdout.split('\n'):
+                    if line and not line.startswith('\t') and not line.startswith(' '):
+                        current_iface = line.split(':')[0].strip()
+                        for pattern in patterns:
+                            if current_iface.startswith(pattern):
+                                return current_iface
     except Exception:
         pass
 
     # Fallback: check with ip route for default via wg/tun
     try:
-        result = subprocess.run(
-            ['ip', 'route', 'show', 'default'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0:
-            for pattern in patterns:
-                if pattern in result.stdout:
-                    # Extract interface from route
-                    parts = result.stdout.split()
-                    for i, part in enumerate(parts):
-                        if part == 'dev' and i + 1 < len(parts):
-                            iface = parts[i + 1]
-                            if any(p in iface for p in patterns):
-                                return iface
+        if shutil.which('ip'):
+            result = subprocess.run(
+                ['ip', 'route', 'show', 'default'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                for pattern in patterns:
+                    if pattern in result.stdout:
+                        parts = result.stdout.split()
+                        for i, part in enumerate(parts):
+                            if part == 'dev' and i + 1 < len(parts):
+                                iface = parts[i + 1]
+                                if any(p in iface for p in patterns):
+                                    return iface
     except Exception:
         pass
 
     return None
+
+
+def get_interface_ipv4(interface: str) -> Optional[str]:
+    """
+    Get IPv4 address for a network interface.
+    """
+    try:
+        if shutil.which('ip'):
+            result = subprocess.run(
+                ['ip', '-4', 'addr', 'show', interface],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'inet ' in line:
+                        parts = line.strip().split()
+                        if len(parts) >= 2:
+                            return parts[1].split('/')[0]
+        elif shutil.which('ifconfig'):
+            result = subprocess.run(
+                ['ifconfig', interface],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    line = line.strip()
+                    if line.startswith('inet '):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            return parts[1]
+    except Exception:
+        pass
+    return None
+
+
+def get_vpn_tunnel_ip() -> Optional[str]:
+    """
+    Detect VPN interface and return its IPv4 address if present.
+    """
+    iface = detect_vpn_interface()
+    if not iface:
+        return None
+    return get_interface_ipv4(iface)
 
 
 def measure_ping(host: str, name: str, count: int = 10, timeout: int = 5) -> List[PingResult]:

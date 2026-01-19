@@ -26,6 +26,7 @@ NC='\033[0m' # No Color
 STABILITY_DURATION=30
 JSON_OUTPUT=false
 SKIP_BASELINE=false
+BASE_URL=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -33,6 +34,10 @@ while [[ $# -gt 0 ]]; do
         --quick)
             STABILITY_DURATION=10
             shift
+            ;;
+        --base-url)
+            BASE_URL="$2"
+            shift 2
             ;;
         --json)
             JSON_OUTPUT=true
@@ -49,6 +54,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --quick          Run quick test (10s stability check)"
+            echo "  --base-url URL   SecureWave base URL (default from config.yaml)"
             echo "  --json           Output JSON only (no formatted summary)"
             echo "  --skip-baseline  Skip baseline measurements"
             echo "  --help, -h       Show this help message"
@@ -121,13 +127,8 @@ if [ "$SKIP_BASELINE" = true ]; then
 fi
 
 # Run tests
-if [ "$JSON_OUTPUT" = false ]; then
-    echo -e "${BLUE}"
-    echo "╔═══════════════════════════════════════════════════════════╗"
-    echo "║          SecureWave VPN Test Suite v1.0.0                 ║"
-    echo "╚═══════════════════════════════════════════════════════════╝"
-    echo -e "${NC}"
-    echo ""
+if [ -n "$BASE_URL" ]; then
+    export SECUREWAVE_BASE_URL="$BASE_URL"
 fi
 
 exec $CMD

@@ -4,6 +4,7 @@ SecureWave VPN Test Suite - Tunnel Stability Tests
 Monitors VPN tunnel stability over time.
 """
 
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass
@@ -50,25 +51,43 @@ def check_vpn_status() -> Dict[str, Any]:
 
         # Get interface statistics
         try:
-            proc = subprocess.run(
-                ['ip', '-s', 'link', 'show', interface],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            if shutil.which('ip'):
+                proc = subprocess.run(
+                    ['ip', '-s', 'link', 'show', interface],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
 
-            if proc.returncode == 0:
-                lines = proc.stdout.split('\n')
-                for i, line in enumerate(lines):
-                    if 'RX:' in line and i + 1 < len(lines):
-                        # Next line has the stats
-                        stats_line = lines[i + 1].strip().split()
-                        if stats_line:
-                            result['rx_bytes'] = int(stats_line[0])
-                    if 'TX:' in line and i + 1 < len(lines):
-                        stats_line = lines[i + 1].strip().split()
-                        if stats_line:
-                            result['tx_bytes'] = int(stats_line[0])
+                if proc.returncode == 0:
+                    lines = proc.stdout.split('\n')
+                    for i, line in enumerate(lines):
+                        if 'RX:' in line and i + 1 < len(lines):
+                            stats_line = lines[i + 1].strip().split()
+                            if stats_line:
+                                result['rx_bytes'] = int(stats_line[0])
+                        if 'TX:' in line and i + 1 < len(lines):
+                            stats_line = lines[i + 1].strip().split()
+                            if stats_line:
+                                result['tx_bytes'] = int(stats_line[0])
+            elif shutil.which('ifconfig'):
+                proc = subprocess.run(
+                    ['ifconfig', interface],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if proc.returncode == 0:
+                    for line in proc.stdout.split('\n'):
+                        line = line.strip()
+                        if line.lower().startswith('rx bytes'):
+                            parts = line.replace(':', ' ').split()
+                            if len(parts) >= 3:
+                                result['rx_bytes'] = int(parts[2])
+                        if line.lower().startswith('tx bytes'):
+                            parts = line.replace(':', ' ').split()
+                            if len(parts) >= 3:
+                                result['tx_bytes'] = int(parts[2])
         except Exception:
             pass
 

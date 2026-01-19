@@ -153,7 +153,7 @@ def get_user_tier(user: User, db: Session) -> str:
     ).first()
 
     if sub:
-        return sub.plan_id or "free"
+        return "premium"
     return "free"
 
 
@@ -409,7 +409,17 @@ async def allocate_config(
         peer_registered = True
         logger.info(f"Peer registered for user {current_user.id} on server {server.server_id}")
     else:
-        logger.warning(f"Peer registration failed for user {current_user.id}: {message}")
+        logger.error(f"Peer registration failed for user {current_user.id}: {message}")
+        if AUTO_REGISTER_PEERS and not (WG_MOCK_MODE or DEMO_MODE):
+            try:
+                if config_path.exists():
+                    config_path.unlink()
+            except Exception:
+                logger.warning("Failed to remove config after peer registration failure")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"WireGuard auto-registration failed: {message}"
+            )
 
     # Sync legacy keys for compatibility
     if not current_user.wg_public_key:
@@ -436,11 +446,10 @@ async def allocate_config(
         peer_registered=peer_registered,
         instructions=(
             "Import this configuration into your WireGuard app:\n"
-            "1. Download the .conf file or scan the QR code\n"
-            "2. Open WireGuard and click 'Add Tunnel'\n"
-            "3. Import from file or scan QR code\n"
-            "4. Activate the tunnel to connect\n"
-            "Note: Demo/testing use only. Revoke devices from Settings when finished."
+            "1. Open WireGuard and choose 'Add Tunnel'\n"
+            "2. Scan the QR code or paste the configuration\n"
+            "3. Activate the tunnel to connect\n"
+            "You can revoke devices from Settings at any time."
         ),
         download_filename=filename,
     )
@@ -945,6 +954,7 @@ async def get_usage(
 ):
     """Return usage stats for a device or aggregated across all devices."""
     await require_active_subscription(db, current_user)
+    user_tier = get_user_tier(current_user, db)
 
     query = db.query(WireGuardPeer).filter(
         WireGuardPeer.user_id == current_user.id,
@@ -959,11 +969,17 @@ async def get_usage(
 
     sent = sum(p.total_data_sent or 0 for p in peers)
     received = sum(p.total_data_received or 0 for p in peers)
+    total_gb = (sent + received) / 1024 / 1024 / 1024
+    free_cap_gb = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
+    remaining_gb = max(0.0, free_cap_gb - total_gb) if user_tier == "free" else None
 
     return {
         "total_devices": len(peers),
         "total_data_sent_mb": round(sent / 1024 / 1024, 2),
         "total_data_received_mb": round(received / 1024 / 1024, 2),
+        "plan": user_tier,
+        "cap_gb": free_cap_gb if user_tier == "free" else None,
+        "remaining_gb": round(remaining_gb, 2) if remaining_gb is not None else None,
         "last_handshake": max(
             (p.last_handshake_at for p in peers if p.last_handshake_at),
             default=None,
