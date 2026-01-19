@@ -3,6 +3,8 @@ import logging
 from typing import Optional
 
 from services.vpn_health_monitor import get_health_monitor
+from database.session import SessionLocal
+from services.vpn_peer_manager import get_peer_manager
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +15,23 @@ class BackgroundTaskManager:
     def __init__(self):
         self.health_monitor_task: Optional[asyncio.Task] = None
         self.policy_worker_task: Optional[asyncio.Task] = None
+        self.key_rotation_task: Optional[asyncio.Task] = None
+
+    async def _key_rotation_loop(self, interval_seconds: int = 21600):
+        """Rotate due WireGuard keys on a fixed interval."""
+        while True:
+            db = None
+            try:
+                db = SessionLocal()
+                peer_manager = get_peer_manager(db)
+                rotated = peer_manager.rotate_all_due_keys()
+                logger.info(f"Key rotation completed: {rotated} peers rotated")
+            except Exception as e:
+                logger.warning(f"Key rotation failed: {e}")
+            finally:
+                if db:
+                    db.close()
+            await asyncio.sleep(interval_seconds)
 
     async def start_all(self):
         """Start all background tasks"""
@@ -31,6 +50,10 @@ class BackgroundTaskManager:
             logger.info("Policy Engine Worker task created")
         except ImportError as e:
             logger.warning(f"Policy Engine Worker not available: {e}")
+
+        # Start key rotation loop (Phase 5)
+        self.key_rotation_task = asyncio.create_task(self._key_rotation_loop())
+        logger.info("Key rotation task created")
 
     async def stop_all(self):
         """Stop all background tasks"""
@@ -53,6 +76,14 @@ class BackgroundTaskManager:
                     logger.info("Policy worker task cancelled")
             except Exception as e:
                 logger.warning(f"Error stopping policy worker: {e}")
+
+        # Stop key rotation loop
+        if self.key_rotation_task:
+            self.key_rotation_task.cancel()
+            try:
+                await self.key_rotation_task
+            except asyncio.CancelledError:
+                logger.info("Key rotation task cancelled")
 
         # Stop health monitor
         if self.health_monitor_task:
