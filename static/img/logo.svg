@@ -1,32 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
-  <!-- Gradient Definitions - Ocean Teal + Ember Theme -->
   <defs>
-    <!-- Primary Gradient (Teal) -->
     <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0f766e;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#14b8a6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#2dd4bf;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#4f46e5;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#38bdf8;stop-opacity:1" />
     </linearGradient>
-
-    <!-- Secondary Gradient (Lighter Teal) -->
     <linearGradient id="secondaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#5eead4;stop-opacity:0.8" />
-      <stop offset="100%" style="stop-color:#99f6e4;stop-opacity:0.8" />
+      <stop offset="0%" style="stop-color:#a5b4fc;stop-opacity:0.85" />
+      <stop offset="100%" style="stop-color:#c7d2fe;stop-opacity:0.85" />
     </linearGradient>
-
-    <!-- Shield Gradient (Deep Teal) -->
     <linearGradient id="shieldGrad" x1="50%" y1="0%" x2="50%" y2="100%">
-      <stop offset="0%" style="stop-color:#14b8a6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0f766e;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4338ca;stop-opacity:1" />
     </linearGradient>
-
-    <!-- Accent Gradient (Ember Orange) -->
     <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#f97316;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#fb923c;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
     </linearGradient>
-
-    <!-- Glow Effect -->
     <filter id="glow">
       <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
       <feMerge>
@@ -34,8 +24,6 @@
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
-
-    <!-- Strong Glow for Key Elements -->
     <filter id="strongGlow">
       <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
       <feMerge>
@@ -45,9 +33,7 @@
     </filter>
   </defs>
 
-  <!-- Main Shield Shape -->
   <g transform="translate(100, 100)">
-    <!-- Shield Background -->
     <path d="M 0 -70
              L 35 -55 C 45 -50, 50 -40, 50 -25
              L 50 30 C 50 45, 40 58, 25 65
@@ -57,9 +43,8 @@
              Z"
           fill="url(#shieldGrad)"
           filter="url(#glow)"
-          opacity="0.95"/>
+          opacity="0.96"/>
 
-    <!-- Shield Border Accent -->
     <path d="M 0 -70
              L 35 -55 C 45 -50, 50 -40, 50 -25
              L 50 30 C 50 45, 40 58, 25 65
@@ -72,17 +57,13 @@
           stroke-width="2.5"
           opacity="0.7"/>
 
-    <!-- VPN Signal Waves (Three Curved Lines) -->
     <g transform="translate(0, -5)">
-      <!-- Inner Wave (Strongest) -->
       <path d="M -15 -10 Q 0 -20, 15 -10"
             fill="none"
             stroke="url(#primaryGrad)"
             stroke-width="4"
             stroke-linecap="round"
             filter="url(#strongGlow)"/>
-
-      <!-- Middle Wave -->
       <path d="M -25 0 Q 0 -15, 25 0"
             fill="none"
             stroke="url(#primaryGrad)"
@@ -90,8 +71,6 @@
             stroke-linecap="round"
             opacity="0.85"
             filter="url(#glow)"/>
-
-      <!-- Outer Wave (Widest) -->
       <path d="M -35 10 Q 0 -10, 35 10"
             fill="none"
             stroke="url(#secondaryGrad)"
@@ -101,59 +80,35 @@
             filter="url(#glow)"/>
     </g>
 
-    <!-- Lock Icon (Security Symbol) -->
     <g transform="translate(0, 25)">
-      <!-- Lock Body -->
       <rect x="-12" y="5" width="24" height="20" rx="3"
             fill="url(#primaryGrad)"
             filter="url(#glow)"/>
-
-      <!-- Lock Shackle -->
       <path d="M -8 5 L -8 0 C -8 -6, -4 -10, 0 -10 C 4 -10, 8 -6, 8 0 L 8 5"
             fill="none"
             stroke="url(#primaryGrad)"
             stroke-width="3.5"
             stroke-linecap="round"
             filter="url(#glow)"/>
-
-      <!-- Lock Keyhole -->
-      <circle cx="0" cy="13" r="3" fill="rgba(255,255,255,0.9)"/>
-      <rect x="-1.5" y="15" width="3" height="6" rx="1.5" fill="rgba(255,255,255,0.9)"/>
+      <circle cx="0" cy="13" r="3" fill="rgba(255,255,255,0.92)"/>
+      <rect x="-1.5" y="15" width="3" height="6" rx="1.5" fill="rgba(255,255,255,0.92)"/>
     </g>
 
-    <!-- Decorative Accent Particles (Orange) -->
-    <g opacity="0.9">
-      <circle cx="-30" cy="-35" r="2.5" fill="#f97316">
-        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
-      </circle>
-      <circle cx="30" cy="-35" r="2.5" fill="#fb923c">
-        <animate attributeName="opacity" values="0.5;1;0.5" dur="2.5s" repeatCount="indefinite"/>
-      </circle>
-      <circle cx="-38" cy="0" r="2" fill="#f97316">
-        <animate attributeName="opacity" values="0.4;1;0.4" dur="3s" repeatCount="indefinite"/>
-      </circle>
-      <circle cx="38" cy="0" r="2" fill="#fb923c">
-        <animate attributeName="opacity" values="0.4;1;0.4" dur="2.8s" repeatCount="indefinite"/>
-      </circle>
+    <g opacity="0.85">
+      <circle cx="-30" cy="-35" r="2.5" fill="#8b5cf6" />
+      <circle cx="30" cy="-35" r="2.5" fill="#a855f7" />
+      <circle cx="-38" cy="0" r="2" fill="#7c3aed" />
+      <circle cx="38" cy="0" r="2" fill="#38bdf8" />
     </g>
 
-    <!-- Data Flow Lines (Accent Color) -->
     <g opacity="0.6">
-      <path d="M -20 50 L -15 55" stroke="#f97316" stroke-width="2" stroke-linecap="round">
-        <animate attributeName="opacity" values="0;1;0" dur="1.5s" repeatCount="indefinite"/>
-      </path>
-      <path d="M 20 50 L 15 55" stroke="#fb923c" stroke-width="2" stroke-linecap="round">
-        <animate attributeName="opacity" values="0;1;0" dur="1.8s" repeatCount="indefinite"/>
-      </path>
+      <path d="M -20 50 L -15 55" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" />
+      <path d="M 20 50 L 15 55" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" />
     </g>
 
-    <!-- Center Glow Point -->
-    <circle cx="0" cy="-15" r="2.5" fill="#ffffff" opacity="0.9" filter="url(#strongGlow)">
-      <animate attributeName="r" values="2.5;3.5;2.5" dur="2s" repeatCount="indefinite"/>
-    </circle>
+    <circle cx="0" cy="-15" r="2.5" fill="#ffffff" opacity="0.9" filter="url(#strongGlow)" />
   </g>
 
-  <!-- Subtle Outer Ring -->
   <circle cx="100" cy="100" r="82"
           fill="none"
           stroke="url(#secondaryGrad)"
