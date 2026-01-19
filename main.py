@@ -3,6 +3,10 @@ import shutil
 import asyncio
 import logging
 import json
+import re
+import time
+import uuid
+import contextvars
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -24,9 +28,44 @@ from routers import contact, dashboard, optimizer, payment_paypal, payment_strip
 from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests
 from services.wireguard_service import WireGuardService
 
-# Logging configuration (structured logs for Azure log stream)
+# Request ID context
+request_id_ctx = contextvars.ContextVar("request_id", default="-")
+
+
+class RedactFilter(logging.Filter):
+    """Redact emails and obvious secrets from log messages."""
+    _email_re = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+    _token_re = re.compile(r"(Bearer\\s+)[A-Za-z0-9._\\-]+")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        message = self._email_re.sub("[redacted-email]", message)
+        message = self._token_re.sub(r"\\1[redacted-token]", message)
+        record.msg = message
+        record.args = ()
+        record.request_id = request_id_ctx.get("-")
+        return True
+
+
+class JsonFormatter(logging.Formatter):
+    """Minimal JSON formatter for logs."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.created)),
+            "level": record.levelname,
+            "logger": record.name,
+            "request_id": getattr(record, "request_id", request_id_ctx.get("-")),
+            "message": record.getMessage(),
+        }
+        return json.dumps(payload)
+
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=LOG_LEVEL, format="%(message)s")
+handler = logging.StreamHandler()
+handler.setFormatter(JsonFormatter())
+handler.addFilter(RedactFilter())
+logging.basicConfig(level=LOG_LEVEL, handlers=[handler])
 
 # NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD
 # base.Base.metadata.create_all(bind=engine)  # Commented out to avoid conflicts with migrations
@@ -131,6 +170,16 @@ async def add_security_headers(request: Request, call_next):
     if os.getenv("ENVIRONMENT") == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;"
+    return response
+
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """Attach a request ID for traceability."""
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request_id_ctx.set(request_id)
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
     return response
 
 
@@ -311,7 +360,10 @@ app.include_router(diagnostics.router, tags=["diagnostics"])
 def api_error(code: str, message: str, details=None, status_code: int = 400):
     return JSONResponse(
         status_code=status_code,
-        content={"error": {"code": code, "message": message, "details": details}},
+        content={
+            "error": {"code": code, "message": message, "details": details},
+            "request_id": request_id_ctx.get("-"),
+        },
     )
 
 
@@ -334,6 +386,15 @@ def readiness():
         return {"status": "ready", "database": "connected"}
     except Exception as e:
         return {"status": "not_ready", "error": str(e)}
+
+
+@app.get("/version")
+def version():
+    return {
+        "version": os.getenv("APP_VERSION", "dev"),
+        "commit": os.getenv("GIT_SHA", ""),
+        "environment": os.getenv("ENVIRONMENT", "development"),
+    }
 
 
 static_directory = Path(__file__).resolve().parent / "static"
