@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -33,9 +33,21 @@ from services.wireguard_server_manager import (
     server_connection_from_db,
     ServerConnection,
 )
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn", tags=["vpn"])
+limiter = Limiter(key_func=get_remote_address)
+is_testing = os.getenv("TESTING", "").lower() == "true"
+
+
+def rate_limit(rule: str):
+    if is_testing:
+        def decorator(func):
+            return func
+        return decorator
+    return limiter.limit(rule)
 
 # Check if we're in demo/mock mode
 IS_TESTING = os.getenv("TESTING", "").lower() == "true"
@@ -268,7 +280,9 @@ async def get_server(
 # =============================================================================
 
 @router.post("/allocate", response_model=AllocateConfigResponse)
+@rate_limit("10/minute")
 async def allocate_config(
+    http_request: Request,
     request: AllocateConfigRequest = AllocateConfigRequest(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -360,7 +374,12 @@ async def allocate_config(
     client_ip = peer.ipv4_address
 
     # Generate client configuration for this specific server
+    config_prefix = ""
+    if DEMO_MODE or WG_MOCK_MODE:
+        config_prefix = "# SecureWave VPN DEMO CONFIG (testing only)\n"
+
     config_content = (
+        config_prefix +
         "[Interface]\n"
         f"PrivateKey = {private_key}\n"
         f"Address = {client_ip}\n"
@@ -420,7 +439,8 @@ async def allocate_config(
             "1. Download the .conf file or scan the QR code\n"
             "2. Open WireGuard and click 'Add Tunnel'\n"
             "3. Import from file or scan QR code\n"
-            "4. Activate the tunnel to connect"
+            "4. Activate the tunnel to connect\n"
+            "Note: Demo/testing use only. Revoke devices from Settings when finished."
         ),
         download_filename=filename,
     )

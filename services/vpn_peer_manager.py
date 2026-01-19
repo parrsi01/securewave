@@ -4,6 +4,7 @@ Manages WireGuard peers, keys, IP allocation, and configuration generation
 """
 
 import logging
+import os
 import secrets
 import base64
 import subprocess
@@ -241,7 +242,12 @@ class VPNPeerManager:
         private_key = self.wg_service.decrypt_private_key(peer.private_key_encrypted)
 
         # Generate config
+        demo_prefix = ""
+        if os.getenv("DEMO_MODE", "false").lower() == "true" or os.getenv("WG_MOCK_MODE", "false").lower() == "true":
+            demo_prefix = "# SecureWave VPN DEMO CONFIG (testing only)\n"
+
         config = (
+            demo_prefix +
             "[Interface]\n"
             f"PrivateKey = {private_key}\n"
             f"Address = {peer.ipv4_address}\n"
