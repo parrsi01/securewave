@@ -474,6 +474,18 @@ async def get_device_config(
 
     try:
         if peer.server_id != server.id:
+            if peer.server_id:
+                old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+                if old_server:
+                    try:
+                        manager = get_wireguard_server_manager()
+                        conn = server_connection_from_db(old_server)
+                        await manager.remove_peer(conn, peer.public_key)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to remove peer {peer.id} from server {old_server.server_id}: {e}"
+                        )
+
             peer.server_id = server.id
             db.add(peer)
             db.commit()
@@ -549,6 +561,18 @@ async def download_device_config(
 
     peer_manager = get_peer_manager(db)
     if peer.server_id != server.id:
+        if peer.server_id:
+            old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+            if old_server:
+                try:
+                    manager = get_wireguard_server_manager()
+                    conn = server_connection_from_db(old_server)
+                    await manager.remove_peer(conn, peer.public_key)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to remove peer {peer.id} from server {old_server.server_id}: {e}"
+                    )
+
         peer.server_id = server.id
         db.add(peer)
         db.commit()

@@ -403,10 +403,27 @@ class VPNPeerManager:
         Returns:
             IPv4 address (CIDR notation)
         """
-        # Simple allocation based on user ID
-        # In production, you'd want a more sophisticated IP pool management
-        octet = (user_id % (IP_POOL_END - 10)) + 10
-        return f"{IP_POOL_START}.{octet}/32"
+        # Allocate the first available IP in the pool.
+        used_octets = set()
+        peers = self.db.query(WireGuardPeer).filter(
+            WireGuardPeer.is_revoked == False
+        ).all()
+
+        for peer in peers:
+            if not peer.ipv4_address:
+                continue
+            try:
+                ip_part = peer.ipv4_address.split("/")[0]
+                octet = int(ip_part.split(".")[-1])
+                used_octets.add(octet)
+            except (ValueError, IndexError):
+                continue
+
+        for octet in range(10, IP_POOL_END + 1):
+            if octet not in used_octets:
+                return f"{IP_POOL_START}.{octet}/32"
+
+        raise ValueError("No available IP addresses in pool")
 
     def get_allocated_ips(self) -> List[str]:
         """
