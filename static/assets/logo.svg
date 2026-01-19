@@ -1,80 +1,117 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <defs>
-    <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#ccfbf1;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#99f6e4;stop-opacity:1" />
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#38bdf8;stop-opacity:1" />
     </linearGradient>
-    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0f766e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#14b8a6;stop-opacity:1" />
+    <linearGradient id="secondaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a5b4fc;stop-opacity:0.85" />
+      <stop offset="100%" style="stop-color:#c7d2fe;stop-opacity:0.85" />
     </linearGradient>
+    <linearGradient id="shieldGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4338ca;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="strongGlow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
-  <!-- Background circle with glow -->
-  <circle cx="100" cy="100" r="90" fill="url(#shieldGradient)" opacity="0.15"/>
+  <g transform="translate(100, 100)">
+    <path d="M 0 -70
+             L 35 -55 C 45 -50, 50 -40, 50 -25
+             L 50 30 C 50 45, 40 58, 25 65
+             L 0 75
+             L -25 65 C -40 58, -50 45, -50 30
+             L -50 -25 C -50 -40, -45 -50, -35 -55
+             Z"
+          fill="url(#shieldGrad)"
+          filter="url(#glow)"
+          opacity="0.96"/>
 
-  <!-- Main Shield Shape -->
-  <path d="M 100 25 L 165 48 L 165 105 Q 165 150 100 175 Q 35 150 35 105 L 35 48 Z"
-        fill="url(#shieldGradient)"
-        stroke="url(#accentGradient)"
-        stroke-width="3"
-        filter="drop-shadow(0 4px 12px rgba(15, 118, 110, 0.4))"/>
-
-  <!-- Signal Wave Layers (centered on shield) -->
-  <g transform="translate(100, 85)">
-    <!-- Outer wave arc -->
-    <path d="M -35 15 Q -35 -25, 0 -40 Q 35 -25, 35 15"
-          stroke="#0f766e"
-          stroke-width="4"
+    <path d="M 0 -70
+             L 35 -55 C 45 -50, 50 -40, 50 -25
+             L 50 30 C 50 45, 40 58, 25 65
+             L 0 75
+             L -25 65 C -40 58, -50 45, -50 30
+             L -50 -25 C -50 -40, -45 -50, -35 -55
+             Z"
           fill="none"
-          stroke-linecap="round"
-          opacity="0.9"/>
+          stroke="url(#primaryGrad)"
+          stroke-width="2.5"
+          opacity="0.7"/>
 
-    <!-- Middle wave arc -->
-    <path d="M -22 12 Q -22 -8, 0 -18 Q 22 -8, 22 12"
-          stroke="#0d9488"
-          stroke-width="4"
-          fill="none"
-          stroke-linecap="round"/>
+    <g transform="translate(0, -5)">
+      <path d="M -15 -10 Q 0 -20, 15 -10"
+            fill="none"
+            stroke="url(#primaryGrad)"
+            stroke-width="4"
+            stroke-linecap="round"
+            filter="url(#strongGlow)"/>
+      <path d="M -25 0 Q 0 -15, 25 0"
+            fill="none"
+            stroke="url(#primaryGrad)"
+            stroke-width="3.5"
+            stroke-linecap="round"
+            opacity="0.85"
+            filter="url(#glow)"/>
+      <path d="M -35 10 Q 0 -10, 35 10"
+            fill="none"
+            stroke="url(#secondaryGrad)"
+            stroke-width="3"
+            stroke-linecap="round"
+            opacity="0.7"
+            filter="url(#glow)"/>
+    </g>
 
-    <!-- Inner wave arc -->
-    <path d="M -11 9 Q -11 2, 0 -3 Q 11 2, 11 9"
-          stroke="#14b8a6"
-          stroke-width="4"
-          fill="none"
-          stroke-linecap="round"/>
+    <g transform="translate(0, 25)">
+      <rect x="-12" y="5" width="24" height="20" rx="3"
+            fill="url(#primaryGrad)"
+            filter="url(#glow)"/>
+      <path d="M -8 5 L -8 0 C -8 -6, -4 -10, 0 -10 C 4 -10, 8 -6, 8 0 L 8 5"
+            fill="none"
+            stroke="url(#primaryGrad)"
+            stroke-width="3.5"
+            stroke-linecap="round"
+            filter="url(#glow)"/>
+      <circle cx="0" cy="13" r="3" fill="rgba(255,255,255,0.92)"/>
+      <rect x="-1.5" y="15" width="3" height="6" rx="1.5" fill="rgba(255,255,255,0.92)"/>
+    </g>
 
-    <!-- Center signal dot -->
-    <circle cx="0" cy="14" r="5" fill="#f97316"/>
+    <g opacity="0.85">
+      <circle cx="-30" cy="-35" r="2.5" fill="#8b5cf6" />
+      <circle cx="30" cy="-35" r="2.5" fill="#a855f7" />
+      <circle cx="-38" cy="0" r="2" fill="#7c3aed" />
+      <circle cx="38" cy="0" r="2" fill="#38bdf8" />
+    </g>
+
+    <g opacity="0.6">
+      <path d="M -20 50 L -15 55" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" />
+      <path d="M 20 50 L 15 55" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" />
+    </g>
+
+    <circle cx="0" cy="-15" r="2.5" fill="#ffffff" opacity="0.9" filter="url(#strongGlow)" />
   </g>
 
-  <!-- Lock Icon (security symbol) -->
-  <g transform="translate(100, 135)">
-    <!-- Lock body -->
-    <rect x="-12" y="2" width="24" height="20" rx="2"
-          fill="url(#accentGradient)"
-          stroke="#FFFFFF"
-          stroke-width="1.5"/>
-
-    <!-- Lock shackle -->
-    <path d="M -8 2 L -8 -5 Q -8 -12, 0 -12 Q 8 -12, 8 -5 L 8 2"
-          stroke="url(#accentGradient)"
-          stroke-width="3"
+  <circle cx="100" cy="100" r="82"
           fill="none"
-          stroke-linecap="round"/>
-
-    <!-- Keyhole -->
-    <circle cx="0" cy="9" r="3" fill="#FFFFFF"/>
-    <rect x="-1.5" y="9" width="3" height="7" fill="#FFFFFF" rx="1"/>
-  </g>
-
-  <!-- Optional brand text -->
-  <text x="100" y="195"
-        text-anchor="middle"
-        font-family="Inter, Arial, sans-serif"
-        font-size="11"
-        font-weight="800"
-        fill="#0f766e"
-        letter-spacing="1">SECUREWAVE</text>
+          stroke="url(#secondaryGrad)"
+          stroke-width="1.5"
+          opacity="0.3"/>
 </svg>

@@ -53,11 +53,11 @@
             <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0-1.657 1.791-3 4-3s4 1.343 4 3-1.791 3-4 3-4-1.343-4-3zM2 11c0-1.657 1.791-3 4-3s4 1.343 4 3-1.791 3-4 3-4-1.343-4-3zM6 18c0-2.209 3.582-4 8-4s8 1.791 8 4" />
             </svg>
-            Secure Authentication
+            Secure Sign-In
           </div>
           <h1>Welcome Back</h1>
           <p style="font-size: 1.125rem; color: var(--text-secondary); margin-top: 0.5rem;">
-            Log in to access your SecureWave dashboard and manage your VPN configuration.
+            Sign in to manage your plan, devices, and VPN access.
           </p>
         </div>
 
@@ -102,15 +102,17 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
               <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">
                 <input type="checkbox" id="remember" name="remember">
-                Remember me
+                Keep me signed in
               </label>
               <a href="#" style="font-size: 0.875rem; color: var(--primary-600); text-decoration: none;">Forgot password?</a>
             </div>
 
             <button type="submit" class="btn btn-primary btn-block btn-lg" id="submitBtn">
-              Login to Dashboard
+              Continue to SecureWave
             </button>
           </form>
+
+          <div class="form-feedback info hidden" id="authMessage" aria-live="polite"></div>
 
           <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-primary);">
             <p style="margin: 0; color: var(--text-secondary);">
@@ -127,7 +129,7 @@
               <li>Military-grade ChaCha20 encryption</li>
               <li>Strict zero-log policy</li>
               <li>WireGuard performance optimized for speed</li>
-              <li>AI-powered server selection</li>
+              <li>Smart server selection</li>
             </ul>
           </div>
         </div>
