@@ -282,8 +282,8 @@ async def get_server(
 @router.post("/allocate", response_model=AllocateConfigResponse)
 @rate_limit("10/minute")
 async def allocate_config(
-    http_request: Request,
-    request: AllocateConfigRequest = AllocateConfigRequest(),
+    request: Request,
+    payload: AllocateConfigRequest = AllocateConfigRequest(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -305,8 +305,8 @@ async def allocate_config(
     peer_manager = get_peer_manager(db)
 
     # Select server
-    if request.server_id:
-        server = VPNServerService.get_server_by_id(db, request.server_id)
+    if payload.server_id:
+        server = VPNServerService.get_server_by_id(db, payload.server_id)
         if not server:
             raise HTTPException(status_code=404, detail="Server not found")
 
@@ -326,7 +326,7 @@ async def allocate_config(
             )
 
     # Resolve or create a peer device for this user
-    device_name = request.device_name or "Primary Device"
+    device_name = payload.device_name or "Primary Device"
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.user_id == current_user.id,
         WireGuardPeer.device_name == device_name,
