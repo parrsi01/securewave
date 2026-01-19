@@ -82,13 +82,22 @@ Monitors tunnel over time:
 - Measures uptime percentage
 - Reports reconnection times
 
+### 8. Website Smoke Tests
+Validates the SecureWave control plane:
+- Health endpoint
+- Register/login
+- Server list
+- Device list
+- VPN allocation
+- Test execution endpoint
+
 ## Output
 
 ### Terminal Output
 ```
-[+] SecureWave VPN Test Suite
-==================================================
-
+--------------------------------
+SecureWave VPN Test Suite
+--------------------------------
 Baseline latency:        15.23 ms
 SecureWave latency:      18.45 ms (+3.2)
 
@@ -104,9 +113,9 @@ Trackers blocked:        90%
 Tunnel drops:            0
 Avg reconnect time:      N/A
 
-OVERALL SCORE:           87/100
+OVERALL SCORE:           87 / 100
 STATUS:                  PASSED
---------------------------------------------------
+--------------------------------
 Results saved to results/latest.json
 ```
 
@@ -141,6 +150,7 @@ Edit `config.yaml` to customize:
 - Scoring weights
 - Pass/fail thresholds
 - Expected VPN DNS servers
+- Website base URL
 
 ## Scoring
 
@@ -184,7 +194,7 @@ See the main SecureWave backend for API endpoints:
 ## Important Notes
 
 1. **VPN must be connected at OS level** before running tests
-2. **Baseline tests** should ideally run without VPN connected
+2. **Baseline tests** are measured even if VPN is active (results will note this)
 3. **Results are real** - no mocking or simulation
 4. **Some tests require root** for full functionality (IPv6 leak detection)
 5. **Network conditions vary** - run multiple times for accurate results
@@ -195,6 +205,10 @@ See the main SecureWave backend for API endpoints:
 - Ensure VPN is connected at the OS level
 - Check that the VPN creates a `wg*`, `tun*`, or similar interface
 - Run `ip link show` to see available interfaces
+
+### Website smoke failures
+- Set base URL explicitly: `./run_tests.sh --base-url https://securewave-web.azurewebsites.net`
+- Ensure the site is reachable and `/health` returns 200
 
 ### DNS tests failing
 - Install `dnsutils` package: `apt install dnsutils`

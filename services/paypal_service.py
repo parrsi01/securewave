@@ -47,9 +47,9 @@ class PayPalService:
         },
         "premium": {
             "name": "Premium Plan",
-            "description": "5 VPN connections with premium support",
-            "price_monthly": 14.99,
-            "price_yearly": 149.99,
+            "description": "5 VPN connections with unlimited bandwidth",
+            "price_monthly": 9.99,
+            "price_yearly": 99.99,
             "paypal_plan_id_monthly": os.getenv("PAYPAL_PLAN_PREMIUM_MONTHLY"),
             "paypal_plan_id_yearly": os.getenv("PAYPAL_PLAN_PREMIUM_YEARLY"),
         },

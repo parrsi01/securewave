@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pricing - SecureWave VPN</title>
-  <meta name="description" content="Choose your SecureWave VPN plan. Enterprise-grade security starting at $9.99/month with 7-day free trial, unlimited bandwidth, and 30-day money-back guarantee.">
+  <meta name="description" content="Choose your SecureWave VPN plan. Free plan includes 5 GB/month. Premium adds unlimited data and priority access.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -50,10 +50,10 @@
           <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
           </svg>
-          Demo Billing
+          Pricing
         </div>
         <h1>SecureWave Plans</h1>
-        <p>Demo-only billing UI. Upgrades are simulated in this build.</p>
+        <p>Choose Free for light use or Premium for unlimited data.</p>
       </div>
     </section>
 
@@ -67,56 +67,52 @@
       </div>
 
       <div class="plan-grid">
-        <!-- Monthly Plan -->
-        <div class="plan-card plan-card--featured">
-          <div class="pill pill-accent plan-card__badge">Most Popular</div>
-          <div class="plan-meta">
-            <div class="plan-price">$9.99</div>
-            <p class="plan-note">per month</p>
-          </div>
-
-          <div class="plan-title">Premium Monthly</div>
-          <p class="text-muted mb-4">Full access to all SecureWave VPN features with monthly flexibility</p>
-
-          <ul class="list-check" style="margin-bottom: 2rem;">
-            <li>50+ Global Server Locations</li>
-            <li>Unlimited Bandwidth & Speed</li>
-            <li>AI-Powered Server Selection (MARL + XGBoost)</li>
-            <li>WireGuard Protocol (Military-Grade)</li>
-            <li>Unlimited Device Connections</li>
-            <li>Zero-Log Privacy Policy</li>
-            <li>Kill Switch & DNS Leak Protection</li>
-            <li>24/7 Customer Support</li>
-          </ul>
-
-          <button class="btn btn-primary btn-block btn-lg" id="payStripe">
-            <span>💳 Pay with Stripe</span>
-          </button>
-        </div>
-
-        <!-- PayPal Alternative -->
+        <!-- Free Plan -->
         <div class="plan-card">
           <div class="plan-meta">
+            <div class="plan-price">$0</div>
+            <p class="plan-note">forever</p>
+          </div>
+
+          <div class="plan-title">Free</div>
+          <p class="text-muted mb-4">Light use with a monthly data cap</p>
+
+          <ul class="list-check" style="margin-bottom: 2rem;">
+            <li>1 device</li>
+            <li>5 GB per month</li>
+            <li>Standard server access</li>
+            <li>WireGuard protocol</li>
+          </ul>
+
+          <a href="/register.html" class="btn btn-outline btn-block btn-lg">Get Started Free</a>
+        </div>
+
+        <!-- Premium Plan -->
+        <div class="plan-card plan-card--featured">
+          <div class="pill pill-accent plan-card__badge">Best Value</div>
+          <div class="plan-meta">
             <div class="plan-price">$9.99</div>
             <p class="plan-note">per month</p>
           </div>
 
-          <div class="plan-title">Premium Monthly</div>
-          <p class="text-muted mb-4">Same great features, pay with PayPal for added convenience</p>
+          <div class="plan-title">Premium</div>
+          <p class="text-muted mb-4">Unlimited data with priority access</p>
 
           <ul class="list-check" style="margin-bottom: 2rem;">
-            <li>All Premium Features Included</li>
-            <li>PayPal Buyer Protection</li>
-            <li>Instant Activation</li>
-            <li>Easy Subscription Management</li>
-            <li>Cancel Anytime</li>
+            <li>Unlimited bandwidth</li>
+            <li>5 devices</li>
+            <li>All server locations</li>
+            <li>Priority support</li>
+            <li>WireGuard protocol</li>
           </ul>
 
+          <button class="btn btn-primary btn-block btn-lg" id="payStripe" style="margin-bottom: 0.75rem;">
+            <span>💳 Pay with Stripe</span>
+          </button>
           <button class="btn btn-secondary btn-block btn-lg" id="payPaypal">
             <span>💙 Pay with PayPal</span>
           </button>
-
-          <p class="text-center text-muted mt-3" style="font-size: 0.875rem;">Secure checkout powered by PayPal</p>
+          <p class="text-center text-muted mt-3" style="font-size: 0.875rem;">Secure checkout powered by Stripe or PayPal</p>
         </div>
       </div>
 
@@ -157,7 +153,7 @@
         </div>
         <div class="card">
           <h3>📱 Multi-Platform Support</h3>
-          <p class="text-muted">Works on Windows, Mac, Linux, iOS, Android, and routers. One subscription covers all your devices.</p>
+          <p class="text-muted">Works on Windows, Mac, Linux, iOS, Android, and routers. Premium covers up to 5 devices.</p>
         </div>
       </div>
 
@@ -171,7 +167,7 @@
           </div>
           <div class="faq-item" style="margin-bottom: 1.5rem;">
             <h4>How many devices can I connect?</h4>
-            <p class="text-muted">Unlimited! Connect as many devices as you want with a single subscription.</p>
+            <p class="text-muted">Premium includes up to 5 devices. Free includes 1 device.</p>
           </div>
           <div class="faq-item" style="margin-bottom: 1.5rem;">
             <h4>Do you keep logs?</h4>

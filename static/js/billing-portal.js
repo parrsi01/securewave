@@ -308,7 +308,7 @@ async function openStripePortal() {
 
     const data = await response.json();
     if (data.demo) {
-      showError(data.message || 'Billing portal is unavailable in demo mode.');
+      showError(data.message || 'Billing portal is temporarily unavailable.');
       return;
     }
 

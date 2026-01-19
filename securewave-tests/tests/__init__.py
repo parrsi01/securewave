@@ -12,6 +12,7 @@ Modules:
 - ipv6_leak: IPv6 leak detection
 - ads_blocking: Ad/tracker blocking effectiveness
 - stability: Tunnel stability monitoring
+- website_smoke: Website/API smoke tests
 """
 
 from .baseline import measure_baseline, detect_vpn_interface, BaselineMetrics
@@ -21,6 +22,7 @@ from .dns_leak import run_dns_leak_test, DNSLeakResult
 from .ipv6_leak import run_ipv6_leak_test, IPv6LeakResult
 from .ads_blocking import run_ad_blocking_test, AdBlockingResult
 from .stability import run_stability_test, StabilityTestResult
+from .website_smoke import run_website_smoke_test, WebsiteSmokeResult
 
 __all__ = [
     # Baseline
@@ -47,4 +49,7 @@ __all__ = [
     # Stability
     'run_stability_test',
     'StabilityTestResult',
+    # Website Smoke
+    'run_website_smoke_test',
+    'WebsiteSmokeResult',
 ]

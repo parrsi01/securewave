@@ -12,43 +12,26 @@ let paymentElement = null;
 
 // Plan configuration
 const PLANS = {
-  basic: {
-    name: 'Basic Plan',
+  premium: {
+    name: 'Premium Plan',
     price_monthly: 9.99,
     price_yearly: 99.99,
     features: [
-      '3 VPN connections',
-      'Unlimited bandwidth',
-      '30+ server locations',
-      'Standard support'
-    ]
-  },
-  premium: {
-    name: 'Premium Plan',
-    price_monthly: 14.99,
-    price_yearly: 149.99,
-    features: [
-      '10 VPN connections',
+      '5 VPN connections',
       'Unlimited bandwidth',
       '50+ server locations',
-      'AI-powered server selection',
       'Priority support',
-      'Ad blocker included'
+      'WireGuard protocol'
     ]
   },
-  ultra: {
-    name: 'Ultra Plan',
-    price_monthly: 24.99,
-    price_yearly: 249.99,
+  free: {
+    name: 'Free Plan',
+    price_monthly: 0,
+    price_yearly: 0,
     features: [
-      'Unlimited VPN connections',
-      'Unlimited bandwidth',
-      '50+ server locations',
-      'AI-powered server selection',
-      'Dedicated IP address',
-      'Priority 24/7 support',
-      'Ad blocker + malware protection',
-      'Port forwarding'
+      '1 VPN connection',
+      '5 GB bandwidth/month',
+      'Standard server access'
     ]
   }
 };

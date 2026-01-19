@@ -62,15 +62,14 @@ class StripeService:
         },
         "premium": {
             "name": "Premium Plan",
-            "price_monthly": 14.99,
-            "price_yearly": 149.99,  # ~$12.50/month (17% discount)
+            "price_monthly": 9.99,
+            "price_yearly": 99.99,  # ~$8.33/month (17% discount)
             "features": [
                 "5 VPN connections",
                 "Unlimited bandwidth",
                 "All server locations",
-                "24/7 premium support",
-                "Ad-blocking + malware protection",
-                "Dedicated IP available"
+                "Priority support",
+                "Ad-blocking DNS"
             ],
             "stripe_price_id_monthly": os.getenv("STRIPE_PRICE_PREMIUM_MONTHLY"),
             "stripe_price_id_yearly": os.getenv("STRIPE_PRICE_PREMIUM_YEARLY"),

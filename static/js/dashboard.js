@@ -5,7 +5,6 @@ class VPNDashboard {
   constructor() {
     this.vpnToggle = document.getElementById('vpnToggle');
     this.serverSelect = document.getElementById('serverSelect');
-    this.downloadBtn = document.getElementById('downloadConfigBtn');
     this.connectionStatus = document.getElementById('connectionStatus');
     this.connectionDetails = document.getElementById('connectionDetails');
     this.selectedServer = document.getElementById('selectedServer');
@@ -33,8 +32,7 @@ class VPNDashboard {
     // Connection tracking (Phase 4 enhancements)
     this.connectionStartTime = null;
     this.connectionTimer = null;
-    this.dataTransferred = { upload: 0, download: 0 };
-    this.dataTransferInterval = null;
+    this.usageInterval = null;
     this.statusInterval = null;
 
     this.init();
@@ -101,8 +99,6 @@ class VPNDashboard {
     this.serverSelect.addEventListener('change', () => this.handleServerChange());
 
     // Download Config Button
-    this.downloadBtn.addEventListener('click', () => this.downloadConfig());
-
     // Logout button
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
@@ -128,7 +124,7 @@ class VPNDashboard {
         if (['CONNECTED', 'CONNECTING', 'DISCONNECTING'].includes(data.status)) {
           this.updateConnectionDetails({
             location: data.region || (this.currentServer ? this.currentServer.location : 'Auto'),
-            public_ip: data.mock_ip || '10.8.0.10'
+            public_ip: data.client_ip || '10.8.0.10'
           });
         }
         this.ensureStatusPolling();
@@ -204,8 +200,7 @@ class VPNDashboard {
       });
 
       if (!response.ok) {
-        // For demo mode, show "Demo Active" instead of error
-        this.setBadge(this.subscriptionStatus, 'Demo Active', 'success');
+        this.setBadge(this.subscriptionStatus, 'Free Plan', 'info');
         return;
       }
 
@@ -227,8 +222,7 @@ class VPNDashboard {
 
       this.setBadge(this.subscriptionStatus, `${planName} • ${status}`, badgeType);
     } catch (error) {
-      // For demo mode, show "Demo Active" instead of error
-      this.setBadge(this.subscriptionStatus, 'Demo Active', 'success');
+      this.setBadge(this.subscriptionStatus, 'Free Plan', 'info');
     }
   }
 
@@ -255,7 +249,7 @@ class VPNDashboard {
       }
 
       if (response.status === 402) {
-        this.showAlert('An active subscription is required to connect.', 'warning');
+        this.showAlert('Plan limit reached. Upgrade to Premium to continue.', 'warning');
         this.serverSelect.innerHTML = '<option value="">Subscription required</option>';
         return;
       }
@@ -366,22 +360,23 @@ class VPNDashboard {
   async connectVPN() {
     try {
       this.setConnectionState('CONNECTING');
-      this.connectionStatus.textContent = 'Connecting...';
+      this.connectionStatus.textContent = 'Preparing...';
       this.connectionStatus.className = 'connection-status connecting';
 
-      const response = await fetch('/api/vpn/connect', {
+      const response = await fetch('/api/vpn/allocate', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          region: this.currentServer ? this.currentServer.server_id : null
+          server_id: this.currentServer ? this.currentServer.server_id : null,
+          device_name: 'Dashboard Device'
         })
       });
 
       if (response.status === 402) {
-        this.showAlert('An active subscription is required to connect.', 'warning');
+        this.showAlert('Plan limit reached. Upgrade to Premium to continue.', 'warning');
         this.vpnToggle.checked = false;
         this.setConnectionState('DISCONNECTED');
         this.updateUI();
@@ -390,22 +385,17 @@ class VPNDashboard {
 
       if (response.ok) {
         const data = await response.json();
-        this.setConnectionState(data.status || 'CONNECTING');
-        this.connectionId = data.session_id || null;
-        const modeLabel = data.mode === 'live' ? 'Connected' : 'Connected (Demo)';
-        this.connectionStatus.textContent = data.status === 'CONNECTING' ? 'Connecting...' : modeLabel;
-        this.connectionStatus.className = data.status === 'CONNECTING' ? 'connection-status connecting' : 'connection-status connected';
-        if (data.status === 'CONNECTED') {
-          this.startConnectionTracking();
-        }
-        this.ensureStatusPolling();
+        this.setConnectionState('READY');
+        this.connectionStatus.textContent = 'Ready to connect';
+        this.connectionStatus.className = 'connection-status connected';
+        this.startConnectionTracking();
         this.updateConnectionDetails({
-          location: data.region || (this.currentServer ? this.currentServer.location : 'Auto'),
-          public_ip: data.client_ip || data.mock_ip || '10.8.0.10',
-          mode: data.mode || 'demo'
+          location: data.server_location || (this.currentServer ? this.currentServer.location : 'Auto'),
+          public_ip: data.client_ip || '10.8.0.10',
+          mode: 'live'
         });
         this.updateUI();
-        this.showAlert(data.mode === 'live' ? 'VPN connected' : 'VPN connecting (Demo Mode)', 'success');
+        this.showAlert('VPN is ready. Open WireGuard to connect.', 'success');
       } else if (response.status === 401) {
         this.handleLogout();
       } else {
@@ -426,28 +416,14 @@ class VPNDashboard {
       this.connectionStatus.textContent = 'Disconnecting...';
       this.connectionStatus.className = 'connection-status disconnecting';
 
-      await fetch('/api/vpn/disconnect', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ reason: 'user' })
-      });
-
       // Stop connection tracking (Phase 4 enhancements)
       this.stopConnectionTracking();
 
-      // Clear config
-      this.vpnConfig = null;
-      this.connectionId = null;
-
       // Update state
-      this.setConnectionState('DISCONNECTING');
-      this.ensureStatusPolling();
+      this.setConnectionState('DISCONNECTED');
       this.updateUI();
 
-      this.showAlert('VPN disconnecting', 'info');
+      this.showAlert('VPN setup cleared', 'info');
     } catch (error) {
       console.error('Failed to disconnect VPN:', error);
       this.showAlert('Failed to disconnect VPN', 'error');
@@ -459,21 +435,16 @@ class VPNDashboard {
     if (!this.connectionStartTime) {
       this.connectionStartTime = Date.now();
     }
-    this.dataTransferred = { upload: 0, download: 0 };
 
     // Update connection duration every second
     this.connectionTimer = setInterval(() => {
       this.updateConnectionDuration();
     }, 1000);
 
-    // Simulate data transfer (increment every 2 seconds)
-    this.dataTransferInterval = setInterval(() => {
-      // Simulate realistic VPN data transfer (random but believable)
-      this.dataTransferred.download += Math.random() * 50 + 10; // 10-60 KB/s
-      this.dataTransferred.upload += Math.random() * 20 + 5;    // 5-25 KB/s
-      this.updateDataTransfer();
-    }, 2000);
-
+    this.fetchUsage();
+    this.usageInterval = setInterval(() => {
+      this.fetchUsage();
+    }, 30000);
   }
 
   stopConnectionTracking() {
@@ -481,9 +452,9 @@ class VPNDashboard {
       clearInterval(this.connectionTimer);
       this.connectionTimer = null;
     }
-    if (this.dataTransferInterval) {
-      clearInterval(this.dataTransferInterval);
-      this.dataTransferInterval = null;
+    if (this.usageInterval) {
+      clearInterval(this.usageInterval);
+      this.usageInterval = null;
     }
     this.connectionStartTime = null;
   }
@@ -505,23 +476,25 @@ class VPNDashboard {
     }
   }
 
-  updateDataTransfer() {
-    const formatBytes = (kb) => {
-      if (kb < 1024) return `${kb.toFixed(1)} KB`;
-      const mb = kb / 1024;
-      if (mb < 1024) return `${mb.toFixed(2)} MB`;
-      const gb = mb / 1024;
-      return `${gb.toFixed(2)} GB`;
-    };
-
-    const downloadElement = document.getElementById('dataDownload');
-    const uploadElement = document.getElementById('dataUpload');
-
-    if (downloadElement) {
-      downloadElement.textContent = formatBytes(this.dataTransferred.download);
-    }
-    if (uploadElement) {
-      uploadElement.textContent = formatBytes(this.dataTransferred.upload);
+  async fetchUsage() {
+    try {
+      const response = await fetch('/api/vpn/usage', {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const downloadElement = document.getElementById('dataDownload');
+      const uploadElement = document.getElementById('dataUpload');
+      if (downloadElement) {
+        downloadElement.textContent = `${data.total_data_received_mb || 0} MB`;
+      }
+      if (uploadElement) {
+        uploadElement.textContent = `${data.total_data_sent_mb || 0} MB`;
+      }
+    } catch (error) {
+      console.error('Failed to fetch usage:', error);
     }
   }
 
@@ -536,73 +509,47 @@ class VPNDashboard {
     if (this.connectionDetails) {
       const location = serverInfo.location || (this.currentServer ? this.currentServer.location : 'Auto');
       const publicIp = serverInfo.public_ip || '10.8.0.10';
-      const mode = serverInfo.mode === 'live' ? 'Live' : 'Control Plane Demo';
+      const mode = 'Control Plane';
       const detailsHTML = `
         <p><strong>Server:</strong> ${location}</p>
         <p><strong>IP Address:</strong> ${publicIp}</p>
         <p><strong>Protocol:</strong> WireGuard</p>
         <p><strong>Mode:</strong> ${mode}</p>
         <p><strong>Session:</strong> <span id="connectionDuration">00:00:00</span></p>
-        <p><strong>Data:</strong> <span id="dataDownload">0.0 KB</span> down / <span id="dataUpload">0.0 KB</span> up</p>
+        <p><strong>Data:</strong> <span id="dataDownload">0 MB</span> down / <span id="dataUpload">0 MB</span> up</p>
+        <p><strong>Next step:</strong> Open WireGuard and connect your SecureWave tunnel.</p>
       `;
       this.connectionDetails.innerHTML = detailsHTML;
     }
   }
 
   updateUI() {
-    const isActive = ['CONNECTED', 'CONNECTING', 'DISCONNECTING'].includes(this.connectionState);
-    const isConnected = this.connectionState === 'CONNECTED';
+    const isActive = ['READY', 'CONNECTING', 'DISCONNECTING', 'CONNECTED'].includes(this.connectionState);
+    const isReady = this.connectionState === 'READY';
 
     this.vpnToggle.checked = isActive;
 
-    if (isConnected) {
-      // Connected state
-      this.connectionStatus.textContent = 'Connected (Demo)';
+    if (isReady) {
+      this.connectionStatus.textContent = 'Ready to connect';
       this.connectionStatus.className = 'connection-status connected';
       this.connectionDetails.style.display = 'block';
-      this.downloadBtn.style.display = 'inline-flex';
-      this.serverSelect.disabled = false; // Allow changing servers while connected
+      this.serverSelect.disabled = false;
     } else if (this.connectionState === 'CONNECTING') {
-      this.connectionStatus.textContent = 'Connecting...';
+      this.connectionStatus.textContent = 'Preparing...';
       this.connectionStatus.className = 'connection-status connecting';
       this.connectionDetails.style.display = 'block';
-      this.downloadBtn.style.display = 'none';
       this.serverSelect.disabled = false;
     } else if (this.connectionState === 'DISCONNECTING') {
       this.connectionStatus.textContent = 'Disconnecting...';
       this.connectionStatus.className = 'connection-status disconnecting';
       this.connectionDetails.style.display = 'block';
-      this.downloadBtn.style.display = 'none';
       this.serverSelect.disabled = false;
     } else {
       // Disconnected state
       this.connectionStatus.textContent = 'Disconnected';
       this.connectionStatus.className = 'connection-status disconnected';
       this.connectionDetails.style.display = 'none';
-      this.downloadBtn.style.display = 'none';
       this.serverSelect.disabled = false;
-    }
-  }
-
-  async downloadConfig() {
-    try {
-      const response = await fetch('/api/vpn/config', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch config');
-      }
-      const data = await response.json();
-      this.vpnConfig = data.config;
-      const serverName = this.currentServer ? this.currentServer.location : 'auto';
-      const filename = `securewave-demo-${serverName.toLowerCase().replace(/\s+/g, '-')}.conf`;
-      this.downloadConfigFromText(this.vpnConfig, filename, true);
-    } catch (error) {
-      console.error('Failed to download config:', error);
-      this.showAlert('Failed to download configuration file', 'error');
     }
   }
 
@@ -616,7 +563,7 @@ class VPNDashboard {
       if (!response.ok) return;
       const data = await response.json();
       if (data.status === 'CONNECTED') {
-        this.setConnectionState('CONNECTED');
+        this.setConnectionState('READY');
         if (!this.connectionStartTime && data.connected_since) {
           this.connectionStartTime = new Date(data.connected_since).getTime();
         }
@@ -625,7 +572,7 @@ class VPNDashboard {
         }
         this.updateConnectionDetails({
           location: data.region || (this.currentServer ? this.currentServer.location : 'Auto'),
-          public_ip: data.mock_ip || '10.8.0.10'
+          public_ip: data.client_ip || '10.8.0.10'
         });
       }
       if (data.status === 'CONNECTING') {
@@ -637,8 +584,6 @@ class VPNDashboard {
       if (data.status === 'DISCONNECTED') {
         this.setConnectionState('DISCONNECTED');
         this.stopConnectionTracking();
-        this.vpnConfig = null;
-        this.connectionId = null;
       }
       this.updateUI();
     } catch (error) {
@@ -651,21 +596,6 @@ class VPNDashboard {
     this.isConnected = state === 'CONNECTED';
   }
 
-  downloadConfigFromText(configText, filename, showAlert = true) {
-    const blob = new Blob([configText], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-
-    if (showAlert) {
-      this.showAlert('VPN configuration downloaded successfully!', 'success');
-    }
-  }
 
   handleLogout() {
     localStorage.removeItem('access_token');

@@ -12,6 +12,7 @@ User-facing endpoints for managing VPN devices:
 
 import base64
 import logging
+import os
 from datetime import datetime
 from typing import List, Optional
 
@@ -42,11 +43,7 @@ router = APIRouter(prefix="/api/vpn/devices", tags=["devices"])
 
 DEVICE_LIMITS = {
     "free": 1,
-    "trial": 2,
-    "basic": 3,
     "premium": 5,
-    "ultra": 10,
-    "enterprise": 50,
 }
 
 DEFAULT_DEVICE_LIMIT = 1
@@ -63,18 +60,9 @@ def get_device_limit(user: User, db: Session) -> int:
     if not subscription:
         return DEVICE_LIMITS.get("free", DEFAULT_DEVICE_LIMIT)
 
-    plan_name = (subscription.plan_name or "free").lower()
-
-    # Map plan names to tiers
-    if "ultra" in plan_name or "unlimited" in plan_name:
-        return DEVICE_LIMITS["ultra"]
-    elif "premium" in plan_name or "pro" in plan_name:
+    plan_name = (subscription.plan_name or "premium").lower()
+    if "premium" in plan_name or "pro" in plan_name:
         return DEVICE_LIMITS["premium"]
-    elif "basic" in plan_name or "starter" in plan_name:
-        return DEVICE_LIMITS["basic"]
-    elif subscription.status == "trialing":
-        return DEVICE_LIMITS["trial"]
-
     return DEFAULT_DEVICE_LIMIT
 
 
@@ -713,15 +701,7 @@ async def get_device_limits(
 
     tier = "free"
     if subscription:
-        plan_name = (subscription.plan_name or "").lower()
-        if "ultra" in plan_name:
-            tier = "ultra"
-        elif "premium" in plan_name:
-            tier = "premium"
-        elif "basic" in plan_name:
-            tier = "basic"
-        elif subscription.status == "trialing":
-            tier = "trial"
+        tier = "premium"
 
     return {
         "tier": tier,
@@ -729,5 +709,6 @@ async def get_device_limits(
         "used": active_count,
         "remaining": max(0, device_limit - active_count),
         "can_add": active_count < device_limit,
-        "upgrade_url": "/subscription" if active_count >= device_limit else None
+        "upgrade_url": "/subscription" if active_count >= device_limit else None,
+        "data_cap_gb": float(os.getenv("FREE_TIER_MONTHLY_GB", "5")) if tier == "free" else None,
     }
