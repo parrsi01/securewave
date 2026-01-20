@@ -19,7 +19,19 @@ dependencies:
   flutter_spinkit: ^5.2.1
   flutter_svg: ^2.0.10+1
 
+dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
+
 flutter:
   uses-material-design: true
   assets:
     - assets/
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: assets/icon.png
+  remove_alpha_ios: true
+  macos: true
+  windows: true
+  linux: true
