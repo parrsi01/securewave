@@ -146,3 +146,11 @@ data/models/*.json
 results/
 securewave-tests/results/
 securewave-tests/results/*.json
+
+# Flutter app (SecureWave)
+!securewave_app/
+!securewave_app/assets/
+!securewave_app/assets/**/*
+!securewave_app/lib/
+!securewave_app/lib/**/*
+!securewave_app/pubspec.yaml
