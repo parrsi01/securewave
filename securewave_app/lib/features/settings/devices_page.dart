@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../widgets/buttons/primary_button.dart';
+import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
 import '../../widgets/loaders/app_loader.dart';
 import '../../widgets/loaders/inline_banner.dart';
@@ -28,10 +29,9 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
     final state = ref.watch(devicesControllerProvider);
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: ContentLayout(
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
             const SectionHeader(
               title: 'Manage devices',
@@ -59,42 +59,45 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
                 child: InlineBanner(message: state.errorMessage!),
               ),
             const SizedBox(height: 16),
-            Expanded(
-              child: state.isLoading && state.devices.isEmpty
-                  ? const AppLoader()
-                  : ListView.separated(
-                      itemCount: state.devices.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final device = state.devices[index];
-                        final name = device['device_name'] ?? 'Unnamed device';
-                        final id = device['id']?.toString() ?? '';
-                        final type = device['device_type'] ?? 'Device';
-                        return Card(
-                          child: ListTile(
-                            title: Text(name),
-                            subtitle: Text(type.toString().toUpperCase()),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'revoke') {
-                                  ref.read(devicesControllerProvider.notifier).revokeDevice(id);
-                                } else if (value == 'rotate') {
-                                  ref.read(devicesControllerProvider.notifier).rotateKeys(id);
-                                } else if (value == 'rename') {
-                                  _renameDevice(context, id, name.toString());
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(value: 'rename', child: Text('Rename device')),
-                                const PopupMenuItem(value: 'rotate', child: Text('Rotate keys')),
-                                const PopupMenuItem(value: 'revoke', child: Text('Revoke device')),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+            if (state.isLoading && state.devices.isEmpty)
+              const AppLoader()
+            else if (state.devices.isEmpty)
+              const InlineBanner(message: 'No devices yet. Add your first device above.')
+            else
+              ListView.separated(
+                itemCount: state.devices.length,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final device = state.devices[index];
+                  final name = device['device_name'] ?? 'Unnamed device';
+                  final id = device['id']?.toString() ?? '';
+                  final type = device['device_type'] ?? 'Device';
+                  return Card(
+                    child: ListTile(
+                      title: Text(name),
+                      subtitle: Text(type.toString().toUpperCase()),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'revoke') {
+                            ref.read(devicesControllerProvider.notifier).revokeDevice(id);
+                          } else if (value == 'rotate') {
+                            ref.read(devicesControllerProvider.notifier).rotateKeys(id);
+                          } else if (value == 'rename') {
+                            _renameDevice(context, id, name.toString());
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(value: 'rename', child: Text('Rename device')),
+                          const PopupMenuItem(value: 'rotate', child: Text('Rotate keys')),
+                          const PopupMenuItem(value: 'revoke', child: Text('Revoke device')),
+                        ],
+                      ),
                     ),
-            ),
+                  );
+                },
+              ),
           ],
         ),
       ),

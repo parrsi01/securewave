@@ -8,6 +8,7 @@ class AppTheme {
   static const Color error = Color(0xFFEF4444);
 
   static ThemeData get darkTheme => ThemeData(
+        useMaterial3: true,
         brightness: Brightness.dark,
         colorScheme: const ColorScheme.dark(
           primary: primary,
@@ -17,6 +18,7 @@ class AppTheme {
         ),
         scaffoldBackgroundColor: const Color(0xFF0F172A),
         cardColor: const Color(0xFF111827),
+        visualDensity: VisualDensity.adaptivePlatformDensity,
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF0F172A),
           elevation: 0,
@@ -60,6 +62,7 @@ class AppTheme {
       );
 
   static ThemeData get lightTheme => ThemeData(
+        useMaterial3: true,
         brightness: Brightness.light,
         colorScheme: const ColorScheme.light(
           primary: primary,
@@ -69,6 +72,7 @@ class AppTheme {
         ),
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
         cardColor: Colors.white,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           elevation: 0,

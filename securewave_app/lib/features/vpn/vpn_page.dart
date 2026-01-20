@@ -6,6 +6,7 @@ import '../../core/services/app_state.dart';
 import '../../core/services/vpn_service.dart';
 import '../../widgets/buttons/primary_button.dart';
 import '../../widgets/buttons/secondary_button.dart';
+import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
 import '../../widgets/loaders/app_loader.dart';
 import '../../widgets/loaders/inline_banner.dart';
@@ -21,57 +22,64 @@ class VpnPage extends ConsumerWidget {
     final status = ref.watch(vpnStatusProvider);
 
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const SectionHeader(
-            title: 'Provision VPN access',
-            subtitle: 'Choose a region here, connect inside the SecureWave app.',
-          ),
-          const SizedBox(height: 20),
-          servers.when(
-            data: (data) {
-              return DropdownButtonFormField<String>(
-                value: vpnState.selectedServerId,
-                decoration: const InputDecoration(labelText: 'Server region'),
-                items: data
-                    .map((server) => DropdownMenuItem<String>(
-                          value: server['server_id'] as String?,
-                          child: Text(server['location'] ?? 'Unknown'),
-                        ))
-                    .toList(),
-                onChanged: (value) => ref.read(vpnControllerProvider.notifier).selectServer(value),
-              );
-            },
-            loading: () => const AppLoader(),
-            error: (_, __) => const InlineBanner(message: 'Unable to load servers. Check your connection and try again.'),
-          ),
-          const SizedBox(height: 20),
-          status.when(
-            data: (data) => _StatusPanel(status: data, vpnState: vpnState),
-            loading: () => const AppLoader(),
-            error: (_, __) => const InlineBanner(message: 'Unable to read VPN status. Please refresh.'),
-          ),
-          const SizedBox(height: 20),
-          PrimaryButton(
-            label: _primaryLabel(vpnState.status),
-            isLoading: vpnState.isBusy,
-            onPressed: vpnState.isBusy
-                ? null
-                : () {
-                    if (vpnState.status == VpnStatus.connected) {
-                      ref.read(vpnControllerProvider.notifier).disconnect();
-                    } else {
-                      ref.read(vpnControllerProvider.notifier).connect();
-                    }
-                  },
-          ),
-          const SizedBox(height: 12),
-          SecondaryButton(
-            label: 'Run diagnostics',
-            onPressed: () => context.go('/tests'),
-          ),
-        ],
+      child: ContentLayout(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const SectionHeader(
+              title: 'Provision VPN access',
+              subtitle: 'Choose a region here, connect inside the SecureWave app.',
+            ),
+            const SizedBox(height: 20),
+            servers.when(
+              data: (data) {
+                return DropdownButtonFormField<String>(
+                  value: vpnState.selectedServerId,
+                  decoration: const InputDecoration(labelText: 'Server region'),
+                  items: data
+                      .map((server) => DropdownMenuItem<String>(
+                            value: server['server_id'] as String?,
+                            child: Text(server['location'] ?? 'Unknown'),
+                          ))
+                      .toList(),
+                  onChanged: (value) => ref.read(vpnControllerProvider.notifier).selectServer(value),
+                );
+              },
+              loading: () => const AppLoader(),
+              error: (_, __) =>
+                  const InlineBanner(message: 'Unable to load servers. Check your connection and try again.'),
+            ),
+            const SizedBox(height: 20),
+            status.when(
+              data: (data) => _StatusPanel(status: data, vpnState: vpnState),
+              loading: () => const AppLoader(),
+              error: (_, __) => const InlineBanner(message: 'Unable to read VPN status. Please refresh.'),
+            ),
+            if (vpnState.errorMessage != null) ...[
+              const SizedBox(height: 12),
+              InlineBanner(message: vpnState.errorMessage!),
+            ],
+            const SizedBox(height: 20),
+            PrimaryButton(
+              label: _primaryLabel(vpnState.status),
+              isLoading: vpnState.isBusy,
+              onPressed: vpnState.isBusy
+                  ? null
+                  : () {
+                      if (vpnState.status == VpnStatus.connected) {
+                        ref.read(vpnControllerProvider.notifier).disconnect();
+                      } else {
+                        ref.read(vpnControllerProvider.notifier).connect();
+                      }
+                    },
+            ),
+            const SizedBox(height: 12),
+            SecondaryButton(
+              label: 'Run diagnostics',
+              onPressed: () => context.go('/tests'),
+            ),
+          ],
+        ),
       ),
     );
   }
