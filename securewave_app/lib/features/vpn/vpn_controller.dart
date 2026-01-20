@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/services/api_service.dart';
+import '../../core/services/app_state.dart';
 import '../../core/services/vpn_service.dart';
 
 class VpnUiState {
@@ -15,6 +17,8 @@ class VpnUiState {
     this.dataRateDown = 0,
     this.dataRateUp = 0,
     this.lastSessionId,
+    this.lastConfig,
+    this.errorMessage,
   });
 
   final VpnStatus status;
@@ -23,6 +27,8 @@ class VpnUiState {
   final double dataRateDown;
   final double dataRateUp;
   final String? lastSessionId;
+  final String? lastConfig;
+  final String? errorMessage;
 
   VpnUiState copyWith({
     VpnStatus? status,
@@ -31,6 +37,9 @@ class VpnUiState {
     double? dataRateDown,
     double? dataRateUp,
     String? lastSessionId,
+    String? lastConfig,
+    String? errorMessage,
+    bool clearError = false,
   }) {
     return VpnUiState(
       status: status ?? this.status,
@@ -39,6 +48,8 @@ class VpnUiState {
       dataRateDown: dataRateDown ?? this.dataRateDown,
       dataRateUp: dataRateUp ?? this.dataRateUp,
       lastSessionId: lastSessionId ?? this.lastSessionId,
+      lastConfig: lastConfig ?? this.lastConfig,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 }
@@ -70,25 +81,39 @@ class VpnController extends StateNotifier<VpnUiState> {
 
   Future<void> connect() async {
     if (state.selectedServerId == null) return;
-    state = state.copyWith(isBusy: true);
+    state = state.copyWith(isBusy: true, clearError: true);
     try {
       final api = _ref.read(apiServiceProvider);
+      final config = await _allocateConfig(api);
+      if (config == null) {
+        state = state.copyWith(
+          isBusy: false,
+          errorMessage: 'Unable to provision VPN access. Please try again.',
+        );
+        return;
+      }
+      final sessionId = const Uuid().v4();
+      await _ref.read(vpnServiceProvider).connect(config: config);
       await api.post('/vpn/connect', data: {
-        'server_id': state.selectedServerId,
-        'session_id': const Uuid().v4(),
+        'region': state.selectedServerId,
+        'session_id': sessionId,
       });
-      await _ref.read(vpnServiceProvider).connect();
+      state = state.copyWith(lastSessionId: sessionId, lastConfig: config);
+    } on DioException catch (error) {
+      state = state.copyWith(errorMessage: _messageFromError(error));
     } finally {
       state = state.copyWith(isBusy: false);
     }
   }
 
   Future<void> disconnect() async {
-    state = state.copyWith(isBusy: true);
+    state = state.copyWith(isBusy: true, clearError: true);
     try {
       final api = _ref.read(apiServiceProvider);
       await api.post('/vpn/disconnect');
       await _ref.read(vpnServiceProvider).disconnect();
+    } on DioException catch (error) {
+      state = state.copyWith(errorMessage: _messageFromError(error));
     } finally {
       state = state.copyWith(isBusy: false, dataRateDown: 0, dataRateUp: 0);
     }
@@ -106,6 +131,37 @@ class VpnController extends StateNotifier<VpnUiState> {
   void _stopRateSimulation() {
     _rateTimer?.cancel();
     _rateTimer = null;
+  }
+
+  Future<String?> _allocateConfig(ApiService api) async {
+    try {
+      final deviceName = _safeDeviceName(_ref.read(deviceInfoProvider));
+      final response = await api.post('/vpn/allocate', data: {
+        'server_id': state.selectedServerId,
+        'device_name': deviceName,
+      });
+      final data = response.data as Map<String, dynamic>;
+      return data['config'] as String?;
+    } on DioException catch (error) {
+      state = state.copyWith(errorMessage: _messageFromError(error));
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _safeDeviceName(String raw) {
+    final trimmed = raw.replaceAll('\n', ' ').trim();
+    if (trimmed.length <= 60) return trimmed;
+    return trimmed.substring(0, 60);
+  }
+
+  String _messageFromError(DioException error) {
+    final data = error.response?.data;
+    if (data is Map<String, dynamic> && data['detail'] is String) {
+      return data['detail'] as String;
+    }
+    return 'Something went wrong. Please try again.';
   }
 
   @override

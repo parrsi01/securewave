@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:platform_info/platform_info.dart';
 
@@ -7,8 +8,12 @@ import 'api_service.dart';
 import 'vpn_service.dart';
 
 final vpnServiceProvider = Provider<VpnService>((ref) {
-  // Replace VpnServiceMock with a native implementation later.
-  return VpnServiceMock();
+  final platform = defaultTargetPlatform;
+  final supportsNative = !kIsWeb &&
+      (platform == TargetPlatform.iOS ||
+          platform == TargetPlatform.android ||
+          platform == TargetPlatform.macOS);
+  return supportsNative ? VpnServiceNative() : VpnServiceMock();
 });
 
 final vpnStatusProvider = StreamProvider<VpnStatus>((ref) {
@@ -18,9 +23,7 @@ final vpnStatusProvider = StreamProvider<VpnStatus>((ref) {
 
 final deviceInfoProvider = Provider<String>((ref) {
   final osName = platform.operatingSystem.name;
-  final device = platform.operatingSystem.version.isNotEmpty
-      ? '${platform.operatingSystem.version}'
-      : osName;
+  final device = platform.version.isNotEmpty ? platform.version : osName;
   return '$osName • $device';
 });
 

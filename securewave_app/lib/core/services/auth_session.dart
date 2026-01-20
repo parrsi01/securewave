@@ -4,15 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'secure_storage.dart';
 
 final authSessionProvider = ChangeNotifierProvider<AuthSession>((ref) {
-  return AuthSession(ref.read);
+  return AuthSession();
 });
 
 class AuthSession extends ChangeNotifier {
-  AuthSession(this._read) {
+  AuthSession() {
     _bootstrap();
   }
 
-  final Reader _read;
   final _storage = SecureStorage();
 
   bool _isAuthenticated = false;

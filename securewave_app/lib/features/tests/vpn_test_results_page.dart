@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../widgets/cards/info_card.dart';
+import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
 import 'vpn_test_controller.dart';
 
@@ -14,12 +15,11 @@ class VpnTestResultsPage extends ConsumerWidget {
     final result = state.result;
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+      child: ContentLayout(
         child: result == null
             ? const Center(child: Text('Run a test to view results.'))
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            : ListView(
+                padding: EdgeInsets.zero,
                 children: [
                   const SectionHeader(
                     title: 'SecureWave test summary',

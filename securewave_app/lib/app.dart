@@ -16,6 +16,7 @@ class SecureWaveApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
       routerConfig: router,
+      useInheritedMediaQuery: true,
       debugShowCheckedModeBanner: false,
     );
   }

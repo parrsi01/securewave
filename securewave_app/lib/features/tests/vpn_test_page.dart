@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../widgets/buttons/primary_button.dart';
+import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
 import '../../widgets/loaders/inline_banner.dart';
 import 'vpn_test_controller.dart';
@@ -15,10 +16,9 @@ class VpnTestPage extends ConsumerWidget {
     final state = ref.watch(vpnTestControllerProvider);
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: ContentLayout(
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
             const SectionHeader(
               title: 'Run SecureWave diagnostics',
