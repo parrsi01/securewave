@@ -360,7 +360,7 @@ class VPNDashboard {
   async connectVPN() {
     try {
       this.setConnectionState('CONNECTING');
-      this.connectionStatus.textContent = 'Preparing...';
+      this.connectionStatus.textContent = 'Provisioning...';
       this.connectionStatus.className = 'connection-status connecting';
 
       const response = await fetch('/api/vpn/allocate', {
@@ -386,7 +386,7 @@ class VPNDashboard {
       if (response.ok) {
         const data = await response.json();
         this.setConnectionState('READY');
-        this.connectionStatus.textContent = 'Ready to connect';
+        this.connectionStatus.textContent = 'Access ready';
         this.connectionStatus.className = 'connection-status connected';
         this.startConnectionTracking();
         this.updateConnectionDetails({
@@ -395,15 +395,15 @@ class VPNDashboard {
           mode: 'live'
         });
         this.updateUI();
-        this.showAlert('VPN is ready. Open WireGuard to connect.', 'success');
+        this.showAlert('Access is ready. Open the SecureWave app to connect.', 'success');
       } else if (response.status === 401) {
         this.handleLogout();
       } else {
-        throw new Error('Failed to connect VPN');
+        throw new Error('Failed to provision access');
       }
     } catch (error) {
       console.error('Failed to connect VPN:', error);
-      this.showAlert('Failed to connect VPN. Please try again.', 'error');
+      this.showAlert('Unable to provision access. Please try again.', 'error');
       this.vpnToggle.checked = false;
       this.setConnectionState('DISCONNECTED');
       this.updateUI();
@@ -413,7 +413,7 @@ class VPNDashboard {
   async disconnectVPN() {
     try {
       this.setConnectionState('DISCONNECTING');
-      this.connectionStatus.textContent = 'Disconnecting...';
+      this.connectionStatus.textContent = 'Removing access...';
       this.connectionStatus.className = 'connection-status disconnecting';
 
       // Stop connection tracking (Phase 4 enhancements)
@@ -509,15 +509,15 @@ class VPNDashboard {
     if (this.connectionDetails) {
       const location = serverInfo.location || (this.currentServer ? this.currentServer.location : 'Auto');
       const publicIp = serverInfo.public_ip || '10.8.0.10';
-      const mode = 'Control Plane';
+      const mode = 'App-managed';
       const detailsHTML = `
         <p><strong>Server:</strong> ${location}</p>
         <p><strong>IP Address:</strong> ${publicIp}</p>
         <p><strong>Protocol:</strong> WireGuard</p>
-        <p><strong>Mode:</strong> ${mode}</p>
+        <p><strong>Connection:</strong> ${mode}</p>
         <p><strong>Session:</strong> <span id="connectionDuration">00:00:00</span></p>
         <p><strong>Data:</strong> <span id="dataDownload">0 MB</span> down / <span id="dataUpload">0 MB</span> up</p>
-        <p><strong>Next step:</strong> Open WireGuard and connect your SecureWave tunnel.</p>
+        <p><strong>Next step:</strong> Open the SecureWave app and tap Connect.</p>
       `;
       this.connectionDetails.innerHTML = detailsHTML;
     }
@@ -526,28 +526,38 @@ class VPNDashboard {
   updateUI() {
     const isActive = ['READY', 'CONNECTING', 'DISCONNECTING', 'CONNECTED'].includes(this.connectionState);
     const isReady = this.connectionState === 'READY';
+    const statusText = document.getElementById('statusText');
 
     this.vpnToggle.checked = isActive;
 
     if (isReady) {
-      this.connectionStatus.textContent = 'Ready to connect';
+      this.connectionStatus.textContent = 'Access ready';
       this.connectionStatus.className = 'connection-status connected';
+      if (statusText) statusText.textContent = 'ACCESS READY';
       this.connectionDetails.style.display = 'block';
       this.serverSelect.disabled = false;
     } else if (this.connectionState === 'CONNECTING') {
-      this.connectionStatus.textContent = 'Preparing...';
+      this.connectionStatus.textContent = 'Provisioning...';
       this.connectionStatus.className = 'connection-status connecting';
+      if (statusText) statusText.textContent = 'PROVISIONING';
       this.connectionDetails.style.display = 'block';
       this.serverSelect.disabled = false;
     } else if (this.connectionState === 'DISCONNECTING') {
-      this.connectionStatus.textContent = 'Disconnecting...';
+      this.connectionStatus.textContent = 'Removing access...';
       this.connectionStatus.className = 'connection-status disconnecting';
+      if (statusText) statusText.textContent = 'REMOVING';
       this.connectionDetails.style.display = 'block';
       this.serverSelect.disabled = false;
+    } else if (this.connectionState === 'CONNECTED') {
+      this.connectionStatus.textContent = 'Connected in app';
+      this.connectionStatus.className = 'connection-status connected';
+      if (statusText) statusText.textContent = 'CONNECTED';
+      this.connectionDetails.style.display = 'block';
     } else {
       // Disconnected state
-      this.connectionStatus.textContent = 'Disconnected';
+      this.connectionStatus.textContent = 'Not provisioned';
       this.connectionStatus.className = 'connection-status disconnected';
+      if (statusText) statusText.textContent = 'NOT PROVISIONED';
       this.connectionDetails.style.display = 'none';
       this.serverSelect.disabled = false;
     }
