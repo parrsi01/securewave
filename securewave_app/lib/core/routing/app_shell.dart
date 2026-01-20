@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../services/auth_session.dart';
+import '../services/app_state.dart';
+import '../../widgets/cards/status_chip.dart';
 import '../utils/responsive.dart';
 
 class AppShell extends ConsumerWidget {
@@ -38,6 +40,29 @@ class AppShell extends ConsumerWidget {
     final currentIndex = _currentIndex(context);
     final isDesktop = Responsive.isDesktop(context);
     final title = _titleForRoute(context);
+    final vpnStatus = ref.watch(vpnStatusProvider);
+
+    final statusChip = vpnStatus.when(
+      data: (status) {
+        final label = status == VpnStatus.connected
+            ? 'Connected'
+            : status == VpnStatus.connecting
+                ? 'Connecting'
+                : status == VpnStatus.disconnecting
+                    ? 'Disconnecting'
+                    : 'Disconnected';
+        final color = status == VpnStatus.connected
+            ? const Color(0xFF10B981)
+            : status == VpnStatus.connecting
+                ? const Color(0xFF38BDF8)
+                : status == VpnStatus.disconnecting
+                    ? const Color(0xFFF59E0B)
+                    : const Color(0xFF94A3B8);
+        return StatusChip(label: label, color: color);
+      },
+      loading: () => const StatusChip(label: 'Checking', color: Color(0xFF94A3B8)),
+      error: (_, __) => const StatusChip(label: 'Unavailable', color: Color(0xFF94A3B8)),
+    );
 
     if (isDesktop) {
       return Scaffold(
@@ -60,6 +85,8 @@ class AppShell extends ConsumerWidget {
                 appBar: AppBar(
                   title: Text(title),
                   actions: [
+                    statusChip,
+                    const SizedBox(width: 12),
                     IconButton(
                       icon: const Icon(Icons.logout),
                       onPressed: () async {
@@ -81,6 +108,8 @@ class AppShell extends ConsumerWidget {
       appBar: AppBar(
         title: Text(title),
         actions: [
+          statusChip,
+          const SizedBox(width: 12),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {

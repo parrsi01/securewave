@@ -18,10 +18,19 @@ class AppTheme {
         ),
         scaffoldBackgroundColor: const Color(0xFF0F172A),
         cardColor: const Color(0xFF111827),
+        cardTheme: CardTheme(
+          color: const Color(0xFF111827),
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          margin: EdgeInsets.zero,
+        ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF0F172A),
           elevation: 0,
+        ),
+        listTileTheme: const ListTileThemeData(
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Color(0xFF0F172A),
@@ -42,10 +51,12 @@ class AppTheme {
           titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           bodyLarge: TextStyle(fontSize: 16, height: 1.5),
           bodyMedium: TextStyle(fontSize: 14, height: 1.5),
+          bodySmall: TextStyle(fontSize: 12, height: 1.5, color: Color(0xFF94A3B8)),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: const Color(0xFF1F2937),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Color(0xFF334155)),
@@ -72,10 +83,19 @@ class AppTheme {
         ),
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
         cardColor: Colors.white,
+        cardTheme: CardTheme(
+          color: Colors.white,
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          margin: EdgeInsets.zero,
+        ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           elevation: 0,
+        ),
+        listTileTheme: const ListTileThemeData(
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           selectedItemColor: primary,

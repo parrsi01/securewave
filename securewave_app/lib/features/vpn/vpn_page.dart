@@ -28,14 +28,29 @@ class VpnPage extends ConsumerWidget {
           children: [
             const SectionHeader(
               title: 'Provision VPN access',
-              subtitle: 'Choose a region here, connect inside the SecureWave app.',
+              subtitle: 'Choose a region here, then connect with SecureWave VPN.',
             ),
             const SizedBox(height: 20),
             servers.when(
               data: (data) {
+                if (vpnState.selectedServerId == null && data.isNotEmpty) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    ref.read(vpnControllerProvider.notifier).selectServer(
+                          data.first['server_id'] as String?,
+                        );
+                  });
+                }
+                final selected = data.firstWhere(
+                  (server) => server['server_id'] == vpnState.selectedServerId,
+                  orElse: () => {},
+                );
+                final selectedLabel = selected['location'] ?? 'Auto-select';
                 return DropdownButtonFormField<String>(
                   value: vpnState.selectedServerId,
-                  decoration: const InputDecoration(labelText: 'Server region'),
+                  decoration: InputDecoration(
+                    labelText: 'Server region',
+                    helperText: 'Selected: $selectedLabel',
+                  ),
                   items: data
                       .map((server) => DropdownMenuItem<String>(
                             value: server['server_id'] as String?,
@@ -50,33 +65,66 @@ class VpnPage extends ConsumerWidget {
                   const InlineBanner(message: 'Unable to load servers. Check your connection and try again.'),
             ),
             const SizedBox(height: 20),
-            status.when(
-              data: (data) => _StatusPanel(status: data, vpnState: vpnState),
-              loading: () => const AppLoader(),
-              error: (_, __) => const InlineBanner(message: 'Unable to read VPN status. Please refresh.'),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    status.when(
+                      data: (data) => _StatusPanel(status: data, vpnState: vpnState),
+                      loading: () => const AppLoader(),
+                      error: (_, __) => const InlineBanner(message: 'Unable to read VPN status. Please refresh.'),
+                    ),
+                    if (vpnState.errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      InlineBanner(message: vpnState.errorMessage!),
+                    ],
+                    const SizedBox(height: 16),
+                    PrimaryButton(
+                      label: _primaryLabel(vpnState.status),
+                      isLoading: vpnState.isBusy,
+                      onPressed: vpnState.isBusy
+                          ? null
+                          : () {
+                              if (vpnState.status == VpnStatus.connected) {
+                                ref.read(vpnControllerProvider.notifier).disconnect();
+                              } else {
+                                ref.read(vpnControllerProvider.notifier).connect();
+                              }
+                            },
+                    ),
+                    const SizedBox(height: 12),
+                    SecondaryButton(
+                      label: 'Run diagnostics',
+                      onPressed: () => context.go('/tests'),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            if (vpnState.errorMessage != null) ...[
-              const SizedBox(height: 12),
-              InlineBanner(message: vpnState.errorMessage!),
-            ],
-            const SizedBox(height: 20),
-            PrimaryButton(
-              label: _primaryLabel(vpnState.status),
-              isLoading: vpnState.isBusy,
-              onPressed: vpnState.isBusy
-                  ? null
-                  : () {
-                      if (vpnState.status == VpnStatus.connected) {
-                        ref.read(vpnControllerProvider.notifier).disconnect();
-                      } else {
-                        ref.read(vpnControllerProvider.notifier).connect();
-                      }
-                    },
+            const SizedBox(height: 24),
+            const SectionHeader(
+              title: 'Connection checklist',
+              subtitle: 'If the tunnel does not connect, verify each step.',
             ),
             const SizedBox(height: 12),
-            SecondaryButton(
-              label: 'Run diagnostics',
-              onPressed: () => context.go('/tests'),
+            _TroubleshootingCard(
+              items: const [
+                'Allow VPN permissions when prompted.',
+                'Keep SecureWave open until status turns Connected.',
+                'If stuck, tap Disconnect, wait 5 seconds, then retry.',
+                'Switch regions if the selected server is busy.',
+              ],
+            ),
+            const SizedBox(height: 16),
+            _TroubleshootingCard(
+              title: 'When to contact support',
+              items: const [
+                'Status stays Connecting for more than 60 seconds.',
+                'You see repeated provisioning errors.',
+                'Speed tests drop below expected baseline.',
+              ],
             ),
           ],
         ),
@@ -123,7 +171,19 @@ class _StatusPanel extends StatelessWidget {
           Text('Download: ${vpnState.dataRateDown.toStringAsFixed(1)} Mbps'),
           Text('Upload: ${vpnState.dataRateUp.toStringAsFixed(1)} Mbps'),
           const SizedBox(height: 8),
-          const Text('Connection happens in the SecureWave app.'),
+          Text(
+            vpnState.lastConfig == null ? 'Config: not provisioned yet' : 'Config: provisioned',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          if (vpnState.lastSessionId != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Session: ${vpnState.lastSessionId}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          const SizedBox(height: 8),
+          const Text('SecureWave connects using OS-level WireGuard tunnels.'),
         ],
       ),
     );
@@ -153,5 +213,44 @@ class _StatusPanel extends StatelessWidget {
       case VpnStatus.disconnected:
         return const Color(0xFF94A3B8);
     }
+  }
+}
+
+class _TroubleshootingCard extends StatelessWidget {
+  const _TroubleshootingCard({required this.items, this.title});
+
+  final String? title;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title != null) ...[
+              Text(title!, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+            ],
+            ...items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(item)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/api_service.dart';
+import '../../core/utils/api_error.dart';
 
 class DevicesState {
   const DevicesState({
@@ -44,8 +45,11 @@ class DevicesController extends StateNotifier<DevicesState> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
       state = state.copyWith(devices: data, isLoading: false);
-    } catch (_) {
-      state = state.copyWith(isLoading: false, errorMessage: 'Unable to load devices');
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: ApiError.messageFrom(error, fallback: 'Unable to load devices.'),
+      );
     }
   }
 
@@ -55,8 +59,11 @@ class DevicesController extends StateNotifier<DevicesState> {
       final api = _ref.read(apiServiceProvider);
       await api.post('/vpn/devices', data: {'device_name': name});
       await loadDevices();
-    } catch (_) {
-      state = state.copyWith(isLoading: false, errorMessage: 'Unable to add device');
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: ApiError.messageFrom(error, fallback: 'Unable to add device.'),
+      );
     }
   }
 
@@ -66,8 +73,11 @@ class DevicesController extends StateNotifier<DevicesState> {
       final api = _ref.read(apiServiceProvider);
       await api.patch('/vpn/devices/$id', data: {'device_name': name});
       await loadDevices();
-    } catch (_) {
-      state = state.copyWith(isLoading: false, errorMessage: 'Unable to rename device');
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: ApiError.messageFrom(error, fallback: 'Unable to rename device.'),
+      );
     }
   }
 
@@ -77,8 +87,11 @@ class DevicesController extends StateNotifier<DevicesState> {
       final api = _ref.read(apiServiceProvider);
       await api.delete('/vpn/devices/$id');
       await loadDevices();
-    } catch (_) {
-      state = state.copyWith(isLoading: false, errorMessage: 'Unable to revoke device');
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: ApiError.messageFrom(error, fallback: 'Unable to revoke device.'),
+      );
     }
   }
 
@@ -88,8 +101,11 @@ class DevicesController extends StateNotifier<DevicesState> {
       final api = _ref.read(apiServiceProvider);
       await api.post('/vpn/devices/$id/rotate-keys');
       await loadDevices();
-    } catch (_) {
-      state = state.copyWith(isLoading: false, errorMessage: 'Unable to rotate keys');
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: ApiError.messageFrom(error, fallback: 'Unable to rotate keys.'),
+      );
     }
   }
 }
