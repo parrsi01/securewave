@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../services/auth_session.dart';
 import '../services/app_state.dart';
+import '../services/vpn_service.dart';
 import '../../widgets/cards/status_chip.dart';
 import '../utils/responsive.dart';
 
