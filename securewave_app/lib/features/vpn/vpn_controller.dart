@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/app_state.dart';
 import '../../core/services/vpn_service.dart';
+import '../../core/utils/api_error.dart';
 
 class VpnUiState {
   const VpnUiState({
@@ -100,7 +101,7 @@ class VpnController extends StateNotifier<VpnUiState> {
       });
       state = state.copyWith(lastSessionId: sessionId, lastConfig: config);
     } on DioException catch (error) {
-      state = state.copyWith(errorMessage: _messageFromError(error));
+      state = state.copyWith(errorMessage: ApiError.messageFrom(error));
     } finally {
       state = state.copyWith(isBusy: false);
     }
@@ -113,7 +114,7 @@ class VpnController extends StateNotifier<VpnUiState> {
       await api.post('/vpn/disconnect');
       await _ref.read(vpnServiceProvider).disconnect();
     } on DioException catch (error) {
-      state = state.copyWith(errorMessage: _messageFromError(error));
+      state = state.copyWith(errorMessage: ApiError.messageFrom(error));
     } finally {
       state = state.copyWith(isBusy: false, dataRateDown: 0, dataRateUp: 0);
     }
@@ -143,7 +144,7 @@ class VpnController extends StateNotifier<VpnUiState> {
       final data = response.data as Map<String, dynamic>;
       return data['config'] as String?;
     } on DioException catch (error) {
-      state = state.copyWith(errorMessage: _messageFromError(error));
+      state = state.copyWith(errorMessage: ApiError.messageFrom(error));
       return null;
     } catch (_) {
       return null;
@@ -154,14 +155,6 @@ class VpnController extends StateNotifier<VpnUiState> {
     final trimmed = raw.replaceAll('\n', ' ').trim();
     if (trimmed.length <= 60) return trimmed;
     return trimmed.substring(0, 60);
-  }
-
-  String _messageFromError(DioException error) {
-    final data = error.response?.data;
-    if (data is Map<String, dynamic> && data['detail'] is String) {
-      return data['detail'] as String;
-    }
-    return 'Something went wrong. Please try again.';
   }
 
   @override

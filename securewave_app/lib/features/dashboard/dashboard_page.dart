@@ -22,16 +22,16 @@ class DashboardPage extends ConsumerWidget {
 
     return SafeArea(
       child: ContentLayout(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const SectionHeader(
-              title: 'SecureWave Control Center',
-              subtitle: 'Manage your plan, devices, and access from one place.',
-            ),
-            const SizedBox(height: 16),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              const SectionHeader(
+                title: 'SecureWave Control Center',
+                subtitle: 'Manage your plan, devices, and secure access in one place.',
+              ),
+              const SizedBox(height: 16),
+              Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
@@ -39,15 +39,15 @@ class DashboardPage extends ConsumerWidget {
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Account status', style: Theme.of(context).textTheme.titleLarge),
-                        const SizedBox(height: 4),
-                        Text('Active • Free plan', style: Theme.of(context).textTheme.bodyMedium),
-                      ],
-                    ),
-                    const StatusChip(label: 'Secure', color: Color(0xFF10B981)),
-                  ],
-                ),
+                    children: [
+                      Text('Account status', style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 4),
+                      Text('Active • Free plan (5 GB/month)', style: Theme.of(context).textTheme.bodyMedium),
+                    ],
+                  ),
+                  const StatusChip(label: 'Secure', color: Color(0xFF10B981)),
+                ],
+              ),
               ),
             ),
             const SizedBox(height: 16),
@@ -94,10 +94,10 @@ class DashboardPage extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 24),
-            const SectionHeader(
-              title: 'Quick actions',
-              subtitle: 'Provision access, manage devices, or run diagnostics.',
-            ),
+              const SectionHeader(
+                title: 'Quick actions',
+                subtitle: 'Provision access, manage devices, or run diagnostics.',
+              ),
             const SizedBox(height: 12),
             ActionCard(
               title: 'Provision VPN access',
@@ -118,13 +118,13 @@ class DashboardPage extends ConsumerWidget {
               onTap: () => context.go('/tests'),
             ),
             const SizedBox(height: 12),
-            usage.when(
-              loading: () => const AppLoader(size: 18),
-              data: (_) => Text('VPN connection is managed by the SecureWave app.',
-                  style: Theme.of(context).textTheme.bodySmall),
-              error: (_, __) => Text('VPN connection is managed by the SecureWave app.',
-                  style: Theme.of(context).textTheme.bodySmall),
-            ),
+          usage.when(
+            loading: () => const AppLoader(size: 18),
+            data: (_) => Text('VPN connection is managed by the SecureWave app.',
+                style: Theme.of(context).textTheme.bodySmall),
+            error: (_, __) => Text('VPN connection is managed by the SecureWave app.',
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
           ],
         ),
       ),

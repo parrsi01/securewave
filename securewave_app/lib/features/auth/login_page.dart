@@ -7,6 +7,7 @@ import '../../widgets/buttons/primary_button.dart';
 import '../../widgets/cards/status_chip.dart';
 import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
+import '../../widgets/loaders/inline_banner.dart';
 import 'auth_controller.dart';
 import '../../core/theme/app_assets.dart';
 
@@ -45,45 +46,51 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               const SizedBox(height: 16),
               const SectionHeader(
                 title: 'Welcome back',
-                subtitle: 'Sign in to manage your SecureWave account and VPN access.',
+                subtitle: 'Sign in to manage your devices, servers, and VPN access.',
               ),
               const SizedBox(height: 24),
-              Form(
-                key: _formKey,
-                autovalidateMode: _hasTyped ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _emailController,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      keyboardType: TextInputType.emailAddress,
-                      onChanged: (_) => setState(() => _hasTyped = true),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'Enter your email';
-                        if (!value.contains('@')) return 'Enter a valid email';
-                        return null;
-                      },
+              Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    autovalidateMode:
+                        _hasTyped ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: _emailController,
+                          decoration: const InputDecoration(labelText: 'Email'),
+                          keyboardType: TextInputType.emailAddress,
+                          onChanged: (_) => setState(() => _hasTyped = true),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) return 'Enter your email';
+                            if (!value.contains('@')) return 'Enter a valid email';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          decoration: const InputDecoration(labelText: 'Password'),
+                          obscureText: true,
+                          onChanged: (_) => setState(() => _hasTyped = true),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) return 'Enter your password';
+                            if (value.length < 8) return 'Minimum 8 characters';
+                            return null;
+                          },
+                        ),
+                        if (state.errorMessage != null) ...[
+                          const SizedBox(height: 16),
+                          InlineBanner(message: state.errorMessage!),
+                        ],
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      decoration: const InputDecoration(labelText: 'Password'),
-                      obscureText: true,
-                      onChanged: (_) => setState(() => _hasTyped = true),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'Enter your password';
-                        if (value.length < 8) return 'Minimum 8 characters';
-                        return null;
-                      },
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              if (state.errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(state.errorMessage!, style: const TextStyle(color: Colors.redAccent)),
-                ),
               const SizedBox(height: 24),
               PrimaryButton(
                 label: 'Continue',
@@ -104,6 +111,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               TextButton(
                 onPressed: () => context.go('/register'),
                 child: const Text('Create an account'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'SecureWave uses OS-level WireGuard tunnels. The app only manages your access.',
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
               ),
             ],
           ),

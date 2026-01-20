@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/services/auth_session.dart';
+import '../../core/utils/api_error.dart';
 
 class AuthState {
   const AuthState({
@@ -43,7 +44,12 @@ class AuthController extends StateNotifier<AuthState> {
             refreshToken: data['refresh_token'] as String?,
           );
     } catch (error) {
-      state = state.copyWith(errorMessage: 'Login failed. Check your details and try again.');
+      state = state.copyWith(
+        errorMessage: ApiError.messageFrom(
+          error,
+          fallback: 'We could not sign you in. Check your details and try again.',
+        ),
+      );
     } finally {
       state = state.copyWith(isLoading: false);
     }
@@ -66,7 +72,12 @@ class AuthController extends StateNotifier<AuthState> {
             );
       }
     } catch (error) {
-      state = state.copyWith(errorMessage: 'Registration failed. Please try again.');
+      state = state.copyWith(
+        errorMessage: ApiError.messageFrom(
+          error,
+          fallback: 'We could not create your account. Please try again.',
+        ),
+      );
     } finally {
       state = state.copyWith(isLoading: false);
     }

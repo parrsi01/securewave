@@ -37,7 +37,7 @@ class HomePage extends StatelessWidget {
                     Text('SecureWave',
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
                     const SizedBox(height: 8),
-                    Text('Private, fast VPN access managed by a simple control plane.',
+                    Text('Private, fast VPN access with a control plane built for real users.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
                     const SizedBox(height: 20),
                     PrimaryButton(label: 'Sign in', onPressed: () => context.go('/login')),
@@ -56,7 +56,7 @@ class HomePage extends StatelessWidget {
               const SizedBox(height: 12),
               const MetricCard(label: 'Step 2', value: 'Provision device', icon: Icons.devices),
               const SizedBox(height: 12),
-              const MetricCard(label: 'Step 3', value: 'Connect in app', icon: Icons.shield),
+              const MetricCard(label: 'Step 3', value: 'Connect in SecureWave', icon: Icons.shield),
               const SizedBox(height: 24),
               const SectionHeader(
                 title: 'Why SecureWave',

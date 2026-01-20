@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../widgets/cards/info_card.dart';
 import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
+import '../../widgets/loaders/inline_banner.dart';
 import 'vpn_test_controller.dart';
 
 class VpnTestResultsPage extends ConsumerWidget {
@@ -26,6 +27,13 @@ class VpnTestResultsPage extends ConsumerWidget {
                     subtitle: 'A quick view of your tunnel performance.',
                   ),
                   const SizedBox(height: 16),
+                  InlineBanner(
+                    message: result['status'] == 'PASSED'
+                        ? 'Tunnel performance is within expected range.'
+                        : 'Tunnel performance needs attention. Review the details below.',
+                    color: result['status'] == 'PASSED' ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  ),
+                  const SizedBox(height: 12),
                   InfoCard(
                     title: 'Overall score',
                     subtitle: '${result['score']} / 100 • ${result['status']}',
@@ -45,6 +53,11 @@ class VpnTestResultsPage extends ConsumerWidget {
                     title: 'Leak checks',
                     subtitle:
                         'DNS: ${result['dns_leak'] ? 'Leak detected' : 'Secure'} • IPv6: ${result['ipv6_leak'] ? 'Leak detected' : 'Secure'}',
+                  ),
+                  const SizedBox(height: 12),
+                  const InfoCard(
+                    title: 'Recommended next step',
+                    subtitle: 'If you see a failure, reconnect and rerun the test.',
                   ),
                 ],
               ),

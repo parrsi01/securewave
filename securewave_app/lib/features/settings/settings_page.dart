@@ -29,7 +29,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           children: [
             const SectionHeader(
               title: 'Account & Preferences',
-              subtitle: 'These settings sync with the SecureWave app.',
+              subtitle: 'These settings sync with your SecureWave devices.',
             ),
             const SizedBox(height: 16),
             Card(
@@ -43,7 +43,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             Card(
               child: SwitchListTile(
                 title: const Text('Auto-connect'),
-                subtitle: const Text('Connect when the app opens.'),
+                subtitle: const Text('Connect automatically when the app opens.'),
                 value: autoConnect,
                 onChanged: (value) => setState(() => autoConnect = value),
               ),
@@ -52,7 +52,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             Card(
               child: SwitchListTile(
                 title: const Text('Kill switch'),
-                subtitle: const Text('Block traffic if VPN disconnects.'),
+                subtitle: const Text('Block traffic if the tunnel disconnects.'),
                 value: killSwitch,
                 onChanged: (value) => setState(() => killSwitch = value),
               ),
@@ -61,7 +61,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             Card(
               child: ListTile(
                 title: const Text('Protocol'),
-                subtitle: const Text('WireGuard (managed by SecureWave app)'),
+                subtitle: const Text('WireGuard (managed by SecureWave)'),
                 trailing: const Icon(Icons.shield_outlined),
               ),
             ),
