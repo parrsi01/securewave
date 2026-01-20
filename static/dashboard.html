@@ -17,7 +17,7 @@
       align-items: center;
       justify-content: center;
       padding: 4rem 2rem;
-      background: linear-gradient(135deg, rgba(15, 118, 110, 0.08) 0%, rgba(255, 255, 255, 0.96) 55%, rgba(249, 115, 22, 0.08) 100%);
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(255, 255, 255, 0.96) 55%, rgba(56, 189, 248, 0.08) 100%);
       border-radius: var(--radius-2xl);
       border: 2px solid var(--primary-100);
       margin-bottom: 2.5rem;
@@ -81,7 +81,7 @@
     input:checked + .toggle-slider {
       background: var(--gradient-primary);
       border-color: var(--primary-600);
-      box-shadow: 0 20px 35px rgba(15, 118, 110, 0.35), var(--shadow-xl);
+      box-shadow: 0 20px 35px rgba(79, 70, 229, 0.35), var(--shadow-xl);
     }
 
     input:checked + .toggle-slider:before {
@@ -90,7 +90,7 @@
     }
 
     input:focus + .toggle-slider {
-      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.2), var(--shadow-xl);
+      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2), var(--shadow-xl);
     }
 
     .connection-details {
@@ -389,7 +389,7 @@
         </div>
         <h1 class="page-hero__title">Welcome Back, <span id="userName">User</span></h1>
         <p class="page-hero__subtitle">
-          Prepare your SecureWave tunnel and connect in the WireGuard app.
+          Manage your plan, devices, and server preferences. The SecureWave app handles the VPN connection.
         </p>
       </div>
     </section>
@@ -398,7 +398,7 @@
 
       <!-- VPN Toggle Section -->
       <div class="vpn-toggle-container">
-        <div class="vpn-status-text disconnected" id="statusText">DISCONNECTED</div>
+        <div class="vpn-status-text disconnected" id="statusText">NOT PROVISIONED</div>
 
         <label class="toggle-switch">
           <input type="checkbox" id="vpnToggle">
@@ -406,12 +406,12 @@
         </label>
 
         <div style="text-align: center; margin-bottom: 1.5rem;">
-          <div style="font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Status</div>
-          <div class="connection-status disconnected" id="connectionStatus">Disconnected</div>
+          <div style="font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Access Status</div>
+          <div class="connection-status disconnected" id="connectionStatus">Not provisioned</div>
         </div>
 
         <div class="server-selector">
-          <label for="serverSelect">Select VPN Server Location</label>
+          <label for="serverSelect">Preferred Server Region</label>
           <select id="serverSelect">
             <option value="">Loading servers...</option>
           </select>
@@ -419,13 +419,13 @@
 
         <div class="connection-details" id="connectionDetails" style="display: none;">
           <div class="text-muted" style="font-size: 0.9375rem;">
-            Tap Configure VPN to set up your tunnel and connect in the WireGuard app.
+            Provision access here, then connect inside the SecureWave app using your device profile.
           </div>
         </div>
 
         <div class="action-buttons">
           <a class="btn btn-secondary btn-lg" href="/vpn.html">
-            Configure VPN
+            Provision Access
           </a>
         </div>
       </div>

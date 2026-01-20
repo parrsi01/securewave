@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VPN Configuration - SecureWave VPN</title>
-  <meta name="description" content="Configure your SecureWave tunnel and connect securely using WireGuard.">
+  <meta name="description" content="Provision SecureWave VPN access, manage devices, and connect using the SecureWave app powered by WireGuard.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -269,13 +269,13 @@
   <main id="main-content">
     <section class="page-hero">
       <div class="container">
-        <div class="badge" id="modeBadge">Production Ready</div>
-        <h1 class="page-hero__title">VPN Configuration Center</h1>
+        <div class="badge" id="modeBadge">VPN Access Setup</div>
+        <h1 class="page-hero__title">Prepare Your SecureWave Connection</h1>
         <p class="page-hero__subtitle">
-          Prepare your SecureWave tunnel and connect in the WireGuard app.
+          This page manages your devices and server preferences. The VPN connection happens in the SecureWave app.
         </p>
         <p style="margin-top: 0.75rem; color: var(--text-tertiary); font-size: 0.95rem;">
-          SecureWave provisions your device and keeps your tunnel ready to connect.
+          Install the app, sign in, and tap Connect after provisioning access here.
         </p>
       </div>
     </section>
@@ -302,7 +302,7 @@
               </div>
               <div>
                 <h2 style="margin: 0; font-size: 1.25rem;">Select Server</h2>
-                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Choose your VPN server location</p>
+                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Choose your preferred server region</p>
               </div>
             </div>
 
@@ -345,7 +345,7 @@
 
             <!-- Generate Button -->
             <button id="generateConfig" class="btn btn-primary btn-block btn-lg" style="margin-bottom: 1rem;">
-              Enable VPN
+              Provision Access
             </button>
             <p style="margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--gray-500);">
               You can revoke devices anytime from Settings.
@@ -373,7 +373,7 @@
           </div>
         </div>
 
-        <!-- Right Column: Connect in WireGuard -->
+        <!-- Right Column: Connect in App -->
         <div class="card">
           <div class="card-body">
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
@@ -383,17 +383,17 @@
                 </svg>
               </div>
               <div>
-                <h2 style="margin: 0; font-size: 1.25rem;">Connect in WireGuard</h2>
-                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Scan or copy your SecureWave tunnel</p>
+                <h2 style="margin: 0; font-size: 1.25rem;">Connect in the SecureWave App</h2>
+                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Add your SecureWave profile, then tap Connect</p>
               </div>
             </div>
 
             <p style="color: var(--gray-600); margin-bottom: 1.5rem;">
-              Use the QR code for mobile, or copy the configuration into the WireGuard app on desktop.
+              Use the QR code on mobile or copy the configuration into the SecureWave app (powered by WireGuard).
             </p>
 
             <button id="openWireGuard" class="btn btn-secondary btn-block btn-lg" disabled style="margin-bottom: 0.75rem;">
-              Open WireGuard App
+              Open SecureWave App
             </button>
 
             <!-- Show QR Toggle -->
@@ -441,7 +441,7 @@
           </div>
 
           <p style="color: var(--gray-600); margin-bottom: 1rem;">
-            Run a real-world performance check of your active WireGuard tunnel. Results include latency,
+            Run a real-world performance check of your active SecureWave tunnel. Results include latency,
             throughput, DNS leak detection, IPv6 leak detection, and ad/tracker blocking effectiveness.
           </p>
           <p style="color: var(--gray-500); margin-bottom: 1.5rem; font-size: 0.875rem;">
@@ -941,11 +941,26 @@
       statusMessage.style.color = 'var(--success-800)';
     }
 
+    function normalizeErrorMessage(message) {
+      if (!message) return 'Something went wrong. Please try again.';
+      const lower = message.toLowerCase();
+      if (lower.includes('unauthorized') || lower.includes('invalid token')) {
+        return 'Please sign in again to continue.';
+      }
+      if (lower.includes('plan limit') || lower.includes('upgrade')) {
+        return 'Plan limit reached. Upgrade to Premium for more devices or data.';
+      }
+      if (lower.includes('server error') || lower.includes('failed')) {
+        return 'We could not complete that request. Please try again.';
+      }
+      return message;
+    }
+
     function showError(message) {
       statusAlert.classList.remove('hidden');
       statusAlert.style.backgroundColor = 'var(--error-50)';
       statusAlert.style.borderColor = 'var(--error-200)';
-      statusMessage.textContent = message;
+      statusMessage.textContent = normalizeErrorMessage(message);
       statusMessage.style.color = 'var(--error-800)';
     }
 
@@ -955,7 +970,7 @@
         return;
       }
       window.location.href = 'wireguard://';
-      showSuccess('Opening WireGuard. If it does not launch, install the app first.');
+      showSuccess('Opening SecureWave. If it does not launch, install the WireGuard app first.');
     }
 
     function copyConfigToClipboard() {
