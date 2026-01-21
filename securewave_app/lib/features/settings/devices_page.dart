@@ -39,7 +39,7 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
             ),
             const SizedBox(height: 16),
             const InlineBanner(
-              message: 'Free plans include one device. Upgrade to add more.',
+              message: 'Basic plans include one device. Upgrade to add more.',
               color: Color(0xFF38BDF8),
             ),
             const SizedBox(height: 16),

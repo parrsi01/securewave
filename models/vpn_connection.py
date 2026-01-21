@@ -4,6 +4,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Big
 from sqlalchemy.orm import relationship
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class VPNConnection(Base):
@@ -17,7 +18,7 @@ class VPNConnection(Base):
     # Connection details
     client_ip = Column(String, nullable=True)  # Allocated VPN IP (10.8.0.x)
     public_ip = Column(String, nullable=True)  # User's public IP
-    connected_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    connected_at = Column(DateTime, default=utcnow, nullable=False, index=True)
     disconnected_at = Column(DateTime, nullable=True)
 
     # Quality metrics (for optimizer feedback)
@@ -45,7 +46,7 @@ class VPNConnection(Base):
         if self.disconnected_at:
             return int((self.disconnected_at - self.connected_at).total_seconds())
         else:
-            return int((datetime.utcnow() - self.connected_at).total_seconds())
+            return int((utcnow() - self.connected_at).total_seconds())
 
     def to_dict(self):
         """Convert connection to dictionary for API responses"""

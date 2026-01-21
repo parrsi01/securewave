@@ -618,7 +618,13 @@ async def get_2fa_qr_code(
 
         # Generate provisioning URI
         import pyotp
-        totp = pyotp.TOTP(current_user.totp_secret)
+        decrypted_secret = auth_service._decrypt_value(current_user.totp_secret)
+        if not decrypted_secret:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="2FA not set up. Call /2fa/setup first"
+            )
+        totp = pyotp.TOTP(decrypted_secret)
         provisioning_uri = totp.provisioning_uri(
             name=current_user.email,
             issuer_name="SecureWave VPN"

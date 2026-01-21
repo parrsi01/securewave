@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class VPNDemoSession(Base):
@@ -16,5 +17,5 @@ class VPNDemoSession(Base):
     mock_ip = Column(String, nullable=True)
     connected_since = Column(DateTime, nullable=True)
     last_error = Column(String, nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow)
+    created_at = Column(DateTime, default=utcnow)

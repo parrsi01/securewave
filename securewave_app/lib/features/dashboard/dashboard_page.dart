@@ -42,7 +42,7 @@ class DashboardPage extends ConsumerWidget {
                     children: [
                       Text('Account status', style: Theme.of(context).textTheme.titleLarge),
                       const SizedBox(height: 4),
-                      Text('Active • Free plan (5 GB/month)', style: Theme.of(context).textTheme.bodyMedium),
+                      Text('Active • Basic plan (5 GB/month)', style: Theme.of(context).textTheme.bodyMedium),
                     ],
                   ),
                   const StatusChip(label: 'Secure', color: Color(0xFF10B981)),

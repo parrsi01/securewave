@@ -5,6 +5,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Float, Boo
 from sqlalchemy.orm import relationship
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class Subscription(Base):
@@ -45,7 +46,7 @@ class Subscription(Base):
     billing_cycle = Column(String, default="monthly")  # monthly, yearly
 
     # Important dates
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     activated_at = Column(DateTime, nullable=True)  # When subscription became active
     trial_start = Column(DateTime, nullable=True)
     trial_end = Column(DateTime, nullable=True)
@@ -104,7 +105,7 @@ class Subscription(Base):
         """Calculate days until next billing"""
         if not self.next_billing_date:
             return None
-        delta = self.next_billing_date - datetime.utcnow()
+        delta = self.next_billing_date - utcnow()
         return delta.days
 
     @property

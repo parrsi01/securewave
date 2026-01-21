@@ -8,6 +8,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Bool
 from sqlalchemy.orm import relationship
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class EmailLog(Base):
@@ -50,8 +51,8 @@ class EmailLog(Base):
     failed_at = Column(DateTime, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     # Relationships
     user = relationship("User", backref="email_logs")
@@ -101,8 +102,8 @@ class EmailTemplate(Base):
     is_active = Column(Boolean, default=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     def __repr__(self):
         return f"<EmailTemplate(name='{self.name}', subject='{self.subject}')>"

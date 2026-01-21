@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from cryptography.hazmat.primitives.twofactor.totp import TOTP
 from cryptography.hazmat.primitives.hashes import SHA1
 from cryptography.hazmat.backends import default_backend
+from cryptography.fernet import Fernet, InvalidToken
 import pyotp
 import qrcode
 from io import BytesIO
@@ -42,6 +43,7 @@ class AuthService:
         """Initialize authentication service"""
         self.db = db
         self.email_service = EmailService()
+        self.fernet = self._load_fernet()
 
     # ===========================
     # EMAIL VERIFICATION
@@ -229,6 +231,37 @@ class AuthService:
     # ===========================
     # TWO-FACTOR AUTHENTICATION
     # ===========================
+    def _load_fernet(self) -> Optional[Fernet]:
+        key = os.getenv("AUTH_ENCRYPTION_KEY") or os.getenv("WG_ENCRYPTION_KEY")
+        environment = os.getenv("ENVIRONMENT", "").lower()
+        if not key:
+            if environment == "production":
+                logger.error("AUTH_ENCRYPTION_KEY is required in production")
+                raise RuntimeError("AUTH_ENCRYPTION_KEY is required in production")
+            logger.warning("Auth encryption key not set - 2FA secrets stored with base64 fallback")
+            return None
+        key_bytes = key.encode()
+        if len(key_bytes) != 44:
+            key_bytes = base64.urlsafe_b64encode(key_bytes.ljust(32, b"0")[:32])
+        return Fernet(key_bytes)
+
+    def _encrypt_value(self, value: str) -> str:
+        if self.fernet:
+            return self.fernet.encrypt(value.encode()).decode()
+        return base64.b64encode(value.encode()).decode()
+
+    def _decrypt_value(self, value: str) -> str:
+        if not value:
+            return ""
+        if self.fernet:
+            try:
+                return self.fernet.decrypt(value.encode()).decode()
+            except InvalidToken:
+                pass
+        try:
+            return base64.b64decode(value.encode()).decode()
+        except Exception:
+            return value
 
     def generate_totp_secret(self) -> str:
         """Generate TOTP secret for 2FA"""
@@ -276,8 +309,8 @@ class AuthService:
             backup_codes = self.generate_backup_codes()
 
             # Store secret and backup codes (not enabled yet)
-            user.totp_secret = secret  # TODO: Encrypt this in production
-            user.totp_backup_codes = json.dumps(backup_codes)  # TODO: Encrypt this
+            user.totp_secret = self._encrypt_value(secret)
+            user.totp_backup_codes = self._encrypt_value(json.dumps(backup_codes))
             user.totp_enabled = False  # Don't enable until verified
             self.db.commit()
 
@@ -324,7 +357,10 @@ class AuthService:
                 return False, "2FA not set up"
 
             # Verify TOTP code
-            totp = pyotp.TOTP(user.totp_secret)
+            decrypted_secret = self._decrypt_value(user.totp_secret)
+            if not decrypted_secret:
+                return False, "2FA not set up"
+            totp = pyotp.TOTP(decrypted_secret)
             if not totp.verify(totp_code, valid_window=1):
                 return False, "Invalid verification code"
 
@@ -357,7 +393,10 @@ class AuthService:
         if not user.totp_enabled or not user.totp_secret:
             return False
 
-        totp = pyotp.TOTP(user.totp_secret)
+        decrypted_secret = self._decrypt_value(user.totp_secret)
+        if not decrypted_secret:
+            return False
+        totp = pyotp.TOTP(decrypted_secret)
         return totp.verify(totp_code, valid_window=1)
 
     def verify_backup_code(self, user: User, backup_code: str) -> bool:
@@ -375,12 +414,13 @@ class AuthService:
             if not user.totp_backup_codes:
                 return False
 
-            backup_codes = json.loads(user.totp_backup_codes)
+            decrypted_codes = self._decrypt_value(user.totp_backup_codes)
+            backup_codes = json.loads(decrypted_codes)
 
             if backup_code.upper() in backup_codes:
                 # Remove used code
                 backup_codes.remove(backup_code.upper())
-                user.totp_backup_codes = json.dumps(backup_codes)
+                user.totp_backup_codes = self._encrypt_value(json.dumps(backup_codes))
                 self.db.commit()
 
                 logger.info(f"✓ Backup code used for user: {user.email}")
