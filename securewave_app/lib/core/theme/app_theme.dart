@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   static const Color primary = Color(0xFF4F46E5);
@@ -27,6 +28,7 @@ class AppTheme {
         visualDensity: VisualDensity.adaptivePlatformDensity,
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF0F172A),
+          foregroundColor: Colors.white,
           elevation: 0,
         ),
         listTileTheme: const ListTileThemeData(
@@ -45,13 +47,15 @@ class AppTheme {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
         ),
-        textTheme: const TextTheme(
-          headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-          headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-          titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          bodyLarge: TextStyle(fontSize: 16, height: 1.5),
-          bodyMedium: TextStyle(fontSize: 14, height: 1.5),
-          bodySmall: TextStyle(fontSize: 12, height: 1.5, color: Color(0xFF94A3B8)),
+        textTheme: GoogleFonts.manropeTextTheme(
+          ThemeData(brightness: Brightness.dark).textTheme,
+        ).copyWith(
+          headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.6),
+          headlineMedium: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+          titleLarge: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          bodyLarge: const TextStyle(fontSize: 16, height: 1.5),
+          bodyMedium: const TextStyle(fontSize: 14, height: 1.5),
+          bodySmall: const TextStyle(fontSize: 12, height: 1.5, color: Color(0xFF94A3B8)),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
@@ -100,6 +104,16 @@ class AppTheme {
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           selectedItemColor: primary,
           unselectedItemColor: Color(0xFF64748B),
+        ),
+        textTheme: GoogleFonts.manropeTextTheme(
+          ThemeData(brightness: Brightness.light).textTheme,
+        ).copyWith(
+          headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.6),
+          headlineMedium: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+          titleLarge: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          bodyLarge: const TextStyle(fontSize: 16, height: 1.5),
+          bodyMedium: const TextStyle(fontSize: 14, height: 1.5),
+          bodySmall: const TextStyle(fontSize: 12, height: 1.5, color: Color(0xFF64748B)),
         ),
       );
 }

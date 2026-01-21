@@ -6,6 +6,7 @@ import '../services/auth_session.dart';
 import '../services/app_state.dart';
 import '../services/vpn_service.dart';
 import '../../widgets/cards/status_chip.dart';
+import '../../widgets/layouts/app_background.dart';
 import '../utils/responsive.dart';
 
 class AppShell extends ConsumerWidget {
@@ -97,7 +98,7 @@ class AppShell extends ConsumerWidget {
                     ),
                   ],
                 ),
-                body: child,
+                body: AppBackground(child: child),
               ),
             ),
           ],
@@ -120,7 +121,7 @@ class AppShell extends ConsumerWidget {
           ),
         ],
       ),
-      body: child,
+      body: AppBackground(child: child),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currentIndex,
         onTap: (index) => context.go(_destinations[index].route),

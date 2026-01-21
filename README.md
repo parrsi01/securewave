@@ -53,3 +53,6 @@ bash deploy_securewave_single_app.sh
 
 ## Demo Scope
 See `DEMO.md` for the exact demo flow.
+
+---
+© 2026 SecureWave. All rights reserved.
