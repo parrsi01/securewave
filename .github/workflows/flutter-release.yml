@@ -1,0 +1,107 @@
+name: Flutter Release Builds
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "app-v*"
+
+env:
+  FLUTTER_CHANNEL: "stable"
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+      - name: Install Linux deps
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+      - name: Build Linux
+        run: |
+          cd securewave_app
+          flutter pub get
+          flutter build linux --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: securewave-linux
+          path: securewave_app/build/linux/**/bundle/
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+      - name: Build Windows
+        run: |
+          cd securewave_app
+          flutter pub get
+          flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: securewave-windows
+          path: securewave_app/build/windows/**/Release/
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+      - name: Build macOS (unsigned)
+        run: |
+          cd securewave_app
+          flutter pub get
+          flutter build macos --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: securewave-macos
+          path: securewave_app/build/macos/Build/Products/Release/
+
+  build-android:
+    runs-on: ubuntu-latest
+    if: secrets.ANDROID_KEYSTORE_BASE64 != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > securewave_app/android/app/keystore.jks
+      - name: Build Android (release)
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd securewave_app
+          flutter pub get
+          flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: securewave-android
+          path: securewave_app/build/app/outputs/flutter-apk/*.apk
+
+  build-ios:
+    runs-on: macos-latest
+    if: secrets.APPLE_TEAM_ID != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+      - name: Build iOS (no codesign)
+        run: |
+          cd securewave_app
+          flutter pub get
+          flutter build ios --release --no-codesign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: securewave-ios
+          path: securewave_app/build/ios/iphoneos/
