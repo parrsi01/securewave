@@ -97,6 +97,10 @@ jobs:
           echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_securewave" >> $GITHUB_ENV
           echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
           echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
+          echo "ACCESS_TOKEN_SECRET=test-access-token-secret" >> $GITHUB_ENV
+          echo "REFRESH_TOKEN_SECRET=test-refresh-token-secret" >> $GITHUB_ENV
+          echo "DEMO_MODE=true" >> $GITHUB_ENV
+          echo "WG_MOCK_MODE=true" >> $GITHUB_ENV
           echo "ENABLE_APP_INSIGHTS=false" >> $GITHUB_ENV
           echo "ENABLE_SENTRY=false" >> $GITHUB_ENV
 
@@ -179,7 +183,7 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop' && secrets.AZURE_CREDENTIALS_STAGING != ''
     environment:
       name: staging
       url: https://securewave-staging.azurewebsites.net
@@ -215,7 +219,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.AZURE_CREDENTIALS != ''
     environment:
       name: production
       url: https://securewave.azurewebsites.net
@@ -285,7 +289,7 @@ jobs:
     name: Rollback on Failure
     runs-on: ubuntu-latest
     needs: [deploy-production]
-    if: failure()
+    if: failure() && secrets.AZURE_CREDENTIALS != ''
     steps:
       - name: Azure Login
         uses: azure/login@v1
