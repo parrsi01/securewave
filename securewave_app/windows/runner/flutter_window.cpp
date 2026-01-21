@@ -1,5 +1,7 @@
 #include "flutter_window.h"
 
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
@@ -26,6 +28,24 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  auto channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(), "securewave/vpn",
+      &flutter::StandardMethodCodec::GetInstance());
+
+  channel->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+        if (call.method_name() == "connect") {
+          result->Error("vpn_not_configured",
+                        "WireGuard backend not configured for Windows.");
+        } else if (call.method_name() == "disconnect") {
+          result->Error("vpn_not_configured",
+                        "WireGuard backend not configured for Windows.");
+        } else {
+          result->NotImplemented();
+        }
+      });
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();

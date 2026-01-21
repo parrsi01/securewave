@@ -27,5 +27,13 @@ and hands real WireGuard configs to native VPN tunnel providers.
 
 Follow `IOS_VPN_SETUP.md` to finish the Network Extension configuration in Xcode.
 
+## Android Setup
+
+Follow `ANDROID_VPN_SETUP.md` to integrate the WireGuard backend.
+
+## Windows Setup
+
+Follow `WINDOWS_VPN_SETUP.md` to integrate the WireGuard backend.
+
 ---
 © 2026 SecureWave. All rights reserved.
