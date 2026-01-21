@@ -351,6 +351,9 @@
           const data = await response.json();
 
           if (!response.ok) {
+            if (response.status === 503) {
+              throw new Error('Support is temporarily offline. Please email us at support@securewave.app and we will respond within 24 hours.');
+            }
             throw new Error(data.detail || 'Failed to submit form');
           }
 

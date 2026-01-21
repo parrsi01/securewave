@@ -9,6 +9,7 @@ from sqlalchemy.orm import relationship
 import enum
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class TicketPriority(str, enum.Enum):
@@ -65,8 +66,8 @@ class SupportTicket(Base):
     tags = Column(JSON, nullable=True)  # Tags for categorization
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     first_response_at = Column(DateTime, nullable=True)
     resolved_at = Column(DateTime, nullable=True)
     closed_at = Column(DateTime, nullable=True)
@@ -109,7 +110,7 @@ class SupportTicket(Base):
     @property
     def time_since_last_update(self) -> int:
         """Seconds since last update"""
-        return int((datetime.utcnow() - self.updated_at).total_seconds())
+        return int((utcnow() - self.updated_at).total_seconds())
 
     def to_dict(self, include_messages: bool = False) -> Dict:
         """Convert ticket to dictionary"""
@@ -161,7 +162,7 @@ class TicketMessage(Base):
     # Attachments (JSON array of file paths/URLs)
     attachments = Column(JSON, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     # Relationships
     ticket = relationship("SupportTicket", back_populates="messages")

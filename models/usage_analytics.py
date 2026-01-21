@@ -8,6 +8,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Float, Big
 from sqlalchemy.orm import relationship
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class UserUsageStats(Base):
@@ -61,9 +62,9 @@ class UserUsageStats(Base):
     average_ticket_resolution_hours = Column(Float, default=0.0)
 
     # Timestamps
-    first_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    last_activity_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    first_seen_at = Column(DateTime, default=utcnow, nullable=False)
+    last_activity_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     # Relationships
     user = relationship("User", backref="usage_stats")
@@ -122,7 +123,7 @@ class DailyUsageMetrics(Base):
     # Server usage
     servers_used = Column(JSON, nullable=True)  # List of server IDs
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     # Relationships
     user = relationship("User", backref="daily_metrics")
@@ -176,8 +177,8 @@ class AbuseDetectionLog(Base):
     resolved_at = Column(DateTime, nullable=True)
 
     # Timestamps
-    detected_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    detected_at = Column(DateTime, default=utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id], backref="abuse_logs")
@@ -212,7 +213,7 @@ class SystemMetrics(Base):
     __tablename__ = "system_metrics"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
 
     # User metrics
     total_users = Column(Integer, default=0)

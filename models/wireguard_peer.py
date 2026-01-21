@@ -8,6 +8,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, I
 from sqlalchemy.orm import relationship
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class WireGuardPeer(Base):
@@ -52,8 +53,8 @@ class WireGuardPeer(Base):
     connection_count = Column(Integer, default=0)  # Number of connection sessions
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     revoked_at = Column(DateTime, nullable=True)
 
     # Relationships
@@ -68,21 +69,21 @@ class WireGuardPeer(Base):
         """Check if peer needs key rotation"""
         if not self.next_key_rotation_at:
             return False
-        return datetime.utcnow() >= self.next_key_rotation_at
+        return utcnow() >= self.next_key_rotation_at
 
     @property
     def days_since_rotation(self) -> int:
         """Days since last key rotation"""
         if not self.last_key_rotation_at:
-            return (datetime.utcnow() - self.created_at).days
-        return (datetime.utcnow() - self.last_key_rotation_at).days
+            return (utcnow() - self.created_at).days
+        return (utcnow() - self.last_key_rotation_at).days
 
     @property
     def is_recently_active(self) -> bool:
         """Check if peer was active in last 24 hours"""
         if not self.last_handshake_at:
             return False
-        hours_since_handshake = (datetime.utcnow() - self.last_handshake_at).total_seconds() / 3600
+        hours_since_handshake = (utcnow() - self.last_handshake_at).total_seconds() / 3600
         return hours_since_handshake < 24
 
     def to_dict(self, include_private_key: bool = False) -> Dict:

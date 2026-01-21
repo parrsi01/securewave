@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
 
 from database.session import get_db
@@ -100,8 +100,7 @@ class DeviceResponse(BaseModel):
     key_version: int
     needs_rotation: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeviceListResponse(BaseModel):

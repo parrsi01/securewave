@@ -555,9 +555,29 @@ class SupportTicketService:
             user = self.db.query(User).filter(User.id == ticket.user_id).first()
             if not user:
                 return
-
-            # TODO: Implement proper email template
-            logger.info(f"📧 Would send ticket created email to {user.email}")
+            subject = f"SecureWave Support Ticket #{ticket.ticket_number}"
+            html_content = f"""
+            <html>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1F2937;">
+                <h2>We received your request</h2>
+                <p>Hi {user.full_name or user.email.split('@')[0]},</p>
+                <p>Your support ticket has been created. Our team will respond soon.</p>
+                <p><strong>Ticket:</strong> {ticket.ticket_number}</p>
+                <p><strong>Subject:</strong> {ticket.subject}</p>
+              </body>
+            </html>
+            """
+            text_content = (
+                f"We received your request.\n\n"
+                f"Ticket: {ticket.ticket_number}\n"
+                f"Subject: {ticket.subject}\n"
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content,
+            )
 
         except Exception as e:
             logger.error(f"Failed to send ticket created email: {e}")
@@ -568,8 +588,28 @@ class SupportTicketService:
             user = self.db.query(User).filter(User.id == ticket.user_id).first()
             if not user:
                 return
-
-            logger.info(f"📧 Would send status update email to {user.email}: {old_status.value} → {new_status.value}")
+            subject = f"Ticket #{ticket.ticket_number} status update"
+            html_content = f"""
+            <html>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1F2937;">
+                <h2>Your ticket status was updated</h2>
+                <p>Hi {user.full_name or user.email.split('@')[0]},</p>
+                <p>Ticket <strong>{ticket.ticket_number}</strong> changed from <strong>{old_status.value}</strong> to <strong>{new_status.value}</strong>.</p>
+                <p><strong>Subject:</strong> {ticket.subject}</p>
+              </body>
+            </html>
+            """
+            text_content = (
+                f"Ticket {ticket.ticket_number} status update:\n"
+                f"{old_status.value} → {new_status.value}\n"
+                f"Subject: {ticket.subject}\n"
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content,
+            )
 
         except Exception as e:
             logger.error(f"Failed to send status update email: {e}")
@@ -583,7 +623,28 @@ class SupportTicketService:
 
             # Only send if message is from support (not from user themselves)
             if message.user_id != ticket.user_id:
-                logger.info(f"📧 Would send new message email to {user.email}")
+                subject = f"New reply on ticket #{ticket.ticket_number}"
+                html_content = f"""
+                <html>
+                  <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1F2937;">
+                    <h2>We replied to your ticket</h2>
+                    <p>Hi {user.full_name or user.email.split('@')[0]},</p>
+                    <p>A support specialist responded to your ticket.</p>
+                    <p><strong>Message:</strong></p>
+                    <p>{message.message}</p>
+                  </body>
+                </html>
+                """
+                text_content = (
+                    f"We replied to your ticket {ticket.ticket_number}.\n\n"
+                    f"{message.message}\n"
+                )
+                self.email_service.send_email(
+                    to_email=user.email,
+                    subject=subject,
+                    html_content=html_content,
+                    text_content=text_content,
+                )
 
         except Exception as e:
             logger.error(f"Failed to send new message email: {e}")

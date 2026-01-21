@@ -10,6 +10,12 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18'
+  AZURE_RESOURCE_GROUP_PROD: SecureWaveRG
+  AZURE_WEBAPP_NAME_PROD: securewave-web
+  AZURE_WEBAPP_URL_PROD: https://securewave-web.azurewebsites.net
+  AZURE_RESOURCE_GROUP_STAGING: SecureWaveRG
+  AZURE_WEBAPP_NAME_STAGING: securewave-staging
+  AZURE_WEBAPP_URL_STAGING: https://securewave-staging.azurewebsites.net
 
 jobs:
   # ===========================
@@ -43,6 +49,10 @@ jobs:
       - name: Run Flake8 (linting)
         run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         continue-on-error: true
+
+      - name: Verify plan copy consistency
+        run: |
+          bash scripts/check_plan_copy.sh
 
   # ===========================
   # UNIT TESTS
@@ -186,7 +196,7 @@ jobs:
     if: github.ref == 'refs/heads/develop' && secrets.AZURE_CREDENTIALS_STAGING != ''
     environment:
       name: staging
-      url: https://securewave-staging.azurewebsites.net
+      url: ${{ env.AZURE_WEBAPP_URL_STAGING }}
 
     steps:
       - name: Checkout code
@@ -200,17 +210,17 @@ jobs:
       - name: Deploy to Azure Web App (Staging)
         uses: azure/webapps-deploy@v2
         with:
-          app-name: securewave-staging
+          app-name: ${{ env.AZURE_WEBAPP_NAME_STAGING }}
           package: .
 
       - name: Run database migrations (Staging)
         run: |
           # SSH or use Azure CLI to run migrations
-          az webapp ssh --name securewave-staging --resource-group securewave-staging-rg --command "cd /home/site/wwwroot && python -m alembic upgrade head"
+          az webapp ssh --name ${{ env.AZURE_WEBAPP_NAME_STAGING }} --resource-group ${{ env.AZURE_RESOURCE_GROUP_STAGING }} --command "cd /home/site/wwwroot && python -m alembic upgrade head"
 
       - name: Run smoke tests
         run: |
-          curl -f https://securewave-staging.azurewebsites.net/api/health || exit 1
+          curl -f ${{ env.AZURE_WEBAPP_URL_STAGING }}/api/health || exit 1
 
   # ===========================
   # DEPLOY TO PRODUCTION
@@ -222,7 +232,7 @@ jobs:
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.AZURE_CREDENTIALS != ''
     environment:
       name: production
-      url: https://securewave.azurewebsites.net
+      url: ${{ env.AZURE_WEBAPP_URL_PROD }}
 
     steps:
       - name: Checkout code
@@ -237,37 +247,37 @@ jobs:
         run: |
           # Backup database
           az postgres flexible-server backup create \
-            --resource-group securewave-rg \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP_PROD }} \
             --server-name securewave-db \
             --backup-name "pre-deploy-$(date +%Y%m%d-%H%M%S)"
 
       - name: Deploy to Azure Web App (Production)
         uses: azure/webapps-deploy@v2
         with:
-          app-name: securewave
+          app-name: ${{ env.AZURE_WEBAPP_NAME_PROD }}
           package: .
           slot-name: production
 
       - name: Run database migrations (Production)
         run: |
-          az webapp ssh --name securewave --resource-group securewave-rg --command "cd /home/site/wwwroot && python -m alembic upgrade head"
+          az webapp ssh --name ${{ env.AZURE_WEBAPP_NAME_PROD }} --resource-group ${{ env.AZURE_RESOURCE_GROUP_PROD }} --command "cd /home/site/wwwroot && python -m alembic upgrade head"
 
       - name: Warm up application
         run: |
           for i in {1..5}; do
-            curl -f https://securewave.azurewebsites.net/api/health
+            curl -f ${{ env.AZURE_WEBAPP_URL_PROD }}/api/health
             sleep 2
           done
 
       - name: Run smoke tests
         run: |
-          curl -f https://securewave.azurewebsites.net/api/health || exit 1
-          curl -f https://securewave.azurewebsites.net/ || exit 1
+          curl -f ${{ env.AZURE_WEBAPP_URL_PROD }}/api/health || exit 1
+          curl -f ${{ env.AZURE_WEBAPP_URL_PROD }}/ || exit 1
 
       - name: Purge CDN cache (if configured)
         run: |
           az cdn endpoint purge \
-            --resource-group securewave-rg \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP_PROD }} \
             --profile-name securewave-cdn \
             --name securewave \
             --content-paths "/*"
@@ -300,8 +310,8 @@ jobs:
         run: |
           # Swap back to previous slot or redeploy previous version
           az webapp deployment slot swap \
-            --resource-group securewave-rg \
-            --name securewave \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP_PROD }} \
+            --name ${{ env.AZURE_WEBAPP_NAME_PROD }} \
             --slot staging \
             --target-slot production \
             --action revert

@@ -1,5 +1,4 @@
 import os
-import crypt
 
 try:
     from passlib.context import CryptContext
@@ -7,6 +6,7 @@ try:
 except ImportError:
     CryptContext = None
     _HAS_PASSLIB = False
+    import crypt
 
 def _bcrypt_rounds() -> int:
     env_rounds = os.getenv("BCRYPT_ROUNDS")
@@ -22,8 +22,9 @@ def _bcrypt_rounds() -> int:
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=_bcrypt_rounds()) if _HAS_PASSLIB else None
 
-_CRYPT_BCRYPT = getattr(crypt, "METHOD_BLOWFISH", None)
-_CRYPT_FALLBACK = crypt.METHOD_SHA512
+if not _HAS_PASSLIB:
+    _CRYPT_BCRYPT = getattr(crypt, "METHOD_BLOWFISH", None)
+    _CRYPT_FALLBACK = crypt.METHOD_SHA512
 
 def _crypt_hash(password: str) -> str:
     method = _CRYPT_BCRYPT or _CRYPT_FALLBACK

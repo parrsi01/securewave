@@ -37,6 +37,9 @@ POSTGRES_PASSWORD=your_password
 SECRET_KEY=[REDACTED]
 JWT_SECRET_KEY=[REDACTED]
 
+# Encryption (required in production)
+AUTH_ENCRYPTION_KEY=your-fernet-key
+
 # Email/SMTP Configuration
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587

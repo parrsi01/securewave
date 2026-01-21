@@ -5,7 +5,7 @@ Processes webhook events from Stripe and PayPal
 
 import logging
 from typing import Dict, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from models.subscription import Subscription
@@ -13,6 +13,8 @@ from models.invoice import Invoice
 from models.user import User
 from services.stripe_service import StripeService
 from services.paypal_service import PayPalService
+from services.email_service import EmailService
+from services.enhanced_email_service import get_enhanced_email_service
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,35 @@ class PaymentWebhookHandler:
         self.db = db
         self.stripe = StripeService()
         self.paypal = PayPalService()
+        self.email_service = EmailService()
+        self.enhanced_email = get_enhanced_email_service(db)
+
+    def _get_user_for_subscription(self, subscription: Optional[Subscription]) -> Optional[User]:
+        if not subscription:
+            return None
+        return self.db.query(User).filter_by(id=subscription.user_id).first()
+
+    def _send_simple_billing_email(
+        self,
+        to_email: str,
+        subject: str,
+        heading: str,
+        message: str,
+        action_url: Optional[str] = None,
+    ) -> None:
+        html_action = f'<p><a href="{action_url}">Review billing details</a></p>' if action_url else ""
+        html_content = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1F2937;">
+            <h2>{heading}</h2>
+            <p>{message}</p>
+            {html_action}
+            <p>SecureWave Billing</p>
+          </body>
+        </html>
+        """
+        text_content = f"{heading}\n\n{message}\n{action_url or ''}\n\nSecureWave Billing"
+        self.email_service.send_email(to_email=to_email, subject=subject, html_content=html_content, text_content=text_content)
 
     # ===========================
     # STRIPE WEBHOOK HANDLERS
@@ -166,7 +197,15 @@ class PaymentWebhookHandler:
         ).first()
 
         if subscription:
-            # TODO: Send email notification about trial ending
+            user = self._get_user_for_subscription(subscription)
+            if user:
+                self.enhanced_email.send_subscription_expiring_email(
+                    to_email=user.email,
+                    user_name=user.full_name or user.email.split("@")[0],
+                    days_remaining=3,
+                    subscription_plan=subscription.plan_name,
+                    user_id=user.id,
+                )
             logger.info(f"✓ Trial ending soon for subscription: {subscription.id}")
 
         return {"subscription_id": stripe_sub_id, "action": "trial_ending_notification"}
@@ -254,9 +293,26 @@ class PaymentWebhookHandler:
             subscription.last_payment_status = "failed"
             subscription.failed_payment_count += 1
             subscription.status = "past_due"
+            user = self._get_user_for_subscription(subscription)
+            if user:
+                hosted_url = invoice_data.get("hosted_invoice_url")
+                self._send_simple_billing_email(
+                    to_email=user.email,
+                    subject="Payment failed - action required",
+                    heading="We couldn't process your payment",
+                    message="Your subscription payment failed. Please update your billing details to avoid service interruption.",
+                    action_url=hosted_url,
+                )
 
-            # TODO: Send payment failed email
+            self.db.commit()
 
+        invoice = self.db.query(Invoice).filter_by(
+            stripe_invoice_id=stripe_invoice_id
+        ).first()
+        if invoice:
+            invoice.status = "past_due"
+            invoice.attempt_count = (invoice.attempt_count or 0) + 1
+            invoice.next_payment_attempt = datetime.utcnow() + timedelta(days=1)
             self.db.commit()
 
         logger.warning(f"⚠ Invoice payment failed: {stripe_invoice_id}")
@@ -264,7 +320,31 @@ class PaymentWebhookHandler:
 
     def _stripe_invoice_action_required(self, invoice_data: Dict) -> Dict:
         """Handle invoice.payment_action_required (3D Secure)"""
-        # TODO: Send email with payment action link
+        stripe_invoice_id = invoice_data["id"]
+        subscription_id = invoice_data.get("subscription")
+        subscription = None
+        if subscription_id:
+            subscription = self.db.query(Subscription).filter_by(
+                stripe_subscription_id=subscription_id
+            ).first()
+        user = self._get_user_for_subscription(subscription)
+        if user:
+            hosted_url = invoice_data.get("hosted_invoice_url")
+            self._send_simple_billing_email(
+                to_email=user.email,
+                subject="Additional verification required",
+                heading="Complete your payment verification",
+                message="Your payment requires additional verification (3D Secure). Please complete the verification to keep your subscription active.",
+                action_url=hosted_url,
+            )
+        invoice = self.db.query(Invoice).filter_by(
+            stripe_invoice_id=stripe_invoice_id
+        ).first()
+        if invoice:
+            invoice.status = "open"
+            invoice.hosted_invoice_url = invoice_data.get("hosted_invoice_url")
+            invoice.internal_notes = "Payment action required (3D Secure)"
+            self.db.commit()
         return {"status": "action_required"}
 
     def _stripe_payment_succeeded(self, payment_intent_data: Dict) -> Dict:
@@ -288,7 +368,28 @@ class PaymentWebhookHandler:
         charge_id = charge_data["id"]
         amount_refunded = charge_data["amount_refunded"] / 100
 
-        # TODO: Process refund, update subscription/invoice
+        invoice = self.db.query(Invoice).filter_by(stripe_charge_id=charge_id).first()
+        if invoice:
+            invoice.status = "void"
+            invoice.amount_paid = max(0.0, invoice.amount_paid - amount_refunded)
+            invoice.amount_remaining = 0.0
+            invoice.internal_notes = f"Refunded ${amount_refunded:.2f} via Stripe"
+            self.db.commit()
+
+            subscription = self.db.query(Subscription).filter_by(id=invoice.subscription_id).first()
+            if subscription:
+                subscription.last_payment_status = "refunded"
+                subscription.status = "canceled"
+                self.db.commit()
+
+                user = self._get_user_for_subscription(subscription)
+                if user:
+                    self._send_simple_billing_email(
+                        to_email=user.email,
+                        subject="Refund processed",
+                        heading="Your refund is complete",
+                        message=f"A refund of ${amount_refunded:.2f} has been processed.",
+                    )
         logger.info(f"✓ Charge refunded: {charge_id} (${amount_refunded})")
         return {"charge_id": charge_id, "amount_refunded": amount_refunded}
 
@@ -459,8 +560,14 @@ class PaymentWebhookHandler:
             subscription.failed_payment_count += 1
             subscription.status = "past_due"
             self.db.commit()
-
-            # TODO: Send payment failed email
+            user = self._get_user_for_subscription(subscription)
+            if user:
+                self._send_simple_billing_email(
+                    to_email=user.email,
+                    subject="Payment failed - action required",
+                    heading="We couldn't process your PayPal payment",
+                    message="Your PayPal payment failed. Please update your billing details to avoid service interruption.",
+                )
 
         logger.warning(f"⚠ PayPal payment failed for subscription: {paypal_sub_id}")
         return {"subscription_id": paypal_sub_id, "status": "payment_failed"}
@@ -486,8 +593,38 @@ class PaymentWebhookHandler:
                 subscription.renewal_count += 1
                 subscription.status = "active"
                 self.db.commit()
+                existing_invoice = self.db.query(Invoice).filter_by(
+                    paypal_transaction_id=sale_id
+                ).first()
+                if not existing_invoice:
+                    invoice = Invoice(
+                        user_id=subscription.user_id,
+                        subscription_id=subscription.id,
+                        invoice_number=f"PP-{datetime.utcnow().strftime('%Y%m%d')}-{sale_id[-6:]}",
+                        provider="paypal",
+                        paypal_transaction_id=sale_id,
+                        paypal_invoice_id=resource.get("invoice_id"),
+                        amount_due=amount,
+                        amount_paid=amount,
+                        amount_remaining=0.0,
+                        currency=resource.get("amount", {}).get("currency") or "USD",
+                        subtotal=amount,
+                        status="paid",
+                        paid_at=datetime.utcnow(),
+                        description="PayPal subscription payment",
+                    )
+                    self.db.add(invoice)
+                    self.db.commit()
 
-                # TODO: Create invoice record
+                user = self._get_user_for_subscription(subscription)
+                if user:
+                    self.enhanced_email.send_subscription_renewed_email(
+                        to_email=user.email,
+                        user_name=user.full_name or user.email.split("@")[0],
+                        subscription_plan=subscription.plan_name,
+                        amount=amount,
+                        user_id=user.id,
+                    )
 
         logger.info(f"✓ PayPal payment completed: {sale_id} (${amount})")
         return {"sale_id": sale_id, "amount": amount}
@@ -497,7 +634,28 @@ class PaymentWebhookHandler:
         sale_id = resource.get("id")
         amount = float(resource.get("amount", {}).get("total", 0))
 
-        # TODO: Process refund, update subscription/invoice
+        invoice = self.db.query(Invoice).filter_by(paypal_transaction_id=sale_id).first()
+        if invoice:
+            invoice.status = "void"
+            invoice.amount_paid = max(0.0, invoice.amount_paid - amount)
+            invoice.amount_remaining = 0.0
+            invoice.internal_notes = f"Refunded ${amount:.2f} via PayPal"
+            self.db.commit()
+
+            subscription = self.db.query(Subscription).filter_by(id=invoice.subscription_id).first()
+            if subscription:
+                subscription.last_payment_status = "refunded"
+                subscription.status = "canceled"
+                self.db.commit()
+
+                user = self._get_user_for_subscription(subscription)
+                if user:
+                    self._send_simple_billing_email(
+                        to_email=user.email,
+                        subject="Refund processed",
+                        heading="Your refund is complete",
+                        message=f"A refund of ${amount:.2f} has been processed.",
+                    )
 
         logger.info(f"✓ PayPal payment refunded: {sale_id} (${amount})")
         return {"sale_id": sale_id, "amount_refunded": amount}

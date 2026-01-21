@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class User(Base):
@@ -12,7 +13,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
 
@@ -55,7 +56,7 @@ class User(Base):
         """Check if account is locked due to failed login attempts"""
         if not self.account_locked_until:
             return False
-        return datetime.utcnow() < self.account_locked_until
+        return utcnow() < self.account_locked_until
 
     @property
     def requires_email_verification(self) -> bool:

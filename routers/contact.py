@@ -1,9 +1,16 @@
 from datetime import datetime
+import os
+import logging
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, EmailStr, field_validator
 
+from services.email_service import EmailService
+
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+SUPPORT_INBOX = os.getenv("SUPPORT_INBOX") or os.getenv("SMTP_FROM_EMAIL") or "support@securewave.example.com"
 
 
 class ContactRequest(BaseModel):
@@ -60,18 +67,67 @@ def submit_contact_form(payload: ContactRequest):
     For now, it validates the input and returns success.
     """
     try:
-        # TODO: In production, implement actual message handling:
-        # - Store in database (ContactMessage model)
-        # - Send email via SendGrid/AWS SES
-        # - Create support ticket in ticketing system
-        # - Send auto-reply to user
+        email_service = EmailService()
+        if not email_service.enabled:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Contact service is temporarily unavailable. Please try again later."
+            )
+        support_subject = f"[SecureWave] {payload.subject}"
+        support_html = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1F2937;">
+            <h2>New Contact Request</h2>
+            <p><strong>Name:</strong> {payload.name}</p>
+            <p><strong>Email:</strong> {payload.email}</p>
+            <p><strong>Message:</strong></p>
+            <p>{payload.message}</p>
+          </body>
+        </html>
+        """
+        support_text = (
+            f"New Contact Request\n\n"
+            f"Name: {payload.name}\n"
+            f"Email: {payload.email}\n"
+            f"Subject: {payload.subject}\n\n"
+            f"{payload.message}\n"
+        )
 
-        # For now, just log the contact attempt (in production, use proper logging)
-        print(f"Contact form submission received:")
-        print(f"  Name: {payload.name}")
-        print(f"  Email: {payload.email}")
-        print(f"  Subject: {payload.subject}")
-        print(f"  Message: {payload.message[:100]}...")
+        confirmation_subject = "We received your message"
+        confirmation_html = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1F2937;">
+            <h2>Thanks for reaching out</h2>
+            <p>Hi {payload.name},</p>
+            <p>We received your message and a SecureWave specialist will respond within 24 hours.</p>
+            <p><strong>Your message:</strong></p>
+            <p>{payload.message}</p>
+          </body>
+        </html>
+        """
+        confirmation_text = (
+            f"Thanks for reaching out, {payload.name}.\n\n"
+            "We received your message and will respond within 24 hours.\n\n"
+            f"Your message:\n{payload.message}\n"
+        )
+
+        email_service.send_email(
+            to_email=SUPPORT_INBOX,
+            subject=support_subject,
+            html_content=support_html,
+            text_content=support_text,
+        )
+        email_service.send_email(
+            to_email=payload.email,
+            subject=confirmation_subject,
+            html_content=confirmation_html,
+            text_content=confirmation_text,
+        )
+
+        logger.info(
+            "Contact form submission processed",
+            extra={"email": payload.email, "subject": payload.subject},
+        )
 
         return ContactResponse(
             success=True,
@@ -79,8 +135,11 @@ def submit_contact_form(payload: ContactRequest):
             timestamp=datetime.utcnow().isoformat()
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error("Failed to submit contact form", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to submit contact form: {str(e)}"
+            detail="Failed to submit contact form. Please try again later."
         )

@@ -43,13 +43,16 @@ bash deploy_securewave_single_app.sh
 
 ## Runtime Endpoints
 - Health: `/health` and `/api/health`
-- Version: `/version`
 - Docs (non-production): `/api/docs`
 
 ## VPN Notes
 - The website does not create tunnels; users import configs into WireGuard apps.
 - Device limits are enforced by subscription tier.
 - Demo/test usage is supported; production use requires managed Postgres and secrets.
+
+## Required Production Secrets
+- `AUTH_ENCRYPTION_KEY` (Fernet key) is required in production for 2FA storage.
+- SMTP credentials are required for contact + billing notifications. If SMTP is missing, the contact form returns a 503 with a user-facing message.
 
 ## Demo Scope
 See `DEMO.md` for the exact demo flow.

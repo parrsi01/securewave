@@ -10,6 +10,7 @@ from sqlalchemy.orm import relationship
 import enum
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class GDPRRequestType(str, enum.Enum):
@@ -74,8 +75,8 @@ class GDPRRequest(Base):
     data_export_size_bytes = Column(Integer, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
     due_date = Column(DateTime, nullable=False)  # GDPR requires response within 30 days
 
@@ -135,8 +136,8 @@ class UserConsent(Base):
     extra_data = Column(JSON, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     # Relationships
     user = relationship("User", backref="consents")
@@ -209,8 +210,8 @@ class DataProcessingActivity(Base):
     next_review_date = Column(DateTime, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     def __repr__(self):
         return f"<DataProcessingActivity({self.activity_name})>"
@@ -245,7 +246,7 @@ class WarrantCanary(Base):
     published_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     # Relationships
     published_by = relationship("User", foreign_keys=[published_by_id])

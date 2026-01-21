@@ -5,6 +5,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Float, Boo
 from sqlalchemy.orm import relationship
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class Invoice(Base):
@@ -48,7 +49,7 @@ class Invoice(Base):
     status = Column(String, default="open", index=True)
 
     # Important dates
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     due_date = Column(DateTime, nullable=True)
     paid_at = Column(DateTime, nullable=True)
     voided_at = Column(DateTime, nullable=True)
@@ -97,14 +98,14 @@ class Invoice(Base):
         """Check if invoice is past due date"""
         if not self.due_date or self.is_paid:
             return False
-        return datetime.utcnow() > self.due_date
+        return utcnow() > self.due_date
 
     @property
     def days_overdue(self) -> Optional[int]:
         """Calculate days overdue"""
         if not self.is_overdue:
             return None
-        delta = datetime.utcnow() - self.due_date
+        delta = utcnow() - self.due_date
         return delta.days
 
     def to_dict(self, include_urls: bool = True) -> Dict:

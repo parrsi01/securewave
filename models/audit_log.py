@@ -8,6 +8,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Bool
 from sqlalchemy.orm import relationship
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class AuditLog(Base):
@@ -58,7 +59,7 @@ class AuditLog(Base):
     timestamp = Column(DateTime, nullable=True)  # Deprecated: use created_at
 
     # Timestamp (immutable)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
     # Relationships
     user = relationship("User", backref="audit_logs_new", foreign_keys=[user_id])
@@ -130,7 +131,7 @@ class PerformanceMetric(Base):
     extra_data = Column(JSON, nullable=True)
 
     # Timestamp
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
     # Relationships
     user = relationship("User", backref="performance_metrics")
@@ -170,7 +171,7 @@ class UptimeCheck(Base):
     extra_data = Column(JSON, nullable=True)
 
     # Timestamp
-    checked_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    checked_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
     # Table arguments
     __table_args__ = (
@@ -231,8 +232,8 @@ class ErrorLog(Base):
 
     # Error count (for deduplication)
     occurrence_count = Column(Integer, nullable=False, default=1)
-    first_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    last_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    first_seen_at = Column(DateTime, nullable=False, default=utcnow)
+    last_seen_at = Column(DateTime, nullable=False, default=utcnow)
 
     # Resolution
     is_resolved = Column(Boolean, nullable=False, default=False, index=True)
@@ -244,7 +245,7 @@ class ErrorLog(Base):
     extra_data = Column(JSON, nullable=True)
 
     # Timestamp
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
     # Relationships
     user = relationship("User", backref="error_logs", foreign_keys=[user_id])

@@ -4,6 +4,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
 
 from database.base import Base
+from utils.time_utils import utcnow
 
 
 class VPNServer(Base):
@@ -77,8 +78,8 @@ class VPNServer(Base):
     total_user_ratings = Column(Integer, default=0)
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     last_reboot_at = Column(DateTime, nullable=True)
     provisioned_at = Column(DateTime, nullable=True)  # When VM was fully provisioned
     decommissioned_at = Column(DateTime, nullable=True)
