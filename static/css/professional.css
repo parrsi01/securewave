@@ -169,6 +169,11 @@ body {
   box-sizing: border-box;
 }
 
+img,
+svg {
+  max-width: 100%;
+}
+
 html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
@@ -455,6 +460,8 @@ h1, h2, h3, h4, h5, h6 {
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border-primary);
   font-size: var(--font-size-sm);
+  min-width: 0;
+  gap: var(--space-3);
 }
 
 .panel-row:last-child {
@@ -464,11 +471,15 @@ h1, h2, h3, h4, h5, h6 {
 .panel-label {
   color: var(--text-tertiary);
   font-weight: var(--font-weight-medium);
+  min-width: 0;
+  word-break: break-word;
 }
 
 .panel-value {
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
+  min-width: 0;
+  word-break: break-word;
 }
 
 .panel-chip {
@@ -685,6 +696,13 @@ h1, h2, h3, h4, h5, h6 {
   background-color: var(--bg-secondary);
 }
 
+.card,
+.panel,
+.feature-card,
+.download-card {
+  overflow: hidden;
+}
+
 /* Feature Cards */
 .feature-card {
   background: var(--white);
@@ -804,6 +822,10 @@ h1, h2, h3, h4, h5, h6 {
 .grid {
   display: grid;
   gap: var(--space-6);
+}
+
+.grid > * {
+  min-width: 0;
 }
 
 .grid-2 {
@@ -953,6 +975,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .section {
   padding: var(--space-20) 0;
+  overflow: hidden;
 }
 
 .section-header {

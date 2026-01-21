@@ -39,6 +39,13 @@ class AppTheme {
           selectedItemColor: primary,
           unselectedItemColor: Color(0xFF94A3B8),
         ),
+        navigationRailTheme: const NavigationRailThemeData(
+          backgroundColor: Color(0xFF0F172A),
+          selectedIconTheme: IconThemeData(color: primary),
+          selectedLabelTextStyle: TextStyle(color: primary, fontWeight: FontWeight.w600),
+          unselectedIconTheme: IconThemeData(color: Color(0xFF94A3B8)),
+          unselectedLabelTextStyle: TextStyle(color: Color(0xFF94A3B8)),
+        ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: primary,
@@ -104,6 +111,12 @@ class AppTheme {
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           selectedItemColor: primary,
           unselectedItemColor: Color(0xFF64748B),
+        ),
+        navigationRailTheme: const NavigationRailThemeData(
+          selectedIconTheme: IconThemeData(color: primary),
+          selectedLabelTextStyle: TextStyle(color: primary, fontWeight: FontWeight.w600),
+          unselectedIconTheme: IconThemeData(color: Color(0xFF64748B)),
+          unselectedLabelTextStyle: TextStyle(color: Color(0xFF64748B)),
         ),
         textTheme: GoogleFonts.manropeTextTheme(
           ThemeData(brightness: Brightness.light).textTheme,

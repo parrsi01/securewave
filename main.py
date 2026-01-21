@@ -46,7 +46,6 @@ class RedactFilter(logging.Filter):
         record.request_id = request_id_ctx.get("-")
         return True
 
-
 class JsonFormatter(logging.Formatter):
     """Minimal JSON formatter for logs."""
 
