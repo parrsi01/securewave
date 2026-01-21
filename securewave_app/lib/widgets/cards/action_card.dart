@@ -16,16 +16,17 @@ class ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.15),
-          child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+          backgroundColor: color.withOpacity(0.15),
+          child: Icon(icon, color: color),
         ),
         title: Text(title),
         subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: Icon(Icons.chevron_right, color: color),
         onTap: onTap,
       ),
     );

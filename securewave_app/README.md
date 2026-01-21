@@ -26,3 +26,6 @@ and hands real WireGuard configs to native VPN tunnel providers.
 ## iOS Setup
 
 Follow `IOS_VPN_SETUP.md` to finish the Network Extension configuration in Xcode.
+
+---
+© 2026 SecureWave. All rights reserved.

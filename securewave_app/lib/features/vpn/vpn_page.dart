@@ -166,10 +166,26 @@ class _StatusPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Status: $label', style: Theme.of(context).textTheme.titleLarge),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: Text(
+              'Status: $label',
+              key: ValueKey(label),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text('Download: ${vpnState.dataRateDown.toStringAsFixed(1)} Mbps'),
-          Text('Upload: ${vpnState.dataRateUp.toStringAsFixed(1)} Mbps'),
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 180),
+            opacity: status == VpnStatus.connected ? 1 : 0.6,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Download: ${vpnState.dataRateDown.toStringAsFixed(1)} Mbps'),
+                Text('Upload: ${vpnState.dataRateUp.toStringAsFixed(1)} Mbps'),
+              ],
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             vpnState.lastConfig == null ? 'Config: not provisioned yet' : 'Config: provisioned',
