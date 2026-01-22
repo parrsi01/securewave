@@ -89,7 +89,7 @@ class VpnController extends StateNotifier<VpnUiState> {
       if (config == null) {
         state = state.copyWith(
           isBusy: false,
-          errorMessage: 'Unable to provision VPN access. Please try again.',
+          errorMessage: 'Unable to connect. Please try again.',
         );
         return;
       }

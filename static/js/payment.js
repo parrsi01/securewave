@@ -21,7 +21,7 @@ const PLANS = {
       'Unlimited bandwidth',
       '50+ server locations',
       'Priority support',
-      'WireGuard protocol'
+      'SecureWave app connection'
     ]
   },
   free: {

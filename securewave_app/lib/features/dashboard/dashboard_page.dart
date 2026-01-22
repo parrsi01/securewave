@@ -29,7 +29,7 @@ class DashboardPage extends ConsumerWidget {
           children: [
             const SectionHeader(
               title: 'SecureWave Control Center',
-              subtitle: 'Manage your plan, devices, and secure access in one place.',
+              subtitle: 'Manage your plan, devices, and app connection in one place.',
             ),
             const SizedBox(height: 16),
             Card(
@@ -124,7 +124,7 @@ class DashboardPage extends ConsumerWidget {
               minItemWidth: 180,
               children: [
                 SecondaryButton(
-                  label: 'Provision VPN',
+                  label: 'Open VPN',
                   icon: Icons.shield_outlined,
                   onPressed: () => context.go('/vpn'),
                 ),
@@ -145,8 +145,8 @@ class DashboardPage extends ConsumerWidget {
               minItemWidth: 260,
               children: [
                 ActionCard(
-                  title: 'Provision VPN access',
-                  subtitle: 'Select a server region and prep your device.',
+                  title: 'Open VPN',
+                  subtitle: 'Connect or disconnect in the SecureWave app.',
                   icon: Icons.shield_outlined,
                   onTap: () => context.go('/vpn'),
                 ),

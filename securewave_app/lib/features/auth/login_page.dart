@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/buttons/primary_button.dart';
 import '../../widgets/cards/status_chip.dart';
+import '../../core/theme/app_theme.dart';
 import '../../widgets/layouts/app_background.dart';
 import '../../widgets/layouts/brand_logo.dart';
 import '../../widgets/layouts/content_layout.dart';
@@ -42,11 +43,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               children: [
                 const BrandLogo(size: 44),
                 const SizedBox(height: 16),
-                const StatusChip(label: 'Secure sign-in', color: Color(0xFF38BDF8)),
+                const StatusChip(label: 'Secure sign-in', color: AppTheme.primary),
                 const SizedBox(height: 16),
                 const SectionHeader(
                   title: 'Welcome back',
-                  subtitle: 'Sign in to manage your devices and VPN access.',
+                  subtitle: 'Sign in to manage your plan and app access.',
                 ),
                 const SizedBox(height: 24),
                 Card(
@@ -115,7 +116,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'SecureWave uses OS-level WireGuard tunnels. The app only manages your access.',
+                  'The SecureWave app handles VPN connection automatically after you sign in.',
                   style: Theme.of(context).textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),

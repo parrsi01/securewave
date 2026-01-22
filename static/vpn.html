@@ -3,240 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VPN Configuration - SecureWave VPN</title>
-  <meta name="description" content="Provision SecureWave VPN access, manage devices, and connect using the SecureWave app powered by WireGuard.">
+  <title>VPN Status - SecureWave</title>
+  <meta name="description" content="View your SecureWave status, regions, and app instructions. The app connects automatically.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <style>
-    #qrCodeDisplay img {
-      border-radius: var(--radius-lg);
-      max-width: 250px;
-    }
-    .server-select {
-      width: 100%;
-      padding: 0.75rem 1rem;
-      border: 1px solid var(--gray-300);
-      border-radius: var(--radius-md);
-      background-color: var(--bg-primary);
-      font-size: 1rem;
-      margin-bottom: 1rem;
-    }
-    .server-select:focus {
-      outline: none;
-      border-color: var(--primary-500);
-      box-shadow: 0 0 0 3px var(--primary-100);
-    }
-    .server-option-details {
-      font-size: 0.75rem;
-      color: var(--gray-500);
-    }
-    .config-status {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 0.75rem;
-      border-radius: var(--radius-md);
-      font-size: 0.875rem;
-      margin-bottom: 1rem;
-    }
-    .config-status.success {
-      background-color: var(--success-50);
-      color: var(--success-700);
-      border: 1px solid var(--success-200);
-    }
-    .config-status.warning {
-      background-color: var(--warning-50);
-      color: var(--warning-700);
-      border: 1px solid var(--warning-200);
-    }
-    .config-status.error {
-      background-color: var(--error-50);
-      color: var(--error-700);
-      border: 1px solid var(--error-200);
-    }
-    .loading-spinner {
-      display: inline-block;
-      width: 1rem;
-      height: 1rem;
-      border: 2px solid var(--gray-200);
-      border-top-color: var(--primary-600);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    .server-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      padding: 0.125rem 0.5rem;
-      border-radius: var(--radius-full);
-      font-size: 0.7rem;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-    .server-badge.healthy {
-      background-color: var(--success-100);
-      color: var(--success-700);
-    }
-    .server-badge.degraded {
-      background-color: var(--warning-100);
-      color: var(--warning-700);
-    }
-    .copy-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 0.25rem;
-      color: var(--gray-500);
-      transition: color 0.2s;
-    }
-    .copy-btn:hover {
-      color: var(--primary-600);
-    }
-    .config-preview {
-      background-color: var(--gray-900);
-      color: var(--gray-100);
-      padding: 1rem;
-      border-radius: var(--radius-md);
-      font-family: monospace;
-      font-size: 0.75rem;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-
-    /* VPN Test Results Styles */
-    .test-loading {
-      text-align: center;
-      padding: 3rem;
-    }
-    .spinner-large {
-      width: 3rem;
-      height: 3rem;
-      border: 3px solid var(--gray-200);
-      border-top-color: var(--primary-600);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 1rem;
-    }
-    .test-results {
-      background-color: var(--bg-secondary);
-      border-radius: var(--radius-lg);
-      padding: 1.5rem;
-    }
-    .test-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--gray-200);
-    }
-    .test-score {
-      text-align: center;
-    }
-    .test-score .score-value {
-      font-size: 3rem;
-      font-weight: 700;
-      line-height: 1;
-    }
-    .test-score .score-label {
-      font-size: 1.25rem;
-      color: var(--gray-500);
-    }
-    .test-score.success .score-value { color: var(--success-600); }
-    .test-score.warning .score-value { color: var(--warning-600); }
-    .test-score.danger .score-value { color: var(--error-600); }
-    .test-status {
-      padding: 0.5rem 1rem;
-      border-radius: var(--radius-md);
-      font-weight: 600;
-      font-size: 0.875rem;
-    }
-    .test-status.success {
-      background-color: var(--success-100);
-      color: var(--success-700);
-    }
-    .test-status.danger {
-      background-color: var(--error-100);
-      color: var(--error-700);
-    }
-    .test-vpn-info {
-      margin-bottom: 1.5rem;
-    }
-    .test-metrics {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 1rem;
-    }
-    .metric {
-      background-color: var(--bg-primary);
-      padding: 1rem;
-      border-radius: var(--radius-md);
-      text-align: center;
-    }
-    .metric-label {
-      font-size: 0.75rem;
-      color: var(--gray-500);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 0.5rem;
-    }
-    .metric-value {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    .metric-value.text-success { color: var(--success-600); }
-    .metric-value.text-danger { color: var(--error-600); }
-    .metric-change {
-      font-size: 0.75rem;
-      margin-top: 0.25rem;
-    }
-    .metric-change.good { color: var(--success-600); }
-    .metric-change.bad { color: var(--error-600); }
-    .test-footer {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 1.5rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--gray-200);
-      font-size: 0.75rem;
-      color: var(--gray-500);
-    }
-    .badge {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      border-radius: var(--radius-full);
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-    .badge-success {
-      background-color: var(--success-100);
-      color: var(--success-700);
-    }
-    .badge-warning {
-      background-color: var(--warning-100);
-      color: var(--warning-700);
-    }
-    .spinner {
-      display: inline-block;
-      width: 1rem;
-      height: 1rem;
-      border: 2px solid currentColor;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin-right: 0.5rem;
-    }
-  </style>
 </head>
 <body>
   <a href="#main-content" class="skip-to-main">Skip to main content</a>
@@ -255,8 +28,9 @@
         <li><a href="/contact.html">Contact</a></li>
         <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
         <li><a href="/settings.html" class="hidden" id="settingsLink">Settings</a></li>
+        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
         <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
-        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
+        <li><a href="/register.html" class="btn btn-outline btn-sm" id="registerBtn">Create Account</a></li>
         <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
       </ul>
       <button class="navbar-toggle" aria-label="Toggle navigation menu">
@@ -270,301 +44,83 @@
   <main id="main-content">
     <section class="page-hero">
       <div class="container">
-        <div class="badge" id="modeBadge">VPN Access Setup</div>
-        <h1 class="page-hero__title">Prepare Your SecureWave Connection</h1>
+        <div class="badge" id="modeBadge">VPN Status</div>
+        <h1 class="page-hero__title">Connection Status & Regions</h1>
         <p class="page-hero__subtitle">
-          This page manages your devices and server preferences. The VPN connection happens in the SecureWave app.
+          Use this page to view your status and preferred regions. The SecureWave app handles the connection.
         </p>
         <p style="margin-top: 0.75rem; color: var(--text-tertiary); font-size: 0.95rem;">
-          Install the app, sign in, and tap Connect after provisioning access here.
+          Download the app, sign in, and toggle on when you are ready to connect.
         </p>
       </div>
     </section>
 
     <div class="container page-section">
-      <!-- Status Alert -->
-      <div id="statusAlert" class="hidden" style="background-color: var(--primary-50); border: 1px solid var(--primary-200); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 2rem; display: flex; align-items: center; gap: 0.75rem;">
-        <svg style="width: 1.25rem; height: 1.25rem; color: var(--primary-600);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        <p id="statusMessage" style="margin: 0; color: var(--primary-800); font-weight: 500;"></p>
-      </div>
-
-      <!-- Two Column Layout -->
-      <div class="grid grid-2" style="margin-bottom: 3rem;">
-        <!-- Left Column: Server Selection & Config Generation -->
-        <div class="card">
-          <div class="card-body">
-            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-              <div style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem; background-color: var(--primary-600); border-radius: var(--radius-md); box-shadow: var(--shadow-lg);">
-                <svg style="width: 1.5rem; height: 1.5rem; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
-                </svg>
-              </div>
-              <div>
-                <h2 style="margin: 0; font-size: 1.25rem;">Select Server</h2>
-                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Choose your preferred server region</p>
-              </div>
-            </div>
-
-            <!-- Device Selection -->
-            <label for="deviceSelect" style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Device</label>
-            <select id="deviceSelect" class="server-select">
-              <option value="">Loading devices...</option>
-            </select>
-            <p id="deviceLimitInfo" style="margin: -0.5rem 0 1rem 0; font-size: 0.75rem; color: var(--gray-500);"></p>
-
-            <div class="grid grid-2" style="gap: 0.75rem; margin-bottom: 1.25rem;">
-              <input id="newDeviceName" class="server-select" style="margin: 0;" type="text" placeholder="Device name (e.g., MacBook Pro)">
-              <select id="newDeviceType" class="server-select" style="margin: 0;">
-                <option value="macos">macOS</option>
-                <option value="windows">Windows</option>
-                <option value="linux">Linux</option>
-                <option value="ios">iOS</option>
-                <option value="android">Android</option>
-                <option value="router">Router</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <button id="addDeviceBtn" class="btn btn-ghost btn-block" style="margin-bottom: 1.5rem;">Add Device</button>
-
-            <!-- Server Selection -->
-            <label for="serverSelect" style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Server Location</label>
-            <select id="serverSelect" class="server-select">
-              <option value="">Loading servers...</option>
-            </select>
-
-            <!-- Server Info -->
-            <div id="serverInfo" style="background-color: var(--bg-secondary); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <span style="font-size: 0.75rem; font-weight: 600; color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.05em;">Selected Server</span>
-                <span id="serverHealth" class="server-badge healthy">Healthy</span>
-              </div>
-              <p id="serverEndpoint" class="token-wrap" style="margin: 0; font-family: monospace; font-size: 0.875rem; color: var(--primary-600);">Select a server above</p>
-              <p id="serverLatency" style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: var(--gray-500);"></p>
-            </div>
-
-            <!-- Generate Button -->
-            <button id="generateConfig" class="btn btn-primary btn-block btn-lg" style="margin-bottom: 1rem;">
-              Provision Access
-            </button>
-            <p style="margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--gray-500);">
-              You can revoke devices anytime from Settings.
+      <div class="panel">
+        <div class="panel-kicker">Status overview</div>
+        <h2 class="panel-title">Your SecureWave Status</h2>
+        <div class="status-grid">
+          <div class="status-card">
+            <div class="panel-label">Connection</div>
+            <div id="connectionStatus" class="panel-value">Checking...</div>
+            <p id="connectionMessage" style="color: var(--text-tertiary); margin-top: 0.5rem;">
+              The SecureWave app controls your connection status.
             </p>
-
-            <!-- Config Status -->
-            <div id="configStatus" class="config-status success hidden">
-              <svg style="width: 1rem; height: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-              </svg>
-              <span id="configStatusText">Configuration ready</span>
-            </div>
-
-            <!-- Stats -->
-            <div class="grid grid-2" style="gap: 1rem; margin-top: 1rem;">
-              <div style="text-align: center; padding: 1rem; background-color: var(--bg-secondary); border-radius: var(--radius-md);">
-                <p id="serverCount" style="margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--primary-600);">--</p>
-                <p style="margin: 0; font-size: 0.875rem; color: var(--gray-600);">Servers</p>
-              </div>
-              <div style="text-align: center; padding: 1rem; background-color: var(--bg-secondary); border-radius: var(--radius-md);">
-                <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--primary-600);">WireGuard</p>
-                <p style="margin: 0; font-size: 0.875rem; color: var(--gray-600);">Protocol</p>
-              </div>
-            </div>
+          </div>
+          <div class="status-card">
+            <div class="panel-label">Plan</div>
+            <div id="planStatus" class="panel-value">Loading...</div>
+            <p style="color: var(--text-tertiary); margin-top: 0.5rem;">Billing status from your account.</p>
+          </div>
+          <div class="status-card">
+            <div class="panel-label">Devices</div>
+            <div id="deviceStatus" class="panel-value">--</div>
+            <p style="color: var(--text-tertiary); margin-top: 0.5rem;">Devices linked to your account.</p>
           </div>
         </div>
+      </div>
 
-        <!-- Right Column: Connect in App -->
-        <div class="card">
-          <div class="card-body">
-            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-              <div style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem; background-color: var(--primary-600); border-radius: var(--radius-md); box-shadow: var(--shadow-lg);">
-                <svg style="width: 1.5rem; height: 1.5rem; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-              </div>
-              <div>
-                <h2 style="margin: 0; font-size: 1.25rem;">Connect in the SecureWave App</h2>
-                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Add your SecureWave profile, then tap Connect</p>
-              </div>
-            </div>
+      <div class="panel" style="margin-top: 2.5rem;">
+        <div class="panel-kicker">Server regions</div>
+        <h2 class="panel-title">Choose Your Preferred Region</h2>
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-8);">
+          Set a region preference. The app will connect automatically using this selection.
+        </p>
+        <div id="regionGrid" class="region-grid">
+          <div class="region-card">Loading regions...</div>
+        </div>
+      </div>
 
-            <p style="color: var(--gray-600); margin-bottom: 1.5rem;">
-              Use the QR code on mobile or copy the configuration into the SecureWave app (powered by WireGuard).
+      <div class="app-callout" style="margin-top: 2.5rem;">
+        <div class="app-callout-header">
+          <div class="app-callout-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/>
+            </svg>
+          </div>
+          <div>
+            <h2 style="margin: 0;">Connect in the SecureWave App</h2>
+            <p style="margin: 0.35rem 0 0; color: var(--text-secondary);">
+              The SecureWave app handles VPN connection automatically after you sign in.
             </p>
-
-            <button id="openWireGuard" class="btn btn-secondary btn-block btn-lg" disabled style="margin-bottom: 0.75rem;">
-              Open SecureWave App
-            </button>
-
-            <!-- Show QR Toggle -->
-            <button id="toggleQR" class="btn btn-outline btn-block btn-lg" disabled style="margin-bottom: 1.5rem;">
-              <svg style="width: 1.25rem; height: 1.25rem; margin-right: 0.5rem; display: inline-block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
-              </svg>
-              Show QR Code
-            </button>
-
-            <!-- QR Code Display -->
-            <div id="qrCodeDisplay" style="text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center; background-color: var(--bg-secondary); border-radius: var(--radius-lg); padding: 2rem;">
-              <p style="margin: 0; color: var(--gray-400);">Generate a configuration to view QR code</p>
-            </div>
-
-            <!-- Config Preview (collapsed by default) -->
-            <details style="margin-top: 1rem;">
-              <summary style="cursor: pointer; font-weight: 500; color: var(--gray-700); padding: 0.5rem 0;">View Configuration Preview</summary>
-              <div style="position: relative; margin-top: 0.5rem;">
-                <button id="copyConfig" class="copy-btn" style="position: absolute; top: 0.5rem; right: 0.5rem;" title="Copy to clipboard">
-                  <svg style="width: 1rem; height: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                  </svg>
-                </button>
-                <pre id="configPreview" class="config-preview"># Generate a configuration to preview</pre>
-              </div>
-            </details>
           </div>
         </div>
-      </div>
-
-      <!-- VPN Performance Test -->
-      <div class="card" style="margin-bottom: 3rem;">
-        <div class="card-body">
-          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-            <div style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem; background-color: var(--accent-600); border-radius: var(--radius-md); box-shadow: var(--shadow-lg);">
-              <svg style="width: 1.5rem; height: 1.5rem; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-              </svg>
-            </div>
-            <div>
-              <h2 style="margin: 0; font-size: 1.25rem;">VPN Performance Test</h2>
-              <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-tertiary);">Test your active VPN connection</p>
-            </div>
+        <div class="platform-grid">
+          <div class="platform-card">
+            <span>macOS</span>
+            <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-outline btn-sm btn-block">Download</a>
           </div>
-
-          <p style="color: var(--gray-600); margin-bottom: 1rem;">
-            Run a real-world performance check of your active SecureWave tunnel. Results include latency,
-            throughput, DNS leak detection, IPv6 leak detection, and ad/tracker blocking effectiveness.
-          </p>
-          <p style="color: var(--gray-500); margin-bottom: 1.5rem; font-size: 0.875rem;">
-            Tests reflect your device’s current VPN connection. If the tunnel is off, results will show
-            “No VPN Detected” and baseline metrics only.
-          </p>
-
-          <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
-            <button id="run-vpn-test-btn" class="btn btn-primary">
-              Run Full Test
-            </button>
-            <button id="run-vpn-test-quick-btn" class="btn btn-outline">
-              Quick Test (30s)
-            </button>
+          <div class="platform-card">
+            <span>Windows</span>
+            <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-outline btn-sm btn-block">Download</a>
           </div>
-
-          <p id="vpn-test-last-run" style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 1rem;"></p>
-
-          <!-- Test Results Container -->
-          <div id="vpn-test-results">
-            <div style="text-align: center; padding: 3rem; background-color: var(--bg-secondary); border-radius: var(--radius-lg);">
-              <svg style="width: 3rem; height: 3rem; color: var(--gray-400); margin-bottom: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-              </svg>
-              <p style="margin: 0; color: var(--gray-500);">
-                Start a test to measure your live tunnel and verify DNS/IPv6 protection.
-              </p>
-            </div>
+          <div class="platform-card">
+            <span>iOS</span>
+            <a href="/contact.html" class="btn btn-ghost btn-sm btn-block">Request Access</a>
           </div>
-        </div>
-      </div>
-
-      <!-- How to Use -->
-      <div class="card" style="margin-bottom: 3rem;">
-        <div class="card-body">
-          <h2 style="margin-bottom: 0.5rem;">How to Connect</h2>
-          <p style="color: var(--gray-600); margin-bottom: 2rem;">Follow these simple steps to get connected in minutes</p>
-
-          <div class="grid grid-3">
-            <div>
-              <div style="display: inline-block; background-color: var(--primary-100); color: var(--primary-700); padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 600; margin-bottom: 1rem;">Step 1</div>
-              <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Enable</h3>
-              <p style="color: var(--gray-600); margin: 0;">Select a server and click “Enable VPN” to provision your tunnel.</p>
-            </div>
-            <div>
-              <div style="display: inline-block; background-color: var(--primary-100); color: var(--primary-700); padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 600; margin-bottom: 1rem;">Step 2</div>
-              <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Scan or Copy</h3>
-              <p style="color: var(--gray-600); margin: 0;">Scan the QR code on mobile, or copy the configuration into WireGuard on desktop.</p>
-            </div>
-            <div>
-              <div style="display: inline-block; background-color: var(--primary-100); color: var(--primary-700); padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 600; margin-bottom: 1rem;">Step 3</div>
-              <h3 style="font-size: 1.125rem; margin-bottom: 0.5rem;">Connect</h3>
-              <p style="color: var(--gray-600); margin: 0;">Connect in WireGuard. Your traffic is now encrypted and routed through SecureWave.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Supported Platforms -->
-      <div style="margin-bottom: 3rem;">
-        <h2 style="text-align: center; margin-bottom: 1rem;">Supported Platforms</h2>
-        <p style="text-align: center; color: var(--gray-600); margin-bottom: 3rem; max-width: 42rem; margin-left: auto; margin-right: auto;">Install WireGuard and add your SecureWave tunnel</p>
-
-        <div class="grid grid-3">
-          <div class="card">
-            <div class="card-body" style="text-align: center;">
-              <div style="font-size: 3rem; margin-bottom: 1rem;">Windows</div>
-              <h3>Windows</h3>
-              <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Install WireGuard and paste your SecureWave configuration</p>
-              <a href="https://www.wireguard.com/install/" target="_blank" class="btn btn-outline btn-sm">Download for Windows</a>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-body" style="text-align: center;">
-              <div style="font-size: 3rem; margin-bottom: 1rem;">macOS</div>
-              <h3>macOS & iOS</h3>
-              <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Install from App Store and scan your SecureWave QR code</p>
-              <a href="https://apps.apple.com/us/app/wireguard/id1451685025" target="_blank" class="btn btn-outline btn-sm">Download from App Store</a>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-body" style="text-align: center;">
-              <div style="font-size: 3rem; margin-bottom: 1rem;">Linux</div>
-              <h3>Android & Linux</h3>
-              <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Install WireGuard and scan or paste your SecureWave config</p>
-              <a href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" class="btn btn-outline btn-sm">Download for Android</a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Technical Specs -->
-      <div class="card" style="background-color: var(--primary-50); border: 1px solid var(--primary-200);">
-        <div class="card-body">
-          <h2 style="margin-bottom: 0.5rem; color: var(--primary-900);">Technical Specifications</h2>
-          <p style="color: var(--primary-700); margin-bottom: 2rem;">Industry-leading security and performance</p>
-
-          <div class="grid grid-2">
-            <div>
-              <dl style="margin: 0;">
-                <dt style="font-weight: 600; color: var(--primary-900); margin-bottom: 0.5rem;">Protocol</dt>
-                <dd style="margin: 0 0 1.5rem 0; color: var(--primary-700);">WireGuard - Modern, fast, and secure VPN protocol</dd>
-
-                <dt style="font-weight: 600; color: var(--primary-900); margin-bottom: 0.5rem;">Encryption</dt>
-                <dd style="margin: 0 0 1.5rem 0; color: var(--primary-700);">ChaCha20 cipher with Poly1305 authentication</dd>
-
-                <dt style="font-weight: 600; color: var(--primary-900); margin-bottom: 0.5rem;">Key Exchange</dt>
-                <dd style="margin: 0; color: var(--primary-700);">Curve25519 for perfect forward secrecy</dd>
-              </dl>
-            </div>
-            <div>
-              <dl style="margin: 0;">
-                <dt style="font-weight: 600; color: var(--primary-900); margin-bottom: 0.5rem;">Server Selection</dt>
-                <dd style="margin: 0 0 1.5rem 0; color: var(--primary-700);">AI-optimized with MARL + XGBoost routing</dd>
-
-                <dt style="font-weight: 600; color: var(--primary-900); margin-bottom: 0.5rem;">DNS</dt>
-                <dd style="margin: 0 0 1.5rem 0; color: var(--primary-700);">Cloudflare (1.1.1.1) with DNS leak protection</dd>
-
-                <dt style="font-weight: 600; color: var(--primary-900); margin-bottom: 0.5rem;">Network</dt>
-                <dd style="margin: 0; color: var(--primary-700);">10.8.0.0/24 private address space</dd>
-              </dl>
-            </div>
+          <div class="platform-card">
+            <span>Android</span>
+            <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-outline btn-sm btn-block">Download</a>
           </div>
         </div>
       </div>
@@ -572,482 +128,164 @@
   </main>
 
   <footer class="footer">
-    <div class="container">
-      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+    <div class="container footer-content">
+      <div class="footer-cta">
+        <div>
+          <h3>Download SecureWave</h3>
+          <p>Connect in the app. Manage your plan and devices here.</p>
+        </div>
+        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+      </div>
+      <div class="footer-links">
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/contact.html">Contact</a>
+      </div>
+      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
     </div>
   </footer>
 
   <script src="/js/main.js"></script>
-  <script src="/js/vpn-tests.js"></script>
   <script>
-    // =========================================================================
-    // VPN Configuration Page Logic
-    // =========================================================================
-
-    // State
-    let servers = [];
-    let devices = [];
-    let selectedServer = null;
-    let selectedDevice = null;
-    let currentConfig = null;
-    let currentQR = null;
-    let currentFilename = 'securewave.conf';
-    let qrVisible = false;
-
-    // DOM Elements
-    const serverSelect = document.getElementById('serverSelect');
-    const serverInfo = document.getElementById('serverInfo');
-    const serverEndpoint = document.getElementById('serverEndpoint');
-    const serverLatency = document.getElementById('serverLatency');
-    const serverHealth = document.getElementById('serverHealth');
-    const serverCount = document.getElementById('serverCount');
-    const deviceSelect = document.getElementById('deviceSelect');
-    const deviceLimitInfo = document.getElementById('deviceLimitInfo');
-    const newDeviceName = document.getElementById('newDeviceName');
-    const newDeviceType = document.getElementById('newDeviceType');
-    const addDeviceBtn = document.getElementById('addDeviceBtn');
-    const generateBtn = document.getElementById('generateConfig');
-    const openWireGuardBtn = document.getElementById('openWireGuard');
-    const toggleQRBtn = document.getElementById('toggleQR');
-    const qrCodeDisplay = document.getElementById('qrCodeDisplay');
-    const configPreview = document.getElementById('configPreview');
-    const configStatus = document.getElementById('configStatus');
-    const configStatusText = document.getElementById('configStatusText');
-    const copyConfigBtn = document.getElementById('copyConfig');
-    const statusAlert = document.getElementById('statusAlert');
-    const statusMessage = document.getElementById('statusMessage');
-    const modeBadge = document.getElementById('modeBadge');
-
-    // =========================================================================
-    // API Functions
-    // =========================================================================
-
-    async function loadDevices() {
-      try {
-        const response = await fetch('/api/vpn/devices', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          }
-        });
-
-        if (response.status === 401) {
-          window.location.href = '/login.html';
-          return;
-        }
-
-        if (response.status === 402) {
-          deviceSelect.innerHTML = '<option value="">Plan limit reached</option>';
-          deviceLimitInfo.textContent = 'Upgrade to Premium to add more devices.';
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error('Failed to load devices');
-        }
-
-        const data = await response.json();
-        devices = data.devices || [];
-        populateDeviceSelect(devices);
-        await loadDeviceLimits();
-      } catch (error) {
-        console.error('Failed to load devices:', error);
-        deviceSelect.innerHTML = '<option value="">Error loading devices</option>';
-      }
-    }
-
-    async function loadDeviceLimits() {
-      try {
-        const response = await fetch('/api/vpn/devices/limits/info', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          }
-        });
-
-        if (!response.ok) return;
-        const data = await response.json();
-        deviceLimitInfo.textContent = `Devices: ${data.used}/${data.limit} • Plan: ${data.tier}`;
-      } catch (error) {
-        deviceLimitInfo.textContent = '';
-      }
-    }
-
-    function populateDeviceSelect(deviceList) {
-      deviceSelect.innerHTML = '<option value="">-- Select a device --</option>';
-      if (!deviceList.length) {
-        deviceSelect.innerHTML = '<option value="">No devices yet</option>';
-        selectedDevice = null;
-        return;
-      }
-
-      deviceList.forEach(device => {
-        const option = document.createElement('option');
-        option.value = device.id;
-        option.textContent = `${device.name || 'Unnamed Device'} • ${device.ip_address}`;
-        option.dataset.device = JSON.stringify(device);
-        deviceSelect.appendChild(option);
-      });
-
-      deviceSelect.selectedIndex = 1;
-      const option = deviceSelect.options[deviceSelect.selectedIndex];
-      if (option && option.dataset.device) {
-        selectedDevice = JSON.parse(option.dataset.device);
-      }
-    }
-
-    async function addDevice() {
-      const name = (newDeviceName.value || '').trim();
-      const deviceType = newDeviceType.value;
-
-      if (!name) {
-        showError('Enter a device name to add.');
-        return;
-      }
-
-      addDeviceBtn.disabled = true;
-      addDeviceBtn.textContent = 'Adding...';
-
-      try {
-        const response = await fetch('/api/vpn/devices', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ name, device_type: deviceType })
-        });
-
-        if (response.status === 401) {
-          window.location.href = '/login.html';
-          return;
-        }
-
-        if (response.status === 402) {
-          showError('Plan limit reached. Upgrade to Premium to add more devices.');
-          return;
-        }
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || 'Failed to add device');
-        }
-
-        newDeviceName.value = '';
-        const data = await response.json();
-        showSuccess(`Device added: ${data.name || name}`);
-        await loadDevices();
-      } catch (error) {
-        console.error('Failed to add device:', error);
-        showError(error.message);
-      } finally {
-        addDeviceBtn.disabled = false;
-        addDeviceBtn.textContent = 'Add Device';
-      }
-    }
-
-    async function loadServers() {
-      try {
-        const response = await fetch('/api/vpn/servers', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          }
-        });
-
-        if (response.status === 401) {
-          window.location.href = '/login.html';
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error('Failed to load servers');
-        }
-
-        const data = await response.json();
-        servers = data.servers;
-        serverCount.textContent = data.total;
-
-        // Populate server dropdown
-        serverSelect.innerHTML = '<option value="">-- Select a server --</option>';
-
-        if (data.recommended_server_id) {
-          const recommended = servers.find(s => s.server_id === data.recommended_server_id);
-          if (recommended) {
-            const opt = document.createElement('option');
-            opt.value = recommended.server_id;
-            opt.textContent = `${recommended.city}, ${recommended.country} (Recommended)`;
-            opt.dataset.server = JSON.stringify(recommended);
-            serverSelect.appendChild(opt);
-          }
-        }
-
-        // Group servers by region
-        const byRegion = {};
-        servers.forEach(server => {
-          const region = server.region || 'Other';
-          if (!byRegion[region]) byRegion[region] = [];
-          byRegion[region].push(server);
-        });
-
-        // Add optgroups
-        Object.keys(byRegion).sort().forEach(region => {
-          const optgroup = document.createElement('optgroup');
-          optgroup.label = region;
-
-          byRegion[region].forEach(server => {
-            if (server.server_id === data.recommended_server_id) return; // Already added
-            const opt = document.createElement('option');
-            opt.value = server.server_id;
-            const healthIcon = server.health_status === 'healthy' ? '' : ' (!)';
-            const latencyText = server.latency_ms ? ` - ${Math.round(server.latency_ms)}ms` : '';
-            opt.textContent = `${server.city}, ${server.country}${latencyText}${healthIcon}`;
-            opt.dataset.server = JSON.stringify(server);
-            optgroup.appendChild(opt);
-          });
-
-          serverSelect.appendChild(optgroup);
-        });
-
-      } catch (error) {
-        console.error('Failed to load servers:', error);
-        serverSelect.innerHTML = '<option value="">Error loading servers</option>';
-        showError('Failed to load server list. Please refresh the page.');
-      }
-    }
-
-    async function generateConfiguration() {
-      if (!selectedDevice) {
-        showError('Please select a device first');
-        return;
-      }
-
-      if (!selectedServer) {
-        showError('Please select a server first');
-        return;
-      }
-
-      generateBtn.disabled = true;
-      generateBtn.innerHTML = '<span class="loading-spinner"></span> Generating...';
-
-      try {
-        const response = await fetch(`/api/vpn/devices/${selectedDevice.id}/config?server_id=${encodeURIComponent(selectedServer.server_id)}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          }
-        });
-
-        if (response.status === 401) {
-          window.location.href = '/login.html';
-          return;
-        }
-
-        if (response.status === 402) {
-          showError('Plan limit reached. Upgrade to Premium for unlimited data.');
-          return;
-        }
-
-        if (!response.ok) {
-          let errorMessage = 'Failed to generate configuration';
-          try {
-            const error = await response.json();
-            errorMessage = error.detail || error.message || errorMessage;
-          } catch (e) {
-            // Response was not JSON
-            errorMessage = `Server error (${response.status})`;
-          }
-          throw new Error(errorMessage);
-        }
-
-        const data = await response.json();
-
-        // Store config data
-        currentConfig = data.config;
-        currentQR = data.qr_code;
-        currentFilename = data.filename || 'securewave.conf';
-
-        // Update UI
-        configPreview.textContent = currentConfig;
-        configStatus.classList.remove('hidden', 'warning', 'error');
-        configStatus.classList.add('success');
-
-        configStatusText.textContent = 'Configuration ready';
-
-        // Enable setup controls
-        openWireGuardBtn.disabled = false;
-        toggleQRBtn.disabled = false;
-
-        // Update QR display if visible
-        if (qrVisible) {
-          showQRCode();
-        }
-
-        showSuccess(`Configuration generated for ${data.server_location}`);
-
-      } catch (error) {
-        console.error('Failed to generate config:', error);
-        showError(error.message);
-        configStatus.classList.remove('hidden', 'success');
-        configStatus.classList.add('error');
-        configStatusText.textContent = 'Failed to generate configuration';
-      } finally {
-        generateBtn.disabled = false;
-        generateBtn.textContent = 'Enable VPN';
-      }
-    }
-
-    // =========================================================================
-    // UI Functions
-    // =========================================================================
-
-    function updateServerInfo(server) {
-      selectedServer = server;
-
-      if (server) {
-        serverEndpoint.textContent = server.server_id;
-        serverLatency.textContent = server.latency_ms
-          ? `Latency: ~${Math.round(server.latency_ms)}ms | Load: ${server.load_percent || 0}%`
-          : `Load: ${server.load_percent || 0}%`;
-
-        serverHealth.className = 'server-badge ' + (server.health_status || 'healthy');
-        serverHealth.textContent = server.health_status || 'Unknown';
-      } else {
-        serverEndpoint.textContent = 'Select a server above';
-        serverLatency.textContent = '';
-        serverHealth.className = 'server-badge';
-        serverHealth.textContent = 'Unknown';
-      }
-    }
-
-    function showQRCode() {
-      if (!currentQR) {
-        qrCodeDisplay.innerHTML = '<p style="margin: 0; color: var(--gray-400);">Generate a configuration first</p>';
-        return;
-      }
-
-      qrCodeDisplay.innerHTML = `
-        <div style="text-align: center;">
-          <img src="${currentQR}" alt="WireGuard QR Code" style="max-width: 250px; margin-bottom: 1rem;">
-          <p style="margin: 0; font-size: 0.875rem; color: var(--gray-600);">Scan with WireGuard app</p>
-        </div>
-      `;
-    }
-
-    function hideQRCode() {
-      qrCodeDisplay.innerHTML = '<p style="margin: 0; color: var(--gray-400);">Click "Show QR Code" to display</p>';
-    }
-
-    function showSuccess(message) {
-      statusAlert.classList.remove('hidden');
-      statusAlert.style.backgroundColor = 'var(--success-50)';
-      statusAlert.style.borderColor = 'var(--success-200)';
-      statusMessage.textContent = message;
-      statusMessage.style.color = 'var(--success-800)';
-    }
-
-    function normalizeErrorMessage(message) {
-      if (!message) return 'Something went wrong. Please try again.';
-      const lower = message.toLowerCase();
-      if (lower.includes('unauthorized') || lower.includes('invalid token')) {
-        return 'Please sign in again to continue.';
-      }
-      if (lower.includes('plan limit') || lower.includes('upgrade')) {
-        return 'Plan limit reached. Upgrade to Premium for more devices or data.';
-      }
-      if (lower.includes('server error') || lower.includes('failed')) {
-        return 'We could not complete that request. Please try again.';
-      }
-      return message;
-    }
-
-    function showError(message) {
-      statusAlert.classList.remove('hidden');
-      statusAlert.style.backgroundColor = 'var(--error-50)';
-      statusAlert.style.borderColor = 'var(--error-200)';
-      statusMessage.textContent = normalizeErrorMessage(message);
-      statusMessage.style.color = 'var(--error-800)';
-    }
-
-    function openWireGuard() {
-      if (!currentConfig) {
-        showError('Generate your VPN setup first.');
-        return;
-      }
-      window.location.href = 'wireguard://';
-      showSuccess('Opening SecureWave. If it does not launch, install the WireGuard app first.');
-    }
-
-    function copyConfigToClipboard() {
-      if (!currentConfig) return;
-
-      navigator.clipboard.writeText(currentConfig).then(() => {
-        copyConfigBtn.innerHTML = `
-          <svg style="width: 1rem; height: 1rem; color: var(--success-600);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-          </svg>
-        `;
-        setTimeout(() => {
-          copyConfigBtn.innerHTML = `
-            <svg style="width: 1rem; height: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-            </svg>
-          `;
-        }, 2000);
-      });
-    }
-
-    // =========================================================================
-    // Event Listeners
-    // =========================================================================
-
-    serverSelect.addEventListener('change', (e) => {
-      const option = serverSelect.options[serverSelect.selectedIndex];
-      if (option && option.dataset.server) {
-        const server = JSON.parse(option.dataset.server);
-        updateServerInfo(server);
-      } else {
-        updateServerInfo(null);
-      }
-    });
-
-    deviceSelect.addEventListener('change', () => {
-      const option = deviceSelect.options[deviceSelect.selectedIndex];
-      if (option && option.dataset.device) {
-        selectedDevice = JSON.parse(option.dataset.device);
-      } else {
-        selectedDevice = null;
-      }
-    });
-
-    addDeviceBtn.addEventListener('click', addDevice);
-    generateBtn.addEventListener('click', generateConfiguration);
-    openWireGuardBtn.addEventListener('click', openWireGuard);
-    copyConfigBtn.addEventListener('click', copyConfigToClipboard);
-
-    toggleQRBtn.addEventListener('click', () => {
-      qrVisible = !qrVisible;
-      if (qrVisible) {
-        showQRCode();
-        toggleQRBtn.textContent = 'Hide QR Code';
-      } else {
-        hideQRCode();
-        toggleQRBtn.innerHTML = `
-          <svg style="width: 1.25rem; height: 1.25rem; margin-right: 0.5rem; display: inline-block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
-          </svg>
-          Show QR Code
-        `;
-      }
-    });
-
-    // =========================================================================
-    // Initialize
-    // =========================================================================
-
-    // Check auth
     const token = localStorage.getItem('access_token');
     if (!token) {
       window.location.href = '/login.html';
-    } else {
+    }
+
+    const headers = {
+      'Authorization': `Bearer ${token}`
+    };
+
+    const connectionStatus = document.getElementById('connectionStatus');
+    const connectionMessage = document.getElementById('connectionMessage');
+    const planStatus = document.getElementById('planStatus');
+    const deviceStatus = document.getElementById('deviceStatus');
+    const regionGrid = document.getElementById('regionGrid');
+
+    function setConnectionStatus(status) {
+      const readable = {
+        CONNECTED: 'Connected',
+        CONNECTING: 'Connecting',
+        DISCONNECTING: 'Disconnecting',
+        DISCONNECTED: 'Disconnected'
+      }[status] || 'Unavailable';
+
+      connectionStatus.textContent = readable;
+
+      const detail = {
+        CONNECTED: 'Connection is active in the SecureWave app.',
+        CONNECTING: 'Connecting in the SecureWave app.',
+        DISCONNECTING: 'Disconnecting in the SecureWave app.',
+        DISCONNECTED: 'Open the app to connect.'
+      }[status] || 'Check the SecureWave app for live status.';
+
+      connectionMessage.textContent = detail;
+    }
+
+    async function loadStatus() {
+      try {
+        const response = await fetch('/api/vpn/status', { headers });
+        if (!response.ok) {
+          setConnectionStatus('UNKNOWN');
+          return;
+        }
+        const data = await response.json();
+        setConnectionStatus(data.status || 'DISCONNECTED');
+      } catch (error) {
+        console.error('Failed to load status:', error);
+        setConnectionStatus('UNKNOWN');
+      }
+    }
+
+    async function loadPlan() {
+      try {
+        const response = await fetch('/api/billing/subscriptions/current', { headers });
+        if (!response.ok) {
+          planStatus.textContent = 'Free Plan';
+          return;
+        }
+        const data = await response.json();
+        if (!data.subscription) {
+          planStatus.textContent = 'Free Plan';
+          return;
+        }
+        const status = data.subscription.status || 'active';
+        const planName = data.subscription.plan_name || 'Premium';
+        planStatus.textContent = `${planName} • ${status}`;
+      } catch (error) {
+        console.error('Failed to load plan:', error);
+        planStatus.textContent = 'Unavailable';
+      }
+    }
+
+    async function loadDevices() {
+      try {
+        const response = await fetch('/api/vpn/devices', { headers });
+        if (!response.ok) {
+          deviceStatus.textContent = 'Unavailable';
+          return;
+        }
+        const data = await response.json();
+        const devices = data.devices || [];
+        deviceStatus.textContent = devices.length.toString();
+      } catch (error) {
+        console.error('Failed to load devices:', error);
+        deviceStatus.textContent = 'Unavailable';
+      }
+    }
+
+    function renderRegions(servers) {
+      if (!regionGrid) return;
+      if (!servers.length) {
+        regionGrid.innerHTML = '<div class="region-card">No regions available.</div>';
+        return;
+      }
+
+      const grouped = servers.reduce((acc, server) => {
+        const region = server.region || server.country || 'Other';
+        if (!acc[region]) acc[region] = [];
+        acc[region].push(server);
+        return acc;
+      }, {});
+
+      regionGrid.innerHTML = '';
+      Object.entries(grouped).forEach(([region, list]) => {
+        const healthy = list.filter((s) => s.health_status === 'healthy').length;
+        const total = list.length;
+        const statusLabel = healthy === total ? 'Healthy' : 'Mixed';
+        const card = document.createElement('div');
+        card.className = 'region-card';
+        card.innerHTML = `
+          <div class="panel-label">${region}</div>
+          <div class="panel-value" style="font-size: 1.35rem;">${total} servers</div>
+          <div class="region-chip" style="${statusLabel === 'Mixed' ? 'background: rgba(245, 158, 11, 0.16); color: var(--accent-600);' : ''}">
+            ${statusLabel}
+          </div>
+        `;
+        regionGrid.appendChild(card);
+      });
+    }
+
+    async function loadRegions() {
+      try {
+        const response = await fetch('/api/vpn/servers', { headers });
+        if (!response.ok) {
+          regionGrid.innerHTML = '<div class="region-card">Unable to load regions.</div>';
+          return;
+        }
+        const data = await response.json();
+        renderRegions(data.servers || []);
+      } catch (error) {
+        console.error('Failed to load regions:', error);
+        regionGrid.innerHTML = '<div class="region-card">Unable to load regions.</div>';
+      }
+    }
+
+    if (token) {
+      loadStatus();
+      loadPlan();
       loadDevices();
-      loadServers();
+      loadRegions();
     }
   </script>
 </body>

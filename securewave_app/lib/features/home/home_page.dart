@@ -27,7 +27,7 @@ class HomePage extends StatelessWidget {
                   padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF1E1B4B), Color(0xFF0F172A)],
+                      colors: [Color(0xFF0B1120), Color(0xFF0E7490), Color(0xFF14B8A6)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -55,7 +55,7 @@ class HomePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Fast, private VPN access powered by WireGuard.',
+                        'Fast, private access powered by the SecureWave app.',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                               color: Colors.white.withOpacity(0.8),
                               height: 1.5,
@@ -80,7 +80,7 @@ class HomePage extends StatelessWidget {
                         runSpacing: 10,
                         children: const [
                           _QuickChip(label: 'Fast setup', icon: Icons.bolt),
-                          _QuickChip(label: 'WireGuard', icon: Icons.shield),
+                          _QuickChip(label: 'Auto-connect', icon: Icons.shield),
                           _QuickChip(label: '5 GB free', icon: Icons.data_usage),
                         ],
                       ),
@@ -97,8 +97,8 @@ class HomePage extends StatelessWidget {
                   minItemWidth: 180,
                   children: const [
                     MetricCard(label: 'Step 1', value: 'Create account', icon: Icons.person_add, gradient: true),
-                    MetricCard(label: 'Step 2', value: 'Provision device', icon: Icons.devices),
-                    MetricCard(label: 'Step 3', value: 'Connect', icon: Icons.shield),
+                    MetricCard(label: 'Step 2', value: 'Download app', icon: Icons.download),
+                    MetricCard(label: 'Step 3', value: 'Toggle VPN', icon: Icons.shield),
                   ],
                 ),
                 const SizedBox(height: 32),
@@ -110,7 +110,7 @@ class HomePage extends StatelessWidget {
                 const _FeatureTile(
                   icon: Icons.speed,
                   title: 'Fast by design',
-                  subtitle: 'Low-latency routing with ChaCha20 encryption.',
+                  subtitle: 'Smart routing keeps your connection fast.',
                 ),
                 const _FeatureTile(
                   icon: Icons.lock_outline,
@@ -120,7 +120,7 @@ class HomePage extends StatelessWidget {
                 const _FeatureTile(
                   icon: Icons.devices_other,
                   title: 'Multi-device ready',
-                  subtitle: 'Provision devices and manage access easily.',
+                  subtitle: 'Manage devices and access easily.',
                 ),
                 const SizedBox(height: 24),
               ],

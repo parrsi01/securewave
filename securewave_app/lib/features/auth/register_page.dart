@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/buttons/primary_button.dart';
 import '../../widgets/cards/status_chip.dart';
+import '../../core/theme/app_theme.dart';
 import '../../widgets/layouts/app_background.dart';
 import '../../widgets/layouts/brand_logo.dart';
 import '../../widgets/layouts/content_layout.dart';
@@ -44,11 +45,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               children: [
                 const BrandLogo(size: 44),
                 const SizedBox(height: 16),
-                const StatusChip(label: 'Start free', color: Color(0xFF4F46E5)),
+                const StatusChip(label: 'Start free', color: AppTheme.secondary),
                 const SizedBox(height: 16),
                 const SectionHeader(
                   title: 'Create your account',
-                  subtitle: 'Provision devices and connect using the app.',
+                  subtitle: 'Create an account, then connect in the SecureWave app.',
                 ),
                 const SizedBox(height: 24),
                 Card(
@@ -129,7 +130,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'SecureWave provisions your device and connects through the native app.',
+                  'The SecureWave app handles VPN connection automatically after you sign in.',
                   style: Theme.of(context).textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),

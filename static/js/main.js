@@ -1,5 +1,5 @@
 // SecureWave VPN - Enhanced Main JavaScript
-// Version: 2.0.0 - Modern 2026 Edition
+// Version: 4.0.0 - App-first 2026 Edition
 
 const API_BASE = '/api';
 
@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Console welcome message
   console.log('%c🔐 SecureWave VPN', 'font-size: 20px; font-weight: bold; color: #0f766e;');
   console.log('%cVersion 2.0.0 - Modern 2026 Edition', 'font-size: 12px; color: #64748b;');
-  console.log('%c⚡ Powered by FastAPI, WireGuard, and Bootstrap 5.3', 'font-size: 10px; color: #94a3b8;');
+  console.log('%c⚡ Powered by FastAPI and the SecureWave Core', 'font-size: 10px; color: #94a3b8;');
 });
 
 // Handle page visibility changes
