@@ -38,7 +38,7 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
           children: [
             const SectionHeader(
               title: 'Manage devices',
-              subtitle: 'Provision, rotate, or revoke access.',
+              subtitle: 'Add devices and manage access.',
             ),
             const SizedBox(height: 16),
             const InlineBanner(
@@ -114,8 +114,8 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
                         },
                         itemBuilder: (context) => [
                           const PopupMenuItem(value: 'rename', child: Text('Rename device')),
-                          const PopupMenuItem(value: 'rotate', child: Text('Rotate keys')),
-                          const PopupMenuItem(value: 'revoke', child: Text('Revoke device')),
+                          const PopupMenuItem(value: 'rotate', child: Text('Refresh access')),
+                          const PopupMenuItem(value: 'revoke', child: Text('Revoke access')),
                         ],
                       ),
                     ),

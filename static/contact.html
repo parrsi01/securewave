@@ -30,8 +30,9 @@
         <li><a href="/about.html">About</a></li>
         <li><a href="/contact.html" aria-current="page">Contact</a></li>
         <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
+        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
         <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
-        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
+        <li><a href="/register.html" class="btn btn-outline btn-sm" id="registerBtn">Create Account</a></li>
         <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
       </ul>
 
@@ -84,7 +85,7 @@
             <div class="card mb-6 hover-lift">
               <div class="card-body">
                 <h3 class="mb-3">🛠️ Technical Support</h3>
-                <p class="mb-3 text-muted">For VPN configuration and connection issues</p>
+                <p class="mb-3 text-muted">For app connection and access issues</p>
                 <a href="mailto:tech@securewave.app" style="color: var(--primary-600); font-weight: var(--font-weight-semibold);">tech@securewave.app</a>
                 <div class="mt-4">
                   <span class="badge badge-info">Priority support for premium users</span>
@@ -224,7 +225,7 @@
           <div class="card card-body text-center hover-lift">
             <div style="font-size: 3rem; margin-bottom: var(--space-4);">📚</div>
             <h3 class="mb-3">Documentation</h3>
-            <p class="mb-4 text-muted">Step-by-step guides for setup, configuration, and troubleshooting.</p>
+            <p class="mb-4 text-muted">Step-by-step guides for setup, sign-in, and troubleshooting.</p>
             <a href="/services.html" class="btn btn-secondary btn-sm">View Docs</a>
           </div>
 
@@ -260,8 +261,20 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <div class="container">
-      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+    <div class="container footer-content">
+      <div class="footer-cta">
+        <div>
+          <h3>Download SecureWave</h3>
+          <p>Connect in the app. Manage your plan and devices here.</p>
+        </div>
+        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+      </div>
+      <div class="footer-links">
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/contact.html">Contact</a>
+      </div>
+      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
     </div>
   </footer>
 

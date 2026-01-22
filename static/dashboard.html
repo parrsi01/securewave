@@ -9,341 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <style>
-    /* VPN Toggle Switch */
-    .vpn-toggle-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 4rem 2rem;
-      background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(255, 255, 255, 0.96) 55%, rgba(56, 189, 248, 0.08) 100%);
-      border-radius: var(--radius-2xl);
-      border: 2px solid var(--primary-100);
-      margin-bottom: 2.5rem;
-    }
-
-    .vpn-status-text {
-      font-size: 1.125rem;
-      font-weight: 600;
-      color: var(--text-secondary);
-      margin-bottom: 1.5rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .vpn-status-text.connected {
-      color: var(--success);
-    }
-
-    .vpn-status-text.disconnected {
-      color: var(--text-tertiary);
-    }
-
-    .toggle-switch {
-      position: relative;
-      width: 180px;
-      height: 180px;
-      margin-bottom: 2rem;
-    }
-
-    .toggle-switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    .toggle-slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: var(--gray-200);
-      border-radius: 50%;
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: var(--shadow-lg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 4px solid var(--gray-300);
-    }
-
-    .toggle-slider:before {
-      content: "OFF";
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: var(--text-secondary);
-      transition: all 0.4s;
-    }
-
-    input:checked + .toggle-slider {
-      background: var(--gradient-primary);
-      border-color: var(--primary-600);
-      box-shadow: 0 20px 35px rgba(79, 70, 229, 0.35), var(--shadow-xl);
-    }
-
-    input:checked + .toggle-slider:before {
-      content: "ON";
-      color: var(--white);
-    }
-
-    input:focus + .toggle-slider {
-      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2), var(--shadow-xl);
-    }
-
-    .connection-details {
-      text-align: center;
-      padding: 1.5rem;
-      background: var(--white);
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border-primary);
-      margin-top: 1.5rem;
-      min-height: 120px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .connection-detail-item {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.75rem;
-      margin: 0.5rem 0;
-      font-size: 1rem;
-      color: var(--gray-700);
-    }
-
-    .connection-detail-icon {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 12px var(--success);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% {
-        opacity: 1;
-        transform: scale(1);
-      }
-      50% {
-        opacity: 0.7;
-        transform: scale(1.1);
-      }
-    }
-
-    .server-selector {
-      width: 100%;
-      max-width: 500px;
-      margin: 0 auto 2rem;
-    }
-
-    .server-selector label {
-      display: block;
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--gray-700);
-      margin-bottom: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .server-selector select {
-      width: 100%;
-      padding: 1rem 1.25rem;
-      font-size: 1.0625rem;
-      font-weight: 500;
-      color: var(--text-primary);
-      background-color: var(--white);
-      border: 2px solid var(--gray-300);
-      border-radius: var(--radius-lg);
-      cursor: pointer;
-      transition: all var(--transition-base);
-      font-family: var(--font-sans);
-    }
-
-    .server-selector select:hover {
-      border-color: var(--primary-400);
-    }
-
-    .server-selector select:focus {
-      outline: none;
-      border-color: var(--primary-600);
-      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
-    }
-
-    .action-buttons {
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-top: 2rem;
-    }
-
-    .stats-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 1.5rem;
-      margin: 2.5rem 0;
-    }
-
-    .stat-box {
-      text-align: center;
-      padding: 1.5rem;
-      background: var(--white);
-      border-radius: var(--radius-xl);
-      border: 1px solid var(--border-primary);
-      transition: all var(--transition-base);
-    }
-
-    .stat-box:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-lg);
-      border-color: var(--primary-200);
-    }
-
-    .stat-icon {
-      font-size: 2rem;
-      margin-bottom: 0.75rem;
-      display: block;
-    }
-
-    .stat-value {
-      font-size: 1.75rem;
-      font-weight: 800;
-      background: var(--gradient-primary);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 0.25rem;
-    }
-
-    .stat-label {
-      font-size: 0.8125rem;
-      color: var(--text-secondary);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .section-divider {
-      margin: 3rem 0;
-      border: none;
-      border-top: 1px solid var(--border-primary);
-    }
-
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-      margin: 2rem 0;
-    }
-
-    .feature-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 1rem;
-      padding: 1.25rem;
-      background: var(--white);
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border-primary);
-      transition: all var(--transition-base);
-    }
-
-    .feature-item:hover {
-      border-color: var(--primary-300);
-      box-shadow: var(--shadow-md);
-    }
-
-    .feature-indicator {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 12px var(--success);
-      flex-shrink: 0;
-      margin-top: 0.25rem;
-    }
-
-    .feature-content h4 {
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin: 0 0 0.5rem 0;
-    }
-
-    .feature-content p {
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      margin: 0;
-      line-height: 1.6;
-    }
-
-    /* Dashboard Alerts */
-    .dashboard-alert {
-      padding: 1rem 1.5rem;
-      border-radius: var(--radius-lg);
-      margin-bottom: 1.5rem;
-      font-weight: 500;
-      animation: slideInDown 0.3s ease-out;
-    }
-
-    @keyframes slideInDown {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .alert-success {
-      background: rgba(34, 197, 94, 0.1);
-      color: #16a34a;
-      border: 1px solid rgba(34, 197, 94, 0.3);
-    }
-
-    .alert-error {
-      background: rgba(239, 68, 68, 0.1);
-      color: #dc2626;
-      border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-
-    .alert-warning {
-      background: rgba(245, 158, 11, 0.1);
-      color: #d97706;
-      border: 1px solid rgba(245, 158, 11, 0.3);
-    }
-
-    .alert-info {
-      background: rgba(59, 130, 246, 0.1);
-      color: #2563eb;
-      border: 1px solid rgba(59, 130, 246, 0.3);
-    }
-
-    /* Connection Status Colors */
-    .connection-status.connected {
-      color: var(--success);
-      font-weight: 700;
-    }
-
-    .connection-status.disconnected {
-      color: var(--text-tertiary);
-      font-weight: 600;
-    }
-
-    .connection-status.connecting,
-    .connection-status.disconnecting {
-      color: var(--primary-500);
-      font-weight: 600;
-    }
-  </style>
 </head>
 <body>
   <!-- Skip to main content for accessibility -->
@@ -365,6 +30,7 @@
         <li><a href="/dashboard.html" aria-current="page">Dashboard</a></li>
         <li><a href="/settings.html">Settings</a></li>
         <li><a href="/diagnostics.html">Diagnostics</a></li>
+        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
         <li><button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button></li>
       </ul>
 
@@ -385,79 +51,105 @@
           <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
           </svg>
-          VPN Control Center
+          Control Plane
         </div>
         <h1 class="page-hero__title">Welcome Back, <span id="userName">User</span></h1>
         <p class="page-hero__subtitle">
-          Manage your plan, devices, and server preferences. The SecureWave app handles the VPN connection.
+          Manage your plan, devices, and preferred regions here. The SecureWave app handles the VPN connection.
         </p>
+        <div class="page-hero__actions">
+          <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+          <a href="/settings.html" class="btn btn-ghost btn-sm">Account Settings</a>
+        </div>
       </div>
     </section>
 
     <section class="container page-section">
-
-      <!-- VPN Toggle Section -->
-      <div class="vpn-toggle-container">
-        <div class="vpn-status-text disconnected" id="statusText">NOT PROVISIONED</div>
-
-        <label class="toggle-switch">
-          <input type="checkbox" id="vpnToggle">
-          <span class="toggle-slider"></span>
-        </label>
-
-        <div style="text-align: center; margin-bottom: 1.5rem;">
-          <div style="font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Access Status</div>
-          <div class="connection-status disconnected" id="connectionStatus">Not provisioned</div>
-        </div>
-
-        <div class="server-selector">
-          <label for="serverSelect">Preferred Server Region</label>
-          <select id="serverSelect">
-            <option value="">Loading servers...</option>
-          </select>
-        </div>
-
-        <div class="connection-details" id="connectionDetails" style="display: none;">
-          <div class="text-muted" style="font-size: 0.9375rem;">
-            Provision access here, then connect inside the SecureWave app using your device profile.
+      <div class="onboarding-card">
+        <div class="panel-kicker">Get connected</div>
+        <h2 class="panel-title">Connect using the SecureWave App</h2>
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-8);">
+          The website manages your account. The app handles the secure connection automatically.
+        </p>
+        <div class="onboarding-steps stagger-grid">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <h3 style="margin-bottom: 0.5rem;">Download the app</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Install SecureWave on your device.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <h3 style="margin-bottom: 0.5rem;">Sign in</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Use the same account credentials.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <h3 style="margin-bottom: 0.5rem;">Toggle VPN</h3>
+            <p style="color: var(--text-secondary); margin: 0;">One tap connects you securely.</p>
           </div>
         </div>
+      </div>
 
-        <div class="action-buttons">
-          <a class="btn btn-secondary btn-lg" href="/vpn.html">
-            Provision Access
-          </a>
+      <div class="panel" style="margin-top: 2.5rem;">
+        <div class="panel-kicker">Download</div>
+        <h2 class="panel-title">Connect using the SecureWave App</h2>
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-8);">
+          Configuration is automatic inside the app. Choose your platform to get started.
+        </p>
+        <div class="grid grid-4 download-grid">
+          <div class="download-card">
+            <div class="download-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3h6a2 2 0 012 2v4H7V5a2 2 0 012-2zM5 9h14v10a2 2 0 01-2 2H7a2 2 0 01-2-2V9z"/>
+              </svg>
+            </div>
+            <div class="download-title">Windows</div>
+            <div class="download-meta">Desktop app • auto setup</div>
+            <div class="download-actions">
+              <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-primary btn-sm">Download</a>
+            </div>
+          </div>
+          <div class="download-card">
+            <div class="download-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <div class="download-title">macOS</div>
+            <div class="download-meta">Native app • auto connect</div>
+            <div class="download-actions">
+              <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-primary btn-sm">Download</a>
+            </div>
+          </div>
+          <div class="download-card">
+            <div class="download-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <div class="download-title">iOS</div>
+            <div class="download-meta">TestFlight • invite required</div>
+            <div class="download-actions">
+              <a href="/contact.html" class="btn btn-ghost btn-sm">Request access</a>
+            </div>
+          </div>
+          <div class="download-card">
+            <div class="download-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <div class="download-title">Android</div>
+            <div class="download-meta">APK builds • auto setup</div>
+            <div class="download-actions">
+              <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-primary btn-sm">Download</a>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Connection Statistics -->
-      <div class="stats-container">
-        <div class="stat-box">
-          <span class="stat-icon">⏱️</span>
-          <div class="stat-value" id="statLatency">--</div>
-          <div class="stat-label">Latency (ms)</div>
-        </div>
-        <div class="stat-box">
-          <span class="stat-icon">📶</span>
-          <div class="stat-value" id="statBandwidth">--</div>
-          <div class="stat-label">Bandwidth (Mbps)</div>
-        </div>
-        <div class="stat-box">
-          <span class="stat-icon">📍</span>
-          <div class="stat-value" id="statLocation">--</div>
-          <div class="stat-label">Server Location</div>
-        </div>
-        <div class="stat-box">
-          <span class="stat-icon">🔒</span>
-          <div class="stat-value" id="statEncryption">ChaCha20</div>
-          <div class="stat-label">Encryption</div>
-        </div>
-      </div>
-
-      <hr class="section-divider">
-
-      <!-- Account Information -->
-      <div class="panel panel-muted" style="margin-bottom: 2.5rem;">
+      <div class="panel panel-muted" style="margin-top: 2.5rem;">
+        <div class="panel-kicker">Account status</div>
         <h2 class="panel-title text-center">Your Account</h2>
         <div class="account-grid">
           <div class="account-item">
@@ -475,86 +167,49 @@
         </div>
       </div>
 
-      <!-- Active Security Features -->
-      <div class="panel security-panel">
-        <h2 class="panel-title text-center">
-          <svg style="width: 24px; height: 24px; display: inline-block; vertical-align: middle; margin-right: 0.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-          </svg>
-          Active Security Features
-        </h2>
-
-        <div class="feature-grid">
-          <div class="feature-item">
-            <div class="feature-indicator"></div>
-            <div class="feature-content">
-              <h4>WireGuard Protocol</h4>
-              <p>Modern, fast, and cryptographically sound VPN protocol with ChaCha20 encryption</p>
-            </div>
+      <div class="panel" style="margin-top: 2.5rem;">
+        <div class="panel-kicker">Devices</div>
+        <h2 class="panel-title">Device Access</h2>
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-6);">
+          Keep your device list tidy. The app syncs automatically after you sign in.
+        </p>
+        <div class="status-grid">
+          <div class="status-card">
+            <div class="panel-label">Registered devices</div>
+            <div id="deviceCount" class="panel-value" style="font-size: 1.5rem;">--</div>
+            <p style="color: var(--text-tertiary); margin: 0.5rem 0 0;">Active devices on your account.</p>
           </div>
-
-          <div class="feature-item">
-            <div class="feature-indicator"></div>
-            <div class="feature-content">
-              <h4>Kill Switch Protection</h4>
-              <p>Automatically blocks all traffic if VPN connection drops to prevent data leaks</p>
-            </div>
-          </div>
-
-          <div class="feature-item">
-            <div class="feature-indicator"></div>
-            <div class="feature-content">
-              <h4>DNS Leak Protection</h4>
-              <p>All DNS requests are encrypted and routed through our secure servers</p>
-            </div>
-          </div>
-
-          <div class="feature-item">
-            <div class="feature-indicator"></div>
-            <div class="feature-content">
-              <h4>AI Server Selection</h4>
-              <p>MARL + XGBoost algorithms optimize your connection for maximum speed</p>
-            </div>
-          </div>
-
-          <div class="feature-item">
-            <div class="feature-indicator"></div>
-            <div class="feature-content">
-              <h4>Zero-Log Policy</h4>
-              <p>We never track, collect, or store your browsing activity or connection logs</p>
-            </div>
-          </div>
-
-          <div class="feature-item">
-            <div class="feature-indicator"></div>
-            <div class="feature-content">
-              <h4>Multi-Device Support</h4>
-              <p>Connect unlimited devices simultaneously with one subscription</p>
-            </div>
+          <div class="status-card">
+            <div class="panel-label">Recent devices</div>
+            <ul class="list-check" id="deviceList">
+              <li>Loading devices...</li>
+            </ul>
           </div>
         </div>
-      </div>
-
-      <!-- Quick Actions -->
-      <div style="margin-top: 2.5rem; text-align: center;">
-        <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1.5rem;">Need Help?</h3>
-        <div class="cta-row">
-          <a href="/services.html" class="btn btn-secondary">
-            View All Features
-          </a>
-          <a href="/subscription.html" class="btn btn-secondary">
-            Manage Subscription
-          </a>
+        <div class="cta-row" style="margin-top: 1.5rem;">
+          <a href="/settings.html" class="btn btn-secondary">Manage Devices</a>
+          <a href="/subscription.html" class="btn btn-outline">Manage Subscription</a>
         </div>
       </div>
-
     </section>
   </main>
 
   <!-- Footer -->
   <footer class="footer">
-    <div class="container">
-      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+    <div class="container footer-content">
+      <div class="footer-cta">
+        <div>
+          <h3>Download SecureWave</h3>
+          <p>Connect in the app. Manage your plan and devices here.</p>
+        </div>
+        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+      </div>
+      <div class="footer-links">
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/contact.html">Contact</a>
+      </div>
+      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
     </div>
   </footer>
 

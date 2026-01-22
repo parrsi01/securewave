@@ -63,8 +63,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Card(
                   child: ListTile(
-                    title: Text('Protocol'),
-                    subtitle: Text('WireGuard (managed by SecureWave)'),
+                    title: Text('Connection core'),
+                    subtitle: Text('SecureWave Core (managed by the app)'),
                     trailing: Icon(Icons.shield_outlined),
                   ),
                 ),

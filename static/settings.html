@@ -129,6 +129,7 @@
         <li><a href="/dashboard.html">Dashboard</a></li>
         <li><a href="/settings.html" aria-current="page">Settings</a></li>
         <li><a href="/diagnostics.html">Diagnostics</a></li>
+        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
         <li><button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button></li>
       </ul>
       <button class="navbar-toggle" aria-label="Toggle navigation menu">
@@ -314,15 +315,15 @@
         <div class="card">
           <div class="card-body">
             <h2 style="margin-bottom: 0.25rem;">Protocol & DNS</h2>
-            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">WireGuard powers SecureWave. More protocols can be added later.</p>
+            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">SecureWave Core powers your connection. Protocol choice is managed by the app.</p>
             <div class="settings-section">
               <div class="setting-row">
                 <div class="setting-label">
                   <h4>VPN Protocol</h4>
-                  <p>Recommended: WireGuard for speed and battery life.</p>
+                  <p>Optimized for speed and battery life.</p>
                 </div>
                 <select class="settings-select" data-setting="protocol">
-                  <option value="wireguard">WireGuard (Recommended)</option>
+                  <option value="wireguard">SecureWave Core (Managed)</option>
                   <option value="openvpn" disabled>OpenVPN (Coming soon)</option>
                   <option value="ikev2" disabled>IKEv2 (Coming soon)</option>
                 </select>
@@ -341,9 +342,9 @@
               <div class="setting-row">
                 <div class="setting-label">
                   <h4>Encryption</h4>
-                  <p>ChaCha20-Poly1305 (WireGuard standard).</p>
+                  <p>Secure encryption handled automatically in the app.</p>
                 </div>
-                <span class="protocol-badge">ChaCha20</span>
+                <span class="protocol-badge">Managed</span>
               </div>
             </div>
           </div>
@@ -384,8 +385,20 @@
   </main>
 
   <footer class="footer">
-    <div class="container">
-      <p>&copy; 2026 SecureWave VPN. All rights reserved. | <a href="/terms.html" style="color: var(--text-tertiary);">Terms</a> | <a href="/privacy.html" style="color: var(--text-tertiary);">Privacy</a></p>
+    <div class="container footer-content">
+      <div class="footer-cta">
+        <div>
+          <h3>Download SecureWave</h3>
+          <p>Connect in the app. Manage your plan and devices here.</p>
+        </div>
+        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+      </div>
+      <div class="footer-links">
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/contact.html">Contact</a>
+      </div>
+      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
     </div>
   </footer>
 
