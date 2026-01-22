@@ -8,6 +8,8 @@ import '../services/vpn_service.dart';
 import '../../widgets/cards/status_chip.dart';
 import '../../widgets/layouts/app_background.dart';
 import '../utils/responsive.dart';
+import '../theme/app_assets.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
@@ -67,48 +69,68 @@ class AppShell extends ConsumerWidget {
     );
 
     if (isDesktop) {
-      return Scaffold(
-        body: Row(
-          children: [
-            NavigationRail(
-              selectedIndex: currentIndex,
-              onDestinationSelected: (index) => context.go(_destinations[index].route),
-              labelType: NavigationRailLabelType.all,
-              destinations: _destinations
-                  .map((d) => NavigationRailDestination(
-                        icon: Icon(d.icon),
-                        label: Text(d.label),
-                      ))
-                  .toList(),
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: Scaffold(
-                appBar: AppBar(
-                  title: Text(title),
-                  actions: [
-                    statusChip,
-                    const SizedBox(width: 12),
-                    IconButton(
-                      icon: const Icon(Icons.logout),
-                      onPressed: () async {
-                        await ref.read(authSessionProvider).clearSession();
-                        if (context.mounted) context.go('/login');
-                      },
-                    ),
-                  ],
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final extendRail = constraints.maxWidth >= 1200;
+          return Scaffold(
+            body: Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: currentIndex,
+                  onDestinationSelected: (index) => context.go(_destinations[index].route),
+                  labelType: extendRail ? null : NavigationRailLabelType.all,
+                  extended: extendRail,
+                  minWidth: 72,
+                  minExtendedWidth: 200,
+                  destinations: _destinations
+                      .map((d) => NavigationRailDestination(
+                            icon: Icon(d.icon),
+                            label: Text(d.label),
+                          ))
+                      .toList(),
                 ),
-                body: AppBackground(child: child),
-              ),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: Scaffold(
+                    appBar: AppBar(
+                      title: Row(
+                        children: [
+                          SvgPicture.asset(AppAssets.logo, height: 28),
+                          const SizedBox(width: 8),
+                          Flexible(child: Text(title)),
+                        ],
+                      ),
+                      actions: [
+                        statusChip,
+                        const SizedBox(width: 12),
+                        IconButton(
+                          icon: const Icon(Icons.logout),
+                          onPressed: () async {
+                            await ref.read(authSessionProvider).clearSession();
+                            if (context.mounted) context.go('/login');
+                          },
+                        ),
+                      ],
+                    ),
+                    body: AppBackground(child: child),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: Row(
+          children: [
+            SvgPicture.asset(AppAssets.logo, height: 26),
+            const SizedBox(width: 8),
+            Flexible(child: Text(title)),
+          ],
+        ),
         actions: [
           statusChip,
           const SizedBox(width: 12),

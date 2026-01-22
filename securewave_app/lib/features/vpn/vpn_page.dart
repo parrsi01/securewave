@@ -28,7 +28,7 @@ class VpnPage extends ConsumerWidget {
           children: [
             const SectionHeader(
               title: 'Provision VPN access',
-              subtitle: 'Choose a region here, then connect with SecureWave VPN.',
+              subtitle: 'Choose a region, then connect in the app.',
             ),
             const SizedBox(height: 20),
             servers.when(
@@ -97,7 +97,14 @@ class VpnPage extends ConsumerWidget {
                     const SizedBox(height: 12),
                     SecondaryButton(
                       label: 'Run diagnostics',
+                      icon: Icons.speed,
                       onPressed: () => context.go('/tests'),
+                    ),
+                    const SizedBox(height: 8),
+                    SecondaryButton(
+                      label: 'Manage devices',
+                      icon: Icons.devices,
+                      onPressed: () => context.go('/devices'),
                     ),
                   ],
                 ),

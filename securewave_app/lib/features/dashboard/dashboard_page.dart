@@ -7,8 +7,10 @@ import '../../core/services/vpn_service.dart';
 import '../../widgets/cards/action_card.dart';
 import '../../widgets/cards/metric_card.dart';
 import '../../widgets/cards/status_chip.dart';
+import '../../widgets/buttons/secondary_button.dart';
 import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
+import '../../widgets/layouts/responsive_wrap.dart';
 import '../../widgets/loaders/app_loader.dart';
 
 class DashboardPage extends ConsumerWidget {
@@ -22,38 +24,57 @@ class DashboardPage extends ConsumerWidget {
 
     return SafeArea(
       child: ContentLayout(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              const SectionHeader(
-                title: 'SecureWave Control Center',
-                subtitle: 'Manage your plan, devices, and secure access in one place.',
-              ),
-              const SizedBox(height: 16),
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const SectionHeader(
+              title: 'SecureWave Control Center',
+              subtitle: 'Manage your plan, devices, and secure access in one place.',
+            ),
+            const SizedBox(height: 16),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Account status', style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(height: 4),
-                      Text('Active • Basic plan (5 GB/month)', style: Theme.of(context).textTheme.bodyMedium),
-                    ],
-                  ),
-                  const StatusChip(label: 'Secure', color: Color(0xFF10B981)),
-                ],
-              ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 420;
+                    final statusChip = const StatusChip(label: 'Secure', color: Color(0xFF10B981));
+
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Account status', style: Theme.of(context).textTheme.titleLarge),
+                          const SizedBox(height: 4),
+                          Text('Active • Basic plan (5 GB/month)', style: Theme.of(context).textTheme.bodyMedium),
+                          const SizedBox(height: 12),
+                          statusChip,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Account status', style: Theme.of(context).textTheme.titleLarge),
+                            const SizedBox(height: 4),
+                            Text('Active • Basic plan (5 GB/month)', style: Theme.of(context).textTheme.bodyMedium),
+                          ],
+                        ),
+                        statusChip,
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+            ResponsiveWrap(
+              minItemWidth: 220,
               children: [
                 MetricCard(label: 'Device', value: deviceInfo, icon: Icons.devices_other),
                 vpnStatus.when(
@@ -94,37 +115,63 @@ class DashboardPage extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 24),
-              const SectionHeader(
-                title: 'Quick actions',
-                subtitle: 'Provision access, manage devices, or run diagnostics.',
-              ),
-            const SizedBox(height: 12),
-            ActionCard(
-              title: 'Provision VPN access',
-              subtitle: 'Select a server region and prep your device.',
-              icon: Icons.shield_outlined,
-              onTap: () => context.go('/vpn'),
-            ),
-            ActionCard(
-              title: 'Manage devices',
-              subtitle: 'Add, rename, or revoke access.',
-              icon: Icons.devices,
-              onTap: () => context.go('/devices'),
-            ),
-            ActionCard(
-              title: 'Run diagnostics',
-              subtitle: 'Check latency and leak protection.',
-              icon: Icons.speed,
-              onTap: () => context.go('/tests'),
+            const SectionHeader(
+              title: 'Quick actions',
+              subtitle: 'Run common tasks in one tap.',
             ),
             const SizedBox(height: 12),
-          usage.when(
-            loading: () => const AppLoader(size: 18),
-            data: (_) => Text('VPN connection is managed by the SecureWave app.',
-                style: Theme.of(context).textTheme.bodySmall),
-            error: (_, __) => Text('VPN connection is managed by the SecureWave app.',
-                style: Theme.of(context).textTheme.bodySmall),
-          ),
+            ResponsiveWrap(
+              minItemWidth: 180,
+              children: [
+                SecondaryButton(
+                  label: 'Provision VPN',
+                  icon: Icons.shield_outlined,
+                  onPressed: () => context.go('/vpn'),
+                ),
+                SecondaryButton(
+                  label: 'Manage devices',
+                  icon: Icons.devices,
+                  onPressed: () => context.go('/devices'),
+                ),
+                SecondaryButton(
+                  label: 'Run diagnostics',
+                  icon: Icons.speed,
+                  onPressed: () => context.go('/tests'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ResponsiveWrap(
+              minItemWidth: 260,
+              children: [
+                ActionCard(
+                  title: 'Provision VPN access',
+                  subtitle: 'Select a server region and prep your device.',
+                  icon: Icons.shield_outlined,
+                  onTap: () => context.go('/vpn'),
+                ),
+                ActionCard(
+                  title: 'Manage devices',
+                  subtitle: 'Add, rename, or revoke access.',
+                  icon: Icons.devices,
+                  onTap: () => context.go('/devices'),
+                ),
+                ActionCard(
+                  title: 'Run diagnostics',
+                  subtitle: 'Check latency and leak protection.',
+                  icon: Icons.speed,
+                  onTap: () => context.go('/tests'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            usage.when(
+              loading: () => const AppLoader(size: 18),
+              data: (_) => Text('VPN connection is managed by the SecureWave app.',
+                  style: Theme.of(context).textTheme.bodySmall),
+              error: (_, __) => Text('VPN connection is managed by the SecureWave app.',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
           ],
         ),
       ),

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../widgets/cards/info_card.dart';
+import '../../widgets/buttons/secondary_button.dart';
 import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
+import '../../widgets/layouts/responsive_wrap.dart';
 import '../../widgets/loaders/inline_banner.dart';
 import 'vpn_test_controller.dart';
 
@@ -23,8 +26,8 @@ class VpnTestResultsPage extends ConsumerWidget {
                 padding: EdgeInsets.zero,
                 children: [
                   const SectionHeader(
-                    title: 'SecureWave test summary',
-                    subtitle: 'A quick view of your tunnel performance.',
+                    title: 'Test summary',
+                    subtitle: 'Tunnel performance at a glance.',
                   ),
                   const SizedBox(height: 16),
                   InlineBanner(
@@ -32,6 +35,22 @@ class VpnTestResultsPage extends ConsumerWidget {
                         ? 'Tunnel performance is within expected range.'
                         : 'Tunnel performance needs attention. Review the details below.',
                     color: result['status'] == 'PASSED' ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  ),
+                  const SizedBox(height: 12),
+                  ResponsiveWrap(
+                    minItemWidth: 180,
+                    children: [
+                      SecondaryButton(
+                        label: 'Run again',
+                        icon: Icons.refresh,
+                        onPressed: () => context.go('/tests'),
+                      ),
+                      SecondaryButton(
+                        label: 'VPN status',
+                        icon: Icons.shield,
+                        onPressed: () => context.go('/vpn'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   InfoCard(

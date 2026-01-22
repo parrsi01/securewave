@@ -8,6 +8,7 @@ import '../../widgets/cards/metric_card.dart';
 import '../../widgets/layouts/app_background.dart';
 import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
+import '../../widgets/layouts/responsive_wrap.dart';
 import '../../core/theme/app_assets.dart';
 
 class HomePage extends StatelessWidget {
@@ -34,51 +35,76 @@ class HomePage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SvgPicture.asset(AppAssets.logo, height: 64),
+                      SvgPicture.asset(AppAssets.logo, height: 72),
                       const SizedBox(height: 12),
                       Text('SecureWave',
                           style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
                       const SizedBox(height: 8),
-                      Text('Private, fast VPN access with a control plane built for real users.',
+                      Text('Private VPN access with a streamlined control plane.',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
                       const SizedBox(height: 20),
-                      PrimaryButton(label: 'Sign in', onPressed: () => context.go('/login')),
+                      PrimaryButton(
+                        label: 'Sign in',
+                        icon: Icons.lock,
+                        onPressed: () => context.go('/login'),
+                      ),
                       const SizedBox(height: 12),
-                      SecondaryButton(label: 'Create account', onPressed: () => context.go('/register')),
+                      SecondaryButton(
+                        label: 'Create account',
+                        icon: Icons.person_add,
+                        onPressed: () => context.go('/register'),
+                      ),
+                      const SizedBox(height: 16),
+                      ResponsiveWrap(
+                        minItemWidth: 150,
+                        children: const [
+                          _QuickChip(label: 'Fast setup', icon: Icons.bolt),
+                          _QuickChip(label: 'WireGuard', icon: Icons.shield),
+                          _QuickChip(label: '5 GB free', icon: Icons.data_usage),
+                        ],
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 24),
                 const SectionHeader(
                   title: 'How SecureWave works',
-                  subtitle: 'Manage access here, connect in the SecureWave app.',
+                  subtitle: 'Manage access here. Connect in the app.',
                 ),
                 const SizedBox(height: 16),
-                const MetricCard(label: 'Step 1', value: 'Create account', icon: Icons.person_add),
-                const SizedBox(height: 12),
-                const MetricCard(label: 'Step 2', value: 'Provision device', icon: Icons.devices),
-                const SizedBox(height: 12),
-                const MetricCard(label: 'Step 3', value: 'Connect in SecureWave', icon: Icons.shield),
+                ResponsiveWrap(
+                  minItemWidth: 200,
+                  children: const [
+                    MetricCard(label: 'Step 1', value: 'Create account', icon: Icons.person_add),
+                    MetricCard(label: 'Step 2', value: 'Provision device', icon: Icons.devices),
+                    MetricCard(label: 'Step 3', value: 'Connect in SecureWave', icon: Icons.shield),
+                  ],
+                ),
                 const SizedBox(height: 24),
                 const SectionHeader(
                   title: 'Why SecureWave',
-                  subtitle: 'WireGuard speed with a clean, reliable experience.',
+                  subtitle: 'Fast, private, and built for daily use.',
                 ),
                 const SizedBox(height: 16),
-                const _FeatureTile(
-                  icon: Icons.speed,
-                  title: 'Fast by design',
-                  subtitle: 'Low-latency routing and modern encryption.',
-                ),
-                const _FeatureTile(
-                  icon: Icons.lock,
-                  title: 'Private by default',
-                  subtitle: 'Your traffic stays encrypted end-to-end.',
-                ),
-                const _FeatureTile(
-                  icon: Icons.devices_other,
-                  title: 'Device-ready',
-                  subtitle: 'Provision devices and manage access from one place.',
+                ResponsiveWrap(
+                  minItemWidth: 240,
+                  children: const [
+                    _FeatureTile(
+                      icon: Icons.speed,
+                      title: 'Fast by design',
+                      subtitle: 'Low-latency routing and modern encryption.',
+                    ),
+                    _FeatureTile(
+                      icon: Icons.lock,
+                      title: 'Private by default',
+                      subtitle: 'Your traffic stays encrypted end-to-end.',
+                    ),
+                    _FeatureTile(
+                      icon: Icons.devices_other,
+                      title: 'Device-ready',
+                      subtitle: 'Provision devices and manage access from one place.',
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -107,6 +133,34 @@ class _FeatureTile extends StatelessWidget {
         ),
         title: Text(title),
         subtitle: Text(subtitle),
+      ),
+    );
+  }
+}
+
+class _QuickChip extends StatelessWidget {
+  const _QuickChip({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color)),
+        ],
       ),
     );
   }

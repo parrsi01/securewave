@@ -42,13 +42,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           child: ContentLayout(
             child: ListView(
               children: [
-                SvgPicture.asset(AppAssets.logo, height: 64),
+                SvgPicture.asset(AppAssets.logo, height: 72),
                 const SizedBox(height: 16),
                 const StatusChip(label: 'Secure sign-in', color: Color(0xFF38BDF8)),
                 const SizedBox(height: 16),
                 const SectionHeader(
                   title: 'Welcome back',
-                  subtitle: 'Sign in to manage your devices, servers, and VPN access.',
+                  subtitle: 'Sign in to manage your devices and VPN access.',
                 ),
                 const SizedBox(height: 24),
                 Card(
@@ -96,6 +96,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 const SizedBox(height: 24),
                 PrimaryButton(
                   label: 'Continue',
+                  icon: Icons.lock,
                   isLoading: state.isLoading,
                   onPressed: () async {
                     setState(() => _hasTyped = true);
