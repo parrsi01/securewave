@@ -233,7 +233,41 @@
       "Bash(alembic/ )",
       "Bash(ACCESS_TOKEN_SECRET=\"P2AtANkolm4bUhDcPNDTXgofrIF676TJ6z3Rys1V5Sia-RvAqg_w3X8fO86FmIqUjy0aXUrZ3eDB_uwxoGNUoA\" )",
       "Bash(REFRESH_TOKEN_SECRET=\"555JnFcxetqSJKaLMIYx3m5f8v74wDbjwX-Kjntuxzpuc7-AMOispc_YjnWzMYde7Pukuc5wuHqJZhhIEb5GvQ\")",
-      "Bash(az postgres flexible-server firewall-rule list:*)"
+      "Bash(az postgres flexible-server firewall-rule list:*)",
+      "Bash(python:*)",
+      "Bash(TESTING=true python -m pytest:*)",
+      "Bash(TESTING=true python test_comprehensive.py:*)",
+      "Bash(TESTING=true python:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python test_comprehensive.py:*)",
+      "Bash(git push:*)",
+      "Bash(export AZURE_RESOURCE_GROUP=\"SecureWaveRG\")",
+      "Bash(export AZURE_APP_NAME=\"securewave-web\")",
+      "Bash(QOS_MODEL_PATH=data/models/qos_model.json RISK_MODEL_PATH=data/models/risk_model.json python3:*)",
+      "Bash(az webapp log tail -g SecureWaveRG -n securewave-web --timeout 30)",
+      "Bash(python infrastructure/init_production_server.py:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJ0ZXN0QHNlY3VyZXdhdmUuYXBwIiwidHlwZSI6ImFjY2VzcyIsImV4cCI6MTc2ODY1OTIwN30.aeYawUN6Rbuyq4Uf6oGG766cVfbHwRI_eamyzWdAjX8\")",
+      "Bash(echo \"=== Testing VPN Servers Endpoint ===\" curl -s http://localhost:8000/api/vpn/servers -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(echo \"\" echo \"=== Testing VPN Allocate Endpoint ===\" curl -s -X POST http://localhost:8000/api/vpn/allocate -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" -d '{\"\"\"\"server_id\"\"\"\": \"\"\"\"eu-west-001\"\"\"\"}')",
+      "Bash(__NEW_LINE__ echo \"=== Testing VPN Servers Endpoint ===\")",
+      "Bash(__NEW_LINE__ echo \"=== Testing VPN Allocate Endpoint ===\")",
+      "Bash(__NEW_LINE__ echo \"=== Testing Admin Peers All Endpoint ===\")",
+      "Bash(__NEW_LINE__ echo \"\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd real WireGuard VPN support with live server integration\n\n- Add new VPN routes for real WireGuard config generation\n- Add WireGuard server manager for SSH/Azure Run Command peer registration\n- Add admin routes for peer management \\(/api/admin/peers/*\\)\n- Add admin VPN page for managing peers \\(/admin-vpn.html\\)\n- Add server management routes \\(/api/admin/servers/*\\)\n- Add production server init script for eu-west-001 \\(172.201.201.2\\)\n- Add WireGuard VM setup script for Ubuntu 22.04\n- Update .env.production.example with live server config\n- Update user model with WG peer registration tracking\n\nLive server: 172.201.201.2:51820 \\(securewave-wg VM in SecureWaveRG\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(xargs ls:*)",
+      "Bash(git config:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(az webapp deployment source sync:*)",
+      "Bash(az webapp deployment source show:*)",
+      "Bash(diff:*)",
+      "Bash(du:*)",
+      "Bash(cd:*)",
+      "Bash(timeout 10 python:*)",
+      "Bash(npx claude-code-templates@latest --agent=development-team/fullstack-developer --yes)",
+      "Bash(npx claude-code-templates@latest --agent=development-team/ios-developer --yes)",
+      "Bash(npx claude-code-templates@latest --agent=development-team/mobile-developer --yes)",
+      "Bash(npx claude-code-templates@latest --agent=devops-infrastructure/azure-saas-architect --yes)",
+      "Bash(npx claude-code-templates@latest --agent=devops-infrastructure/network-engineer --yes)"
     ]
   },
   "performance": {
@@ -252,5 +286,6 @@
     "limitSearchResults": 25,
     "enableIncrementalReading": true,
     "preferStreamingResponses": true
-  }
+  },
+  "outputStyle": "default"
 }

@@ -105,8 +105,9 @@
       border-radius: var(--radius-md);
       font-family: monospace;
       font-size: 0.75rem;
-      overflow-x: auto;
-      white-space: pre;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
       max-height: 200px;
       overflow-y: auto;
     }
@@ -339,7 +340,7 @@
                 <span style="font-size: 0.75rem; font-weight: 600; color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.05em;">Selected Server</span>
                 <span id="serverHealth" class="server-badge healthy">Healthy</span>
               </div>
-              <p id="serverEndpoint" style="margin: 0; font-family: monospace; font-size: 0.875rem; color: var(--primary-600);">Select a server above</p>
+              <p id="serverEndpoint" class="token-wrap" style="margin: 0; font-family: monospace; font-size: 0.875rem; color: var(--primary-600);">Select a server above</p>
               <p id="serverLatency" style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: var(--gray-500);"></p>
             </div>
 
