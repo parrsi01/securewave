@@ -162,10 +162,10 @@ async function handleRegister(e) {
         }
         setFormMessage(e.target, 'Account created successfully! Redirecting...', 'success');
         const redirectTo = getRedirectTarget() || '/dashboard.html';
-        setTimeout(() => window.location.href = redirectTo, 800);
+        setTimeout(() => window.location.href = redirectTo, 400);
       } else {
         setFormMessage(e.target, 'Account created! Redirecting to login...', 'success');
-        setTimeout(() => window.location.href = '/login.html', 1200);
+        setTimeout(() => window.location.href = '/login.html', 600);
       }
     } else {
       const errorMessage = getErrorMessage(data);

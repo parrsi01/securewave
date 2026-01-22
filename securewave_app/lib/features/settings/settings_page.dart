@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/services/app_state.dart';
 import '../../widgets/cards/action_card.dart';
+import '../../widgets/buttons/secondary_button.dart';
 import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
+import '../../widgets/layouts/responsive_wrap.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -28,8 +30,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           padding: EdgeInsets.zero,
           children: [
             const SectionHeader(
-              title: 'Account & Preferences',
-              subtitle: 'These settings sync with your SecureWave devices.',
+              title: 'Account & preferences',
+              subtitle: 'Quick settings for your SecureWave devices.',
             ),
             const SizedBox(height: 16),
             Card(
@@ -40,30 +42,54 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
             ),
             const SizedBox(height: 12),
-            Card(
-              child: SwitchListTile(
-                title: const Text('Auto-connect'),
-                subtitle: const Text('Connect automatically when the app opens.'),
-                value: autoConnect,
-                onChanged: (value) => setState(() => autoConnect = value),
-              ),
+            ResponsiveWrap(
+              minItemWidth: 240,
+              children: [
+                Card(
+                  child: SwitchListTile(
+                    title: const Text('Auto-connect'),
+                    subtitle: const Text('Connect on app launch.'),
+                    value: autoConnect,
+                    onChanged: (value) => setState(() => autoConnect = value),
+                  ),
+                ),
+                Card(
+                  child: SwitchListTile(
+                    title: const Text('Kill switch'),
+                    subtitle: const Text('Block traffic if VPN drops.'),
+                    value: killSwitch,
+                    onChanged: (value) => setState(() => killSwitch = value),
+                  ),
+                ),
+                const Card(
+                  child: ListTile(
+                    title: Text('Protocol'),
+                    subtitle: Text('WireGuard (managed by SecureWave)'),
+                    trailing: Icon(Icons.shield_outlined),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Card(
-              child: SwitchListTile(
-                title: const Text('Kill switch'),
-                subtitle: const Text('Block traffic if the tunnel disconnects.'),
-                value: killSwitch,
-                onChanged: (value) => setState(() => killSwitch = value),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                title: const Text('Protocol'),
-                subtitle: const Text('WireGuard (managed by SecureWave)'),
-                trailing: const Icon(Icons.shield_outlined),
-              ),
+            const SizedBox(height: 16),
+            ResponsiveWrap(
+              minItemWidth: 180,
+              children: [
+                SecondaryButton(
+                  label: 'Manage devices',
+                  icon: Icons.devices,
+                  onPressed: () => context.go('/devices'),
+                ),
+                SecondaryButton(
+                  label: 'Run diagnostics',
+                  icon: Icons.speed,
+                  onPressed: () => context.go('/tests'),
+                ),
+                SecondaryButton(
+                  label: 'VPN status',
+                  icon: Icons.shield,
+                  onPressed: () => context.go('/vpn'),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             ActionCard(

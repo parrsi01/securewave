@@ -44,13 +44,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           child: ContentLayout(
             child: ListView(
               children: [
-                SvgPicture.asset(AppAssets.logo, height: 64),
+                SvgPicture.asset(AppAssets.logo, height: 72),
                 const SizedBox(height: 16),
                 const StatusChip(label: 'Start free', color: Color(0xFF4F46E5)),
                 const SizedBox(height: 16),
                 const SectionHeader(
                   title: 'Create your account',
-                  subtitle: 'Provision devices and connect using the SecureWave app.',
+                  subtitle: 'Provision devices and connect using the app.',
                 ),
                 const SizedBox(height: 24),
                 Card(
@@ -110,6 +110,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 const SizedBox(height: 24),
                 PrimaryButton(
                   label: 'Create account',
+                  icon: Icons.person_add,
                   isLoading: state.isLoading,
                   onPressed: () async {
                     setState(() => _hasTyped = true);

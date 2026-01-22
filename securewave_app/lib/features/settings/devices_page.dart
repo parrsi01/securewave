@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../widgets/buttons/primary_button.dart';
+import '../../widgets/buttons/secondary_button.dart';
 import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
+import '../../widgets/layouts/responsive_wrap.dart';
 import '../../widgets/loaders/app_loader.dart';
 import '../../widgets/loaders/inline_banner.dart';
 import 'devices_controller.dart';
@@ -35,7 +38,7 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
           children: [
             const SectionHeader(
               title: 'Manage devices',
-              subtitle: 'Provision and revoke access for each device.',
+              subtitle: 'Provision, rotate, or revoke access.',
             ),
             const SizedBox(height: 16),
             const InlineBanner(
@@ -48,15 +51,31 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
               decoration: const InputDecoration(labelText: 'Device name (e.g., MacBook Pro)'),
             ),
             const SizedBox(height: 12),
-            PrimaryButton(
-              label: 'Add device',
-              isLoading: state.isLoading,
-              onPressed: () {
-                final name = _deviceController.text.trim();
-                if (name.isEmpty) return;
-                ref.read(devicesControllerProvider.notifier).addDevice(name);
-                _deviceController.clear();
-              },
+            ResponsiveWrap(
+              minItemWidth: 180,
+              children: [
+                PrimaryButton(
+                  label: 'Add device',
+                  icon: Icons.add,
+                  isLoading: state.isLoading,
+                  onPressed: () {
+                    final name = _deviceController.text.trim();
+                    if (name.isEmpty) return;
+                    ref.read(devicesControllerProvider.notifier).addDevice(name);
+                    _deviceController.clear();
+                  },
+                ),
+                SecondaryButton(
+                  label: 'Run diagnostics',
+                  icon: Icons.speed,
+                  onPressed: () => context.go('/tests'),
+                ),
+                SecondaryButton(
+                  label: 'VPN status',
+                  icon: Icons.shield,
+                  onPressed: () => context.go('/vpn'),
+                ),
+              ],
             ),
             if (state.errorMessage != null)
               Padding(

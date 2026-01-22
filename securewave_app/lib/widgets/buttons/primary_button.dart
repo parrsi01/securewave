@@ -6,11 +6,13 @@ class PrimaryButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.isLoading = false,
+    this.icon,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +53,16 @@ class PrimaryButton extends StatelessWidget {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (icon != null) ...[
+                              Icon(icon, color: Colors.white, size: 18),
+                              const SizedBox(width: 8),
+                            ],
+                            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
                 ),
               ),
             ),
