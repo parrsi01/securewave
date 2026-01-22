@@ -8,8 +8,7 @@ import '../services/vpn_service.dart';
 import '../../widgets/cards/status_chip.dart';
 import '../../widgets/layouts/app_background.dart';
 import '../utils/responsive.dart';
-import '../theme/app_assets.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import '../../widgets/layouts/brand_logo.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
@@ -95,8 +94,8 @@ class AppShell extends ConsumerWidget {
                     appBar: AppBar(
                       title: Row(
                         children: [
-                          SvgPicture.asset(AppAssets.logo, height: 28),
-                          const SizedBox(width: 8),
+                          const BrandLogo(size: 20),
+                          const SizedBox(width: 10),
                           Flexible(child: Text(title)),
                         ],
                       ),
@@ -126,8 +125,8 @@ class AppShell extends ConsumerWidget {
       appBar: AppBar(
         title: Row(
           children: [
-            SvgPicture.asset(AppAssets.logo, height: 26),
-            const SizedBox(width: 8),
+            const BrandLogo(size: 18),
+            const SizedBox(width: 10),
             Flexible(child: Text(title)),
           ],
         ),

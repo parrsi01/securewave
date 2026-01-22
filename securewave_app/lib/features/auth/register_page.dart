@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-
 import '../../widgets/buttons/primary_button.dart';
 import '../../widgets/cards/status_chip.dart';
 import '../../widgets/layouts/app_background.dart';
+import '../../widgets/layouts/brand_logo.dart';
 import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
 import '../../widgets/loaders/inline_banner.dart';
 import 'auth_controller.dart';
-import '../../core/theme/app_assets.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -44,7 +42,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           child: ContentLayout(
             child: ListView(
               children: [
-                SvgPicture.asset(AppAssets.logo, height: 72),
+                const BrandLogo(size: 44),
                 const SizedBox(height: 16),
                 const StatusChip(label: 'Start free', color: Color(0xFF4F46E5)),
                 const SizedBox(height: 16),
