@@ -367,6 +367,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const path = window.location.pathname;
   const token = localStorage.getItem('access_token');
 
+  // Initialize theme toggle first (avoid flash)
+  initThemeToggle();
+
   // Immediate redirect if no token on protected route (before any API calls)
   if (PROTECTED_ROUTES.includes(path) && !token) {
     window.location.href = '/login.html?redirect=' + encodeURIComponent(path);
@@ -517,6 +520,45 @@ function initMobileMenu() {
   }
 }
 
+// Theme toggle functionality
+function initThemeToggle() {
+  // Check for saved theme preference or system preference
+  const savedTheme = localStorage.getItem('theme');
+  const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const currentTheme = savedTheme || (systemPrefersDark ? 'dark' : 'dark'); // Default to dark
+
+  // Apply theme
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  updateThemeButtons(currentTheme);
+
+  // Listen for theme toggle clicks
+  document.querySelectorAll('.theme-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const theme = btn.dataset.theme;
+      setTheme(theme);
+    });
+  });
+
+  // Listen for system theme changes
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (!localStorage.getItem('theme')) {
+      setTheme(e.matches ? 'dark' : 'light');
+    }
+  });
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+  updateThemeButtons(theme);
+}
+
+function updateThemeButtons(theme) {
+  document.querySelectorAll('.theme-toggle button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === theme);
+  });
+}
+
 // Export functions for use in other scripts
 window.SecureWave = {
   apiCall,
@@ -529,5 +571,7 @@ window.SecureWave = {
   formatDate,
   formatCurrency,
   debounce,
-  smoothScrollTo
+  smoothScrollTo,
+  setTheme,
+  initThemeToggle
 };

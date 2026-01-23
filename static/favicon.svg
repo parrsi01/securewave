@@ -1,17 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- SecureWave Favicon - Simplified for 16px/32px -->
+
   <defs>
-    <linearGradient id="fg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0ea5e9"/>
-      <stop offset="100%" stop-color="#14b8a6"/>
+    <linearGradient id="faviconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#F86605"/>
     </linearGradient>
   </defs>
-  <path d="M16 2 L26 6 L26 16 Q26 24 16 30 Q6 24 6 16 L6 6 Z" fill="url(#fg)"/>
-  <g transform="translate(16, 12)">
-    <path d="M -5 -2 Q 0 -6, 5 -2" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-    <path d="M -7 1 Q 0 -4, 7 1" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.8"/>
-  </g>
-  <g transform="translate(16, 20)">
-    <rect x="-3" y="0" width="6" height="5" rx="1" fill="#fff"/>
-    <path d="M -2 0 L -2 -1 Q -2 -3, 0 -3 Q 2 -3, 2 -1 L 2 0" fill="none" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>
-  </g>
+
+  <!-- Shield shape -->
+  <path d="M16 2C16 2 4 6 4 12C4 18 4 22 16 30C28 22 28 18 28 12C28 6 16 2 16 2Z"
+        fill="url(#faviconGradient)"/>
+
+  <!-- Simplified wave -->
+  <path d="M10 15C10 15 12 12 16 12C20 12 22 15 22 15"
+        stroke="white"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        fill="none"/>
+
+  <!-- Center dot -->
+  <circle cx="16" cy="18" r="2.5" fill="white"/>
 </svg>

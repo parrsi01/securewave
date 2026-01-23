@@ -1,11 +1,39 @@
-<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Flow Mark Only (square format for app icons) -->
-  <path d="M 6 10 L 22 10 A 6 6 0 0 1 22 22 L 6 22 A 6 6 0 0 1 6 10 Z"
-        stroke="currentColor"
-        stroke-width="2.5"
-        fill="none"
+<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- SecureWave Logo Mark - Square format for app icons -->
+
+  <defs>
+    <linearGradient id="markGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#F86605"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#1c1e22"/>
+
+  <!-- Shield shape -->
+  <path d="M32 10C32 10 14 16 14 26C14 36 14 41 32 52C50 41 50 36 50 26C50 16 32 10 32 10Z"
+        fill="url(#markGradient)"/>
+
+  <!-- Signal waves -->
+  <path d="M24 32C24 32 26.5 27 32 27C37.5 27 40 32 40 32"
+        stroke="white"
+        stroke-width="3"
         stroke-linecap="round"
-        stroke-linejoin="round"/>
-  <rect x="10" y="14" width="16" height="4" rx="2"
-        fill="currentColor"/>
+        fill="none"/>
+  <path d="M20 32C20 32 23.5 24 32 24C40.5 24 44 32 44 32"
+        stroke="white"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.6"/>
+  <path d="M16 32C16 32 20.5 21 32 21C43.5 21 48 32 48 32"
+        stroke="white"
+        stroke-width="2"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.3"/>
+
+  <!-- Center dot -->
+  <circle cx="32" cy="37" r="4" fill="white"/>
 </svg>

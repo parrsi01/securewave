@@ -3,39 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SecureWave VPN - Enterprise-Grade Privacy & Security</title>
-  <meta name="description" content="Protect your digital identity with secure encryption, smart routing, and a privacy-first VPN designed for everyday protection.">
+  <title>SecureWave VPN - Private Internet Access</title>
+  <meta name="description" content="Protect your online privacy with SecureWave VPN. Fast, secure, and reliable VPN service for all your devices.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <!-- Skip to main content for accessibility -->
   <a href="#main-content" class="skip-to-main">Skip to main content</a>
 
   <!-- Navigation -->
   <nav class="navbar">
     <div class="navbar-container">
       <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN Logo" onerror="this.style.display='none'">
+        <img src="/img/logo.svg" alt="SecureWave" onerror="this.style.display='none'">
         <span>SecureWave</span>
       </a>
       <ul class="navbar-menu">
         <li><a href="/home.html" aria-current="page">Home</a></li>
-        <li><a href="/services.html">Services</a></li>
+        <li><a href="/services.html">Features</a></li>
         <li><a href="/subscription.html">Pricing</a></li>
         <li><a href="/about.html">About</a></li>
-        <li><a href="/contact.html">Contact</a></li>
-        <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
-        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
-        <li><a href="/register.html" class="btn btn-outline btn-sm" id="registerBtn">Create Account</a></li>
-        <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
+        <li class="hidden" id="dashLink"><a href="/dashboard.html">Dashboard</a></li>
+        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Sign In</a></li>
+        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
+        <li class="hidden"><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
+        <li class="theme-toggle hide-mobile">
+          <button data-theme="light" aria-label="Light mode">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          </button>
+          <button data-theme="dark" aria-label="Dark mode">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          </button>
+        </li>
       </ul>
-
-      <!-- Mobile menu toggle -->
       <button class="navbar-toggle" aria-label="Toggle navigation menu">
         <span></span>
         <span></span>
@@ -44,121 +47,117 @@
     </div>
   </nav>
 
-  <!-- Main Content -->
   <main id="main-content">
     <!-- Hero Section -->
-    <section class="hero" style="padding: 5rem 0; background: radial-gradient(ellipse at top, rgba(14, 165, 233, 0.08) 0%, transparent 60%), linear-gradient(180deg, #f7fafc 0%, #edf5f7 100%);">
+    <section class="hero">
       <div class="container hero-grid">
-        <div class="hero-copy" style="max-width: 640px;">
-          <div class="badge" style="font-size: 0.95rem; padding: 0.6rem 1.2rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(20, 184, 166, 0.15) 100%); border: 2px solid rgba(14, 165, 233, 0.3); box-shadow: 0 4px 20px rgba(14, 165, 233, 0.15);">
-            <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="hero-content">
+          <div class="hero-badge">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
             </svg>
-            SecureWave v4.0 App
+            SecureWave VPN
           </div>
 
-          <h1 style="font-size: 3.5rem; line-height: 1.15; margin: 2rem 0 1.5rem; background: linear-gradient(135deg, #0b1120 0%, #0e6a7b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 800;">
-            Private Internet, One Tap Away
-          </h1>
+          <h1 class="hero-title">Protect Your Privacy Online</h1>
 
-          <p style="font-size: 1.35rem; line-height: 1.7; color: #334155; margin-bottom: 3rem; font-weight: 400;">
-            Download the SecureWave app to connect automatically. Use the website to manage your account, plan, and devices.
+          <p class="hero-subtitle">
+            Connect securely to any network. Browse privately, access content freely, and keep your data protected with military-grade encryption.
           </p>
 
-          <div class="hero-actions" style="display: flex; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 2.5rem;">
-            <a href="/home.html#download-app" class="btn btn-primary btn-lg" style="padding: 1.1rem 2.25rem; font-size: 1.125rem; font-weight: 700; box-shadow: 0 12px 40px rgba(14, 165, 233, 0.35), 0 4px 12px rgba(14, 165, 233, 0.2); border: 2px solid rgba(255, 255, 255, 0.3);">
-              <svg style="width: 22px; height: 22px; margin-right: 10px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          <div class="hero-actions">
+            <a href="#download-app" class="btn btn-primary btn-lg">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
               </svg>
-              Download SecureWave App
+              Download App
             </a>
-            <a href="/register.html" class="btn btn-secondary btn-lg" style="padding: 1.1rem 2.25rem; font-size: 1.125rem; font-weight: 600;">
-              <svg style="width: 22px; height: 22px; margin-right: 10px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-              </svg>
+            <a href="/register.html" class="btn btn-secondary btn-lg">
               Create Free Account
             </a>
           </div>
-          <div style="display: flex; align-items: center; gap: 1.5rem; padding: 1.25rem 1.75rem; background: rgba(14, 165, 233, 0.06); border-left: 4px solid #0ea5e9; border-radius: 12px;">
-            <svg style="width: 28px; height: 28px; color: #0ea5e9; flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+          <div class="hero-note">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            <div>
-              <div style="font-weight: 700; color: #0b1120; margin-bottom: 0.25rem; font-size: 1.05rem;">No manual setup needed</div>
-              <div style="color: #475569; font-size: 0.95rem;">The app handles secure setup automatically</div>
+            <div class="hero-note-content">
+              <div class="hero-note-title">Simple setup</div>
+              <div class="hero-note-text">Download the app, sign in, and connect with one tap</div>
             </div>
           </div>
         </div>
 
-        <div class="hero-panel" style="background: linear-gradient(145deg, #ffffff 0%, #f0f9ff 100%); border-radius: 24px; padding: 2.5rem; box-shadow: 0 20px 60px rgba(14, 165, 233, 0.2), 0 8px 24px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9); border: 2px solid rgba(14, 165, 233, 0.15);">
-          <div class="panel-title" style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-            App-Ready Account
-            <span class="status-pill" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.45rem 1rem; border-radius: 999px; font-size: 0.85rem; font-weight: 700; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">Live</span>
+        <div class="hero-panel">
+          <div class="panel-header">
+            <div class="panel-title">Account Status</div>
+            <span class="status-pill">Active</span>
           </div>
-          <div class="panel-subtitle" style="color: #64748b; margin-bottom: 2rem; font-size: 1.05rem;">The website manages your access. The app handles the connection.</div>
-          <div class="panel-row" style="padding: 1rem 0; border-bottom: 1px solid rgba(14, 165, 233, 0.1);">
-            <span class="panel-label" style="color: #64748b; font-weight: 600;">Account</span>
-            <span class="panel-value" style="color: #059669; font-weight: 700;">Verified</span>
+          <div class="panel-subtitle">Your VPN is ready to protect your connection</div>
+
+          <div class="panel-row">
+            <span class="panel-label">Account</span>
+            <span class="panel-value" style="color: var(--accent-green);">Verified</span>
           </div>
-          <div class="panel-row" style="padding: 1rem 0; border-bottom: 1px solid rgba(14, 165, 233, 0.1);">
-            <span class="panel-label" style="color: #64748b; font-weight: 600;">Plan</span>
-            <span class="panel-value" style="font-weight: 700; color: #0b1120;">Basic or Premium</span>
+          <div class="panel-row">
+            <span class="panel-label">Plan</span>
+            <span class="panel-value">Basic / Premium</span>
           </div>
-          <div class="panel-row" style="padding: 1rem 0; border-bottom: 1px solid rgba(14, 165, 233, 0.1);">
-            <span class="panel-label" style="color: #64748b; font-weight: 600;">Devices</span>
-            <span class="panel-value" style="font-weight: 700; color: #0b1120;">Up to 5 connected</span>
+          <div class="panel-row">
+            <span class="panel-label">Devices</span>
+            <span class="panel-value">Up to 5</span>
           </div>
-          <div class="panel-row" style="padding: 1rem 0; border-bottom: 1px solid rgba(14, 165, 233, 0.1);">
-            <span class="panel-label" style="color: #64748b; font-weight: 600;">Regions</span>
-            <span class="panel-value" style="font-weight: 700; color: #0b1120;">Auto-select + favorites</span>
+          <div class="panel-row">
+            <span class="panel-label">Servers</span>
+            <span class="panel-value">4 Regions</span>
           </div>
-          <div class="panel-row" style="padding: 1rem 0;">
-            <span class="panel-label" style="color: #64748b; font-weight: 600;">Connection</span>
-            <span class="panel-chip" style="background: rgba(14, 165, 233, 0.12); color: #0e6a7b; padding: 0.4rem 0.9rem; border-radius: 999px; font-weight: 700; font-size: 0.9rem;">Managed in the app</span>
+          <div class="panel-row">
+            <span class="panel-label">Connection</span>
+            <span class="panel-chip">Via App</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Trust Indicators / Stats -->
-    <section class="section" style="background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 50%, #ffffff 100%); padding-top: 4.5rem; padding-bottom: 4.5rem; border-top: 1px solid rgba(14, 165, 233, 0.1); border-bottom: 1px solid rgba(14, 165, 233, 0.1);">
+    <!-- Stats Section -->
+    <section class="section section-alt">
       <div class="container">
-        <div class="grid grid-4" style="gap: 2rem;">
-          <div class="stat-card" style="text-align: center; padding: 2.5rem 1.5rem; background: linear-gradient(145deg, #ffffff 0%, #f9feff 100%); border-radius: 20px; box-shadow: 0 8px 32px rgba(14, 165, 233, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06); border: 2px solid rgba(14, 165, 233, 0.1); transition: all 0.3s ease;">
-            <div style="width: 64px; height: 64px; margin: 0 auto 1.25rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(16, 185, 129, 0.2);">
-              <svg style="width: 32px; height: 32px; color: #059669;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon green">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
               </svg>
             </div>
-            <p style="font-size: 2.5rem; font-weight: 900; margin: 0 0 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -0.02em;">Live</p>
-            <p style="color: #64748b; margin: 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Control Plane</p>
+            <div class="stat-value">Active</div>
+            <div class="stat-label">Service Status</div>
           </div>
-          <div class="stat-card" style="text-align: center; padding: 2.5rem 1.5rem; background: linear-gradient(145deg, #ffffff 0%, #f9feff 100%); border-radius: 20px; box-shadow: 0 8px 32px rgba(14, 165, 233, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06); border: 2px solid rgba(14, 165, 233, 0.1); transition: all 0.3s ease;">
-            <div style="width: 64px; height: 64px; margin: 0 auto 1.25rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(14, 106, 123, 0.15) 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(14, 165, 233, 0.2);">
-              <svg style="width: 32px; height: 32px; color: #0ea5e9;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          <div class="stat-card">
+            <div class="stat-icon orange">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
             </div>
-            <p style="font-size: 2.5rem; font-weight: 900; margin: 0 0 0.5rem; background: linear-gradient(135deg, #0ea5e9 0%, #0e6a7b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -0.02em;">4</p>
-            <p style="color: #64748b; margin: 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Global Regions</p>
+            <div class="stat-value">4</div>
+            <div class="stat-label">Server Regions</div>
           </div>
-          <div class="stat-card" style="text-align: center; padding: 2.5rem 1.5rem; background: linear-gradient(145deg, #ffffff 0%, #f9feff 100%); border-radius: 20px; box-shadow: 0 8px 32px rgba(14, 165, 233, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06); border: 2px solid rgba(14, 165, 233, 0.1); transition: all 0.3s ease;">
-            <div style="width: 64px; height: 64px; margin: 0 auto 1.25rem; background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(79, 70, 229, 0.15) 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(99, 102, 241, 0.2);">
-              <svg style="width: 32px; height: 32px; color: #6366f1;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          <div class="stat-card">
+            <div class="stat-icon purple">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
             </div>
-            <p style="font-size: 2.5rem; font-weight: 900; margin: 0 0 0.5rem; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -0.02em;">JWT</p>
-            <p style="color: #64748b; margin: 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Auth Flow</p>
+            <div class="stat-value">256-bit</div>
+            <div class="stat-label">Encryption</div>
           </div>
-          <div class="stat-card" style="text-align: center; padding: 2.5rem 1.5rem; background: linear-gradient(145deg, #ffffff 0%, #f9feff 100%); border-radius: 20px; box-shadow: 0 8px 32px rgba(14, 165, 233, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06); border: 2px solid rgba(14, 165, 233, 0.1); transition: all 0.3s ease;">
-            <div style="width: 64px; height: 64px; margin: 0 auto 1.25rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.15) 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(245, 158, 11, 0.2);">
-              <svg style="width: 32px; height: 32px; color: #f59e0b;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+          <div class="stat-card">
+            <div class="stat-icon orange">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               </svg>
             </div>
-            <p style="font-size: 2.5rem; font-weight: 900; margin: 0 0 0.5rem; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -0.02em;">App</p>
-            <p style="color: #64748b; margin: 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">First Flow</p>
+            <div class="stat-value">5</div>
+            <div class="stat-label">Device Limit</div>
           </div>
         </div>
       </div>
@@ -168,98 +167,92 @@
     <section class="section">
       <div class="container">
         <div class="section-header">
-          <div class="badge mb-3">
-            <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="badge">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
             </svg>
-            Premium Features
+            Features
           </div>
-          <h2>Control Plane, Built for Humans</h2>
-          <p>Manage your plan, devices, and preferred regions here. The SecureWave app handles the connection for you.</p>
+          <h2>Why Choose SecureWave</h2>
+          <p>Built for privacy, designed for simplicity. Connect securely with confidence.</p>
         </div>
 
         <div class="grid grid-3">
-          <!-- Feature 1 -->
           <div class="feature-card">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
               </svg>
             </div>
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">Lightning Fast Speeds</h3>
-            <p style="color: var(--text-secondary); line-height: 1.75;">Smart region selection keeps you on the fastest available route without any manual tuning.</p>
+            <h3>Fast Connections</h3>
+            <p>Optimized servers ensure minimal latency. Stream, game, and browse without slowdowns.</p>
           </div>
 
-          <!-- Feature 2 -->
           <div class="feature-card">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
             </div>
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">Always-On Protection</h3>
-            <p style="color: var(--text-secondary); line-height: 1.75;">Your traffic is protected automatically when you connect in the app. No configuration required.</p>
+            <h3>Strong Encryption</h3>
+            <p>Your traffic is protected with AES-256 encryption. Your data stays private.</p>
           </div>
 
-          <!-- Feature 3 -->
           <div class="feature-card">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
             </div>
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">Global Server Network</h3>
-            <p style="color: var(--text-secondary); line-height: 1.75;">Choose a region or let SecureWave pick the best route. Your app does the heavy lifting.</p>
+            <h3>Global Network</h3>
+            <p>Connect to servers in multiple regions. Access content from anywhere.</p>
           </div>
 
-          <!-- Feature 4 -->
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-              </svg>
-            </div>
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">Secure Payments</h3>
-            <p style="color: var(--text-secondary); line-height: 1.75;">Flexible plans with instant activation. Upgrade or cancel anytime.</p>
-          </div>
-
-          <!-- Feature 5 -->
           <div class="feature-card">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               </svg>
             </div>
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">All Your Devices</h3>
-            <p style="color: var(--text-secondary); line-height: 1.75;">Desktop and mobile apps keep every device protected with a single sign-in.</p>
+            <h3>Multi-Device</h3>
+            <p>Protect up to 5 devices with one account. Desktop, mobile, and tablet.</p>
           </div>
 
-          <!-- Feature 6 -->
           <div class="feature-card">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
               </svg>
             </div>
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">Instant Setup</h3>
-            <p style="color: var(--text-secondary); line-height: 1.75;">Download the app, sign in, and toggle on. SecureWave configures everything automatically.</p>
+            <h3>No-Log Policy</h3>
+            <p>We do not track or store your browsing activity. Your privacy is guaranteed.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </div>
+            <h3>Auto-Connect</h3>
+            <p>Stay protected automatically. The app reconnects when you switch networks.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Download App Section -->
+    <!-- Download Section -->
     <section class="download-section" id="download-app">
       <div class="container">
         <div class="section-header">
-          <div class="badge mb-3" style="display: inline-flex; font-size: 1.05rem; padding: 0.7rem 1.5rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.18) 0%, rgba(20, 184, 166, 0.18) 100%); border: 2px solid rgba(14, 165, 233, 0.35); box-shadow: 0 6px 24px rgba(14, 165, 233, 0.2);">
-            <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          <div class="badge">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
             </svg>
-            Download SecureWave v4.0
+            Download
           </div>
-          <h2 style="font-size: 3rem; line-height: 1.2; margin: 1.5rem 0 1.25rem; background: linear-gradient(135deg, #0b1120 0%, #0e6a7b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 900;">Get SecureWave on Every Device</h2>
-          <p style="font-size: 1.25rem; color: #475569; line-height: 1.7; font-weight: 400;">Install the SecureWave app to connect automatically. Choose your platform below.</p>
+          <h2>Get SecureWave for Your Device</h2>
+          <p>Install the app and connect in seconds. Available for desktop and mobile.</p>
         </div>
 
         <div class="download-apps-grid">
@@ -269,28 +262,28 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
               </svg>
             </div>
-            <div class="download-status">Available now</div>
-            <h3>Linux (arm64)</h3>
-            <p>Direct download for Ubuntu 22.04+ and compatible distros.</p>
-            <div class="download-meta">ZIP • 16 MB</div>
+            <div class="download-status">Available</div>
+            <h3>Linux</h3>
+            <p>Ubuntu 22.04+ and compatible distros</p>
+            <div class="download-meta">ZIP Archive</div>
             <a href="/downloads/securewave-app-linux-arm64.zip" class="download-app-btn" download>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
               </svg>
-              Download for Linux
+              Download
             </a>
           </div>
 
           <div class="download-app-card">
             <div class="download-app-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3h6a2 2 0 012 2v4H7V5a2 2 0 012-2zM5 9h14v10a2 2 0 01-2 2H7a2 2 0 01-2-2V9z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
               </svg>
             </div>
-            <div class="download-status soon">Coming soon</div>
+            <div class="download-status soon">Coming Soon</div>
             <h3>Windows</h3>
-            <p>Signed installer is in final QA. This page will host the download.</p>
-            <span class="download-app-btn is-disabled">Coming soon</span>
+            <p>Windows 10 and later</p>
+            <span class="download-app-btn is-disabled">Coming Soon</span>
           </div>
 
           <div class="download-app-card">
@@ -299,10 +292,10 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
               </svg>
             </div>
-            <div class="download-status soon">Coming soon</div>
+            <div class="download-status soon">Coming Soon</div>
             <h3>macOS</h3>
-            <p>Notarized macOS build is on the way. Check back soon.</p>
-            <span class="download-app-btn is-disabled">Coming soon</span>
+            <p>macOS 12 and later</p>
+            <span class="download-app-btn is-disabled">Coming Soon</span>
           </div>
 
           <div class="download-app-card">
@@ -311,10 +304,10 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               </svg>
             </div>
-            <div class="download-status soon">Coming soon</div>
+            <div class="download-status soon">Coming Soon</div>
             <h3>Android</h3>
-            <p>Play-ready APK and store build are in signing.</p>
-            <span class="download-app-btn is-disabled">Coming soon</span>
+            <p>Android 8.0 and later</p>
+            <span class="download-app-btn is-disabled">Coming Soon</span>
           </div>
 
           <div class="download-app-card">
@@ -323,56 +316,54 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               </svg>
             </div>
-            <div class="download-status soon">Coming soon</div>
+            <div class="download-status soon">Coming Soon</div>
             <h3>iOS</h3>
-            <p>TestFlight build is being finalized for early access.</p>
-            <span class="download-app-btn is-disabled">Coming soon</span>
+            <p>iOS 15 and later</p>
+            <span class="download-app-btn is-disabled">Coming Soon</span>
           </div>
         </div>
-        <p class="download-note">Linux is ready now. Windows, macOS, Android, and iOS downloads will appear here as they clear signing.</p>
+
+        <p class="download-note">Linux version is available now. Other platforms are in development.</p>
       </div>
     </section>
 
     <!-- CTA Section -->
     <section class="cta-section">
       <div class="cta-glow"></div>
-      <div class="container text-center cta-content">
-        <h2 class="cta-title">Ready to Connect in One Tap?</h2>
+      <div class="container cta-content">
+        <h2 class="cta-title">Ready to Protect Your Privacy?</h2>
         <p class="cta-subtitle">
-          Download the SecureWave app and sign in. Your connection is handled automatically.
+          Download SecureWave and start browsing securely in minutes. No complex setup required.
         </p>
-        <div class="cta-buttons mb-8">
-          <a href="/home.html#download-app" class="btn btn-lg cta-btn-primary">
-            <svg style="width: 24px; height: 24px; margin-right: 10px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        <div class="cta-buttons">
+          <a href="#download-app" class="btn btn-lg cta-btn-primary">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
             </svg>
-            Download App Now
+            Get Started Free
           </a>
           <a href="/subscription.html" class="btn btn-lg cta-btn-outline">
-            <svg style="width: 24px; height: 24px; margin-right: 10px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-            </svg>
             View Plans
           </a>
         </div>
-        <div class="d-flex flex-wrap justify-content-center gap-4">
-          <div class="d-flex align-items-center gap-2" style="color: rgba(255, 255, 255, 0.95); font-size: 0.95rem; font-weight: 600;">
-            <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+        <div class="cta-features">
+          <div class="cta-feature">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
             No credit card required
           </div>
-          <div class="d-flex align-items-center gap-2" style="color: rgba(255, 255, 255, 0.95); font-size: 0.95rem; font-weight: 600;">
-            <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-            </svg>
-            Flexible plans
-          </div>
-          <div class="d-flex align-items-center gap-2" style="color: rgba(255, 255, 255, 0.95); font-size: 0.95rem; font-weight: 600;">
-            <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+          <div class="cta-feature">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
             Cancel anytime
+          </div>
+          <div class="cta-feature">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Instant activation
           </div>
         </div>
       </div>
@@ -381,20 +372,21 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <div class="container footer-content">
+    <div class="footer-content">
       <div class="footer-cta">
         <div>
-          <h3>Download SecureWave</h3>
-          <p>Connect in the app. Manage your plan and devices here.</p>
+          <h3>Get SecureWave</h3>
+          <p>Download the app and connect securely in seconds.</p>
         </div>
-        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+        <a href="#download-app" class="btn btn-primary btn-sm">Download App</a>
       </div>
       <div class="footer-links">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
         <a href="/contact.html">Contact</a>
+        <a href="/about.html">About</a>
       </div>
-      <p class="footer-meta">&copy; 2026 SecureWave VPN v4.0 &mdash; All rights reserved.</p>
+      <p class="footer-meta">2026 SecureWave VPN. All rights reserved.</p>
     </div>
   </footer>
 

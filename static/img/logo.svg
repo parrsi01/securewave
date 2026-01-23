@@ -1,16 +1,42 @@
-<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Flow Mark: Minimal, professional SecureWave logo -->
-  <!-- Concept: Overlapping paths representing secure data flow -->
+<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- SecureWave Logo - Modern shield with wave signal -->
+  <!-- Concept: Abstract shield containing signal waves representing secure connection -->
 
-  <!-- Outer flow path -->
-  <path d="M 6 10 L 22 10 A 6 6 0 0 1 22 22 L 6 22 A 6 6 0 0 1 6 10 Z"
-        stroke="currentColor"
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#F86605"/>
+    </linearGradient>
+    <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#28d799"/>
+      <stop offset="100%" stop-color="#1fa87a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield outline -->
+  <path d="M20 3C20 3 6 8 6 16C6 24 6 28 20 37C34 28 34 24 34 16C34 8 20 3 20 3Z"
+        fill="url(#logoGradient)"
+        stroke="none"/>
+
+  <!-- Inner signal waves (3 curved lines) -->
+  <path d="M14 20C14 20 16 16 20 16C24 16 26 20 26 20"
+        stroke="white"
         stroke-width="2.5"
-        fill="none"
         stroke-linecap="round"
-        stroke-linejoin="round"/>
+        fill="none"/>
+  <path d="M11 20C11 20 14 13 20 13C26 13 29 20 29 20"
+        stroke="white"
+        stroke-width="2"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.7"/>
+  <path d="M8 20C8 20 12 10 20 10C28 10 32 20 32 20"
+        stroke="white"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.4"/>
 
-  <!-- Inner flow path (creates tunnel/encryption effect) -->
-  <rect x="10" y="14" width="16" height="4" rx="2"
-        fill="currentColor"/>
+  <!-- Center dot -->
+  <circle cx="20" cy="23" r="3" fill="white"/>
 </svg>
