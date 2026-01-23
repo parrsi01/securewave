@@ -20,6 +20,23 @@ class VpnPage extends ConsumerWidget {
     final vpnState = ref.watch(vpnControllerProvider);
     final servers = ref.watch(serversProvider);
     final status = ref.watch(vpnStatusProvider);
+    final vpnService = ref.watch(vpnServiceProvider);
+    String? platformNotice;
+    if (vpnService is VpnServiceUnsupported) {
+      platformNotice = vpnService.message;
+    }
+
+    final selectedServerLabel = servers.maybeWhen(
+      data: (data) {
+        if (data.isEmpty) return null;
+        final selected = data.firstWhere(
+          (server) => server['server_id'] == vpnState.selectedServerId,
+          orElse: () => data.first,
+        );
+        return selected['location']?.toString() ?? 'Auto-select';
+      },
+      orElse: () => null,
+    );
 
     return SafeArea(
       child: ContentLayout(
@@ -30,11 +47,16 @@ class VpnPage extends ConsumerWidget {
               title: 'VPN Connection',
               subtitle: 'Tap the control below to connect. The app handles everything automatically.',
             ),
+            if (platformNotice != null) ...[
+              const SizedBox(height: 12),
+              InlineBanner(message: platformNotice),
+            ],
             const SizedBox(height: 24),
             // Status Panel Card
             _VpnStatusCard(
               vpnState: vpnState,
               status: status,
+              serverLabel: selectedServerLabel,
               onToggle: vpnState.isBusy
                   ? null
                   : () {
@@ -94,7 +116,8 @@ class VpnPage extends ConsumerWidget {
                         );
                         final selectedLabel = selected['location'] ?? 'Auto-select';
                         return DropdownButtonFormField<String>(
-                          value: vpnState.selectedServerId,
+                          key: ValueKey(vpnState.selectedServerId ?? 'auto'),
+                          initialValue: vpnState.selectedServerId,
                           decoration: InputDecoration(
                             labelText: 'Select region',
                             helperText: 'Currently: $selectedLabel',
@@ -155,16 +178,27 @@ class VpnPage extends ConsumerWidget {
 
 // VPN Status Card with clear status transitions
 class _VpnStatusCard extends StatelessWidget {
-  const _VpnStatusCard({required this.vpnState, required this.status, this.onToggle});
+  const _VpnStatusCard({
+    required this.vpnState,
+    required this.status,
+    this.serverLabel,
+    this.onToggle,
+  });
 
   final VpnUiState vpnState;
   final AsyncValue<VpnStatus> status;
+  final String? serverLabel;
   final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
     return status.when(
-      data: (data) => _StatusDisplay(status: data, vpnState: vpnState, onToggle: onToggle),
+      data: (data) => _StatusDisplay(
+        status: data,
+        vpnState: vpnState,
+        serverLabel: serverLabel,
+        onToggle: onToggle,
+      ),
       loading: () => const Card(
         child: Padding(
           padding: EdgeInsets.all(32),
@@ -182,14 +216,23 @@ class _VpnStatusCard extends StatelessWidget {
 }
 
 class _StatusDisplay extends StatelessWidget {
-  const _StatusDisplay({required this.status, required this.vpnState, this.onToggle});
+  const _StatusDisplay({
+    required this.status,
+    required this.vpnState,
+    this.serverLabel,
+    this.onToggle,
+  });
 
   final VpnStatus status;
   final VpnUiState vpnState;
+  final String? serverLabel;
   final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 360;
+    final ringSize = isCompact ? 150.0 : 180.0;
+    final ringOuter = ringSize + 20;
     final hasError = vpnState.errorMessage != null;
     final label = hasError ? 'Error' : _statusLabel(status);
     final detail = hasError ? vpnState.errorMessage! : _statusDetail(status);
@@ -241,6 +284,23 @@ class _StatusDisplay extends StatelessWidget {
                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
               ),
+              if (serverLabel != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Server: $serverLabel',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primary,
+                        ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               GestureDetector(
                 onTap: onToggle,
@@ -249,8 +309,8 @@ class _StatusDisplay extends StatelessWidget {
                   children: [
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
-                      width: 180,
-                      height: 180,
+                      width: ringSize,
+                      height: ringSize,
                       decoration: BoxDecoration(
                         color: color.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
@@ -267,8 +327,8 @@ class _StatusDisplay extends StatelessWidget {
                     ),
                     if (isConnecting || vpnState.isBusy)
                       SizedBox(
-                        width: 200,
-                        height: 200,
+                        width: ringOuter,
+                        height: ringOuter,
                         child: CircularProgressIndicator(
                           strokeWidth: 4,
                           valueColor: AlwaysStoppedAnimation<Color>(color),

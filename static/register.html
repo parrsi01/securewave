@@ -55,8 +55,14 @@
           </div>
           <h1>Create Your SecureWave Account</h1>
           <p style="font-size: 1.125rem; color: var(--text-secondary); margin-top: 0.5rem;">
-            Create your account, then download the SecureWave app to connect automatically.
+            Create your account, then download the SecureWave app. The VPN tunnel runs inside the app.
           </p>
+          <div class="cta-row flex-wrap-mobile" style="margin-top: 1.5rem;">
+            <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-primary btn-lg" download>
+              Download SecureWave App
+            </a>
+            <a href="/login.html" class="btn btn-outline btn-lg">Login to Dashboard</a>
+          </div>
         </div>
 
         <div class="auth-card">
@@ -186,26 +192,35 @@
             <div>
               <h3 style="margin: 0;">Get the App</h3>
               <p style="margin: 0.35rem 0 0; color: var(--text-secondary);">
-                The SecureWave app handles VPN connection automatically after you sign in.
+                The SecureWave app handles VPN connection automatically after you sign in. Download directly from SecureWave.
               </p>
             </div>
           </div>
           <div class="platform-grid">
-            <div class="platform-card">
-              <span>macOS</span>
-              <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-outline btn-sm btn-block">Download</a>
+            <div class="platform-card is-available">
+              <div class="platform-tag">Available now</div>
+              <span>Linux (arm64)</span>
+              <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-outline btn-sm btn-block" download>Download</a>
             </div>
             <div class="platform-card">
+              <div class="platform-tag soon">Coming soon</div>
               <span>Windows</span>
-              <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-outline btn-sm btn-block">Download</a>
+              <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
             </div>
             <div class="platform-card">
-              <span>iOS</span>
-              <a href="/contact.html" class="btn btn-ghost btn-sm btn-block">Request Access</a>
+              <div class="platform-tag soon">Coming soon</div>
+              <span>macOS</span>
+              <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
             </div>
             <div class="platform-card">
+              <div class="platform-tag soon">Coming soon</div>
               <span>Android</span>
-              <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-outline btn-sm btn-block">Download</a>
+              <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
+            </div>
+            <div class="platform-card">
+              <div class="platform-tag soon">Coming soon</div>
+              <span>iOS</span>
+              <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
             </div>
           </div>
         </div>

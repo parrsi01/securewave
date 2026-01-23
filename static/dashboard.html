@@ -65,6 +65,27 @@
     </section>
 
     <section class="container page-section">
+      <div class="panel app-callout">
+        <div class="app-callout-header">
+          <div class="app-callout-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+          </div>
+          <div>
+            <h2 style="margin: 0;">Get the SecureWave App</h2>
+            <p style="margin: 0.35rem 0 0; color: var(--text-secondary);">
+              Download directly from SecureWave and connect in one tap. The website stays your control plane.
+            </p>
+          </div>
+        </div>
+        <div class="cta-row flex-wrap-mobile">
+          <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-primary" download>Download SecureWave App</a>
+          <a href="/vpn.html#vpn-tests" class="btn btn-outline">Run VPN Test</a>
+          <a href="/settings.html" class="btn btn-ghost">Account Settings</a>
+        </div>
+      </div>
+
       <div class="onboarding-card">
         <div class="panel-kicker">Get connected</div>
         <h2 class="panel-title">Connect using the SecureWave App</h2>
@@ -94,19 +115,33 @@
         <div class="panel-kicker">Download</div>
         <h2 class="panel-title">Connect using the SecureWave App</h2>
         <p style="color: var(--text-secondary); margin-bottom: var(--space-8);">
-          Configuration is automatic inside the app. Choose your platform to get started.
+          Configuration is automatic inside the app. Direct downloads are hosted by SecureWave.
         </p>
         <div class="grid grid-4 download-grid">
+          <div class="download-card available">
+            <div class="download-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <div class="download-status">Available now</div>
+            <div class="download-title">Linux (arm64)</div>
+            <div class="download-meta">ZIP • 16 MB • auto setup</div>
+            <div class="download-actions">
+              <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-primary btn-sm" download>Download</a>
+            </div>
+          </div>
           <div class="download-card">
             <div class="download-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3h6a2 2 0 012 2v4H7V5a2 2 0 012-2zM5 9h14v10a2 2 0 01-2 2H7a2 2 0 01-2-2V9z"/>
               </svg>
             </div>
+            <div class="download-status soon">Coming soon</div>
             <div class="download-title">Windows</div>
-            <div class="download-meta">Desktop app • auto setup</div>
+            <div class="download-meta">Signed installer in QA</div>
             <div class="download-actions">
-              <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-primary btn-sm">Download</a>
+              <span class="btn btn-ghost btn-sm is-disabled">Coming soon</span>
             </div>
           </div>
           <div class="download-card">
@@ -115,10 +150,11 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
               </svg>
             </div>
+            <div class="download-status soon">Coming soon</div>
             <div class="download-title">macOS</div>
-            <div class="download-meta">Native app • auto connect</div>
+            <div class="download-meta">Notarized build in progress</div>
             <div class="download-actions">
-              <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-primary btn-sm">Download</a>
+              <span class="btn btn-ghost btn-sm is-disabled">Coming soon</span>
             </div>
           </div>
           <div class="download-card">
@@ -127,10 +163,11 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               </svg>
             </div>
+            <div class="download-status soon">Coming soon</div>
             <div class="download-title">iOS</div>
-            <div class="download-meta">TestFlight • invite required</div>
+            <div class="download-meta">TestFlight build in review</div>
             <div class="download-actions">
-              <a href="/contact.html" class="btn btn-ghost btn-sm">Request access</a>
+              <span class="btn btn-ghost btn-sm is-disabled">Coming soon</span>
             </div>
           </div>
           <div class="download-card">
@@ -139,10 +176,11 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               </svg>
             </div>
+            <div class="download-status soon">Coming soon</div>
             <div class="download-title">Android</div>
-            <div class="download-meta">APK builds • auto setup</div>
+            <div class="download-meta">APK signing in progress</div>
             <div class="download-actions">
-              <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-primary btn-sm">Download</a>
+              <span class="btn btn-ghost btn-sm is-disabled">Coming soon</span>
             </div>
           </div>
         </div>
@@ -163,6 +201,11 @@
           <div class="account-item">
             <div class="account-label">Subscription</div>
             <span id="subscriptionStatus" class="badge">Loading...</span>
+          </div>
+          <div class="account-item">
+            <div class="account-label">VPN Readiness</div>
+            <span id="vpnReadiness" class="badge">Checking...</span>
+            <div id="vpnReadinessDetail" style="margin-top: 0.35rem; color: var(--text-tertiary); font-size: 0.85rem;">&nbsp;</div>
           </div>
         </div>
       </div>

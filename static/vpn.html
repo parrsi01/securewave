@@ -91,6 +91,20 @@
         </div>
       </div>
 
+      <div class="panel" id="vpn-tests" style="margin-top: 2.5rem;">
+        <div class="panel-kicker">VPN tests</div>
+        <h2 class="panel-title">Run a VPN Test</h2>
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-6);">
+          Validate latency, throughput, and leak protection. Results appear below after the test completes.
+        </p>
+        <div class="cta-row flex-wrap-mobile" style="justify-content: flex-start;">
+          <button class="btn btn-primary" id="run-vpn-test-btn">Run Full Test</button>
+          <button class="btn btn-outline" id="run-vpn-test-quick-btn">Quick Test</button>
+          <span id="vpn-test-last-run" style="color: var(--text-tertiary); font-size: 0.9rem;">No recent tests.</span>
+        </div>
+        <div id="vpn-test-results" class="test-results-container"></div>
+      </div>
+
       <div class="app-callout" style="margin-top: 2.5rem;">
         <div class="app-callout-header">
           <div class="app-callout-icon">
@@ -101,26 +115,35 @@
           <div>
             <h2 style="margin: 0;">Connect in the SecureWave App</h2>
             <p style="margin: 0.35rem 0 0; color: var(--text-secondary);">
-              The SecureWave app handles VPN connection automatically after you sign in.
+              The SecureWave app handles VPN connection automatically after you sign in. Download directly from SecureWave.
             </p>
           </div>
         </div>
         <div class="platform-grid">
-          <div class="platform-card">
-            <span>macOS</span>
-            <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-outline btn-sm btn-block">Download</a>
+          <div class="platform-card is-available">
+            <div class="platform-tag">Available now</div>
+            <span>Linux (arm64)</span>
+            <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-outline btn-sm btn-block" download>Download</a>
           </div>
           <div class="platform-card">
+            <div class="platform-tag soon">Coming soon</div>
             <span>Windows</span>
-            <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-outline btn-sm btn-block">Download</a>
+            <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
           </div>
           <div class="platform-card">
-            <span>iOS</span>
-            <a href="/contact.html" class="btn btn-ghost btn-sm btn-block">Request Access</a>
+            <div class="platform-tag soon">Coming soon</div>
+            <span>macOS</span>
+            <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
           </div>
           <div class="platform-card">
+            <div class="platform-tag soon">Coming soon</div>
             <span>Android</span>
-            <a href="https://github.com/parrsi01/securewave/releases" class="btn btn-outline btn-sm btn-block">Download</a>
+            <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
+          </div>
+          <div class="platform-card">
+            <div class="platform-tag soon">Coming soon</div>
+            <span>iOS</span>
+            <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
           </div>
         </div>
       </div>
@@ -146,6 +169,7 @@
   </footer>
 
   <script src="/js/main.js"></script>
+  <script src="/js/vpn-tests.js"></script>
   <script>
     const token = localStorage.getItem('access_token');
     if (!token) {

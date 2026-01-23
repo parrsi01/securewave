@@ -118,7 +118,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           email: _emailController.text.trim(),
                           password: _passwordController.text.trim(),
                         );
-                    if (mounted && ref.read(authControllerProvider).errorMessage == null) {
+                    if (!context.mounted) return;
+                    if (ref.read(authControllerProvider).errorMessage == null) {
                       context.go('/dashboard');
                     }
                   },
