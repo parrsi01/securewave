@@ -46,22 +46,25 @@
   <main id="main-content">
     <section class="auth-section">
       <div class="container-sm">
-        <div class="auth-header">
-          <div class="badge">
-            <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
-            Start Free
-          </div>
-          <h1>Create Your SecureWave Account</h1>
-          <p style="font-size: 1.125rem; color: var(--text-secondary); margin-top: 0.5rem;">
-            Create your account, then download the SecureWave app. The VPN tunnel runs inside the app.
-          </p>
-          <div class="cta-row flex-wrap-mobile" style="margin-top: 1.5rem;">
-            <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-primary btn-lg" download>
-              Download SecureWave App
-            </a>
-            <a href="/login.html" class="btn btn-outline btn-lg">Login to Dashboard</a>
+        <div class="auth-header" style="padding: 3rem; background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); border-radius: 24px; margin-bottom: 2.5rem; box-shadow: 0 20px 56px rgba(16, 185, 129, 0.3); position: relative; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.2);">
+          <div style="position: absolute; inset: 0; background: radial-gradient(circle at 70% 40%, rgba(255, 255, 255, 0.12) 0%, transparent 50%); pointer-events: none;"></div>
+          <div style="position: relative; z-index: 1;">
+            <div class="badge" style="display: inline-flex; font-size: 1rem; padding: 0.65rem 1.35rem; background: rgba(255, 255, 255, 0.25); border: 2px solid rgba(255, 255, 255, 0.4); color: white; backdrop-filter: blur(10px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);">
+              <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+              </svg>
+              Start Free
+            </div>
+            <h1 style="font-size: 2.75rem; margin: 1.5rem 0 1rem; color: white; font-weight: 900; text-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);">Create Your SecureWave Account</h1>
+            <p style="font-size: 1.2rem; color: rgba(255, 255, 255, 0.95); margin-bottom: 2rem; line-height: 1.6; font-weight: 500;">
+              Create your account, then download the SecureWave app. The VPN tunnel runs inside the app.
+            </p>
+            <div class="cta-row flex-wrap-mobile" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+              <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-primary btn-lg" download style="padding: 1rem 2rem; font-size: 1.1rem; background: white; color: #059669; font-weight: 800; border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2); border: 2px solid rgba(255, 255, 255, 0.5);">
+                Download SecureWave App
+              </a>
+              <a href="/login.html" class="btn btn-outline btn-lg" style="padding: 1rem 2rem; font-size: 1.05rem; background: rgba(255, 255, 255, 0.12); color: white; font-weight: 700; border-radius: 14px; border: 2px solid rgba(255, 255, 255, 0.4); backdrop-filter: blur(10px);">Login to Dashboard</a>
+            </div>
           </div>
         </div>
 
