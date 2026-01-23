@@ -231,8 +231,8 @@ class _StatusDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.width < 360;
-    final ringSize = isCompact ? 150.0 : 180.0;
-    final ringOuter = ringSize + 20;
+    final ringSize = isCompact ? 180.0 : 220.0;
+    final ringOuter = ringSize + 24;
     final hasError = vpnState.errorMessage != null;
     final label = hasError ? 'Error' : _statusLabel(status);
     final detail = hasError ? vpnState.errorMessage! : _statusDetail(status);
@@ -242,27 +242,43 @@ class _StatusDisplay extends StatelessWidget {
     final isConnecting = status == VpnStatus.connecting || status == VpnStatus.disconnecting;
 
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(32),
           gradient: isActive
               ? LinearGradient(
                   colors: [
-                    AppTheme.success.withValues(alpha: 0.12),
-                    AppTheme.success.withValues(alpha: 0.02),
+                    AppTheme.success.withValues(alpha: 0.18),
+                    AppTheme.success.withValues(alpha: 0.06),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
-              : null,
+              : LinearGradient(
+                  colors: [
+                    color.withValues(alpha: 0.06),
+                    color.withValues(alpha: 0.02),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
           border: Border.all(
-            color: color.withValues(alpha: 0.3),
-            width: 1.5,
+            color: color.withValues(alpha: 0.35),
+            width: 2.5,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.2),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+              spreadRadius: 2,
+            ),
+          ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(32),
           child: Column(
             children: [
               AnimatedSwitcher(
@@ -270,38 +286,58 @@ class _StatusDisplay extends StatelessWidget {
                 child: Text(
                   label,
                   key: ValueKey(label),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                         color: color,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 32,
+                        letterSpacing: -0.5,
                       ),
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               Text(
                 detail,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
               ),
               if (serverLabel != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.12),
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.primary.withValues(alpha: 0.18),
+                        AppTheme.primary.withValues(alpha: 0.12),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.25), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primary.withValues(alpha: 0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Text(
                     'Server: $serverLabel',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
                           color: AppTheme.primary,
+                          fontSize: 15,
                         ),
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               GestureDetector(
                 onTap: onToggle,
                 child: Stack(
@@ -312,37 +348,49 @@ class _StatusDisplay extends StatelessWidget {
                       width: ringSize,
                       height: ringSize,
                       decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.15),
+                        gradient: RadialGradient(
+                          colors: [
+                            color.withValues(alpha: 0.25),
+                            color.withValues(alpha: 0.15),
+                          ],
+                          stops: const [0.6, 1.0],
+                        ),
                         shape: BoxShape.circle,
-                        border: Border.all(color: color.withValues(alpha: 0.4), width: 4),
+                        border: Border.all(color: color.withValues(alpha: 0.5), width: 6),
                         boxShadow: [
                           BoxShadow(
-                            color: color.withValues(alpha: 0.3),
-                            blurRadius: 24,
-                            spreadRadius: 2,
+                            color: color.withValues(alpha: 0.4),
+                            blurRadius: 32,
+                            spreadRadius: 4,
+                          ),
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.2),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
-                      child: Icon(icon, color: color, size: 54),
+                      child: Icon(icon, color: color, size: 68),
                     ),
                     if (isConnecting || vpnState.isBusy)
                       SizedBox(
                         width: ringOuter,
                         height: ringOuter,
                         child: CircularProgressIndicator(
-                          strokeWidth: 4,
+                          strokeWidth: 5,
                           valueColor: AlwaysStoppedAnimation<Color>(color),
                         ),
                       ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Text(
                 isActive ? 'Tap to disconnect' : 'Tap to connect',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
+                      fontSize: 16,
                     ),
               ),
               if (isActive) ...[
