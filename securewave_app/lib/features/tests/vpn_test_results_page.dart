@@ -21,19 +21,19 @@ class VpnTestResultsPage extends ConsumerWidget {
     return SafeArea(
       child: ContentLayout(
         child: result == null
-            ? const Center(child: Text('Run a test to view results.'))
+            ? const Center(child: Text('Run diagnostics to view results.'))
             : ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   const SectionHeader(
                     title: 'Test summary',
-                    subtitle: 'Tunnel performance at a glance.',
+                    subtitle: 'Connection performance at a glance.',
                   ),
                   const SizedBox(height: 16),
                   InlineBanner(
                     message: result['status'] == 'PASSED'
-                        ? 'Tunnel performance is within expected range.'
-                        : 'Tunnel performance needs attention. Review the details below.',
+                        ? 'Connection performance is within expected range.'
+                        : 'Connection performance needs attention. Review the details below.',
                     color: result['status'] == 'PASSED' ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
                   ),
                   const SizedBox(height: 12),
@@ -65,7 +65,7 @@ class VpnTestResultsPage extends ConsumerWidget {
                   const SizedBox(height: 12),
                   InfoCard(
                     title: 'Throughput',
-                    subtitle: '${result['throughput']}% of baseline',
+                    subtitle: '${result['throughput']}% of baseline speed',
                   ),
                   const SizedBox(height: 12),
                   InfoCard(

@@ -107,7 +107,7 @@ class HomePage extends StatelessWidget {
                         children: const [
                           _QuickChip(label: 'Fast setup', icon: Icons.bolt),
                           _QuickChip(label: 'Auto-connect', icon: Icons.shield),
-                          _QuickChip(label: '5 GB free', icon: Icons.data_usage),
+                          _QuickChip(label: 'Free tier', icon: Icons.data_usage),
                         ],
                       ),
                     ],
@@ -141,7 +141,7 @@ class HomePage extends StatelessWidget {
                 const _FeatureTile(
                   icon: Icons.lock_outline,
                   title: 'Private by default',
-                  subtitle: 'Zero-log policy. Your data stays yours.',
+                  subtitle: 'Privacy-first policy. Your data stays yours.',
                 ),
                 const _FeatureTile(
                   icon: Icons.devices_other,

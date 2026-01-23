@@ -42,13 +42,13 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
             ),
             const SizedBox(height: 16),
             const InlineBanner(
-              message: 'Basic plans include one device. Upgrade to add more.',
+              message: 'Plan limits apply. Upgrade in the SecureWave dashboard to add more devices.',
               color: Color(0xFF38BDF8),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _deviceController,
-              decoration: const InputDecoration(labelText: 'Device name (e.g., MacBook Pro)'),
+              decoration: const InputDecoration(labelText: 'Device name (e.g., MacBook, Pixel)'),
             ),
             const SizedBox(height: 12),
             ResponsiveWrap(

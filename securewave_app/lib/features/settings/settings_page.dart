@@ -10,6 +10,7 @@ import '../../widgets/buttons/secondary_button.dart';
 import '../../widgets/layouts/content_layout.dart';
 import '../../widgets/layouts/section_header.dart';
 import '../../widgets/layouts/responsive_wrap.dart';
+import '../../widgets/loaders/inline_banner.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -33,7 +34,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           children: [
             const SectionHeader(
               title: 'Account & preferences',
-              subtitle: 'Quick settings for your SecureWave devices.',
+              subtitle: 'Manage preferences that sync to your SecureWave app.',
+            ),
+            const SizedBox(height: 8),
+            const InlineBanner(
+              message: 'Some preferences apply only on supported platforms and plans.',
+              color: AppTheme.info,
             ),
             const SizedBox(height: 16),
             Card(
@@ -50,15 +56,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 Card(
                   child: SwitchListTile(
                     title: const Text('Auto-connect'),
-                    subtitle: const Text('Connect on app launch.'),
+                    subtitle: const Text('Connect when the app launches.'),
                     value: autoConnect,
                     onChanged: (value) => setState(() => autoConnect = value),
                   ),
                 ),
                 Card(
                   child: SwitchListTile(
-                    title: const Text('Kill switch'),
-                    subtitle: const Text('Block traffic if VPN drops.'),
+                    title: const Text('Connection safeguard'),
+                    subtitle: const Text('Pause traffic if VPN drops (where supported).'),
                     value: killSwitch,
                     onChanged: (value) => setState(() => killSwitch = value),
                   ),
