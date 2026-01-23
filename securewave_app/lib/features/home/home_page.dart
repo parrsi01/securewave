@@ -100,11 +100,11 @@ class HomePage extends StatelessWidget {
                         onPressed: () => context.go('/register'),
                       ),
                       const SizedBox(height: 28),
-                      ResponsiveWrap(
+                      const ResponsiveWrap(
                         minItemWidth: 130,
                         spacing: 12,
                         runSpacing: 12,
-                        children: const [
+                        children: [
                           _QuickChip(label: 'Fast setup', icon: Icons.bolt),
                           _QuickChip(label: 'Auto-connect', icon: Icons.shield),
                           _QuickChip(label: 'Free tier', icon: Icons.data_usage),
@@ -119,9 +119,9 @@ class HomePage extends StatelessWidget {
                   subtitle: 'Three simple steps to secure your connection.',
                 ),
                 const SizedBox(height: 20),
-                ResponsiveWrap(
+                const ResponsiveWrap(
                   minItemWidth: 180,
-                  children: const [
+                  children: [
                     MetricCard(label: 'Step 1', value: 'Create account', icon: Icons.person_add, gradient: true),
                     MetricCard(label: 'Step 2', value: 'Download app', icon: Icons.download),
                     MetricCard(label: 'Step 3', value: 'Toggle VPN', icon: Icons.shield),

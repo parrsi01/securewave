@@ -126,9 +126,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           gradient: AppTheme.buttonGradient,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(
+                        child: const Text(
                           'v${AppConstants.appVersion}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
                             fontSize: 12,
