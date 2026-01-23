@@ -199,7 +199,7 @@ deploy_azure() {
     cp alembic.ini build/ 2>/dev/null || log_warning "alembic.ini not found (optional)"
 
     # Copy application directories
-    for dir in routers routes models database services infrastructure scripts securewave-tests; do
+    for dir in routers routes models database services utils infrastructure scripts securewave-tests; do
         if [ -d "$dir" ]; then
             cp -r "$dir" build/
             log_info "  ✓ Copied $dir/"
