@@ -9,6 +9,8 @@ class DashboardUI {
     this.subscriptionStatus = document.getElementById('subscriptionStatus');
     this.deviceCount = document.getElementById('deviceCount');
     this.deviceList = document.getElementById('deviceList');
+    this.vpnReadiness = document.getElementById('vpnReadiness');
+    this.vpnReadinessDetail = document.getElementById('vpnReadinessDetail');
     this.logoutBtn = document.getElementById('logoutBtn');
 
     this.init();
@@ -25,7 +27,12 @@ class DashboardUI {
       return;
     }
 
-    await Promise.all([this.loadUserInfo(), this.loadSubscriptionInfo(), this.loadDevices()]);
+    await Promise.all([
+      this.loadUserInfo(),
+      this.loadSubscriptionInfo(),
+      this.loadDevices(),
+      this.loadVpnStatus()
+    ]);
     this.bindEvents();
   }
 
@@ -199,6 +206,46 @@ class DashboardUI {
       console.error('Failed to load devices:', error);
       this.deviceList.innerHTML = '<li>Unable to load devices right now.</li>';
       this.deviceCount.textContent = '--';
+    }
+  }
+
+  async loadVpnStatus() {
+    if (!this.vpnReadiness) return;
+    this.setBadge(this.vpnReadiness, 'Checking...', 'info');
+    if (this.vpnReadinessDetail) {
+      this.vpnReadinessDetail.textContent = '';
+    }
+
+    try {
+      const response = await fetch('/api/vpn/status', {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Unable to load VPN status');
+      }
+
+      const data = await response.json();
+      const status = data.status || 'DISCONNECTED';
+      const isConnected = status === 'CONNECTED';
+      const badgeType = isConnected ? 'success' : 'info';
+      const readiness = isConnected ? 'Active' : 'Ready';
+      this.setBadge(this.vpnReadiness, readiness, badgeType);
+
+      if (this.vpnReadinessDetail) {
+        const location = data.server_location || 'Auto-select region';
+        this.vpnReadinessDetail.textContent = isConnected
+          ? `Connected via ${location}`
+          : 'Download the app to connect.';
+      }
+    } catch (error) {
+      console.error('Failed to load VPN status:', error);
+      this.setBadge(this.vpnReadiness, 'Unavailable', 'warning');
+      if (this.vpnReadinessDetail) {
+        this.vpnReadinessDetail.textContent = 'Try again in a moment.';
+      }
     }
   }
 

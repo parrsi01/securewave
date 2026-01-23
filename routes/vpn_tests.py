@@ -32,8 +32,9 @@ router = APIRouter(prefix="/api/vpn/tests", tags=["vpn-tests"])
 # Path to test suite
 TEST_SUITE_DIR = Path(__file__).parent.parent / "securewave-tests"
 RESULTS_DIR = Path(
-    os.getenv("VPN_TEST_RESULTS_DIR", "/tmp/securewave-tests/results")
+    os.getenv("VPN_TEST_RESULTS_DIR", str(TEST_SUITE_DIR / "results"))
 )
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Track running tests
 _running_tests: Dict[int, bool] = {}  # user_id -> is_running

@@ -60,7 +60,11 @@ async def revoke_user_peers(db: Session, user: User) -> int:
         db.commit()
         return len(peers)
 
-    manager = get_wireguard_server_manager()
+    try:
+        manager = get_wireguard_server_manager()
+    except Exception as exc:
+        logger.warning(f"WireGuard manager unavailable; skipping peer removal sync: {exc}")
+        manager = None
     revoked = 0
 
     for peer in peers:
@@ -68,7 +72,7 @@ async def revoke_user_peers(db: Session, user: User) -> int:
         if peer.server_id:
             server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
 
-        if server:
+        if server and manager:
             try:
                 conn = server_connection_from_db(server)
                 await manager.remove_peer(conn, peer.public_key)
@@ -101,7 +105,11 @@ async def _sync_user_usage(db: Session, user: User) -> None:
     if not peers:
         return
 
-    manager = get_wireguard_server_manager()
+    try:
+        manager = get_wireguard_server_manager()
+    except Exception as exc:
+        logger.warning(f"WireGuard manager unavailable; skipping usage sync: {exc}")
+        return
     servers = {}
     for peer in peers:
         if peer.server_id not in servers:

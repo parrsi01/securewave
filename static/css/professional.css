@@ -3057,6 +3057,12 @@ html, body {
 .hero-grid > *,
 .plan-grid > *,
 .download-grid > *,
+.download-apps-grid > *,
+.platform-grid > *,
+.status-grid > *,
+.region-grid > *,
+.onboarding-steps > *,
+.test-metrics > *,
 .stats-container > *,
 .account-grid > *,
 .feature-grid > * {
@@ -3552,6 +3558,45 @@ textarea:focus-visible,
   height: 20px;
 }
 
+.download-app-card .download-meta {
+  margin-bottom: var(--space-5);
+}
+
+.download-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-semibold);
+  background: rgba(20, 184, 166, 0.18);
+  color: var(--primary-700);
+  margin-bottom: var(--space-3);
+}
+
+.download-status.soon {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--text-tertiary);
+}
+
+.download-app-card.available,
+.download-card.available {
+  border-color: var(--primary-300);
+  box-shadow: var(--shadow-xl);
+}
+
+.download-app-btn.is-disabled {
+  pointer-events: none;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  box-shadow: none;
+}
+
+.download-app-btn.is-disabled svg {
+  color: var(--text-tertiary);
+}
+
 .download-note {
   text-align: center;
   margin-top: var(--space-8);
@@ -3559,6 +3604,190 @@ textarea:focus-visible,
   font-size: var(--font-size-sm);
   position: relative;
   z-index: 1;
+}
+
+/* =================================================================
+   VPN Test Results
+   ================================================================= */
+
+.test-results-container {
+  margin-top: var(--space-8);
+}
+
+.test-results,
+.test-loading {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-lg);
+}
+
+.test-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.test-score {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 165, 233, 0.12);
+  border: 2px solid rgba(14, 165, 233, 0.4);
+}
+
+.test-score.success {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.test-score.warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.test-score.danger {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.test-score .score-value {
+  font-size: 1.75rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.test-score .score-label {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+.test-status {
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--text-tertiary);
+}
+
+.test-status.success {
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--success-dark);
+}
+
+.test-status.danger {
+  background: rgba(239, 68, 68, 0.16);
+  color: var(--error-dark);
+}
+
+.test-vpn-info {
+  margin-bottom: var(--space-6);
+}
+
+.config-status {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-5);
+}
+
+.config-status.warning {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning-dark);
+}
+
+.test-metrics {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.metric {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  border: 1px solid var(--border-secondary);
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-2);
+}
+
+.metric-value {
+  font-size: 1.125rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.metric-change {
+  font-size: 0.8rem;
+  margin-top: 0.35rem;
+  color: var(--text-tertiary);
+}
+
+.metric-change.good {
+  color: var(--success-dark);
+}
+
+.metric-change.bad {
+  color: var(--error-dark);
+}
+
+.test-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+  margin-top: var(--space-6);
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+}
+
+.test-loading .spinner-large {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 4px solid rgba(14, 165, 233, 0.2);
+  border-top-color: var(--primary-500);
+  animation: spin 1s linear infinite;
+  margin: 0 auto var(--space-4);
+}
+
+.progress-steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.progress-steps .step {
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--text-tertiary);
+}
+
+.progress-steps .step.active {
+  background: rgba(14, 165, 233, 0.2);
+  color: var(--primary-700);
 }
 
 /* =================================================================
@@ -3623,6 +3852,35 @@ textarea:focus-visible,
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin-bottom: var(--space-2);
+}
+
+.platform-card.is-available {
+  border-color: var(--primary-300);
+  box-shadow: var(--shadow-md);
+}
+
+.platform-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: var(--font-weight-semibold);
+  background: rgba(14, 165, 233, 0.16);
+  color: var(--primary-700);
+  margin-bottom: var(--space-3);
+}
+
+.platform-tag.soon {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--text-tertiary);
+}
+
+.btn.is-disabled {
+  pointer-events: none;
+  opacity: 0.6;
+  box-shadow: none;
 }
 
 .onboarding-card {

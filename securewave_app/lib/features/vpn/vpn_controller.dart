@@ -81,7 +81,12 @@ class VpnController extends StateNotifier<VpnUiState> {
   }
 
   Future<void> connect() async {
-    if (state.selectedServerId == null) return;
+    if (state.selectedServerId == null) {
+      state = state.copyWith(
+        errorMessage: 'Select a server region before connecting.',
+      );
+      return;
+    }
     state = state.copyWith(isBusy: true, clearError: true);
     try {
       final api = _ref.read(apiServiceProvider);
@@ -100,6 +105,9 @@ class VpnController extends StateNotifier<VpnUiState> {
         'session_id': sessionId,
       });
       state = state.copyWith(lastSessionId: sessionId, lastConfig: config);
+    } on UnsupportedError catch (error) {
+      final message = error.message?.toString() ?? 'VPN is not supported on this platform yet.';
+      state = state.copyWith(errorMessage: message);
     } on DioException catch (error) {
       state = state.copyWith(errorMessage: ApiError.messageFrom(error));
     } finally {

@@ -7,11 +7,29 @@ import 'vpn_service.dart';
 
 final vpnServiceProvider = Provider<VpnService>((ref) {
   final platform = defaultTargetPlatform;
-  final supportsNative = !kIsWeb &&
-      (platform == TargetPlatform.iOS ||
-          platform == TargetPlatform.android ||
-          platform == TargetPlatform.macOS);
-  return supportsNative ? VpnServiceNative() : VpnServiceMock();
+  if (kIsWeb) {
+    return VpnServiceMock();
+  }
+
+  if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
+    return VpnServiceNative();
+  }
+
+  if (platform == TargetPlatform.android) {
+    return VpnServiceNative(
+      fallback: VpnServiceUnsupported(
+        'Android WireGuard integration is in progress. Use a desktop build for live demos.',
+      ),
+    );
+  }
+
+  if (platform == TargetPlatform.windows) {
+    return VpnServiceUnsupported(
+      'Windows tunnel support is not wired yet. Please use Linux or macOS for live demos.',
+    );
+  }
+
+  return VpnServiceMock();
 });
 
 final vpnStatusProvider = StreamProvider<VpnStatus>((ref) {

@@ -398,28 +398,23 @@ async def allocate_config(
     # Generate QR code
     qr_base64 = wg_service.qr_from_config(config_content)
 
-    # Register peer on the WireGuard server
+    # Register peer on the WireGuard server (optional)
     peer_registered = False
-    success, message = await register_peer_on_server(
-        server=server,
-        public_key=public_key,
-        allowed_ips=client_ip,
-    )
-    if success:
-        peer_registered = True
-        logger.info(f"Peer registered for user {current_user.id} on server {server.server_id}")
+    registration_message = None
+    if AUTO_REGISTER_PEERS:
+        success, message = await register_peer_on_server(
+            server=server,
+            public_key=public_key,
+            allowed_ips=client_ip,
+        )
+        if success:
+            peer_registered = True
+            logger.info(f"Peer registered for user {current_user.id} on server {server.server_id}")
+        else:
+            registration_message = message
+            logger.warning(f"Peer registration deferred for user {current_user.id}: {message}")
     else:
-        logger.error(f"Peer registration failed for user {current_user.id}: {message}")
-        if AUTO_REGISTER_PEERS and not (WG_MOCK_MODE or DEMO_MODE):
-            try:
-                if config_path.exists():
-                    config_path.unlink()
-            except Exception:
-                logger.warning("Failed to remove config after peer registration failure")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"WireGuard auto-registration failed: {message}"
-            )
+        registration_message = "Auto-registration disabled"
 
     # Sync legacy keys for compatibility
     if not current_user.wg_public_key:
@@ -435,6 +430,12 @@ async def allocate_config(
     safe_location = server.city.replace(" ", "-").lower()
     filename = f"securewave-{safe_location}.conf"
 
+    instructions = (
+        "Sign in to the SecureWave app and toggle VPN on to connect."
+    )
+    if registration_message and not peer_registered:
+        instructions += f" Registration is pending: {registration_message}."
+
     return AllocateConfigResponse(
         status="allocated",
         server_id=server.server_id,
@@ -444,13 +445,7 @@ async def allocate_config(
         config=config_content,
         qr_code=f"data:image/png;base64,{qr_base64}",
         peer_registered=peer_registered,
-        instructions=(
-            "Import this configuration into your WireGuard app:\n"
-            "1. Open WireGuard and choose 'Add Tunnel'\n"
-            "2. Scan the QR code or paste the configuration\n"
-            "3. Activate the tunnel to connect\n"
-            "You can revoke devices from Settings at any time."
-        ),
+        instructions=instructions,
         download_filename=filename,
     )
 
@@ -652,7 +647,7 @@ async def connect_vpn(
         )
         config_path.write_text(config_content)
 
-    if not current_user.wg_peer_registered:
+    if AUTO_REGISTER_PEERS and not current_user.wg_peer_registered:
         success, _ = await register_peer_on_server(
             server=server,
             public_key=public_key,

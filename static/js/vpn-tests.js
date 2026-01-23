@@ -87,6 +87,11 @@ const VPNTests = {
 
             if (status.has_results) {
                 await this.loadLatestResults();
+            } else {
+                const container = document.getElementById('vpn-test-results');
+                if (container) {
+                    container.innerHTML = this.renderEmpty();
+                }
             }
 
             if (status.running) {
@@ -256,6 +261,12 @@ const VPNTests = {
         const statusClass = results.status === 'PASSED' ? 'success' : 'danger';
         const scoreClass = results.overall_score >= 70 ? 'success' :
                           results.overall_score >= 50 ? 'warning' : 'danger';
+        const latencyMs = Number(results.latency_ms || 0);
+        const throughputMbps = Number(results.throughput_mbps || 0);
+        const adsBlocked = Number(results.ads_blocked_percent || 0);
+        const trackersBlocked = Number(results.trackers_blocked_percent || 0);
+        const uptime = Number(results.uptime_percent || 0);
+        const duration = Number(results.test_duration_seconds || 0);
 
         return `
             <div class="test-results">
@@ -281,10 +292,10 @@ const VPNTests = {
                 <div class="test-metrics">
                     <div class="metric">
                         <div class="metric-label">Latency</div>
-                        <div class="metric-value">${results.latency_ms.toFixed(1)} ms</div>
+                        <div class="metric-value">${latencyMs.toFixed(1)} ms</div>
                         ${results.latency_increase_ms != null
                             ? `<div class="metric-change ${results.latency_increase_ms > 30 ? 'bad' : 'good'}">
-                                 +${results.latency_increase_ms.toFixed(1)} ms
+                                 +${Number(results.latency_increase_ms).toFixed(1)} ms
                                </div>`
                             : ''
                         }
@@ -292,7 +303,7 @@ const VPNTests = {
 
                     <div class="metric">
                         <div class="metric-label">Download</div>
-                        <div class="metric-value">${results.throughput_mbps.toFixed(1)} Mbps</div>
+                        <div class="metric-value">${throughputMbps.toFixed(1)} Mbps</div>
                         ${results.throughput_retained_percent != null
                             ? `<div class="metric-change ${results.throughput_retained_percent < 70 ? 'bad' : 'good'}">
                                  ${results.throughput_retained_percent.toFixed(0)}% retained
@@ -317,17 +328,17 @@ const VPNTests = {
 
                     <div class="metric">
                         <div class="metric-label">Ads Blocked</div>
-                        <div class="metric-value">${results.ads_blocked_percent.toFixed(0)}%</div>
+                        <div class="metric-value">${adsBlocked.toFixed(0)}%</div>
                     </div>
 
                     <div class="metric">
                         <div class="metric-label">Trackers Blocked</div>
-                        <div class="metric-value">${results.trackers_blocked_percent.toFixed(0)}%</div>
+                        <div class="metric-value">${trackersBlocked.toFixed(0)}%</div>
                     </div>
 
                     <div class="metric">
                         <div class="metric-label">Tunnel Stability</div>
-                        <div class="metric-value">${results.uptime_percent.toFixed(1)}%</div>
+                        <div class="metric-value">${uptime.toFixed(1)}%</div>
                         <div class="metric-change">
                             ${results.tunnel_drops} drops
                         </div>
@@ -336,12 +347,29 @@ const VPNTests = {
 
                 <div class="test-footer">
                     <span class="test-duration">
-                        Test completed in ${results.test_duration_seconds.toFixed(0)}s
+                        Test completed in ${duration.toFixed(0)}s
                     </span>
                     <span class="test-timestamp">
                         ${new Date(results.timestamp).toLocaleString()}
                     </span>
                 </div>
+            </div>
+        `;
+    },
+
+    renderEmpty() {
+        return `
+            <div class="test-results">
+                <div class="test-header">
+                    <div class="test-score warning">
+                        <span class="score-value">--</span>
+                        <span class="score-label">/100</span>
+                    </div>
+                    <div class="test-status">No results yet</div>
+                </div>
+                <p style="color: var(--text-secondary); margin: 0;">
+                    Run a VPN test to see latency, throughput, and leak protection scores.
+                </p>
             </div>
         `;
     },

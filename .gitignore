@@ -56,6 +56,10 @@ LogFiles/
 webapp-logs/
 *.zip
 
+# Allow app downloads hosted via the website
+!static/downloads/
+!static/downloads/*.zip
+
 # Deployment
 deploy.zip
 build/
