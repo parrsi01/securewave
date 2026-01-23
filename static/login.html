@@ -3,228 +3,134 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - SecureWave VPN</title>
-  <meta name="description" content="Log in to your SecureWave VPN account to manage your subscription and control your VPN settings.">
+  <title>Sign In - SecureWave VPN</title>
+  <meta name="description" content="Sign in to your SecureWave VPN account to manage your subscription and devices.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
-<body>
-  <!-- Skip to main content for accessibility -->
+<body class="auth-page">
   <a href="#main-content" class="skip-to-main">Skip to main content</a>
 
-  <!-- Navigation -->
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
-        <span>SecureWave</span>
-      </a>
-
-      <ul class="navbar-menu">
-        <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Services</a></li>
-        <li><a href="/subscription.html">Pricing</a></li>
-        <li><a href="/about.html">About</a></li>
-        <li><a href="/contact.html">Contact</a></li>
-        <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
-        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" aria-current="page" id="loginBtn">Login</a></li>
-        <li><a href="/register.html" class="btn btn-outline btn-sm" id="registerBtn">Create Account</a></li>
-        <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
-      </ul>
-
-      <!-- Mobile menu toggle -->
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-    </div>
-  </nav>
-
-  <!-- Auth Section -->
   <main id="main-content">
-    <section class="auth-section">
-      <div class="container-sm">
-        <div class="auth-header" style="padding: 3rem; background: linear-gradient(135deg, #0ea5e9 0%, #0e6a7b 50%, #14b8a6 100%); border-radius: 24px; margin-bottom: 2.5rem; box-shadow: 0 20px 56px rgba(14, 165, 233, 0.3); position: relative; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.2);">
-          <div style="position: absolute; inset: 0; background: radial-gradient(circle at 70% 40%, rgba(255, 255, 255, 0.12) 0%, transparent 50%); pointer-events: none;"></div>
-          <div style="position: relative; z-index: 1;">
-            <div class="badge" style="display: inline-flex; font-size: 1rem; padding: 0.65rem 1.35rem; background: rgba(255, 255, 255, 0.25); border: 2px solid rgba(255, 255, 255, 0.4); color: white; backdrop-filter: blur(10px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);">
-              <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 11c0-1.657 1.791-3 4-3s4 1.343 4 3-1.791 3-4 3-4-1.343-4-3zM2 11c0-1.657 1.791-3 4-3s4 1.343 4 3-1.791 3-4 3-4-1.343-4-3zM6 18c0-2.209 3.582-4 8-4s8 1.791 8 4" />
-              </svg>
-              Secure Sign-In
-            </div>
-            <h1 style="font-size: 2.75rem; margin: 1.5rem 0 1rem; color: white; font-weight: 900; text-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);">Welcome Back</h1>
-            <p style="font-size: 1.2rem; color: rgba(255, 255, 255, 0.95); margin-bottom: 2rem; line-height: 1.6; font-weight: 500;">
-            Sign in to manage your plan and devices. The VPN connection runs inside the SecureWave app.
-            </p>
-            <div class="cta-row flex-wrap-mobile" style="display: flex; gap: 1rem; flex-wrap: wrap;">
-              <a href="/downloads/securewave-app-linux-arm64.zip" class="btn btn-primary btn-lg" download style="padding: 1rem 2rem; font-size: 1.1rem; background: white; color: #0e6a7b; font-weight: 800; border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2); border: 2px solid rgba(255, 255, 255, 0.5);">
-                Download SecureWave App
-              </a>
-              <a href="#loginForm" class="btn btn-outline btn-lg" style="padding: 1rem 2rem; font-size: 1.05rem; background: rgba(255, 255, 255, 0.12); color: white; font-weight: 700; border-radius: 14px; border: 2px solid rgba(255, 255, 255, 0.4); backdrop-filter: blur(10px);">Login to Dashboard</a>
-            </div>
-          </div>
-        </div>
-
-        <div class="auth-card">
-          <form id="loginForm" novalidate aria-label="Login form">
-            <div class="form-group">
-              <label for="email">Email Address <span style="color: var(--error);">*</span></label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                placeholder="you@example.com"
-                autocomplete="email"
-                required
-                aria-required="true"
-              >
-              <span class="form-error-message hidden" id="email-error">Please enter a valid email address</span>
-            </div>
-
-            <div class="form-group">
-              <label for="password">Password <span style="color: var(--error);">*</span></label>
-              <div class="password-toggle">
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  placeholder="Enter your password"
-                  autocomplete="current-password"
-                  required
-                  aria-required="true"
-                >
-                <button type="button" class="password-toggle-btn" id="togglePassword" aria-label="Toggle password visibility">
-                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="eyeIcon">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                  </svg>
-                </button>
-              </div>
-              <span class="form-error-message hidden" id="password-error">Please enter your password</span>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">
-                <input type="checkbox" id="remember" name="remember">
-                Keep me signed in
-              </label>
-              <a href="#" style="font-size: 0.875rem; color: var(--primary-600); text-decoration: none;">Forgot password?</a>
-            </div>
-
-            <button type="submit" class="btn btn-secondary btn-block btn-lg" id="submitBtn">
-              Login to Dashboard
-            </button>
-          </form>
-
-          <div class="form-feedback info hidden" id="authMessage" aria-live="polite"></div>
-
-          <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-primary);">
-            <p style="margin: 0; color: var(--text-secondary);">
-              Don't have an account?
-              <a href="/register.html" style="color: var(--primary-600); font-weight: 600; text-decoration: none;">Create one now</a>
-            </p>
-          </div>
-        </div>
-
-        <div class="card hover-lift" style="margin-top: 2rem;">
-          <div class="card-body">
-            <h3 style="margin-bottom: 0.75rem;">Why SecureWave?</h3>
-            <ul class="list-check">
-              <li>Automatic app connection with zero manual setup</li>
-              <li>Privacy-first data handling</li>
-              <li>Smart region selection for reliable speed</li>
-              <li>Device-first access management</li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="app-callout" style="margin-top: 2rem;">
-          <div class="app-callout-header">
-            <div class="app-callout-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/>
-              </svg>
-            </div>
-            <div>
-              <h3 style="margin: 0;">Get the App</h3>
-              <p style="margin: 0.35rem 0 0; color: var(--text-secondary);">
-                The SecureWave app handles VPN connection automatically after you sign in. Download directly from SecureWave.
-              </p>
-            </div>
-          </div>
-          <div class="platform-grid">
-            <div class="platform-card is-available">
-              <div class="platform-tag">Available now</div>
-              <span>Linux (arm64)</span>
-              <a href="/downloads/securewave-app-linux-arm64.zip" class="btn btn-outline btn-sm btn-block" download>Download</a>
-            </div>
-            <div class="platform-card">
-              <div class="platform-tag soon">Coming soon</div>
-              <span>Windows</span>
-              <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
-            </div>
-            <div class="platform-card">
-              <div class="platform-tag soon">Coming soon</div>
-              <span>macOS</span>
-              <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
-            </div>
-            <div class="platform-card">
-              <div class="platform-tag soon">Coming soon</div>
-              <span>Android</span>
-              <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
-            </div>
-            <div class="platform-card">
-              <div class="platform-tag soon">Coming soon</div>
-              <span>iOS</span>
-              <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
-            </div>
-          </div>
-        </div>
+    <div class="auth-container">
+      <div class="auth-header">
+        <a href="/home.html">
+          <img src="/img/logo.svg" alt="SecureWave VPN" style="height: 48px; margin: 0 auto;">
+        </a>
+        <h1>Welcome back</h1>
+        <p>Sign in to manage your account</p>
       </div>
-    </section>
+
+      <div class="auth-card">
+        <form id="loginForm" novalidate>
+          <div class="form-group">
+            <label for="email">Email Address</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              placeholder="you@example.com"
+              autocomplete="email"
+              required
+            >
+            <div class="form-error hidden" id="email-error">Please enter a valid email address</div>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="Enter your password"
+              autocomplete="current-password"
+              required
+            >
+            <div class="form-error hidden" id="password-error">Password is required</div>
+          </div>
+
+          <div class="form-check" style="margin-bottom: var(--space-6);">
+            <input type="checkbox" id="remember" name="remember">
+            <label for="remember">Remember me on this device</label>
+          </div>
+
+          <div id="formMessage" class="hidden" style="margin-bottom: var(--space-4);"></div>
+
+          <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;" id="submitBtn">
+            Sign In
+          </button>
+        </form>
+
+        <div class="auth-divider">or</div>
+
+        <a href="/home.html#download-app" class="btn btn-secondary btn-lg" style="width: 100%;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 18px; height: 18px;">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Download SecureWave App
+        </a>
+      </div>
+
+      <div class="auth-footer">
+        <p>New to SecureWave? <a href="/register.html">Create an account</a></p>
+      </div>
+    </div>
   </main>
 
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="container footer-content">
-      <div class="footer-cta">
-        <div>
-          <h3>Download SecureWave</h3>
-          <p>Connect in the app. Manage your plan and devices here.</p>
-        </div>
-        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
-      </div>
-      <div class="footer-links">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/contact.html">Contact</a>
-      </div>
-      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
-    </div>
-  </footer>
-
   <script src="/js/main.js" defer></script>
-  <script src="/js/auth.js" defer></script>
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const togglePassword = document.getElementById('togglePassword');
-      const passwordInput = document.getElementById('password');
-      const eyeIcon = document.getElementById('eyeIcon');
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const message = document.getElementById('formMessage');
+      const btn = document.getElementById('submitBtn');
 
-      if (togglePassword) {
-        togglePassword.addEventListener('click', function() {
-          const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-          passwordInput.setAttribute('type', type);
-          eyeIcon.innerHTML = type === 'text'
-            ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>'
-            : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>';
+      // Reset errors
+      document.querySelectorAll('.form-error').forEach(el => el.classList.add('hidden'));
+      message.classList.add('hidden');
+
+      // Validate
+      let valid = true;
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        document.getElementById('email-error').classList.remove('hidden');
+        valid = false;
+      }
+      if (!password) {
+        document.getElementById('password-error').classList.remove('hidden');
+        valid = false;
+      }
+      if (!valid) return;
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Signing in...';
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
         });
+        const data = await res.json();
+        if (res.ok && data.access_token) {
+          localStorage.setItem('access_token', data.access_token);
+          localStorage.setItem('user_email', email);
+          window.location.href = '/dashboard.html';
+        } else {
+          message.className = 'alert alert-error';
+          message.innerHTML = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div class="alert-content"><div class="alert-text">' + (data.detail || 'Invalid credentials') + '</div></div>';
+          message.classList.remove('hidden');
+        }
+      } catch (err) {
+        message.className = 'alert alert-error';
+        message.innerHTML = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div class="alert-content"><div class="alert-text">Connection error. Please try again.</div></div>';
+        message.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
       }
     });
   </script>

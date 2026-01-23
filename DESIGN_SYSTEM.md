@@ -1,78 +1,73 @@
-# SecureWave VPN - Design System v4.1
+# SecureWave VPN - Design System v5.0
 
 **Last Updated:** 2026-01-23
-**Version:** 4.1 (Deep Ocean)
+**Version:** 5.0 (PrivadoVPN-Inspired Dark Theme)
 **Status:** Production
 
 ---
 
 ## Overview
 
-This document defines the visual design system for SecureWave VPN across both the website (HTML/CSS) and Flutter mobile/desktop app. The design philosophy emphasizes **calm confidence**, **clarity**, and **professional minimalism** suitable for a privacy-focused VPN product.
+This document defines the visual design system for SecureWave VPN across both the website (HTML/CSS) and Flutter mobile/desktop app. The design philosophy emphasizes a **modern dark aesthetic** with vibrant accent colors, inspired by leading consumer VPN products like PrivadoVPN.
 
 **Design Principles:**
-- Privacy = Clarity: Clean layouts communicate trustworthiness
-- App-first hierarchy: Website is control plane, not the hero
-- Modern minimalism: Flat design with subtle depth
+- Dark-first: Elegant dark theme reduces eye strain and signals modern tech
+- Vibrant accents: Orange and green provide clear visual hierarchy
+- App-first hierarchy: Website is control panel, app handles VPN connection
+- Mobile-first: Responsive design starting from 320px
 - Accessibility: WCAG 2.1 AA compliant
 
 ---
 
 ## 1. Color System
 
-### Primary Palette - Deep Ocean
+### Primary Brand Colors
 
-SecureWave's primary brand color is a refined deep blue that communicates security and trust without VPN clichés.
+SecureWave uses a dark foundation with vibrant orange as the primary accent color.
 
 ```css
---primary-50:  #f0f4f8   /* Lightest tint - backgrounds */
---primary-100: #d9e5f2   /* Very light - hover states */
---primary-200: #b3cde0   /* Light - borders, dividers */
---primary-300: #7da8cc   /* Medium light - disabled states */
---primary-400: #4880b5   /* Medium - secondary buttons */
---primary-500: #2563a0   /* MAIN BRAND COLOR - primary actions */
---primary-600: #1e4e85   /* Dark - hover on primary */
---primary-700: #1a3c6b   /* Darker - pressed states */
---primary-800: #142e52   /* Very dark - text on light */
---primary-900: #0e2340   /* Darkest - high contrast text */
+/* Dark Theme Backgrounds */
+--bg-darkest: #080a0b   /* Deepest background */
+--bg-dark: #1c1e22      /* Main background */
+--bg-card: #25272d      /* Card surfaces */
+--bg-card-hover: #30343b /* Card hover state */
+--bg-elevated: #2d3038  /* Elevated elements */
+
+/* Accent Orange (Primary) */
+--accent-orange: #ff8f00        /* Main accent */
+--accent-orange-dark: #f86605   /* Gradient end, hover */
+--accent-orange-light: #ffb347  /* Light variant */
+
+/* Accent Green (Success/Connected) */
+--accent-green: #28d799         /* Connected state, success */
+--accent-green-dark: #1fa87a    /* Gradient end, hover */
+--accent-green-light: #5eedb8   /* Light variant */
+
+/* Accent Purple (Tertiary) */
+--accent-purple: #5058c8        /* Special elements */
+--accent-purple-dark: #3a42b7   /* Hover */
 ```
 
 **Flutter Constants:**
 ```dart
-static const Color primary = Color(0xFF2563A0);
+static const Color accentOrange = Color(0xFFFF8F00);
+static const Color accentGreen = Color(0xFF28D799);
+static const Color accentPurple = Color(0xFF5058C8);
 ```
-
-**Usage Guidelines:**
-- **Primary-500**: Main CTAs, links, focus states
-- **Primary-50-200**: Backgrounds, cards, subtle accents
-- **Primary-600-900**: Text, icons, dark mode backgrounds
-
----
-
-### Accent Palette - Slate Blue
-
-Used sparingly for secondary actions and supporting elements.
-
-```css
---accent-400: #5b7e99   /* Light slate */
---accent-500: #475f7a   /* MAIN ACCENT */
---accent-600: #344456   /* Dark slate */
-```
-
-**Usage Guidelines:**
-- Secondary buttons
-- Supporting text
-- Non-critical information
 
 ---
 
 ### Semantic Colors
 
 ```css
---success: #10b981   /* Green - success states, confirmations */
---warning: #f59e0b   /* Amber - warnings, alerts */
---error:   #ef4444   /* Red - errors, destructive actions */
---info:    #3b82f6   /* Blue - informational messages */
+--success: #28d799    /* Green - connected, success */
+--success-bg: rgba(40, 215, 153, 0.15)
+--warning: #f59e0b    /* Amber - warnings */
+--warning-bg: rgba(245, 158, 11, 0.15)
+--error: #ef4444      /* Red - errors, disconnected */
+--error-bg: rgba(239, 68, 68, 0.15)
+--info: #3b82f6       /* Blue - informational */
+--info-bg: rgba(59, 130, 246, 0.15)
 ```
 
 ---
@@ -80,53 +75,87 @@ Used sparingly for secondary actions and supporting elements.
 ### Neutral Grays
 
 ```css
---gray-50:  #f9fafb   /* Backgrounds */
---gray-100: #f3f4f6   /* Hover backgrounds */
---gray-200: #e5e7eb   /* Borders */
---gray-300: #d1d5db   /* Disabled elements */
---gray-400: #9ca3af   /* Placeholder text */
---gray-500: #6b7280   /* Secondary text */
---gray-600: #4b5563   /* Primary text (light mode) */
---gray-700: #374151   /* Headings */
---gray-800: #1f2937   /* Dark backgrounds */
---gray-900: #111827   /* Darkest backgrounds */
+--gray-50:  #f1f2f4   /* Lightest */
+--gray-100: #e0e2e6
+--gray-200: #d4d6d7
+--gray-300: #c1c5cd   /* Text secondary */
+--gray-400: #93999c   /* Text tertiary */
+--gray-500: #6b7280   /* Text muted */
+--gray-600: #4b5563
+--gray-700: #374151
+--gray-800: #25272d   /* Card background */
+--gray-900: #1c1e22   /* Main background */
 ```
 
 ---
 
-### Dynamic Theme Colors
+### Text Colors
 
-**Light Mode:**
 ```css
---bg-primary:   #f7fafc
---bg-secondary: #edf5f7
---text-primary: #0b1120
---text-secondary: #1f2937
---text-tertiary: #475569
---border-primary: #d0e4ec
-```
+/* Dark Theme */
+--text-primary: #ffffff     /* White - headings, important */
+--text-secondary: #c1c5cd   /* Light gray - body text */
+--text-tertiary: #93999c    /* Medium gray - labels */
+--text-muted: #6b7280       /* Dim gray - disabled */
 
-**Dark Mode:**
-```css
---bg-primary:   #0f172a
---bg-secondary: #1e293b
---text-primary: #f1f5f9
---text-secondary: #cbd5e1
---text-tertiary: #94a3b8
---border-primary: #334155
+/* Light Theme (via [data-theme="light"]) */
+--text-primary: #0f172a     /* Near black */
+--text-secondary: #334155   /* Dark gray */
+--text-tertiary: #64748b    /* Medium gray */
+--text-muted: #94a3b8       /* Light gray */
 ```
 
 ---
 
-### Gradients (Use Sparingly)
+### Border Colors
 
 ```css
---gradient-primary: linear-gradient(135deg, #2563a0 0%, #1e4e85 100%);
---gradient-hero: linear-gradient(180deg, #f7fafc 0%, #f0f4f8 100%);
---gradient-card: linear-gradient(145deg, #ffffff 0%, #f9fafb 100%);
+--border-primary: rgba(255, 255, 255, 0.08)   /* Subtle borders */
+--border-secondary: rgba(255, 255, 255, 0.12) /* Visible borders */
+--border-accent: rgba(255, 143, 0, 0.3)       /* Accent borders */
 ```
 
-**Usage:** Reserved for hero sections, featured cards, or special promotional elements only. Avoid overuse.
+---
+
+### Gradients
+
+```css
+/* Primary Actions */
+--gradient-orange: linear-gradient(90deg, #ff8f00 0%, #f86605 100%);
+
+/* Success States */
+--gradient-green: linear-gradient(90deg, #28d799 0%, #1fa87a 100%);
+
+/* Special Elements */
+--gradient-purple: linear-gradient(90deg, #5058c8 0%, #3a42b7 100%);
+
+/* Card Backgrounds */
+--gradient-card: linear-gradient(180deg, #30343b 0%, #1c1e22 100%);
+
+/* Hero Background Glow */
+--gradient-hero: radial-gradient(ellipse at 50% 0%, rgba(255, 143, 0, 0.15) 0%, transparent 60%);
+```
+
+---
+
+### Light Mode Override
+
+The light theme is activated via `[data-theme="light"]` attribute on the root element.
+
+```css
+[data-theme="light"] {
+  --bg-darkest: #f8fafc;
+  --bg-dark: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-elevated: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-tertiary: #64748b;
+  --border-primary: rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+```
 
 ---
 
@@ -134,22 +163,15 @@ Used sparingly for secondary actions and supporting elements.
 
 ### Font Family
 
-**Single Font System:** Inter
+**Single Font System:** Inter (Google Fonts)
 
 ```css
 --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
---font-display: 'Inter', -apple-system, sans-serif;
 ```
-
-**Why Inter:**
-- Industry standard for modern SaaS (Linear, Vercel, Stripe)
-- Excellent legibility at all sizes
-- Variable font support reduces load time
-- Neutral, professional, works for both headings and body text
 
 **CDN Import:**
 ```html
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 ```
 
 **Flutter:**
@@ -162,125 +184,93 @@ GoogleFonts.interTextTheme()
 ### Type Scale
 
 ```css
---font-size-xs:   0.75rem    /* 12px - Labels, metadata */
---font-size-sm:   0.875rem   /* 14px - Small body, navigation */
---font-size-base: 1rem       /* 16px - Body text */
---font-size-lg:   1.125rem   /* 18px - Large body */
---font-size-xl:   1.25rem    /* 20px - Small headings */
---font-size-2xl:  1.5rem     /* 24px - Section headings */
---font-size-3xl:  1.875rem   /* 30px - Subsection headings */
---font-size-4xl:  2.25rem    /* 36px - Page titles */
---font-size-5xl:  3rem       /* 48px - Hero titles (MAX) */
+--font-size-xs:   0.75rem    /* 12px */
+--font-size-sm:   0.875rem   /* 14px */
+--font-size-base: 1rem       /* 16px */
+--font-size-lg:   1.125rem   /* 18px */
+--font-size-xl:   1.25rem    /* 20px */
+--font-size-2xl:  1.5rem     /* 24px */
+--font-size-3xl:  1.875rem   /* 30px */
+--font-size-4xl:  2.25rem    /* 36px */
+--font-size-5xl:  3rem       /* 48px */
+--font-size-6xl:  3.75rem    /* 60px */
 ```
-
-**Important:** Avoid sizes larger than `--font-size-5xl` (48px). Oversized typography wastes vertical space.
 
 ---
 
 ### Font Weights
 
 ```css
---font-weight-normal:    400   /* Body text */
---font-weight-medium:    500   /* Emphasized body text */
---font-weight-semibold:  600   /* Headings, buttons */
---font-weight-bold:      700   /* Strong emphasis */
+--font-weight-normal:    400
+--font-weight-medium:    500
+--font-weight-semibold:  600
+--font-weight-bold:      700
+--font-weight-extrabold: 800
 ```
-
-**Avoid:** Font weights 800-900 (too heavy, creates visual noise)
 
 ---
 
 ### Line Heights
 
 ```css
---line-height-tight:   1.25   /* Headings */
---line-height-normal:  1.5    /* Body text */
---line-height-relaxed: 1.75   /* Long-form content */
-```
-
----
-
-### Typography Examples
-
-```html
-<!-- Page Hero Title -->
-<h1 style="font-size: 2.5rem; font-weight: 600; line-height: 1.25;">
-  Private Internet, One Tap Away
-</h1>
-
-<!-- Section Heading -->
-<h2 style="font-size: 1.5rem; font-weight: 600;">
-  Why SecureWave
-</h2>
-
-<!-- Body Text -->
-<p style="font-size: 1rem; font-weight: 400; line-height: 1.5;">
-  Download the SecureWave app to connect automatically.
-</p>
-
-<!-- Small Label -->
-<span style="font-size: 0.875rem; font-weight: 500; color: var(--text-tertiary);">
-  Last updated 2 hours ago
-</span>
+--line-height-tight:   1.25
+--line-height-normal:  1.5
+--line-height-relaxed: 1.7
 ```
 
 ---
 
 ## 3. Spacing Scale
 
-Consistent spacing creates visual rhythm and hierarchy.
-
 ```css
---space-1:  0.25rem   /* 4px  - Tight spacing */
---space-2:  0.5rem    /* 8px  - Icon gaps */
---space-3:  0.75rem   /* 12px - Small gaps */
---space-4:  1rem      /* 16px - DEFAULT gap */
---space-6:  1.5rem    /* 24px - Medium gaps */
---space-8:  2rem      /* 32px - Large gaps */
---space-12: 3rem      /* 48px - Section spacing */
---space-16: 4rem      /* 64px - Major sections */
+--space-1:  0.25rem   /* 4px */
+--space-2:  0.5rem    /* 8px */
+--space-3:  0.75rem   /* 12px */
+--space-4:  1rem      /* 16px - DEFAULT */
+--space-5:  1.25rem   /* 20px */
+--space-6:  1.5rem    /* 24px */
+--space-8:  2rem      /* 32px */
+--space-10: 2.5rem    /* 40px */
+--space-12: 3rem      /* 48px */
+--space-16: 4rem      /* 64px */
+--space-20: 5rem      /* 80px */
+--space-24: 6rem      /* 96px */
 ```
-
-**Usage Guidelines:**
-- **4px/8px:** Internal component spacing (icon-to-text gaps)
-- **16px/24px:** Between related elements (form fields, list items)
-- **32px/48px:** Between distinct sections
-- **64px:** Between major page sections
 
 ---
 
 ## 4. Border Radius
 
 ```css
---radius-sm:   0.375rem   /* 6px  - Small elements */
---radius-md:   0.5rem     /* 8px  - Buttons, inputs */
---radius-lg:   0.75rem    /* 12px - Cards */
---radius-xl:   1rem       /* 16px - Large cards */
---radius-2xl:  1.5rem     /* 24px - Featured elements (use sparingly) */
---radius-full: 9999px     /* Pills, avatars */
+--radius-sm:   0.25rem   /* 4px */
+--radius-md:   0.5rem    /* 8px */
+--radius-lg:   0.75rem   /* 12px */
+--radius-xl:   1rem      /* 16px */
+--radius-2xl:  1.5rem    /* 24px */
+--radius-3xl:  2rem      /* 32px */
+--radius-full: 9999px    /* Pills, avatars */
 ```
-
-**Standard:** Use `--radius-lg` (12px) for most cards and containers.
 
 ---
 
 ## 5. Shadows
 
 ```css
---shadow-xs:  0 1px 2px 0 rgba(0, 0, 0, 0.05)
---shadow-sm:  0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)
---shadow-md:  0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)
---shadow-lg:  0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)
---shadow-xl:  0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)
+/* Dark Theme Shadows */
+--shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.3)
+--shadow-md:  0 4px 6px rgba(0, 0, 0, 0.4)
+--shadow-lg:  0 13px 32px rgba(0, 0, 0, 0.59)
+--shadow-xl:  0 16px 40px rgba(0, 0, 0, 0.41)
+
+/* Glow Effects */
+--shadow-glow-orange: 0 0 40px rgba(255, 143, 0, 0.3)
+--shadow-glow-green: 0 0 40px rgba(40, 215, 153, 0.3)
+
+/* Light Theme Shadows */
+--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05)
+--shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07)
+--shadow-lg: 0 10px 20px rgba(147, 153, 156, 0.15)
 ```
-
-**Usage Guidelines:**
-- **shadow-sm:** Buttons, inputs (resting state)
-- **shadow-md:** Cards, dropdowns
-- **shadow-lg:** Modals, popovers
-- **shadow-xl:** Hero sections (use sparingly)
-
-**Avoid:** Multi-layered shadows (3+ box-shadows). Keep it simple.
 
 ---
 
@@ -288,129 +278,83 @@ Consistent spacing creates visual rhythm and hierarchy.
 
 ### Buttons
 
-**Primary Button:**
+**Primary Button (Orange):**
 ```html
-<button class="btn btn-primary">
-  Download App
-</button>
+<button class="btn btn-primary">Download App</button>
 ```
 ```css
 .btn-primary {
-  background: var(--primary-500);
+  background: var(--gradient-orange);
   color: white;
   padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   font-weight: 600;
-  box-shadow: var(--shadow-sm);
   transition: all var(--transition-base);
-}
-.btn-primary:hover {
-  background: var(--primary-600);
-  box-shadow: var(--shadow-md);
 }
 ```
 
-**Secondary Button:**
+**Secondary Button (Green):**
 ```html
-<button class="btn btn-secondary">
-  Learn More
-</button>
-```
-```css
-.btn-secondary {
-  background: var(--accent-500);
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-md);
-  font-weight: 600;
-}
+<button class="btn btn-secondary">Create Account</button>
 ```
 
 **Ghost Button:**
 ```html
-<button class="btn btn-ghost">
-  Cancel
-</button>
-```
-```css
-.btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-primary);
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-md);
-}
+<button class="btn btn-ghost">Sign In</button>
 ```
 
 ---
 
 ### Cards
 
-**Standard Card:**
 ```html
-<div class="card">
-  <div class="card-body">
-    <h3>Card Title</h3>
-    <p>Card content goes here.</p>
+<div class="dashboard-card">
+  <div class="dashboard-card-header">
+    <h3 class="dashboard-card-title">Card Title</h3>
   </div>
+  <!-- content -->
 </div>
 ```
 ```css
-.card {
-  background: white;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+.dashboard-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border-primary);
   padding: var(--space-6);
 }
 ```
 
 ---
 
-### Input Fields
+### Status Indicators
 
 ```html
-<div class="form-group">
-  <label for="email">Email Address</label>
-  <input type="email" id="email" placeholder="you@example.com">
-</div>
+<span class="status-pill">Active</span>
 ```
 ```css
-.form-group input {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-base);
-  transition: border-color var(--transition-base);
-}
-.form-group input:focus {
-  border-color: var(--primary-500);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(37, 99, 160, 0.1);
+.status-pill {
+  background: var(--success-bg);
+  color: var(--accent-green);
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 ```
 
 ---
 
-### Status Chips
+### VPN Status
 
-```html
-<span class="status-chip status-chip--success">Active</span>
-<span class="status-chip status-chip--warning">Pending</span>
-<span class="status-chip status-chip--error">Failed</span>
-```
 ```css
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+.vpn-status-indicator.connected {
+  background: var(--success-bg);
+  color: var(--accent-green);
 }
-.status-chip--success {
-  background: rgba(16, 185, 129, 0.1);
-  color: #065f46;
+
+.vpn-status-indicator.disconnected {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error);
 }
 ```
 
@@ -420,60 +364,46 @@ Consistent spacing creates visual rhythm and hierarchy.
 
 ### Logo Files
 
-- **logo.svg**: Full logo (mark + wordmark) for navigation
-- **logo-mark.svg**: Mark only (square format) for app icons
-- **logo-dark.svg**: Dark mode variant with lighter colors
-- **favicon.svg**: Simplified 16px favicon
+| File | Purpose | Format |
+|------|---------|--------|
+| logo.svg | Full navigation logo | Shield + waves |
+| logo-mark.svg | App icon, square | Shield only |
+| logo-dark.svg | Dark backgrounds | Light variant |
+| favicon.svg | Browser favicon | Simplified 16px |
 
-### Logo Concept: "Flow Mark"
+### Logo Concept
 
-The SecureWave logo represents **secure data flow** through overlapping geometric paths:
-- Outer path: Data route
-- Inner path: Encrypted tunnel
-- Continuous flow: Uninterrupted connection
-
-**Design Principles:**
-- Minimal: No shields, locks, or cliché security symbols
-- Scalable: Recognizable from 16px to 256px
-- Monochrome-first: Works in single color (primary-600)
-- Professional: Suitable for enterprise contexts
+The SecureWave logo is a **modern shield with signal waves**:
+- Orange gradient shield (#FF8F00 to #F86605)
+- White curved signal waves (3 levels)
+- Center connection dot
+- Represents secure, flowing data protection
 
 ### Logo Usage
 
 ```html
 <!-- Navigation -->
 <a href="/" class="navbar-brand">
-  <img src="/img/logo.svg" alt="SecureWave VPN" height="32">
+  <img src="/img/logo.svg" alt="SecureWave" height="36">
   <span>SecureWave</span>
 </a>
-
-<!-- App Icon -->
-<img src="/img/logo-mark.svg" alt="SecureWave" width="128" height="128">
-
-<!-- Dark Mode -->
-<img src="/img/logo-dark.svg" alt="SecureWave VPN">
 ```
 
-**Color on Light Backgrounds:** `var(--primary-600)` or `#1e4e85`
-**Color on Dark Backgrounds:** `var(--primary-200)` or `#b3cde0`
+**Color Rules:**
+- Logo primary: Orange gradient (#FF8F00)
+- Logo on dark: Orange or white
+- Logo on light: Orange or dark gray
 
 ---
 
 ## 8. Responsive Breakpoints
 
 ```css
-/* Mobile First Approach */
-@media (min-width: 768px) {  /* Tablet */
-  ...
-}
-
-@media (min-width: 1024px) { /* Desktop */
-  ...
-}
-
-@media (min-width: 1280px) { /* Large Desktop */
-  ...
-}
+/* Mobile First */
+@media (min-width: 640px)  { /* sm - Large phones */ }
+@media (min-width: 768px)  { /* md - Tablets */ }
+@media (min-width: 1024px) { /* lg - Desktops */ }
+@media (min-width: 1280px) { /* xl - Large desktops */ }
 ```
 
 **Testing Requirements:**
@@ -490,80 +420,103 @@ The SecureWave logo represents **secure data flow** through overlapping geometri
 
 **Color Contrast Ratios:**
 - Normal text: Minimum 4.5:1
-- Large text (18px+ or 14px bold): Minimum 3:1
+- Large text: Minimum 3:1
 - UI components: Minimum 3:1
 
 **Verified Combinations:**
-- `primary-500` (#2563a0) on white: ✅ 6.8:1
-- `primary-700` (#1a3c6b) on white: ✅ 10.2:1
-- White on `primary-500`: ✅ 7.1:1
+- White on `#1c1e22`: 14.7:1
+- `#ff8f00` on `#080a0b`: 7.8:1
+- `#28d799` on dark: 10.2:1
 
 ### Touch Targets
-
-Minimum size: **44px × 44px** (iOS) / **48px × 48px** (Android)
+Minimum: 44px x 44px (iOS) / 48px x 48px (Android)
 
 ### Keyboard Navigation
-
-All interactive elements must be keyboard accessible:
+- Skip links: `.skip-to-main`
+- Focus states: Orange outline (3px)
 - Tab order follows visual order
-- Focus states clearly visible (3px outline in primary-500)
-- Skip links provided for screen readers
 
 ---
 
-## 10. Implementation Checklist
+## 10. Theme Toggle
 
-### Website (HTML/CSS)
+The website includes a light/dark mode toggle:
 
-- [ ] Update `professional.css` with Deep Ocean palette
-- [ ] Replace font imports with Inter
-- [ ] Swap logo files (logo.svg, favicon.svg)
-- [ ] Reduce hero title sizes (max 2.5rem)
-- [ ] Remove excessive shadows (max 2 box-shadows per element)
-- [ ] Simplify gradients (use sparingly)
-- [ ] Test responsive breakpoints (320px, 768px, 1024px, 1280px)
-- [ ] Verify WCAG AA contrast ratios
-- [ ] Test keyboard navigation
+```html
+<li class="theme-toggle">
+  <button data-theme="light" aria-label="Light mode">
+    <!-- Sun icon -->
+  </button>
+  <button data-theme="dark" aria-label="Dark mode">
+    <!-- Moon icon -->
+  </button>
+</li>
+```
 
-### Flutter App (Dart)
-
-- [ ] Update `app_theme.dart` with new color constants
-- [ ] Change GoogleFonts from Manrope to Inter
-- [ ] Reduce font weights (max FontWeight.w600 for headings)
-- [ ] Simplify gradients in UI components
-- [ ] Update logo in `brand_logo.dart` widget
-- [ ] Test on Android and iOS simulators
-- [ ] Verify Material 3 theming compatibility
-- [ ] Test hot reload stability
+Theme is persisted in `localStorage` and respects system preference.
 
 ---
 
-## 11. Version History
+## 11. Animation & Transitions
+
+```css
+--transition-fast: 150ms ease-in-out
+--transition-base: 200ms ease-in-out
+--transition-slow: 300ms ease
+
+/* Loading spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Skeleton loading */
+@keyframes skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+```
+
+---
+
+## 12. Version History
+
+**v5.0 - PrivadoVPN-Inspired (2026-01-23)**
+- Dark-first theme with orange/green accents
+- Inspired by modern consumer VPN products
+- Full light/dark mode toggle
+- Comprehensive responsive design
+- WCAG 2.1 AA accessibility compliance
 
 **v4.1 - Deep Ocean (2026-01-23)**
-- Replaced cyan/teal/amber palette with refined deep blue
-- Changed from Space Grotesk + Work Sans to Inter (single font)
-- New minimal "Flow Mark" logo design
-- Reduced hero typography from 3.5rem to 2.5rem max
-- Simplified gradients (2-color max, use sparingly)
-- Reduced font weights (max 600 for headings)
-- Eliminated multi-layered shadows
+- Attempted blue/slate redesign
+- Not implemented (superseded by v5.0)
 
 **v4.0 - Original Release**
-- Initial design system with cyan/teal/amber palette
+- Initial design system
+- Cyan/teal/amber palette
 - Space Grotesk + Work Sans typography
-- Original shield-based logo
-- Multi-layered shadows and extensive gradients
 
 ---
 
-## 12. Support & Maintenance
+## 13. Implementation Checklist
 
-**Design System Owner:** Development Team
-**Last Audit:** 2026-01-23
-**Next Review:** Q2 2026
+### Website (HTML/CSS)
+- [x] Dark theme with orange/green accents
+- [x] Inter font family
+- [x] Modern logo (shield + waves)
+- [x] Responsive navigation
+- [x] Theme toggle (light/dark)
+- [x] Mobile-first breakpoints
+- [x] WCAG AA compliance
+- [x] App download CTAs
 
-For questions or updates to this design system, please open an issue in the SecureWave GitHub repository.
+### Flutter App (Dart)
+- [x] Dark theme with orange/green accents
+- [x] Light theme variant
+- [x] GoogleFonts Inter
+- [x] Material 3 compliance
+- [x] Consistent color scheme
+- [x] VPN status indicators
 
 ---
 

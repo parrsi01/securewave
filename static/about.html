@@ -5,38 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>About Us - SecureWave VPN</title>
   <meta name="description" content="Learn about SecureWave VPN, a modern and secure service built to protect your privacy online.">
-  <link rel="stylesheet" href="/css/professional.css">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/professional.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <!-- Skip to main content for accessibility -->
   <a href="#main-content" class="skip-to-main">Skip to main content</a>
 
   <!-- Navigation -->
   <nav class="navbar">
     <div class="navbar-container">
       <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
+        <img src="/img/logo.svg" alt="SecureWave" onerror="this.style.display='none'">
         <span>SecureWave</span>
       </a>
-
       <ul class="navbar-menu">
         <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Services</a></li>
+        <li><a href="/services.html">Features</a></li>
         <li><a href="/subscription.html">Pricing</a></li>
         <li><a href="/about.html" aria-current="page">About</a></li>
-        <li><a href="/contact.html">Contact</a></li>
-        <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
-        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
-        <li><a href="/register.html" class="btn btn-outline btn-sm" id="registerBtn">Create Account</a></li>
-        <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
+        <li class="hidden" id="dashLink"><a href="/dashboard.html">Dashboard</a></li>
+        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Sign In</a></li>
+        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
+        <li class="hidden"><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
+        <li class="theme-toggle hide-mobile">
+          <button data-theme="light" aria-label="Light mode">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          </button>
+          <button data-theme="dark" aria-label="Dark mode">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          </button>
+        </li>
       </ul>
-
-      <!-- Mobile menu toggle -->
       <button class="navbar-toggle" aria-label="Toggle navigation menu">
         <span></span>
         <span></span>
@@ -45,14 +47,20 @@
     </div>
   </nav>
 
-  <!-- Main Content -->
   <main id="main-content">
     <!-- Hero Section -->
-    <section class="hero">
-      <div class="container">
-        <div class="badge">About SecureWave</div>
-        <h1>Privacy for Everyday Life</h1>
-        <p>SecureWave is built for real-world use: fast connections, transparent pricing, and a clean dashboard that puts you in control.</p>
+    <section class="hero" style="padding: var(--space-16) 0;">
+      <div class="container text-center">
+        <div class="badge">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          About SecureWave
+        </div>
+        <h1 class="hero-title" style="max-width: 800px; margin: 0 auto var(--space-4);">Privacy for Everyday Life</h1>
+        <p class="hero-subtitle" style="max-width: 600px; margin: 0 auto;">
+          SecureWave is built for real-world use: fast connections, transparent pricing, and a clean dashboard that puts you in control.
+        </p>
       </div>
     </section>
 
@@ -64,10 +72,10 @@
           <p>To make online privacy accessible, simple, and reliable for everyone</p>
         </div>
 
-        <div class="grid grid-2">
-          <div class="feature-card animate-fade-in">
+        <div class="features-grid">
+          <div class="feature-card">
             <div class="feature-icon">
-              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
             </div>
@@ -75,9 +83,9 @@
             <p>We believe privacy is a fundamental right. We minimize data collection and keep control with you.</p>
           </div>
 
-          <div class="feature-card animate-fade-in">
+          <div class="feature-card">
             <div class="feature-icon">
-              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
               </svg>
             </div>
@@ -85,9 +93,9 @@
             <p>Built on a modern secure core that keeps your connection fast and reliable.</p>
           </div>
 
-          <div class="feature-card animate-fade-in">
+          <div class="feature-card">
             <div class="feature-icon">
-              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
               </svg>
             </div>
@@ -95,68 +103,56 @@
             <p>SecureWave uses modern encryption standards to keep your connection protected.</p>
           </div>
 
-          <div class="feature-card animate-fade-in">
+          <div class="feature-card">
             <div class="feature-icon">
-              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
             </div>
-            <h3>Region Coverage</h3>
+            <h3>Global Coverage</h3>
             <p>Multiple regions with routing optimized for speed and stability.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Technology Stack Section -->
-    <section class="section" style="background-color: var(--bg-secondary);">
+    <!-- Technology Section -->
+    <section class="section" style="background: var(--bg-dark);">
       <div class="container">
         <div class="section-header">
           <h2>Built with Modern Technology</h2>
           <p>Enterprise-grade infrastructure powering your security</p>
         </div>
 
-        <div class="grid grid-3">
-          <div class="card hover-lift">
-            <div class="card-body">
-              <h3 class="mb-4">SecureWave Core</h3>
-              <p>Modern connection technology that keeps setup simple and performance high.</p>
-            </div>
+        <div class="grid grid-3" style="gap: var(--space-6);">
+          <div class="dashboard-card">
+            <h3 style="color: var(--accent-orange); margin-bottom: var(--space-3);">SecureWave Core</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Modern connection technology that keeps setup simple and performance high.</p>
           </div>
 
-          <div class="card hover-lift">
-            <div class="card-body">
-              <h3 class="mb-4">Cloud Infrastructure</h3>
-              <p>Deployed on Microsoft Azure for reliable scale and global reach.</p>
-            </div>
+          <div class="dashboard-card">
+            <h3 style="color: var(--accent-orange); margin-bottom: var(--space-3);">Cloud Infrastructure</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Deployed on Microsoft Azure for reliable scale and global reach.</p>
           </div>
 
-          <div class="card hover-lift">
-            <div class="card-body">
-              <h3 class="mb-4">FastAPI Backend</h3>
-              <p>Modern Python framework delivering fast API responses and efficient resource utilization.</p>
-            </div>
+          <div class="dashboard-card">
+            <h3 style="color: var(--accent-orange); margin-bottom: var(--space-3);">FastAPI Backend</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Modern Python framework delivering fast API responses and efficient resource utilization.</p>
           </div>
 
-          <div class="card hover-lift">
-            <div class="card-body">
-              <h3 class="mb-4">PostgreSQL Database</h3>
-              <p>Enterprise-grade database ensuring your account data is secure, consistent, and always available.</p>
-            </div>
+          <div class="dashboard-card">
+            <h3 style="color: var(--accent-orange); margin-bottom: var(--space-3);">PostgreSQL Database</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Enterprise-grade database ensuring your account data is secure and always available.</p>
           </div>
 
-          <div class="card hover-lift">
-            <div class="card-body">
-              <h3 class="mb-4">CI/CD Pipeline</h3>
-              <p>Continuous integration and deployment ensure you always get the latest features and security updates.</p>
-            </div>
+          <div class="dashboard-card">
+            <h3 style="color: var(--accent-orange); margin-bottom: var(--space-3);">CI/CD Pipeline</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Continuous integration ensures you always get the latest features and security updates.</p>
           </div>
 
-          <div class="card hover-lift">
-            <div class="card-body">
-              <h3 class="mb-4">Real-time Monitoring</h3>
-              <p>Automated health checks and monitoring keep your connection stable.</p>
-            </div>
+          <div class="dashboard-card">
+            <h3 style="color: var(--accent-orange); margin-bottom: var(--space-3);">Real-time Monitoring</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Automated health checks and monitoring keep your connection stable.</p>
           </div>
         </div>
       </div>
@@ -170,43 +166,44 @@
           <p>The principles that guide everything we do</p>
         </div>
 
-        <div class="grid grid-2">
-          <div class="card card-body">
-            <h3 class="text-gradient mb-4">Data Minimization</h3>
-            <p class="mb-4">We keep data collection to what is necessary to run the service, and we aim to keep control with you.</p>
-            <p class="text-muted">What you do online stays yours.</p>
+        <div class="grid grid-2" style="gap: var(--space-6);">
+          <div class="dashboard-card" style="padding: var(--space-8);">
+            <h3 style="color: var(--accent-green); font-size: var(--font-size-xl); margin-bottom: var(--space-4);">Data Minimization</h3>
+            <p style="color: var(--text-secondary); margin-bottom: var(--space-4);">We keep data collection to what is necessary to run the service, and we aim to keep control with you.</p>
+            <p style="color: var(--text-tertiary); margin: 0; font-style: italic;">What you do online stays yours.</p>
           </div>
 
-          <div class="card card-body">
-            <h3 class="text-gradient mb-4">Transparency</h3>
-            <p class="mb-4">Clear policies, simple language, and visible controls. We believe trust is earned through clarity.</p>
-            <p class="text-muted">No hidden terms, no dark patterns, no surprises.</p>
+          <div class="dashboard-card" style="padding: var(--space-8);">
+            <h3 style="color: var(--accent-green); font-size: var(--font-size-xl); margin-bottom: var(--space-4);">Transparency</h3>
+            <p style="color: var(--text-secondary); margin-bottom: var(--space-4);">Clear policies, simple language, and visible controls. We believe trust is earned through clarity.</p>
+            <p style="color: var(--text-tertiary); margin: 0; font-style: italic;">No hidden terms, no dark patterns, no surprises.</p>
           </div>
 
-          <div class="card card-body">
-            <h3 class="text-gradient mb-4">Simplicity</h3>
-            <p class="mb-4">VPN protection should be one click away. We've built SecureWave to be powerful yet simple, with no complex configuration required.</p>
-            <p class="text-muted">Connect and forget - we handle the complexity.</p>
+          <div class="dashboard-card" style="padding: var(--space-8);">
+            <h3 style="color: var(--accent-green); font-size: var(--font-size-xl); margin-bottom: var(--space-4);">Simplicity</h3>
+            <p style="color: var(--text-secondary); margin-bottom: var(--space-4);">VPN protection should be one click away. We've built SecureWave to be powerful yet simple.</p>
+            <p style="color: var(--text-tertiary); margin: 0; font-style: italic;">Connect and forget - we handle the complexity.</p>
           </div>
 
-          <div class="card card-body">
-            <h3 class="text-gradient mb-4">Accessibility</h3>
-            <p class="mb-4">Privacy shouldn't be a luxury. We offer competitive pricing and a forever-free tier so everyone can protect their online privacy.</p>
-            <p class="text-muted">Security for all, not just the few.</p>
+          <div class="dashboard-card" style="padding: var(--space-8);">
+            <h3 style="color: var(--accent-green); font-size: var(--font-size-xl); margin-bottom: var(--space-4);">Accessibility</h3>
+            <p style="color: var(--text-secondary); margin-bottom: var(--space-4);">Privacy shouldn't be a luxury. We offer competitive pricing and a forever-free tier.</p>
+            <p style="color: var(--text-tertiary); margin: 0; font-style: italic;">Security for all, not just the few.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Team/Story Section -->
-    <section class="section" style="background: var(--gradient-hero);">
+    <!-- Story Section -->
+    <section class="section" style="background: linear-gradient(180deg, var(--bg-darkest) 0%, var(--bg-dark) 100%);">
       <div class="container">
-        <div class="container-sm" style="text-align: center;">
-          <h2 class="mb-6">Built by Privacy Advocates</h2>
-          <p class="mb-8" style="font-size: var(--font-size-lg); color: var(--text-secondary);">
+        <div style="max-width: 700px; margin: 0 auto; text-align: center;">
+          <div class="badge" style="margin-bottom: var(--space-6);">Our Story</div>
+          <h2 style="margin-bottom: var(--space-6);">Built by Privacy Advocates</h2>
+          <p style="color: var(--text-secondary); font-size: var(--font-size-lg); line-height: 1.8; margin-bottom: var(--space-6);">
             SecureWave was created by security engineers and privacy advocates who wanted a faster, simpler, more respectful VPN experience. We built the VPN we wanted to use ourselves.
           </p>
-          <p style="font-size: var(--font-size-lg); color: var(--text-secondary);">
+          <p style="color: var(--text-secondary); font-size: var(--font-size-lg); line-height: 1.8; margin: 0;">
             Today, SecureWave helps people protect their connections at home, at work, and on the go with an app-first approach.
           </p>
         </div>
@@ -214,15 +211,18 @@
     </section>
 
     <!-- CTA Section -->
-    <section class="section">
-      <div class="container text-center">
-        <h2 class="mb-4">Ready to Connect in One Tap?</h2>
-        <p class="mb-8" style="font-size: var(--font-size-lg); color: var(--text-secondary); max-width: 600px; margin-left: auto; margin-right: auto;">
-          Download the SecureWave app and sign in. Your connection is handled automatically.
-        </p>
-        <div style="display: flex; gap: var(--space-4); justify-content: center; flex-wrap: wrap;">
-          <a href="/home.html#download-app" class="btn btn-primary btn-lg">Download App</a>
-          <a href="/subscription.html" class="btn btn-secondary btn-lg">View Plans</a>
+    <section class="cta-section">
+      <div class="cta-glow"></div>
+      <div class="container cta-content">
+        <h2 class="cta-title">Ready to Get Started?</h2>
+        <p class="cta-subtitle">Download the SecureWave app and protect your privacy today.</p>
+        <div class="cta-buttons">
+          <a href="/home.html#download-app" class="btn btn-lg cta-btn-primary">
+            Download App
+          </a>
+          <a href="/subscription.html" class="btn btn-lg cta-btn-outline">
+            View Plans
+          </a>
         </div>
       </div>
     </section>
@@ -230,11 +230,11 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <div class="container footer-content">
+    <div class="footer-content">
       <div class="footer-cta">
         <div>
-          <h3>Download SecureWave</h3>
-          <p>Connect in the app. Manage your plan and devices here.</p>
+          <h3>Get SecureWave</h3>
+          <p>Download the app and connect securely.</p>
         </div>
         <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
       </div>
@@ -242,8 +242,9 @@
         <a href="/terms.html">Terms</a>
         <a href="/privacy.html">Privacy</a>
         <a href="/contact.html">Contact</a>
+        <a href="/about.html">About</a>
       </div>
-      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
+      <p class="footer-meta">2026 SecureWave VPN. All rights reserved.</p>
     </div>
   </footer>
 

@@ -1,0 +1,50 @@
+<svg viewBox="0 0 200 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- SecureWave Logo Wordmark - Shield + Text -->
+
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#F86605"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield with waves (scaled to fit 40px height) -->
+  <g transform="translate(0, 0)">
+    <!-- Shield outline -->
+    <path d="M20 3C20 3 6 8 6 16C6 24 6 28 20 37C34 28 34 24 34 16C34 8 20 3 20 3Z"
+          fill="url(#logoGradient)"
+          stroke="none"/>
+
+    <!-- Inner signal waves (3 curved lines) -->
+    <path d="M14 20C14 20 16 16 20 16C24 16 26 20 26 20"
+          stroke="white"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          fill="none"/>
+    <path d="M11 20C11 20 14 13 20 13C26 13 29 20 29 20"
+          stroke="white"
+          stroke-width="2"
+          stroke-linecap="round"
+          fill="none"
+          opacity="0.7"/>
+    <path d="M8 20C8 20 12 10 20 10C28 10 32 20 32 20"
+          stroke="white"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          fill="none"
+          opacity="0.4"/>
+
+    <!-- Center dot -->
+    <circle cx="20" cy="23" r="3" fill="white"/>
+  </g>
+
+  <!-- SecureWave text -->
+  <text x="46" y="26"
+        font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+        font-size="18"
+        font-weight="700"
+        fill="currentColor"
+        letter-spacing="-0.02em">
+    <tspan fill="currentColor">Secure</tspan><tspan fill="url(#logoGradient)">Wave</tspan>
+  </text>
+</svg>

@@ -25,15 +25,21 @@
 
       <ul class="navbar-menu">
         <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Services</a></li>
+        <li><a href="/services.html">Features</a></li>
         <li><a href="/subscription.html">Pricing</a></li>
         <li><a href="/about.html">About</a></li>
-        <li><a href="/contact.html" aria-current="page">Contact</a></li>
-        <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
-        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Login</a></li>
-        <li><a href="/register.html" class="btn btn-outline btn-sm" id="registerBtn">Create Account</a></li>
-        <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Logout</button></li>
+        <li class="hidden" id="dashLink"><a href="/dashboard.html">Dashboard</a></li>
+        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Sign In</a></li>
+        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
+        <li class="hidden"><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
+        <li class="theme-toggle hide-mobile">
+          <button data-theme="light" aria-label="Light mode">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          </button>
+          <button data-theme="dark" aria-label="Dark mode">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          </button>
+        </li>
       </ul>
 
       <!-- Mobile menu toggle -->
