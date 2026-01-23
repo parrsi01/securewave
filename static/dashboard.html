@@ -45,44 +45,45 @@
 
   <!-- Main Content -->
   <main id="main-content">
-    <section class="page-hero">
+    <section class="page-hero" style="padding: 4rem 0; background: radial-gradient(ellipse at top, rgba(14, 165, 233, 0.1) 0%, transparent 60%), linear-gradient(180deg, #f7fafc 0%, #edf5f7 100%);">
       <div class="container text-center">
-        <div class="badge" style="display: inline-flex;">
-          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        <div class="badge" style="display: inline-flex; font-size: 1rem; padding: 0.65rem 1.4rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.16) 0%, rgba(20, 184, 166, 0.16) 100%); border: 2px solid rgba(14, 165, 233, 0.3); box-shadow: 0 6px 20px rgba(14, 165, 233, 0.18);">
+          <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
           </svg>
-          Control Plane
+          Control Plane v4.0
         </div>
-        <h1 class="page-hero__title">Welcome Back, <span id="userName">User</span></h1>
-        <p class="page-hero__subtitle">
+        <h1 class="page-hero__title" style="font-size: 3rem; margin: 1.5rem 0 1rem; background: linear-gradient(135deg, #0b1120 0%, #0e6a7b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 900;">Welcome Back, <span id="userName">User</span></h1>
+        <p class="page-hero__subtitle" style="font-size: 1.2rem; color: #475569; max-width: 720px; margin: 0 auto 2.5rem; line-height: 1.7; font-weight: 400;">
           Manage your plan, devices, and preferred regions here. The SecureWave app handles the VPN connection.
         </p>
-        <div class="page-hero__actions">
-          <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
-          <a href="/settings.html" class="btn btn-ghost btn-sm">Account Settings</a>
+        <div class="page-hero__actions" style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+          <a href="/home.html#download-app" class="btn btn-primary btn-sm" style="padding: 0.85rem 1.75rem; font-size: 1.05rem; font-weight: 700; box-shadow: 0 10px 30px rgba(14, 165, 233, 0.3);">Download App</a>
+          <a href="/settings.html" class="btn btn-ghost btn-sm" style="padding: 0.85rem 1.75rem; font-size: 1.05rem; font-weight: 600;">Account Settings</a>
         </div>
       </div>
     </section>
 
     <section class="container page-section">
-      <div class="panel app-callout">
-        <div class="app-callout-header">
-          <div class="app-callout-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+      <div class="panel app-callout" style="background: linear-gradient(135deg, #0ea5e9 0%, #0e6a7b 50%, #14b8a6 100%); border-radius: 24px; padding: 3rem; box-shadow: 0 24px 64px rgba(14, 165, 233, 0.3), 0 8px 24px rgba(0, 0, 0, 0.1); border: 2px solid rgba(255, 255, 255, 0.2); position: relative; overflow: hidden;">
+        <div style="position: absolute; inset: 0; background: radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.12) 0%, transparent 50%); pointer-events: none;"></div>
+        <div class="app-callout-header" style="position: relative; z-index: 1; display: flex; align-items: flex-start; gap: 1.75rem; margin-bottom: 2.5rem;">
+          <div class="app-callout-icon" style="width: 72px; height: 72px; background: rgba(255, 255, 255, 0.25); border-radius: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); border: 2px solid rgba(255, 255, 255, 0.4); backdrop-filter: blur(10px);">
+            <svg style="width: 40px; height: 40px; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
             </svg>
           </div>
-          <div>
-            <h2 style="margin: 0;">Get the SecureWave App</h2>
-            <p style="margin: 0.35rem 0 0; color: var(--text-secondary);">
+          <div style="flex: 1;">
+            <h2 style="margin: 0 0 0.75rem; color: white; font-size: 2rem; font-weight: 900; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);">Get the SecureWave App</h2>
+            <p style="margin: 0; color: rgba(255, 255, 255, 0.95); font-size: 1.1rem; line-height: 1.6; font-weight: 500;">
               Download directly from SecureWave and connect in one tap. The website stays your control plane.
             </p>
           </div>
         </div>
-        <div class="cta-row flex-wrap-mobile">
-          <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-primary" download>Download SecureWave App</a>
-          <a href="/vpn.html#vpn-tests" class="btn btn-outline">Run VPN Test</a>
-          <a href="/settings.html" class="btn btn-ghost">Account Settings</a>
+        <div class="cta-row flex-wrap-mobile" style="position: relative; z-index: 1; display: flex; gap: 1rem; flex-wrap: wrap;">
+          <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-primary" download style="padding: 1rem 2rem; font-size: 1.1rem; background: white; color: #0e6a7b; font-weight: 800; border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2); border: 2px solid rgba(255, 255, 255, 0.5);">Download SecureWave App</a>
+          <a href="/vpn.html#vpn-tests" class="btn btn-outline" style="padding: 1rem 2rem; font-size: 1.05rem; background: rgba(255, 255, 255, 0.12); color: white; font-weight: 700; border-radius: 14px; border: 2px solid rgba(255, 255, 255, 0.4); backdrop-filter: blur(10px);">Run VPN Test</a>
+          <a href="/settings.html" class="btn btn-ghost" style="padding: 1rem 2rem; font-size: 1.05rem; color: white; font-weight: 700; border-radius: 14px; border: 2px solid rgba(255, 255, 255, 0.3);">Account Settings</a>
         </div>
       </div>
 
