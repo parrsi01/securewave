@@ -12,11 +12,11 @@ assert_contains() {
   fi
 }
 
-assert_contains "$root_dir/static/subscription.html" "Basic plan with a 5 GB monthly cap"
+assert_contains "$root_dir/static/subscription.html" "Starter plan with a 5 GB monthly cap"
 assert_contains "$root_dir/static/subscription.html" "5 GB monthly data"
 assert_contains "$root_dir/static/services.html" "Basic includes a 5 GB monthly cap"
 assert_contains "$root_dir/static/js/payment.js" "5 GB bandwidth/month"
-assert_contains "$root_dir/securewave_app/lib/features/dashboard/dashboard_page.dart" "Basic plan \\(5 GB/month\\)"
-assert_contains "$root_dir/securewave_app/lib/features/settings/devices_page.dart" "Basic plans include one device"
+assert_contains "$root_dir/securewave_app/lib/features/dashboard/dashboard_page.dart" "Plan and billing live in the SecureWave dashboard\\."
+assert_contains "$root_dir/securewave_app/lib/features/settings/devices_page.dart" "Plan limits apply\\. Upgrade in the SecureWave dashboard to add more devices\\."
 
 echo "Plan copy check passed."
