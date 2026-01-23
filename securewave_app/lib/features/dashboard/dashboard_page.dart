@@ -29,7 +29,7 @@ class DashboardPage extends ConsumerWidget {
           children: [
             const SectionHeader(
               title: 'SecureWave Control Center',
-              subtitle: 'Manage your plan, devices, and app connection in one place.',
+              subtitle: 'Manage your devices and app connection in one place.',
             ),
             const SizedBox(height: 16),
             Card(
@@ -39,7 +39,7 @@ class DashboardPage extends ConsumerWidget {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final isNarrow = constraints.maxWidth < 420;
-                    final statusChip = const StatusChip(label: 'Secure', color: Color(0xFF10B981));
+                    final statusChip = const StatusChip(label: 'Ready', color: Color(0xFF10B981));
 
                     if (isNarrow) {
                       return Column(
@@ -47,7 +47,8 @@ class DashboardPage extends ConsumerWidget {
                         children: [
                           Text('Account status', style: Theme.of(context).textTheme.titleLarge),
                           const SizedBox(height: 4),
-                          Text('Active • Basic plan (5 GB/month)', style: Theme.of(context).textTheme.bodyMedium),
+                          Text('Plan and billing live in the SecureWave dashboard.',
+                              style: Theme.of(context).textTheme.bodyMedium),
                           const SizedBox(height: 12),
                           statusChip,
                         ],
@@ -62,7 +63,8 @@ class DashboardPage extends ConsumerWidget {
                           children: [
                             Text('Account status', style: Theme.of(context).textTheme.titleLarge),
                             const SizedBox(height: 4),
-                            Text('Active • Basic plan (5 GB/month)', style: Theme.of(context).textTheme.bodyMedium),
+                            Text('Plan and billing live in the SecureWave dashboard.',
+                                style: Theme.of(context).textTheme.bodyMedium),
                           ],
                         ),
                         statusChip,

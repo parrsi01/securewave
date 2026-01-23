@@ -47,7 +47,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 const SizedBox(height: 16),
                 const SectionHeader(
                   title: 'Welcome back',
-                  subtitle: 'Sign in to manage your plan and app access.',
+                  subtitle: 'Sign in to sync your SecureWave app with your account.',
                 ),
                 const SizedBox(height: 24),
                 Card(

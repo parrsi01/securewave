@@ -18,14 +18,14 @@ final vpnServiceProvider = Provider<VpnService>((ref) {
   if (platform == TargetPlatform.android) {
     return VpnServiceNative(
       fallback: VpnServiceUnsupported(
-        'Android WireGuard integration is in progress. Use a desktop build for live demos.',
+        'Android VPN integration is in progress. Use a desktop build for live demos.',
       ),
     );
   }
 
   if (platform == TargetPlatform.windows) {
     return VpnServiceUnsupported(
-      'Windows tunnel support is not wired yet. Please use Linux or macOS for live demos.',
+      'Windows VPN connection support is not wired yet. Please use Linux or macOS for live demos.',
     );
   }
 

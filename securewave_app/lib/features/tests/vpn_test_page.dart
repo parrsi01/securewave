@@ -24,14 +24,14 @@ class VpnTestPage extends ConsumerWidget {
           padding: EdgeInsets.zero,
           children: [
             const SectionHeader(
-              title: 'Run diagnostics',
-              subtitle: 'Latency, throughput, leak checks.',
+              title: 'VPN diagnostics',
+              subtitle: 'Latency, throughput, and leak protection checks.',
             ),
             const SizedBox(height: 20),
             LinearProgressIndicator(value: state.isRunning ? state.progress : 0),
             const SizedBox(height: 16),
             PrimaryButton(
-              label: state.isRunning ? 'Running...' : 'Start test',
+              label: state.isRunning ? 'Running...' : 'Run diagnostics',
               isLoading: state.isRunning,
               onPressed: state.isRunning
                   ? null

@@ -17,10 +17,10 @@ const PLANS = {
     price_monthly: 9.99,
     price_yearly: 99.99,
     features: [
-      '5 VPN connections',
-      'Unlimited bandwidth',
-      '50+ server locations',
-      'Priority support',
+      'Up to 5 devices',
+      'Higher data limits',
+      'Expanded region access',
+      'Priority support queue',
       'SecureWave app connection'
     ]
   },
@@ -29,7 +29,7 @@ const PLANS = {
     price_monthly: 0,
     price_yearly: 0,
     features: [
-      '1 VPN connection',
+      '1 device',
       '5 GB bandwidth/month',
       'Standard server access'
     ]
