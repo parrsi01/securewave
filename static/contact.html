@@ -9,7 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <!-- Skip to main content for accessibility -->
@@ -72,7 +72,7 @@
             <!-- Support Card -->
             <div class="card mb-6 hover-lift">
               <div class="card-body">
-                <h3 class="mb-3">📧 Email Support</h3>
+                <h3 class="mb-3">Email Support</h3>
                 <p class="mb-3 text-muted">General questions and account support</p>
                 <a href="mailto:support@securewave.app" style="color: var(--primary-600); font-weight: var(--font-weight-semibold);">support@securewave.app</a>
                 <div class="mt-4">
@@ -84,7 +84,7 @@
             <!-- Technical Support Card -->
             <div class="card mb-6 hover-lift">
               <div class="card-body">
-                <h3 class="mb-3">🛠️ Technical Support</h3>
+                <h3 class="mb-3">Technical Support</h3>
                 <p class="mb-3 text-muted">For app connection and access questions</p>
                 <a href="mailto:tech@securewave.app" style="color: var(--primary-600); font-weight: var(--font-weight-semibold);">tech@securewave.app</a>
                 <div class="mt-4">
@@ -96,7 +96,7 @@
             <!-- Billing Card -->
             <div class="card mb-6 hover-lift">
               <div class="card-body">
-                <h3 class="mb-3">💳 Billing & Subscriptions</h3>
+                <h3 class="mb-3">Billing & Subscriptions</h3>
                 <p class="mb-3 text-muted">Questions about payments or subscriptions</p>
                 <a href="mailto:billing@securewave.app" style="color: var(--primary-600); font-weight: var(--font-weight-semibold);">billing@securewave.app</a>
                 <div class="mt-4">
@@ -212,7 +212,7 @@
 
             <!-- Privacy Note -->
             <p class="text-muted text-center mt-4" style="font-size: var(--font-size-sm);">
-              🔒 Your information is secure and will only be used to respond to your inquiry. See our <a href="/privacy.html" style="color: var(--text-tertiary); text-decoration: underline;">Privacy Policy</a>.
+              Your information is used only to respond to your inquiry. See our <a href="/privacy.html" style="color: var(--text-tertiary); text-decoration: underline;">Privacy Policy</a>.
             </p>
           </div>
         </div>
@@ -229,21 +229,37 @@
 
         <div class="grid grid-3">
           <div class="card card-body text-center hover-lift">
-            <div style="font-size: 3rem; margin-bottom: var(--space-4);">📚</div>
+            <div style="margin-bottom: var(--space-4);">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 48px; height: 48px; color: var(--primary-600);">
+                <path d="M4 5h9a3 3 0 0 1 3 3v11H7a3 3 0 0 0-3 3z"></path>
+                <path d="M16 8h4v14H7"></path>
+              </svg>
+            </div>
             <h3 class="mb-3">Guides</h3>
             <p class="mb-4 text-muted">Step-by-step basics for setup, sign-in, and troubleshooting.</p>
             <a href="/services.html" class="btn btn-secondary btn-sm">View Guides</a>
           </div>
 
           <div class="card card-body text-center hover-lift">
-            <div style="font-size: 3rem; margin-bottom: var(--space-4);">💬</div>
+            <div style="margin-bottom: var(--space-4);">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 48px; height: 48px; color: var(--primary-600);">
+                <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
+              </svg>
+            </div>
             <h3 class="mb-3">Community (Coming soon)</h3>
             <p class="mb-4 text-muted">Peer support and tips will live here.</p>
             <span class="btn btn-secondary btn-sm is-disabled">Coming soon</span>
           </div>
 
           <div class="card card-body text-center hover-lift">
-            <div style="font-size: 3rem; margin-bottom: var(--space-4);">📡</div>
+            <div style="margin-bottom: var(--space-4);">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 48px; height: 48px; color: var(--primary-600);">
+                <path d="M12 7v6"></path>
+                <path d="M8 11a4 4 0 0 1 8 0"></path>
+                <path d="M4.5 9.5a7.5 7.5 0 0 1 15 0"></path>
+                <circle cx="12" cy="17" r="1.5"></circle>
+              </svg>
+            </div>
             <h3 class="mb-3">Status Page (Coming soon)</h3>
             <p class="mb-4 text-muted">Service updates and maintenance notices will be posted here.</p>
             <span class="btn btn-secondary btn-sm is-disabled">Coming soon</span>
@@ -298,7 +314,7 @@
     </div>
   </footer>
 
-  <script src="/js/main.js"></script>
+  <script src="/js/main.js" defer></script>
   <script>
     // Contact form functionality
     document.addEventListener('DOMContentLoaded', function() {

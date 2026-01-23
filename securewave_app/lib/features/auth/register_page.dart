@@ -120,7 +120,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         );
                     if (!context.mounted) return;
                     if (ref.read(authControllerProvider).errorMessage == null) {
-                      context.go('/dashboard');
+                      context.go('/vpn');
                     }
                   },
                 ),

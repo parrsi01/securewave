@@ -59,7 +59,7 @@ class DashboardUI {
   }
 
   bindEvents() {
-    if (!this.logoutBtn) return;
+    if (!this.logoutBtn || this.logoutBtn.dataset.bound) return;
     this.logoutBtn.addEventListener('click', async () => {
       try {
         await fetch('/api/auth/logout', {
@@ -72,9 +72,10 @@ class DashboardUI {
         console.error('Logout failed:', error);
       } finally {
         this.clearSession();
-        window.location.href = '/home.html';
+        window.location.href = '/login.html';
       }
     });
+    this.logoutBtn.dataset.bound = 'true';
   }
 
   clearSession() {

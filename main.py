@@ -14,6 +14,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from slowapi import Limiter
@@ -120,6 +121,7 @@ app = FastAPI(
 )
 
 is_testing = os.getenv("TESTING", "").lower() == "true"
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Rate Limiting Configuration
 limiter = Limiter(
@@ -399,7 +401,6 @@ def version():
 static_directory = Path(__file__).resolve().parent / "static"
 
 page_routes = {
-    "/": "index.html",
     "/home": "home.html",
     "/login": "login.html",
     "/register": "register.html",
@@ -415,14 +416,13 @@ page_routes = {
     "/contact": "contact.html",
     "/privacy": "privacy.html",
     "/terms": "terms.html",
-    "/admin-vpn": "admin-vpn.html",
 }
 
 html_pages = [
     "index.html", "home.html", "login.html", "register.html",
     "dashboard.html", "vpn.html", "services.html", "subscription.html",
     "about.html", "contact.html", "privacy.html", "terms.html",
-    "settings.html", "diagnostics.html", "admin-vpn.html"
+    "settings.html", "diagnostics.html"
 ]
 
 
@@ -455,15 +455,15 @@ try:
     css_dir = static_directory / "css"
     js_dir = static_directory / "js"
     img_dir = static_directory / "img"
-    assets_dir = static_directory / "assets"
+    downloads_dir = static_directory / "downloads"
     if css_dir.exists():
-        app.mount("/css", StaticFiles(directory=str(css_dir)), name="css")
+        app.mount("/css", StaticFiles(directory=str(css_dir), max_age=31536000), name="css")
     if js_dir.exists():
-        app.mount("/js", StaticFiles(directory=str(js_dir)), name="js")
+        app.mount("/js", StaticFiles(directory=str(js_dir), max_age=31536000), name="js")
     if img_dir.exists():
-        app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
-    if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+        app.mount("/img", StaticFiles(directory=str(img_dir), max_age=31536000), name="img")
+    if downloads_dir.exists():
+        app.mount("/downloads", StaticFiles(directory=str(downloads_dir), max_age=31536000), name="downloads")
     _logger.info("Static files mounted successfully")
 except Exception as e:
     _logger.warning(f"Failed to mount static files: {e}")

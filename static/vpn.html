@@ -7,7 +7,7 @@
   <meta name="description" content="View your SecureWave status, regions, and app instructions. The app connects automatically.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/professional.css">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
@@ -123,7 +123,7 @@
           <div class="platform-card is-available">
             <div class="platform-tag">Available now</div>
             <span>Linux (arm64)</span>
-            <a href="/static/downloads/securewave-app-linux-arm64.zip" class="btn btn-outline btn-sm btn-block" download>Download</a>
+            <a href="/downloads/securewave-app-linux-arm64.zip" class="btn btn-outline btn-sm btn-block" download>Download</a>
           </div>
           <div class="platform-card">
             <div class="platform-tag soon">Coming soon</div>
@@ -168,8 +168,8 @@
     </div>
   </footer>
 
-  <script src="/js/main.js"></script>
-  <script src="/js/vpn-tests.js"></script>
+  <script src="/js/main.js" defer></script>
+  <script src="/js/vpn-tests.js" defer></script>
   <script>
     const token = localStorage.getItem('access_token');
     if (!token) {

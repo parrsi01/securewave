@@ -2,25 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // Brand Colors - SecureWave v4 Ocean Palette
-  static const Color primary = Color(0xFF0EA5E9);
-  static const Color secondary = Color(0xFF14B8A6);
-  static const Color accent = Color(0xFFF59E0B);
+  // Brand Colors - SecureWave v4.1 Deep Ocean Palette
+  static const Color primary = Color(0xFF2563A0);
+  static const Color secondary = Color(0xFF475F7A);
+  static const Color accent = Color(0xFF10B981);
   static const Color success = Color(0xFF10B981);
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
-  static const Color info = Color(0xFF38BDF8);
+  static const Color info = Color(0xFF3B82F6);
 
-  // Gradient for buttons and highlights
+  // Simplified gradient (use sparingly)
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [primary, secondary, accent],
-    stops: [0.0, 0.6, 1.0],
+    colors: [primary, Color(0xFF1E4E85)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient buttonGradient = LinearGradient(
-    colors: [primary, secondary],
+    colors: [primary, Color(0xFF1E4E85)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -83,11 +82,11 @@ class AppTheme {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
         ),
-        textTheme: GoogleFonts.manropeTextTheme(
+        textTheme: GoogleFonts.interTextTheme(
           ThemeData(brightness: Brightness.dark).textTheme,
         ).copyWith(
-          headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.6),
-          headlineMedium: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+          headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600, letterSpacing: -0.6),
+          headlineMedium: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: -0.4),
           titleLarge: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           bodyLarge: const TextStyle(fontSize: 16, height: 1.5),
           bodyMedium: const TextStyle(fontSize: 14, height: 1.5),
@@ -164,11 +163,11 @@ class AppTheme {
             borderSide: const BorderSide(color: primary),
           ),
         ),
-        textTheme: GoogleFonts.manropeTextTheme(
+        textTheme: GoogleFonts.interTextTheme(
           ThemeData(brightness: Brightness.light).textTheme,
         ).copyWith(
-          headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.6),
-          headlineMedium: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+          headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600, letterSpacing: -0.6),
+          headlineMedium: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: -0.4),
           titleLarge: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           bodyLarge: const TextStyle(fontSize: 16, height: 1.5),
           bodyMedium: const TextStyle(fontSize: 14, height: 1.5),

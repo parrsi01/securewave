@@ -29,10 +29,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
       if (isLoggedIn && state.matchedLocation == '/') {
-        return '/dashboard';
+        return '/vpn';
       }
       if (isLoggedIn && (state.matchedLocation == '/login' || state.matchedLocation == '/register')) {
-        return '/dashboard';
+        return '/vpn';
       }
       return null;
     },

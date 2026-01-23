@@ -16,8 +16,8 @@ class AppShell extends ConsumerWidget {
   final Widget child;
 
   static const _destinations = [
-    _NavDestination('Dashboard', Icons.dashboard, '/dashboard'),
     _NavDestination('Connect', Icons.shield, '/vpn'),
+    _NavDestination('Dashboard', Icons.dashboard, '/dashboard'),
     _NavDestination('Devices', Icons.devices, '/devices'),
     _NavDestination('Tests', Icons.speed, '/tests'),
     _NavDestination('Settings', Icons.settings, '/settings'),
