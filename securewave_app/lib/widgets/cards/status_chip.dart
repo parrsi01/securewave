@@ -13,12 +13,12 @@ class StatusChip extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 140),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.15),
+            color: color.withValues(alpha: 0.15),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

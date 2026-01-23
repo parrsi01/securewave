@@ -206,15 +206,15 @@ class _StatusDisplay extends StatelessWidget {
           gradient: isActive
               ? LinearGradient(
                   colors: [
-                    AppTheme.success.withOpacity(0.12),
-                    AppTheme.success.withOpacity(0.02),
+                    AppTheme.success.withValues(alpha: 0.12),
+                    AppTheme.success.withValues(alpha: 0.02),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
               : null,
           border: Border.all(
-            color: color.withOpacity(0.3),
+            color: color.withValues(alpha: 0.3),
             width: 1.5,
           ),
         ),
@@ -238,7 +238,7 @@ class _StatusDisplay extends StatelessWidget {
                 detail,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
               ),
               const SizedBox(height: 16),
@@ -252,12 +252,12 @@ class _StatusDisplay extends StatelessWidget {
                       width: 180,
                       height: 180,
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.15),
+                        color: color.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
-                        border: Border.all(color: color.withOpacity(0.4), width: 4),
+                        border: Border.all(color: color.withValues(alpha: 0.4), width: 4),
                         boxShadow: [
                           BoxShadow(
-                            color: color.withOpacity(0.3),
+                            color: color.withValues(alpha: 0.3),
                             blurRadius: 24,
                             spreadRadius: 2,
                           ),
@@ -282,7 +282,7 @@ class _StatusDisplay extends StatelessWidget {
                 isActive ? 'Tap to disconnect' : 'Tap to connect',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
               ),
               if (isActive) ...[
@@ -412,9 +412,9 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.error.withOpacity(0.1),
+        color: AppTheme.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.error.withOpacity(0.3)),
+        border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -460,7 +460,7 @@ class _TroubleshootingSectionState extends State<_TroubleshootingSection> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: AppTheme.info.withOpacity(0.1),
+                      color: AppTheme.info.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(Icons.help_outline, color: AppTheme.info, size: 20),

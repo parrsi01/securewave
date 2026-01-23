@@ -12,9 +12,9 @@ class InlineBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: bannerColor.withOpacity(0.15),
+        color: bannerColor.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: bannerColor.withOpacity(0.4)),
+        border: Border.all(color: bannerColor.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [

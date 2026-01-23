@@ -26,7 +26,7 @@ class MetricCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: color.withOpacity(0.15),
+            color: color.withValues(alpha: 0.15),
             width: 1,
           ),
         ),
@@ -40,12 +40,12 @@ class MetricCard extends StatelessWidget {
                 height: 42,
                 decoration: BoxDecoration(
                   gradient: gradient ? AppTheme.buttonGradient : null,
-                  color: gradient ? null : color.withOpacity(0.12),
+                  color: gradient ? null : color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: gradient
                       ? [
                           BoxShadow(
-                            color: color.withOpacity(0.25),
+                            color: color.withValues(alpha: 0.25),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -74,7 +74,7 @@ class MetricCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
               ),
             ],
