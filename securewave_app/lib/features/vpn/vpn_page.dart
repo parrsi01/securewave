@@ -205,9 +205,9 @@ class _VpnStatusCard extends StatelessWidget {
           child: Center(child: CircularProgressIndicator()),
         ),
       ),
-      error: (_, __) => Card(
+      error: (_, __) => const Card(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           child: _ErrorBanner(message: 'Unable to read VPN status. Please refresh.'),
         ),
       ),
@@ -526,7 +526,7 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: AppTheme.error, size: 20),
+          const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -571,7 +571,7 @@ class _TroubleshootingSectionState extends State<_TroubleshootingSection> {
                       color: AppTheme.info.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.help_outline, color: AppTheme.info, size: 20),
+                    child: const Icon(Icons.help_outline, color: AppTheme.info, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -602,16 +602,16 @@ class _TroubleshootingSectionState extends State<_TroubleshootingSection> {
                 children: [
                   const Divider(),
                   const SizedBox(height: 8),
-                  _TipItem(text: 'Allow VPN permissions when prompted by your device.'),
-                  _TipItem(text: 'Keep SecureWave open until status shows Connected.'),
-                  _TipItem(text: 'If stuck Connecting, tap Disconnect, wait 5 seconds, then retry.'),
-                  _TipItem(text: 'Switch regions if the selected server is busy or slow.'),
+                  const _TipItem(text: 'Allow VPN permissions when prompted by your device.'),
+                  const _TipItem(text: 'Keep SecureWave open until status shows Connected.'),
+                  const _TipItem(text: 'If stuck Connecting, tap Disconnect, wait 5 seconds, then retry.'),
+                  const _TipItem(text: 'Switch regions if the selected server is busy or slow.'),
                   const SizedBox(height: 12),
                   Text('Contact Support If:', style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 8),
-                  _TipItem(text: 'Status stays Connecting for more than 60 seconds.', isWarning: true),
-                  _TipItem(text: 'You see repeated connection errors.', isWarning: true),
-                  _TipItem(text: 'Speed tests drop below expected baseline.', isWarning: true),
+                  const _TipItem(text: 'Status stays Connecting for more than 60 seconds.', isWarning: true),
+                  const _TipItem(text: 'You see repeated connection errors.', isWarning: true),
+                  const _TipItem(text: 'Speed tests drop below expected baseline.', isWarning: true),
                 ],
               ),
             ),

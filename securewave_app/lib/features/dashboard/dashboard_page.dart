@@ -39,7 +39,7 @@ class DashboardPage extends ConsumerWidget {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final isNarrow = constraints.maxWidth < 420;
-                    final statusChip = const StatusChip(label: 'Ready', color: Color(0xFF10B981));
+                    const statusChip = StatusChip(label: 'Ready', color: Color(0xFF10B981));
 
                     if (isNarrow) {
                       return Column(
