@@ -19,6 +19,7 @@ cp -R "${ROOT_DIR}/routes" "${BUILD_DIR}/routes"
 cp -R "${ROOT_DIR}/services" "${BUILD_DIR}/services"
 cp -R "${ROOT_DIR}/models" "${BUILD_DIR}/models"
 cp -R "${ROOT_DIR}/database" "${BUILD_DIR}/database"
+cp -R "${ROOT_DIR}/utils" "${BUILD_DIR}/utils"
 if [[ -d "${ROOT_DIR}/securewave-tests" ]]; then
   cp -R "${ROOT_DIR}/securewave-tests" "${BUILD_DIR}/securewave-tests"
   rm -rf "${BUILD_DIR}/securewave-tests/results"
