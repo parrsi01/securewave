@@ -31,7 +31,7 @@ class ActionCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: color.withOpacity(featured ? 0.3 : 0.12),
+              color: color.withValues(alpha: featured ? 0.3 : 0.12),
               width: featured ? 1.5 : 1,
             ),
           ),
@@ -44,12 +44,12 @@ class ActionCard extends StatelessWidget {
                   height: 46,
                   decoration: BoxDecoration(
                     gradient: featured ? AppTheme.buttonGradient : null,
-                    color: featured ? null : color.withOpacity(0.1),
+                    color: featured ? null : color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: featured
                         ? [
                             BoxShadow(
-                              color: color.withOpacity(0.25),
+                              color: color.withValues(alpha: 0.25),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -79,7 +79,7 @@ class ActionCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
                       ),
                     ],
@@ -89,7 +89,7 @@ class ActionCard extends StatelessWidget {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.08),
+                    color: color.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(Icons.chevron_right, color: color, size: 20),

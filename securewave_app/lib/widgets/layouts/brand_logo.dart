@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/theme/app_assets.dart';
-import '../../core/theme/app_theme.dart';
 
 class BrandLogo extends StatelessWidget {
   const BrandLogo({
@@ -24,21 +23,21 @@ class BrandLogo extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            colors.primary.withOpacity(0.18),
-            colors.primary.withOpacity(0.08),
+            colors.primary.withValues(alpha: 0.18),
+            colors.primary.withValues(alpha: 0.08),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(size * 0.4),
         border: Border.all(
-          color: colors.primary.withOpacity(0.35),
+          color: colors.primary.withValues(alpha: 0.35),
           width: 1.5,
         ),
         boxShadow: showGlow
             ? [
                 BoxShadow(
-                  color: colors.primary.withOpacity(0.25),
+                  color: colors.primary.withValues(alpha: 0.25),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),

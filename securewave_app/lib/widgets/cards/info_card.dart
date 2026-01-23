@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_theme.dart';
-
 class InfoCard extends StatelessWidget {
   const InfoCard({
     super.key,
@@ -26,7 +24,7 @@ class InfoCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: accent.withOpacity(0.15),
+            color: accent.withValues(alpha: 0.15),
             width: 1,
           ),
         ),
@@ -39,14 +37,14 @@ class InfoCard extends StatelessWidget {
                 height: 52,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [accent, accent.withOpacity(0.4)],
+                    colors: [accent, accent.withValues(alpha: 0.4)],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
                   borderRadius: BorderRadius.circular(999),
                   boxShadow: [
                     BoxShadow(
-                      color: accent.withOpacity(0.3),
+                      color: accent.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -70,7 +68,7 @@ class InfoCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                             height: 1.4,
                           ),
                     ),

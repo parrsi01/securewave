@@ -15,8 +15,8 @@ class AppBackground extends StatelessWidget {
             gradient: LinearGradient(
               colors: [
                 surface,
-                surface.withOpacity(0.94),
-                surface.withOpacity(0.9),
+                surface.withValues(alpha: 0.94),
+                surface.withValues(alpha: 0.9),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -27,7 +27,7 @@ class AppBackground extends StatelessWidget {
           top: -120,
           right: -80,
           child: _GlowBlob(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.25),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.25),
             size: 280,
           ),
         ),
@@ -35,7 +35,7 @@ class AppBackground extends StatelessWidget {
           bottom: -140,
           left: -90,
           child: _GlowBlob(
-            color: Theme.of(context).colorScheme.secondary.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
             size: 300,
           ),
         ),
@@ -43,7 +43,7 @@ class AppBackground extends StatelessWidget {
           bottom: 40,
           right: -60,
           child: _GlowBlob(
-            color: Theme.of(context).colorScheme.tertiary.withOpacity(0.18),
+            color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.18),
             size: 220,
           ),
         ),
