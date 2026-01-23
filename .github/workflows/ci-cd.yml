@@ -7,9 +7,16 @@ on:
     branches: [ main, master, develop ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write
+
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18'
+  AZURE_CLIENT_ID: 55850cdb-6553-4317-8065-af7c0ba4e399
+  AZURE_TENANT_ID: 1e7d59bd-9531-4720-aa64-fe5513491eb1
+  AZURE_SUBSCRIPTION_ID: ca5729a0-9aac-469d-b518-a7e970878993
   AZURE_RESOURCE_GROUP_PROD: SecureWaveRG
   AZURE_WEBAPP_NAME_PROD: securewave-web
   AZURE_WEBAPP_URL_PROD: https://securewave-web.azurewebsites.net
@@ -193,7 +200,7 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.ref == 'refs/heads/develop' && secrets.AZURE_CREDENTIALS_STAGING != ''
+    if: github.ref == 'refs/heads/develop'
     environment:
       name: staging
       url: ${{ env.AZURE_WEBAPP_URL_STAGING }}
@@ -205,7 +212,9 @@ jobs:
       - name: Azure Login
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS_STAGING }}
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy to Azure Web App (Staging)
         uses: azure/webapps-deploy@v2
@@ -229,7 +238,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [build]
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.AZURE_CREDENTIALS != ''
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     environment:
       name: production
       url: ${{ env.AZURE_WEBAPP_URL_PROD }}
@@ -241,7 +250,9 @@ jobs:
       - name: Azure Login
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Create backup before deployment
         run: |
@@ -299,12 +310,14 @@ jobs:
     name: Rollback on Failure
     runs-on: ubuntu-latest
     needs: [deploy-production]
-    if: failure() && secrets.AZURE_CREDENTIALS != ''
+    if: failure()
     steps:
       - name: Azure Login
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Rollback to previous version
         run: |
