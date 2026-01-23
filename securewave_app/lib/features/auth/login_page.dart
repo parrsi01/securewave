@@ -106,7 +106,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         );
                     if (!context.mounted) return;
                     if (ref.read(authControllerProvider).errorMessage == null) {
-                      context.go('/dashboard');
+                      context.go('/vpn');
                     }
                   },
                 ),

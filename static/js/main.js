@@ -135,7 +135,24 @@ async function apiCall(endpoint, options = {}, retryCount = 0) {
 }
 
 // Routes that require authentication (excluding subscription which works for guests)
-const PROTECTED_ROUTES = ['/dashboard.html', '/dashboard', '/vpn.html', '/vpn', '/settings.html', '/settings', '/diagnostics.html', '/diagnostics'];
+const PROTECTED_ROUTES = [
+  '/dashboard.html',
+  '/dashboard',
+  '/vpn.html',
+  '/vpn',
+  '/vpn/test',
+  '/vpn/results',
+  '/settings.html',
+  '/settings',
+  '/diagnostics.html',
+  '/diagnostics'
+];
+
+function setVisibility(element, shouldShow) {
+  if (!element) return;
+  element.classList.toggle('d-none', !shouldShow);
+  element.classList.toggle('hidden', !shouldShow);
+}
 
 // Check authentication state
 async function checkAuthState() {
@@ -162,35 +179,33 @@ async function checkAuthState() {
       }
 
       // Update nav for non-protected pages
-      if (loginBtn) loginBtn.classList.remove('d-none');
-      if (registerBtn) registerBtn.classList.remove('d-none');
-      if (logoutBtn) logoutBtn.classList.add('d-none');
-      if (dashLink) dashLink.classList.add('d-none');
-      if (settingsLink) settingsLink.classList.add('d-none');
+      setVisibility(loginBtn, true);
+      setVisibility(registerBtn, true);
+      setVisibility(logoutBtn, false);
+      setVisibility(dashLink, false);
+      setVisibility(settingsLink, false);
       return;
     }
     // User is logged in
-    if (loginBtn) loginBtn.classList.add('d-none');
-    if (registerBtn) registerBtn.classList.add('d-none');
-    if (logoutBtn) {
-      logoutBtn.classList.remove('d-none');
-      const logoutButton = logoutBtn.querySelector('button');
-      if (logoutButton) {
-        logoutButton.addEventListener('click', logout);
-      }
+    setVisibility(loginBtn, false);
+    setVisibility(registerBtn, false);
+    setVisibility(logoutBtn, true);
+    setVisibility(dashLink, true);
+    setVisibility(settingsLink, true);
+    if (logoutBtn && !logoutBtn.dataset.bound) {
+      logoutBtn.addEventListener('click', logout);
+      logoutBtn.dataset.bound = 'true';
     }
-    if (dashLink) dashLink.classList.remove('d-none');
-    if (settingsLink) settingsLink.classList.remove('d-none');
 
     // Start token refresh interval
     startTokenRefresh();
   } else {
     // User is not logged in
-    if (loginBtn) loginBtn.classList.remove('d-none');
-    if (registerBtn) registerBtn.classList.remove('d-none');
-    if (logoutBtn) logoutBtn.classList.add('d-none');
-    if (dashLink) dashLink.classList.add('d-none');
-    if (settingsLink) settingsLink.classList.add('d-none');
+    setVisibility(loginBtn, true);
+    setVisibility(registerBtn, true);
+    setVisibility(logoutBtn, false);
+    setVisibility(dashLink, false);
+    setVisibility(settingsLink, false);
   }
 }
 
@@ -205,7 +220,7 @@ async function logout() {
     localStorage.removeItem('refresh_token');
     showToast('Logged out successfully', 'success');
     setTimeout(() => {
-      window.location.href = '/home.html';
+      window.location.href = '/login.html';
     }, 1000);
   }
 }
@@ -413,9 +428,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Console welcome message
-  console.log('%c🔐 SecureWave VPN', 'font-size: 20px; font-weight: bold; color: #0f766e;');
-  console.log('%cVersion 2.0.0 - Modern 2026 Edition', 'font-size: 12px; color: #64748b;');
-  console.log('%c⚡ Powered by FastAPI and the SecureWave Core', 'font-size: 10px; color: #94a3b8;');
+  console.log('%cSecureWave VPN', 'font-size: 20px; font-weight: bold; color: #0f766e;');
+  console.log('%cVersion 4.0.0 - App-first Edition', 'font-size: 12px; color: #64748b;');
+  console.log('%cPowered by FastAPI and SecureWave Core', 'font-size: 10px; color: #94a3b8;');
 });
 
 // Handle page visibility changes

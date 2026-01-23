@@ -37,6 +37,19 @@ function buildActionButton(label, href, variant = 'primary') {
   return button;
 }
 
+function buildActionGroup(actions) {
+  const container = document.createElement('div');
+  container.style.display = 'flex';
+  container.style.flexWrap = 'wrap';
+  container.style.gap = '0.75rem';
+  actions.forEach(action => {
+    if (action) {
+      container.appendChild(action);
+    }
+  });
+  return container;
+}
+
 function updatePlanCardForGuest() {
   const action = buildActionButton('Log In', '/login.html?redirect=/subscription.html', 'primary');
   setPlanCard({
@@ -65,10 +78,14 @@ async function loadCurrentSubscription(token) {
 
     const data = await response.json();
     if (!data.subscription) {
+      const actions = buildActionGroup([
+        buildActionButton('Upgrade Plan', '#pricing', 'primary'),
+        buildActionButton('Continue to Dashboard', '/dashboard.html', 'outline')
+      ]);
       setPlanCard({
         name: 'Free Plan',
         statusText: 'Status: inactive',
-        actions: buildActionButton('Upgrade Plan', '#pricing', 'primary')
+        actions
       });
       return;
     }

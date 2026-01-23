@@ -80,8 +80,12 @@ async function handleLogin(e) {
       if (data.refresh_token) {
         localStorage.setItem('refresh_token', data.refresh_token);
       }
-      const redirectTo = getRedirectTarget() || '/dashboard.html';
-      window.location.href = redirectTo;
+      const redirectTo = getRedirectTarget();
+      if (redirectTo) {
+        window.location.href = redirectTo;
+        return;
+      }
+      window.location.href = '/dashboard.html';
     } else {
       const errorMessage = getErrorMessage(data);
       setFormMessage(e.target, errorMessage, 'error');
@@ -161,11 +165,10 @@ async function handleRegister(e) {
           localStorage.setItem('refresh_token', data.refresh_token);
         }
         setFormMessage(e.target, 'Account created successfully! Redirecting...', 'success');
-        const redirectTo = getRedirectTarget() || '/dashboard.html';
-        setTimeout(() => window.location.href = redirectTo, 400);
+        setTimeout(() => window.location.href = '/dashboard.html', 400);
       } else {
         setFormMessage(e.target, 'Account created! Redirecting to login...', 'success');
-        setTimeout(() => window.location.href = '/login.html', 600);
+        setTimeout(() => window.location.href = '/login.html?redirect=/dashboard.html', 600);
       }
     } else {
       const errorMessage = getErrorMessage(data);
@@ -256,6 +259,7 @@ function getRedirectTarget() {
   }
   return null;
 }
+
 
 function setFormMessage(form, message, type = 'info', hidden = false) {
   const container = form.closest('.auth-card') || form.parentElement;

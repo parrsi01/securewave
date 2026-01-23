@@ -1,0 +1,11 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Flow Mark: Dark mode variant with lighter colors -->
+  <path d="M 6 10 L 22 10 A 6 6 0 0 1 22 22 L 6 22 A 6 6 0 0 1 6 10 Z"
+        stroke="#b3cde0"
+        stroke-width="2.5"
+        fill="none"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+  <rect x="10" y="14" width="16" height="4" rx="2"
+        fill="#b3cde0"/>
+</svg>
