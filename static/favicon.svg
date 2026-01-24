@@ -1,10 +1,10 @@
 <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- SecureWave Favicon - Simplified for 16px/32px -->
+  <!-- SecureWave Favicon - Lavender Palette -->
 
   <defs>
     <linearGradient id="faviconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FF8F00"/>
-      <stop offset="100%" stop-color="#F86605"/>
+      <stop offset="0%" stop-color="#A294F9"/>
+      <stop offset="100%" stop-color="#CDC1FF"/>
     </linearGradient>
   </defs>
 

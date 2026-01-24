@@ -1,15 +1,15 @@
 <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- SecureWave Logo Mark - Square format for app icons -->
+  <!-- SecureWave Logo Mark - Lavender Brand Palette -->
 
   <defs>
     <linearGradient id="markGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FF8F00"/>
-      <stop offset="100%" stop-color="#F86605"/>
+      <stop offset="0%" stop-color="#A294F9"/>
+      <stop offset="100%" stop-color="#CDC1FF"/>
     </linearGradient>
   </defs>
 
   <!-- Background circle -->
-  <circle cx="32" cy="32" r="30" fill="#1c1e22"/>
+  <circle cx="32" cy="32" r="30" fill="#F5EFFF"/>
 
   <!-- Shield shape -->
   <path d="M32 10C32 10 14 16 14 26C14 36 14 41 32 52C50 41 50 36 50 26C50 16 32 10 32 10Z"
