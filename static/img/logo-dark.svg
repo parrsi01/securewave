@@ -1,14 +1,14 @@
 <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- SecureWave Logo - Dark/Light backgrounds variant -->
+  <!-- SecureWave Logo - Dark Mode Variant -->
 
   <defs>
     <linearGradient id="logoGradientDark" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FF8F00"/>
-      <stop offset="100%" stop-color="#F86605"/>
+      <stop offset="0%" stop-color="#A294F9"/>
+      <stop offset="100%" stop-color="#CDC1FF"/>
     </linearGradient>
   </defs>
 
-  <!-- Shield outline -->
+  <!-- Shield shape -->
   <path d="M20 3C20 3 6 8 6 16C6 24 6 28 20 37C34 28 34 24 34 16C34 8 20 3 20 3Z"
         fill="url(#logoGradientDark)"/>
 

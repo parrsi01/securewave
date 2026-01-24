@@ -1,18 +1,18 @@
-# SecureWave VPN - Design System v5.0
+# SecureWave VPN - Design System v5.1
 
 **Last Updated:** 2026-01-23
-**Version:** 5.0 (PrivadoVPN-Inspired Dark Theme)
+**Version:** 5.1 (Lavender Light Theme)
 **Status:** Production
 
 ---
 
 ## Overview
 
-This document defines the visual design system for SecureWave VPN across both the website (HTML/CSS) and Flutter mobile/desktop app. The design philosophy emphasizes a **modern dark aesthetic** with vibrant accent colors, inspired by leading consumer VPN products like PrivadoVPN.
+This document defines the visual design system for SecureWave VPN across both the website (HTML/CSS) and Flutter mobile/desktop app. The design philosophy emphasizes a **modern, calm, consumer-grade aesthetic** with a lavender color palette that communicates trust and security.
 
 **Design Principles:**
-- Dark-first: Elegant dark theme reduces eye strain and signals modern tech
-- Vibrant accents: Orange and green provide clear visual hierarchy
+- Light-first: Clean, calming lavender backgrounds
+- Purple accents: Primary interactions use #A294F9
 - App-first hierarchy: Website is control panel, app handles VPN connection
 - Mobile-first: Responsive design starting from 320px
 - Accessibility: WCAG 2.1 AA compliant
@@ -21,38 +21,41 @@ This document defines the visual design system for SecureWave VPN across both th
 
 ## 1. Color System
 
-### Primary Brand Colors
+### Brand Palette (MANDATORY)
 
-SecureWave uses a dark foundation with vibrant orange as the primary accent color.
+These four colors define the SecureWave brand identity:
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| Background | `#F5EFFF` | Page backgrounds, scaffolds |
+| Card/Surface | `#E5D9F2` | Cards, panels, inputs |
+| Secondary | `#CDC1FF` | Subtle accents, hover states |
+| Primary | `#A294F9` | CTAs, buttons, links, focus |
 
 ```css
-/* Dark Theme Backgrounds */
---bg-darkest: #080a0b   /* Deepest background */
---bg-dark: #1c1e22      /* Main background */
---bg-card: #25272d      /* Card surfaces */
---bg-card-hover: #30343b /* Card hover state */
---bg-elevated: #2d3038  /* Elevated elements */
-
-/* Accent Orange (Primary) */
---accent-orange: #ff8f00        /* Main accent */
---accent-orange-dark: #f86605   /* Gradient end, hover */
---accent-orange-light: #ffb347  /* Light variant */
-
-/* Accent Green (Success/Connected) */
---accent-green: #28d799         /* Connected state, success */
---accent-green-dark: #1fa87a    /* Gradient end, hover */
---accent-green-light: #5eedb8   /* Light variant */
-
-/* Accent Purple (Tertiary) */
---accent-purple: #5058c8        /* Special elements */
---accent-purple-dark: #3a42b7   /* Hover */
+/* CSS Variables */
+--bg-darkest: #F5EFFF;
+--bg-card: #E5D9F2;
+--secondary: #CDC1FF;
+--primary: #A294F9;
 ```
 
-**Flutter Constants:**
 ```dart
-static const Color accentOrange = Color(0xFFFF8F00);
-static const Color accentGreen = Color(0xFF28D799);
-static const Color accentPurple = Color(0xFF5058C8);
+// Flutter Constants
+static const Color bgLightest = Color(0xFFF5EFFF);
+static const Color bgCard = Color(0xFFE5D9F2);
+static const Color secondaryColor = Color(0xFFCDC1FF);
+static const Color primaryColor = Color(0xFFA294F9);
+```
+
+---
+
+### Primary Accent Variants
+
+```css
+--primary: #A294F9          /* Main accent */
+--primary-dark: #8B7CF7     /* Hover/pressed states */
+--primary-light: #B8ADF9    /* Light variant */
 ```
 
 ---
@@ -60,49 +63,34 @@ static const Color accentPurple = Color(0xFF5058C8);
 ### Semantic Colors
 
 ```css
---success: #28d799    /* Green - connected, success */
---success-bg: rgba(40, 215, 153, 0.15)
---warning: #f59e0b    /* Amber - warnings */
---warning-bg: rgba(245, 158, 11, 0.15)
---error: #ef4444      /* Red - errors, disconnected */
---error-bg: rgba(239, 68, 68, 0.15)
---info: #3b82f6       /* Blue - informational */
---info-bg: rgba(59, 130, 246, 0.15)
-```
-
----
-
-### Neutral Grays
-
-```css
---gray-50:  #f1f2f4   /* Lightest */
---gray-100: #e0e2e6
---gray-200: #d4d6d7
---gray-300: #c1c5cd   /* Text secondary */
---gray-400: #93999c   /* Text tertiary */
---gray-500: #6b7280   /* Text muted */
---gray-600: #4b5563
---gray-700: #374151
---gray-800: #25272d   /* Card background */
---gray-900: #1c1e22   /* Main background */
+--success: #10B981    /* Green - connected, success */
+--success-bg: rgba(16, 185, 129, 0.12)
+--warning: #F59E0B    /* Amber - warnings */
+--warning-bg: rgba(245, 158, 11, 0.12)
+--error: #EF4444      /* Red - errors, disconnected */
+--error-bg: rgba(239, 68, 68, 0.12)
+--info: #3B82F6       /* Blue - informational */
+--info-bg: rgba(59, 130, 246, 0.12)
 ```
 
 ---
 
 ### Text Colors
 
+**Light Theme (Default):**
 ```css
-/* Dark Theme */
---text-primary: #ffffff     /* White - headings, important */
---text-secondary: #c1c5cd   /* Light gray - body text */
---text-tertiary: #93999c    /* Medium gray - labels */
---text-muted: #6b7280       /* Dim gray - disabled */
+--text-primary: #1F1F1F     /* Headings, important text */
+--text-secondary: #4A4A4A   /* Body text */
+--text-tertiary: #6B6B6B    /* Labels, captions */
+--text-muted: #9CA3AF       /* Disabled, placeholder */
+```
 
-/* Light Theme (via [data-theme="light"]) */
---text-primary: #0f172a     /* Near black */
---text-secondary: #334155   /* Dark gray */
---text-tertiary: #64748b    /* Medium gray */
---text-muted: #94a3b8       /* Light gray */
+**Dark Theme:**
+```css
+--text-primary: #FFFFFF
+--text-secondary: #D4D0DE
+--text-tertiary: #9B95A8
+--text-muted: #6B6578
 ```
 
 ---
@@ -110,9 +98,9 @@ static const Color accentPurple = Color(0xFF5058C8);
 ### Border Colors
 
 ```css
---border-primary: rgba(255, 255, 255, 0.08)   /* Subtle borders */
---border-secondary: rgba(255, 255, 255, 0.12) /* Visible borders */
---border-accent: rgba(255, 143, 0, 0.3)       /* Accent borders */
+--border-primary: rgba(162, 148, 249, 0.2)   /* Subtle borders */
+--border-secondary: rgba(162, 148, 249, 0.35) /* Visible borders */
+--border-accent: rgba(162, 148, 249, 0.5)     /* Focus, active */
 ```
 
 ---
@@ -120,40 +108,34 @@ static const Color accentPurple = Color(0xFF5058C8);
 ### Gradients
 
 ```css
-/* Primary Actions */
---gradient-orange: linear-gradient(90deg, #ff8f00 0%, #f86605 100%);
+/* Primary Gradient (CTAs) */
+--gradient-primary: linear-gradient(135deg, #A294F9 0%, #CDC1FF 100%);
 
-/* Success States */
---gradient-green: linear-gradient(90deg, #28d799 0%, #1fa87a 100%);
+/* Success Gradient */
+--gradient-green: linear-gradient(135deg, #10B981 0%, #059669 100%);
 
-/* Special Elements */
---gradient-purple: linear-gradient(90deg, #5058c8 0%, #3a42b7 100%);
+/* Card Background */
+--gradient-card: linear-gradient(180deg, #FFFFFF 0%, #F5EFFF 100%);
 
-/* Card Backgrounds */
---gradient-card: linear-gradient(180deg, #30343b 0%, #1c1e22 100%);
-
-/* Hero Background Glow */
---gradient-hero: radial-gradient(ellipse at 50% 0%, rgba(255, 143, 0, 0.15) 0%, transparent 60%);
+/* Hero Glow */
+--gradient-hero: radial-gradient(ellipse at 50% 0%, rgba(162, 148, 249, 0.15) 0%, transparent 60%);
 ```
 
 ---
 
-### Light Mode Override
+### Dark Mode
 
-The light theme is activated via `[data-theme="light"]` attribute on the root element.
+Dark mode is activated via `[data-theme="dark"]` on the root element.
 
 ```css
-[data-theme="light"] {
-  --bg-darkest: #f8fafc;
-  --bg-dark: #ffffff;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f1f5f9;
-  --bg-elevated: #f8fafc;
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-tertiary: #64748b;
-  --border-primary: rgba(0, 0, 0, 0.08);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+[data-theme="dark"] {
+  --bg-darkest: #1A1625;
+  --bg-dark: #241D30;
+  --bg-card: #2D2540;
+  --bg-elevated: #322A45;
+  --text-primary: #FFFFFF;
+  --text-secondary: #D4D0DE;
+  --border-primary: rgba(205, 193, 255, 0.15);
 }
 ```
 
@@ -222,6 +204,8 @@ GoogleFonts.interTextTheme()
 
 ## 3. Spacing Scale
 
+8px base scale for consistent spacing:
+
 ```css
 --space-1:  0.25rem   /* 4px */
 --space-2:  0.5rem    /* 8px */
@@ -255,21 +239,20 @@ GoogleFonts.interTextTheme()
 
 ## 5. Shadows
 
+**Light Theme:**
 ```css
-/* Dark Theme Shadows */
+--shadow-sm:  0 1px 2px rgba(162, 148, 249, 0.08)
+--shadow-md:  0 4px 12px rgba(162, 148, 249, 0.12)
+--shadow-lg:  0 8px 24px rgba(162, 148, 249, 0.16)
+--shadow-xl:  0 16px 40px rgba(162, 148, 249, 0.2)
+--shadow-glow-primary: 0 0 40px rgba(162, 148, 249, 0.35)
+```
+
+**Dark Theme:**
+```css
 --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.3)
---shadow-md:  0 4px 6px rgba(0, 0, 0, 0.4)
---shadow-lg:  0 13px 32px rgba(0, 0, 0, 0.59)
---shadow-xl:  0 16px 40px rgba(0, 0, 0, 0.41)
-
-/* Glow Effects */
---shadow-glow-orange: 0 0 40px rgba(255, 143, 0, 0.3)
---shadow-glow-green: 0 0 40px rgba(40, 215, 153, 0.3)
-
-/* Light Theme Shadows */
---shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05)
---shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07)
---shadow-lg: 0 10px 20px rgba(147, 153, 156, 0.15)
+--shadow-md:  0 4px 12px rgba(0, 0, 0, 0.4)
+--shadow-lg:  0 8px 24px rgba(0, 0, 0, 0.5)
 ```
 
 ---
@@ -278,24 +261,23 @@ GoogleFonts.interTextTheme()
 
 ### Buttons
 
-**Primary Button (Orange):**
+**Primary Button:**
 ```html
 <button class="btn btn-primary">Download App</button>
 ```
 ```css
 .btn-primary {
-  background: var(--gradient-orange);
+  background: var(--gradient-primary);
   color: white;
   padding: 0.75rem 1.5rem;
   border-radius: var(--radius-lg);
   font-weight: 600;
-  transition: all var(--transition-base);
 }
 ```
 
-**Secondary Button (Green):**
+**Secondary Button:**
 ```html
-<button class="btn btn-secondary">Create Account</button>
+<button class="btn btn-secondary">Learn More</button>
 ```
 
 **Ghost Button:**
@@ -308,15 +290,15 @@ GoogleFonts.interTextTheme()
 ### Cards
 
 ```html
-<div class="dashboard-card">
-  <div class="dashboard-card-header">
-    <h3 class="dashboard-card-title">Card Title</h3>
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Card Title</h3>
   </div>
   <!-- content -->
 </div>
 ```
 ```css
-.dashboard-card {
+.card {
   background: var(--bg-card);
   border-radius: var(--radius-2xl);
   border: 1px solid var(--border-primary);
@@ -329,12 +311,12 @@ GoogleFonts.interTextTheme()
 ### Status Indicators
 
 ```html
-<span class="status-pill">Active</span>
+<span class="status-pill">Connected</span>
 ```
 ```css
 .status-pill {
   background: var(--success-bg);
-  color: var(--accent-green);
+  color: var(--success);
   padding: 0.375rem 0.875rem;
   border-radius: 9999px;
   font-size: 0.875rem;
@@ -349,11 +331,11 @@ GoogleFonts.interTextTheme()
 ```css
 .vpn-status-indicator.connected {
   background: var(--success-bg);
-  color: var(--accent-green);
+  color: var(--success);
 }
 
 .vpn-status-indicator.disconnected {
-  background: rgba(239, 68, 68, 0.15);
+  background: var(--error-bg);
   color: var(--error);
 }
 ```
@@ -364,17 +346,17 @@ GoogleFonts.interTextTheme()
 
 ### Logo Files
 
-| File | Purpose | Format |
+| File | Purpose | Colors |
 |------|---------|--------|
-| logo.svg | Full navigation logo | Shield + waves |
-| logo-mark.svg | App icon, square | Shield only |
-| logo-dark.svg | Dark backgrounds | Light variant |
-| favicon.svg | Browser favicon | Simplified 16px |
+| logo.svg | Navigation logo | #A294F9 to #CDC1FF gradient |
+| logo-mark.svg | App icon (square) | #A294F9 to #CDC1FF gradient |
+| logo-dark.svg | Dark backgrounds | Same gradient |
+| favicon.svg | Browser favicon | Simplified shield |
 
 ### Logo Concept
 
 The SecureWave logo is a **modern shield with signal waves**:
-- Orange gradient shield (#FF8F00 to #F86605)
+- Purple gradient shield (#A294F9 to #CDC1FF)
 - White curved signal waves (3 levels)
 - Center connection dot
 - Represents secure, flowing data protection
@@ -382,7 +364,6 @@ The SecureWave logo is a **modern shield with signal waves**:
 ### Logo Usage
 
 ```html
-<!-- Navigation -->
 <a href="/" class="navbar-brand">
   <img src="/img/logo.svg" alt="SecureWave" height="36">
   <span>SecureWave</span>
@@ -390,9 +371,8 @@ The SecureWave logo is a **modern shield with signal waves**:
 ```
 
 **Color Rules:**
-- Logo primary: Orange gradient (#FF8F00)
-- Logo on dark: Orange or white
-- Logo on light: Orange or dark gray
+- Logo on light: Use gradient (#A294F9)
+- Logo on dark: Same gradient (high contrast)
 
 ---
 
@@ -424,16 +404,16 @@ The SecureWave logo is a **modern shield with signal waves**:
 - UI components: Minimum 3:1
 
 **Verified Combinations:**
-- White on `#1c1e22`: 14.7:1
-- `#ff8f00` on `#080a0b`: 7.8:1
-- `#28d799` on dark: 10.2:1
+- `#1F1F1F` on `#F5EFFF`: 12.8:1
+- `#A294F9` on `#F5EFFF`: 3.2:1 (use for large text/icons only)
+- White on `#A294F9`: 4.7:1
 
 ### Touch Targets
 Minimum: 44px x 44px (iOS) / 48px x 48px (Android)
 
 ### Keyboard Navigation
 - Skip links: `.skip-to-main`
-- Focus states: Orange outline (3px)
+- Focus states: Purple outline (3px)
 - Tab order follows visual order
 
 ---
@@ -464,15 +444,12 @@ Theme is persisted in `localStorage` and respects system preference.
 --transition-base: 200ms ease-in-out
 --transition-slow: 300ms ease
 
-/* Loading spinner */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Skeleton loading */
-@keyframes skeleton {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 ```
 
@@ -480,30 +457,31 @@ Theme is persisted in `localStorage` and respects system preference.
 
 ## 12. Version History
 
+**v5.1 - Lavender Light Theme (2026-01-23)**
+- New brand palette: #F5EFFF, #E5D9F2, #CDC1FF, #A294F9
+- Light-first design (calming lavender backgrounds)
+- Purple primary accents
+- Updated logo to match new palette
+- Full light/dark mode support
+
 **v5.0 - PrivadoVPN-Inspired (2026-01-23)**
-- Dark-first theme with orange/green accents
-- Inspired by modern consumer VPN products
-- Full light/dark mode toggle
-- Comprehensive responsive design
-- WCAG 2.1 AA accessibility compliance
+- Dark theme with orange/green accents
+- Superseded by v5.1
 
 **v4.1 - Deep Ocean (2026-01-23)**
-- Attempted blue/slate redesign
-- Not implemented (superseded by v5.0)
+- Blue/slate palette (not deployed)
 
 **v4.0 - Original Release**
-- Initial design system
 - Cyan/teal/amber palette
-- Space Grotesk + Work Sans typography
 
 ---
 
 ## 13. Implementation Checklist
 
 ### Website (HTML/CSS)
-- [x] Dark theme with orange/green accents
+- [x] Lavender brand palette applied
 - [x] Inter font family
-- [x] Modern logo (shield + waves)
+- [x] Modern logo (shield + waves in purple)
 - [x] Responsive navigation
 - [x] Theme toggle (light/dark)
 - [x] Mobile-first breakpoints
@@ -511,8 +489,8 @@ Theme is persisted in `localStorage` and respects system preference.
 - [x] App download CTAs
 
 ### Flutter App (Dart)
-- [x] Dark theme with orange/green accents
-- [x] Light theme variant
+- [x] Lavender light theme (default)
+- [x] Purple dark theme variant
 - [x] GoogleFonts Inter
 - [x] Material 3 compliance
 - [x] Consistent color scheme

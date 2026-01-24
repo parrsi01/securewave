@@ -1,65 +1,78 @@
 /* =================================================================
-   SecureWave VPN - v5.0 Design System
-   PrivadoVPN-Inspired Dark Theme with Orange/Green Accents
+   SecureWave VPN - v5.1 Design System
+   Lavender Light Theme - Modern Consumer VPN Aesthetic
+   Brand Palette: #F5EFFF, #E5D9F2, #CDC1FF, #A294F9
    ================================================================= */
 
 :root {
-  /* Brand Colors - Dark Theme Primary */
-  --bg-darkest: #080a0b;
-  --bg-dark: #1c1e22;
-  --bg-card: #25272d;
-  --bg-card-hover: #30343b;
-  --bg-elevated: #2d3038;
+  /* Brand Colors - Lavender Light Theme */
+  --bg-darkest: #F5EFFF;
+  --bg-dark: #F5EFFF;
+  --bg-card: #E5D9F2;
+  --bg-card-hover: #DDD0ED;
+  --bg-elevated: #FFFFFF;
 
-  /* Accent Colors */
-  --accent-orange: #ff8f00;
-  --accent-orange-dark: #f86605;
-  --accent-orange-light: #ffb347;
-  --accent-green: #28d799;
-  --accent-green-dark: #1fa87a;
-  --accent-green-light: #5eedb8;
-  --accent-purple: #5058c8;
-  --accent-purple-dark: #3a42b7;
+  /* Primary Accent - Purple */
+  --primary: #A294F9;
+  --primary-dark: #8B7CF7;
+  --primary-light: #B8ADF9;
+  --primary-hover: #9183E8;
+
+  /* Secondary Accent */
+  --secondary: #CDC1FF;
+  --secondary-dark: #B8A9F5;
+  --secondary-light: #DDD5FF;
+
+  /* Legacy aliases for compatibility */
+  --accent-orange: #A294F9;
+  --accent-orange-dark: #8B7CF7;
+  --accent-orange-light: #B8ADF9;
+  --accent-green: #10B981;
+  --accent-green-dark: #059669;
+  --accent-green-light: #34D399;
+  --accent-purple: #A294F9;
+  --accent-purple-dark: #8B7CF7;
 
   /* Neutral Grays */
-  --gray-50: #f1f2f4;
-  --gray-100: #e0e2e6;
-  --gray-200: #d4d6d7;
-  --gray-300: #c1c5cd;
-  --gray-400: #93999c;
-  --gray-500: #6b7280;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --gray-800: #25272d;
-  --gray-900: #1c1e22;
+  --gray-50: #FAFAFA;
+  --gray-100: #F5F5F5;
+  --gray-200: #E5E5E5;
+  --gray-300: #D4D4D4;
+  --gray-400: #A3A3A3;
+  --gray-500: #737373;
+  --gray-600: #525252;
+  --gray-700: #404040;
+  --gray-800: #262626;
+  --gray-900: #171717;
 
   /* Semantic Colors */
-  --success: #28d799;
-  --success-bg: rgba(40, 215, 153, 0.15);
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.15);
-  --error: #ef4444;
-  --error-bg: rgba(239, 68, 68, 0.15);
-  --info: #3b82f6;
-  --info-bg: rgba(59, 130, 246, 0.15);
+  --success: #10B981;
+  --success-bg: rgba(16, 185, 129, 0.12);
+  --warning: #F59E0B;
+  --warning-bg: rgba(245, 158, 11, 0.12);
+  --error: #EF4444;
+  --error-bg: rgba(239, 68, 68, 0.12);
+  --info: #3B82F6;
+  --info-bg: rgba(59, 130, 246, 0.12);
 
-  /* Text Colors */
-  --text-primary: #ffffff;
-  --text-secondary: #c1c5cd;
-  --text-tertiary: #93999c;
-  --text-muted: #6b7280;
+  /* Text Colors - Light Theme */
+  --text-primary: #1F1F1F;
+  --text-secondary: #4A4A4A;
+  --text-tertiary: #6B6B6B;
+  --text-muted: #9CA3AF;
 
   /* Border Colors */
-  --border-primary: rgba(255, 255, 255, 0.08);
-  --border-secondary: rgba(255, 255, 255, 0.12);
-  --border-accent: rgba(255, 143, 0, 0.3);
+  --border-primary: rgba(162, 148, 249, 0.2);
+  --border-secondary: rgba(162, 148, 249, 0.35);
+  --border-accent: rgba(162, 148, 249, 0.5);
 
   /* Gradients */
-  --gradient-orange: linear-gradient(90deg, #ff8f00 0%, #f86605 100%);
-  --gradient-green: linear-gradient(90deg, #28d799 0%, #1fa87a 100%);
-  --gradient-purple: linear-gradient(90deg, #5058c8 0%, #3a42b7 100%);
-  --gradient-card: linear-gradient(180deg, #30343b 0%, #1c1e22 100%);
-  --gradient-hero: radial-gradient(ellipse at 50% 0%, rgba(255, 143, 0, 0.15) 0%, transparent 60%);
+  --gradient-primary: linear-gradient(135deg, #A294F9 0%, #CDC1FF 100%);
+  --gradient-orange: linear-gradient(135deg, #A294F9 0%, #8B7CF7 100%);
+  --gradient-green: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  --gradient-purple: linear-gradient(135deg, #A294F9 0%, #CDC1FF 100%);
+  --gradient-card: linear-gradient(180deg, #FFFFFF 0%, #F5EFFF 100%);
+  --gradient-hero: radial-gradient(ellipse at 50% 0%, rgba(162, 148, 249, 0.15) 0%, transparent 60%);
 
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -107,13 +120,14 @@
   --radius-3xl: 2rem;
   --radius-full: 9999px;
 
-  /* Shadows - Dark Theme */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 13px 32px rgba(0, 0, 0, 0.59);
-  --shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.41);
-  --shadow-glow-orange: 0 0 40px rgba(255, 143, 0, 0.3);
-  --shadow-glow-green: 0 0 40px rgba(40, 215, 153, 0.3);
+  /* Shadows - Light Theme */
+  --shadow-sm: 0 1px 2px rgba(162, 148, 249, 0.08);
+  --shadow-md: 0 4px 12px rgba(162, 148, 249, 0.12);
+  --shadow-lg: 0 8px 24px rgba(162, 148, 249, 0.16);
+  --shadow-xl: 0 16px 40px rgba(162, 148, 249, 0.2);
+  --shadow-glow-primary: 0 0 40px rgba(162, 148, 249, 0.35);
+  --shadow-glow-orange: 0 0 40px rgba(162, 148, 249, 0.35);
+  --shadow-glow-green: 0 0 40px rgba(16, 185, 129, 0.3);
 
   /* Transitions */
   --transition-fast: 150ms ease-in-out;
@@ -121,22 +135,24 @@
   --transition-slow: 300ms ease;
 }
 
-/* Light Mode Override */
-[data-theme="light"] {
-  --bg-darkest: #f8fafc;
-  --bg-dark: #ffffff;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f1f5f9;
-  --bg-elevated: #f8fafc;
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-tertiary: #64748b;
-  --text-muted: #94a3b8;
-  --border-primary: rgba(0, 0, 0, 0.08);
-  --border-secondary: rgba(0, 0, 0, 0.12);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 10px 20px rgba(147, 153, 156, 0.15);
+/* Dark Mode Override */
+[data-theme="dark"] {
+  --bg-darkest: #1A1625;
+  --bg-dark: #241D30;
+  --bg-card: #2D2540;
+  --bg-card-hover: #382E4D;
+  --bg-elevated: #322A45;
+  --text-primary: #FFFFFF;
+  --text-secondary: #D4D0DE;
+  --text-tertiary: #9B95A8;
+  --text-muted: #6B6578;
+  --border-primary: rgba(205, 193, 255, 0.15);
+  --border-secondary: rgba(205, 193, 255, 0.25);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --gradient-card: linear-gradient(180deg, #382E4D 0%, #241D30 100%);
+  --gradient-hero: radial-gradient(ellipse at 50% 0%, rgba(162, 148, 249, 0.2) 0%, transparent 60%);
 }
 
 /* =================================================================
