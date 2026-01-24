@@ -2,7 +2,8 @@
 
 **Current Version:** 6.0
 **Last Updated:** 2026-01-24
-**Status:** Production
+**Status:** STABLE (CI Passing)
+**Deployment:** Pending Azure credentials configuration
 
 ---
 
@@ -48,10 +49,22 @@ See [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) for complete documentation.
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| Website | Production | Azure App Service |
+| Website | STABLE | Azure App Service (pending deploy) |
 | Flutter iOS | Development | Requires Xcode signing |
 | Flutter Android | Development | Requires keystore |
 | Flutter Desktop | Development | Linux/Windows/macOS |
+
+---
+
+## Stability Status
+
+| Component | Status |
+|-----------|--------|
+| CI Pipeline | PASSING |
+| Docker Build | PASSING |
+| Lint Check | PASSING |
+| UI Code | STABLE |
+| Azure Deploy | Requires AZURE_CREDENTIALS secret |
 
 ---
 
