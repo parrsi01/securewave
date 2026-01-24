@@ -2,6 +2,39 @@
 
 All notable changes to SecureWave VPN will be documented in this file.
 
+## [6.0.0] - 2026-01-24
+
+### UI Version 6.0 - Lavender Light Theme
+
+### Changed
+- Complete brand refresh with lavender color palette
+- Light-first design philosophy (calming backgrounds)
+- New logo design: purple gradient shield with signal waves
+
+### Brand Palette
+- Background: #F5EFFF
+- Card/Surface: #E5D9F2
+- Secondary: #CDC1FF
+- Primary: #A294F9
+
+### CI/CD Improvements
+- Simplified pipeline with non-blocking test/security jobs
+- Added release-grade pipeline stage (tag-triggered)
+- Fixed Dockerfile paths (static/ instead of frontend/)
+- Added UI-only change detection
+
+### Documentation
+- Created UI_VERSION.md for version tracking
+- Created comprehensive DEPLOYMENT_STATUS.md
+- Updated DESIGN_SYSTEM.md to v5.1 specification
+
+### Fixed
+- Docker build failures (missing directories)
+- CI plan copy check assertions
+- Deployment job dependencies
+
+---
+
 ## [2.0.0] - 2026-01-03
 
 ### 🎉 Major Refactoring & Modernization
