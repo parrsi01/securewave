@@ -26,40 +26,81 @@ env:
 
 jobs:
   # ===========================
+  # CHANGE DETECTION
+  # ===========================
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      flutter: ${{ steps.filter.outputs.flutter }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            backend:
+              - '*.py'
+              - 'api/**'
+              - 'core/**'
+              - 'services/**'
+              - 'tests/**'
+              - 'requirements.txt'
+              - 'alembic/**'
+            frontend:
+              - 'static/**'
+              - 'templates/**'
+              - 'DESIGN_SYSTEM.md'
+            flutter:
+              - 'securewave_app/**'
+
+  # ===========================
   # CODE QUALITY & LINTING
   # ===========================
   lint:
     name: Lint Code
     runs-on: ubuntu-latest
+    needs: changes
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
+        if: needs.changes.outputs.backend == 'true'
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies
+      - name: Install Python linters
+        if: needs.changes.outputs.backend == 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 black isort mypy
+          pip install flake8 black isort
 
       - name: Run Black (code formatter check)
-        run: black --check .
+        if: needs.changes.outputs.backend == 'true'
+        run: black --check . --exclude '/(\.git|\.venv|node_modules|securewave_app)/'
         continue-on-error: true
 
       - name: Run isort (import sorting check)
-        run: isort --check-only .
+        if: needs.changes.outputs.backend == 'true'
+        run: isort --check-only . --skip securewave_app --skip .git
         continue-on-error: true
 
       - name: Run Flake8 (linting)
-        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        if: needs.changes.outputs.backend == 'true'
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=securewave_app,.git
         continue-on-error: true
 
       - name: Verify plan copy consistency
         run: |
           bash scripts/check_plan_copy.sh
+
+      - name: UI-only changes detected
+        if: needs.changes.outputs.backend == 'false' && (needs.changes.outputs.frontend == 'true' || needs.changes.outputs.flutter == 'true')
+        run: echo "UI-only changes detected - skipping Python linting"
 
   # ===========================
   # UNIT TESTS
@@ -67,6 +108,8 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
 
     services:
       postgres:
@@ -141,6 +184,8 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -176,7 +221,8 @@ jobs:
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: [lint, test, security]
+    needs: [changes, lint, test, security]
+    if: always() && needs.lint.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.security.result == 'success' || needs.security.result == 'skipped')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -237,7 +283,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [build]
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.AZURE_CREDENTIALS != ''
+    if: always() && needs.build.result == 'success' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     environment:
       name: production
       url: ${{ env.AZURE_WEBAPP_URL_PROD }}
