@@ -6,11 +6,10 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    DEBIAN_FRONTEND=noninteractive
+    PORT=8080
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    nginx \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -33,17 +32,11 @@ COPY services/ ./services/
 COPY alembic/ ./alembic/
 
 # Copy frontend static files
-COPY frontend/ ./frontend/
-
-# Copy nginx configuration
-COPY deploy/nginx.conf /etc/nginx/nginx.conf
-
-# Copy entrypoint script
-COPY deploy/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY static/ ./static/
+COPY templates/ ./templates/
 
 # Create necessary directories
-RUN mkdir -p /wg /app/static /var/log/nginx /var/lib/nginx
+RUN mkdir -p /wg /app/logs
 
 # Expose port 8080 (Azure requirement)
 EXPOSE 8080
@@ -52,5 +45,14 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8080/api/health || exit 1
 
-# Run entrypoint script
-CMD ["/entrypoint.sh"]
+# Run migrations and start Gunicorn
+CMD alembic upgrade head && \
+    gunicorn main:app \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers ${WEB_CONCURRENCY:-2} \
+    --threads ${WORKER_THREADS:-2} \
+    --bind 0.0.0.0:${PORT:-8080} \
+    --timeout ${GUNICORN_TIMEOUT:-120} \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info

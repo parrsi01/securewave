@@ -31,7 +31,8 @@ COPY services/ ./services/
 COPY alembic/ ./alembic/
 
 # Copy frontend static files
-COPY frontend/ ./frontend/
+COPY static/ ./static/
+COPY templates/ ./templates/
 
 # Create necessary directories
 RUN mkdir -p /wg /app/static
