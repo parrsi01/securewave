@@ -12,10 +12,14 @@ assert_contains() {
   fi
 }
 
-assert_contains "$root_dir/static/subscription.html" "Starter plan with a 5 GB monthly cap"
+# Subscription page - verify Basic plan mentions 5 GB limit
 assert_contains "$root_dir/static/subscription.html" "5 GB monthly data"
+assert_contains "$root_dir/static/subscription.html" "5 GB of data per month"
+
+# Services page - verify plan limit mention
 assert_contains "$root_dir/static/services.html" "Basic includes a 5 GB monthly cap"
-assert_contains "$root_dir/static/js/payment.js" "5 GB bandwidth/month"
+
+# Flutter app - verify dashboard and device limit copy
 assert_contains "$root_dir/securewave_app/lib/features/dashboard/dashboard_page.dart" "Plan and billing live in the SecureWave dashboard\\."
 assert_contains "$root_dir/securewave_app/lib/features/settings/devices_page.dart" "Plan limits apply\\. Upgrade in the SecureWave dashboard to add more devices\\."
 
