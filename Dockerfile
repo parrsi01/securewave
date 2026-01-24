@@ -33,7 +33,6 @@ COPY alembic/ ./alembic/
 
 # Copy frontend static files
 COPY static/ ./static/
-COPY templates/ ./templates/
 
 # Create necessary directories
 RUN mkdir -p /wg /app/logs
