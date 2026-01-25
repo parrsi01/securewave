@@ -1,22 +1,6 @@
-<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- SecureWave Logo v1.0 - Dark Background Variant -->
-
-  <defs>
-    <linearGradient id="shieldGradDark" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2DD4BF"/>
-      <stop offset="100%" stop-color="#5EEAD4"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Clean shield shape - brighter for dark backgrounds -->
-  <path d="M20 4L6 10V18C6 26.5 12 33.5 20 36C28 33.5 34 26.5 34 18V10L20 4Z"
-        fill="url(#shieldGradDark)"/>
-
-  <!-- Simple checkmark -->
-  <path d="M15 20L18.5 23.5L25 16"
-        stroke="white"
-        stroke-width="3"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
+  <!-- Simple Lock Icon - Dark Background Variant -->
+  <rect x="12" y="18" width="16" height="14" rx="2" fill="#cbd5e1" stroke="#e2e8f0" stroke-width="1.5"/>
+  <path d="M15 18V13C15 10.2386 17.2386 8 20 8C22.7614 8 25 10.2386 25 13V18" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="20" cy="25" r="2" fill="#60a5fa"/>
 </svg>

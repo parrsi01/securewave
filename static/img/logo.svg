@@ -1,23 +1,6 @@
-<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- SecureWave Logo v1.0 -->
-  <!-- Simple shield with checkmark - represents protection -->
-
-  <defs>
-    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0D9488"/>
-      <stop offset="100%" stop-color="#14B8A6"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Clean shield shape -->
-  <path d="M20 4L6 10V18C6 26.5 12 33.5 20 36C28 33.5 34 26.5 34 18V10L20 4Z"
-        fill="url(#shieldGrad)"/>
-
-  <!-- Simple checkmark - universal "secure" symbol -->
-  <path d="M15 20L18.5 23.5L25 16"
-        stroke="white"
-        stroke-width="3"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
+  <!-- Simple Lock Icon - Professional Security Symbol -->
+  <rect x="12" y="18" width="16" height="14" rx="2" fill="#475569" stroke="#334155" stroke-width="1.5"/>
+  <path d="M15 18V13C15 10.2386 17.2386 8 20 8C22.7614 8 25 10.2386 25 13V18" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="20" cy="25" r="2" fill="#3b82f6"/>
 </svg>
