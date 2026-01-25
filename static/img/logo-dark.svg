@@ -1,36 +1,22 @@
 <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- SecureWave Logo - Dark Mode Variant -->
+  <!-- SecureWave Logo v1.0 - Dark Background Variant -->
 
   <defs>
-    <linearGradient id="logoGradientDark" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#A294F9"/>
-      <stop offset="100%" stop-color="#CDC1FF"/>
+    <linearGradient id="shieldGradDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2DD4BF"/>
+      <stop offset="100%" stop-color="#5EEAD4"/>
     </linearGradient>
   </defs>
 
-  <!-- Shield shape -->
-  <path d="M20 3C20 3 6 8 6 16C6 24 6 28 20 37C34 28 34 24 34 16C34 8 20 3 20 3Z"
-        fill="url(#logoGradientDark)"/>
+  <!-- Clean shield shape - brighter for dark backgrounds -->
+  <path d="M20 4L6 10V18C6 26.5 12 33.5 20 36C28 33.5 34 26.5 34 18V10L20 4Z"
+        fill="url(#shieldGradDark)"/>
 
-  <!-- Signal waves -->
-  <path d="M14 20C14 20 16 16 20 16C24 16 26 20 26 20"
+  <!-- Simple checkmark -->
+  <path d="M15 20L18.5 23.5L25 16"
         stroke="white"
-        stroke-width="2.5"
+        stroke-width="3"
         stroke-linecap="round"
+        stroke-linejoin="round"
         fill="none"/>
-  <path d="M11 20C11 20 14 13 20 13C26 13 29 20 29 20"
-        stroke="white"
-        stroke-width="2"
-        stroke-linecap="round"
-        fill="none"
-        opacity="0.7"/>
-  <path d="M8 20C8 20 12 10 20 10C28 10 32 20 32 20"
-        stroke="white"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        fill="none"
-        opacity="0.4"/>
-
-  <!-- Center dot -->
-  <circle cx="20" cy="23" r="3" fill="white"/>
 </svg>

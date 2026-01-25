@@ -1,24 +1,22 @@
 <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- SecureWave Favicon - Lavender Palette -->
+  <!-- SecureWave Favicon v1.0 -->
 
   <defs>
-    <linearGradient id="faviconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#A294F9"/>
-      <stop offset="100%" stop-color="#CDC1FF"/>
+    <linearGradient id="favGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0D9488"/>
+      <stop offset="100%" stop-color="#14B8A6"/>
     </linearGradient>
   </defs>
 
-  <!-- Shield shape -->
-  <path d="M16 2C16 2 4 6 4 12C4 18 4 22 16 30C28 22 28 18 28 12C28 6 16 2 16 2Z"
-        fill="url(#faviconGradient)"/>
+  <!-- Shield -->
+  <path d="M16 3L4 8V14C4 21 9.5 27 16 29C22.5 27 28 21 28 14V8L16 3Z"
+        fill="url(#favGrad)"/>
 
-  <!-- Simplified wave -->
-  <path d="M10 15C10 15 12 12 16 12C20 12 22 15 22 15"
+  <!-- Checkmark -->
+  <path d="M11 16L14.5 19.5L21 12"
         stroke="white"
         stroke-width="2.5"
         stroke-linecap="round"
+        stroke-linejoin="round"
         fill="none"/>
-
-  <!-- Center dot -->
-  <circle cx="16" cy="18" r="2.5" fill="white"/>
 </svg>
