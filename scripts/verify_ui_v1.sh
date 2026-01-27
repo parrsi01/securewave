@@ -20,6 +20,7 @@ fi
 
 missing_css_refs=()
 missing_build_meta=()
+missing_ui_version=()
 for file in "${HTML_FILES[@]}"; do
   if ! grep -q "web_ui_v1.css?v=" "${file}"; then
     missing_css_refs+=("${file}")
@@ -28,8 +29,20 @@ for file in "${HTML_FILES[@]}"; do
     echo "Cache-busting query string missing in ${file}" >&2
     exit 1
   fi
+  stylesheet_count=$(grep -c "rel=\"stylesheet\"" "${file}")
+  if [ "$stylesheet_count" -ne 1 ]; then
+    echo "Unexpected number of stylesheet links in ${file} (found ${stylesheet_count})" >&2
+    exit 1
+  fi
+  if grep -q "professional.css\\|ui_v1.css" "${file}"; then
+    echo "Legacy CSS reference found in ${file}" >&2
+    exit 1
+  fi
   if ! grep -q "name=\"build-timestamp\"" "${file}"; then
     missing_build_meta+=("${file}")
+  fi
+  if ! grep -q "UI_VERSION v1.0" "${file}"; then
+    missing_ui_version+=("${file}")
   fi
  done
 
@@ -42,6 +55,12 @@ fi
 if (( ${#missing_build_meta[@]} > 0 )); then
   echo "HTML files missing build timestamp meta tag:" >&2
   printf ' - %s\n' "${missing_build_meta[@]}" >&2
+  exit 1
+fi
+
+if (( ${#missing_ui_version[@]} > 0 )); then
+  echo "HTML files missing UI_VERSION v1.0 marker:" >&2
+  printf ' - %s\n' "${missing_ui_version[@]}" >&2
   exit 1
 fi
 
