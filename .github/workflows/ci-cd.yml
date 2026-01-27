@@ -141,6 +141,16 @@ jobs:
 
       - name: Run database migrations
         run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+
+          url = os.environ["DATABASE_URL"]
+          engine = create_engine(url)
+          with engine.connect() as conn:
+            conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"))
+            conn.commit()
+          PY
           python -m alembic upgrade head
 
       - name: Run pytest
@@ -302,15 +312,16 @@ jobs:
           echo "$ZIP_LIST" | grep -q "main.py"
           echo "$ZIP_LIST" | grep -q "^static/css/$"
           CSS_LIST=$(echo "$ZIP_LIST" | grep -E '^static/css/' || true)
-          if ! echo "$CSS_LIST" | grep -qx "static/css/web_ui_v1.css"; then
+          CSS_FILES=$(echo "$CSS_LIST" | grep -v '/$' || true)
+          if ! echo "$CSS_FILES" | grep -qx "static/css/web_ui_v1.css"; then
             echo "ERROR: web_ui_v1.css missing from deployment artifact"
             exit 1
           fi
-          if echo "$CSS_LIST" | grep -q "static/css/professional.css"; then
+          if echo "$CSS_FILES" | grep -q "static/css/professional.css"; then
             echo "ERROR: legacy professional.css found in deployment artifact"
             exit 1
           fi
-          OTHER_CSS=$(echo "$CSS_LIST" | grep -v "static/css/web_ui_v1.css" || true)
+          OTHER_CSS=$(echo "$CSS_FILES" | grep -v "static/css/web_ui_v1.css" || true)
           if [ -n "$OTHER_CSS" ]; then
             echo "ERROR: unexpected CSS files found in deployment artifact:"
             echo "$OTHER_CSS"
@@ -489,15 +500,16 @@ jobs:
           echo "$ZIP_LIST" | grep -q "main.py"
           echo "$ZIP_LIST" | grep -q "^static/css/$"
           CSS_LIST=$(echo "$ZIP_LIST" | grep -E '^static/css/' || true)
-          if ! echo "$CSS_LIST" | grep -qx "static/css/web_ui_v1.css"; then
+          CSS_FILES=$(echo "$CSS_LIST" | grep -v '/$' || true)
+          if ! echo "$CSS_FILES" | grep -qx "static/css/web_ui_v1.css"; then
             echo "ERROR: web_ui_v1.css missing from deployment artifact"
             exit 1
           fi
-          if echo "$CSS_LIST" | grep -q "static/css/professional.css"; then
+          if echo "$CSS_FILES" | grep -q "static/css/professional.css"; then
             echo "ERROR: legacy professional.css found in deployment artifact"
             exit 1
           fi
-          OTHER_CSS=$(echo "$CSS_LIST" | grep -v "static/css/web_ui_v1.css" || true)
+          OTHER_CSS=$(echo "$CSS_FILES" | grep -v "static/css/web_ui_v1.css" || true)
           if [ -n "$OTHER_CSS" ]; then
             echo "ERROR: unexpected CSS files found in deployment artifact:"
             echo "$OTHER_CSS"
