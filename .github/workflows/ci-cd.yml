@@ -151,7 +151,13 @@ jobs:
             conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"))
             conn.commit()
           PY
-          python -m alembic upgrade head
+          python - <<'PY'
+          from database.base import Base
+          from database.session import engine
+
+          Base.metadata.create_all(bind=engine)
+          PY
+          python -m alembic stamp head
 
       - name: Run pytest
         run: |
