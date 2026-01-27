@@ -19,6 +19,7 @@ if [[ -n "${EXTRA_CSS}" ]]; then
 fi
 
 missing_css_refs=()
+missing_build_meta=()
 for file in "${HTML_FILES[@]}"; do
   if ! grep -q "web_ui_v1.css?v=" "${file}"; then
     missing_css_refs+=("${file}")
@@ -27,11 +28,20 @@ for file in "${HTML_FILES[@]}"; do
     echo "Cache-busting query string missing in ${file}" >&2
     exit 1
   fi
+  if ! grep -q "name=\"build-timestamp\"" "${file}"; then
+    missing_build_meta+=("${file}")
+  fi
  done
 
 if (( ${#missing_css_refs[@]} > 0 )); then
   echo "HTML files missing web_ui_v1.css reference:" >&2
   printf ' - %s\n' "${missing_css_refs[@]}" >&2
+  exit 1
+fi
+
+if (( ${#missing_build_meta[@]} > 0 )); then
+  echo "HTML files missing build timestamp meta tag:" >&2
+  printf ' - %s\n' "${missing_build_meta[@]}" >&2
   exit 1
 fi
 
