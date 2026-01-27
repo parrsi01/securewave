@@ -9,7 +9,7 @@ final authSessionProvider = ChangeNotifierProvider<AuthSession>((ref) {
 
 class AuthSession extends ChangeNotifier {
   AuthSession() {
-    _bootstrap();
+    _initializeSession();
   }
 
   final _storage = SecureStorage();
@@ -20,7 +20,7 @@ class AuthSession extends ChangeNotifier {
   bool get isAuthenticated => _isAuthenticated;
   String? get accessToken => _accessToken;
 
-  Future<void> _bootstrap() async {
+  Future<void> _initializeSession() async {
     final token = await _storage.getAccessToken();
     if (token != null && token.isNotEmpty) {
       _accessToken = token;

@@ -194,8 +194,8 @@ When credentials are fixed and deployment succeeds, these files will go live:
 - 16 HTML files with `/css/ui_v1.css?v=20260125` reference
 
 ### Deleted Files ✅
-- `/static/css/professional.css` (Old purple/indigo styles)
-- 5 old logo variants (teal shields)
+- `/static/css/professional.css` (Legacy styles)
+- 5 old logo variants (legacy shields)
 
 ---
 

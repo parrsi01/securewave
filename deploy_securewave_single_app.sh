@@ -2,7 +2,12 @@
 set -euo pipefail
 
 if [[ -z "${AZURE_RESOURCE_GROUP:-}" || -z "${AZURE_APP_NAME:-}" ]]; then
-  echo "AZURE_RESOURCE_GROUP and AZURE_APP_NAME must be set."
+  echo "Missing Azure deployment configuration."
+  echo "Set the required environment variables and try again:"
+  echo "  1) az login"
+  echo "  2) export AZURE_RESOURCE_GROUP=\"your-resource-group\""
+  echo "  3) export AZURE_APP_NAME=\"your-app-name\""
+  echo "  4) bash deploy_securewave_single_app.sh"
   exit 1
 fi
 

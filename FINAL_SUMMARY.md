@@ -38,7 +38,7 @@ Completely redesigned with cutting-edge web design trends:
 - 🎨 Mobile-first responsive design
 
 **Technical Improvements:**
-- ⚡ Bootstrap 5.3.3 (latest stable)
+- UI v1.0 CSS (current)
 - ⚡ Performance optimizations
 - ⚡ Lazy image loading
 - ⚡ Better accessibility (WCAG 2.1)
@@ -302,7 +302,7 @@ securewave/
 - **API Docs:** `/api/docs` (when running)
 
 ### External Links
-- **Bootstrap 5.3:** https://getbootstrap.com
+- **UI v1.0 CSS:** internal stylesheet
 - **FastAPI:** https://fastapi.tiangolo.com
 - **Azure Docs:** https://docs.microsoft.com/azure
 - **WireGuard:** https://wireguard.com
@@ -320,7 +320,7 @@ securewave/
 
 ### UI/UX ✅
 - [x] Modern 2026 design patterns
-- [x] Bootstrap 5.3.3 integration
+- [x] UI v1.0 CSS integration
 - [x] Glassmorphism effects
 - [x] Smooth animations
 - [x] Mobile responsive
@@ -464,4 +464,4 @@ bash deploy.sh diagnostics   # Run diagnostics
 
 ---
 
-*Built with ❤️ using FastAPI, WireGuard, and Bootstrap 5.3*
+*Built with FastAPI and WireGuard*

@@ -352,7 +352,7 @@ Found CSS reference: href="/css/professional.css"
 4. **Verify UI is live:**
    - Visit `https://securewave-web.azurewebsites.net/home.html`
    - Should see new Calm Slate design (slate/blue colors)
-   - Should NOT see purple/indigo or teal colors
+   - Should NOT see legacy palette colors
 
 ---
 
