@@ -457,13 +457,13 @@ try:
     img_dir = static_directory / "img"
     downloads_dir = static_directory / "downloads"
     if css_dir.exists():
-        app.mount("/css", StaticFiles(directory=str(css_dir), max_age=31536000), name="css")
+        app.mount("/css", StaticFiles(directory=str(css_dir)), name="css")
     if js_dir.exists():
-        app.mount("/js", StaticFiles(directory=str(js_dir), max_age=31536000), name="js")
+        app.mount("/js", StaticFiles(directory=str(js_dir)), name="js")
     if img_dir.exists():
-        app.mount("/img", StaticFiles(directory=str(img_dir), max_age=31536000), name="img")
+        app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
     if downloads_dir.exists():
-        app.mount("/downloads", StaticFiles(directory=str(downloads_dir), max_age=31536000), name="downloads")
+        app.mount("/downloads", StaticFiles(directory=str(downloads_dir)), name="downloads")
     _logger.info("Static files mounted successfully")
 except Exception as e:
     _logger.warning(f"Failed to mount static files: {e}")
