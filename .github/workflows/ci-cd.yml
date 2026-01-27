@@ -263,8 +263,8 @@ jobs:
                   f"web_ui_v1.css?v={cache_bust}",
                   content,
               )
-              with open(path, "w", encoding="utf-8", newline="\\n") as handle:
-                  handle.write(content)
+              with open(path, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(content)
           PY
 
       - name: Run UI guard
@@ -450,8 +450,8 @@ jobs:
                   f"web_ui_v1.css?v={cache_bust}",
                   content,
               )
-              with open(path, "w", encoding="utf-8", newline="\\n") as handle:
-                  handle.write(content)
+              with open(path, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(content)
           PY
 
       - name: Run UI guard
