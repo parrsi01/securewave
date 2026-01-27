@@ -3,7 +3,7 @@ set -euo pipefail
 
 # CI guard to ensure only UI v1.0 assets are in use
 CSS_DIR="static/css"
-EXPECTED_CSS="${CSS_DIR}/ui_v1.css"
+EXPECTED_CSS="${CSS_DIR}/web_ui_v1.css"
 HTML_FILES=(static/*.html)
 
 if [[ ! -f "${EXPECTED_CSS}" ]]; then
@@ -11,7 +11,7 @@ if [[ ! -f "${EXPECTED_CSS}" ]]; then
   exit 1
 fi
 
-EXTRA_CSS=$(find "${CSS_DIR}" -maxdepth 1 -type f ! -name "ui_v1.css")
+EXTRA_CSS=$(find "${CSS_DIR}" -maxdepth 1 -type f ! -name "web_ui_v1.css")
 if [[ -n "${EXTRA_CSS}" ]]; then
   echo "Unexpected CSS files present:" >&2
   echo "${EXTRA_CSS}" >&2
@@ -20,17 +20,17 @@ fi
 
 missing_css_refs=()
 for file in "${HTML_FILES[@]}"; do
-  if ! grep -q "ui_v1.css?v=" "${file}"; then
+  if ! grep -q "web_ui_v1.css?v=" "${file}"; then
     missing_css_refs+=("${file}")
   fi
-  if grep -q "href=\"/css/ui_v1.css\"" "${file}"; then
+  if grep -q "href=\"/css/web_ui_v1.css\"" "${file}"; then
     echo "Cache-busting query string missing in ${file}" >&2
     exit 1
   fi
  done
 
 if (( ${#missing_css_refs[@]} > 0 )); then
-  echo "HTML files missing ui_v1.css reference:" >&2
+  echo "HTML files missing web_ui_v1.css reference:" >&2
   printf ' - %s\n' "${missing_css_refs[@]}" >&2
   exit 1
 fi

@@ -3,89 +3,77 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Privacy Policy - SecureWave</title>
+  <title>Privacy - SecureWave</title>
   <meta name="description" content="SecureWave privacy policy." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <header class="nav" id="site-nav">
-    <div class="container nav-inner">
-      <a class="nav-logo" href="/home.html">
-        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
-        <span>SecureWave</span>
-      </a>
-      <nav class="nav-links" aria-label="Primary">
-        <a href="/home.html">Home</a>
-        <a href="/services.html">Services</a>
-        <a href="/subscription.html">Pricing</a>
-        <a href="/about.html">About</a>
-      </nav>
-      <div class="nav-actions">
-        <a class="btn btn-ghost" href="/login.html">Sign in</a>
-        <a class="btn btn-primary" href="/home.html#download">Get the app</a>
-      </div>
-      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
-        <span></span>
-      </button>
-    </div>
-  </header>
-
-  <main>
-    <section class="section">
-      <div class="container">
-        <span class="hero-badge">Privacy</span>
-        <h1 class="hero-title">Privacy that feels clear.</h1>
-        <p class="hero-subtitle">SecureWave collects only what is required to deliver the service and keeps control in your hands.</p>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="container split">
-        <div class="card">
-          <h3>What we collect</h3>
-          <ul class="list">
-            <li>Account email for authentication.</li>
-            <li>Subscription status and billing history.</li>
-            <li>Anonymous service health metrics.</li>
-          </ul>
+  <div class="page">
+    <header class="navbar">
+      <div class="container navbar-row">
+        <a class="brand" href="/home.html">
+          <img src="/img/logo.svg" alt="SecureWave logo">
+          <span>SecureWave</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="/home.html">Home</a>
+          <a href="/services.html">Services</a>
+          <a href="/subscription.html">Plans</a>
+          <a href="/dashboard.html">Dashboard</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="btn btn-ghost" href="/login.html">Sign in</a>
+          <a class="btn btn-primary" href="/home.html#download">Download app</a>
         </div>
-        <div class="card">
-          <h3>What we avoid</h3>
-          <ul class="list">
-            <li>No selling of personal data.</li>
-            <li>No unnecessary tracking.</li>
-            <li>No hidden data usage.</li>
-          </ul>
+        <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
+          <span></span>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="container split">
+          <div>
+            <span class="badge">Privacy</span>
+            <h1>Privacy that feels clear.</h1>
+            <p class="subtitle">SecureWave keeps data collection minimal and transparent.</p>
+          </div>
+          <div class="card">
+            <h3>What we collect</h3>
+            <ul class="list">
+              <li>Account email for authentication.</li>
+              <li>Subscription status and billing history.</li>
+              <li>Anonymous service health metrics.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer-grid">
+        <div>
+          <strong>SecureWave VPN</strong>
+          <p>Calm protection for everyday connections.</p>
+        </div>
+        <div>
+          <p><a href="/services.html">Services</a></p>
+          <p><a href="/subscription.html">Plans</a></p>
+          <p><a href="/dashboard.html">Dashboard</a></p>
+        </div>
+        <div>
+          <p><a href="/privacy.html">Privacy</a></p>
+          <p><a href="/terms.html">Terms</a></p>
+          <p><a href="/contact.html">Support</a></p>
         </div>
       </div>
-    </section>
-  </main>
-
-  <footer class="footer">
-    <div class="container footer-grid">
-      <div>
-        <strong>SecureWave VPN</strong>
-        <p>Calm, app-first protection for modern life.</p>
+      <div class="container" style="margin-top: var(--space-3);">
+        <span data-year>2026</span> SecureWave. All rights reserved.
       </div>
-      <div>
-        <p><a href="/services.html">Services</a></p>
-        <p><a href="/subscription.html">Pricing</a></p>
-        <p><a href="/about.html">About</a></p>
-      </div>
-      <div>
-        <p><a href="/contact.html">Contact</a></p>
-        <p><a href="/privacy.html">Privacy</a></p>
-        <p><a href="/terms.html">Terms</a></p>
-      </div>
-    </div>
-    <div class="container" style="margin-top: var(--space-4);">
-      <span data-year>2026</span> SecureWave. All rights reserved.
-    </div>
-  </footer>
+    </footer>
+  </div>
 
   <script src="/js/site.js" defer></script>
 </body>
