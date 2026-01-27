@@ -273,6 +273,7 @@ jobs:
       - name: Build deployment artifact
         run: |
           set -euo pipefail
+          rm -f deploy-web.zip
           INCLUDED=()
           for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static templates alembic routers services models utils database; do
             if [ -e "$path" ]; then
@@ -299,6 +300,7 @@ jobs:
           echo "$ZIP_LIST" | grep -q "static/css/web_ui_v1.css"
           echo "$ZIP_LIST" | grep -q "static/home.html"
           echo "$ZIP_LIST" | grep -q "main.py"
+          echo "$ZIP_LIST" | grep -q "^static/css/$"
           CSS_LIST=$(echo "$ZIP_LIST" | grep -E '^static/css/' || true)
           if ! echo "$CSS_LIST" | grep -qx "static/css/web_ui_v1.css"; then
             echo "ERROR: web_ui_v1.css missing from deployment artifact"
@@ -346,6 +348,11 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME_STAGING }}
           package: deploy-web.zip
+          clean: true
+
+      - name: Restart staging app service
+        run: |
+          az webapp restart -g ${{ env.AZURE_RESOURCE_GROUP_STAGING }} -n ${{ env.AZURE_WEBAPP_NAME_STAGING }}
 
       - name: Wait for staging deployment
         run: |
@@ -371,6 +378,10 @@ jobs:
           fi
           if ! echo "$CONTENT" | grep -q "name=\"build-timestamp\""; then
             echo "ERROR: Staging homepage missing build timestamp meta tag"
+            exit 1
+          fi
+          if ! echo "$CONTENT" | grep -q "UI_VERSION v1.0"; then
+            echo "ERROR: Staging homepage missing UI_VERSION v1.0 marker"
             exit 1
           fi
           if ! echo "$CONTENT" | grep -q 'class="page"'; then
@@ -449,6 +460,7 @@ jobs:
       - name: Build deployment artifact
         run: |
           set -euo pipefail
+          rm -f deploy-web.zip
           INCLUDED=()
           for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static templates alembic routers services models utils database; do
             if [ -e "$path" ]; then
@@ -475,6 +487,7 @@ jobs:
           echo "$ZIP_LIST" | grep -q "static/css/web_ui_v1.css"
           echo "$ZIP_LIST" | grep -q "static/home.html"
           echo "$ZIP_LIST" | grep -q "main.py"
+          echo "$ZIP_LIST" | grep -q "^static/css/$"
           CSS_LIST=$(echo "$ZIP_LIST" | grep -E '^static/css/' || true)
           if ! echo "$CSS_LIST" | grep -qx "static/css/web_ui_v1.css"; then
             echo "ERROR: web_ui_v1.css missing from deployment artifact"
@@ -522,6 +535,11 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME_PROD }}
           package: deploy-web.zip
+          clean: true
+
+      - name: Restart production app service
+        run: |
+          az webapp restart -g ${{ env.AZURE_RESOURCE_GROUP_PROD }} -n ${{ env.AZURE_WEBAPP_NAME_PROD }}
 
       - name: Wait for deployment to complete
         run: |
@@ -573,6 +591,10 @@ jobs:
 
           if ! echo "$CONTENT" | grep -q "name=\"build-timestamp\""; then
             echo "ERROR: HTML missing build timestamp meta tag"
+            exit 1
+          fi
+          if ! echo "$CONTENT" | grep -q "UI_VERSION v1.0"; then
+            echo "ERROR: Homepage missing UI_VERSION v1.0 marker"
             exit 1
           fi
           if ! echo "$CONTENT" | grep -q 'class="page"'; then
