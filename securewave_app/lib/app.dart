@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/routing/app_router.dart';
-import 'core/theme/app_theme.dart';
+import 'ui/app_ui_v1.dart';
 
 class SecureWaveApp extends ConsumerWidget {
   const SecureWaveApp({super.key});
@@ -12,9 +12,7 @@ class SecureWaveApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     return MaterialApp.router(
       title: 'SecureWave',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      theme: AppUIv1.theme(),
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );

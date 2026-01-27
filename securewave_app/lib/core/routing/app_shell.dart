@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../ui/app_ui_v1.dart';
 import '../services/auth_session.dart';
 import '../services/app_state.dart';
 import '../services/vpn_service.dart';
-import '../../widgets/cards/status_chip.dart';
-import '../../widgets/layouts/app_background.dart';
-import '../utils/responsive.dart';
-import '../../widgets/layouts/brand_logo.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
@@ -17,9 +14,7 @@ class AppShell extends ConsumerWidget {
 
   static const _destinations = [
     _NavDestination('Connect', Icons.shield, '/vpn'),
-    _NavDestination('Dashboard', Icons.dashboard, '/dashboard'),
-    _NavDestination('Devices', Icons.devices, '/devices'),
-    _NavDestination('Tests', Icons.speed, '/tests'),
+    _NavDestination('Servers', Icons.public, '/servers'),
     _NavDestination('Settings', Icons.settings, '/settings'),
   ];
 
@@ -41,7 +36,6 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = _currentIndex(context);
-    final isDesktop = Responsive.isDesktop(context);
     final title = _titleForRoute(context);
     final vpnStatus = ref.watch(vpnStatusProvider);
 
@@ -55,32 +49,66 @@ class AppShell extends ConsumerWidget {
                     ? 'Disconnecting'
                     : 'Disconnected';
         final color = status == VpnStatus.connected
-            ? const Color(0xFF10B981)
-            : status == VpnStatus.connecting
-                ? const Color(0xFF38BDF8)
-                : status == VpnStatus.disconnecting
-                    ? const Color(0xFFF59E0B)
-                    : const Color(0xFF94A3B8);
-        return StatusChip(label: label, color: color);
+            ? AppUIv1.success
+            : status == VpnStatus.disconnected
+                ? AppUIv1.inkSoft
+                : AppUIv1.accentSun;
+        return Chip(
+          label: Text(label),
+          backgroundColor: color.withValues(alpha: 0.15),
+          labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        );
       },
-      loading: () => const StatusChip(label: 'Checking', color: Color(0xFF94A3B8)),
-      error: (_, __) => const StatusChip(label: 'Unavailable', color: Color(0xFF94A3B8)),
+      loading: () => const Chip(label: Text('Checking')),
+      error: (_, __) => const Chip(label: Text('Unavailable')),
     );
 
-    if (isDesktop) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final extendRail = constraints.maxWidth >= 1200;
-          return Scaffold(
-            body: Row(
+    Widget buildScaffold({Widget? bottomNavigation}) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          actions: [
+            statusChip,
+            const SizedBox(width: AppUIv1.space2),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                await ref.read(authSessionProvider).clearSession();
+                if (context.mounted) context.go('/login');
+              },
+            ),
+            const SizedBox(width: AppUIv1.space2),
+          ],
+        ),
+        body: SafeArea(child: child),
+        bottomNavigationBar: bottomNavigation,
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 900) {
+          return buildScaffold(
+            bottomNavigation: NavigationBar(
+              selectedIndex: currentIndex,
+              onDestinationSelected: (index) => context.go(_destinations[index].route),
+              destinations: _destinations
+                  .map((d) => NavigationDestination(icon: Icon(d.icon), label: d.label))
+                  .toList(),
+            ),
+          );
+        }
+
+        return Scaffold(
+          body: SafeArea(
+            child: Row(
               children: [
                 NavigationRail(
                   selectedIndex: currentIndex,
                   onDestinationSelected: (index) => context.go(_destinations[index].route),
-                  labelType: extendRail ? null : NavigationRailLabelType.all,
-                  extended: extendRail,
-                  minWidth: 72,
-                  minExtendedWidth: 200,
+                  labelType: NavigationRailLabelType.all,
+                  backgroundColor: AppUIv1.background,
                   destinations: _destinations
                       .map((d) => NavigationRailDestination(
                             icon: Icon(d.icon),
@@ -89,67 +117,12 @@ class AppShell extends ConsumerWidget {
                       .toList(),
                 ),
                 const VerticalDivider(width: 1),
-                Expanded(
-                  child: Scaffold(
-                    appBar: AppBar(
-                      title: Row(
-                        children: [
-                          const BrandLogo(size: 20),
-                          const SizedBox(width: 10),
-                          Flexible(child: Text(title)),
-                        ],
-                      ),
-                      actions: [
-                        statusChip,
-                        const SizedBox(width: 12),
-                        IconButton(
-                          icon: const Icon(Icons.logout),
-                          onPressed: () async {
-                            await ref.read(authSessionProvider).clearSession();
-                            if (context.mounted) context.go('/login');
-                          },
-                        ),
-                      ],
-                    ),
-                    body: AppBackground(child: child),
-                  ),
-                ),
+                Expanded(child: buildScaffold()),
               ],
             ),
-          );
-        },
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const BrandLogo(size: 18),
-            const SizedBox(width: 10),
-            Flexible(child: Text(title)),
-          ],
-        ),
-        actions: [
-          statusChip,
-          const SizedBox(width: 12),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await ref.read(authSessionProvider).clearSession();
-              if (context.mounted) context.go('/login');
-            },
           ),
-        ],
-      ),
-      body: AppBackground(child: child),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: (index) => context.go(_destinations[index].route),
-        items: _destinations
-            .map((d) => BottomNavigationBarItem(icon: Icon(d.icon), label: d.label))
-            .toList(),
-      ),
+        );
+      },
     );
   }
 }
