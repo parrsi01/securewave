@@ -4,12 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/services/app_state.dart';
 import '../../core/services/vpn_service.dart';
-import '../../core/theme/app_theme.dart';
-import '../../widgets/buttons/secondary_button.dart';
-import '../../widgets/layouts/content_layout.dart';
-import '../../widgets/layouts/section_header.dart';
-import '../../widgets/loaders/app_loader.dart';
-import '../../widgets/loaders/inline_banner.dart';
+import '../../ui/app_ui_v1.dart';
 import 'vpn_controller.dart';
 
 class VpnPage extends ConsumerWidget {
@@ -26,627 +21,148 @@ class VpnPage extends ConsumerWidget {
       platformNotice = vpnService.message;
     }
 
-    final selectedServerLabel = servers.maybeWhen(
+    final serversData = servers.maybeWhen(data: (data) => data, orElse: () => null);
+    if (serversData != null && serversData.isNotEmpty && vpnState.selectedServerId == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(vpnControllerProvider.notifier).selectServer(
+              serversData.first['server_id'] as String?,
+            );
+      });
+    }
+
+    final selectedServerLabel = serversData == null || serversData.isEmpty
+        ? 'Auto-select'
+        : serversData
+                .firstWhere(
+                  (server) => server['server_id'] == vpnState.selectedServerId,
+                  orElse: () => serversData.first,
+                )['location']
+                ?.toString() ??
+            'Auto-select';
+
+    final statusText = status.when(
       data: (data) {
-        if (data.isEmpty) return null;
-        final selected = data.firstWhere(
-          (server) => server['server_id'] == vpnState.selectedServerId,
-          orElse: () => data.first,
-        );
-        return selected['location']?.toString() ?? 'Auto-select';
+        switch (data) {
+          case VpnStatus.connected:
+            return 'Connected';
+          case VpnStatus.connecting:
+            return 'Connecting';
+          case VpnStatus.disconnecting:
+            return 'Disconnecting';
+          case VpnStatus.disconnected:
+            return 'Disconnected';
+        }
       },
-      orElse: () => null,
+      loading: () => 'Checking',
+      error: (_, __) => 'Unavailable',
+    );
+
+    final statusColor = status.when(
+      data: (data) {
+        switch (data) {
+          case VpnStatus.connected:
+            return AppUIv1.success;
+          case VpnStatus.connecting:
+            return AppUIv1.accentSun;
+          case VpnStatus.disconnecting:
+            return AppUIv1.accentSun;
+          case VpnStatus.disconnected:
+            return AppUIv1.inkSoft;
+        }
+      },
+      loading: () => AppUIv1.inkSoft,
+      error: (_, __) => AppUIv1.inkSoft,
     );
 
     return SafeArea(
-      child: ContentLayout(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const SectionHeader(
-              title: 'VPN Connection',
-              subtitle: 'Tap the control below to connect. The app handles everything automatically.',
-            ),
-            if (platformNotice != null) ...[
-              const SizedBox(height: 12),
-              InlineBanner(message: platformNotice),
-            ],
-            const SizedBox(height: 24),
-            // Status Panel Card
-            _VpnStatusCard(
-              vpnState: vpnState,
-              status: status,
-              serverLabel: selectedServerLabel,
-              onToggle: vpnState.isBusy
-                  ? null
-                  : () {
-                      if (vpnState.status == VpnStatus.connected) {
-                        ref.read(vpnControllerProvider.notifier).disconnect();
-                      } else {
-                        ref.read(vpnControllerProvider.notifier).connect();
-                      }
-                    },
-            ),
-            const SizedBox(height: 20),
-            // Server Selection Card
+      child: ListView(
+        padding: const EdgeInsets.all(AppUIv1.space5),
+        children: [
+          Text('Connection', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: AppUIv1.space3),
+          if (platformNotice != null)
             Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            gradient: AppTheme.buttonGradient,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.public, color: Colors.white, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Server Region', style: Theme.of(context).textTheme.titleMedium),
-                              Text('Select your preferred location',
-                                  style: Theme.of(context).textTheme.bodySmall),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    servers.when(
-                      data: (data) {
-                        if (vpnState.selectedServerId == null && data.isNotEmpty) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            ref.read(vpnControllerProvider.notifier).selectServer(
-                                  data.first['server_id'] as String?,
-                                );
-                          });
-                        }
-                        final selected = data.firstWhere(
-                          (server) => server['server_id'] == vpnState.selectedServerId,
-                          orElse: () => {},
-                        );
-                        final selectedLabel = selected['location'] ?? 'Auto-select';
-                        return DropdownButtonFormField<String>(
-                          key: ValueKey(vpnState.selectedServerId ?? 'auto'),
-                          initialValue: vpnState.selectedServerId,
-                          decoration: InputDecoration(
-                            labelText: 'Select region',
-                            helperText: 'Currently: $selectedLabel',
-                            prefixIcon: const Icon(Icons.location_on_outlined),
-                          ),
-                          items: data
-                              .map((server) => DropdownMenuItem<String>(
-                                    value: server['server_id'] as String?,
-                                    child: Text(server['location'] ?? 'Unknown'),
-                                  ))
-                              .toList(),
-                          onChanged: (value) =>
-                              ref.read(vpnControllerProvider.notifier).selectServer(value),
-                        );
-                      },
-                      loading: () => const AppLoader(),
-                      error: (_, __) => const InlineBanner(
-                          message: 'Unable to load servers. Check your connection and try again.'),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'The app uses your region preference when you connect.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+                padding: const EdgeInsets.all(AppUIv1.space4),
+                child: Text(platformNotice, style: Theme.of(context).textTheme.bodyMedium),
               ),
             ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: SecondaryButton(
-                    label: 'Diagnostics',
-                    icon: Icons.speed,
-                    onPressed: () => context.go('/tests'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SecondaryButton(
-                    label: 'Devices',
-                    icon: Icons.devices,
-                    onPressed: () => context.go('/devices'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Troubleshooting section (collapsible)
-            _TroubleshootingSection(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// VPN Status Card with clear status transitions
-class _VpnStatusCard extends StatelessWidget {
-  const _VpnStatusCard({
-    required this.vpnState,
-    required this.status,
-    this.serverLabel,
-    this.onToggle,
-  });
-
-  final VpnUiState vpnState;
-  final AsyncValue<VpnStatus> status;
-  final String? serverLabel;
-  final VoidCallback? onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return status.when(
-      data: (data) => _StatusDisplay(
-        status: data,
-        vpnState: vpnState,
-        serverLabel: serverLabel,
-        onToggle: onToggle,
-      ),
-      loading: () => const Card(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      ),
-      error: (_, __) => const Card(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: _ErrorBanner(message: 'Unable to read VPN status. Please refresh.'),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusDisplay extends StatelessWidget {
-  const _StatusDisplay({
-    required this.status,
-    required this.vpnState,
-    this.serverLabel,
-    this.onToggle,
-  });
-
-  final VpnStatus status;
-  final VpnUiState vpnState;
-  final String? serverLabel;
-  final VoidCallback? onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final isCompact = MediaQuery.of(context).size.width < 360;
-    final ringSize = isCompact ? 180.0 : 220.0;
-    final ringOuter = ringSize + 24;
-    final hasError = vpnState.errorMessage != null;
-    final label = hasError ? 'Error' : _statusLabel(status);
-    final detail = hasError ? vpnState.errorMessage! : _statusDetail(status);
-    final color = hasError ? AppTheme.error : _statusColor(status);
-    final icon = _statusIcon(status);
-    final isActive = status == VpnStatus.connected;
-    final isConnecting = status == VpnStatus.connecting || status == VpnStatus.disconnecting;
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
-          gradient: isActive
-              ? LinearGradient(
-                  colors: [
-                    AppTheme.success.withValues(alpha: 0.18),
-                    AppTheme.success.withValues(alpha: 0.06),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : LinearGradient(
-                  colors: [
-                    color.withValues(alpha: 0.06),
-                    color.withValues(alpha: 0.02),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-          border: Border.all(
-            color: color.withValues(alpha: 0.35),
-            width: 2.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.2),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Text(
-                  label,
-                  key: ValueKey(label),
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 32,
-                        letterSpacing: -0.5,
-                      ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                detail,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-              ),
-              if (serverLabel != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppTheme.primary.withValues(alpha: 0.18),
-                        AppTheme.primary.withValues(alpha: 0.12),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.25), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primary.withValues(alpha: 0.15),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    'Server: $serverLabel',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.primary,
-                          fontSize: 15,
-                        ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
-              GestureDetector(
-                onTap: onToggle,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: ringSize,
-                      height: ringSize,
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          colors: [
-                            color.withValues(alpha: 0.25),
-                            color.withValues(alpha: 0.15),
-                          ],
-                          stops: const [0.6, 1.0],
-                        ),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: color.withValues(alpha: 0.5), width: 6),
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withValues(alpha: 0.4),
-                            blurRadius: 32,
-                            spreadRadius: 4,
-                          ),
-                          BoxShadow(
-                            color: color.withValues(alpha: 0.2),
-                            blurRadius: 16,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Icon(icon, color: color, size: 68),
-                    ),
-                    if (isConnecting || vpnState.isBusy)
-                      SizedBox(
-                        width: ringOuter,
-                        height: ringOuter,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 5,
-                          valueColor: AlwaysStoppedAnimation<Color>(color),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                isActive ? 'Tap to disconnect' : 'Tap to connect',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
-                      fontSize: 16,
-                    ),
-              ),
-              if (isActive) ...[
-                const SizedBox(height: 20),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _DataRateChip(
-                      icon: Icons.arrow_downward,
-                      value: '${vpnState.dataRateDown.toStringAsFixed(1)} Mbps',
-                      label: 'Down',
-                    ),
-                    _DataRateChip(
-                      icon: Icons.arrow_upward,
-                      value: '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps',
-                      label: 'Up',
-                    ),
-                  ],
-                ),
-              ],
-              if (hasError) ...[
-                const SizedBox(height: 12),
-                _ErrorBanner(message: vpnState.errorMessage!),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _statusLabel(VpnStatus status) {
-    switch (status) {
-      case VpnStatus.connected:
-        return 'Connected';
-      case VpnStatus.connecting:
-        return 'Connecting...';
-      case VpnStatus.disconnecting:
-        return 'Disconnecting...';
-      case VpnStatus.disconnected:
-        return 'Disconnected';
-    }
-  }
-
-  String _statusDetail(VpnStatus status) {
-    switch (status) {
-      case VpnStatus.connected:
-        return 'You are protected. Tap to disconnect anytime.';
-      case VpnStatus.connecting:
-        return 'Connecting securely. Keep the app open.';
-      case VpnStatus.disconnecting:
-        return 'Disconnecting safely. Please wait.';
-      case VpnStatus.disconnected:
-        return 'Tap to connect. SecureWave handles setup automatically.';
-    }
-  }
-
-  IconData _statusIcon(VpnStatus status) {
-    switch (status) {
-      case VpnStatus.connected:
-        return Icons.shield;
-      case VpnStatus.connecting:
-        return Icons.sync;
-      case VpnStatus.disconnecting:
-        return Icons.sync_disabled;
-      case VpnStatus.disconnected:
-        return Icons.shield_outlined;
-    }
-  }
-
-  Color _statusColor(VpnStatus status) {
-    switch (status) {
-      case VpnStatus.connected:
-        return AppTheme.success;
-      case VpnStatus.connecting:
-        return AppTheme.accent;
-      case VpnStatus.disconnecting:
-        return AppTheme.warning;
-      case VpnStatus.disconnected:
-        return const Color(0xFF94A3B8);
-    }
-  }
-}
-
-class _DataRateChip extends StatelessWidget {
-  const _DataRateChip({required this.icon, required this.value, required this.label});
-
-  final IconData icon;
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: AppTheme.primary),
-          const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-              Text(label, style: Theme.of(context).textTheme.bodySmall),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.error.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.error,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Collapsible troubleshooting section
-class _TroubleshootingSection extends StatefulWidget {
-  @override
-  State<_TroubleshootingSection> createState() => _TroubleshootingSectionState();
-}
-
-class _TroubleshootingSectionState extends State<_TroubleshootingSection> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(16),
+          if (platformNotice != null) const SizedBox(height: AppUIv1.space3),
+          Card(
             child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AppTheme.info.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.help_outline, color: AppTheme.info, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Troubleshooting Tips', style: Theme.of(context).textTheme.titleMedium),
-                        Text('Tap to ${_expanded ? 'collapse' : 'expand'}',
-                            style: Theme.of(context).textTheme.bodySmall),
-                      ],
-                    ),
-                  ),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: const Icon(Icons.keyboard_arrow_down),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.all(AppUIv1.space5),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  const _TipItem(text: 'Allow VPN permissions when prompted by your device.'),
-                  const _TipItem(text: 'Keep SecureWave open until status shows Connected.'),
-                  const _TipItem(text: 'If stuck Connecting, tap Disconnect, wait 5 seconds, then retry.'),
-                  const _TipItem(text: 'Switch regions if the selected server is busy or slow.'),
-                  const SizedBox(height: 12),
-                  Text('Contact Support If:', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  const _TipItem(text: 'Status stays Connecting for more than 60 seconds.', isWarning: true),
-                  const _TipItem(text: 'You see repeated connection errors.', isWarning: true),
-                  const _TipItem(text: 'Speed tests drop below expected baseline.', isWarning: true),
+                  Text('Status', style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: AppUIv1.space2),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(statusText, style: Theme.of(context).textTheme.titleLarge),
+                      Chip(
+                        label: Text(statusText),
+                        backgroundColor: statusColor.withValues(alpha: 0.15),
+                        labelStyle: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppUIv1.space4),
+                  Text('Selected region', style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: AppUIv1.space1),
+                  Text(selectedServerLabel, style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: AppUIv1.space4),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: vpnState.isBusy
+                          ? null
+                          : () {
+                              if (vpnState.status == VpnStatus.connected) {
+                                ref.read(vpnControllerProvider.notifier).disconnect();
+                              } else {
+                                ref.read(vpnControllerProvider.notifier).connect();
+                              }
+                            },
+                      child: Text(
+                        vpnState.status == VpnStatus.connected ? 'Disconnect' : 'Connect',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppUIv1.space3),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.go('/servers'),
+                      icon: const Icon(Icons.public),
+                      label: const Text('Choose a server'),
+                    ),
+                  ),
+                  if (vpnState.errorMessage != null) ...[
+                    const SizedBox(height: AppUIv1.space3),
+                    Text(
+                      vpnState.errorMessage!,
+                      style: const TextStyle(color: AppUIv1.warning),
+                    ),
+                  ],
                 ],
               ),
             ),
-            crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 200),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TipItem extends StatelessWidget {
-  const _TipItem({required this.text, this.isWarning = false});
-
-  final String text;
-  final bool isWarning;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            isWarning ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-            color: isWarning ? AppTheme.warning : AppTheme.success,
-            size: 18,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium,
+          const SizedBox(height: AppUIv1.space4),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppUIv1.space4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Live activity', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: AppUIv1.space2),
+                  Text('Download: ${vpnState.dataRateDown.toStringAsFixed(1)} Mbps'),
+                  const SizedBox(height: AppUIv1.space1),
+                  Text('Upload: ${vpnState.dataRateUp.toStringAsFixed(1)} Mbps'),
+                ],
+              ),
             ),
           ),
         ],

@@ -1,33 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+<svg width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>SecureWave</title>
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0b1120;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#132036;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#14b8a6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="shieldGrad" x1="50%" y1="0%" x2="50%" y2="100%">
-      <stop offset="0%" style="stop-color:#0f879f;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0d5564;stop-opacity:1" />
+    <linearGradient id="sw-shield" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1B6B68"/>
+      <stop offset="1" stop-color="#0F4F4C"/>
     </linearGradient>
   </defs>
-  <circle cx="100" cy="100" r="92" fill="url(#bgGrad)" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>
-  <g transform="translate(100, 100)">
-    <path d="M 0 -70 L 35 -55 C 45 -50, 50 -40, 50 -25 L 50 30 C 50 45, 40 58, 25 65 L 0 75 L -25 65 C -40 58, -50 45, -50 30 L -50 -25 C -50 -40, -45 -50, -35 -55 Z"
-          fill="url(#shieldGrad)"/>
-    <g transform="translate(0, -5)">
-      <path d="M -18 -12 Q 0 -24, 18 -12" fill="none" stroke="url(#primaryGrad)" stroke-width="4.5" stroke-linecap="round"/>
-      <path d="M -30 0 Q 0 -18, 30 0" fill="none" stroke="url(#primaryGrad)" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
-      <path d="M -42 12 Q 0 -12, 42 12" fill="none" stroke="url(#primaryGrad)" stroke-width="3.5" stroke-linecap="round" opacity="0.7"/>
-    </g>
-    <g transform="translate(0, 26)">
-      <rect x="-14" y="5" width="28" height="22" rx="4" fill="url(#primaryGrad)"/>
-      <path d="M -9 5 L -9 0 C -9 -7, -4 -12, 0 -12 C 4 -12, 9 -7, 9 0 L 9 5" fill="none" stroke="url(#primaryGrad)" stroke-width="4" stroke-linecap="round"/>
-      <circle cx="0" cy="14" r="3.4" fill="rgba(255,255,255,0.92)"/>
-      <rect x="-1.6" y="16" width="3.2" height="7" rx="1.6" fill="rgba(255,255,255,0.92)"/>
-    </g>
-  </g>
+  <path d="M70 10C46 24 28 28 28 28v34c0 33.5 22 58 42 68 20-10 42-34.5 42-68V28s-18-4-42-18z" fill="url(#sw-shield)"/>
+  <circle cx="70" cy="66" r="28" fill="#F5F7FB"/>
+  <path d="M42 72c10-10 24-14 38-12 8 1 16 4 24 9" stroke="#1B6B68" stroke-width="6" stroke-linecap="round"/>
+  <path d="M48 86c8-8 20-11 32-9 6 1 12 3 18 6" stroke="#0F4F4C" stroke-width="6" stroke-linecap="round"/>
 </svg>
