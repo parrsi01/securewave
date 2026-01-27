@@ -183,7 +183,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload security reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: |
@@ -236,6 +236,37 @@ jobs:
             exit 1
           fi
 
+      - name: Inject build metadata
+        run: |
+          set -euo pipefail
+          BUILD_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          CACHE_BUST=${GITHUB_SHA::12}
+          export BUILD_TS CACHE_BUST
+          python3 - <<'PY'
+          import glob
+          import os
+          import re
+
+          build_ts = os.environ["BUILD_TS"]
+          cache_bust = os.environ["CACHE_BUST"]
+
+          for path in glob.glob("static/*.html"):
+              with open(path, "r", encoding="utf-8") as handle:
+                  content = handle.read()
+              content = re.sub(
+                  r'(<meta name="build-timestamp" content=")[^"]*(")',
+                  lambda match: match.group(1) + build_ts + match.group(2),
+                  content,
+              )
+              content = re.sub(
+                  r'web_ui_v1\\.css\\?v=[^"]+',
+                  f"web_ui_v1.css?v={cache_bust}",
+                  content,
+              )
+              with open(path, "w", encoding="utf-8", newline="\\n") as handle:
+                  handle.write(content)
+          PY
+
       - name: Run UI guard
         run: bash scripts/verify_ui_v1.sh
 
@@ -243,19 +274,46 @@ jobs:
         run: |
           set -euo pipefail
           INCLUDED=()
-          for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static alembic routers services models utils database; do
+          for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static templates alembic routers services models utils database; do
             if [ -e "$path" ]; then
               INCLUDED+=("$path")
             fi
           done
-          zip -r deploy-web.zip "${INCLUDED[@]}"
+          zip -r deploy-web.zip "${INCLUDED[@]}" -x \
+            "*/__pycache__/*" \
+            "*/.pytest_cache/*" \
+            "*/.mypy_cache/*" \
+            "*/.cache/*" \
+            "*/LogFiles/*" \
+            "*/app-logs/*" \
+            "*/azure-logs/*" \
+            "*/node_modules/*" \
+            "*/dist/*" \
+            "*/build/*" \
+            "deploy-*.zip" \
+            "*.log"
 
       - name: Verify artifact contents
         run: |
           unzip -l deploy-web.zip | grep "static/css/web_ui_v1.css"
           unzip -l deploy-web.zip | grep "static/home.html"
           unzip -l deploy-web.zip | grep "main.py"
-          if unzip -l deploy-web.zip | grep -E "securewave_app|\\.git/|LogFiles/|app-logs|azure-logs|__pycache__" ; then
+          CSS_LIST=$(unzip -l deploy-web.zip | awk '{print $4}' | grep -E '^static/css/' || true)
+          if ! echo "$CSS_LIST" | grep -qx "static/css/web_ui_v1.css"; then
+            echo "ERROR: web_ui_v1.css missing from deployment artifact"
+            exit 1
+          fi
+          if echo "$CSS_LIST" | grep -q "static/css/professional.css"; then
+            echo "ERROR: legacy professional.css found in deployment artifact"
+            exit 1
+          fi
+          OTHER_CSS=$(echo "$CSS_LIST" | grep -v "static/css/web_ui_v1.css" || true)
+          if [ -n "$OTHER_CSS" ]; then
+            echo "ERROR: unexpected CSS files found in deployment artifact:"
+            echo "$OTHER_CSS"
+            exit 1
+          fi
+          if unzip -l deploy-web.zip | grep -E "securewave_app|\\.git/|(^|/)LogFiles/|(^|/)app-logs/|(^|/)azure-logs/|__pycache__|\\.pytest_cache|\\.mypy_cache|(^|/)\\.cache/|(^|/)node_modules/|(^|/)dist/|(^|/)build/|deploy-.*\\.zip|\\.log$" ; then
             echo "ERROR: Unexpected paths found in deployment artifact"
             exit 1
           fi
@@ -283,7 +341,21 @@ jobs:
             echo "ERROR: web_ui_v1.css not reachable on staging (HTTP $STATUS)"
             exit 1
           fi
-          echo "OK: web_ui_v1.css reachable on staging"
+          LEGACY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_STAGING }}/css/professional.css)
+          if [ "$LEGACY_STATUS" != "404" ]; then
+            echo "ERROR: legacy professional.css still reachable on staging (HTTP $LEGACY_STATUS)"
+            exit 1
+          fi
+          CONTENT=$(curl -s ${{ env.AZURE_WEBAPP_URL_STAGING }}/home.html)
+          if ! echo "$CONTENT" | grep -q "web_ui_v1.css?v="; then
+            echo "ERROR: Staging homepage missing cache-busted web_ui_v1.css reference"
+            exit 1
+          fi
+          if ! echo "$CONTENT" | grep -q "name=\"build-timestamp\""; then
+            echo "ERROR: Staging homepage missing build timestamp meta tag"
+            exit 1
+          fi
+          echo "OK: Staging static assets verified"
 
       - name: Run smoke tests
         run: |
@@ -314,6 +386,37 @@ jobs:
             exit 1
           fi
 
+      - name: Inject build metadata
+        run: |
+          set -euo pipefail
+          BUILD_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          CACHE_BUST=${GITHUB_SHA::12}
+          export BUILD_TS CACHE_BUST
+          python3 - <<'PY'
+          import glob
+          import os
+          import re
+
+          build_ts = os.environ["BUILD_TS"]
+          cache_bust = os.environ["CACHE_BUST"]
+
+          for path in glob.glob("static/*.html"):
+              with open(path, "r", encoding="utf-8") as handle:
+                  content = handle.read()
+              content = re.sub(
+                  r'(<meta name="build-timestamp" content=")[^"]*(")',
+                  lambda match: match.group(1) + build_ts + match.group(2),
+                  content,
+              )
+              content = re.sub(
+                  r'web_ui_v1\\.css\\?v=[^"]+',
+                  f"web_ui_v1.css?v={cache_bust}",
+                  content,
+              )
+              with open(path, "w", encoding="utf-8", newline="\\n") as handle:
+                  handle.write(content)
+          PY
+
       - name: Run UI guard
         run: bash scripts/verify_ui_v1.sh
 
@@ -321,19 +424,46 @@ jobs:
         run: |
           set -euo pipefail
           INCLUDED=()
-          for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static alembic routers services models utils database; do
+          for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static templates alembic routers services models utils database; do
             if [ -e "$path" ]; then
               INCLUDED+=("$path")
             fi
           done
-          zip -r deploy-web.zip "${INCLUDED[@]}"
+          zip -r deploy-web.zip "${INCLUDED[@]}" -x \
+            "*/__pycache__/*" \
+            "*/.pytest_cache/*" \
+            "*/.mypy_cache/*" \
+            "*/.cache/*" \
+            "*/LogFiles/*" \
+            "*/app-logs/*" \
+            "*/azure-logs/*" \
+            "*/node_modules/*" \
+            "*/dist/*" \
+            "*/build/*" \
+            "deploy-*.zip" \
+            "*.log"
 
       - name: Verify artifact contents
         run: |
           unzip -l deploy-web.zip | grep "static/css/web_ui_v1.css"
           unzip -l deploy-web.zip | grep "static/home.html"
           unzip -l deploy-web.zip | grep "main.py"
-          if unzip -l deploy-web.zip | grep -E "securewave_app|\\.git/|LogFiles/|app-logs|azure-logs|__pycache__" ; then
+          CSS_LIST=$(unzip -l deploy-web.zip | awk '{print $4}' | grep -E '^static/css/' || true)
+          if ! echo "$CSS_LIST" | grep -qx "static/css/web_ui_v1.css"; then
+            echo "ERROR: web_ui_v1.css missing from deployment artifact"
+            exit 1
+          fi
+          if echo "$CSS_LIST" | grep -q "static/css/professional.css"; then
+            echo "ERROR: legacy professional.css found in deployment artifact"
+            exit 1
+          fi
+          OTHER_CSS=$(echo "$CSS_LIST" | grep -v "static/css/web_ui_v1.css" || true)
+          if [ -n "$OTHER_CSS" ]; then
+            echo "ERROR: unexpected CSS files found in deployment artifact:"
+            echo "$OTHER_CSS"
+            exit 1
+          fi
+          if unzip -l deploy-web.zip | grep -E "securewave_app|\\.git/|(^|/)LogFiles/|(^|/)app-logs/|(^|/)azure-logs/|__pycache__|\\.pytest_cache|\\.mypy_cache|(^|/)\\.cache/|(^|/)node_modules/|(^|/)dist/|(^|/)build/|deploy-.*\\.zip|\\.log$" ; then
             echo "ERROR: Unexpected paths found in deployment artifact"
             exit 1
           fi
@@ -364,28 +494,41 @@ jobs:
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_PROD }}/css/web_ui_v1.css)
             if [ "$HTTP_CODE" = "200" ]; then
               echo "OK: CSS file deployed successfully (HTTP $HTTP_CODE)"
-              exit 0
+              break
             fi
             RETRY_COUNT=$((RETRY_COUNT + 1))
             echo "WAIT: Attempt $RETRY_COUNT/$MAX_RETRIES: CSS not ready yet (HTTP $HTTP_CODE), waiting 10s..."
             sleep 10
           done
 
-          echo "ERROR: ERROR: CSS file still not accessible after $MAX_RETRIES attempts"
-          echo "This indicates the deployment did not update static files"
-          exit 1
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "ERROR: CSS file still not accessible after $MAX_RETRIES attempts"
+            echo "This indicates the deployment did not update static files"
+            exit 1
+          fi
+
+          LEGACY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_PROD }}/css/professional.css)
+          if [ "$LEGACY_STATUS" != "404" ]; then
+            echo "ERROR: legacy professional.css still reachable in production (HTTP $LEGACY_STATUS)"
+            exit 1
+          fi
 
       - name: Verify HTML files updated
         run: |
           echo "Checking if HTML files reference new CSS..."
           CONTENT=$(curl -s ${{ env.AZURE_WEBAPP_URL_PROD }}/home.html)
 
-          if echo "$CONTENT" | grep -q "web_ui_v1.css"; then
-            echo "OK: HTML files updated with new CSS reference"
+          if echo "$CONTENT" | grep -q "web_ui_v1.css?v="; then
+            echo "OK: HTML files updated with cache-busted CSS reference"
           else
             echo "ERROR: ERROR: HTML still references old CSS"
             echo "Found CSS reference:"
             echo "$CONTENT" | grep -o 'href="/css/[^"]*"' || echo "No CSS found"
+            exit 1
+          fi
+
+          if ! echo "$CONTENT" | grep -q "name=\"build-timestamp\""; then
+            echo "ERROR: HTML missing build timestamp meta tag"
             exit 1
           fi
 
