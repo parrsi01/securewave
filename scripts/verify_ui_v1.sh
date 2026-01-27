@@ -115,9 +115,16 @@ if [[ -n "${EXTRA_THEME_FILES}" ]]; then
   exit 1
 fi
 
-if ! rg -q "AppUIv1.theme" securewave_app/lib/app.dart; then
-  echo "Flutter app is not using AppUIv1.theme" >&2
-  exit 1
+if command -v rg >/dev/null 2>&1; then
+  if ! rg -q "AppUIv1.theme" securewave_app/lib/app.dart; then
+    echo "Flutter app is not using AppUIv1.theme" >&2
+    exit 1
+  fi
+else
+  if ! grep -q "AppUIv1.theme" securewave_app/lib/app.dart; then
+    echo "Flutter app is not using AppUIv1.theme" >&2
+    exit 1
+  fi
 fi
 
 echo "UI v1.0 guard checks passed"
