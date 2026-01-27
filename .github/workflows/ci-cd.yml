@@ -361,11 +361,26 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to Azure Web App (Staging)
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME_STAGING }}
-          package: deploy-web.zip
-          clean: true
+        run: |
+          set -euo pipefail
+          ATTEMPTS=5
+          for attempt in $(seq 1 $ATTEMPTS); do
+            echo "Zip deploy attempt $attempt/$ATTEMPTS"
+            if az webapp deployment source config-zip \
+              --resource-group "$AZURE_RESOURCE_GROUP_STAGING" \
+              --name "$AZURE_WEBAPP_NAME_STAGING" \
+              --src deploy-web.zip \
+              --timeout 1800; then
+              echo "Zip deploy command completed"
+              break
+            fi
+            if [ "$attempt" -eq "$ATTEMPTS" ]; then
+              echo "ERROR: zip deploy failed after $ATTEMPTS attempts"
+              exit 1
+            fi
+            echo "Retrying in 15s..."
+            sleep 15
+          done
 
       - name: Restart staging app service
         run: |
@@ -549,11 +564,26 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to Azure Web App (Production)
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME_PROD }}
-          package: deploy-web.zip
-          clean: true
+        run: |
+          set -euo pipefail
+          ATTEMPTS=5
+          for attempt in $(seq 1 $ATTEMPTS); do
+            echo "Zip deploy attempt $attempt/$ATTEMPTS"
+            if az webapp deployment source config-zip \
+              --resource-group "$AZURE_RESOURCE_GROUP_PROD" \
+              --name "$AZURE_WEBAPP_NAME_PROD" \
+              --src deploy-web.zip \
+              --timeout 1800; then
+              echo "Zip deploy command completed"
+              break
+            fi
+            if [ "$attempt" -eq "$ATTEMPTS" ]; then
+              echo "ERROR: zip deploy failed after $ATTEMPTS attempts"
+              exit 1
+            fi
+            echo "Retrying in 15s..."
+            sleep 15
+          done
 
       - name: Restart production app service
         run: |
