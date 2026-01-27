@@ -128,7 +128,7 @@ img { max-width: 100%; display: block; }
 
 main { flex: 1; }
 
-.section { padding: var(--space-7) 0; }
+.section { padding: calc(var(--space-7) + var(--space-5)) 0; }
 
 h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
 
@@ -143,6 +143,8 @@ p { margin: 0; color: var(--ink-muted); line-height: 1.6; }
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--space-6);
   align-items: center;
+  justify-items: start;
+  text-align: left;
   padding: var(--space-7) 0 var(--space-6);
 }
 
@@ -188,7 +190,7 @@ p { margin: 0; color: var(--ink-muted); line-height: 1.6; }
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .layout {
@@ -211,13 +213,23 @@ p { margin: 0; color: var(--ink-muted); line-height: 1.6; }
 
 .dashboard-actions {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
 
 .plans-grid {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
+
+.section-header {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 70ch;
+}
+
+.text-measure { max-width: 70ch; }
+
+.content-stack { display: grid; gap: var(--space-6); }
 
 .plan-primary {
   border: 2px solid var(--accent);
@@ -400,7 +412,7 @@ label { font-weight: 700; color: var(--ink); }
 }
 
 .footer {
-  padding: var(--space-5) 0;
+  padding: var(--space-6) 0;
   border-top: 1px solid rgba(215, 224, 231, 0.8);
   color: var(--ink-soft);
   background: var(--surface);
@@ -423,7 +435,7 @@ label { font-weight: 700; color: var(--ink); }
 .footer-columns {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--space-5);
+  gap: var(--space-6);
   width: min(560px, 100%);
 }
 
@@ -500,12 +512,14 @@ label { font-weight: 700; color: var(--ink); }
 }
 
 @media (min-width: 1024px) {
-  .container { max-width: 1200px; }
+  .container { max-width: 1140px; }
+  .section { padding: calc(var(--space-7) + var(--space-6)) 0; }
+  .hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
   .layout { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
   .dashboard-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .plans-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (min-width: 1280px) {
-  .container { max-width: 1320px; }
+  .container { max-width: 1200px; }
 }
