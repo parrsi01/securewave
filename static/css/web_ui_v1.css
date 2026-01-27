@@ -309,12 +309,13 @@ label { font-weight: 700; color: var(--ink); }
 
 .input {
   width: 100%;
-  padding: 16px;
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-input);
   border: 1px solid var(--border);
   background: var(--surface);
   font-family: var(--font-family);
   font-size: 1rem;
+  line-height: 1.4;
   color: var(--ink);
 }
 
