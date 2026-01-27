@@ -5,7 +5,8 @@ Handles SSL certificate provisioning, renewal, and management using Let's Encryp
 
 import os
 import logging
-import subprocess
+import shutil
+import subprocess  # nosec B404 - controlled subprocess usage with validated args
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
@@ -16,7 +17,10 @@ logger = logging.getLogger(__name__)
 DOMAIN = os.getenv("DOMAIN", "localhost")
 EMAIL = os.getenv("SSL_EMAIL", os.getenv("ADMIN_EMAIL"))
 CERT_PATH = Path("/etc/letsencrypt/live") / DOMAIN
-CERTBOT_PATH = "/usr/bin/certbot"
+CERTBOT_PATH = shutil.which("certbot")
+SUDO_PATH = shutil.which("sudo")
+OPENSSL_PATH = shutil.which("openssl")
+CRONTAB_PATH = shutil.which("crontab")
 WEBROOT_PATH = Path("/var/www/html")
 
 
@@ -31,32 +35,20 @@ class SSLManager:
         self.domain = DOMAIN
         self.email = EMAIL
         self.cert_path = CERT_PATH
+        self.certbot_path = CERTBOT_PATH
+        self.sudo_path = SUDO_PATH
 
         # Check if certbot is available
         self.certbot_available = self._check_certbot()
 
     def _check_certbot(self) -> bool:
         """Check if certbot is installed"""
-        try:
-            result = subprocess.run(
-                ["which", "certbot"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            available = result.returncode == 0
-
-            if available:
-                logger.info("✓ Certbot is available")
-            else:
-                logger.warning("✗ Certbot not installed. SSL management disabled.")
-                logger.info("Install with: sudo apt-get install certbot python3-certbot-nginx")
-
-            return available
-
-        except Exception as e:
-            logger.error(f"Error checking certbot: {e}")
-            return False
+        if self.certbot_path:
+            logger.info("✓ Certbot is available")
+            return True
+        logger.warning("✗ Certbot not installed. SSL management disabled.")
+        logger.info("Install with: sudo apt-get install certbot python3-certbot-nginx")
+        return False
 
     def obtain_certificate(
         self,
@@ -91,8 +83,10 @@ class SSLManager:
 
         try:
             # Build certbot command
+            if not self.sudo_path:
+                return False, "sudo not available for certificate operations"
             cmd = [
-                "sudo", "certbot", "certonly",
+                self.sudo_path, self.certbot_path, "certonly",
                 "--non-interactive",
                 "--agree-tos",
                 "--email", email,
@@ -111,7 +105,7 @@ class SSLManager:
 
             logger.info(f"Obtaining SSL certificate for {domain}...")
 
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603
                 cmd,
                 capture_output=True,
                 text=True,
@@ -146,14 +140,16 @@ class SSLManager:
             return False, "Certbot not available"
 
         try:
-            cmd = ["sudo", "certbot", "renew", "--non-interactive"]
+            if not self.sudo_path:
+                return False, "sudo not available for certificate operations"
+            cmd = [self.sudo_path, self.certbot_path, "renew", "--non-interactive"]
 
             if force:
                 cmd.append("--force-renewal")
 
             logger.info("Renewing SSL certificates...")
 
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603
                 cmd,
                 capture_output=True,
                 text=True,
@@ -193,9 +189,12 @@ class SSLManager:
             if not cert_file.exists():
                 return None
 
+            if not OPENSSL_PATH:
+                return None
+
             # Get certificate expiry using openssl
-            result = subprocess.run(
-                ["openssl", "x509", "-enddate", "-noout", "-in", str(cert_file)],
+            result = subprocess.run(  # nosec B603
+                [OPENSSL_PATH, "x509", "-enddate", "-noout", "-in", str(cert_file)],
                 capture_output=True,
                 text=True,
                 timeout=5
@@ -237,8 +236,10 @@ class SSLManager:
             return []
 
         try:
-            result = subprocess.run(
-                ["sudo", "certbot", "certificates"],
+            if not self.sudo_path:
+                return []
+            result = subprocess.run(  # nosec B603
+                [self.sudo_path, self.certbot_path, "certificates"],
                 capture_output=True,
                 text=True,
                 timeout=30
@@ -281,15 +282,17 @@ class SSLManager:
         domain = domain or self.domain
 
         try:
+            if not self.sudo_path:
+                return False, "sudo not available for certificate operations"
             cmd = [
-                "sudo", "certbot", "revoke",
+                self.sudo_path, self.certbot_path, "revoke",
                 "--non-interactive",
                 "--cert-name", domain
             ]
 
             logger.info(f"Revoking SSL certificate for {domain}...")
 
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603
                 cmd,
                 capture_output=True,
                 text=True,
@@ -321,9 +324,11 @@ class SSLManager:
             return False, "Certbot not available"
 
         try:
+            if not self.sudo_path or not CRONTAB_PATH or not self.certbot_path:
+                return False, "Required system tools not available for cron setup"
             # Check if cron job already exists
-            result = subprocess.run(
-                ["sudo", "crontab", "-l"],
+            result = subprocess.run(  # nosec B603
+                [self.sudo_path, CRONTAB_PATH, "-l"],
                 capture_output=True,
                 text=True,
                 timeout=5
@@ -336,13 +341,13 @@ class SSLManager:
                 return True, None
 
             # Add cron job (runs twice daily as recommended by Let's Encrypt)
-            cron_command = "0 0,12 * * * /usr/bin/certbot renew --quiet --post-hook 'systemctl reload nginx'"
+            cron_command = f"0 0,12 * * * {self.certbot_path} renew --quiet --post-hook 'systemctl reload nginx'"
 
             new_cron = existing_cron + "\n" + cron_command + "\n"
 
             # Update crontab
-            result = subprocess.run(
-                ["sudo", "crontab", "-"],
+            result = subprocess.run(  # nosec B603
+                [self.sudo_path, CRONTAB_PATH, "-"],
                 input=new_cron,
                 capture_output=True,
                 text=True,

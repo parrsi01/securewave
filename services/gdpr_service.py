@@ -278,7 +278,7 @@ class GDPRComplianceService:
                 if user:
                     user.email = f"deleted_user_{user_id}@anonymized.local"
                     user.full_name = f"Deleted User {user_id}"
-                    user.password_hash = ""
+                    user.password_hash = ""  # nosec B105 - clearing password hash for GDPR anonymization
                     user.totp_secret = None
 
                     summary["anonymized_records"]["user"] = 1
@@ -387,10 +387,10 @@ class GDPRComplianceService:
     def _generate_request_number(self) -> str:
         """Generate GDPR request number"""
         from datetime import datetime
-        import random
+        import secrets
 
         timestamp = datetime.utcnow().strftime("%Y%m")
-        random_part = random.randint(10000, 99999)
+        random_part = secrets.randbelow(90000) + 10000
         return f"GDPR-{timestamp}-{random_part}"
 
     def get_pending_requests(self) -> List[Dict]:

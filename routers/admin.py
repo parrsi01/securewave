@@ -3,7 +3,10 @@ Admin endpoints for WireGuard peer management.
 Allows auto-registration of peers on the WG VM.
 """
 import os
-import subprocess
+import re
+import shutil
+import subprocess  # nosec B404 - controlled subprocess usage with validated args
+import ipaddress
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -20,6 +23,23 @@ router = APIRouter()
 # WireGuard VM details (from Azure setup)
 WG_VM_NAME = os.getenv("WG_VM_NAME", "securewave-wg")
 WG_RESOURCE_GROUP = os.getenv("WG_RESOURCE_GROUP", "SecureWaveRG")
+WG_KEY_PATTERN = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
+
+
+def _resolve_az_cli() -> str:
+    az_path = shutil.which("az")
+    if not az_path:
+        raise FileNotFoundError("Azure CLI not available. Run the command manually on the WG VM.")
+    return az_path
+
+
+def _validate_wg_peer_inputs(public_key: str, client_ip: str) -> None:
+    if not WG_KEY_PATTERN.match(public_key):
+        raise HTTPException(status_code=400, detail="Invalid WireGuard public key format")
+    try:
+        ipaddress.ip_address(client_ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid client IP address") from exc
 
 
 class PeerInfo(BaseModel):
@@ -125,6 +145,8 @@ def register_peer(
     wg_service = WireGuardService()
     client_ip = wg_service.allocate_ip(user.id)
 
+    _validate_wg_peer_inputs(user.wg_public_key, client_ip)
+
     # Build the wg set command
     wg_command = f"sudo wg set wg0 peer {user.wg_public_key} allowed-ips {client_ip}"
     persist_command = "sudo wg-quick save wg0"
@@ -132,9 +154,10 @@ def register_peer(
 
     try:
         # Execute on Azure VM using Run Command
-        result = subprocess.run(
+        az_path = _resolve_az_cli()
+        result = subprocess.run(  # nosec B603 - args are validated and not user-controlled beyond key/ip
             [
-                "az", "vm", "run-command", "invoke",
+                az_path, "vm", "run-command", "invoke",
                 "-g", WG_RESOURCE_GROUP,
                 "-n", WG_VM_NAME,
                 "--command-id", "RunShellScript",
@@ -177,14 +200,13 @@ def register_peer(
             message="Timeout executing Azure VM Run Command",
             wg_command=wg_command
         )
-    except FileNotFoundError:
-        # Azure CLI not available - return the command for manual execution
+    except FileNotFoundError as exc:
         return RegisterPeerResponse(
             success=False,
             user_id=user.id,
             client_public_key=user.wg_public_key,
             client_ip=client_ip,
-            message="Azure CLI not available. Run the command manually on the WG VM.",
+            message=str(exc),
             wg_command=wg_command
         )
 
@@ -207,6 +229,10 @@ def register_all_pending_peers(
     if not pending_users:
         return {"message": "No pending peers to register", "registered": 0}
 
+    for user in pending_users:
+        client_ip = wg_service.allocate_ip(user.id)
+        _validate_wg_peer_inputs(user.wg_public_key, client_ip)
+
     # Build bulk command
     commands = []
     for user in pending_users:
@@ -218,9 +244,10 @@ def register_all_pending_peers(
 
     results = []
     try:
-        result = subprocess.run(
+        az_path = _resolve_az_cli()
+        result = subprocess.run(  # nosec B603 - args are validated and not user-controlled beyond key/ip
             [
-                "az", "vm", "run-command", "invoke",
+                az_path, "vm", "run-command", "invoke",
                 "-g", WG_RESOURCE_GROUP,
                 "-n", WG_VM_NAME,
                 "--command-id", "RunShellScript",

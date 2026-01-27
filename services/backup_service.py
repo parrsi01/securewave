@@ -5,7 +5,9 @@ Automated backup management for database, configurations, and VPN data
 
 import os
 import logging
-import subprocess
+import shutil
+import subprocess  # nosec B404 - controlled subprocess usage with validated args
+import tempfile
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
@@ -29,6 +31,12 @@ class BackupService:
         self.storage_account = BACKUP_STORAGE_ACCOUNT
         self.container = BACKUP_CONTAINER
 
+    def _resolve_executable(self, name: str) -> str:
+        path = shutil.which(name)
+        if not path:
+            raise FileNotFoundError(f"Required executable not found: {name}")
+        return path
+
     # ===========================
     # DATABASE BACKUPS
     # ===========================
@@ -48,15 +56,16 @@ class BackupService:
                 backup_name = f"auto-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
 
             # Use Azure CLI to create backup
+            az_path = self._resolve_executable("az")
             cmd = [
-                "az", "postgres", "flexible-server", "backup", "create",
+                az_path, "postgres", "flexible-server", "backup", "create",
                 "--resource-group", os.getenv("AZURE_RESOURCE_GROUP", "securewave-rg"),
                 "--server-name", os.getenv("DATABASE_SERVER_NAME", "securewave-db"),
                 "--backup-name", backup_name,
                 "--output", "json"
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)  # nosec B603
 
             if result.returncode == 0:
                 logger.info(f"Database backup created successfully: {backup_name}")
@@ -102,8 +111,9 @@ class BackupService:
             import urllib.parse
             parsed = urllib.parse.urlparse(db_url)
 
+            pg_dump_path = self._resolve_executable("pg_dump")
             cmd = [
-                "pg_dump",
+                pg_dump_path,
                 "-h", parsed.hostname,
                 "-p", str(parsed.port or 5432),
                 "-U", parsed.username,
@@ -116,7 +126,7 @@ class BackupService:
             env = os.environ.copy()
             env["PGPASSWORD"] = parsed.password
 
-            result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
+            result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)  # nosec B603
 
             if result.returncode == 0:
                 # Get file size
@@ -151,14 +161,15 @@ class BackupService:
             List of backups
         """
         try:
+            az_path = self._resolve_executable("az")
             cmd = [
-                "az", "postgres", "flexible-server", "backup", "list",
+                az_path, "postgres", "flexible-server", "backup", "list",
                 "--resource-group", os.getenv("AZURE_RESOURCE_GROUP", "securewave-rg"),
                 "--server-name", os.getenv("DATABASE_SERVER_NAME", "securewave-db"),
                 "--output", "json"
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603
 
             if result.returncode == 0:
                 import json
@@ -186,8 +197,9 @@ class BackupService:
         try:
             backup_name = f"config-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
 
+            az_path = self._resolve_executable("az")
             cmd = [
-                "az", "webapp", "config", "backup", "create",
+                az_path, "webapp", "config", "backup", "create",
                 "--resource-group", os.getenv("AZURE_RESOURCE_GROUP", "securewave-rg"),
                 "--webapp-name", os.getenv("WEBAPP_NAME", "securewave"),
                 "--backup-name", backup_name,
@@ -195,7 +207,7 @@ class BackupService:
                 "--output", "json"
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)  # nosec B603
 
             if result.returncode == 0:
                 logger.info(f"Application config backed up: {backup_name}")
@@ -260,19 +272,25 @@ class BackupService:
                     "endpoint": server.endpoint
                 })
 
-            # Save to file
-            backup_file = f"/tmp/vpn_config_backup_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-            with open(backup_file, 'w') as f:
-                json.dump(backup_data, f, indent=2)
+            backup_file = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    prefix="vpn_config_backup_",
+                    suffix=".json",
+                    delete=False,
+                ) as tmp_file:
+                    json.dump(backup_data, tmp_file, indent=2)
+                    backup_file = tmp_file.name
 
-            # Upload to Azure Blob Storage
-            upload_result = self._upload_to_blob_storage(
-                backup_file,
-                f"vpn-configs/vpn_config_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-            )
-
-            # Clean up temp file
-            os.remove(backup_file)
+                upload_result = self._upload_to_blob_storage(
+                    backup_file,
+                    f"vpn-configs/vpn_config_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+                )
+            finally:
+                if backup_file and os.path.exists(backup_file):
+                    os.remove(backup_file)
 
             logger.info(f"VPN configurations backed up: {len(servers)} servers")
 
@@ -326,19 +344,25 @@ class BackupService:
                     # Note: Private keys are encrypted - not included in backup
                 })
 
-            # Save to file
-            backup_file = f"/tmp/wireguard_peers_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-            with open(backup_file, 'w') as f:
-                json.dump(backup_data, f, indent=2)
+            backup_file = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    prefix="wireguard_peers_",
+                    suffix=".json",
+                    delete=False,
+                ) as tmp_file:
+                    json.dump(backup_data, tmp_file, indent=2)
+                    backup_file = tmp_file.name
 
-            # Upload to Azure Blob Storage
-            upload_result = self._upload_to_blob_storage(
-                backup_file,
-                f"wireguard-peers/peers_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-            )
-
-            # Clean up temp file
-            os.remove(backup_file)
+                upload_result = self._upload_to_blob_storage(
+                    backup_file,
+                    f"wireguard-peers/peers_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+                )
+            finally:
+                if backup_file and os.path.exists(backup_file):
+                    os.remove(backup_file)
 
             logger.info(f"WireGuard peers backed up: {len(peers)} peers")
 
@@ -470,8 +494,9 @@ class BackupService:
             Upload result
         """
         try:
+            az_path = self._resolve_executable("az")
             cmd = [
-                "az", "storage", "blob", "upload",
+                az_path, "storage", "blob", "upload",
                 "--account-name", self.storage_account,
                 "--container-name", self.container,
                 "--name", blob_name,
@@ -479,7 +504,7 @@ class BackupService:
                 "--output", "json"
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)  # nosec B603
 
             if result.returncode == 0:
                 return {

@@ -1,7 +1,8 @@
 import asyncio
 import logging
-import random
-import subprocess
+import secrets
+import subprocess  # nosec B404 - controlled subprocess usage
+import shutil
 from datetime import datetime
 from typing import Dict
 
@@ -12,6 +13,9 @@ from models.vpn_server import VPNServer
 from services.vpn_server_service import VPNServerService
 
 logger = logging.getLogger(__name__)
+
+
+RNG = secrets.SystemRandom()
 
 
 class VPNHealthMonitor:
@@ -124,8 +128,12 @@ class VPNHealthMonitor:
         """
         try:
             # Run ping command (platform-specific)
+            ping_path = shutil.which("ping")
+            if not ping_path:
+                raise FileNotFoundError("ping not available")
+
             result = await asyncio.create_subprocess_exec(
-                "ping",
+                ping_path,
                 "-c",
                 "3",  # 3 packets
                 "-W",
@@ -197,17 +205,17 @@ class VPNHealthMonitor:
         }.get(server.server_id, 50)
 
         # Add jitter to latency
-        latency = base_latency + random.uniform(-5, 10)
+        latency = base_latency + RNG.uniform(-5, 10)
 
         metrics = {
             "latency_ms": round(latency, 1),
-            "bandwidth_mbps": random.uniform(800, 1000),
-            "cpu_load": random.uniform(0.2, 0.6),
+            "bandwidth_mbps": RNG.uniform(800, 1000),
+            "cpu_load": RNG.uniform(0.2, 0.6),
             "active_connections": server.current_connections,
-            "packet_loss": random.uniform(0.0, 0.02),  # 0-2%
-            "jitter_ms": random.uniform(1, 5),
-            "bandwidth_in_mbps": random.uniform(800, 1000),
-            "bandwidth_out_mbps": random.uniform(800, 1000),
+            "packet_loss": RNG.uniform(0.0, 0.02),  # 0-2%
+            "jitter_ms": RNG.uniform(1, 5),
+            "bandwidth_in_mbps": RNG.uniform(800, 1000),
+            "bandwidth_out_mbps": RNG.uniform(800, 1000),
         }
 
         return metrics

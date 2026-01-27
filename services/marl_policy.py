@@ -250,9 +250,10 @@ class MARLPolicyEngine:
         state_hash = self._hash_state(state)
 
         # Exploration: random action
-        import random
-        if random.random() < self.EXPLORATION_RATE:
-            action = random.choice(list(PolicyAction))
+        import secrets
+        rng = secrets.SystemRandom()
+        if rng.random() < self.EXPLORATION_RATE:
+            action = rng.choice(list(PolicyAction))
         else:
             # Exploitation: best Q-value action
             best_action = PolicyAction.NO_ACTION

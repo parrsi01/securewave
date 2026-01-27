@@ -5,8 +5,8 @@
 # FastAPI and ASGI server
 fastapi==0.115.12
 uvicorn[standard]==0.32.1
-gunicorn==21.2.0
-python-multipart==0.0.9
+gunicorn==23.0.0
+python-multipart==0.0.19
 
 # Database
 SQLAlchemy==2.0.30
@@ -14,10 +14,10 @@ psycopg2-binary==2.9.9
 alembic==1.13.1
 
 # Authentication & Security
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.4.0
 passlib==1.7.4
 bcrypt==3.2.2
-cryptography==42.0.8
+cryptography==44.0.1
 
 # Payment Processing
 stripe>=14.0.0,<15.0.0

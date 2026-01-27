@@ -18,8 +18,8 @@ class EventType(str, Enum):
     LOGIN = "login"
     LOGOUT = "logout"
     LOGIN_FAILED = "login_failed"
-    PASSWORD_RESET = "password_reset"
-    PASSWORD_CHANGED = "password_changed"
+    PASSWORD_RESET = "password_reset"  # nosec B105 - event label, not a password
+    PASSWORD_CHANGED = "password_changed"  # nosec B105 - event label, not a password
     EMAIL_VERIFIED = "email_verified"
     TWO_FACTOR_ENABLED = "2fa_enabled"
     TWO_FACTOR_DISABLED = "2fa_disabled"
@@ -172,8 +172,8 @@ class SecurityAuditService:
                     user = db.query(User).filter(User.id == user_id).first()
                     if user and user.is_admin:
                         actor_type = "admin"
-                except:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to resolve admin status for audit log: %s", exc)
 
             audit_log = AuditLog(
                 event_type=event_type.value,

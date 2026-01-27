@@ -2,7 +2,7 @@ import base64
 import os
 import secrets
 import shutil
-import subprocess
+import subprocess  # nosec B404 - controlled subprocess usage
 from io import BytesIO
 from pathlib import Path
 from typing import Tuple
@@ -29,6 +29,7 @@ class WireGuardService:
         self.dns = os.getenv("WG_DNS", "1.1.1.1")
         self.server_public_override = os.getenv("WG_SERVER_PUBLIC_KEY", "").strip() or None
         self.fernet = self._load_fernet()
+        self.wg_path = shutil.which("wg")
         self.mock_mode = self._detect_mock_mode()
         self.ensure_server_keys()
 
@@ -52,9 +53,8 @@ class WireGuardService:
             return True
 
         # Auto-detect only if not explicitly configured
-        wg_binary = shutil.which("wg")
         tun_exists = Path("/dev/net/tun").exists()
-        return wg_binary is None or not tun_exists
+        return self.wg_path is None or not tun_exists
 
     def _load_fernet(self):
         key = os.getenv("WG_ENCRYPTION_KEY")
@@ -67,8 +67,10 @@ class WireGuardService:
 
     def generate_keypair(self) -> Tuple[str, str]:
         try:
-            private_key = subprocess.check_output(["wg", "genkey"]).decode().strip()
-            public_key = subprocess.check_output(["wg", "pubkey"], input=private_key.encode()).decode().strip()
+            if not self.wg_path:
+                raise FileNotFoundError("wg not available")
+            private_key = subprocess.check_output([self.wg_path, "genkey"]).decode().strip()  # nosec B603
+            public_key = subprocess.check_output([self.wg_path, "pubkey"], input=private_key.encode()).decode().strip()  # nosec B603
             return private_key, public_key
         except Exception:
             private_bytes = secrets.token_bytes(32)
