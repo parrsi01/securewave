@@ -7,13 +7,14 @@ import logging
 import os
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, BackgroundTasks
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from io import BytesIO
 
-from database.session import get_db
+from database.session import get_db, SessionLocal
 from models.user import User
 from services.hashing_service import hash_password, verify_password
 from services.jwt_service import create_access_token, create_refresh_token, verify_refresh_token, get_current_user
@@ -36,6 +37,17 @@ def rate_limit(rule: str):
             return func
         return decorator
     return limiter.limit(rule)
+
+
+def record_login_success(user_id: int, ip_address: Optional[str]) -> None:
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return
+        AuthService(db).record_login_attempt(user, success=True, ip_address=ip_address)
+    finally:
+        db.close()
 
 
 # ===========================
@@ -140,7 +152,7 @@ async def register(
             email=payload.email,
             hashed_password=hash_password(payload.password),
             created_at=datetime.utcnow(),
-            subscription_status="inactive",
+            subscription_status="basic",
             email_verified=DEMO_MODE,  # Demo: mark verified immediately
         )
         db.add(user)
@@ -189,6 +201,7 @@ async def register(
 async def login(
     request: Request,
     payload: LoginRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """
@@ -198,7 +211,15 @@ async def login(
         # Get user
         user: Optional[User] = db.query(User).filter(User.email == payload.email).first()
 
-        if not user or not verify_password(payload.password, user.hashed_password):
+        is_valid = False
+        if user:
+            is_valid = await run_in_threadpool(
+                verify_password,
+                payload.password,
+                user.hashed_password
+            )
+
+        if not user or not is_valid:
             # Record failed attempt
             if user:
                 auth_service = AuthService(db)
@@ -251,9 +272,8 @@ async def login(
                     detail="Invalid 2FA code"
                 )
 
-        # Record successful login
         ip_address = request.client.host if request.client else None
-        auth_service.record_login_attempt(user, success=True, ip_address=ip_address)
+        background_tasks.add_task(record_login_success, user.id, ip_address)
 
         admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
         if admin_email and user.email.lower() == admin_email and not user.is_admin:
