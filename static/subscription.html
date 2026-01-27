@@ -44,88 +44,92 @@
       </section>
 
       <section class="section">
-        <div class="container grid">
+        <div class="container plans-grid">
           <div class="card">
-            <div class="pill">Starter</div>
-            <h2 style="margin-top: var(--space-3);">$5 / month</h2>
-            <p class="subtitle">For a single device.</p>
+            <div class="pill">Free Starter</div>
+            <h2 style="margin-top: var(--space-3);">Free</h2>
+            <p class="subtitle">Simple protection for getting started.</p>
             <ul class="list">
-              <li>1 device connection</li>
-              <li>Standard regions</li>
-              <li>Basic diagnostics</li>
+              <li>5 GB monthly data</li>
+              <li>Limited speed</li>
+              <li>Basic protection</li>
             </ul>
             <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-secondary" href="/register.html">Choose Starter</a>
+              <a class="btn btn-secondary" href="/register.html">Choose Free Starter</a>
             </div>
           </div>
-          <div class="card" style="border: 2px solid var(--accent);">
-            <div class="pill" style="background: var(--accent-soft); color: var(--accent-strong);">Most popular</div>
+          <div class="card plan-primary">
+            <div class="pill" style="background: var(--accent-soft); color: var(--accent-strong);">Premium</div>
             <h2 style="margin-top: var(--space-3);">$9 / month</h2>
-            <p class="subtitle">For households and teams.</p>
+            <p class="subtitle">Unlimited coverage for everyday use.</p>
             <ul class="list">
-              <li>Up to 4 devices</li>
+              <li>Unlimited data</li>
+              <li>Full speed</li>
               <li>Priority routing</li>
-              <li>Guided support</li>
             </ul>
             <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-primary" href="/register.html">Choose Everyday</a>
-            </div>
-          </div>
-          <div class="card">
-            <div class="pill">Premium</div>
-            <h2 style="margin-top: var(--space-3);">$14 / month</h2>
-            <p class="subtitle">For power users.</p>
-            <ul class="list">
-              <li>Up to 8 devices</li>
-              <li>High priority routing</li>
-              <li>Advanced diagnostics</li>
-            </ul>
-            <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-secondary" href="/register.html">Choose Premium</a>
+              <a class="btn btn-primary" href="/register.html">Choose Premium</a>
             </div>
           </div>
         </div>
       </section>
 
       <section class="section">
-        <div class="container split">
-          <div>
+        <div class="container layout">
+          <div class="layout-main">
             <h2>Need help choosing?</h2>
-            <p class="subtitle">We can recommend a plan based on your devices.</p>
+            <p class="subtitle">Get quick answers about plans before you sign up.</p>
           </div>
-          <div class="card">
-            <h3>Talk to support</h3>
-            <p class="subtitle">We respond quickly and keep guidance simple.</p>
-            <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-primary" href="/contact.html">Contact support</a>
-              <a class="btn btn-secondary" href="/services.html">Review services</a>
+          <div class="card layout-side">
+            <div class="chatbot">
+              <div class="chatbot-header">
+                <div class="icon-circle">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3>Need help choosing?</h3>
+                  <p class="subtitle">Questions about plans?</p>
+                </div>
+              </div>
+              <div class="chatbot-panel">
+                <div class="chat-bubble">Need help choosing?</div>
+                <div class="chat-bubble chat-bubble-accent">Questions about plans?</div>
+                <div class="chat-input">Type your question here...</div>
+              </div>
             </div>
           </div>
         </div>
       </section>
     </main>
 
-    <footer class="footer">
-      <div class="container footer-grid">
-        <div>
+        <footer class="footer">
+      <div class="container footer-top">
+        <div class="footer-brand">
           <strong>SecureWave VPN</strong>
           <p>Calm protection for everyday connections.</p>
         </div>
-        <div>
-          <p><a href="/services.html">Services</a></p>
-          <p><a href="/subscription.html">Plans</a></p>
-          <p><a href="/dashboard.html">Dashboard</a></p>
-        </div>
-        <div>
-          <p><a href="/privacy.html">Privacy</a></p>
-          <p><a href="/terms.html">Terms</a></p>
-          <p><a href="/contact.html">Support</a></p>
+        <div class="footer-columns">
+          <div class="footer-column">
+            <div class="footer-title">Product</div>
+            <a href="/services.html">Services</a>
+            <a href="/subscription.html">Plans</a>
+            <a href="/dashboard.html">Dashboard</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Company</div>
+            <a href="/privacy.html">Privacy</a>
+            <a href="/terms.html">Terms</a>
+            <a href="/contact.html">Support</a>
+          </div>
         </div>
       </div>
-      <div class="container" style="margin-top: var(--space-3);">
+      <div class="container footer-bottom">
         <span data-year>2026</span> SecureWave. All rights reserved.
       </div>
     </footer>
+
   </div>
 
   <script src="/js/site.js" defer></script>
