@@ -55,6 +55,8 @@ async function handleAuth(event) {
   if (button) { button.disabled = true; button.textContent = action === 'login' ? 'Signing in...' : 'Creating account...'; }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 8000);
     const url = action === 'login' ? '/api/auth/login' : '/api/auth/register';
     const body = action === 'login'
       ? { email, password }
@@ -63,7 +65,9 @@ async function handleAuth(event) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    window.clearTimeout(timeoutId);
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
       if (data.access_token) {
@@ -75,13 +79,21 @@ async function handleAuth(event) {
     }
     setMessage(form, data.detail || 'Unable to continue. Check your details and try again.');
   } catch (error) {
-    setMessage(form, 'Network issue. Please try again.');
+    if (error?.name === 'AbortError') {
+      setMessage(form, 'Login is taking longer than expected. Please try again.');
+    } else {
+      setMessage(form, 'Network issue. Please try again.');
+    }
   } finally {
     if (button) { button.disabled = false; button.textContent = action === 'login' ? 'Sign in' : 'Create account'; }
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('access_token')) {
+    window.location.href = '/dashboard.html';
+    return;
+  }
   document.querySelectorAll('[data-auth]')?.forEach((form) => {
     form.addEventListener('submit', handleAuth);
   });

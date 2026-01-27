@@ -23,7 +23,7 @@ class User(Base):
     wg_peer_registered = Column(Boolean, default=False)  # True when peer is added to WG server
 
     # Legacy subscription fields (deprecated - use Subscription model instead)
-    subscription_status = Column(String, default="inactive")
+    subscription_status = Column(String, default="basic")
     stripe_customer_id = Column(String, nullable=True)
     paypal_subscription_id = Column(String, nullable=True)
 
