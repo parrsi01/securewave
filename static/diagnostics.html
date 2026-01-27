@@ -2,90 +2,84 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Diagnostics - SecureWave VPN</title>
-  <meta name="description" content="SecureWave diagnostics dashboard for system health and activity.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diagnostics - SecureWave</title>
+  <meta name="description" content="SecureWave diagnostics guidance." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260125">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
         <span>SecureWave</span>
       </a>
-      <ul class="navbar-menu">
-        <li><a href="/dashboard.html">Dashboard</a></li>
-        <li><a href="/vpn.html">VPN</a></li>
-        <li><a href="/settings.html">Settings</a></li>
-        <li><a href="/subscription.html">Subscription</a></li>
-        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
-        <li><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
-        <li class="theme-toggle hide-mobile">
-          <button data-theme="light" aria-label="Light mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </button>
-          <button data-theme="dark" aria-label="Dark mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </button>
-        </li>
-      </ul>
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/subscription.html">Pricing</a>
+        <a href="/dashboard.html">Dashboard</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/login.html">Sign in</a>
+        <a class="btn btn-primary" href="/home.html#download">Get the app</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
         <span></span>
       </button>
     </div>
-  </nav>
+  </header>
 
-  <main id="main-content">
-    <section class="page-hero">
-      <div class="container">
-        <div class="badge">Admin / Diagnostics</div>
-        <h1 class="page-hero__title">System Status</h1>
-        <p class="page-hero__subtitle">
-          Diagnostics panel with API health and recent events.
-        </p>
+  <main>
+    <section class="section">
+      <div class="container split">
+        <div>
+          <span class="hero-badge">Diagnostics</span>
+          <h1 class="hero-title">Run diagnostics in the SecureWave app.</h1>
+          <p class="hero-subtitle">The app provides guided checks and clear status updates for your connection.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/home.html#download">Open the app</a>
+            <a class="btn btn-secondary" href="/contact.html">Contact support</a>
+          </div>
+        </div>
+        <div class="card">
+          <h3>What diagnostics check</h3>
+          <ul class="list">
+            <li>Connection stability</li>
+            <li>Region health</li>
+            <li>Device readiness</li>
+          </ul>
+        </div>
       </div>
     </section>
-
-    <div class="container page-section">
-      <div class="grid grid-2" style="margin-bottom: 2rem;">
-        <div class="card">
-          <div class="card-body">
-            <h2>Health</h2>
-            <p id="healthStatus" class="text-muted">Checking...</p>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-body">
-            <h2>Environment</h2>
-            <div id="envStatus" class="text-muted">Loading...</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom: 2rem;">
-        <div class="card-body">
-          <h2>Session Snapshot</h2>
-          <div id="sessionStatus" class="text-muted">Loading session info...</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-body">
-          <h2>Recent Events</h2>
-          <div id="eventsList" class="text-muted">Loading events...</div>
-        </div>
-      </div>
-    </div>
   </main>
 
-  <script src="/js/main.js" defer></script>
-  <script src="/js/diagnostics.js" defer></script>
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
+      </div>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
+      </div>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
+    </div>
+  </footer>
+
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

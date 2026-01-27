@@ -2,459 +2,92 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contact Us - SecureWave VPN</title>
-  <meta name="description" content="Get in touch with SecureWave VPN support. We're here to help with questions about our service, billing, or technical support.">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260125">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contact SecureWave</title>
+  <meta name="description" content="Contact SecureWave support for help." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <!-- Skip to main content for accessibility -->
-  <a href="#main-content" class="skip-to-main">Skip to main content</a>
-
-  <!-- Navigation -->
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
         <span>SecureWave</span>
       </a>
-
-      <ul class="navbar-menu">
-        <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Features</a></li>
-        <li><a href="/subscription.html">Pricing</a></li>
-        <li><a href="/about.html">About</a></li>
-        <li class="hidden" id="dashLink"><a href="/dashboard.html">Dashboard</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Sign In</a></li>
-        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
-        <li class="hidden"><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
-        <li class="theme-toggle hide-mobile">
-          <button data-theme="light" aria-label="Light mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </button>
-          <button data-theme="dark" aria-label="Dark mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </button>
-        </li>
-      </ul>
-
-      <!-- Mobile menu toggle -->
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/subscription.html">Pricing</a>
+        <a href="/about.html">About</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/login.html">Sign in</a>
+        <a class="btn btn-primary" href="/home.html#download">Get the app</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
         <span></span>
       </button>
     </div>
-  </nav>
+  </header>
 
-  <!-- Main Content -->
-  <main id="main-content">
-    <!-- Hero Section -->
-    <section class="hero">
-      <div class="container">
-        <div class="badge">
-          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-          </svg>
-          Get in Touch
-        </div>
-        <h1>We're Here to Help</h1>
-        <p>Have questions about SecureWave or your subscription? The app handles VPN connection, and this page connects you with support.</p>
-      </div>
-    </section>
-
-    <!-- Contact Options and Form -->
+  <main>
     <section class="section">
-      <div class="container">
-        <div class="grid grid-2" style="gap: var(--space-12); align-items: start;">
-          <!-- Contact Information -->
-          <div>
-            <h2 class="mb-6">Contact Information</h2>
-
-            <!-- Support Card -->
-            <div class="card mb-6 hover-lift">
-              <div class="card-body">
-                <h3 class="mb-3">Email Support</h3>
-                <p class="mb-3 text-muted">General questions and account support</p>
-                <a href="mailto:support@securewave.app" style="color: var(--primary-600); font-weight: var(--font-weight-semibold);">support@securewave.app</a>
-                <div class="mt-4">
-                  <span class="badge badge-success">Responses as available</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Technical Support Card -->
-            <div class="card mb-6 hover-lift">
-              <div class="card-body">
-                <h3 class="mb-3">Technical Support</h3>
-                <p class="mb-3 text-muted">For app connection and access questions</p>
-                <a href="mailto:tech@securewave.app" style="color: var(--primary-600); font-weight: var(--font-weight-semibold);">tech@securewave.app</a>
-                <div class="mt-4">
-                  <span class="badge badge-info">Priority queue rolling out</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Billing Card -->
-            <div class="card mb-6 hover-lift">
-              <div class="card-body">
-                <h3 class="mb-3">Billing & Subscriptions</h3>
-                <p class="mb-3 text-muted">Questions about payments or subscriptions</p>
-                <a href="mailto:billing@securewave.app" style="color: var(--primary-600); font-weight: var(--font-weight-semibold);">billing@securewave.app</a>
-                <div class="mt-4">
-                  <span class="badge">Billing help</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- FAQ Link -->
-            <div class="alert alert-info">
-              <div class="alert-content">
-                <div class="alert-title">Looking for quick answers?</div>
-                <div class="alert-message">Visit our <a href="/services.html" style="color: var(--info-dark); text-decoration: underline;">services overview</a> for setup, billing, and troubleshooting basics.</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Contact Form -->
-          <div>
-            <div class="card">
-              <div class="card-header">
-                <h3>Send a Message (Preview)</h3>
-              </div>
-              <div class="card-body">
-                <div class="alert alert-info mb-4">
-                  <div class="alert-content">
-                    <div class="alert-title">Support inbox coming soon</div>
-                    <div class="alert-message">For now, email support@securewave.app and we will reply as available.</div>
-                  </div>
-                </div>
-                <form id="contactForm">
-                  <!-- Name Field -->
-                  <div class="form-group">
-                    <label for="name">Your Name <span style="color: var(--error);">*</span></label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      required
-                      autocomplete="name"
-                      placeholder="John Doe"
-                      aria-required="true">
-                    <span class="form-error-message hidden" id="name-error">Please enter your name</span>
-                  </div>
-
-                  <!-- Email Field -->
-                  <div class="form-group">
-                    <label for="email">Email Address <span style="color: var(--error);">*</span></label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      required
-                      autocomplete="email"
-                      placeholder="john@example.com"
-                      aria-required="true">
-                    <span class="form-error-message hidden" id="email-error">Please enter a valid email address</span>
-                  </div>
-
-                  <!-- Subject Field -->
-                  <div class="form-group">
-                    <label for="subject">Subject <span style="color: var(--error);">*</span></label>
-                    <select id="subject" name="subject" required aria-required="true">
-                      <option value="">Select a topic...</option>
-                      <option value="general">General Inquiry</option>
-                      <option value="technical">Technical Support</option>
-                      <option value="billing">Billing Question</option>
-                      <option value="feedback">Feedback</option>
-                      <option value="partnership">Partnership/Business</option>
-                      <option value="other">Other</option>
-                    </select>
-                    <span class="form-error-message hidden" id="subject-error">Please select a subject</span>
-                  </div>
-
-                  <!-- Message Field -->
-                  <div class="form-group">
-                    <label for="message">Message <span style="color: var(--error);">*</span></label>
-                    <textarea
-                      id="message"
-                      name="message"
-                      rows="6"
-                      required
-                      placeholder="How can we help you?"
-                      maxlength="1000"
-                      aria-required="true"></textarea>
-                    <small id="char-count">0 / 1000 characters</small>
-                    <span class="form-error-message hidden" id="message-error">Please enter your message</span>
-                  </div>
-
-                  <!-- Submit Button -->
-                  <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
-                    Send Message
-                  </button>
-
-                  <!-- Success Message (Hidden by default) -->
-                  <div class="alert alert-success mt-6 hidden" id="successMessage">
-                    <div class="alert-content">
-                      <div class="alert-title">Message Sent!</div>
-                      <div class="alert-message">Thank you for contacting us. We'll get back to you as soon as possible.</div>
-                    </div>
-                  </div>
-
-                  <!-- Error Message (Hidden by default) -->
-                  <div class="alert alert-error mt-6 hidden" id="errorMessage">
-                    <div class="alert-content">
-                      <div class="alert-title">Oops! Something went wrong</div>
-                      <div class="alert-message" id="errorText">Please try again later or email us directly at support@securewave.app</div>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-
-            <!-- Privacy Note -->
-            <p class="text-muted text-center mt-4" style="font-size: var(--font-size-sm);">
-              Your information is used only to respond to your inquiry. See our <a href="/privacy.html" style="color: var(--text-tertiary); text-decoration: underline;">Privacy Policy</a>.
-            </p>
-          </div>
+      <div class="container split">
+        <div>
+          <span class="hero-badge">Support</span>
+          <h1 class="hero-title">We are here to help.</h1>
+          <p class="hero-subtitle">Reach out with questions about your account, devices, or connection status.</p>
+        </div>
+        <div class="card">
+          <h3>Support hours</h3>
+          <p class="section-subtitle">Monday to Friday, 8am to 6pm local time.</p>
+          <ul class="list">
+            <li>Email: support@securewave.example</li>
+            <li>Priority support for Premium plans</li>
+            <li>Diagnostics available in the app</li>
+          </ul>
         </div>
       </div>
     </section>
 
-    <!-- Additional Support Options -->
-    <section class="section" style="background-color: var(--bg-secondary);">
-      <div class="container">
-        <div class="section-header">
-          <h2>More Ways to Get Help</h2>
-          <p>Choose the support channel that works best for you</p>
-        </div>
-
-        <div class="grid grid-3">
-          <div class="card card-body text-center hover-lift">
-            <div style="margin-bottom: var(--space-4);">
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 48px; height: 48px; color: var(--primary-600);">
-                <path d="M4 5h9a3 3 0 0 1 3 3v11H7a3 3 0 0 0-3 3z"></path>
-                <path d="M16 8h4v14H7"></path>
-              </svg>
-            </div>
-            <h3 class="mb-3">Guides</h3>
-            <p class="mb-4 text-muted">Step-by-step basics for setup, sign-in, and troubleshooting.</p>
-            <a href="/services.html" class="btn btn-secondary btn-sm">View Guides</a>
-          </div>
-
-          <div class="card card-body text-center hover-lift">
-            <div style="margin-bottom: var(--space-4);">
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 48px; height: 48px; color: var(--primary-600);">
-                <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
-              </svg>
-            </div>
-            <h3 class="mb-3">Community (Coming soon)</h3>
-            <p class="mb-4 text-muted">Peer support and tips will live here.</p>
-            <span class="btn btn-secondary btn-sm is-disabled">Coming soon</span>
-          </div>
-
-          <div class="card card-body text-center hover-lift">
-            <div style="margin-bottom: var(--space-4);">
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 48px; height: 48px; color: var(--primary-600);">
-                <path d="M12 7v6"></path>
-                <path d="M8 11a4 4 0 0 1 8 0"></path>
-                <path d="M4.5 9.5a7.5 7.5 0 0 1 15 0"></path>
-                <circle cx="12" cy="17" r="1.5"></circle>
-              </svg>
-            </div>
-            <h3 class="mb-3">Status Page (Coming soon)</h3>
-            <p class="mb-4 text-muted">Service updates and maintenance notices will be posted here.</p>
-            <span class="btn btn-secondary btn-sm is-disabled">Coming soon</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="cta-section">
-      <div class="cta-glow"></div>
-      <div class="container text-center cta-content">
-        <h2 class="cta-title">Ready to Connect in One Tap?</h2>
-        <p class="cta-subtitle">
-          Download the SecureWave app and sign in. Your connection is handled automatically.
-        </p>
-        <div class="cta-buttons">
-          <a href="/home.html#download-app" class="btn btn-lg cta-btn-primary">Download App</a>
-          <a href="/subscription.html" class="btn btn-lg cta-btn-outline">View Plans</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- Office/Remote Section -->
     <section class="section">
-      <div class="container text-center">
-        <div class="container-sm">
-          <h2 class="mb-4">Distributed Support</h2>
-          <p style="font-size: var(--font-size-lg); color: var(--text-secondary);">
-            SecureWave is built by a distributed team, which helps us support customers across time zones and respond quickly to issues.
-          </p>
+      <div class="container banner">
+        <h3>Before you reach out</h3>
+        <p>Open the SecureWave app and run a quick diagnostics check. It helps us resolve issues faster.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/home.html#download">Open the app</a>
+          <a class="btn btn-light" href="/services.html">Learn about diagnostics</a>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="footer">
-    <div class="container footer-content">
-      <div class="footer-cta">
-        <div>
-          <h3>Download SecureWave</h3>
-          <p>Connect in the app. Manage your plan and devices here.</p>
-        </div>
-        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
       </div>
-      <div class="footer-links">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/contact.html">Contact</a>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
       </div>
-      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
     </div>
   </footer>
 
-  <script src="/js/main.js" defer></script>
-  <script>
-    // Contact form functionality
-    document.addEventListener('DOMContentLoaded', function() {
-      const CONTACT_FORM_ENABLED = false;
-      const form = document.getElementById('contactForm');
-      const messageField = document.getElementById('message');
-      const charCount = document.getElementById('char-count');
-      const submitBtn = document.getElementById('submitBtn');
-      const successMessage = document.getElementById('successMessage');
-      const errorMessage = document.getElementById('errorMessage');
-
-      // Character counter
-      messageField.addEventListener('input', function() {
-        const length = this.value.length;
-        charCount.textContent = `${length} / 1000 characters`;
-      });
-
-      // Form validation and submission
-      form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        // Clear previous messages
-        successMessage.classList.add('hidden');
-        errorMessage.classList.add('hidden');
-
-        if (!CONTACT_FORM_ENABLED) {
-          errorMessage.classList.remove('hidden');
-          document.getElementById('errorText').textContent =
-            'Support inbox is in preview. Please email support@securewave.app for now.';
-          return;
-        }
-
-        // Clear all error states
-        document.querySelectorAll('.form-group').forEach(group => {
-          group.classList.remove('error');
-        });
-        document.querySelectorAll('.form-error-message').forEach(msg => {
-          msg.classList.add('hidden');
-        });
-
-        // Validate form
-        let isValid = true;
-        const name = document.getElementById('name');
-        const email = document.getElementById('email');
-        const subject = document.getElementById('subject');
-        const message = document.getElementById('message');
-
-        if (!name.value.trim()) {
-          name.closest('.form-group').classList.add('error');
-          document.getElementById('name-error').classList.remove('hidden');
-          isValid = false;
-        }
-
-        if (!email.value.trim() || !email.value.includes('@')) {
-          email.closest('.form-group').classList.add('error');
-          document.getElementById('email-error').classList.remove('hidden');
-          isValid = false;
-        }
-
-        if (!subject.value) {
-          subject.closest('.form-group').classList.add('error');
-          document.getElementById('subject-error').classList.remove('hidden');
-          isValid = false;
-        }
-
-        if (!message.value.trim()) {
-          message.closest('.form-group').classList.add('error');
-          document.getElementById('message-error').classList.remove('hidden');
-          isValid = false;
-        }
-
-        if (!isValid) return;
-
-        // Show loading state
-        submitBtn.classList.add('loading');
-        submitBtn.disabled = true;
-
-        // Submit to API
-        try {
-          const response = await fetch('/api/contact/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: name.value,
-              email: email.value,
-              subject: subject.value,
-              message: message.value
-            })
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            if (response.status === 503) {
-              throw new Error('Support is temporarily offline. Please email us at support@securewave.app and we will respond within 24 hours.');
-            }
-            throw new Error(data.detail || 'Failed to submit form');
-          }
-
-          // Show success message
-          successMessage.classList.remove('hidden');
-          form.reset();
-          charCount.textContent = '0 / 1000 characters';
-
-          // Scroll to success message
-          successMessage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-        } catch (error) {
-          // Show error message
-          errorMessage.classList.remove('hidden');
-          document.getElementById('errorText').textContent = error.message || 'Please try again later or email us directly at support@securewave.app';
-        } finally {
-          // Remove loading state
-          submitBtn.classList.remove('loading');
-          submitBtn.disabled = false;
-        }
-      });
-
-      // Clear errors while typing
-      ['name', 'email', 'subject', 'message'].forEach((id) => {
-        const field = document.getElementById(id);
-        if (!field) return;
-        field.addEventListener('input', function() {
-          const group = this.closest('.form-group');
-          if (group) {
-            group.classList.remove('error');
-          }
-          const errorEl = document.getElementById(`${id}-error`);
-          if (errorEl) {
-            errorEl.classList.add('hidden');
-          }
-        });
-      });
-    });
-  </script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

@@ -2,414 +2,84 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Settings - SecureWave VPN</title>
-  <meta name="description" content="Manage your SecureWave account preferences and app connection settings in one place.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Account Settings - SecureWave</title>
+  <meta name="description" content="Manage SecureWave account settings." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260125">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <style>
-    .settings-grid {
-      display: grid;
-      gap: 1.5rem;
-    }
-    .settings-section {
-      display: grid;
-      gap: 1rem;
-    }
-    .setting-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      padding: 0.75rem 0;
-      border-bottom: 1px solid var(--border-primary);
-    }
-    .setting-row:last-child {
-      border-bottom: none;
-    }
-    .setting-label h4 {
-      margin: 0;
-      font-size: 1rem;
-    }
-    .setting-label p {
-      margin: 0.25rem 0 0 0;
-      color: var(--text-tertiary);
-      font-size: 0.875rem;
-    }
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 48px;
-      height: 28px;
-    }
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      inset: 0;
-      background-color: var(--bg-tertiary);
-      transition: 0.2s;
-      border-radius: 999px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 22px;
-      width: 22px;
-      left: 3px;
-      bottom: 3px;
-      background-color: white;
-      transition: 0.2s;
-      border-radius: 50%;
-      box-shadow: var(--shadow-md);
-    }
-    input:checked + .slider {
-      background-color: var(--primary-600);
-    }
-    input:checked + .slider:before {
-      transform: translateX(20px);
-    }
-    .settings-select {
-      min-width: 220px;
-      padding: 0.6rem 0.75rem;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-primary);
-      background: var(--white);
-      font-size: 0.95rem;
-    }
-    .protocol-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.35rem 0.6rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      background: var(--primary-50);
-      color: var(--primary-700);
-      border: 1px solid var(--primary-200);
-    }
-    .disabled-option {
-      color: var(--text-tertiary);
-      font-size: 0.85rem;
-    }
-    .settings-form {
-      display: grid;
-      gap: 0.75rem;
-      margin-top: 0.75rem;
-    }
-    .settings-form .form-group {
-      margin-bottom: 0;
-    }
-    .settings-form-actions {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-  </style>
 </head>
 <body>
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
         <span>SecureWave</span>
       </a>
-      <ul class="navbar-menu">
-        <li><a href="/dashboard.html">Dashboard</a></li>
-        <li><a href="/vpn.html">VPN</a></li>
-        <li><a href="/settings.html" aria-current="page">Settings</a></li>
-        <li><a href="/subscription.html">Subscription</a></li>
-        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
-        <li><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
-        <li class="theme-toggle hide-mobile">
-          <button data-theme="light" aria-label="Light mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </button>
-          <button data-theme="dark" aria-label="Dark mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </button>
-        </li>
-      </ul>
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/subscription.html">Pricing</a>
+        <a href="/dashboard.html">Dashboard</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/login.html">Sign in</a>
+        <a class="btn btn-primary" href="/home.html#download">Get the app</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
         <span></span>
       </button>
     </div>
-  </nav>
+  </header>
 
-  <main id="main-content">
-    <section class="page-hero">
-      <div class="container">
-        <div class="badge">Account Settings</div>
-        <h1 class="page-hero__title">Connection & Security</h1>
-        <p class="page-hero__subtitle">
-          Manage your SecureWave account and sync app preferences for connected devices.
-        </p>
+  <main>
+    <section class="section">
+      <div class="container split">
+        <div>
+          <span class="hero-badge">Account</span>
+          <h1 class="hero-title">Settings live in the app.</h1>
+          <p class="hero-subtitle">For security reasons, device and connection settings are managed directly in the SecureWave app.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/home.html#download">Open the app</a>
+            <a class="btn btn-secondary" href="/dashboard.html">Back to dashboard</a>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Available in the app</h3>
+          <ul class="list">
+            <li>Device management</li>
+            <li>Connection preferences</li>
+            <li>Diagnostics and support logs</li>
+          </ul>
+        </div>
       </div>
     </section>
-
-    <div class="container page-section">
-      <div class="settings-grid">
-        <div class="card">
-          <div class="card-body">
-            <h2 style="margin-bottom: 0.25rem;">Account Settings</h2>
-            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">Profile and password controls.</p>
-            <div class="settings-section">
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Email</h4>
-                  <p id="accountEmail" class="token-wrap">Loading...</p>
-                </div>
-                <span class="protocol-badge">Editable</span>
-              </div>
-              <div>
-                <h4 style="margin-bottom: 0.25rem;">Update Email</h4>
-                <p style="margin: 0; color: var(--text-tertiary); font-size: 0.875rem;">Confirm your password to change your login email.</p>
-                <form id="emailUpdateForm" class="settings-form">
-                  <div class="form-group">
-                    <label for="newEmail">New Email</label>
-                    <input type="email" id="newEmail" name="newEmail" placeholder="you@securewave.com" autocomplete="email" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="emailPassword">Current Password</label>
-                    <input type="password" id="emailPassword" name="emailPassword" placeholder="Enter current password" autocomplete="current-password" required>
-                  </div>
-                  <div class="settings-form-actions">
-                    <button class="btn btn-primary btn-sm" type="submit" id="updateEmailBtn">Update Email</button>
-                    <span class="form-success-message hidden" id="emailUpdateSuccess">Email updated.</span>
-                    <span class="form-error-message hidden" id="emailUpdateError">Unable to update email.</span>
-                  </div>
-                </form>
-              </div>
-              <div>
-                <h4 style="margin-bottom: 0.25rem;">Update Password</h4>
-                <p style="margin: 0; color: var(--text-tertiary); font-size: 0.875rem;">Choose a strong password with at least 8 characters.</p>
-                <form id="passwordUpdateForm" class="settings-form">
-                  <div class="form-group">
-                    <label for="currentPassword">Current Password</label>
-                    <input type="password" id="currentPassword" name="currentPassword" placeholder="Enter current password" autocomplete="current-password" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="newPassword">New Password</label>
-                    <input type="password" id="newPassword" name="newPassword" placeholder="New password" autocomplete="new-password" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="confirmPassword">Confirm New Password</label>
-                    <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm new password" autocomplete="new-password" required>
-                    <span class="form-error-message hidden" id="passwordMismatchError">Passwords do not match.</span>
-                  </div>
-                  <div class="settings-form-actions">
-                    <button class="btn btn-outline btn-sm" type="submit" id="updatePasswordBtn">Update Password</button>
-                    <span class="form-success-message hidden" id="passwordUpdateSuccess">Password updated.</span>
-                    <span class="form-error-message hidden" id="passwordUpdateError">Unable to update password.</span>
-                  </div>
-                </form>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Logout</h4>
-                  <p>Sign out of your SecureWave account.</p>
-                </div>
-                <div class="settings-form-actions">
-                  <button class="btn btn-outline btn-sm" id="logoutAllBtn" type="button">Logout All Sessions</button>
-                  <button class="btn btn-ghost btn-sm" id="settingsLogout" type="button">Logout</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-body">
-            <h2 style="margin-bottom: 0.25rem;">Quick Status</h2>
-            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">Connection controls are applied in the SecureWave app.</p>
-            <div class="settings-section">
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>VPN Status</h4>
-                  <p>Managed in the SecureWave app.</p>
-                </div>
-                <span class="protocol-badge">App-managed</span>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Preferred Country</h4>
-                  <p>Used by the optimizer when auto-connecting.</p>
-                </div>
-                <select class="settings-select" data-setting="preferred_country">
-                  <option value="auto">Auto (Optimizer)</option>
-                  <option value="us">United States</option>
-                  <option value="uk">United Kingdom</option>
-                  <option value="de">Germany</option>
-                  <option value="nl">Netherlands</option>
-                  <option value="sg">Singapore</option>
-                </select>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Preferred Region</h4>
-                  <p>Keep your traffic local when possible.</p>
-                </div>
-                <select class="settings-select" data-setting="preferred_region">
-                  <option value="auto">Auto</option>
-                  <option value="north_america">North America</option>
-                  <option value="europe">Europe</option>
-                  <option value="asia_pacific">Asia Pacific</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-body">
-            <h2 style="margin-bottom: 0.25rem;">Connection Preferences</h2>
-            <p style="color: var(--text-tertiary); margin-bottom: 0.35rem;">These settings sync to the SecureWave app.</p>
-            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem; font-size: 0.875rem;">Availability varies by platform and plan.</p>
-            <div class="settings-section">
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Auto-connect on Startup</h4>
-                  <p>Connect automatically when the app launches.</p>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" data-setting="auto_connect">
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Always-on VPN</h4>
-                  <p>Keep protection on even if the connection drops.</p>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" data-setting="always_on">
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Kill Switch</h4>
-                  <p>Block traffic if the VPN disconnects unexpectedly.</p>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" data-setting="kill_switch">
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Split Tunneling</h4>
-                  <p>Let selected apps bypass the VPN connection.</p>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" data-setting="split_tunneling">
-                  <span class="slider"></span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-body">
-            <h2 style="margin-bottom: 0.25rem;">Connection Core & DNS</h2>
-            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">SecureWave Core powers your connection. Protocol choice is managed by the app.</p>
-            <div class="settings-section">
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>VPN Protocol</h4>
-                  <p>Optimized for speed and battery life.</p>
-                </div>
-                <select class="settings-select" data-setting="protocol">
-                  <option value="wireguard">SecureWave Core (Managed)</option>
-                  <option value="openvpn" disabled>OpenVPN (Coming soon)</option>
-                  <option value="ikev2" disabled>IKEv2 (Coming soon)</option>
-                </select>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>DNS Provider</h4>
-                  <p>Reduce tracking and protect against leaks.</p>
-                </div>
-                <select class="settings-select" data-setting="dns_provider">
-                  <option value="cloudflare">Cloudflare (1.1.1.1)</option>
-                  <option value="quad9">Quad9 (9.9.9.9)</option>
-                  <option value="custom">Custom (set in app)</option>
-                </select>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Encryption</h4>
-                  <p>Secure encryption handled automatically in the app.</p>
-                </div>
-                <span class="protocol-badge">Managed</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-body">
-            <h2 style="margin-bottom: 0.25rem;">Account & Plan</h2>
-            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">Upgrade in the SecureWave dashboard and unlock more regions.</p>
-            <div class="settings-section">
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Plan Upgrade</h4>
-                  <p>Unlock premium regions and higher limits.</p>
-                </div>
-                <a class="btn btn-primary btn-sm" href="/subscription.html">Upgrade</a>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">
-                  <h4>Payment & Billing</h4>
-                  <p>Manage subscription, invoices, and billing details.</p>
-                </div>
-                <a class="btn btn-outline btn-sm" href="/subscription.html">Manage Billing</a>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" style="border: 1px solid var(--error);">
-          <div class="card-body">
-            <h2 style="margin-bottom: 0.25rem; color: var(--error);">Reset Settings</h2>
-            <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">Clear preferences and restore defaults.</p>
-            <button class="btn btn-outline btn-sm" id="resetSettings">Reset to Defaults</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </main>
 
   <footer class="footer">
-    <div class="container footer-content">
-      <div class="footer-cta">
-        <div>
-          <h3>Download SecureWave</h3>
-          <p>Connect in the app. Manage your plan and devices here.</p>
-        </div>
-        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
       </div>
-      <div class="footer-links">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/contact.html">Contact</a>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
       </div>
-      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
     </div>
   </footer>
 
-  <script src="/js/main.js" defer></script>
-  <script src="/js/settings.js" defer></script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

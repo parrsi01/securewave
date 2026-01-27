@@ -2,304 +2,140 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Features - SecureWave VPN</title>
-  <meta name="description" content="SecureWave features: modern encryption, smart routing, and privacy-first design for everyday protection.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecureWave Services</title>
+  <meta name="description" content="Explore SecureWave features designed for calm, reliable VPN protection." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260125">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <a href="#main-content" class="skip-to-main">Skip to main content</a>
-
-  <!-- Navigation -->
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave" onerror="this.style.display='none'">
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
         <span>SecureWave</span>
       </a>
-      <ul class="navbar-menu">
-        <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html" aria-current="page">Features</a></li>
-        <li><a href="/subscription.html">Pricing</a></li>
-        <li><a href="/about.html">About</a></li>
-        <li class="hidden" id="dashLink"><a href="/dashboard.html">Dashboard</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Sign In</a></li>
-        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
-        <li class="hidden"><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
-        <li class="theme-toggle hide-mobile">
-          <button data-theme="light" aria-label="Light mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </button>
-          <button data-theme="dark" aria-label="Dark mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </button>
-        </li>
-      </ul>
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/home.html">Home</a>
+        <a class="active" href="/services.html">Services</a>
+        <a href="/subscription.html">Pricing</a>
+        <a href="/about.html">About</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/login.html">Sign in</a>
+        <a class="btn btn-primary" href="/home.html#download">Get the app</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
         <span></span>
       </button>
     </div>
-  </nav>
+  </header>
 
-  <main id="main-content">
-    <!-- Hero Section -->
-    <section class="hero" style="padding: var(--space-16) 0;">
-      <div class="container text-center">
-        <div class="badge">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-          </svg>
-          Everyday Protection
+  <main>
+    <section class="section">
+      <div class="container split">
+        <div>
+          <span class="hero-badge">Services</span>
+          <h1 class="hero-title">Protection that stays out of your way.</h1>
+          <p class="hero-subtitle">SecureWave balances speed and privacy by handling routing in the app and giving you clarity on the web.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/subscription.html">View plans</a>
+            <a class="btn btn-secondary" href="/register.html">Create an account</a>
+          </div>
         </div>
-        <h1 class="hero-title" style="max-width: 800px; margin: 0 auto var(--space-4);">Fast, Private Internet<br><span style="background: var(--gradient-orange); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Built for Real Life</span></h1>
-        <p class="hero-subtitle" style="max-width: 600px; margin: 0 auto;">
-          SecureWave combines smart routing with an app-first experience. The app handles the VPN connection; the website manages your account.
-        </p>
+        <div class="banner">
+          <h3>App-first experience</h3>
+          <p>Connect once and stay protected. SecureWave keeps sessions stable and easy to understand.</p>
+          <ul class="list">
+            <li>One tap connect with automatic recovery.</li>
+            <li>Region health checks for reliable routing.</li>
+            <li>Simple diagnostics and friendly guidance.</li>
+          </ul>
+        </div>
       </div>
     </section>
 
-    <!-- Core Features -->
     <section class="section">
       <div class="container">
-        <div class="section-header">
-          <h2>Core Security Features</h2>
-          <p>Modern encryption and smart routing that keep your connection fast and private</p>
-        </div>
-
-        <div class="features-grid">
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-              </svg>
-            </div>
-            <h3>SecureWave App</h3>
-            <p>Fast, modern protection built into the SecureWave app. No manual setup required.</p>
-            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-4);">
-              <span class="status-pill">Automatic protection</span>
-              <span class="status-pill">Zero setup</span>
-            </div>
+        <h2 class="section-title">Core features</h2>
+        <p class="section-subtitle">Everything you need to stay safe without the complexity.</p>
+        <div class="grid-3">
+          <div class="card">
+            <h3>Smart region selection</h3>
+            <p>SecureWave chooses the best region based on health and latency signals.</p>
           </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-              </svg>
-            </div>
-            <h3>Smart Region Selection</h3>
-            <p>SecureWave selects the best available region based on health and latency.</p>
-            <div style="margin-top: var(--space-4);">
-              <span class="status-pill" style="background: rgba(40, 215, 153, 0.15); color: var(--accent-green);">Optimized for speed</span>
-            </div>
+          <div class="card">
+            <h3>Auto protection</h3>
+            <p>Stay protected without manual configuration or repeated setup.</p>
           </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-            </div>
-            <h3>Global Coverage</h3>
-            <p>Connect through a growing set of regions optimized for stability and speed.</p>
-            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-4);">
-              <span class="status-pill">Multi-region</span>
-              <span class="status-pill">Balanced routing</span>
-            </div>
+          <div class="card">
+            <h3>Transparent status</h3>
+            <p>Clear connection state and simple diagnostics for reassurance.</p>
           </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01"/>
-              </svg>
-            </div>
-            <h3>Connection Safeguards</h3>
-            <p>App-managed safeguards help keep your connection private on supported platforms.</p>
-            <div style="margin-top: var(--space-4);">
-              <span class="status-pill" style="background: rgba(255, 143, 0, 0.15); color: var(--accent-orange);">App-managed</span>
-            </div>
+          <div class="card">
+            <h3>Account visibility</h3>
+            <p>Manage devices, subscriptions, and invoices in minutes.</p>
           </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-              </svg>
-            </div>
-            <h3>Privacy-First Design</h3>
-            <p>We minimize data collection and keep control in your hands, with clear privacy choices.</p>
-            <div style="margin-top: var(--space-4);">
-              <span class="status-pill">Privacy focused</span>
-            </div>
+          <div class="card">
+            <h3>Privacy-first design</h3>
+            <p>Minimal data collection and clear user controls.</p>
           </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-              </svg>
-            </div>
-            <h3>High-Throughput Access</h3>
-            <p>Premium plans unlock higher limits. Basic includes a 5 GB monthly cap.</p>
-            <div style="margin-top: var(--space-4);">
-              <span class="status-pill">Premium boosts</span>
-            </div>
+          <div class="card">
+            <h3>Support-ready</h3>
+            <p>Contact support with context-rich diagnostics when needed.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Technical Excellence -->
-    <section class="section" style="background: var(--bg-dark);">
-      <div class="container">
-        <div class="dashboard-card" style="padding: var(--space-10); border: 1px solid var(--accent-orange); border-radius: var(--radius-2xl);">
-          <h2 style="text-align: center; margin-bottom: var(--space-8); color: var(--accent-orange);">Technical Excellence</h2>
-          <div class="grid grid-2" style="gap: var(--space-8);">
-            <div>
-              <h3 style="margin-bottom: var(--space-6); color: var(--text-primary);">Always-On Protection</h3>
-              <ul style="list-style: none; padding: 0; margin: 0;">
-                <li style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Automatic protection handled by the app
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Secure sessions without manual configuration
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Fast, private routing tuned for your location
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Built-in safeguards for every session
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--space-3); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Zero setup, one-tap connection
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 style="margin-bottom: var(--space-6); color: var(--text-primary);">Network Intelligence</h3>
-              <ul style="list-style: none; padding: 0; margin: 0;">
-                <li style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Smart region selection for speed and stability
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Safeguards to keep sessions stable
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Consistent protection on every network
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Optimized routing for low latency
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--space-3); color: var(--text-secondary);">
-                  <svg style="width: 20px; height: 20px; color: var(--accent-green); flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Active monitoring for reliability
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Stats Section -->
     <section class="section">
-      <div class="container">
-        <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-number">Multi</div>
-            <div class="stat-label">Region Coverage</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-number">App</div>
-            <div class="stat-label">First Flow</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-number">Smart</div>
-            <div class="stat-label">Routing</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-number">Live</div>
-            <div class="stat-label">Monitoring</div>
-          </div>
+      <div class="container split">
+        <div>
+          <h2 class="section-title">Who SecureWave is for</h2>
+          <p class="section-subtitle">Designed for everyday users who want clarity and calm.</p>
+          <ul class="list">
+            <li>Families who need one-tap protection.</li>
+            <li>Remote teams who want stable access.</li>
+            <li>Travelers who rely on quick connections.</li>
+          </ul>
         </div>
-      </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="cta-section">
-      <div class="cta-glow"></div>
-      <div class="container cta-content">
-        <h2 class="cta-title">Ready to Connect in One Tap?</h2>
-        <p class="cta-subtitle">Download the SecureWave app and sign in. Your connection is handled automatically.</p>
-        <div class="cta-buttons">
-          <a href="/home.html#download-app" class="btn btn-lg cta-btn-primary">
-            Download App
-          </a>
-          <a href="/subscription.html" class="btn btn-lg cta-btn-outline">
-            View Plans
-          </a>
+        <div class="card">
+          <h3>Ready in minutes</h3>
+          <p>Download the app, sign in, and connect. The app handles the rest.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/home.html#download">Download the app</a>
+            <a class="btn btn-secondary" href="/contact.html">Talk to support</a>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="footer">
-    <div class="footer-content">
-      <div class="footer-cta">
-        <div>
-          <h3>Get SecureWave</h3>
-          <p>Download the app and connect securely.</p>
-        </div>
-        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
       </div>
-      <div class="footer-links">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/about.html">About</a>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
       </div>
-      <p class="footer-meta">2026 SecureWave VPN. All rights reserved.</p>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
     </div>
   </footer>
 
-  <script src="/js/main.js" defer></script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

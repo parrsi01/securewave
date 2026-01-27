@@ -2,84 +2,174 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="0; url=/home.html">
-  <title>SecureWave VPN - Redirecting...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecureWave VPN - Calm, App-First Protection</title>
+  <meta name="description" content="SecureWave is a calm, app-first VPN that protects your connection with a single tap. Manage your account and subscription on the web." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #0b1120 0%, #0f172a 50%, #1e293b 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      color: white;
-    }
-    .loader {
-      text-align: center;
-    }
-    .logo-icon {
-      width: 64px;
-      height: 64px;
-      margin: 0 auto 1.5rem;
-      background: linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%);
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 8px 32px rgba(14, 165, 233, 0.3);
-    }
-    .logo-icon svg {
-      width: 36px;
-      height: 36px;
-    }
-    .spinner {
-      border: 3px solid rgba(14, 165, 233, 0.2);
-      border-top: 3px solid #0ea5e9;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-      margin: 1.5rem auto 0;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    h1 {
-      font-size: 1.75rem;
-      font-weight: 700;
-      margin: 0;
-      letter-spacing: -0.02em;
-    }
-    p {
-      margin: 0.5rem 0 0;
-      opacity: 0.7;
-      font-size: 0.9375rem;
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <div class="loader">
-    <div class="logo-icon">
-      <svg fill="none" stroke="white" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-      </svg>
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
+        <span>SecureWave</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a class="active" href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/subscription.html">Pricing</a>
+        <a href="/about.html">About</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/login.html">Sign in</a>
+        <a class="btn btn-primary" href="#download">Get the app</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
+        <span></span>
+      </button>
     </div>
-    <h1>SecureWave</h1>
-    <p>Preparing your secure experience...</p>
-    <div class="spinner"></div>
-  </div>
-  <script>
-    // Immediate redirect (in case meta refresh fails)
-    setTimeout(() => {
-      window.location.href = '/home.html';
-    }, 100);
-  </script>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <span class="hero-badge">App-first protection</span>
+          <h1 class="hero-title">Calm, private access in one tap.</h1>
+          <p class="hero-subtitle">SecureWave keeps your connection private through the app. The website is here for account access, subscriptions, and support.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#download">Download the app</a>
+            <a class="btn btn-secondary" href="/services.html">Explore features</a>
+          </div>
+          <div class="hero-highlights">
+            <div class="highlight">
+              <div>
+                <strong>Instant connect</strong>
+                <span class="tag">No setup, no confusion</span>
+              </div>
+            </div>
+            <div class="highlight">
+              <div>
+                <strong>Trusted routing</strong>
+                <span class="tag">Smart region selection</span>
+              </div>
+            </div>
+            <div class="highlight">
+              <div>
+                <strong>Account clarity</strong>
+                <span class="tag">Simple plans and billing</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hero-card">
+          <h2>Connection preview</h2>
+          <p class="section-subtitle">See what the SecureWave app handles for you.</p>
+          <div class="card" style="margin-top: var(--space-4);">
+            <h3>Auto-protected session</h3>
+            <p class="section-subtitle">SecureWave selects the best region and keeps you connected automatically.</p>
+            <div class="split">
+              <div>
+                <p class="tag">Status</p>
+                <p><strong>Ready to connect</strong></p>
+              </div>
+              <div>
+                <p class="tag">Region</p>
+                <p><strong>Auto-select</strong></p>
+              </div>
+            </div>
+            <div class="hero-actions" style="margin-top: var(--space-4);">
+              <a class="btn btn-secondary" href="/services.html">See service details</a>
+              <a class="btn btn-primary" href="#download">Get the app</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <h2 class="section-title">Built for everyday calm</h2>
+        <p class="section-subtitle">SecureWave focuses on a smooth experience for non-technical users.</p>
+        <div class="grid-3">
+          <div class="card">
+            <h3>One tap to protect</h3>
+            <p>Open the app, tap connect, and SecureWave handles the rest.</p>
+          </div>
+          <div class="card">
+            <h3>Clear account control</h3>
+            <p>Manage devices, subscriptions, and security settings without complex menus.</p>
+          </div>
+          <div class="card">
+            <h3>Guided support</h3>
+            <p>Friendly diagnostics explain what is happening and how to fix it.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container split">
+        <div>
+          <h2 class="section-title">Why the app comes first</h2>
+          <p class="section-subtitle">The website explains the service. The SecureWave app does the work.</p>
+          <ul class="list">
+            <li>Automatic region selection with smart routing.</li>
+            <li>Clear connection state and quick recovery.</li>
+            <li>Safe defaults for non-technical users.</li>
+          </ul>
+        </div>
+        <div class="banner">
+          <h3>Download SecureWave</h3>
+          <p>Use the app for protection, and come back here anytime for account management.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#download">Download the app</a>
+            <a class="btn btn-light" href="/subscription.html">View plans</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="download">
+      <div class="container">
+        <div class="dashboard-hero">
+          <h2 class="section-title">Get the SecureWave app</h2>
+          <p class="section-subtitle">Available for desktop and mobile. Sign in once, stay protected everywhere.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/services.html">See supported platforms</a>
+            <a class="btn btn-secondary" href="/register.html">Create an account</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
+      </div>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
+      </div>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
+    </div>
+  </footer>
+
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

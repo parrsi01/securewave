@@ -1,6 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
-  <!-- Simple Lock Icon - Professional Security Symbol -->
-  <rect x="12" y="18" width="16" height="14" rx="2" fill="#475569" stroke="#334155" stroke-width="1.5"/>
-  <path d="M15 18V13C15 10.2386 17.2386 8 20 8C22.7614 8 25 10.2386 25 13V18" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="20" cy="25" r="2" fill="#3b82f6"/>
+<svg width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>SecureWave</title>
+  <defs>
+    <linearGradient id="sw-shield" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1B6B68"/>
+      <stop offset="1" stop-color="#0F4F4C"/>
+    </linearGradient>
+  </defs>
+  <path d="M70 10C46 24 28 28 28 28v34c0 33.5 22 58 42 68 20-10 42-34.5 42-68V28s-18-4-42-18z" fill="url(#sw-shield)"/>
+  <circle cx="70" cy="66" r="28" fill="#F5F7FB"/>
+  <path d="M42 72c10-10 24-14 38-12 8 1 16 4 24 9" stroke="#1B6B68" stroke-width="6" stroke-linecap="round"/>
+  <path d="M48 86c8-8 20-11 32-9 6 1 12 3 18 6" stroke="#0F4F4C" stroke-width="6" stroke-linecap="round"/>
 </svg>
