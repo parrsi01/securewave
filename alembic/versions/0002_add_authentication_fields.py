@@ -1,7 +1,7 @@
 """add_authentication_fields_to_users
 
 Revision ID: 0002
-Revises: 0001
+Revises: 0001_init
 Create Date: 2024-01-07
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '0002'
-down_revision = '0001'
+down_revision = '0001_init'
 branch_labels = None
 depends_on = None
 
