@@ -12,8 +12,11 @@ This service is the bridge between the FastAPI backend and the actual WireGuard 
 import os
 import json
 import logging
-import subprocess
+import subprocess  # nosec B404 - controlled subprocess usage
 import asyncio
+import shutil
+import re
+import ipaddress
 from typing import Dict, List, Optional, Tuple, Literal
 from dataclasses import dataclass
 from datetime import datetime
@@ -60,12 +63,24 @@ class WireGuardServerManager:
         self.default_ssh_key = os.getenv("WG_SSH_KEY_PATH", os.path.expanduser("~/.ssh/id_rsa"))
         self.default_api_key = os.getenv("WG_API_KEY", "")
         self.timeout = int(os.getenv("WG_COMMAND_TIMEOUT", "30"))
+        self.ssh_path = shutil.which("ssh")
+        self.az_path = shutil.which("az")
+        self._wg_key_pattern = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
 
     def _load_fernet(self) -> Optional[Fernet]:
         """Load Fernet encryption key for API keys"""
         key = os.getenv("WG_ENCRYPTION_KEY")
         if not key:
             return None
+
+    def _validate_peer_inputs(self, public_key: str, allowed_ips: str) -> Optional[str]:
+        if not self._wg_key_pattern.match(public_key):
+            return "Invalid WireGuard public key format"
+        try:
+            ipaddress.ip_network(allowed_ips, strict=False)
+        except ValueError:
+            return "Invalid allowed IPs format"
+        return None
         try:
             import base64
             key_bytes = key.encode()
@@ -335,8 +350,11 @@ class WireGuardServerManager:
         ssh_key = conn.ssh_key_path or self.default_ssh_key
         ssh_target = f"{conn.ssh_user}@{conn.public_ip}"
 
+        if not self.ssh_path:
+            return False, "", "SSH client not installed"
+
         ssh_cmd = [
-            "ssh",
+            self.ssh_path,
             "-i", ssh_key,
             "-o", "StrictHostKeyChecking=no",
             "-o", "UserKnownHostsFile=/dev/null",
@@ -372,6 +390,10 @@ class WireGuardServerManager:
     ) -> Tuple[bool, str]:
         """Add peer via SSH"""
         # Use wg set directly for atomic operation
+        error = self._validate_peer_inputs(public_key, allowed_ips)
+        if error:
+            return False, error
+
         cmd = f"sudo wg set wg0 peer '{public_key}' allowed-ips '{allowed_ips}' && sudo wg-quick save wg0"
         success, stdout, stderr = await self._run_ssh_command(conn, cmd)
 
@@ -496,8 +518,11 @@ class WireGuardServerManager:
         if not conn.azure_resource_group or not conn.azure_vm_name:
             return False, "", "Azure resource group or VM name not configured"
 
+        if not self.az_path:
+            return False, "", "Azure CLI not installed"
+
         az_cmd = [
-            "az", "vm", "run-command", "invoke",
+            self.az_path, "vm", "run-command", "invoke",
             "-g", conn.azure_resource_group,
             "-n", conn.azure_vm_name,
             "--command-id", "RunShellScript",
@@ -529,8 +554,6 @@ class WireGuardServerManager:
 
         except asyncio.TimeoutError:
             return False, "", "Azure command timed out"
-        except FileNotFoundError:
-            return False, "", "Azure CLI not installed"
         except Exception as e:
             return False, "", str(e)
 

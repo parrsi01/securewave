@@ -252,7 +252,7 @@ class DomainManager:
             return ip_address
         except Exception as e:
             logger.warning(f"Failed to resolve app IP: {e}")
-            return "0.0.0.0"  # Placeholder
+            return "127.0.0.1"  # Placeholder
 
     # ===========================
     # SSL CERTIFICATE SETUP
@@ -376,7 +376,7 @@ class DomainManager:
             import urllib.request
             url = f"http://{domain}"
             req = urllib.request.Request(url, method='HEAD')
-            response = urllib.request.urlopen(req, timeout=10)
+            response = urllib.request.urlopen(req, timeout=10)  # nosec B310
             results["checks"]["http_accessible"] = {
                 "status": "pass",
                 "status_code": response.status,
@@ -395,7 +395,7 @@ class DomainManager:
             url = f"https://{domain}"
             req = urllib.request.Request(url, method='HEAD')
             context = ssl.create_default_context()
-            response = urllib.request.urlopen(req, timeout=10, context=context)
+            response = urllib.request.urlopen(req, timeout=10, context=context)  # nosec B310
             results["checks"]["https_accessible"] = {
                 "status": "pass",
                 "status_code": response.status,

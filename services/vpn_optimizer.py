@@ -11,6 +11,8 @@ Key Optimizations:
 - Model persistence for faster startup
 """
 import time
+import logging
+import secrets
 from collections import deque, OrderedDict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Any
@@ -35,6 +37,8 @@ except ImportError:
     SKLEARN_AVAILABLE = False
 
 ML_AVAILABLE = NUMPY_AVAILABLE and XGBOOST_AVAILABLE and SKLEARN_AVAILABLE
+RNG = secrets.SystemRandom()
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -125,8 +129,8 @@ class OptimizedVPNOptimizer:
                     self.xgb_model = xgb.XGBRegressor()
                     self.xgb_model.load_model(model_path)
                     return
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to load XGBoost model from %s: %s", model_path, exc)
 
             # Optimized XGBoost parameters for production
             self.xgb_model = xgb.XGBRegressor(
@@ -267,9 +271,8 @@ class OptimizedVPNOptimizer:
             if np.random.random() < self.exploration_rate:
                 return list(self.servers.keys())[int(np.random.random() * len(self.servers))]
         else:
-            import random
-            if random.random() < self.exploration_rate:
-                return random.choice(list(self.servers.keys()))
+            if RNG.random() < self.exploration_rate:
+                return RNG.choice(list(self.servers.keys()))
 
         # Exploit: choose best server
         best_server = None
@@ -440,8 +443,8 @@ class OptimizedVPNOptimizer:
                 X = np.array(X_data, dtype=np.float32)
                 y = np.array(y_data, dtype=np.float32)
                 self.xgb_model.fit(X, y, verbose=False)
-        except Exception:
-            pass  # Fail silently, continue without ML
+        except Exception as exc:
+            logger.debug("Failed to update ML model: %s", exc)
 
     def get_stats(self) -> Dict:
         """Get optimizer performance statistics"""
@@ -508,8 +511,6 @@ def load_servers_from_database(optimizer: OptimizedVPNOptimizer, db):
 
 def _initialize_demo_servers(optimizer: OptimizedVPNOptimizer):
     """Initialize demo servers for testing"""
-    import random
-
     demo_servers = [
         {"id": "us-east-1", "location": "New York", "latency": 25, "bandwidth": 1000},
         {"id": "us-west-1", "location": "San Francisco", "latency": 30, "bandwidth": 1000},
@@ -526,10 +527,10 @@ def _initialize_demo_servers(optimizer: OptimizedVPNOptimizer):
             initial_metrics={
                 "latency_ms": server["latency"],
                 "bandwidth_mbps": server["bandwidth"],
-                "cpu_load": random.uniform(0.2, 0.6),
-                "active_connections": random.randint(10, 50),
-                "packet_loss": random.uniform(0, 0.01),
-                "jitter_ms": random.uniform(1, 5),
-                "security_score": random.uniform(0.9, 0.99),
+                "cpu_load": RNG.uniform(0.2, 0.6),
+                "active_connections": RNG.randint(10, 50),
+                "packet_loss": RNG.uniform(0, 0.01),
+                "jitter_ms": RNG.uniform(1, 5),
+                "security_score": RNG.uniform(0.9, 0.99),
             }
         )

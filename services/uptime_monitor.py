@@ -7,6 +7,7 @@ import os
 import logging
 import socket
 import time
+import shutil
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import asyncio
@@ -54,14 +55,19 @@ class UptimeMonitorService:
         """
         import urllib.request
         import urllib.error
+        import urllib.parse
 
         start_time = time.time()
 
         try:
+            parsed = urllib.parse.urlparse(url)
+            if parsed.scheme not in ("http", "https"):
+                return False, None, "Unsupported URL scheme"
+
             req = urllib.request.Request(url, method='GET')
             req.add_header('User-Agent', 'SecureWave-Uptime-Monitor/1.0')
 
-            with urllib.request.urlopen(req, timeout=timeout) as response:
+            with urllib.request.urlopen(req, timeout=timeout) as response:  # nosec B310
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status
 
@@ -384,7 +390,7 @@ class UptimeMonitorService:
         Returns:
             Tuple of (is_reachable, avg_response_time_ms, error_message)
         """
-        import subprocess
+        import subprocess  # nosec B404 - controlled subprocess usage
         import platform
 
         try:
@@ -392,8 +398,12 @@ class UptimeMonitorService:
             param = '-n' if platform.system().lower() == 'windows' else '-c'
 
             # Execute ping
-            command = ['ping', param, str(count), host]
-            result = subprocess.run(
+            ping_path = shutil.which("ping")
+            if not ping_path:
+                return False, None, "Ping utility not available"
+
+            command = [ping_path, param, str(count), host]
+            result = subprocess.run(  # nosec B603
                 command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

@@ -1,5 +1,6 @@
 import os
 import logging
+import tempfile
 from typing import Generator
 
 from dotenv import load_dotenv
@@ -47,7 +48,8 @@ if DATABASE_URL.startswith("sqlite:///"):
 
     # Ensure production SQLite uses persistent storage on Azure
     if IS_PRODUCTION:
-        if db_path in ("", ":memory:") or db_path.startswith("/tmp/"):
+        temp_dir = tempfile.gettempdir()
+        if db_path in ("", ":memory:") or db_path.startswith(f"{temp_dir}{os.sep}"):
             db_path = "/home/site/securewave.db"
             DATABASE_URL = f"sqlite:///{db_path}"
 
@@ -56,7 +58,8 @@ if DATABASE_URL.startswith("sqlite:///"):
         DATABASE_URL = "sqlite:///:memory:"
     # For Azure/Cloud: use /tmp if not absolute path
     elif not db_path.startswith("/"):
-        db_path = f"/tmp/{db_path}"
+        temp_dir = tempfile.gettempdir()
+        db_path = os.path.join(temp_dir, db_path)
         DATABASE_URL = f"sqlite:///{db_path}"
 
     # Ensure directory exists
@@ -66,8 +69,9 @@ if DATABASE_URL.startswith("sqlite:///"):
             os.makedirs(db_dir, exist_ok=True)
         except Exception:
             # Fallback to /tmp
-            DATABASE_URL = "sqlite:////tmp/securewave.db"
-            os.makedirs("/tmp", exist_ok=True)
+            temp_dir = tempfile.gettempdir()
+            DATABASE_URL = f"sqlite:///{os.path.join(temp_dir, 'securewave.db')}"
+            os.makedirs(temp_dir, exist_ok=True)
 
     # SQLite-specific settings
     engine_config.update({
@@ -233,8 +237,8 @@ def get_database_info() -> dict:
             "overflow": pool_obj.overflow(),
             "total_connections": pool_obj.size() + pool_obj.overflow(),
         }
-    except:
-        pass
+    except Exception as exc:
+        logger.debug("Failed to read pool stats: %s", exc)
 
     return info
 

@@ -7,7 +7,6 @@ import logging
 import os
 import secrets
 import base64
-import subprocess
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List, Dict
 from io import BytesIO
