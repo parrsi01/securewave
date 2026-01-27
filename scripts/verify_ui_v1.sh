@@ -45,6 +45,45 @@ if (( ${#missing_build_meta[@]} > 0 )); then
   exit 1
 fi
 
+python3 - <<'PY'
+import glob
+import os
+import re
+import sys
+
+missing = []
+
+html_pattern = re.compile(r'(?:href|src)="/([^"]+)"')
+for path in glob.glob("static/*.html"):
+    with open(path, "r", encoding="utf-8") as handle:
+        content = handle.read()
+    for ref in html_pattern.findall(content):
+        ref = ref.split("?", 1)[0]
+        if ref.endswith(".html") or ref.startswith("api/"):
+            continue
+        if ref.startswith(("css/", "js/", "img/", "downloads/")) or ref == "favicon.svg":
+            asset_path = os.path.join("static", ref)
+            if not os.path.exists(asset_path):
+                missing.append(f"{path}:{ref}")
+
+css_path = "static/css/web_ui_v1.css"
+if os.path.exists(css_path):
+    with open(css_path, "r", encoding="utf-8") as handle:
+        css = handle.read()
+    for match in re.findall(r"url\\(['\\\"](/[^'\\\"]+)['\\\"]\\)", css):
+        ref = match.lstrip("/").split("?", 1)[0]
+        if ref.startswith("fonts/"):
+            asset_path = os.path.join("static", ref)
+            if not os.path.exists(asset_path):
+                missing.append(f"{css_path}:{ref}")
+
+if missing:
+    print("Missing static assets referenced by HTML/CSS:", file=sys.stderr)
+    for item in missing:
+        print(f" - {item}", file=sys.stderr)
+    sys.exit(1)
+PY
+
 if ! test -f securewave_app/lib/ui/app_ui_v1.dart; then
   echo "Missing Flutter UI v1.0 theme file" >&2
   exit 1

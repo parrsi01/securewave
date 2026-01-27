@@ -295,10 +295,11 @@ jobs:
 
       - name: Verify artifact contents
         run: |
-          unzip -l deploy-web.zip | grep "static/css/web_ui_v1.css"
-          unzip -l deploy-web.zip | grep "static/home.html"
-          unzip -l deploy-web.zip | grep "main.py"
-          CSS_LIST=$(unzip -l deploy-web.zip | awk '{print $4}' | grep -E '^static/css/' || true)
+          ZIP_LIST=$(unzip -l deploy-web.zip | awk '{print $4}')
+          echo "$ZIP_LIST" | grep -q "static/css/web_ui_v1.css"
+          echo "$ZIP_LIST" | grep -q "static/home.html"
+          echo "$ZIP_LIST" | grep -q "main.py"
+          CSS_LIST=$(echo "$ZIP_LIST" | grep -E '^static/css/' || true)
           if ! echo "$CSS_LIST" | grep -qx "static/css/web_ui_v1.css"; then
             echo "ERROR: web_ui_v1.css missing from deployment artifact"
             exit 1
@@ -313,7 +314,24 @@ jobs:
             echo "$OTHER_CSS"
             exit 1
           fi
-          if unzip -l deploy-web.zip | grep -E "securewave_app|\\.git/|(^|/)LogFiles/|(^|/)app-logs/|(^|/)azure-logs/|__pycache__|\\.pytest_cache|\\.mypy_cache|(^|/)\\.cache/|(^|/)node_modules/|(^|/)dist/|(^|/)build/|deploy-.*\\.zip|\\.log$" ; then
+          REQUIRED_ASSETS=( \
+            "static/fonts/Manrope-400.ttf" \
+            "static/fonts/Manrope-600.ttf" \
+            "static/fonts/Manrope-700.ttf" \
+            "static/fonts/Manrope-800.ttf" \
+            "static/img/logo.svg" \
+            "static/favicon.svg" \
+            "static/js/site.js" \
+            "static/js/auth.js" \
+            "static/js/dashboard.js" \
+          )
+          for asset in "${REQUIRED_ASSETS[@]}"; do
+            if ! echo "$ZIP_LIST" | grep -qx "$asset"; then
+              echo "ERROR: required asset missing from deployment artifact: $asset"
+              exit 1
+            fi
+          done
+          if echo "$ZIP_LIST" | grep -E "securewave_app|\\.git/|(^|/)LogFiles/|(^|/)app-logs/|(^|/)azure-logs/|__pycache__|\\.pytest_cache|\\.mypy_cache|(^|/)\\.cache/|(^|/)node_modules/|(^|/)dist/|(^|/)build/|deploy-.*\\.zip|\\.log$" ; then
             echo "ERROR: Unexpected paths found in deployment artifact"
             exit 1
           fi
@@ -353,6 +371,14 @@ jobs:
           fi
           if ! echo "$CONTENT" | grep -q "name=\"build-timestamp\""; then
             echo "ERROR: Staging homepage missing build timestamp meta tag"
+            exit 1
+          fi
+          if ! echo "$CONTENT" | grep -q 'class="page"'; then
+            echo "ERROR: Staging homepage missing expected layout class (page)"
+            exit 1
+          fi
+          if ! echo "$CONTENT" | grep -q 'class="navbar"'; then
+            echo "ERROR: Staging homepage missing expected layout class (navbar)"
             exit 1
           fi
           echo "OK: Staging static assets verified"
@@ -445,10 +471,11 @@ jobs:
 
       - name: Verify artifact contents
         run: |
-          unzip -l deploy-web.zip | grep "static/css/web_ui_v1.css"
-          unzip -l deploy-web.zip | grep "static/home.html"
-          unzip -l deploy-web.zip | grep "main.py"
-          CSS_LIST=$(unzip -l deploy-web.zip | awk '{print $4}' | grep -E '^static/css/' || true)
+          ZIP_LIST=$(unzip -l deploy-web.zip | awk '{print $4}')
+          echo "$ZIP_LIST" | grep -q "static/css/web_ui_v1.css"
+          echo "$ZIP_LIST" | grep -q "static/home.html"
+          echo "$ZIP_LIST" | grep -q "main.py"
+          CSS_LIST=$(echo "$ZIP_LIST" | grep -E '^static/css/' || true)
           if ! echo "$CSS_LIST" | grep -qx "static/css/web_ui_v1.css"; then
             echo "ERROR: web_ui_v1.css missing from deployment artifact"
             exit 1
@@ -463,7 +490,24 @@ jobs:
             echo "$OTHER_CSS"
             exit 1
           fi
-          if unzip -l deploy-web.zip | grep -E "securewave_app|\\.git/|(^|/)LogFiles/|(^|/)app-logs/|(^|/)azure-logs/|__pycache__|\\.pytest_cache|\\.mypy_cache|(^|/)\\.cache/|(^|/)node_modules/|(^|/)dist/|(^|/)build/|deploy-.*\\.zip|\\.log$" ; then
+          REQUIRED_ASSETS=( \
+            "static/fonts/Manrope-400.ttf" \
+            "static/fonts/Manrope-600.ttf" \
+            "static/fonts/Manrope-700.ttf" \
+            "static/fonts/Manrope-800.ttf" \
+            "static/img/logo.svg" \
+            "static/favicon.svg" \
+            "static/js/site.js" \
+            "static/js/auth.js" \
+            "static/js/dashboard.js" \
+          )
+          for asset in "${REQUIRED_ASSETS[@]}"; do
+            if ! echo "$ZIP_LIST" | grep -qx "$asset"; then
+              echo "ERROR: required asset missing from deployment artifact: $asset"
+              exit 1
+            fi
+          done
+          if echo "$ZIP_LIST" | grep -E "securewave_app|\\.git/|(^|/)LogFiles/|(^|/)app-logs/|(^|/)azure-logs/|__pycache__|\\.pytest_cache|\\.mypy_cache|(^|/)\\.cache/|(^|/)node_modules/|(^|/)dist/|(^|/)build/|deploy-.*\\.zip|\\.log$" ; then
             echo "ERROR: Unexpected paths found in deployment artifact"
             exit 1
           fi
@@ -529,6 +573,14 @@ jobs:
 
           if ! echo "$CONTENT" | grep -q "name=\"build-timestamp\""; then
             echo "ERROR: HTML missing build timestamp meta tag"
+            exit 1
+          fi
+          if ! echo "$CONTENT" | grep -q 'class="page"'; then
+            echo "ERROR: Homepage missing expected layout class (page)"
+            exit 1
+          fi
+          if ! echo "$CONTENT" | grep -q 'class="navbar"'; then
+            echo "ERROR: Homepage missing expected layout class (navbar)"
             exit 1
           fi
 
