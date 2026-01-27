@@ -26,7 +26,7 @@
         </nav>
         <div class="nav-actions">
           <a class="btn btn-ghost" href="/login.html">Sign in</a>
-          <a class="btn btn-primary" href="#download">Download app</a>
+          <a class="btn btn-secondary" href="#download">Download app</a>
         </div>
         <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
           <span></span>
@@ -35,39 +35,45 @@
     </header>
 
     <main>
-      <section class="container hero">
-        <div>
-          <span class="badge">App-first protection</span>
-          <h1>Calm protection in one tap.</h1>
-          <p class="subtitle">Use the SecureWave app to connect. The website keeps your account simple and clear.</p>
-          <div class="stat-list" style="margin-top: var(--space-4);">
-            <a class="btn btn-primary" href="#download">Download SecureWave App</a>
-            <a class="btn btn-secondary" href="/login.html">Sign in to your account</a>
-          </div>
-        </div>
-        <div class="card">
-          <h2>Connection preview</h2>
-          <p class="subtitle">SecureWave chooses the best region and keeps you protected automatically.</p>
-          <div class="split" style="margin-top: var(--space-4);">
-            <div>
-              <div class="pill">Status</div>
-              <h3 style="margin-top: var(--space-2);">Ready to connect</h3>
-              <p class="subtitle">Open the app to connect instantly.</p>
+      <section class="section">
+        <div class="container hero">
+          <div class="content-stack">
+            <div class="section-header">
+              <span class="badge">App-first protection</span>
+              <h1>Calm protection in one tap.</h1>
+              <p class="subtitle text-measure">Use the SecureWave app to connect. The website keeps your account simple and clear.</p>
             </div>
-            <div>
-              <div class="pill">Region</div>
-              <h3 style="margin-top: var(--space-2);">Auto-select</h3>
-              <p class="subtitle">Smart routing stays reliable.</p>
+            <div class="stat-list">
+              <a class="btn btn-primary" href="#download">Download SecureWave App</a>
+              <a class="btn btn-ghost" href="/login.html">Sign in to your account</a>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Connection preview</h2>
+            <p class="subtitle">SecureWave chooses the best region and keeps you protected automatically.</p>
+            <div class="split" style="margin-top: var(--space-4);">
+              <div>
+                <div class="pill">Status</div>
+                <h3 style="margin-top: var(--space-2);">Ready to connect</h3>
+                <p class="subtitle">Open the app to connect instantly.</p>
+              </div>
+              <div>
+                <div class="pill">Region</div>
+                <h3 style="margin-top: var(--space-2);">Auto-select</h3>
+                <p class="subtitle">Smart routing stays reliable.</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       <section class="section">
-        <div class="container">
-          <h2>How it works</h2>
-          <p class="subtitle">Three simple steps, the same flow as the SecureWave app.</p>
-          <div class="grid" style="margin-top: var(--space-4);">
+        <div class="container content-stack">
+          <div class="section-header">
+            <h2>How it works</h2>
+            <p class="subtitle text-measure">Three simple steps, the same flow as the SecureWave app.</p>
+          </div>
+          <div class="grid">
             <div class="card card-row">
               <div class="icon-circle">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -110,9 +116,9 @@
 
       <section class="section">
         <div class="container split">
-          <div>
+          <div class="section-header">
             <h2>Designed for beginners</h2>
-            <p class="subtitle">Clear status, large buttons, and simple language mirror the app UI.</p>
+            <p class="subtitle text-measure">Clear status, large buttons, and simple language mirror the app UI.</p>
             <ul class="list">
               <li>Connection status is always visible.</li>
               <li>Large touch targets for every action.</li>
@@ -124,7 +130,7 @@
             <p class="subtitle">Manage billing, plans, and devices without complex settings.</p>
             <div class="stat-list" style="margin-top: var(--space-4);">
               <a class="btn btn-secondary" href="/subscription.html">View plans</a>
-              <a class="btn btn-primary" href="/register.html">Create an account</a>
+              <a class="btn btn-secondary" href="/register.html">Create an account</a>
             </div>
           </div>
         </div>
@@ -132,11 +138,13 @@
 
       <section class="section" id="download">
         <div class="container">
-          <div class="card">
-            <h2>Download SecureWave App</h2>
-            <p class="subtitle">Choose your device. Replace the links with final store URLs when ready.</p>
+          <div class="card content-stack">
+            <div class="section-header">
+              <h2>Download SecureWave App</h2>
+              <p class="subtitle text-measure">Choose your device. Replace the links with final store URLs when ready.</p>
+            </div>
             <!-- TODO: Replace placeholder URLs with final store links. -->
-            <div class="download-grid" style="margin-top: var(--space-4);">
+            <div class="download-grid">
               <a class="btn download-btn" href="https://github.com/parrsi01/securewave/releases">macOS</a>
               <a class="btn download-btn" href="https://github.com/parrsi01/securewave/releases">Windows</a>
               <a class="btn download-btn" href="https://github.com/parrsi01/securewave/releases">Linux</a>
@@ -162,9 +170,12 @@
             <a href="/dashboard.html">Dashboard</a>
           </div>
           <div class="footer-column">
-            <div class="footer-title">Company</div>
+            <div class="footer-title">Legal</div>
             <a href="/privacy.html">Privacy</a>
             <a href="/terms.html">Terms</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Support</div>
             <a href="/contact.html">Support</a>
           </div>
         </div>

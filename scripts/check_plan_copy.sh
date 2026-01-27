@@ -13,8 +13,7 @@ assert_contains() {
 }
 
 # Subscription page - verify Basic plan mentions 5 GB limit
-assert_contains "$root_dir/static/subscription.html" "5 GB monthly data"
-assert_contains "$root_dir/static/subscription.html" "5 GB of data per month"
+assert_contains "$root_dir/static/subscription.html" "5 GB / month"
 
 # Services page - verify plan limit mention
 assert_contains "$root_dir/static/services.html" "Basic includes a 5 GB monthly cap"

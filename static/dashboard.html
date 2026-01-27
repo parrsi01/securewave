@@ -26,7 +26,7 @@
         </nav>
         <div class="nav-actions">
           <button class="btn btn-ghost" type="button" data-logout>Sign out</button>
-          <a class="btn btn-primary" href="/home.html#download">Download app</a>
+          <a class="btn btn-secondary" href="/home.html#download">Download app</a>
         </div>
         <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
           <span></span>
@@ -41,7 +41,7 @@
             <div class="pill">Dashboard</div>
             <h1 style="margin-top: var(--space-3);">Welcome back</h1>
             <p class="subtitle">Signed in as <strong data-user-email>you@example.com</strong></p>
-            <p class="subtitle" style="margin-top: var(--space-3);">What can I do now? Open services or update your plan.</p>
+            <p class="subtitle text-measure" style="margin-top: var(--space-3);">What can I do now? Open services or update your plan.</p>
             <div class="stat-list" style="margin-top: var(--space-4);">
               <a class="btn btn-primary" href="/services.html">View services</a>
               <a class="btn btn-secondary" href="/subscription.html">Manage plan</a>
@@ -61,10 +61,12 @@
       </section>
 
       <section class="section">
-        <div class="container">
-          <h2>Next steps</h2>
-          <p class="subtitle">Keep actions focused and easy to find.</p>
-          <div class="dashboard-actions" style="margin-top: var(--space-4);">
+        <div class="container content-stack">
+          <div class="section-header">
+            <h2>Next steps</h2>
+            <p class="subtitle text-measure">Keep actions focused and easy to find.</p>
+          </div>
+          <div class="dashboard-actions">
             <div class="card">
               <h3>Manage devices</h3>
               <p class="subtitle">Device access is handled directly in the app.</p>
@@ -77,8 +79,8 @@
               <h3>Run diagnostics</h3>
               <p class="subtitle">Open the app for a quick connection health check.</p>
               <div class="stat-list" style="margin-top: var(--space-4);">
-                <a class="btn btn-primary" href="/home.html#download">Open the app</a>
-                <a class="btn btn-secondary" href="/services.html">Review services</a>
+                <a class="btn btn-secondary" href="/home.html#download">Open the app</a>
+                <a class="btn btn-ghost" href="/services.html">Review services</a>
               </div>
             </div>
           </div>
@@ -89,7 +91,7 @@
         <div class="container layout">
           <div class="layout-main">
             <h2>Support, simplified</h2>
-            <p class="subtitle">Get quick answers without leaving the dashboard.</p>
+            <p class="subtitle text-measure">Need help choosing? Ask SecureWave Assistant.</p>
           </div>
           <div class="card layout-side">
             <div class="chatbot">
@@ -101,12 +103,12 @@
                 </div>
                 <div>
                   <h3>Need help choosing?</h3>
-                  <p class="subtitle">Questions about plans?</p>
+                  <p class="subtitle">Ask SecureWave Assistant.</p>
                 </div>
               </div>
               <div class="chatbot-panel">
                 <div class="chat-bubble">Need help choosing?</div>
-                <div class="chat-bubble chat-bubble-accent">Questions about plans?</div>
+                <div class="chat-bubble chat-bubble-accent">Ask SecureWave Assistant.</div>
                 <div class="chat-input">Type your question here...</div>
               </div>
             </div>
@@ -129,9 +131,12 @@
             <a href="/dashboard.html">Dashboard</a>
           </div>
           <div class="footer-column">
-            <div class="footer-title">Company</div>
+            <div class="footer-title">Legal</div>
             <a href="/privacy.html">Privacy</a>
             <a href="/terms.html">Terms</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Support</div>
             <a href="/contact.html">Support</a>
           </div>
         </div>
