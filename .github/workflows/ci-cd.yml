@@ -2,9 +2,11 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ master, develop ]
+    tags:
+      - "v*"
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ master, develop ]
   workflow_dispatch:
 
 permissions:
@@ -26,10 +28,24 @@ env:
 
 jobs:
   # ===========================
+  # UI VERSION GUARD
+  # ===========================
+  ui-guard:
+    name: Validate UI v1.0 assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run UI guard
+        run: bash scripts/verify_ui_v1.sh
+
+  # ===========================
   # CODE QUALITY & LINTING
   # ===========================
   lint:
     name: Lint Code
+    needs: [ui-guard]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -66,6 +82,7 @@ jobs:
   # ===========================
   test:
     name: Run Tests
+    needs: [ui-guard]
     runs-on: ubuntu-latest
     continue-on-error: true
 
@@ -141,6 +158,7 @@ jobs:
   # ===========================
   security:
     name: Security Scan
+    needs: [ui-guard]
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -211,6 +229,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Verify Azure credentials configured
+        run: |
+          if [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
+            echo "AZURE_CREDENTIALS secret is missing. Deployment blocked."
+            exit 1
+          fi
+
+      - name: Run UI guard
+        run: bash scripts/verify_ui_v1.sh
+
+      - name: Build deployment artifact
+        run: |
+          set -euo pipefail
+          INCLUDED=()
+          for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static alembic routers services models utils database; do
+            if [ -e "$path" ]; then
+              INCLUDED+=("$path")
+            fi
+          done
+          zip -r deploy-web.zip "${INCLUDED[@]}"
+
+      - name: Verify artifact contents
+        run: |
+          unzip -l deploy-web.zip | grep "static/css/web_ui_v1.css"
+          unzip -l deploy-web.zip | grep "static/home.html"
+          unzip -l deploy-web.zip | grep "main.py"
+          if unzip -l deploy-web.zip | grep -E "securewave_app|\\.git/|LogFiles/|app-logs|azure-logs|__pycache__" ; then
+            echo "ERROR: Unexpected paths found in deployment artifact"
+            exit 1
+          fi
+
       - name: Azure Login
         uses: azure/login@v1
         with:
@@ -220,18 +269,27 @@ jobs:
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME_STAGING }}
-          package: .
+          package: deploy-web.zip
 
       - name: Wait for staging deployment
         run: |
           echo "Waiting 30 seconds for staging deployment..."
           sleep 30
 
+      - name: Verify staging static files
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_STAGING }}/css/web_ui_v1.css)
+          if [ "$STATUS" != "200" ]; then
+            echo "ERROR: web_ui_v1.css not reachable on staging (HTTP $STATUS)"
+            exit 1
+          fi
+          echo "OK: web_ui_v1.css reachable on staging"
+
       - name: Run smoke tests
         run: |
           echo "Testing staging environment..."
-          curl -f ${{ env.AZURE_WEBAPP_URL_STAGING }}/api/health || (echo "❌ Staging health check failed" && exit 1)
-          echo "✅ Staging deployment verified"
+          curl -f ${{ env.AZURE_WEBAPP_URL_STAGING }}/api/health || (echo "ERROR: Staging health check failed" && exit 1)
+          echo "OK: Staging deployment verified"
 
   # ===========================
   # DEPLOY TO PRODUCTION
@@ -240,7 +298,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
     environment:
       name: production
       url: ${{ env.AZURE_WEBAPP_URL_PROD }}
@@ -248,6 +306,37 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Verify Azure credentials configured
+        run: |
+          if [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
+            echo "AZURE_CREDENTIALS secret is missing. Deployment blocked."
+            exit 1
+          fi
+
+      - name: Run UI guard
+        run: bash scripts/verify_ui_v1.sh
+
+      - name: Build deployment artifact
+        run: |
+          set -euo pipefail
+          INCLUDED=()
+          for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static alembic routers services models utils database; do
+            if [ -e "$path" ]; then
+              INCLUDED+=("$path")
+            fi
+          done
+          zip -r deploy-web.zip "${INCLUDED[@]}"
+
+      - name: Verify artifact contents
+        run: |
+          unzip -l deploy-web.zip | grep "static/css/web_ui_v1.css"
+          unzip -l deploy-web.zip | grep "static/home.html"
+          unzip -l deploy-web.zip | grep "main.py"
+          if unzip -l deploy-web.zip | grep -E "securewave_app|\\.git/|LogFiles/|app-logs|azure-logs|__pycache__" ; then
+            echo "ERROR: Unexpected paths found in deployment artifact"
+            exit 1
+          fi
 
       - name: Azure Login
         uses: azure/login@v1
@@ -258,7 +347,7 @@ jobs:
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME_PROD }}
-          package: .
+          package: deploy-web.zip
 
       - name: Wait for deployment to complete
         run: |
@@ -272,17 +361,17 @@ jobs:
           RETRY_COUNT=0
 
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_PROD }}/css/ui_v1.css)
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_PROD }}/css/web_ui_v1.css)
             if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ CSS file deployed successfully (HTTP $HTTP_CODE)"
+              echo "OK: CSS file deployed successfully (HTTP $HTTP_CODE)"
               exit 0
             fi
             RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "⏳ Attempt $RETRY_COUNT/$MAX_RETRIES: CSS not ready yet (HTTP $HTTP_CODE), waiting 10s..."
+            echo "WAIT: Attempt $RETRY_COUNT/$MAX_RETRIES: CSS not ready yet (HTTP $HTTP_CODE), waiting 10s..."
             sleep 10
           done
 
-          echo "❌ ERROR: CSS file still not accessible after $MAX_RETRIES attempts"
+          echo "ERROR: ERROR: CSS file still not accessible after $MAX_RETRIES attempts"
           echo "This indicates the deployment did not update static files"
           exit 1
 
@@ -291,10 +380,10 @@ jobs:
           echo "Checking if HTML files reference new CSS..."
           CONTENT=$(curl -s ${{ env.AZURE_WEBAPP_URL_PROD }}/home.html)
 
-          if echo "$CONTENT" | grep -q "ui_v1.css"; then
-            echo "✅ HTML files updated with new CSS reference"
+          if echo "$CONTENT" | grep -q "web_ui_v1.css"; then
+            echo "OK: HTML files updated with new CSS reference"
           else
-            echo "❌ ERROR: HTML still references old CSS"
+            echo "ERROR: ERROR: HTML still references old CSS"
             echo "Found CSS reference:"
             echo "$CONTENT" | grep -o 'href="/css/[^"]*"' || echo "No CSS found"
             exit 1
@@ -311,21 +400,21 @@ jobs:
       - name: Run smoke tests
         run: |
           echo "Running production smoke tests..."
-          curl -f ${{ env.AZURE_WEBAPP_URL_PROD }}/ || (echo "❌ Homepage failed" && exit 1)
-          curl -f ${{ env.AZURE_WEBAPP_URL_PROD }}/api/health || (echo "❌ Health check failed" && exit 1)
-          echo "✅ All smoke tests passed"
+          curl -f ${{ env.AZURE_WEBAPP_URL_PROD }}/ || (echo "ERROR: Homepage failed" && exit 1)
+          curl -f ${{ env.AZURE_WEBAPP_URL_PROD }}/api/health || (echo "ERROR: Health check failed" && exit 1)
+          echo "OK: All smoke tests passed"
 
       - name: Deployment summary
         if: success()
         run: |
-          echo "🎉 Deployment to production completed successfully"
+          echo "SUCCESS: Deployment to production completed successfully"
           echo "URL: ${{ env.AZURE_WEBAPP_URL_PROD }}"
           echo "New UI v1.0 with Calm Slate design is now live!"
 
       - name: Deployment failure notice
         if: failure()
         run: |
-          echo "❌ Deployment failed - see errors above"
+          echo "ERROR: Deployment failed - see errors above"
           echo "The workflow will now fail to alert you of the issue"
 
   # ===========================

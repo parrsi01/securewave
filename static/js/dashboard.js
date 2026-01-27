@@ -5,9 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     emailEl.textContent = email;
   }
 
-  const logout = document.querySelector('[data-logout]');
-  if (logout) {
-    logout.addEventListener('click', () => {
+  const logoutBtn = document.querySelector('[data-logout]');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user_email');

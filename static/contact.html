@@ -3,90 +3,77 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Contact SecureWave</title>
-  <meta name="description" content="Contact SecureWave support for help." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
+  <title>Support - SecureWave</title>
+  <meta name="description" content="Contact SecureWave support." />
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <header class="nav" id="site-nav">
-    <div class="container nav-inner">
-      <a class="nav-logo" href="/home.html">
-        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
-        <span>SecureWave</span>
-      </a>
-      <nav class="nav-links" aria-label="Primary">
-        <a href="/home.html">Home</a>
-        <a href="/services.html">Services</a>
-        <a href="/subscription.html">Pricing</a>
-        <a href="/about.html">About</a>
-      </nav>
-      <div class="nav-actions">
-        <a class="btn btn-ghost" href="/login.html">Sign in</a>
-        <a class="btn btn-primary" href="/home.html#download">Get the app</a>
+  <div class="page">
+    <header class="navbar">
+      <div class="container navbar-row">
+        <a class="brand" href="/home.html">
+          <img src="/img/logo.svg" alt="SecureWave logo">
+          <span>SecureWave</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="/home.html">Home</a>
+          <a href="/services.html">Services</a>
+          <a href="/subscription.html">Plans</a>
+          <a href="/dashboard.html">Dashboard</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="btn btn-ghost" href="/login.html">Sign in</a>
+          <a class="btn btn-primary" href="/home.html#download">Download app</a>
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
+          <span></span>
+        </button>
       </div>
-      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
-        <span></span>
-      </button>
-    </div>
-  </header>
+    </header>
 
-  <main>
-    <section class="section">
-      <div class="container split">
+    <main>
+      <section class="section">
+        <div class="container split">
+          <div>
+            <span class="badge">Support</span>
+            <h1>We are here to help.</h1>
+            <p class="subtitle">Use the app diagnostics first, then contact support if you need help.</p>
+          </div>
+          <div class="card">
+            <h3>Support hours</h3>
+            <ul class="list">
+              <li>Monday to Friday, 8am to 6pm local time.</li>
+              <li>Email: support@securewave.example</li>
+              <li>Priority support for Premium plans.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer-grid">
         <div>
-          <span class="hero-badge">Support</span>
-          <h1 class="hero-title">We are here to help.</h1>
-          <p class="hero-subtitle">Reach out with questions about your account, devices, or connection status.</p>
+          <strong>SecureWave VPN</strong>
+          <p>Calm protection for everyday connections.</p>
         </div>
-        <div class="card">
-          <h3>Support hours</h3>
-          <p class="section-subtitle">Monday to Friday, 8am to 6pm local time.</p>
-          <ul class="list">
-            <li>Email: support@securewave.example</li>
-            <li>Priority support for Premium plans</li>
-            <li>Diagnostics available in the app</li>
-          </ul>
+        <div>
+          <p><a href="/services.html">Services</a></p>
+          <p><a href="/subscription.html">Plans</a></p>
+          <p><a href="/dashboard.html">Dashboard</a></p>
         </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="container banner">
-        <h3>Before you reach out</h3>
-        <p>Open the SecureWave app and run a quick diagnostics check. It helps us resolve issues faster.</p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="/home.html#download">Open the app</a>
-          <a class="btn btn-light" href="/services.html">Learn about diagnostics</a>
+        <div>
+          <p><a href="/privacy.html">Privacy</a></p>
+          <p><a href="/terms.html">Terms</a></p>
+          <p><a href="/contact.html">Support</a></p>
         </div>
       </div>
-    </section>
-  </main>
-
-  <footer class="footer">
-    <div class="container footer-grid">
-      <div>
-        <strong>SecureWave VPN</strong>
-        <p>Calm, app-first protection for modern life.</p>
+      <div class="container" style="margin-top: var(--space-3);">
+        <span data-year>2026</span> SecureWave. All rights reserved.
       </div>
-      <div>
-        <p><a href="/services.html">Services</a></p>
-        <p><a href="/subscription.html">Pricing</a></p>
-        <p><a href="/about.html">About</a></p>
-      </div>
-      <div>
-        <p><a href="/contact.html">Contact</a></p>
-        <p><a href="/privacy.html">Privacy</a></p>
-        <p><a href="/terms.html">Terms</a></p>
-      </div>
-    </div>
-    <div class="container" style="margin-top: var(--space-4);">
-      <span data-year>2026</span> SecureWave. All rights reserved.
-    </div>
-  </footer>
+    </footer>
+  </div>
 
   <script src="/js/site.js" defer></script>
 </body>

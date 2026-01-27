@@ -4,115 +4,116 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard - SecureWave</title>
-  <meta name="description" content="Your SecureWave account overview." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
+  <meta name="description" content="SecureWave account dashboard." />
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <header class="nav" id="site-nav">
-    <div class="container nav-inner">
-      <a class="nav-logo" href="/home.html">
-        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
-        <span>SecureWave</span>
-      </a>
-      <nav class="nav-links" aria-label="Primary">
-        <a href="/home.html">Home</a>
-        <a href="/services.html">Services</a>
-        <a href="/subscription.html">Pricing</a>
-        <a class="active" href="/dashboard.html">Dashboard</a>
-      </nav>
-      <div class="nav-actions">
-        <button class="btn btn-ghost" type="button" data-logout>Sign out</button>
-        <a class="btn btn-primary" href="/home.html#download">Open app</a>
-      </div>
-      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
-        <span></span>
-      </button>
-    </div>
-  </header>
-
-  <main>
-    <section class="section">
-      <div class="container dashboard-hero">
-        <h1 class="hero-title">Welcome back</h1>
-        <p class="section-subtitle">Signed in as <strong data-user-email>you@example.com</strong></p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="/services.html">View services</a>
-          <a class="btn btn-secondary" href="/subscription.html">Manage plan</a>
+  <div class="page">
+    <header class="navbar">
+      <div class="container navbar-row">
+        <a class="brand" href="/home.html">
+          <img src="/img/logo.svg" alt="SecureWave logo">
+          <span>SecureWave</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="/home.html">Home</a>
+          <a href="/services.html">Services</a>
+          <a href="/subscription.html">Plans</a>
+          <a class="active" href="/dashboard.html">Dashboard</a>
+        </nav>
+        <div class="nav-actions">
+          <button class="btn btn-ghost" type="button" data-logout>Sign out</button>
+          <a class="btn btn-primary" href="/home.html#download">Download app</a>
         </div>
+        <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
+          <span></span>
+        </button>
       </div>
-    </section>
+    </header>
 
-    <section class="section">
-      <div class="container">
-        <h2 class="section-title">Account snapshot</h2>
-        <div class="dashboard-grid">
-          <div class="stat">
-            <h4>Plan</h4>
-            <p class="section-subtitle">Everyday plan active</p>
-          </div>
-          <div class="stat">
-            <h4>Devices</h4>
-            <p class="section-subtitle">2 of 4 devices connected</p>
-          </div>
-          <div class="stat">
-            <h4>Region</h4>
-            <p class="section-subtitle">Auto-select recommended</p>
-          </div>
-          <div class="stat">
-            <h4>Next billing</h4>
-            <p class="section-subtitle">April 02, 2026</p>
+    <main>
+      <section class="section">
+        <div class="container">
+          <div class="card">
+            <h1>Welcome back</h1>
+            <p class="subtitle">Signed in as <strong data-user-email>you@example.com</strong></p>
+            <div class="stat-list" style="margin-top: var(--space-4);">
+              <a class="btn btn-primary" href="/services.html">View services</a>
+              <a class="btn btn-secondary" href="/subscription.html">Manage plan</a>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="section">
-      <div class="container split">
-        <div class="card">
-          <h3>Need diagnostics?</h3>
-          <p>Review your connection health in the app for guided steps.</p>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="/services.html">Open diagnostics</a>
-            <a class="btn btn-secondary" href="/contact.html">Contact support</a>
+      <section class="section">
+        <div class="container">
+          <h2>Account overview</h2>
+          <p class="subtitle">The same clear status you see in the app.</p>
+          <div class="grid" style="margin-top: var(--space-4);">
+            <div class="card">
+              <div class="pill">Plan</div>
+              <h3 style="margin-top: var(--space-2);">Everyday</h3>
+              <p class="subtitle">Up to 4 devices connected.</p>
+            </div>
+            <div class="card">
+              <div class="pill">Connection</div>
+              <h3 style="margin-top: var(--space-2);">Ready</h3>
+              <p class="subtitle">Use the app to connect now.</p>
+            </div>
+            <div class="card">
+              <div class="pill">Region</div>
+              <h3 style="margin-top: var(--space-2);">Auto-select</h3>
+              <p class="subtitle">SecureWave chooses the best route.</p>
+            </div>
           </div>
         </div>
-        <div class="card">
-          <h3>Manage devices</h3>
-          <p>Sign out of devices or add a new one from the app.</p>
-          <div class="hero-actions">
-            <a class="btn btn-secondary" href="/home.html#download">Get the app</a>
-            <a class="btn btn-ghost" href="/settings.html">Account settings</a>
+      </section>
+
+      <section class="section">
+        <div class="container split">
+          <div class="card">
+            <h3>Need diagnostics?</h3>
+            <p class="subtitle">Open the app to run a quick health check.</p>
+            <div class="stat-list" style="margin-top: var(--space-4);">
+              <a class="btn btn-primary" href="/home.html#download">Open the app</a>
+              <a class="btn btn-secondary" href="/contact.html">Contact support</a>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Manage devices</h3>
+            <p class="subtitle">Device access is handled directly in the app.</p>
+            <div class="stat-list" style="margin-top: var(--space-4);">
+              <a class="btn btn-secondary" href="/home.html#download">Download app</a>
+              <a class="btn btn-ghost" href="/services.html">Learn more</a>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
 
-  <footer class="footer">
-    <div class="container footer-grid">
-      <div>
-        <strong>SecureWave VPN</strong>
-        <p>Calm, app-first protection for modern life.</p>
+    <footer class="footer">
+      <div class="container footer-grid">
+        <div>
+          <strong>SecureWave VPN</strong>
+          <p>Calm protection for everyday connections.</p>
+        </div>
+        <div>
+          <p><a href="/services.html">Services</a></p>
+          <p><a href="/subscription.html">Plans</a></p>
+          <p><a href="/dashboard.html">Dashboard</a></p>
+        </div>
+        <div>
+          <p><a href="/privacy.html">Privacy</a></p>
+          <p><a href="/terms.html">Terms</a></p>
+          <p><a href="/contact.html">Support</a></p>
+        </div>
       </div>
-      <div>
-        <p><a href="/services.html">Services</a></p>
-        <p><a href="/subscription.html">Pricing</a></p>
-        <p><a href="/about.html">About</a></p>
+      <div class="container" style="margin-top: var(--space-3);">
+        <span data-year>2026</span> SecureWave. All rights reserved.
       </div>
-      <div>
-        <p><a href="/contact.html">Contact</a></p>
-        <p><a href="/privacy.html">Privacy</a></p>
-        <p><a href="/terms.html">Terms</a></p>
-      </div>
-    </div>
-    <div class="container" style="margin-top: var(--space-4);">
-      <span data-year>2026</span> SecureWave. All rights reserved.
-    </div>
-  </footer>
+    </footer>
+  </div>
 
   <script src="/js/site.js" defer></script>
   <script src="/js/dashboard.js" defer></script>

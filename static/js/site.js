@@ -1,14 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const nav = document.getElementById('site-nav');
+  const nav = document.querySelector('.navbar');
   const toggle = document.querySelector('[data-nav-toggle]');
   if (nav && toggle) {
-    toggle.addEventListener('click', () => {
-      nav.classList.toggle('open');
-    });
+    toggle.addEventListener('click', () => nav.classList.toggle('nav-open'));
   }
 
-  const year = document.querySelector('[data-year]');
-  if (year) {
-    year.textContent = new Date().getFullYear();
-  }
+  const yearEl = document.querySelector('[data-year]');
+  if (yearEl) yearEl.textContent = new Date().getFullYear();
 });
