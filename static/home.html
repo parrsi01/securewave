@@ -2,394 +2,174 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SecureWave VPN - Private Internet Access</title>
-  <meta name="description" content="Protect your online privacy with SecureWave VPN. Fast, secure, and reliable VPN service for all your devices.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecureWave VPN - Calm, App-First Protection</title>
+  <meta name="description" content="SecureWave is a calm, app-first VPN that protects your connection with a single tap. Manage your account and subscription on the web." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260125">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <a href="#main-content" class="skip-to-main">Skip to main content</a>
-
-  <!-- Navigation -->
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave" onerror="this.style.display='none'">
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
         <span>SecureWave</span>
       </a>
-      <ul class="navbar-menu">
-        <li><a href="/home.html" aria-current="page">Home</a></li>
-        <li><a href="/services.html">Features</a></li>
-        <li><a href="/subscription.html">Pricing</a></li>
-        <li><a href="/about.html">About</a></li>
-        <li class="hidden" id="dashLink"><a href="/dashboard.html">Dashboard</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Sign In</a></li>
-        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
-        <li class="hidden"><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
-        <li class="theme-toggle hide-mobile">
-          <button data-theme="light" aria-label="Light mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </button>
-          <button data-theme="dark" aria-label="Dark mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </button>
-        </li>
-      </ul>
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
+      <nav class="nav-links" aria-label="Primary">
+        <a class="active" href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/subscription.html">Pricing</a>
+        <a href="/about.html">About</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/login.html">Sign in</a>
+        <a class="btn btn-primary" href="#download">Get the app</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
         <span></span>
       </button>
     </div>
-  </nav>
+  </header>
 
-  <main id="main-content">
-    <!-- Hero Section -->
+  <main>
     <section class="hero">
       <div class="container hero-grid">
-        <div class="hero-content">
-          <div class="hero-badge">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
-            SecureWave VPN
-          </div>
-
-          <h1 class="hero-title">Protect Your Privacy Online</h1>
-
-          <p class="hero-subtitle">
-            Connect securely to any network. Browse privately, access content freely, and keep your data protected with military-grade encryption.
-          </p>
-
+        <div>
+          <span class="hero-badge">App-first protection</span>
+          <h1 class="hero-title">Calm, private access in one tap.</h1>
+          <p class="hero-subtitle">SecureWave keeps your connection private through the app. The website is here for account access, subscriptions, and support.</p>
           <div class="hero-actions">
-            <a href="#download-app" class="btn btn-primary btn-lg">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-              </svg>
-              Download App
-            </a>
-            <a href="/register.html" class="btn btn-secondary btn-lg">
-              Create Free Account
-            </a>
+            <a class="btn btn-primary" href="#download">Download the app</a>
+            <a class="btn btn-secondary" href="/services.html">Explore features</a>
           </div>
-
-          <div class="hero-note">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            <div class="hero-note-content">
-              <div class="hero-note-title">Simple setup</div>
-              <div class="hero-note-text">Download the app, sign in, and connect with one tap</div>
+          <div class="hero-highlights">
+            <div class="highlight">
+              <div>
+                <strong>Instant connect</strong>
+                <span class="tag">No setup, no confusion</span>
+              </div>
+            </div>
+            <div class="highlight">
+              <div>
+                <strong>Trusted routing</strong>
+                <span class="tag">Smart region selection</span>
+              </div>
+            </div>
+            <div class="highlight">
+              <div>
+                <strong>Account clarity</strong>
+                <span class="tag">Simple plans and billing</span>
+              </div>
             </div>
           </div>
         </div>
-
-        <div class="hero-panel">
-          <div class="panel-header">
-            <div class="panel-title">Account Status</div>
-            <span class="status-pill">Active</span>
-          </div>
-          <div class="panel-subtitle">Your VPN is ready to protect your connection</div>
-
-          <div class="panel-row">
-            <span class="panel-label">Account</span>
-            <span class="panel-value" style="color: var(--accent-green);">Verified</span>
-          </div>
-          <div class="panel-row">
-            <span class="panel-label">Plan</span>
-            <span class="panel-value">Basic / Premium</span>
-          </div>
-          <div class="panel-row">
-            <span class="panel-label">Devices</span>
-            <span class="panel-value">Up to 5</span>
-          </div>
-          <div class="panel-row">
-            <span class="panel-label">Servers</span>
-            <span class="panel-value">4 Regions</span>
-          </div>
-          <div class="panel-row">
-            <span class="panel-label">Connection</span>
-            <span class="panel-chip">Via App</span>
+        <div class="hero-card">
+          <h2>Connection preview</h2>
+          <p class="section-subtitle">See what the SecureWave app handles for you.</p>
+          <div class="card" style="margin-top: var(--space-4);">
+            <h3>Auto-protected session</h3>
+            <p class="section-subtitle">SecureWave selects the best region and keeps you connected automatically.</p>
+            <div class="split">
+              <div>
+                <p class="tag">Status</p>
+                <p><strong>Ready to connect</strong></p>
+              </div>
+              <div>
+                <p class="tag">Region</p>
+                <p><strong>Auto-select</strong></p>
+              </div>
+            </div>
+            <div class="hero-actions" style="margin-top: var(--space-4);">
+              <a class="btn btn-secondary" href="/services.html">See service details</a>
+              <a class="btn btn-primary" href="#download">Get the app</a>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Stats Section -->
-    <section class="section section-alt">
-      <div class="container">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon green">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-              </svg>
-            </div>
-            <div class="stat-value">Active</div>
-            <div class="stat-label">Service Status</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon orange">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-            </div>
-            <div class="stat-value">4</div>
-            <div class="stat-label">Server Regions</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon purple">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-              </svg>
-            </div>
-            <div class="stat-value">256-bit</div>
-            <div class="stat-label">Encryption</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon orange">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-              </svg>
-            </div>
-            <div class="stat-value">5</div>
-            <div class="stat-label">Device Limit</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features Section -->
     <section class="section">
       <div class="container">
-        <div class="section-header">
-          <div class="badge">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
-            </svg>
-            Features
+        <h2 class="section-title">Built for everyday calm</h2>
+        <p class="section-subtitle">SecureWave focuses on a smooth experience for non-technical users.</p>
+        <div class="grid-3">
+          <div class="card">
+            <h3>One tap to protect</h3>
+            <p>Open the app, tap connect, and SecureWave handles the rest.</p>
           </div>
-          <h2>Why Choose SecureWave</h2>
-          <p>Built for privacy, designed for simplicity. Connect securely with confidence.</p>
-        </div>
-
-        <div class="grid grid-3">
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-              </svg>
-            </div>
-            <h3>Fast Connections</h3>
-            <p>Optimized servers ensure minimal latency. Stream, game, and browse without slowdowns.</p>
+          <div class="card">
+            <h3>Clear account control</h3>
+            <p>Manage devices, subscriptions, and security settings without complex menus.</p>
           </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-              </svg>
-            </div>
-            <h3>Strong Encryption</h3>
-            <p>Your traffic is protected with AES-256 encryption. Your data stays private.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-            </div>
-            <h3>Global Network</h3>
-            <p>Connect to servers in multiple regions. Access content from anywhere.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-              </svg>
-            </div>
-            <h3>Multi-Device</h3>
-            <p>Protect up to 5 devices with one account. Desktop, mobile, and tablet.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-              </svg>
-            </div>
-            <h3>No-Log Policy</h3>
-            <p>We do not track or store your browsing activity. Your privacy is guaranteed.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-              </svg>
-            </div>
-            <h3>Auto-Connect</h3>
-            <p>Stay protected automatically. The app reconnects when you switch networks.</p>
+          <div class="card">
+            <h3>Guided support</h3>
+            <p>Friendly diagnostics explain what is happening and how to fix it.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Download Section -->
-    <section class="download-section" id="download-app">
+    <section class="section">
+      <div class="container split">
+        <div>
+          <h2 class="section-title">Why the app comes first</h2>
+          <p class="section-subtitle">The website explains the service. The SecureWave app does the work.</p>
+          <ul class="list">
+            <li>Automatic region selection with smart routing.</li>
+            <li>Clear connection state and quick recovery.</li>
+            <li>Safe defaults for non-technical users.</li>
+          </ul>
+        </div>
+        <div class="banner">
+          <h3>Download SecureWave</h3>
+          <p>Use the app for protection, and come back here anytime for account management.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#download">Download the app</a>
+            <a class="btn btn-light" href="/subscription.html">View plans</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="download">
       <div class="container">
-        <div class="section-header">
-          <div class="badge">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            Download
-          </div>
-          <h2>Get SecureWave for Your Device</h2>
-          <p>Install the app and connect in seconds. Available for desktop and mobile.</p>
-        </div>
-
-        <div class="download-apps-grid">
-          <div class="download-app-card available">
-            <div class="download-app-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-              </svg>
-            </div>
-            <div class="download-status">Available</div>
-            <h3>Linux</h3>
-            <p>Ubuntu 22.04+ and compatible distros</p>
-            <div class="download-meta">ZIP Archive</div>
-            <a href="/downloads/securewave-app-linux-arm64.zip" class="download-app-btn" download>
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-              </svg>
-              Download
-            </a>
-          </div>
-
-          <div class="download-app-card">
-            <div class="download-app-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-              </svg>
-            </div>
-            <div class="download-status soon">Coming Soon</div>
-            <h3>Windows</h3>
-            <p>Windows 10 and later</p>
-            <span class="download-app-btn is-disabled">Coming Soon</span>
-          </div>
-
-          <div class="download-app-card">
-            <div class="download-app-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-              </svg>
-            </div>
-            <div class="download-status soon">Coming Soon</div>
-            <h3>macOS</h3>
-            <p>macOS 12 and later</p>
-            <span class="download-app-btn is-disabled">Coming Soon</span>
-          </div>
-
-          <div class="download-app-card">
-            <div class="download-app-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-              </svg>
-            </div>
-            <div class="download-status soon">Coming Soon</div>
-            <h3>Android</h3>
-            <p>Android 8.0 and later</p>
-            <span class="download-app-btn is-disabled">Coming Soon</span>
-          </div>
-
-          <div class="download-app-card">
-            <div class="download-app-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-              </svg>
-            </div>
-            <div class="download-status soon">Coming Soon</div>
-            <h3>iOS</h3>
-            <p>iOS 15 and later</p>
-            <span class="download-app-btn is-disabled">Coming Soon</span>
-          </div>
-        </div>
-
-        <p class="download-note">Linux version is available now. Other platforms are in development.</p>
-      </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="cta-section">
-      <div class="cta-glow"></div>
-      <div class="container cta-content">
-        <h2 class="cta-title">Ready to Protect Your Privacy?</h2>
-        <p class="cta-subtitle">
-          Download SecureWave and start browsing securely in minutes. No complex setup required.
-        </p>
-        <div class="cta-buttons">
-          <a href="#download-app" class="btn btn-lg cta-btn-primary">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
-            Get Started Free
-          </a>
-          <a href="/subscription.html" class="btn btn-lg cta-btn-outline">
-            View Plans
-          </a>
-        </div>
-        <div class="cta-features">
-          <div class="cta-feature">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
-            No credit card required
-          </div>
-          <div class="cta-feature">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
-            Cancel anytime
-          </div>
-          <div class="cta-feature">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
-            Instant activation
+        <div class="dashboard-hero">
+          <h2 class="section-title">Get the SecureWave app</h2>
+          <p class="section-subtitle">Available for desktop and mobile. Sign in once, stay protected everywhere.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/services.html">See supported platforms</a>
+            <a class="btn btn-secondary" href="/register.html">Create an account</a>
           </div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="footer">
-    <div class="footer-content">
-      <div class="footer-cta">
-        <div>
-          <h3>Get SecureWave</h3>
-          <p>Download the app and connect securely in seconds.</p>
-        </div>
-        <a href="#download-app" class="btn btn-primary btn-sm">Download App</a>
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
       </div>
-      <div class="footer-links">
-        <a href="/terms.html">Terms of Service</a>
-        <a href="/privacy.html">Privacy Policy</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/about.html">About</a>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
       </div>
-      <p class="footer-meta">2026 SecureWave VPN. All rights reserved.</p>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
     </div>
   </footer>
 
-  <script src="/js/main.js" defer></script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

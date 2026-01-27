@@ -2,322 +2,84 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VPN Status - SecureWave</title>
-  <meta name="description" content="View your SecureWave status, regions, and app instructions. The app connects automatically.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VPN Access - SecureWave</title>
+  <meta name="description" content="SecureWave VPN access happens in the app." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260125">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <a href="#main-content" class="skip-to-main">Skip to main content</a>
-
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
         <span>SecureWave</span>
       </a>
-      <ul class="navbar-menu">
-        <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Features</a></li>
-        <li><a href="/subscription.html">Pricing</a></li>
-        <li><a href="/about.html">About</a></li>
-        <li><a href="/dashboard.html" class="hidden" id="dashLink">Dashboard</a></li>
-        <li><a href="/settings.html" class="hidden" id="settingsLink">Settings</a></li>
-        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Sign In</a></li>
-        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
-        <li><button class="btn btn-ghost btn-sm hidden" id="logoutBtn">Sign Out</button></li>
-        <li class="theme-toggle hide-mobile">
-          <button data-theme="light" aria-label="Light mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </button>
-          <button data-theme="dark" aria-label="Dark mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </button>
-        </li>
-      </ul>
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/subscription.html">Pricing</a>
+        <a href="/dashboard.html">Dashboard</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/login.html">Sign in</a>
+        <a class="btn btn-primary" href="/home.html#download">Get the app</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
         <span></span>
       </button>
     </div>
-  </nav>
+  </header>
 
-  <main id="main-content">
-    <section class="page-hero">
-      <div class="container">
-        <div class="badge" id="modeBadge">VPN Status</div>
-        <h1 class="page-hero__title">Connection Status & Regions</h1>
-        <p class="page-hero__subtitle">
-          Use this page to view your status and preferred regions. The SecureWave app handles the connection.
-        </p>
-        <p style="margin-top: 0.75rem; color: var(--text-tertiary); font-size: 0.95rem;">
-          Download the app, sign in, and toggle on when you are ready to connect.
-        </p>
+  <main>
+    <section class="section">
+      <div class="container split">
+        <div>
+          <span class="hero-badge">VPN</span>
+          <h1 class="hero-title">Connect using the SecureWave app.</h1>
+          <p class="hero-subtitle">The app manages VPN sessions so your web experience stays simple and clear.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/home.html#download">Download the app</a>
+            <a class="btn btn-secondary" href="/services.html">Learn more</a>
+          </div>
+        </div>
+        <div class="card">
+          <h3>What the app provides</h3>
+          <ul class="list">
+            <li>Instant connect and disconnect</li>
+            <li>Region selection</li>
+            <li>Diagnostics and support sharing</li>
+          </ul>
+        </div>
       </div>
     </section>
-
-    <div class="container page-section">
-      <div class="panel">
-        <div class="panel-kicker">Status overview</div>
-        <h2 class="panel-title">Your SecureWave Status</h2>
-        <div class="status-grid">
-          <div class="status-card">
-            <div class="panel-label">Connection</div>
-            <div id="connectionStatus" class="panel-value">Checking...</div>
-            <p id="connectionMessage" style="color: var(--text-tertiary); margin-top: 0.5rem;">
-              The SecureWave app controls your connection status.
-            </p>
-          </div>
-          <div class="status-card">
-            <div class="panel-label">Plan</div>
-            <div id="planStatus" class="panel-value">Loading...</div>
-            <p style="color: var(--text-tertiary); margin-top: 0.5rem;">Billing status from your account.</p>
-          </div>
-          <div class="status-card">
-            <div class="panel-label">Devices</div>
-            <div id="deviceStatus" class="panel-value">--</div>
-            <p style="color: var(--text-tertiary); margin-top: 0.5rem;">Devices linked to your account.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel" style="margin-top: 2.5rem;">
-        <div class="panel-kicker">Server regions</div>
-        <h2 class="panel-title">Choose Your Preferred Region</h2>
-        <p style="color: var(--text-secondary); margin-bottom: var(--space-8);">
-          Set a region preference. The app will connect automatically using this selection.
-        </p>
-        <div id="regionGrid" class="region-grid">
-          <div class="region-card">Loading regions...</div>
-        </div>
-      </div>
-
-      <div class="panel" id="vpn-tests" style="margin-top: 2.5rem;">
-        <div class="panel-kicker">VPN tests</div>
-        <h2 class="panel-title">Run a VPN Test</h2>
-        <p style="color: var(--text-secondary); margin-bottom: var(--space-6);">
-          Validate latency, throughput, and leak protection. Results appear below after the test completes.
-        </p>
-        <div class="cta-row flex-wrap-mobile" style="justify-content: flex-start;">
-          <button class="btn btn-primary" id="run-vpn-test-btn">Run Full Test</button>
-          <button class="btn btn-outline" id="run-vpn-test-quick-btn">Quick Test</button>
-          <span id="vpn-test-last-run" style="color: var(--text-tertiary); font-size: 0.9rem;">No recent tests.</span>
-        </div>
-        <div id="vpn-test-results" class="test-results-container"></div>
-      </div>
-
-      <div class="app-callout" style="margin-top: 2.5rem;">
-        <div class="app-callout-header">
-          <div class="app-callout-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/>
-            </svg>
-          </div>
-          <div>
-            <h2 style="margin: 0;">Connect in the SecureWave App</h2>
-            <p style="margin: 0.35rem 0 0; color: var(--text-secondary);">
-              The SecureWave app handles VPN connection automatically after you sign in. Download directly from SecureWave.
-            </p>
-          </div>
-        </div>
-        <div class="platform-grid">
-          <div class="platform-card is-available">
-            <div class="platform-tag">Available now</div>
-            <span>Linux (arm64)</span>
-            <a href="/downloads/securewave-app-linux-arm64.zip" class="btn btn-outline btn-sm btn-block" download>Download</a>
-          </div>
-          <div class="platform-card">
-            <div class="platform-tag soon">Coming soon</div>
-            <span>Windows</span>
-            <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
-          </div>
-          <div class="platform-card">
-            <div class="platform-tag soon">Coming soon</div>
-            <span>macOS</span>
-            <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
-          </div>
-          <div class="platform-card">
-            <div class="platform-tag soon">Coming soon</div>
-            <span>Android</span>
-            <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
-          </div>
-          <div class="platform-card">
-            <div class="platform-tag soon">Coming soon</div>
-            <span>iOS</span>
-            <span class="btn btn-ghost btn-sm btn-block is-disabled">Coming soon</span>
-          </div>
-        </div>
-      </div>
-    </div>
   </main>
 
   <footer class="footer">
-    <div class="container footer-content">
-      <div class="footer-cta">
-        <div>
-          <h3>Download SecureWave</h3>
-          <p>Connect in the app. Manage your plan and devices here.</p>
-        </div>
-        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
       </div>
-      <div class="footer-links">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/contact.html">Contact</a>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
       </div>
-      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
     </div>
   </footer>
 
-  <script src="/js/main.js" defer></script>
-  <script src="/js/vpn-tests.js" defer></script>
-  <script>
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      window.location.href = '/login.html';
-    }
-
-    const headers = {
-      'Authorization': `Bearer ${token}`
-    };
-
-    const connectionStatus = document.getElementById('connectionStatus');
-    const connectionMessage = document.getElementById('connectionMessage');
-    const planStatus = document.getElementById('planStatus');
-    const deviceStatus = document.getElementById('deviceStatus');
-    const regionGrid = document.getElementById('regionGrid');
-
-    function setConnectionStatus(status) {
-      const readable = {
-        CONNECTED: 'Connected',
-        CONNECTING: 'Connecting',
-        DISCONNECTING: 'Disconnecting',
-        DISCONNECTED: 'Disconnected'
-      }[status] || 'Unavailable';
-
-      connectionStatus.textContent = readable;
-
-      const detail = {
-        CONNECTED: 'Connection is active in the SecureWave app.',
-        CONNECTING: 'Connecting in the SecureWave app.',
-        DISCONNECTING: 'Disconnecting in the SecureWave app.',
-        DISCONNECTED: 'Open the app to connect.'
-      }[status] || 'Check the SecureWave app for live status.';
-
-      connectionMessage.textContent = detail;
-    }
-
-    async function loadStatus() {
-      try {
-        const response = await fetch('/api/vpn/status', { headers });
-        if (!response.ok) {
-          setConnectionStatus('UNKNOWN');
-          return;
-        }
-        const data = await response.json();
-        setConnectionStatus(data.status || 'DISCONNECTED');
-      } catch (error) {
-        console.error('Failed to load status:', error);
-        setConnectionStatus('UNKNOWN');
-      }
-    }
-
-    async function loadPlan() {
-      try {
-        const response = await fetch('/api/billing/subscriptions/current', { headers });
-        if (!response.ok) {
-          planStatus.textContent = 'Free Plan';
-          return;
-        }
-        const data = await response.json();
-        if (!data.subscription) {
-          planStatus.textContent = 'Free Plan';
-          return;
-        }
-        const status = data.subscription.status || 'active';
-        const planName = data.subscription.plan_name || 'Premium';
-        planStatus.textContent = `${planName} • ${status}`;
-      } catch (error) {
-        console.error('Failed to load plan:', error);
-        planStatus.textContent = 'Unavailable';
-      }
-    }
-
-    async function loadDevices() {
-      try {
-        const response = await fetch('/api/vpn/devices', { headers });
-        if (!response.ok) {
-          deviceStatus.textContent = 'Unavailable';
-          return;
-        }
-        const data = await response.json();
-        const devices = data.devices || [];
-        deviceStatus.textContent = devices.length.toString();
-      } catch (error) {
-        console.error('Failed to load devices:', error);
-        deviceStatus.textContent = 'Unavailable';
-      }
-    }
-
-    function renderRegions(servers) {
-      if (!regionGrid) return;
-      if (!servers.length) {
-        regionGrid.innerHTML = '<div class="region-card">No regions available.</div>';
-        return;
-      }
-
-      const grouped = servers.reduce((acc, server) => {
-        const region = server.region || server.country || 'Other';
-        if (!acc[region]) acc[region] = [];
-        acc[region].push(server);
-        return acc;
-      }, {});
-
-      regionGrid.innerHTML = '';
-      Object.entries(grouped).forEach(([region, list]) => {
-        const healthy = list.filter((s) => s.health_status === 'healthy').length;
-        const total = list.length;
-        const statusLabel = healthy === total ? 'Healthy' : 'Mixed';
-        const card = document.createElement('div');
-        card.className = 'region-card';
-        card.innerHTML = `
-          <div class="panel-label">${region}</div>
-          <div class="panel-value" style="font-size: 1.35rem;">${total} servers</div>
-          <div class="region-chip" style="${statusLabel === 'Mixed' ? 'background: rgba(245, 158, 11, 0.16); color: var(--accent-600);' : ''}">
-            ${statusLabel}
-          </div>
-        `;
-        regionGrid.appendChild(card);
-      });
-    }
-
-    async function loadRegions() {
-      try {
-        const response = await fetch('/api/vpn/servers', { headers });
-        if (!response.ok) {
-          regionGrid.innerHTML = '<div class="region-card">Unable to load regions.</div>';
-          return;
-        }
-        const data = await response.json();
-        renderRegions(data.servers || []);
-      } catch (error) {
-        console.error('Failed to load regions:', error);
-        regionGrid.innerHTML = '<div class="region-card">Unable to load regions.</div>';
-      }
-    }
-
-    if (token) {
-      loadStatus();
-      loadPlan();
-      loadDevices();
-      loadRegions();
-    }
-  </script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

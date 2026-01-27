@@ -2,277 +2,119 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - SecureWave VPN</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard - SecureWave</title>
+  <meta name="description" content="Your SecureWave account overview." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260125">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
-<body class="dashboard">
-  <a href="#main-content" class="skip-to-main">Skip to main content</a>
-
-  <!-- Navigation -->
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave" onerror="this.style.display='none'">
+<body>
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
         <span>SecureWave</span>
       </a>
-      <ul class="navbar-menu">
-        <li><a href="/dashboard.html" aria-current="page">Dashboard</a></li>
-        <li><a href="/vpn.html">VPN</a></li>
-        <li><a href="/settings.html">Settings</a></li>
-        <li><a href="/subscription.html">Subscription</a></li>
-        <li><a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a></li>
-        <li><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
-        <li class="theme-toggle hide-mobile">
-          <button data-theme="light" aria-label="Light mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </button>
-          <button data-theme="dark" aria-label="Dark mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </button>
-        </li>
-      </ul>
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/subscription.html">Pricing</a>
+        <a class="active" href="/dashboard.html">Dashboard</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="btn btn-ghost" type="button" data-logout>Sign out</button>
+        <a class="btn btn-primary" href="/home.html#download">Open app</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
         <span></span>
       </button>
     </div>
-  </nav>
+  </header>
 
-  <main id="main-content">
-    <!-- Dashboard Header -->
-    <section class="dashboard-header">
-      <div class="container">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4);">
-          <div>
-            <h1 style="font-size: var(--font-size-2xl); margin-bottom: var(--space-1);">Welcome back, <span id="userName">User</span></h1>
-            <p style="color: var(--text-tertiary);">Manage your VPN connection and account</p>
-          </div>
-          <a href="/home.html#download-app" class="btn btn-primary btn-sm">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            Download App
-          </a>
+  <main>
+    <section class="section">
+      <div class="container dashboard-hero">
+        <h1 class="hero-title">Welcome back</h1>
+        <p class="section-subtitle">Signed in as <strong data-user-email>you@example.com</strong></p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/services.html">View services</a>
+          <a class="btn btn-secondary" href="/subscription.html">Manage plan</a>
         </div>
       </div>
     </section>
 
-    <!-- Dashboard Content -->
-    <section class="dashboard-content">
+    <section class="section">
       <div class="container">
+        <h2 class="section-title">Account snapshot</h2>
         <div class="dashboard-grid">
-          <!-- Main Panel -->
-          <div>
-            <!-- VPN Status Card -->
-            <div class="dashboard-card" style="margin-bottom: var(--space-6);">
-              <div class="vpn-status">
-                <div class="vpn-status-indicator disconnected" id="vpnIndicator">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
-                  </svg>
-                </div>
-                <h2 id="vpnStatusText">Disconnected</h2>
-                <p id="vpnStatusSubtext">Use the SecureWave app to connect</p>
-                <a href="/home.html#download-app" class="btn btn-primary btn-lg vpn-connect-btn">
-                  Download App to Connect
-                </a>
-              </div>
-            </div>
-
-            <!-- Quick Actions -->
-            <div class="dashboard-card">
-              <div class="dashboard-card-header">
-                <h3 class="dashboard-card-title">Quick Actions</h3>
-              </div>
-              <div class="grid grid-3" style="gap: var(--space-4);">
-                <a href="/vpn.html" class="feature-card" style="padding: var(--space-5); text-align: center;">
-                  <div class="feature-icon" style="margin: 0 auto var(--space-3); width: 48px; height: 48px;">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 24px; height: 24px;">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                    </svg>
-                  </div>
-                  <h4 style="font-size: var(--font-size-sm); margin-bottom: var(--space-1);">VPN Status</h4>
-                  <p style="color: var(--text-tertiary); font-size: var(--font-size-xs); margin: 0;">Check connection</p>
-                </a>
-                <a href="/settings.html" class="feature-card" style="padding: var(--space-5); text-align: center;">
-                  <div class="feature-icon" style="margin: 0 auto var(--space-3); width: 48px; height: 48px;">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 24px; height: 24px;">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                  </div>
-                  <h4 style="font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Settings</h4>
-                  <p style="color: var(--text-tertiary); font-size: var(--font-size-xs); margin: 0;">Manage account</p>
-                </a>
-                <a href="/subscription.html" class="feature-card" style="padding: var(--space-5); text-align: center;">
-                  <div class="feature-icon" style="margin: 0 auto var(--space-3); width: 48px; height: 48px;">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 24px; height: 24px;">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                    </svg>
-                  </div>
-                  <h4 style="font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Subscription</h4>
-                  <p style="color: var(--text-tertiary); font-size: var(--font-size-xs); margin: 0;">View plan</p>
-                </a>
-              </div>
-            </div>
+          <div class="stat">
+            <h4>Plan</h4>
+            <p class="section-subtitle">Everyday plan active</p>
           </div>
-
-          <!-- Sidebar -->
-          <div>
-            <!-- Account Info -->
-            <div class="dashboard-card" style="margin-bottom: var(--space-6);">
-              <div class="dashboard-card-header">
-                <h3 class="dashboard-card-title">Account</h3>
-                <span class="status-pill">Active</span>
-              </div>
-              <div class="panel-row">
-                <span class="panel-label">Email</span>
-                <span class="panel-value" id="userEmail">-</span>
-              </div>
-              <div class="panel-row">
-                <span class="panel-label">Plan</span>
-                <span class="panel-value" id="userPlan">Basic</span>
-              </div>
-              <div class="panel-row">
-                <span class="panel-label">Devices</span>
-                <span class="panel-value" id="deviceCount">0 / 5</span>
-              </div>
-            </div>
-
-            <!-- Server Locations -->
-            <div class="dashboard-card">
-              <div class="dashboard-card-header">
-                <h3 class="dashboard-card-title">Server Regions</h3>
-              </div>
-              <div class="server-list">
-                <div class="server-item">
-                  <div class="server-info">
-                    <div>
-                      <div class="server-name">US East</div>
-                      <div class="server-location">New York</div>
-                    </div>
-                  </div>
-                  <span class="server-latency good">12ms</span>
-                </div>
-                <div class="server-item">
-                  <div class="server-info">
-                    <div>
-                      <div class="server-name">US West</div>
-                      <div class="server-location">Los Angeles</div>
-                    </div>
-                  </div>
-                  <span class="server-latency good">18ms</span>
-                </div>
-                <div class="server-item">
-                  <div class="server-info">
-                    <div>
-                      <div class="server-name">Europe</div>
-                      <div class="server-location">Frankfurt</div>
-                    </div>
-                  </div>
-                  <span class="server-latency medium">85ms</span>
-                </div>
-                <div class="server-item">
-                  <div class="server-info">
-                    <div>
-                      <div class="server-name">Asia Pacific</div>
-                      <div class="server-location">Singapore</div>
-                    </div>
-                  </div>
-                  <span class="server-latency medium">120ms</span>
-                </div>
-              </div>
-            </div>
+          <div class="stat">
+            <h4>Devices</h4>
+            <p class="section-subtitle">2 of 4 devices connected</p>
+          </div>
+          <div class="stat">
+            <h4>Region</h4>
+            <p class="section-subtitle">Auto-select recommended</p>
+          </div>
+          <div class="stat">
+            <h4>Next billing</h4>
+            <p class="section-subtitle">April 02, 2026</p>
           </div>
         </div>
+      </div>
+    </section>
 
-        <!-- Download CTA -->
-        <div class="dashboard-card" style="margin-top: var(--space-8); text-align: center; padding: var(--space-10);">
-          <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-4); margin-bottom: var(--space-4);">
-            <div style="width: 64px; height: 64px; background: var(--info-bg); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center;">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 32px; height: 32px; color: var(--primary);">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-              </svg>
-            </div>
+    <section class="section">
+      <div class="container split">
+        <div class="card">
+          <h3>Need diagnostics?</h3>
+          <p>Review your connection health in the app for guided steps.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/services.html">Open diagnostics</a>
+            <a class="btn btn-secondary" href="/contact.html">Contact support</a>
           </div>
-          <h2 style="margin-bottom: var(--space-2);">Get the SecureWave App</h2>
-          <p style="color: var(--text-tertiary); margin-bottom: var(--space-6); max-width: 400px; margin-left: auto; margin-right: auto;">
-            Download the app to connect to VPN servers. The website is your control plane for managing your account.
-          </p>
-          <div style="display: flex; gap: var(--space-4); justify-content: center; flex-wrap: wrap;">
-            <a href="/downloads/securewave-app-linux-arm64.zip" class="btn btn-primary btn-lg" download>
-              Download for Linux
-            </a>
-            <a href="/home.html#download-app" class="btn btn-secondary btn-lg">
-              View All Platforms
-            </a>
+        </div>
+        <div class="card">
+          <h3>Manage devices</h3>
+          <p>Sign out of devices or add a new one from the app.</p>
+          <div class="hero-actions">
+            <a class="btn btn-secondary" href="/home.html#download">Get the app</a>
+            <a class="btn btn-ghost" href="/settings.html">Account settings</a>
           </div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="footer">
-    <div class="footer-content">
-      <div class="footer-links">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/contact.html">Contact</a>
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
       </div>
-      <p class="footer-meta">2026 SecureWave VPN. All rights reserved.</p>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
+      </div>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
     </div>
   </footer>
 
-  <script src="/js/main.js" defer></script>
-  <script>
-    // Check auth and load user data
-    (async function() {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        window.location.href = '/login.html';
-        return;
-      }
-
-      // Set user email
-      const email = localStorage.getItem('user_email');
-      if (email) {
-        document.getElementById('userEmail').textContent = email;
-        document.getElementById('userName').textContent = email.split('@')[0];
-      }
-
-      // Fetch user data
-      try {
-        const res = await fetch('/api/users/me', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (res.ok) {
-          const user = await res.json();
-          if (user.email) {
-            document.getElementById('userEmail').textContent = user.email;
-            document.getElementById('userName').textContent = user.email.split('@')[0];
-          }
-          if (user.subscription_tier) {
-            document.getElementById('userPlan').textContent = user.subscription_tier.charAt(0).toUpperCase() + user.subscription_tier.slice(1);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load user data:', e);
-      }
-
-      // Logout handler
-      document.getElementById('logoutBtn').addEventListener('click', function() {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user_email');
-        window.location.href = '/home.html';
-      });
-    })();
-  </script>
+  <script src="/js/site.js" defer></script>
+  <script src="/js/dashboard.js" defer></script>
 </body>
 </html>

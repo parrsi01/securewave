@@ -2,236 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pricing - SecureWave VPN</title>
-  <meta name="description" content="Choose your SecureWave VPN plan. Basic is free. Premium unlocks all features.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecureWave Plans</title>
+  <meta name="description" content="Choose a SecureWave plan that fits your devices and usage." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260125">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <a href="#main-content" class="skip-to-main">Skip to main content</a>
-
-  <!-- Navigation -->
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave" onerror="this.style.display='none'">
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
         <span>SecureWave</span>
       </a>
-      <ul class="navbar-menu">
-        <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Features</a></li>
-        <li><a href="/subscription.html" aria-current="page">Pricing</a></li>
-        <li><a href="/about.html">About</a></li>
-        <li class="hidden" id="dashLink"><a href="/dashboard.html">Dashboard</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Sign In</a></li>
-        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
-        <li class="hidden"><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
-        <li class="theme-toggle hide-mobile">
-          <button data-theme="light" aria-label="Light mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </button>
-          <button data-theme="dark" aria-label="Dark mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </button>
-        </li>
-      </ul>
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a class="active" href="/subscription.html">Pricing</a>
+        <a href="/about.html">About</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/login.html">Sign in</a>
+        <a class="btn btn-primary" href="/register.html">Get started</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
         <span></span>
       </button>
     </div>
-  </nav>
+  </header>
 
-  <main id="main-content">
-    <!-- Hero -->
-    <section class="hero" style="padding: var(--space-16) 0;">
-      <div class="container text-center">
-        <div class="badge">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-          </svg>
-          Pricing
-        </div>
-        <h1 class="hero-title" style="max-width: 700px; margin: 0 auto var(--space-4);">Simple, Transparent Pricing</h1>
-        <p class="hero-subtitle" style="max-width: 600px; margin: 0 auto;">
-          Choose the plan that works for you. No hidden fees, no complicated tiers.
-        </p>
-      </div>
-    </section>
-
-    <!-- Current Plan Card (for logged-in users) -->
-    <section class="section" style="padding-top: 0;">
+  <main>
+    <section class="section">
       <div class="container">
-        <div id="currentPlanCard" class="dashboard-card hidden" style="margin-bottom: var(--space-8); text-align: center;">
-          <div class="badge mb-4">Your Current Plan</div>
-          <h2 id="currentPlanName" style="margin-bottom: var(--space-2);">Loading...</h2>
-          <p id="currentPlanStatus" style="color: var(--text-tertiary); margin-bottom: var(--space-6);">Checking subscription status...</p>
-          <div id="currentPlanActions"></div>
-        </div>
+        <span class="hero-badge">Plans</span>
+        <h1 class="hero-title">Simple pricing for calm protection.</h1>
+        <p class="hero-subtitle">Pick a plan, download the app, and connect in minutes.</p>
+      </div>
+    </section>
 
-        <!-- Pricing Grid -->
-        <div class="pricing-grid">
-          <!-- Basic Plan -->
-          <div class="pricing-card">
-            <div class="pricing-name">Basic</div>
-            <div class="pricing-price">
-              <span class="pricing-amount">$0</span>
-              <span class="pricing-period">/forever</span>
-            </div>
-            <p style="color: var(--text-tertiary); margin-bottom: var(--space-6);">Get started with essential protection</p>
-            <ul class="pricing-features">
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                5 GB monthly data
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                1 device
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Standard servers
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Email support
-              </li>
-            </ul>
-            <a href="/register.html" class="btn btn-secondary pricing-cta">Get Started Free</a>
-          </div>
-
-          <!-- Premium Plan -->
-          <div class="pricing-card featured">
-            <div class="pricing-badge">Most Popular</div>
-            <div class="pricing-name">Premium</div>
-            <div class="pricing-price">
-              <span class="pricing-amount">$9</span>
-              <span class="pricing-period">/month</span>
-            </div>
-            <p style="color: var(--text-tertiary); margin-bottom: var(--space-6);">Full access to all features</p>
-            <ul class="pricing-features">
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Unlimited data
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                5 devices
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                All server regions
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Priority support
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Fastest connections
-              </li>
-            </ul>
-            <a href="/register.html?plan=premium" class="btn btn-primary pricing-cta">Get Premium</a>
-          </div>
-
-          <!-- Enterprise Plan -->
-          <div class="pricing-card">
-            <div class="pricing-name">Enterprise</div>
-            <div class="pricing-price">
-              <span class="pricing-amount">Custom</span>
-            </div>
-            <p style="color: var(--text-tertiary); margin-bottom: var(--space-6);">For teams and organizations</p>
-            <ul class="pricing-features">
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Unlimited everything
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Unlimited devices
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Dedicated servers
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                24/7 support
-              </li>
-              <li>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Custom configuration
-              </li>
-            </ul>
-            <a href="/contact.html" class="btn btn-secondary pricing-cta">Contact Sales</a>
+    <section class="section">
+      <div class="container pricing-grid">
+        <div class="card price-card">
+          <h3>Starter</h3>
+          <p class="tag">For getting started</p>
+          <div class="price-value">$5<span style="font-size: 1rem; font-weight: 500;">/mo</span></div>
+          <p class="section-subtitle">One device, essential protection.</p>
+          <ul class="list">
+            <li>Single device access</li>
+            <li>Standard regions</li>
+            <li>Basic diagnostics</li>
+          </ul>
+          <div class="hero-actions" style="margin-top: var(--space-5);">
+            <a class="btn btn-secondary" href="/register.html">Choose Starter</a>
           </div>
         </div>
-
-        <!-- FAQ -->
-        <div style="max-width: 700px; margin: var(--space-16) auto 0; text-align: center;">
-          <h2 style="margin-bottom: var(--space-8);">Frequently Asked Questions</h2>
-
-          <div class="dashboard-card" style="text-align: left; margin-bottom: var(--space-4);">
-            <h3 style="font-size: var(--font-size-base); margin-bottom: var(--space-2);">Can I switch plans anytime?</h3>
-            <p style="color: var(--text-tertiary); margin: 0;">Yes. Upgrade or downgrade your plan at any time. Changes take effect immediately.</p>
+        <div class="card price-card featured">
+          <span class="price-badge">Most popular</span>
+          <h3>Everyday</h3>
+          <p class="tag">For households</p>
+          <div class="price-value">$9<span style="font-size: 1rem; font-weight: 500;">/mo</span></div>
+          <p class="section-subtitle">Coverage for work, travel, and home.</p>
+          <ul class="list">
+            <li>Up to 4 devices</li>
+            <li>Priority routing</li>
+            <li>Guided support</li>
+          </ul>
+          <div class="hero-actions" style="margin-top: var(--space-5);">
+            <a class="btn btn-primary" href="/register.html">Choose Everyday</a>
           </div>
-
-          <div class="dashboard-card" style="text-align: left; margin-bottom: var(--space-4);">
-            <h3 style="font-size: var(--font-size-base); margin-bottom: var(--space-2);">How does the free plan work?</h3>
-            <p style="color: var(--text-tertiary); margin: 0;">The Basic plan gives you 5 GB of data per month for free, forever. No credit card required.</p>
-          </div>
-
-          <div class="dashboard-card" style="text-align: left;">
-            <h3 style="font-size: var(--font-size-base); margin-bottom: var(--space-2);">What payment methods do you accept?</h3>
-            <p style="color: var(--text-tertiary); margin: 0;">We accept all major credit cards and PayPal for premium subscriptions.</p>
+        </div>
+        <div class="card price-card">
+          <h3>Premium</h3>
+          <p class="tag">For power users</p>
+          <div class="price-value">$14<span style="font-size: 1rem; font-weight: 500;">/mo</span></div>
+          <p class="section-subtitle">Extra devices and extended diagnostics.</p>
+          <ul class="list">
+            <li>Up to 8 devices</li>
+            <li>High priority routing</li>
+            <li>Advanced diagnostics</li>
+          </ul>
+          <div class="hero-actions" style="margin-top: var(--space-5);">
+            <a class="btn btn-secondary" href="/register.html">Choose Premium</a>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- CTA -->
-    <section class="cta-section">
-      <div class="cta-glow"></div>
-      <div class="container cta-content">
-        <h2 class="cta-title">Ready to Get Started?</h2>
-        <p class="cta-subtitle">Download SecureWave and protect your privacy today.</p>
-        <div class="cta-buttons">
-          <a href="/home.html#download-app" class="btn btn-lg cta-btn-primary">
-            Download App
-          </a>
-          <a href="/register.html" class="btn btn-lg cta-btn-outline">
-            Create Account
-          </a>
+    <section class="section">
+      <div class="container banner split">
+        <div>
+          <h2 class="section-title">Need help choosing?</h2>
+          <p class="section-subtitle">We can recommend the right plan based on your devices and usage.</p>
+        </div>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/contact.html">Talk to support</a>
+          <a class="btn btn-light" href="/services.html">Review services</a>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="footer">
-    <div class="footer-content">
-      <div class="footer-cta">
-        <div>
-          <h3>Get SecureWave</h3>
-          <p>Download the app and connect securely.</p>
-        </div>
-        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
       </div>
-      <div class="footer-links">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/about.html">About</a>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
       </div>
-      <p class="footer-meta">2026 SecureWave VPN. All rights reserved.</p>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
     </div>
   </footer>
 
-  <script src="/js/main.js" defer></script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

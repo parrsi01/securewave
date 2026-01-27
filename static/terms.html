@@ -2,286 +2,91 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terms of Service - SecureWave VPN</title>
-  <meta name="description" content="SecureWave VPN Terms of Service. Read our terms and conditions for using our VPN service.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terms of Service - SecureWave</title>
+  <meta name="description" content="SecureWave terms of service." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/ui_v1.css?v=20260125">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/ui_v1.css?v=20260301">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <style>
-    .legal-content {
-      max-width: 800px;
-      margin: 0 auto;
-      line-height: 1.8;
-    }
-    .legal-content h2 {
-      color: var(--primary-600);
-      margin-top: 3rem;
-      margin-bottom: 1rem;
-      font-size: 1.75rem;
-      font-weight: 700;
-    }
-    .legal-content h3 {
-      color: var(--text-primary);
-      margin-top: 2rem;
-      margin-bottom: 0.75rem;
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
-    .legal-content p {
-      color: var(--text-secondary);
-      margin-bottom: 1rem;
-    }
-    .legal-content ul, .legal-content ol {
-      color: var(--text-secondary);
-      margin-left: 2rem;
-      margin-bottom: 1rem;
-    }
-    .legal-content li {
-      margin-bottom: 0.5rem;
-    }
-    .effective-date {
-      background: var(--bg-secondary);
-      padding: 1rem;
-      border-left: 4px solid var(--primary-600);
-      margin-bottom: 2rem;
-      border-radius: var(--radius-md);
-    }
-  </style>
 </head>
 <body>
-  <!-- Skip to main content for accessibility -->
-  <a href="#main-content" class="skip-to-main">Skip to main content</a>
-
-  <!-- Navigation -->
-  <nav class="navbar">
-    <div class="navbar-container">
-      <a href="/home.html" class="navbar-brand">
-        <img src="/img/logo.svg" alt="SecureWave VPN Logo">
+  <header class="nav" id="site-nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/home.html">
+        <img src="/img/logo.svg" alt="SecureWave logo" width="36" height="36">
         <span>SecureWave</span>
       </a>
-
-      <ul class="navbar-menu">
-        <li><a href="/home.html">Home</a></li>
-        <li><a href="/services.html">Features</a></li>
-        <li><a href="/subscription.html">Pricing</a></li>
-        <li><a href="/about.html">About</a></li>
-        <li class="hidden" id="dashLink"><a href="/dashboard.html">Dashboard</a></li>
-        <li><a href="/login.html" class="btn btn-ghost btn-sm" id="loginBtn">Sign In</a></li>
-        <li><a href="/register.html" class="btn btn-primary btn-sm" id="registerBtn">Get Started</a></li>
-        <li class="hidden"><button class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button></li>
-        <li class="theme-toggle hide-mobile">
-          <button data-theme="light" aria-label="Light mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </button>
-          <button data-theme="dark" aria-label="Dark mode">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </button>
-        </li>
-      </ul>
-
-      <!-- Mobile menu toggle -->
-      <button class="navbar-toggle" aria-label="Toggle navigation menu">
-        <span></span>
-        <span></span>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/home.html">Home</a>
+        <a href="/services.html">Services</a>
+        <a href="/subscription.html">Pricing</a>
+        <a href="/about.html">About</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/login.html">Sign in</a>
+        <a class="btn btn-primary" href="/home.html#download">Get the app</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
         <span></span>
       </button>
     </div>
-  </nav>
+  </header>
 
-  <!-- Main Content -->
-  <main id="main-content">
+  <main>
     <section class="section">
       <div class="container">
-        <div class="legal-content">
-          <h1 style="font-size: 2.5rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1rem;">Terms of Service</h1>
+        <span class="hero-badge">Terms</span>
+        <h1 class="hero-title">Clear, simple service terms.</h1>
+        <p class="hero-subtitle">We keep the experience transparent and easy to understand.</p>
+      </div>
+    </section>
 
-          <div class="effective-date">
-            <strong>Last Updated:</strong> December 31, 2024
-          </div>
-
-          <p>Welcome to SecureWave VPN. By using our service, you agree to be bound by these Terms of Service ("Terms"). Please read them carefully before using our VPN service.</p>
-
-          <h2 id="acceptance">1. Acceptance of Terms</h2>
-          <p>By accessing or using SecureWave VPN ("Service"), you agree to comply with and be bound by these Terms. If you do not agree to these Terms, you may not use our Service.</p>
-
-          <h2 id="description">2. Service Description</h2>
-          <p>SecureWave VPN provides virtual private network services that encrypt your internet connection and protect your online privacy. Our service includes:</p>
-          <ul>
-            <li>Encrypted internet connection using SecureWave Core</li>
-            <li>Access to servers in 50+ countries worldwide</li>
-            <li>Unlimited bandwidth and data transfer</li>
-            <li>AI-powered server optimization</li>
-            <li>Zero-log privacy policy</li>
+    <section class="section">
+      <div class="container split">
+        <div class="card">
+          <h3>Service usage</h3>
+          <ul class="list">
+            <li>Use SecureWave for lawful personal and business activity.</li>
+            <li>Keep your account credentials secure.</li>
+            <li>Notify us if you notice suspicious activity.</li>
           </ul>
-
-          <h2 id="account">3. Account Registration and Security</h2>
-
-          <h3>3.1 Account Creation</h3>
-          <p>To use our Service, you must create an account by providing accurate and complete information. You are responsible for maintaining the confidentiality of your account credentials.</p>
-
-          <h3>3.2 Account Responsibility</h3>
-          <p>You are solely responsible for all activities that occur under your account. You agree to:</p>
-          <ul>
-            <li>Provide accurate, current, and complete information during registration</li>
-            <li>Maintain and promptly update your account information</li>
-            <li>Maintain the security of your password and account</li>
-            <li>Notify us immediately of any unauthorized use of your account</li>
+        </div>
+        <div class="card">
+          <h3>Subscriptions</h3>
+          <ul class="list">
+            <li>Plans renew automatically unless canceled.</li>
+            <li>Billing details are visible in your dashboard.</li>
+            <li>Support is available for plan changes.</li>
           </ul>
-
-          <h2 id="acceptable-use">4. Acceptable Use Policy</h2>
-
-          <h3>4.1 Permitted Uses</h3>
-          <p>You may use SecureWave VPN for lawful purposes only, including:</p>
-          <ul>
-            <li>Protecting your privacy and security online</li>
-            <li>Accessing geo-restricted content you have legal rights to access</li>
-            <li>Securing your connection on public Wi-Fi networks</li>
-            <li>Protecting sensitive business communications</li>
-          </ul>
-
-          <h3>4.2 Prohibited Activities</h3>
-          <p>You agree NOT to use our Service for:</p>
-          <ul>
-            <li>Any illegal activities or purposes</li>
-            <li>Spamming, phishing, or distributing malware</li>
-            <li>Infringing on intellectual property rights</li>
-            <li>Hacking, unauthorized access, or network attacks</li>
-            <li>Harassment, threats, or abusive behavior</li>
-            <li>Circumventing technological measures designed to control access to copyrighted content</li>
-            <li>Port scanning, vulnerability scanning, or penetration testing without authorization</li>
-            <li>Operating servers, file sharing, or BitTorrent in violation of copyright laws</li>
-          </ul>
-
-          <h2 id="subscription">5. Subscription and Payment</h2>
-
-          <h3>5.1 Subscription Plans</h3>
-          <p>We offer various subscription plans with different features and pricing. All fees are quoted in USD and are non-refundable except as required by law or as explicitly stated in our refund policy.</p>
-
-          <h3>5.2 Billing</h3>
-          <p>By subscribing to our Service, you authorize us to charge your payment method on a recurring basis according to your selected plan (monthly or yearly). Your subscription will automatically renew unless you cancel before the renewal date.</p>
-
-          <h3>5.3 Free Trial</h3>
-          <p>We may offer a free trial period. If you do not cancel before the trial period ends, you will be charged for the subscription plan you selected.</p>
-
-          <h3>5.4 Refund Policy</h3>
-          <p>We offer a 30-day money-back guarantee for new subscribers. If you are not satisfied with our Service, you may request a full refund within 30 days of your initial purchase.</p>
-
-          <h3>5.5 Cancellation</h3>
-          <p>You may cancel your subscription at any time through your account dashboard. Cancellations take effect at the end of the current billing period.</p>
-
-          <h2 id="privacy">6. Privacy and Data Protection</h2>
-          <p>Your privacy is important to us. Our collection, use, and protection of your personal information is governed by our <a href="/privacy.html" style="color: var(--primary-600); text-decoration: underline;">Privacy Policy</a>, which is incorporated into these Terms by reference.</p>
-
-          <h3>6.1 Zero-Log Policy</h3>
-          <p>We maintain a strict zero-log policy. We do not log, store, or track:</p>
-          <ul>
-            <li>Your browsing activity or history</li>
-            <li>IP addresses used while connected to our VPN</li>
-            <li>DNS queries</li>
-            <li>Connection timestamps</li>
-            <li>Bandwidth usage details</li>
-          </ul>
-
-          <h2 id="intellectual-property">7. Intellectual Property Rights</h2>
-          <p>All content, features, and functionality of SecureWave VPN, including but not limited to software, text, graphics, logos, and images, are owned by SecureWave VPN and are protected by international copyright, trademark, and other intellectual property laws.</p>
-
-          <h2 id="disclaimers">8. Disclaimers and Limitations of Liability</h2>
-
-          <h3>8.1 Service Availability</h3>
-          <p>We strive to provide uninterrupted service but cannot guarantee 100% uptime. The Service is provided "as is" and "as available" without warranties of any kind, either express or implied.</p>
-
-          <h3>8.2 No Warranty</h3>
-          <p>We make no warranties regarding:</p>
-          <ul>
-            <li>The accuracy, reliability, or completeness of the Service</li>
-            <li>The security or privacy of your data transmission</li>
-            <li>Uninterrupted or error-free operation</li>
-            <li>Compatibility with all devices or networks</li>
-          </ul>
-
-          <h3>8.3 Limitation of Liability</h3>
-          <p>To the maximum extent permitted by law, SecureWave VPN shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly.</p>
-
-          <h2 id="termination">9. Termination</h2>
-
-          <h3>9.1 Termination by You</h3>
-          <p>You may terminate your account at any time by canceling your subscription through your account dashboard or by contacting our support team.</p>
-
-          <h3>9.2 Termination by Us</h3>
-          <p>We reserve the right to suspend or terminate your account if you:</p>
-          <ul>
-            <li>Violate these Terms of Service</li>
-            <li>Engage in fraudulent or illegal activities</li>
-            <li>Abuse our Service or network resources</li>
-            <li>Fail to pay subscription fees</li>
-          </ul>
-
-          <h3>9.3 Effect of Termination</h3>
-          <p>Upon termination, your right to use the Service will immediately cease. We may delete your account and all associated data in accordance with our data retention policies.</p>
-
-          <h2 id="modifications">10. Modifications to Terms</h2>
-          <p>We reserve the right to modify these Terms at any time. We will notify you of material changes by email or through a notice on our website. Your continued use of the Service after such modifications constitutes acceptance of the updated Terms.</p>
-
-          <h2 id="governing-law">11. Governing Law and Dispute Resolution</h2>
-          <p>These Terms shall be governed by and construed in accordance with the laws of the jurisdiction in which SecureWave VPN is registered, without regard to its conflict of law provisions.</p>
-
-          <h3>11.1 Arbitration</h3>
-          <p>Any disputes arising from these Terms or your use of the Service shall be resolved through binding arbitration, except where prohibited by law.</p>
-
-          <h2 id="miscellaneous">12. Miscellaneous</h2>
-
-          <h3>12.1 Entire Agreement</h3>
-          <p>These Terms, together with our Privacy Policy, constitute the entire agreement between you and SecureWave VPN regarding the use of our Service.</p>
-
-          <h3>12.2 Severability</h3>
-          <p>If any provision of these Terms is found to be invalid or unenforceable, the remaining provisions shall remain in full force and effect.</p>
-
-          <h3>12.3 Waiver</h3>
-          <p>Our failure to enforce any right or provision of these Terms shall not constitute a waiver of such right or provision.</p>
-
-          <h3>12.4 Assignment</h3>
-          <p>You may not assign or transfer these Terms or your account without our prior written consent. We may assign our rights and obligations without restriction.</p>
-
-          <h2 id="contact">13. Contact Information</h2>
-          <p>If you have any questions about these Terms, please contact us:</p>
-          <ul>
-            <li><strong>Email:</strong> <a href="mailto:legal@securewave.app" style="color: var(--primary-600);">legal@securewave.app</a></li>
-            <li><strong>Support:</strong> <a href="mailto:support@securewave.app" style="color: var(--primary-600);">support@securewave.app</a></li>
-            <li><strong>Website:</strong> <a href="/contact.html" style="color: var(--primary-600);">Contact Form</a></li>
-          </ul>
-
-          <div style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid var(--border-primary);">
-            <p style="font-size: 0.875rem; color: var(--text-tertiary);">
-              By using SecureWave VPN, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
-            </p>
-          </div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="footer">
-    <div class="container footer-content">
-      <div class="footer-cta">
-        <div>
-          <h3>Download SecureWave</h3>
-          <p>Connect in the app. Manage your plan and devices here.</p>
-        </div>
-        <a href="/home.html#download-app" class="btn btn-primary btn-sm">Download App</a>
+    <div class="container footer-grid">
+      <div>
+        <strong>SecureWave VPN</strong>
+        <p>Calm, app-first protection for modern life.</p>
       </div>
-      <div class="footer-links">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/contact.html">Contact</a>
+      <div>
+        <p><a href="/services.html">Services</a></p>
+        <p><a href="/subscription.html">Pricing</a></p>
+        <p><a href="/about.html">About</a></p>
       </div>
-      <p class="footer-meta">&copy; 2026 SecureWave VPN. All rights reserved.</p>
+      <div>
+        <p><a href="/contact.html">Contact</a></p>
+        <p><a href="/privacy.html">Privacy</a></p>
+        <p><a href="/terms.html">Terms</a></p>
+      </div>
+    </div>
+    <div class="container" style="margin-top: var(--space-4);">
+      <span data-year>2026</span> SecureWave. All rights reserved.
     </div>
   </footer>
 
-  <script src="/js/main.js" defer></script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>
