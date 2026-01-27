@@ -1,58 +1,46 @@
 # SecureWave VPN - UI Version
 
-**Current Version:** 1.0.0
-**Last Updated:** 2026-01-25
-**Status:** STABLE
+Current Version: UI v1.0.0 — DEMO-STABLE
+Last Updated: 2026-02-02
+Status: DEMO-STABLE (UI v1.0.0)
 
 ---
 
-## Version 1.0.0 (2026-01-25) - True v1.0 Fresh Start
+## Version 1.0.0 (2026-02-02) - Locked Design System
 
-This is the first official release of the SecureWave VPN UI. Previous versions have been superseded.
+This release establishes the deterministic UI v1.0 system for SecureWave.
 
 ### Brand Identity
-- **Logo**: Simple shield with checkmark (universally understood "secure" symbol)
-- **Primary Color**: Teal (#0D9488 to #14B8A6)
-- **Philosophy**: Calm, trustworthy, beginner-friendly
+- Logo: Abstract shield with wave motif
+- Palette: Calm Marine (primary #1E3A5F, secondary #2C7A7B)
+- Philosophy: Calm, trustworthy, beginner-friendly
 
 ### Color Palette
 | Token | Hex | Purpose |
-|-------|-----|---------|
-| Primary | #0D9488 | CTAs, links, focus |
-| Primary Light | #14B8A6 | Gradients, hover |
-| Background | #F8FAFC | Page backgrounds |
-| Card | #FFFFFF | Elevated surfaces |
-| Success | #10B981 | Connected states |
-| Error | #EF4444 | Disconnected states |
+| --- | --- | --- |
+| Primary | #1E3A5F | Navigation, CTAs |
+| Secondary | #2C7A7B | Highlights, secondary actions |
+| Background | #F4F7FA | Page background |
+| Surface | #FFFFFF | Cards and panels |
+| Success | #2F855A | Connected states |
+| Error | #C53030 | Error states |
 
-### Design Philosophy
+### Design Principles
 
-**Target Users:** Absolute beginners to technology
-- Non-technical users
-- Nervous about security
-- Need clear, simple interfaces
+Target users: absolute beginners to technology.
 
-**Principles:**
-1. Calm - Soft colors, generous spacing
-2. Trustworthy - Shield iconography, teal palette
+Principles:
+1. Calm - Clear spacing, muted contrast
+2. Trustworthy - Shield iconography, marine palette
 3. Simple - One primary action per screen
-4. Accessible - WCAG AA, large touch targets (52px min)
-
-### Palette Rationale
-
-Teal was chosen because:
-- **Calm**: Neither warm nor cold, creates balance
-- **Trustworthy**: Associated with reliability and protection
-- **Professional yet Approachable**: Right balance for security product
-- **Distinctive**: Different from typical VPN blue/green/orange
-- **Accessible**: Works for color vision deficiencies
+4. Accessible - 48px minimum touch targets
 
 ---
 
 ## Platform Support
 
 | Platform | Status | Notes |
-|----------|--------|-------|
+| --- | --- | --- |
 | Website | STABLE | Ready for deployment |
 | Flutter Linux | STABLE | Desktop app |
 | Flutter Android | Development | Requires keystore |
@@ -60,44 +48,25 @@ Teal was chosen because:
 
 ---
 
-## Visual Verification Checklist
-
-- [x] 320px mobile - No horizontal scroll
-- [x] 768px tablet - Proper grid layout
-- [x] 1024px desktop - Full navigation
-- [x] Light theme - Default experience
-- [x] Dark theme - Toggle functionality
-- [x] Logo scales 16px to 256px
-- [x] WCAG 2.1 AA contrast compliance
-- [x] Touch targets minimum 52px
-
----
-
 ## Files Modified
 
 ### Brand Assets
-- `/static/img/logo.svg` - New teal shield with checkmark
-- `/static/img/logo-dark.svg` - Brighter variant for dark backgrounds
-- `/static/img/logo-mark.svg` - App icon variant
-- `/static/favicon.svg` - Browser favicon
+- `static/img/logo.svg`
+- `static/favicon.svg`
+- `securewave_app/assets/securewave_logo.svg`
 
 ### Stylesheets
-- `/static/css/professional.css` - Complete rewrite with teal palette
+- `static/css/ui_v1.css`
 
 ### Flutter Theme
-- `/securewave_app/lib/core/theme/app_theme.dart` - Teal color system
+- `securewave_app/lib/core/theme/app_ui_v1.dart`
 
 ### Documentation
-- `DESIGN_SYSTEM.md` - Complete design system documentation
-- `UI_VERSION.md` - This file
+- `DESIGN_SYSTEM.md`
+- `UI_VERSION.md`
 
 ---
 
 ## Previous Versions (Superseded)
 
-All previous versions have been replaced:
-- v6.x Lavender Light Theme
-- v5.x PrivadoVPN Inspired / Lavender
-- v4.x Deep Ocean / Original
-
-This is a true v1.0 fresh start.
+All previous UI variants are deprecated. UI v1.0 is the single source of truth.

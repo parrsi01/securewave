@@ -1,8 +1,8 @@
 # SecureWave VPN - Deployment Status
 
-**Last Updated:** 2026-01-24
-**UI Version:** v6.0 (Lavender Light Theme)
-**CI Status:** PASSING
+**Last Updated:** 2026-02-02
+**UI Version:** UI v1.0.0 — DEMO-STABLE (Calm Marine)
+**CI Status:** HARDENED (fails fast on missing secrets/assets)
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| GitHub Repo | Current | master branch has UI v6.0 |
-| CI Pipeline | PASSING | Run #21319746585 |
+| GitHub Repo | Current | master branch has UI v1.0 (`ui_v1.css` only) |
+| CI Pipeline | HARDENED | UI guard + Azure secret check enabled |
 | Docker Build | PASSING | Dockerfile fixed |
-| Azure Site | OUTDATED | Serving old Ocean Teal theme |
-| Deployment | BLOCKED | Missing AZURE_CREDENTIALS secret |
+| Azure Site | OUTDATED | Serving cached pre-v1 UI until redeployed |
+| Deployment | BLOCKED | Missing AZURE_CREDENTIALS secret (pipeline fails fast) |
 
 ---
 
@@ -116,11 +116,11 @@ az webapp restart \
 
 After deployment, verify:
 
-### 1. CSS Lavender Palette
+### 1. CSS UI v1.0
 ```bash
-curl -s https://securewave-web.azurewebsites.net/css/professional.css | grep -E "#F5EFFF|#A294F9"
+curl -s https://securewave-web.azurewebsites.net/css/ui_v1.css | grep -E "#475569|#3B82F6"
 ```
-Expected: Should find lavender color tokens
+Expected: Should find Calm Slate / Soft Blue tokens and HTTP 200
 
 ### 2. Logo Assets
 ```bash
@@ -169,7 +169,7 @@ Expected: HTML with SecureWave content
 | e948629 | Fix CI pipeline - simplify job dependencies | 2026-01-24 |
 | 1e47275 | UI v6.0 - CI improvements and documentation | 2026-01-24 |
 | 1a24448 | Fix CI plan copy check to match current copy | 2026-01-24 |
-| b2a7040 | UI v5.1 - Lavender light theme brand palette | 2026-01-24 |
+| b2a7040 | UI v5.1 - Legacy light theme brand palette | 2026-01-24 |
 
 ---
 
