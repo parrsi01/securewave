@@ -34,7 +34,7 @@ for file in "${HTML_FILES[@]}"; do
     echo "Unexpected number of stylesheet links in ${file} (found ${stylesheet_count})" >&2
     exit 1
   fi
-  if grep -q "professional.css\\|ui_v1.css" "${file}"; then
+  if grep -Eq "href=\"/css/(professional|ui_v1)\\.css\"" "${file}"; then
     echo "Legacy CSS reference found in ${file}" >&2
     exit 1
   fi
