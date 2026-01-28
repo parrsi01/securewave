@@ -12,23 +12,24 @@
 </head>
 <body>
   <div class="page">
-    <header class="navbar">
+    <header class="navbar navbar-expand-lg">
       <div class="container navbar-row">
-        <a class="brand" href="/home.html">
+        <a class="brand navbar-brand" href="/home.html">
           <img src="/img/logo.svg" alt="SecureWave logo">
           <span>SecureWave</span>
         </a>
-        <nav class="nav-links" aria-label="Primary">
-          <a href="/home.html">Home</a>
-          <a class="active" href="/services.html">Services</a>
-          <a href="/subscription.html">Plans</a>
-          <a href="/dashboard.html">Dashboard</a>
+        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
+          <a href="/home.html" class="nav-link">Home</a>
+          <a class="nav-link active" href="/services.html" aria-current="page">Services</a>
+          <a href="/subscription.html" class="nav-link">Plans</a>
+          <a href="/dashboard.html" class="nav-link">Dashboard</a>
         </nav>
         <div class="nav-actions">
           <a class="btn btn-ghost" href="/login.html">Sign in</a>
           <a class="btn btn-secondary" href="/home.html#download">Download app</a>
         </div>
-        <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle>
+        </div>
+        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
           <span></span>
         </button>
       </div>
@@ -140,6 +141,7 @@
 
   </div>
 
+  <script src="/js/bootstrap.bundle.min.js" defer></script>
   <script src="/js/site.js" defer></script>
 </body>
 </html>
