@@ -21,7 +21,7 @@ Output:
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 # Lazy ML imports
 try:
@@ -58,6 +58,20 @@ class RiskResult:
     level: str  # "low", "medium", "high", "critical"
     factors: List[str] = field(default_factory=list)
     method: str = "rule_based"
+
+
+@dataclass
+class XGBRiskConfig:
+    """Training configuration for risk scorer."""
+    n_estimators: int = 100
+    max_depth: int = 6
+    learning_rate: float = 0.1
+    subsample: float = 1.0
+    colsample_bytree: float = 1.0
+    random_state: int = 42
+    n_jobs: int = 1
+    early_stopping_rounds: Optional[int] = None
+    sample_weight_strategy: Optional[str] = None  # "emphasize_high_risk"
 
 
 class XGBRiskScorer:
@@ -185,21 +199,44 @@ class XGBRiskScorer:
             X: List of feature vectors
             y: List of risk scores (0.0 to 1.0)
         """
+        return self.train_with_config(X, y, config=None, eval_set=None)
+
+    def train_with_config(
+        self,
+        X: List[List[float]],
+        y: List[float],
+        config: Optional[XGBRiskConfig] = None,
+        eval_set: Optional[Tuple[List[List[float]], List[float]]] = None,
+    ) -> None:
         if not self.use_ml:
             return
 
+        cfg = config or XGBRiskConfig()
         X_arr = np.array(X, dtype=np.float32)
         y_arr = np.array(y, dtype=np.float32)
 
+        sample_weight = None
+        if cfg.sample_weight_strategy == "emphasize_high_risk":
+            sample_weight = np.array([1.0 + score for score in y_arr], dtype=np.float32)
+
         self.model = xgb.XGBRegressor(
-            n_estimators=100,
-            max_depth=6,
-            learning_rate=0.1,
+            n_estimators=cfg.n_estimators,
+            max_depth=cfg.max_depth,
+            learning_rate=cfg.learning_rate,
+            subsample=cfg.subsample,
+            colsample_bytree=cfg.colsample_bytree,
             objective='reg:squarederror',
-            random_state=42,
-            n_jobs=1,
+            random_state=cfg.random_state,
+            n_jobs=cfg.n_jobs,
         )
-        self.model.fit(X_arr, y_arr)
+        fit_kwargs = {}
+        if cfg.early_stopping_rounds and eval_set:
+            X_eval, y_eval = eval_set
+            fit_kwargs["eval_set"] = [(np.array(X_eval, dtype=np.float32), np.array(y_eval, dtype=np.float32))]
+            fit_kwargs["early_stopping_rounds"] = cfg.early_stopping_rounds
+        if sample_weight is not None:
+            fit_kwargs["sample_weight"] = sample_weight
+        self.model.fit(X_arr, y_arr, **fit_kwargs)
         self.is_trained = True
 
     def predict(self, inp: RiskInput) -> RiskResult:

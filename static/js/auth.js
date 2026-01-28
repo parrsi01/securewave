@@ -66,14 +66,12 @@ async function handleAuth(event) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: controller.signal,
+      credentials: 'include',
     });
     window.clearTimeout(timeoutId);
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      if (data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('user_email', email);
-      }
+      localStorage.setItem('user_email', email);
       window.location.href = '/dashboard.html';
       return;
     }
@@ -90,10 +88,13 @@ async function handleAuth(event) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (localStorage.getItem('access_token')) {
-    window.location.href = '/dashboard.html';
-    return;
-  }
+  fetch('/api/auth/me', { credentials: 'include' })
+    .then((res) => {
+      if (res.ok) {
+        window.location.href = '/dashboard.html';
+      }
+    })
+    .catch(() => {});
   document.querySelectorAll('[data-auth]')?.forEach((form) => {
     form.addEventListener('submit', handleAuth);
   });

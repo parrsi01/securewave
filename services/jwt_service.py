@@ -4,7 +4,7 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -46,7 +46,7 @@ REFRESH_EXPIRE_MINUTES = int(os.getenv("REFRESH_TOKEN_EXPIRE_MINUTES", str(60 * 
 if ENVIRONMENT == "production":
     logger.info("JWT secrets validated for production environment")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
 def _create_token(data: dict, expires_delta: timedelta, secret: str) -> str:
@@ -80,12 +80,20 @@ def verify_refresh_token(token: str) -> dict:
     return payload
 
 
-def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: Optional[str] = Depends(oauth2_scheme),
+) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not token:
+        token = request.cookies.get("access_token")
+    if not token:
+        raise credentials_exception
     try:
         payload = decode_token(token, ACCESS_SECRET)
         if payload.get("type") != "access":

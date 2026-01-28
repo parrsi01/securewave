@@ -6,22 +6,31 @@ function formatPlanLabel(status, subscription) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const token = localStorage.getItem('access_token');
-  if (!token) {
+  let sessionEmail = localStorage.getItem('user_email') || 'you@example.com';
+  try {
+    const sessionRes = await fetch('/api/auth/me', { credentials: 'include' });
+    if (!sessionRes.ok) {
+      window.location.href = '/login.html';
+      return;
+    }
+    const sessionData = await sessionRes.json().catch(() => ({}));
+    if (sessionData.email) {
+      sessionEmail = sessionData.email;
+    }
+  } catch (error) {
     window.location.href = '/login.html';
     return;
   }
 
-  const email = localStorage.getItem('user_email') || 'you@example.com';
   const emailEl = document.querySelector('[data-user-email]');
   if (emailEl) {
-    emailEl.textContent = email;
+    emailEl.textContent = sessionEmail;
   }
 
   const planEl = document.querySelector('[data-plan-label]');
   try {
     const res = await fetch('/api/dashboard/info', {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
     });
     if (res.ok) {
       const data = await res.json().catch(() => ({}));

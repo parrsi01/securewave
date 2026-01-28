@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>SecureWaveVPNUsageDescription</key>
+	<string>SecureWave establishes a VPN tunnel on this device using Network Extension when the user taps Connect.</string>
 </dict>
 </plist>

@@ -78,6 +78,29 @@ jobs:
           bash scripts/check_plan_copy.sh
 
   # ===========================
+  # FLUTTER ANALYZE (Non-blocking)
+  # ===========================
+  flutter-analyze:
+    name: Flutter Analyze
+    needs: [ui-guard]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Run Flutter analyze
+        run: |
+          cd securewave_app
+          flutter pub get
+          flutter analyze
+
+  # ===========================
   # UNIT TESTS (Non-blocking for UI changes)
   # ===========================
   test:

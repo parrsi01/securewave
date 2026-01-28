@@ -197,6 +197,35 @@ async def add_request_id(request: Request, call_next):
     return response
 
 
+CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+CSRF_EXEMPT_PATHS = {
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/refresh",
+    "/api/auth/password-reset/request",
+    "/api/auth/password-reset/confirm",
+}
+
+
+@app.middleware("http")
+async def enforce_csrf(request: Request, call_next):
+    if request.method in CSRF_SAFE_METHODS:
+        return await call_next(request)
+    if not request.url.path.startswith("/api"):
+        return await call_next(request)
+    if request.url.path in CSRF_EXEMPT_PATHS:
+        return await call_next(request)
+    if request.headers.get("Authorization"):
+        return await call_next(request)
+    if "access_token" not in request.cookies:
+        return await call_next(request)
+    csrf_header = request.headers.get("X-CSRF-Token")
+    csrf_cookie = request.cookies.get("csrf_token")
+    if not csrf_header or not csrf_cookie or csrf_header != csrf_cookie:
+        return api_error("csrf_failed", "CSRF token missing or invalid", status_code=403)
+    return await call_next(request)
+
+
 def get_db():
     db = SessionLocal()
     try:

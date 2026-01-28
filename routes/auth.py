@@ -5,9 +5,10 @@ Complete authentication system with email verification, password reset, and 2FA
 
 import logging
 import os
+import secrets
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, BackgroundTasks
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Response, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
@@ -17,7 +18,15 @@ from io import BytesIO
 from database.session import get_db, SessionLocal
 from models.user import User
 from services.hashing_service import hash_password, verify_password
-from services.jwt_service import create_access_token, create_refresh_token, verify_refresh_token, get_current_user
+from utils.password_policy import validate_password_strength
+from services.jwt_service import (
+    ACCESS_EXPIRE_MINUTES,
+    REFRESH_EXPIRE_MINUTES,
+    create_access_token,
+    create_refresh_token,
+    verify_refresh_token,
+    get_current_user,
+)
 from services.auth_service import AuthService
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -25,6 +34,42 @@ from slowapi.util import get_remote_address
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 DEMO_MODE = os.getenv("DEMO_MODE", "true").lower() == "true"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
+
+
+def _cookie_secure() -> bool:
+    return os.getenv("ENVIRONMENT", "development") == "production"
+
+
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str, csrf_token: str) -> None:
+    response.set_cookie(
+        "access_token",
+        access_token,
+        httponly=True,
+        secure=_cookie_secure(),
+        samesite=COOKIE_SAMESITE,
+        max_age=ACCESS_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    response.set_cookie(
+        "refresh_token",
+        refresh_token,
+        httponly=True,
+        secure=_cookie_secure(),
+        samesite=COOKIE_SAMESITE,
+        max_age=REFRESH_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    response.set_cookie(
+        "csrf_token",
+        csrf_token,
+        httponly=False,
+        secure=_cookie_secure(),
+        samesite=COOKIE_SAMESITE,
+        max_age=REFRESH_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    response.headers["Cache-Control"] = "no-store"
 
 is_testing = os.getenv("TESTING", "").lower() == "true"
 
@@ -109,6 +154,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     requires_2fa: bool = False
+    csrf_token: Optional[str] = None
 
 
 # ===========================
@@ -120,6 +166,7 @@ class TokenResponse(BaseModel):
 async def register(
     request: Request,
     payload: RegisterRequest,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """
@@ -135,10 +182,11 @@ async def register(
             )
 
         # Validate password strength
-        if len(payload.password) < 8:
+        password_error = validate_password_strength(payload.password)
+        if password_error:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must be at least 8 characters long"
+                detail=password_error
             )
 
         if payload.password != payload.password_confirm:
@@ -171,11 +219,16 @@ async def register(
         logger.info(f"✓ New user registered: {user.email}")
 
         if DEMO_MODE:
+            access_token = create_access_token(user)
+            refresh_token = create_refresh_token(user)
+            csrf_token = secrets.token_urlsafe(32)
+            _set_auth_cookies(response, access_token, refresh_token, csrf_token)
             return {
                 "message": "Registration successful (demo mode).",
-                "access_token": create_access_token(user),
-                "refresh_token": create_refresh_token(user),
+                "access_token": access_token,
+                "refresh_token": refresh_token,
                 "token_type": "bearer",
+                "csrf_token": csrf_token,
             }
 
         return {
@@ -202,6 +255,7 @@ async def login(
     request: Request,
     payload: LoginRequest,
     background_tasks: BackgroundTasks,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """
@@ -283,10 +337,16 @@ async def login(
 
         logger.info(f"✓ User logged in: {user.email}")
 
+        access_token = create_access_token(user)
+        refresh_token = create_refresh_token(user)
+        csrf_token = secrets.token_urlsafe(32)
+        _set_auth_cookies(response, access_token, refresh_token, csrf_token)
+
         return TokenResponse(
-            access_token=create_access_token(user),
-            refresh_token=create_refresh_token(user),
-            requires_2fa=False
+            access_token=access_token,
+            refresh_token=refresh_token,
+            requires_2fa=False,
+            csrf_token=csrf_token
         )
 
     except HTTPException:
@@ -300,10 +360,24 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
+async def refresh(
+    request: Request,
+    response: Response,
+    payload: Optional[RefreshRequest] = Body(default=None),
+    db: Session = Depends(get_db),
+):
     """Refresh access token"""
     try:
-        token_data = verify_refresh_token(payload.refresh_token)
+        refresh_token_value = payload.refresh_token if payload else None
+        if not refresh_token_value:
+            refresh_token_value = request.cookies.get("refresh_token")
+        if not refresh_token_value:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing refresh token"
+            )
+
+        token_data = verify_refresh_token(refresh_token_value)
         user = db.query(User).filter(User.id == int(token_data.get("sub"))).first()
 
         if not user or not user.is_active:
@@ -312,9 +386,15 @@ async def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
                 detail="Invalid refresh token"
             )
 
+        access_token = create_access_token(user)
+        refresh_token = create_refresh_token(user)
+        csrf_token = secrets.token_urlsafe(32)
+        _set_auth_cookies(response, access_token, refresh_token, csrf_token)
+
         return TokenResponse(
-            access_token=create_access_token(user),
-            refresh_token=create_refresh_token(user),
+            access_token=access_token,
+            refresh_token=refresh_token,
+            csrf_token=csrf_token,
         )
 
     except HTTPException:
@@ -328,7 +408,10 @@ async def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-async def logout():
+async def logout(response: Response):
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie("csrf_token", path="/")
     return {"status": "ok"}
 
 
@@ -487,10 +570,11 @@ async def update_password(
                 detail="Invalid current password"
             )
 
-        if len(payload.new_password) < 8:
+        password_error = validate_password_strength(payload.new_password)
+        if password_error:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must be at least 8 characters long"
+                detail=password_error
             )
 
         current_user.hashed_password = hash_password(payload.new_password)

@@ -22,6 +22,7 @@ from io import BytesIO
 from models.user import User
 from services.email_service import EmailService
 from services.hashing_service import hash_password
+from utils.password_policy import validate_password_strength
 
 logger = logging.getLogger(__name__)
 
@@ -207,9 +208,10 @@ class AuthService:
             if datetime.utcnow() > user.password_reset_token_expires:
                 return False, "Reset token has expired"
 
-            # Validate password strength (basic check)
-            if len(new_password) < 8:
-                return False, "Password must be at least 8 characters long"
+            # Validate password strength
+            password_error = validate_password_strength(new_password)
+            if password_error:
+                return False, password_error
 
             # Update password
             user.hashed_password = hash_password(new_password)
