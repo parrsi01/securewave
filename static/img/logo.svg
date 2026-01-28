@@ -1,5 +1,6 @@
-<svg width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <title>SecureWave</title>
+<svg width="512" height="512" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="sw-title sw-desc">
+  <title id="sw-title">SecureWave</title>
+  <desc id="sw-desc">Shield mark with wave detail.</desc>
   <defs>
     <linearGradient id="sw-shield" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#1B6B68"/>

@@ -73,6 +73,18 @@ class PolicyDecision:
     safety_override: bool = False
 
 
+@dataclass
+class MARLPolicyConfig:
+    """Configuration for MARL policy behavior."""
+    critical_packet_loss: float = 0.10
+    critical_latency: float = 500.0
+    high_risk_threshold: float = 0.75
+    max_server_load: float = 0.90
+    learning_rate: float = 0.1
+    discount_factor: float = 0.9
+    exploration_rate: float = 0.05
+
+
 class MARLPolicyEngine:
     """
     MARL Policy Engine for VPN optimization decisions.
@@ -94,7 +106,16 @@ class MARLPolicyEngine:
     DISCOUNT_FACTOR = 0.9
     EXPLORATION_RATE = 0.05
 
-    def __init__(self):
+    def __init__(self, config: Optional[MARLPolicyConfig] = None):
+        cfg = config or MARLPolicyConfig()
+        self.critical_packet_loss = cfg.critical_packet_loss
+        self.critical_latency = cfg.critical_latency
+        self.high_risk_threshold = cfg.high_risk_threshold
+        self.max_server_load = cfg.max_server_load
+        self.learning_rate = cfg.learning_rate
+        self.discount_factor = cfg.discount_factor
+        self.exploration_rate = cfg.exploration_rate
+
         # Q-table: (state_hash, action) -> value
         self.q_table: Dict[Tuple, float] = {}
 
@@ -149,7 +170,7 @@ class MARLPolicyEngine:
         Returns immediate decision if constraint violated.
         """
         # Critical packet loss -> immediate reroute
-        if state.packet_loss >= self.CRITICAL_PACKET_LOSS:
+        if state.packet_loss >= self.critical_packet_loss:
             return PolicyDecision(
                 action=PolicyAction.REROUTE,
                 reason=f"Critical packet loss: {state.packet_loss*100:.1f}%",
@@ -158,7 +179,7 @@ class MARLPolicyEngine:
             )
 
         # Critical latency -> immediate reroute
-        if state.latency_ms >= self.CRITICAL_LATENCY:
+        if state.latency_ms >= self.critical_latency:
             return PolicyDecision(
                 action=PolicyAction.REROUTE,
                 reason=f"Critical latency: {state.latency_ms:.0f}ms",
@@ -167,7 +188,7 @@ class MARLPolicyEngine:
             )
 
         # High risk -> alert
-        if state.risk_score >= self.HIGH_RISK_THRESHOLD:
+        if state.risk_score >= self.high_risk_threshold:
             return PolicyDecision(
                 action=PolicyAction.ALERT,
                 reason=f"High risk score: {state.risk_score:.2f}",
@@ -176,7 +197,7 @@ class MARLPolicyEngine:
             )
 
         # Server overloaded -> rotate
-        if state.server_load >= self.MAX_SERVER_LOAD:
+        if state.server_load >= self.max_server_load:
             return PolicyDecision(
                 action=PolicyAction.ROTATE_SERVER,
                 reason=f"Server overloaded: {state.server_load*100:.0f}%",
@@ -219,8 +240,8 @@ class MARLPolicyEngine:
         )
 
         # Q-learning update
-        new_q = current_q + self.LEARNING_RATE * (
-            reward + self.DISCOUNT_FACTOR * max_next_q - current_q
+        new_q = current_q + self.learning_rate * (
+            reward + self.discount_factor * max_next_q - current_q
         )
 
         self.q_table[(state_hash, action.value)] = new_q
@@ -252,7 +273,7 @@ class MARLPolicyEngine:
         # Exploration: random action
         import secrets
         rng = secrets.SystemRandom()
-        if rng.random() < self.EXPLORATION_RATE:
+        if rng.random() < self.exploration_rate:
             action = rng.choice(list(PolicyAction))
         else:
             # Exploitation: best Q-value action
@@ -310,7 +331,7 @@ class MARLPolicyEngine:
             "avg_reward": round(avg_reward, 3),
             "total_decisions": len(self.reward_history),
             "available_servers": len(self.available_servers),
-            "exploration_rate": self.EXPLORATION_RATE,
+            "exploration_rate": self.exploration_rate,
         }
 
 
@@ -324,6 +345,11 @@ def get_policy_engine() -> MARLPolicyEngine:
     if _policy_engine is None:
         _policy_engine = MARLPolicyEngine()
     return _policy_engine
+
+
+def create_policy_engine(config: Optional[MARLPolicyConfig] = None) -> MARLPolicyEngine:
+    """Create a policy engine instance with optional configuration."""
+    return MARLPolicyEngine(config=config)
 
 
 def evaluate_connection(

@@ -1,0 +1,14 @@
+<svg width="512" height="512" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="sw-title sw-desc">
+  <title id="sw-title">SecureWave</title>
+  <desc id="sw-desc">Shield mark with wave detail.</desc>
+  <defs>
+    <linearGradient id="sw-shield" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1B6B68"/>
+      <stop offset="1" stop-color="#0F4F4C"/>
+    </linearGradient>
+  </defs>
+  <path d="M70 10C46 24 28 28 28 28v34c0 33.5 22 58 42 68 20-10 42-34.5 42-68V28s-18-4-42-18z" fill="url(#sw-shield)"/>
+  <circle cx="70" cy="66" r="28" fill="#F5F7FB"/>
+  <path d="M42 72c10-10 24-14 38-12 8 1 16 4 24 9" stroke="#1B6B68" stroke-width="6" stroke-linecap="round"/>
+  <path d="M48 86c8-8 20-11 32-9 6 1 12 3 18 6" stroke="#0F4F4C" stroke-width="6" stroke-linecap="round"/>
+</svg>

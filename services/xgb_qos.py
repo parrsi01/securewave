@@ -19,6 +19,7 @@ Output:
 
 import os
 from dataclasses import dataclass
+from collections import Counter
 from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 
@@ -55,6 +56,20 @@ class QoSResult:
     score: float  # 0.0 to 1.0
     confidence: float
     method: str  # "xgboost" or "rule_based"
+
+
+@dataclass
+class XGBQoSConfig:
+    """Training configuration for QoS classifier."""
+    n_estimators: int = 100
+    max_depth: int = 6
+    learning_rate: float = 0.1
+    subsample: float = 1.0
+    colsample_bytree: float = 1.0
+    random_state: int = 42
+    n_jobs: int = 1
+    early_stopping_rounds: Optional[int] = None
+    class_weight_strategy: Optional[str] = None  # "balanced"
 
 
 class XGBQoSClassifier:
@@ -146,25 +161,52 @@ class XGBQoSClassifier:
             X: List of feature vectors [latency, loss, jitter, bandwidth, stability]
             y: List of labels ["excellent", "good", "fair", "poor"]
         """
+        return self.train_with_config(X, y, config=None, eval_set=None)
+
+    def train_with_config(
+        self,
+        X: List[List[float]],
+        y: List[str],
+        config: Optional[XGBQoSConfig] = None,
+        eval_set: Optional[Tuple[List[List[float]], List[str]]] = None,
+    ) -> None:
         if not self.use_ml:
             return
 
+        cfg = config or XGBQoSConfig()
         y_int = [self.LABEL_TO_INT[label] for label in y]
         X_arr = np.array(X, dtype=np.float32)
         y_arr = np.array(y_int, dtype=np.int32)
 
+        sample_weight = None
+        if cfg.class_weight_strategy == "balanced":
+            counts = Counter(y_int)
+            total = len(y_int)
+            weights = {label: total / (len(counts) * count) for label, count in counts.items()}
+            sample_weight = np.array([weights[label] for label in y_int], dtype=np.float32)
+
         self.model = xgb.XGBClassifier(
-            n_estimators=100,
-            max_depth=6,
-            learning_rate=0.1,
+            n_estimators=cfg.n_estimators,
+            max_depth=cfg.max_depth,
+            learning_rate=cfg.learning_rate,
+            subsample=cfg.subsample,
+            colsample_bytree=cfg.colsample_bytree,
             objective='multi:softprob',
             num_class=4,
             use_label_encoder=False,
             eval_metric='mlogloss',
-            random_state=42,
-            n_jobs=1,
+            random_state=cfg.random_state,
+            n_jobs=cfg.n_jobs,
         )
-        self.model.fit(X_arr, y_arr)
+        fit_kwargs = {}
+        if cfg.early_stopping_rounds and eval_set:
+            X_eval, y_eval = eval_set
+            y_eval_int = [self.LABEL_TO_INT[label] for label in y_eval]
+            fit_kwargs["eval_set"] = [(np.array(X_eval, dtype=np.float32), np.array(y_eval_int, dtype=np.int32))]
+            fit_kwargs["early_stopping_rounds"] = cfg.early_stopping_rounds
+        if sample_weight is not None:
+            fit_kwargs["sample_weight"] = sample_weight
+        self.model.fit(X_arr, y_arr, **fit_kwargs)
         self.is_trained = True
 
     def predict(self, inp: QoSInput) -> QoSResult:
