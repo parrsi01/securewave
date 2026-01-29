@@ -39,6 +39,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final isLoggedIn = authSession.isAuthenticated;
       final isAuthRoute = location == '/login' || location == '/register';
+      if (location == '/boot') {
+        return isLoggedIn ? '/vpn' : '/login';
+      }
       if (!isLoggedIn && !isAuthRoute) {
         return '/login';
       }

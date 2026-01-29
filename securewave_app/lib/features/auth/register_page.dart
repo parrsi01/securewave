@@ -139,7 +139,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             const SizedBox(height: AppUIv1.space4),
             Center(
               child: TextButton(
-                onPressed: () => context.go('/login'),
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    context.pop();
+                    return;
+                  }
+                  context.go('/login');
+                },
                 child: const Text('Already have an account? Sign in'),
               ),
             ),

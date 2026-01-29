@@ -109,7 +109,10 @@ class AppShell extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.language),
                   title: const Text('Language'),
-                  onTap: () => handleNavigation('/settings/language'),
+                  onTap: () {
+                    Navigator.of(context).maybePop();
+                    context.push('/settings/language');
+                  },
                 ),
                 ListTile(
                   leading: const Icon(Icons.person),

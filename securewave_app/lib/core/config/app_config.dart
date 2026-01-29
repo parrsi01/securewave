@@ -12,6 +12,7 @@ class AppConfig {
     required this.upgradeUrl,
     required this.adblockListUrl,
     required this.useMockApi,
+    required this.resetSessionOnBoot,
   });
 
   final String apiBaseUrl;
@@ -19,6 +20,7 @@ class AppConfig {
   final String upgradeUrl;
   final String adblockListUrl;
   final bool useMockApi;
+  final bool resetSessionOnBoot;
 
   factory AppConfig.defaults() {
     return AppConfig(
@@ -27,6 +29,7 @@ class AppConfig {
       upgradeUrl: AppConstants.upgradeUrlFallback,
       adblockListUrl: AppConstants.adblockListUrlFallback,
       useMockApi: true,
+      resetSessionOnBoot: false,
     );
   }
 
@@ -61,6 +64,13 @@ class AppConfig {
       dotenv.env['SECUREWAVE_USE_MOCK_API'] ??
           const String.fromEnvironment('SECUREWAVE_USE_MOCK_API', defaultValue: 'true'),
     );
+    final resetSessionOnBoot = _parseBool(
+      dotenv.env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
+          const String.fromEnvironment(
+            'SECUREWAVE_RESET_SESSION_ON_BOOT',
+            defaultValue: 'false',
+          ),
+    );
 
     return AppConfig(
       apiBaseUrl: baseUrl,
@@ -68,6 +78,7 @@ class AppConfig {
       upgradeUrl: upgradeUrl,
       adblockListUrl: adblockUrl,
       useMockApi: useMock,
+      resetSessionOnBoot: resetSessionOnBoot,
     );
   }
 

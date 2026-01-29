@@ -123,7 +123,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             const SizedBox(height: AppUIv1.space4),
             Center(
               child: TextButton(
-                onPressed: () => context.go('/register'),
+                onPressed: () => context.push('/register'),
                 child: const Text('Create an account'),
               ),
             ),
