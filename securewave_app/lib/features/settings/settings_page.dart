@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/models/vpn_protocol.dart';
 import '../../core/state/adblock_state.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/preferences_state.dart';
+import '../../core/state/vpn_state.dart';
 import '../../ui/app_ui_v1.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -18,12 +20,12 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool autoConnect = true;
   bool connectionGuard = true;
-  String selectedProtocol = 'WireGuard';
 
   @override
   Widget build(BuildContext context) {
     final deviceInfo = ref.watch(deviceInfoProvider);
     final language = ref.watch(preferencesProvider).language;
+    final protocol = ref.watch(vpnStateProvider.select((state) => state.protocol));
     final languageLabel = switch (language) {
       'es' => 'Spanish',
       'fr' => 'French',
@@ -87,28 +89,37 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           Card(
             child: Column(
               children: [
-                RadioListTile<String>(
+                RadioListTile<VpnProtocol>(
                   title: const Text('WireGuard'),
                   subtitle: const Text('Balanced speed and privacy.'),
-                  value: 'WireGuard',
-                  groupValue: selectedProtocol,
-                  onChanged: (value) => setState(() => selectedProtocol = value ?? selectedProtocol),
+                  value: VpnProtocol.wireGuard,
+                  groupValue: protocol,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    ref.read(vpnStateProvider.notifier).selectProtocol(value);
+                  },
                 ),
                 const Divider(height: 1),
-                RadioListTile<String>(
+                RadioListTile<VpnProtocol>(
                   title: const Text('IKEv2'),
                   subtitle: const Text('Reliable on mobile networks.'),
-                  value: 'IKEv2',
-                  groupValue: selectedProtocol,
-                  onChanged: (value) => setState(() => selectedProtocol = value ?? selectedProtocol),
+                  value: VpnProtocol.ikev2,
+                  groupValue: protocol,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    ref.read(vpnStateProvider.notifier).selectProtocol(value);
+                  },
                 ),
                 const Divider(height: 1),
-                RadioListTile<String>(
+                RadioListTile<VpnProtocol>(
                   title: const Text('OpenVPN'),
                   subtitle: const Text('Compatibility mode.'),
-                  value: 'OpenVPN',
-                  groupValue: selectedProtocol,
-                  onChanged: (value) => setState(() => selectedProtocol = value ?? selectedProtocol),
+                  value: VpnProtocol.openVpn,
+                  groupValue: protocol,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    ref.read(vpnStateProvider.notifier).selectProtocol(value);
+                  },
                 ),
               ],
             ),

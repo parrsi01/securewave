@@ -76,8 +76,13 @@ class AppLogger {
 }
 
 class AppLifecycleObserver extends WidgetsBindingObserver {
+  AppLifecycleObserver({this.onStateChange});
+
+  final ValueChanged<AppLifecycleState>? onStateChange;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     AppLogger.info('Lifecycle: ${state.name}');
+    onStateChange?.call(state);
   }
 }

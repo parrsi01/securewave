@@ -23,37 +23,74 @@ class ApiClient {
 
   final AppConfig _config;
   late final Dio _dio;
+  List<ServerRegion>? _cachedServers;
+  DateTime? _serversFetchedAt;
+  UserPlan? _cachedPlan;
+  DateTime? _planFetchedAt;
 
-  Future<List<ServerRegion>> fetchServers() async {
+  static const Duration _serversCacheTtl = Duration(minutes: 5);
+  static const Duration _planCacheTtl = Duration(minutes: 2);
+
+  Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
+      final age = DateTime.now().difference(_serversFetchedAt!);
+      if (age < _serversCacheTtl) {
+        return _cachedServers!;
+      }
+    }
     if (_config.useMockApi) {
-      return _mockServers();
+      final data = _mockServers();
+      _cachedServers = data;
+      _serversFetchedAt = DateTime.now();
+      return data;
     }
     try {
       final response = await _dio.get<List<dynamic>>('/vpn/servers');
       final data = response.data ?? <dynamic>[];
-      return data
+      final servers = data
           .whereType<Map>()
           .map((entry) => ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
           .toList();
+      _cachedServers = servers;
+      _serversFetchedAt = DateTime.now();
+      return servers;
     } catch (error, stackTrace) {
       AppLogger.warning('Server list unavailable, using mock regions.');
       AppLogger.error('Server list error', error: error, stackTrace: stackTrace);
-      return _mockServers();
+      final data = _mockServers();
+      _cachedServers = data;
+      _serversFetchedAt = DateTime.now();
+      return data;
     }
   }
 
-  Future<UserPlan> fetchUserPlan() async {
+  Future<UserPlan> fetchUserPlan({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedPlan != null && _planFetchedAt != null) {
+      final age = DateTime.now().difference(_planFetchedAt!);
+      if (age < _planCacheTtl) {
+        return _cachedPlan!;
+      }
+    }
     if (_config.useMockApi) {
-      return _mockPlan();
+      final plan = _mockPlan();
+      _cachedPlan = plan;
+      _planFetchedAt = DateTime.now();
+      return plan;
     }
     try {
       final response = await _dio.get<Map<String, dynamic>>('/user/plan');
       final data = response.data ?? <String, dynamic>{};
-      return UserPlan.fromJson(data);
+      final plan = UserPlan.fromJson(data);
+      _cachedPlan = plan;
+      _planFetchedAt = DateTime.now();
+      return plan;
     } catch (error, stackTrace) {
       AppLogger.warning('Plan lookup failed, using mock plan.');
       AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
-      return _mockPlan();
+      final plan = _mockPlan();
+      _cachedPlan = plan;
+      _planFetchedAt = DateTime.now();
+      return plan;
     }
   }
 
