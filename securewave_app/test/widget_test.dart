@@ -16,8 +16,14 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          appConfigProvider.overrideWithValue(
-            AppConfig(apiBaseUrl: 'https://example.com', useMockApi: true),
+          appConfigProvider.overrideWith(
+            (ref) => AppConfig(
+              apiBaseUrl: 'https://example.com',
+              portalUrl: 'https://portal.example.com',
+              upgradeUrl: 'https://upgrade.example.com',
+              adblockListUrl: 'https://adblock.example.com/list.txt',
+              useMockApi: true,
+            ),
           ),
         ],
         child: const SecureWaveApp(),

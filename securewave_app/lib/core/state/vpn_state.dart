@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
 import '../models/vpn_status.dart';
-import '../services/vpn_service.dart';
 import '../services/secure_storage.dart';
 import 'app_state.dart';
 
