@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
-import '../../core/services/app_state.dart';
+import '../../core/state/adblock_state.dart';
+import '../../core/state/app_state.dart';
+import '../../core/state/preferences_state.dart';
 import '../../ui/app_ui_v1.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -15,10 +18,18 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool autoConnect = true;
   bool connectionGuard = true;
+  String selectedProtocol = 'WireGuard';
 
   @override
   Widget build(BuildContext context) {
     final deviceInfo = ref.watch(deviceInfoProvider);
+    final language = ref.watch(preferencesProvider).language;
+    final languageLabel = switch (language) {
+      'es' => 'Spanish',
+      'fr' => 'French',
+      'de' => 'German',
+      _ => 'English',
+    };
 
     return SafeArea(
       child: ListView(
@@ -36,6 +47,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               leading: const Icon(Icons.devices_other),
               title: const Text('Current device'),
               subtitle: Text(deviceInfo),
+            ),
+          ),
+          const SizedBox(height: AppUIv1.space4),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.language),
+              title: const Text('Language'),
+              subtitle: Text(languageLabel),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/settings/language'),
             ),
           ),
           const SizedBox(height: AppUIv1.space4),
@@ -60,6 +81,42 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ],
             ),
           ),
+          const SizedBox(height: AppUIv1.space4),
+          Text('Protocol', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppUIv1.space3),
+          Card(
+            child: Column(
+              children: [
+                RadioListTile<String>(
+                  title: const Text('WireGuard'),
+                  subtitle: const Text('Balanced speed and privacy.'),
+                  value: 'WireGuard',
+                  groupValue: selectedProtocol,
+                  onChanged: (value) => setState(() => selectedProtocol = value ?? selectedProtocol),
+                ),
+                const Divider(height: 1),
+                RadioListTile<String>(
+                  title: const Text('IKEv2'),
+                  subtitle: const Text('Reliable on mobile networks.'),
+                  value: 'IKEv2',
+                  groupValue: selectedProtocol,
+                  onChanged: (value) => setState(() => selectedProtocol = value ?? selectedProtocol),
+                ),
+                const Divider(height: 1),
+                RadioListTile<String>(
+                  title: const Text('OpenVPN'),
+                  subtitle: const Text('Compatibility mode.'),
+                  value: 'OpenVPN',
+                  groupValue: selectedProtocol,
+                  onChanged: (value) => setState(() => selectedProtocol = value ?? selectedProtocol),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppUIv1.space4),
+          Text('Ad blocking', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppUIv1.space3),
+          _AdblockCard(),
           const SizedBox(height: AppUIv1.space4),
           Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppUIv1.space3),
@@ -112,6 +169,62 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AdblockCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final adblock = ref.watch(adblockStateProvider);
+    final updatedLabel = adblock.lastUpdated == null
+        ? 'Not updated yet'
+        : 'Last updated ${adblock.lastUpdated!.toLocal().toString().split('.').first}';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppUIv1.space4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              title: const Text('Block Ads & Trackers'),
+              value: adblock.blockAds,
+              onChanged: (value) => ref.read(adblockStateProvider.notifier).setBlockAds(value),
+            ),
+            const Divider(height: 1),
+            SwitchListTile(
+              title: const Text('Block Malware'),
+              value: adblock.blockMalware,
+              onChanged: (value) => ref.read(adblockStateProvider.notifier).setBlockMalware(value),
+            ),
+            const Divider(height: 1),
+            SwitchListTile(
+              title: const Text('Strict mode'),
+              subtitle: const Text('May block more aggressively.'),
+              value: adblock.strictMode,
+              onChanged: (value) => ref.read(adblockStateProvider.notifier).setStrictMode(value),
+            ),
+            const SizedBox(height: AppUIv1.space3),
+            Text(
+              'Rules: ${adblock.totalRules}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: AppUIv1.space1),
+            Text(updatedLabel, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: AppUIv1.space3),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: adblock.isUpdating
+                    ? null
+                    : () => ref.read(adblockStateProvider.notifier).updateFromRemote(),
+                icon: const Icon(Icons.refresh),
+                label: Text(adblock.isUpdating ? 'Updating...' : 'Update blocklist'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

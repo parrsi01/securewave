@@ -6,6 +6,7 @@ but you must finish configuration in Xcode on macOS.
 ## Steps
 
 1. Open `securewave_app/ios/Runner.xcworkspace` in Xcode.
+   - The build includes a workspace guard that fails if `Runner.xcodeproj` is opened directly.
 2. Select the **Runner** target:
    - Set your Apple Team.
    - Confirm the bundle identifier you intend to use.

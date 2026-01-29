@@ -8,6 +8,7 @@ import '../../features/home/home_page.dart';
 import '../../features/servers/servers_page.dart';
 import '../../features/settings/settings_page.dart';
 import '../../features/vpn/vpn_page.dart';
+import '../../features/account/account_page.dart';
 import '../services/auth_session.dart';
 import 'app_shell.dart';
 
@@ -57,6 +58,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsPage(),
+          ),
+          GoRoute(
+            path: '/account',
+            builder: (context, state) => const AccountPage(),
           ),
         ],
       ),

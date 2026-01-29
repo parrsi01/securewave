@@ -1,179 +1,89 @@
-import 'dart:async';
-
 import 'package:flutter/services.dart';
 
-enum VpnStatus { disconnected, connecting, connected, disconnecting }
+import '../models/vpn_status.dart';
 
 abstract class VpnService {
-  Stream<VpnStatus> get statusStream;
-  VpnStatus get currentStatus;
-  Future<void> connect({required String config});
-  Future<void> disconnect();
+  Future<VpnStatus> connect();
+  Future<VpnStatus> disconnect();
+  VpnStatus getStatus();
 }
 
-class VpnServiceNative implements VpnService {
-  VpnServiceNative({VpnService? fallback})
-      : _fallback = fallback ?? VpnServiceMock() {
-    _controller.add(_status);
-  }
+class ChannelVpnService implements VpnService {
+  ChannelVpnService({VpnService? fallback})
+      : _fallback = fallback ?? MockVpnService();
 
-  final _controller = StreamController<VpnStatus>.broadcast();
   final MethodChannel _channel = const MethodChannel('securewave/vpn');
   final VpnService _fallback;
-  StreamSubscription<VpnStatus>? _fallbackSub;
   VpnStatus _status = VpnStatus.disconnected;
-  bool _usingFallback = false;
 
   @override
-  Stream<VpnStatus> get statusStream => _controller.stream;
-
-  @override
-  VpnStatus get currentStatus => _status;
-
-  @override
-  Future<void> connect({required String config}) async {
-    if (_status != VpnStatus.disconnected) return;
-    _setStatus(VpnStatus.connecting);
-    try {
-      await _channel.invokeMethod('connect', {'config': config});
-      _setStatus(VpnStatus.connected);
-    } on PlatformException {
-      await _activateFallback();
-      try {
-        await _fallback.connect(config: config);
-      } catch (_) {
-        _setStatus(VpnStatus.disconnected);
-        rethrow;
-      }
-    } on MissingPluginException {
-      await _activateFallback();
-      try {
-        await _fallback.connect(config: config);
-      } catch (_) {
-        _setStatus(VpnStatus.disconnected);
-        rethrow;
-      }
-    } catch (_) {
-      _setStatus(VpnStatus.disconnected);
-      rethrow;
+  Future<VpnStatus> connect() async {
+    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
+      return _status;
     }
+    _status = VpnStatus.connecting;
+    try {
+      await _channel.invokeMethod('connect');
+      _status = VpnStatus.connected;
+    } on PlatformException {
+      _status = await _fallback.connect();
+    } on MissingPluginException {
+      _status = await _fallback.connect();
+    }
+    return _status;
   }
 
   @override
-  Future<void> disconnect() async {
-    if (_status != VpnStatus.connected) return;
-    _setStatus(VpnStatus.disconnecting);
-    if (_usingFallback) {
-      try {
-        await _fallback.disconnect();
-      } finally {
-        _setStatus(VpnStatus.disconnected);
-      }
-      return;
+  Future<VpnStatus> disconnect() async {
+    if (_status == VpnStatus.disconnected) {
+      return _status;
     }
     try {
       await _channel.invokeMethod('disconnect');
-      _setStatus(VpnStatus.disconnected);
+      _status = VpnStatus.disconnected;
     } on PlatformException {
-      await _activateFallback();
-      try {
-        await _fallback.disconnect();
-      } finally {
-        _setStatus(VpnStatus.disconnected);
-      }
+      _status = await _fallback.disconnect();
     } on MissingPluginException {
-      await _activateFallback();
-      try {
-        await _fallback.disconnect();
-      } finally {
-        _setStatus(VpnStatus.disconnected);
-      }
-    } catch (_) {
-      _setStatus(VpnStatus.disconnected);
-      rethrow;
+      _status = await _fallback.disconnect();
     }
+    return _status;
   }
 
-  void _setStatus(VpnStatus status) {
-    _status = status;
-    _controller.add(status);
-  }
-
-  Future<void> _activateFallback() async {
-    if (_usingFallback) return;
-    _usingFallback = true;
-    _fallbackSub = _fallback.statusStream.listen(_setStatus);
-  }
-
-  void dispose() {
-    _fallbackSub?.cancel();
-    _controller.close();
-  }
+  @override
+  VpnStatus getStatus() => _status;
 }
 
-class VpnServiceMock implements VpnService {
-  VpnServiceMock() {
-    _controller.add(_status);
-  }
+class MockVpnService implements VpnService {
+  MockVpnService({
+    this.connectDelay = const Duration(seconds: 2),
+    this.disconnectDelay = const Duration(seconds: 1),
+  });
 
-  final _controller = StreamController<VpnStatus>.broadcast();
+  final Duration connectDelay;
+  final Duration disconnectDelay;
   VpnStatus _status = VpnStatus.disconnected;
 
   @override
-  Stream<VpnStatus> get statusStream => _controller.stream;
-
-  @override
-  VpnStatus get currentStatus => _status;
-
-  @override
-  Future<void> connect({required String config}) async {
-    if (_status != VpnStatus.disconnected) return;
-    _setStatus(VpnStatus.connecting);
-    await Future.delayed(const Duration(seconds: 2));
-    _setStatus(VpnStatus.connected);
+  Future<VpnStatus> connect() async {
+    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
+      return _status;
+    }
+    _status = VpnStatus.connecting;
+    await Future.delayed(connectDelay);
+    _status = VpnStatus.connected;
+    return _status;
   }
 
   @override
-  Future<void> disconnect() async {
-    if (_status != VpnStatus.connected) return;
-    _setStatus(VpnStatus.disconnecting);
-    await Future.delayed(const Duration(seconds: 1));
-    _setStatus(VpnStatus.disconnected);
-  }
-
-  void _setStatus(VpnStatus status) {
-    _status = status;
-    _controller.add(status);
-  }
-}
-
-class VpnServiceUnsupported implements VpnService {
-  VpnServiceUnsupported(this.message) {
-    _controller.add(_status);
-  }
-
-  final String message;
-  final _controller = StreamController<VpnStatus>.broadcast();
-  VpnStatus _status = VpnStatus.disconnected;
-
-  @override
-  Stream<VpnStatus> get statusStream => _controller.stream;
-
-  @override
-  VpnStatus get currentStatus => _status;
-
-  @override
-  Future<void> connect({required String config}) async {
-    throw UnsupportedError(message);
+  Future<VpnStatus> disconnect() async {
+    if (_status == VpnStatus.disconnected) {
+      return _status;
+    }
+    await Future.delayed(disconnectDelay);
+    _status = VpnStatus.disconnected;
+    return _status;
   }
 
   @override
-  Future<void> disconnect() async {
-    _setStatus(VpnStatus.disconnected);
-  }
-
-  void _setStatus(VpnStatus status) {
-    _status = status;
-    _controller.add(status);
-  }
+  VpnStatus getStatus() => _status;
 }

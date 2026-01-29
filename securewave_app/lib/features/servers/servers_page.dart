@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/services/app_state.dart';
+import '../../core/state/app_state.dart';
 import '../../ui/app_ui_v1.dart';
-import '../vpn/vpn_controller.dart';
+import '../../core/state/vpn_state.dart';
 
 class ServersPage extends ConsumerWidget {
   const ServersPage({super.key});
@@ -11,7 +11,8 @@ class ServersPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final servers = ref.watch(serversProvider);
-    final vpnState = ref.watch(vpnControllerProvider);
+    final vpnState = ref.watch(vpnStateProvider);
+    final favorites = ref.watch(favoriteServersProvider);
 
     return SafeArea(
       child: ListView(
@@ -31,16 +32,20 @@ class ServersPage extends ConsumerWidget {
               }
               if (vpnState.selectedServerId == null) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  ref.read(vpnControllerProvider.notifier).selectServer(
-                        data.first['server_id'] as String?,
-                      );
+                  ref.read(vpnStateProvider.notifier).selectServer(data.first.id);
                 });
               }
               return Column(
                 children: data.map((server) {
-                  final id = server['server_id'] as String?;
-                  final location = server['location']?.toString() ?? 'Unknown region';
-                  final isSelected = id != null && id == vpnState.selectedServerId;
+                  final isSelected = server.id == vpnState.selectedServerId;
+                  final isFavorite = favorites.contains(server.id);
+                  final latencyLabel = server.latencyMs == null ? '-- ms' : '${server.latencyMs} ms';
+                  final subtitleParts = <String>[];
+                  if (server.country != null && server.country!.isNotEmpty) {
+                    subtitleParts.add(server.country!);
+                  }
+                  subtitleParts.add('Latency $latencyLabel');
+                  final subtitle = subtitleParts.join(' • ');
                   return Padding(
                     padding: const EdgeInsets.only(bottom: AppUIv1.space3),
                     child: Card(
@@ -54,15 +59,28 @@ class ServersPage extends ConsumerWidget {
                           backgroundColor: isSelected ? AppUIv1.accentSoft : AppUIv1.surfaceMuted,
                           child: Icon(Icons.public, color: isSelected ? AppUIv1.accentStrong : AppUIv1.inkSoft),
                         ),
-                        title: Text(location, style: Theme.of(context).textTheme.titleMedium),
+                        title: Text(server.name, style: Theme.of(context).textTheme.titleMedium),
                         subtitle: Text(
-                          isSelected ? 'Selected for next connection' : 'Tap to select',
+                          isSelected ? 'Selected for next connection • $subtitle' : subtitle,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
-                        trailing: isSelected
-                            ? const Icon(Icons.check_circle, color: AppUIv1.accent)
-                            : const Icon(Icons.chevron_right),
-                        onTap: () => ref.read(vpnControllerProvider.notifier).selectServer(id),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: isFavorite ? 'Remove favorite' : 'Mark favorite',
+                              icon: Icon(isFavorite ? Icons.star : Icons.star_border),
+                              color: isFavorite ? AppUIv1.accentSun : AppUIv1.inkSoft,
+                              onPressed: () =>
+                                  ref.read(favoriteServersProvider.notifier).toggle(server.id),
+                            ),
+                            if (isSelected)
+                              const Icon(Icons.check_circle, color: AppUIv1.accent)
+                            else
+                              const Icon(Icons.chevron_right),
+                          ],
+                        ),
+                        onTap: () => ref.read(vpnStateProvider.notifier).selectServer(server.id),
                       ),
                     ),
                   );

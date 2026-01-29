@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/services/api_service.dart';
-import '../../core/services/auth_session.dart';
 import '../../core/utils/api_error.dart';
+import '../../core/logging/app_logger.dart';
+import '../../services/auth_service.dart';
 
 class AuthState {
   const AuthState({
@@ -33,17 +33,9 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> login({required String email, required String password}) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      final api = _ref.read(apiServiceProvider);
-      final response = await api.post('/auth/login', data: {
-        'email': email,
-        'password': password,
-      });
-      final data = response.data as Map<String, dynamic>;
-      await _ref.read(authSessionProvider).setSession(
-            accessToken: data['access_token'] as String,
-            refreshToken: data['refresh_token'] as String?,
-          );
-    } catch (error) {
+      await _ref.read(authServiceProvider).login(email: email, password: password);
+    } catch (error, stackTrace) {
+      AppLogger.error('Login failed', error: error, stackTrace: stackTrace);
       state = state.copyWith(
         errorMessage: ApiError.messageFrom(
           error,
@@ -58,20 +50,9 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> register({required String email, required String password}) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      final api = _ref.read(apiServiceProvider);
-      final response = await api.post('/auth/register', data: {
-        'email': email,
-        'password': password,
-        'password_confirm': password,
-      });
-      final data = response.data as Map<String, dynamic>;
-      if (data['access_token'] != null) {
-        await _ref.read(authSessionProvider).setSession(
-              accessToken: data['access_token'] as String,
-              refreshToken: data['refresh_token'] as String?,
-            );
-      }
+      await _ref.read(authServiceProvider).register(email: email, password: password);
     } catch (error) {
+      AppLogger.error('Registration failed', error: error);
       state = state.copyWith(
         errorMessage: ApiError.messageFrom(
           error,
