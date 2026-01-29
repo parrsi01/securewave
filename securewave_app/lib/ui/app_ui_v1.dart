@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -45,9 +48,15 @@ class AppUIv1 {
       colorScheme: scheme,
     );
 
+    // Use Google Fonts on iOS/Android/Web, but system fonts on Linux
+    // to avoid Skia rendering crashes
+    final textTheme = (!kIsWeb && Platform.isLinux)
+        ? base.textTheme
+        : GoogleFonts.manropeTextTheme(base.textTheme);
+
     return base.copyWith(
       scaffoldBackgroundColor: background,
-      textTheme: GoogleFonts.manropeTextTheme(base.textTheme).copyWith(
+      textTheme: textTheme.copyWith(
         headlineMedium: const TextStyle(fontWeight: FontWeight.w700, color: ink),
         titleLarge: const TextStyle(fontWeight: FontWeight.w700, color: ink),
         titleMedium: const TextStyle(fontWeight: FontWeight.w600, color: ink),
