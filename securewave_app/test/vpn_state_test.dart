@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +8,17 @@ import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    // Stub flutter_secure_storage platform channel (unavailable in test harness)
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+      (MethodCall methodCall) async => null,
+    );
+  });
+
   test('VpnStateNotifier transitions through connect and disconnect', () async {
     final service = MockVpnService(connectDelay: Duration.zero, disconnectDelay: Duration.zero);
     final container = ProviderContainer(

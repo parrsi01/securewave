@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 
@@ -9,7 +10,7 @@ void main() {
 
     expect(service.getStatus(), VpnStatus.disconnected);
 
-    final connected = await service.connect();
+    final connected = await service.connect(protocol: VpnProtocol.wireGuard);
     expect(connected, VpnStatus.connected);
     expect(service.getStatus(), VpnStatus.connected);
 
