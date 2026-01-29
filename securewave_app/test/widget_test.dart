@@ -9,10 +9,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:securewave_app/app.dart';
+import 'package:securewave_app/core/config/app_config.dart';
 
 void main() {
   testWidgets('SecureWave app boots', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: SecureWaveApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appConfigProvider.overrideWithValue(
+            AppConfig(apiBaseUrl: 'https://example.com', useMockApi: true),
+          ),
+        ],
+        child: const SecureWaveApp(),
+      ),
+    );
 
     expect(find.byType(SecureWaveApp), findsOneWidget);
   });

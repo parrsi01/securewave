@@ -2,31 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/services/app_state.dart';
-import '../../core/services/vpn_service.dart';
+import '../../core/models/vpn_status.dart';
+import '../../core/state/app_state.dart';
+import '../../core/state/vpn_state.dart';
 import '../../ui/app_ui_v1.dart';
-import 'vpn_controller.dart';
 
 class VpnPage extends ConsumerWidget {
   const VpnPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final vpnState = ref.watch(vpnControllerProvider);
+    final vpnState = ref.watch(vpnStateProvider);
     final servers = ref.watch(serversProvider);
-    final status = ref.watch(vpnStatusProvider);
-    final vpnService = ref.watch(vpnServiceProvider);
-    String? platformNotice;
-    if (vpnService is VpnServiceUnsupported) {
-      platformNotice = vpnService.message;
-    }
 
     final serversData = servers.maybeWhen(data: (data) => data, orElse: () => null);
     if (serversData != null && serversData.isNotEmpty && vpnState.selectedServerId == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(vpnControllerProvider.notifier).selectServer(
-              serversData.first['server_id'] as String?,
-            );
+        ref.read(vpnStateProvider.notifier).selectServer(serversData.first.id);
       });
     }
 
@@ -34,45 +26,29 @@ class VpnPage extends ConsumerWidget {
         ? 'Auto-select'
         : serversData
                 .firstWhere(
-                  (server) => server['server_id'] == vpnState.selectedServerId,
+                  (server) => server.id == vpnState.selectedServerId,
                   orElse: () => serversData.first,
-                )['location']
-                ?.toString() ??
-            'Auto-select';
+                )
+                .name;
 
-    final statusText = status.when(
-      data: (data) {
-        switch (data) {
-          case VpnStatus.connected:
-            return 'Connected';
-          case VpnStatus.connecting:
-            return 'Connecting';
-          case VpnStatus.disconnecting:
-            return 'Disconnecting';
-          case VpnStatus.disconnected:
-            return 'Disconnected';
-        }
-      },
-      loading: () => 'Checking',
-      error: (_, __) => 'Unavailable',
-    );
+    final statusText = switch (vpnState.status) {
+      VpnStatus.connected => 'Connected',
+      VpnStatus.connecting => 'Connecting',
+      VpnStatus.error => 'Needs attention',
+      VpnStatus.disconnected => 'Disconnected',
+    };
 
-    final statusColor = status.when(
-      data: (data) {
-        switch (data) {
-          case VpnStatus.connected:
-            return AppUIv1.success;
-          case VpnStatus.connecting:
-            return AppUIv1.accentSun;
-          case VpnStatus.disconnecting:
-            return AppUIv1.accentSun;
-          case VpnStatus.disconnected:
-            return AppUIv1.inkSoft;
-        }
-      },
-      loading: () => AppUIv1.inkSoft,
-      error: (_, __) => AppUIv1.inkSoft,
-    );
+    final statusColor = switch (vpnState.status) {
+      VpnStatus.connected => AppUIv1.success,
+      VpnStatus.connecting => AppUIv1.accentSun,
+      VpnStatus.error => AppUIv1.warning,
+      VpnStatus.disconnected => AppUIv1.inkSoft,
+    };
+    final primaryActionLabel = vpnState.status == VpnStatus.connecting
+        ? 'Connecting...'
+        : vpnState.status == VpnStatus.connected
+            ? 'Disconnect'
+            : 'Connect';
 
     return SafeArea(
       child: ListView(
@@ -80,14 +56,6 @@ class VpnPage extends ConsumerWidget {
         children: [
           Text('Connection', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: AppUIv1.space3),
-          if (platformNotice != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppUIv1.space4),
-                child: Text(platformNotice, style: Theme.of(context).textTheme.bodyMedium),
-              ),
-            ),
-          if (platformNotice != null) const SizedBox(height: AppUIv1.space3),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(AppUIv1.space5),
@@ -119,14 +87,12 @@ class VpnPage extends ConsumerWidget {
                           ? null
                           : () {
                               if (vpnState.status == VpnStatus.connected) {
-                                ref.read(vpnControllerProvider.notifier).disconnect();
+                                ref.read(vpnStateProvider.notifier).disconnect();
                               } else {
-                                ref.read(vpnControllerProvider.notifier).connect();
+                                ref.read(vpnStateProvider.notifier).connect();
                               }
                             },
-                      child: Text(
-                        vpnState.status == VpnStatus.connected ? 'Disconnect' : 'Connect',
-                      ),
+                      child: Text(primaryActionLabel),
                     ),
                   ),
                   const SizedBox(height: AppUIv1.space3),

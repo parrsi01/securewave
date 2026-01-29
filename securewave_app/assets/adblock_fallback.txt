@@ -1,0 +1,7 @@
+# SecureWave fallback adblock list
+ads.example.com
+tracker.example.net
+metrics.example.org
+ads1.example.com
+doubleclick.net
+adservice.google.com
