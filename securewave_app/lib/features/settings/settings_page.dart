@@ -56,7 +56,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               title: const Text('Language'),
               subtitle: Text(languageLabel),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.go('/settings/language'),
+              onTap: () => context.push('/settings/language'),
             ),
           ),
           const SizedBox(height: AppUIv1.space4),

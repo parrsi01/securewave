@@ -99,7 +99,7 @@ class VpnPage extends ConsumerWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () => context.go('/servers'),
+                      onPressed: () => context.push('/servers'),
                       icon: const Icon(Icons.public),
                       label: const Text('Choose a server'),
                     ),

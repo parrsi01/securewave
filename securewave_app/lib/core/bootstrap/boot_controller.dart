@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
 import '../logging/app_logger.dart';
+import '../services/auth_session.dart';
 import '../services/secure_storage.dart';
 import '../state/adblock_state.dart';
 import '../state/vpn_state.dart';
@@ -76,10 +77,19 @@ class BootController extends ChangeNotifier {
     final config = await AppConfig.load();
     _ref.read(appConfigProvider.notifier).state = config;
     AppLogger.info('Boot: config loaded');
+    final storage = SecureStorage();
+
+    if (config.resetSessionOnBoot) {
+      final resetDone = await storage.getBool(SecureStorage.resetSessionDoneKey) ?? false;
+      if (!resetDone) {
+        await _ref.read(authSessionProvider).clearSession();
+        await storage.saveBool(SecureStorage.resetSessionDoneKey, true);
+        AppLogger.info('Boot: session reset');
+      }
+    }
 
     // Step 2: Restore VPN server selection (can fail gracefully)
     try {
-      final storage = SecureStorage();
       final selectedServer = await storage.getString(SecureStorage.selectedServerKey);
       if (selectedServer != null) {
         _ref.read(vpnStateProvider.notifier).selectServer(selectedServer);
