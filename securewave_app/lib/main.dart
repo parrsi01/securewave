@@ -8,15 +8,21 @@ import 'app.dart';
 import 'core/logging/app_logger.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  FlutterError.onError = AppLogger.captureFlutterError;
-  PlatformDispatcher.instance.onError = AppLogger.capturePlatformError;
-
   runZonedGuarded(
-    () {
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+
+      // Capture all Flutter framework errors
+      FlutterError.onError = AppLogger.captureFlutterError;
+
+      // Capture platform dispatcher errors (async errors outside Flutter)
+      PlatformDispatcher.instance.onError = AppLogger.capturePlatformError;
+
       AppLogger.info('SecureWave booting');
       runApp(const ProviderScope(child: SecureWaveApp()));
     },
-    (error, stackTrace) => AppLogger.error('Zone error', error: error, stackTrace: stackTrace),
+    (error, stackTrace) {
+      AppLogger.error('Uncaught zone error', error: error, stackTrace: stackTrace);
+    },
   );
 }
