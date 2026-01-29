@@ -12,6 +12,7 @@ class SecureStorage {
   static const adblockUpdatedKey = 'adblock_updated_at';
   static const adblockRulesKey = 'adblock_rules_count';
   static const resetSessionDoneKey = 'reset_session_done';
+  static const vpnProtocolKey = 'vpn_protocol';
 
   Future<void> saveTokens({required String accessToken, String? refreshToken}) async {
     await _storage.write(key: _accessTokenKey, value: accessToken);

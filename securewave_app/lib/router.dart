@@ -15,6 +15,26 @@ import 'features/settings/settings_page.dart';
 import 'features/vpn/vpn_page.dart';
 import 'core/routing/app_shell.dart';
 
+CustomTransitionPage<T> _fadePage<T>({
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage<T>(
+    key: state.pageKey,
+    transitionDuration: const Duration(milliseconds: 120),
+    reverseTransitionDuration: const Duration(milliseconds: 120),
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOut,
+        reverseCurve: Curves.easeIn,
+      );
+      return FadeTransition(opacity: curved, child: child);
+    },
+  );
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authSession = ref.watch(authSessionProvider);
   final boot = ref.watch(bootControllerProvider);
@@ -53,44 +73,55 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/boot',
-        builder: (context, state) => const BootScreen(),
+        pageBuilder: (context, state) =>
+            _fadePage<void>(state: state, child: const BootScreen()),
       ),
       GoRoute(
         path: '/error',
-        builder: (context, state) => const FallbackErrorScreen(
-          message: 'Startup failed. See diagnostics below.',
+        pageBuilder: (context, state) => _fadePage<void>(
+          state: state,
+          child: const FallbackErrorScreen(
+            message: 'Startup failed. See diagnostics below.',
+          ),
         ),
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) => const LoginPage(),
+        pageBuilder: (context, state) =>
+            _fadePage<void>(state: state, child: const LoginPage()),
       ),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const RegisterPage(),
+        pageBuilder: (context, state) =>
+            _fadePage<void>(state: state, child: const RegisterPage()),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(
             path: '/vpn',
-            builder: (context, state) => const VpnPage(),
+            pageBuilder: (context, state) =>
+                _fadePage<void>(state: state, child: const VpnPage()),
           ),
           GoRoute(
             path: '/servers',
-            builder: (context, state) => const ServersPage(),
+            pageBuilder: (context, state) =>
+                _fadePage<void>(state: state, child: const ServersPage()),
           ),
           GoRoute(
             path: '/settings',
-            builder: (context, state) => const SettingsPage(),
+            pageBuilder: (context, state) =>
+                _fadePage<void>(state: state, child: const SettingsPage()),
           ),
           GoRoute(
             path: '/settings/language',
-            builder: (context, state) => const LanguagePage(),
+            pageBuilder: (context, state) =>
+                _fadePage<void>(state: state, child: const LanguagePage()),
           ),
           GoRoute(
             path: '/account',
-            builder: (context, state) => const AccountPage(),
+            pageBuilder: (context, state) =>
+                _fadePage<void>(state: state, child: const AccountPage()),
           ),
         ],
       ),

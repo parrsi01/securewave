@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/config/app_config.dart';
 import 'core/logging/app_logger.dart';
+import 'core/state/vpn_state.dart';
 import 'features/bootstrap/fallback_error_screen.dart';
 import 'router.dart';
 import 'ui/app_ui_v1.dart';
@@ -19,7 +21,7 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
   @override
   void initState() {
     super.initState();
-    _observer = AppLifecycleObserver();
+    _observer = AppLifecycleObserver(onStateChange: _handleLifecycle);
     WidgetsBinding.instance.addObserver(_observer);
   }
 
@@ -27,6 +29,19 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
   void dispose() {
     WidgetsBinding.instance.removeObserver(_observer);
     super.dispose();
+  }
+
+  Future<void> _handleLifecycle(AppLifecycleState state) async {
+    if (state == AppLifecycleState.resumed) {
+      final config = await AppConfig.load();
+      if (!mounted) return;
+      ref.read(appConfigProvider.notifier).state = config;
+      ref.read(vpnStateProvider.notifier).resumeRateUpdates();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      ref.read(vpnStateProvider.notifier).pauseRateUpdates();
+    }
   }
 
   @override

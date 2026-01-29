@@ -2,6 +2,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/app_constants.dart';
+import '../logging/app_logger.dart';
 
 final appConfigProvider = StateProvider<AppConfig>((_) => AppConfig.defaults());
 
@@ -21,6 +22,7 @@ class AppConfig {
   final String adblockListUrl;
   final bool useMockApi;
   final bool resetSessionOnBoot;
+  static AppConfig? _cached;
 
   factory AppConfig.defaults() {
     return AppConfig(
@@ -34,45 +36,50 @@ class AppConfig {
   }
 
   static Future<AppConfig> load() async {
+    if (_cached != null) return _cached!;
     try {
-      await dotenv.load(fileName: '.env');
-    } catch (_) {
-      // Defaults keep the app booting even without a .env file.
+      if (!dotenv.isInitialized) {
+        await dotenv.load(fileName: '.env');
+      }
+    } catch (error, stackTrace) {
+      AppLogger.warning('Config: .env load failed, using defaults');
+      AppLogger.error('Config: .env load error', error: error, stackTrace: stackTrace);
     }
 
-    final baseUrl = dotenv.env['SECUREWAVE_API_BASE_URL'] ??
-        const String.fromEnvironment(
-          'SECUREWAVE_API_BASE_URL',
-          defaultValue: AppConstants.baseUrlFallback,
-        );
-    final portalUrl = dotenv.env['SECUREWAVE_PORTAL_URL'] ??
-        const String.fromEnvironment(
-          'SECUREWAVE_PORTAL_URL',
-          defaultValue: AppConstants.portalUrlFallback,
-        );
-    final upgradeUrl = dotenv.env['SECUREWAVE_UPGRADE_URL'] ??
-        const String.fromEnvironment(
-          'SECUREWAVE_UPGRADE_URL',
-          defaultValue: AppConstants.upgradeUrlFallback,
-        );
-    final adblockUrl = dotenv.env['SECUREWAVE_ADBLOCK_LIST_URL'] ??
-        const String.fromEnvironment(
-          'SECUREWAVE_ADBLOCK_LIST_URL',
-          defaultValue: AppConstants.adblockListUrlFallback,
-        );
+    final env = dotenv.isInitialized ? dotenv.env : const <String, String>{};
+    final baseUrl = _envOrDefault(
+      env,
+      'SECUREWAVE_API_BASE_URL',
+      AppConstants.baseUrlFallback,
+    );
+    final portalUrl = _envOrDefault(
+      env,
+      'SECUREWAVE_PORTAL_URL',
+      AppConstants.portalUrlFallback,
+    );
+    final upgradeUrl = _envOrDefault(
+      env,
+      'SECUREWAVE_UPGRADE_URL',
+      AppConstants.upgradeUrlFallback,
+    );
+    final adblockUrl = _envOrDefault(
+      env,
+      'SECUREWAVE_ADBLOCK_LIST_URL',
+      AppConstants.adblockListUrlFallback,
+    );
     final useMock = _parseBool(
-      dotenv.env['SECUREWAVE_USE_MOCK_API'] ??
+      env['SECUREWAVE_USE_MOCK_API'] ??
           const String.fromEnvironment('SECUREWAVE_USE_MOCK_API', defaultValue: 'true'),
     );
     final resetSessionOnBoot = _parseBool(
-      dotenv.env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
+      env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
           const String.fromEnvironment(
             'SECUREWAVE_RESET_SESSION_ON_BOOT',
             defaultValue: 'false',
           ),
     );
 
-    return AppConfig(
+    _cached = AppConfig(
       apiBaseUrl: baseUrl,
       portalUrl: portalUrl,
       upgradeUrl: upgradeUrl,
@@ -80,6 +87,13 @@ class AppConfig {
       useMockApi: useMock,
       resetSessionOnBoot: resetSessionOnBoot,
     );
+    return _cached!;
+  }
+
+  static String _envOrDefault(Map<String, String> env, String key, String fallback) {
+    final value = env[key];
+    if (value == null || value.trim().isEmpty) return fallback;
+    return value;
   }
 
   static bool _parseBool(String value) {

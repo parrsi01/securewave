@@ -1,9 +1,10 @@
 import 'package:flutter/services.dart';
 
+import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 
 abstract class VpnService {
-  Future<VpnStatus> connect();
+  Future<VpnStatus> connect({required VpnProtocol protocol});
   Future<VpnStatus> disconnect();
   VpnStatus getStatus();
 }
@@ -17,18 +18,20 @@ class ChannelVpnService implements VpnService {
   VpnStatus _status = VpnStatus.disconnected;
 
   @override
-  Future<VpnStatus> connect() async {
+  Future<VpnStatus> connect({required VpnProtocol protocol}) async {
     if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
       return _status;
     }
     _status = VpnStatus.connecting;
     try {
-      await _channel.invokeMethod('connect');
+      await _channel.invokeMethod('connect', {
+        'protocol': vpnProtocolStorageValue(protocol),
+      });
       _status = VpnStatus.connected;
     } on PlatformException {
-      _status = await _fallback.connect();
+      _status = await _fallback.connect(protocol: protocol);
     } on MissingPluginException {
-      _status = await _fallback.connect();
+      _status = await _fallback.connect(protocol: protocol);
     }
     return _status;
   }
@@ -64,7 +67,7 @@ class MockVpnService implements VpnService {
   VpnStatus _status = VpnStatus.disconnected;
 
   @override
-  Future<VpnStatus> connect() async {
+  Future<VpnStatus> connect({required VpnProtocol protocol}) async {
     if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
       return _status;
     }
