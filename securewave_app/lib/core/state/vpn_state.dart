@@ -67,7 +67,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   final Ref _ref;
   final _rng = Random();
-  final _predictor = MarLXGBPredictor();
+  final _predictor = const MarLXGBPredictor();
   Timer? _rateTimer;
   double _lastDown = 0;
   double _lastUp = 0;

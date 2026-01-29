@@ -8,17 +8,14 @@ import 'app.dart';
 import 'core/config/app_config.dart';
 import 'core/logging/app_logger.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Capture all Flutter framework errors
-  FlutterError.onError = AppLogger.captureFlutterError;
-
-  // Capture platform dispatcher errors (async errors outside Flutter)
-  PlatformDispatcher.instance.onError = AppLogger.capturePlatformError;
-
-  await runZonedGuarded(
+void main() {
+  runZonedGuarded(
     () async {
+      WidgetsFlutterBinding.ensureInitialized();
+
+      FlutterError.onError = AppLogger.captureFlutterError;
+      PlatformDispatcher.instance.onError = AppLogger.capturePlatformError;
+
       await AppConfig.load();
       AppLogger.info('SecureWave booting');
       runApp(const ProviderScope(child: SecureWaveApp()));
