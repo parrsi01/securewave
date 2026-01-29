@@ -1,0 +1,136 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../config/app_config.dart';
+import '../logging/app_logger.dart';
+import '../services/adblock_bridge.dart';
+import '../services/adblock_engine.dart';
+import '../services/secure_storage.dart';
+
+class AdblockState {
+  const AdblockState({
+    required this.blockAds,
+    required this.blockMalware,
+    required this.strictMode,
+    required this.lastUpdated,
+    required this.totalRules,
+    required this.isUpdating,
+  });
+
+  final bool blockAds;
+  final bool blockMalware;
+  final bool strictMode;
+  final DateTime? lastUpdated;
+  final int totalRules;
+  final bool isUpdating;
+
+  AdblockState copyWith({
+    bool? blockAds,
+    bool? blockMalware,
+    bool? strictMode,
+    DateTime? lastUpdated,
+    int? totalRules,
+    bool? isUpdating,
+  }) {
+    return AdblockState(
+      blockAds: blockAds ?? this.blockAds,
+      blockMalware: blockMalware ?? this.blockMalware,
+      strictMode: strictMode ?? this.strictMode,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+      totalRules: totalRules ?? this.totalRules,
+      isUpdating: isUpdating ?? this.isUpdating,
+    );
+  }
+}
+
+final adblockStateProvider = StateNotifierProvider<AdblockController, AdblockState>((ref) {
+  return AdblockController(ref);
+});
+
+class AdblockController extends StateNotifier<AdblockState> {
+  AdblockController(this._ref)
+      : _engine = AdblockEngine(fallbackAssetPath: 'assets/adblock_fallback.txt'),
+        _bridge = AdblockBridge(),
+        super(const AdblockState(
+          blockAds: true,
+          blockMalware: true,
+          strictMode: false,
+          lastUpdated: null,
+          totalRules: 0,
+          isUpdating: false,
+        ));
+
+  final Ref _ref;
+  final AdblockEngine _engine;
+  final AdblockBridge _bridge;
+
+  Future<void> load() async {
+    final storage = SecureStorage();
+    final blockAds = await storage.getBool(SecureStorage.adblockAdsKey) ?? true;
+    final blockMalware = await storage.getBool(SecureStorage.adblockMalwareKey) ?? true;
+    final strictMode = await storage.getBool(SecureStorage.adblockStrictKey) ?? false;
+    final lastUpdatedRaw = await storage.getString(SecureStorage.adblockUpdatedKey);
+    final lastUpdated = lastUpdatedRaw == null ? null : DateTime.tryParse(lastUpdatedRaw);
+    final totalRules = await storage.getInt(SecureStorage.adblockRulesKey) ?? 0;
+
+    state = state.copyWith(
+      blockAds: blockAds,
+      blockMalware: blockMalware,
+      strictMode: strictMode,
+      lastUpdated: lastUpdated,
+      totalRules: totalRules,
+    );
+    await _bridge.sendConfig(state);
+
+    if (state.totalRules == 0) {
+      await _loadFallback();
+    }
+  }
+
+  Future<void> updateFromRemote() async {
+    final config = _ref.read(appConfigProvider);
+    state = state.copyWith(isUpdating: true);
+    try {
+      final count = await _engine.updateFromRemote(config.adblockListUrl);
+      await _persistRules(count);
+      await _bridge.sendConfig(state);
+      AppLogger.info('Adblock updated: $count rules');
+    } catch (error, stackTrace) {
+      AppLogger.warning('Adblock update failed, using fallback.');
+      AppLogger.error('Adblock update error', error: error, stackTrace: stackTrace);
+      await _loadFallback();
+    } finally {
+      state = state.copyWith(isUpdating: false);
+    }
+  }
+
+  Future<void> _loadFallback() async {
+    final count = await _engine.loadFallback();
+    await _persistRules(count);
+  }
+
+  Future<void> _persistRules(int count) async {
+    final storage = SecureStorage();
+    final now = DateTime.now();
+    await storage.saveString(SecureStorage.adblockUpdatedKey, now.toIso8601String());
+    await storage.saveInt(SecureStorage.adblockRulesKey, count);
+    state = state.copyWith(lastUpdated: now, totalRules: count);
+  }
+
+  Future<void> setBlockAds(bool value) async {
+    state = state.copyWith(blockAds: value);
+    await SecureStorage().saveBool(SecureStorage.adblockAdsKey, value);
+    await _bridge.sendConfig(state);
+  }
+
+  Future<void> setBlockMalware(bool value) async {
+    state = state.copyWith(blockMalware: value);
+    await SecureStorage().saveBool(SecureStorage.adblockMalwareKey, value);
+    await _bridge.sendConfig(state);
+  }
+
+  Future<void> setStrictMode(bool value) async {
+    state = state.copyWith(strictMode: value);
+    await SecureStorage().saveBool(SecureStorage.adblockStrictKey, value);
+    await _bridge.sendConfig(state);
+  }
+}
