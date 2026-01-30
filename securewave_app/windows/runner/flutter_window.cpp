@@ -38,10 +38,18 @@ bool FlutterWindow::OnCreate() {
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
         if (call.method_name() == "connect") {
           result->Error("vpn_not_configured",
-                        "WireGuard backend not configured for Windows.");
+                        "Native VPN not configured for Windows. See WINDOWS_VPN_SETUP.md for integration steps.",
+                        flutter::EncodableValue(flutter::EncodableMap{
+                          {flutter::EncodableValue("platform"), flutter::EncodableValue("windows")},
+                          {flutter::EncodableValue("configured"), flutter::EncodableValue(false)}
+                        }));
         } else if (call.method_name() == "disconnect") {
           result->Error("vpn_not_configured",
-                        "WireGuard backend not configured for Windows.");
+                        "Native VPN not configured for Windows. See WINDOWS_VPN_SETUP.md for integration steps.",
+                        flutter::EncodableValue(flutter::EncodableMap{
+                          {flutter::EncodableValue("platform"), flutter::EncodableValue("windows")},
+                          {flutter::EncodableValue("configured"), flutter::EncodableValue(false)}
+                        }));
         } else {
           result->NotImplemented();
         }

@@ -9,6 +9,7 @@ import 'core/config/app_config.dart';
 import 'core/logging/app_logger.dart';
 
 void main() {
+  // Zone guards async errors; bindings + runApp execute in same zone for determinism
   runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
