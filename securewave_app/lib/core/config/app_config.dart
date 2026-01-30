@@ -25,12 +25,14 @@ class AppConfig {
   static AppConfig? _cached;
 
   factory AppConfig.defaults() {
+    // CRITICAL: Do NOT default to mock in release/profile builds
+    const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
     return AppConfig(
       apiBaseUrl: AppConstants.baseUrlFallback,
       portalUrl: AppConstants.portalUrlFallback,
       upgradeUrl: AppConstants.upgradeUrlFallback,
       adblockListUrl: AppConstants.adblockListUrlFallback,
-      useMockApi: true,
+      useMockApi: kIsDebugMode, // Only mock in debug by default
       resetSessionOnBoot: false,
     );
   }
@@ -67,9 +69,12 @@ class AppConfig {
       'SECUREWAVE_ADBLOCK_LIST_URL',
       AppConstants.adblockListUrlFallback,
     );
+    // CRITICAL: In release/profile, default to false unless explicitly enabled via env
+    const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
     final useMock = _parseBool(
       env['SECUREWAVE_USE_MOCK_API'] ??
-          const String.fromEnvironment('SECUREWAVE_USE_MOCK_API', defaultValue: 'true'),
+          const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
+            defaultValue: kIsDebugMode ? 'true' : 'false'),
     );
     final resetSessionOnBoot = _parseBool(
       env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
