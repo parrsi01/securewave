@@ -126,6 +126,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: AppUIv1.space4),
           Text('Ad blocking', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppUIv1.space2),
+          Text(
+            'Ad blocking works at the DNS level inside the VPN tunnel. '
+            'When enabled, known ad and tracker domains are resolved to '
+            'a sinkhole address, preventing connections before they start. '
+            'No content inspection is performed on your traffic.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: AppUIv1.space3),
           _AdblockCard(),
           const SizedBox(height: AppUIv1.space4),
