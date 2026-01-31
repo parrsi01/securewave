@@ -96,10 +96,18 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
-      - name: Build iOS (no codesign)
+      - name: Install CocoaPods
         run: |
           cd securewave_app
           flutter pub get
+          cd ios && pod install --repo-update
+      - name: Verify workspace
+        run: |
+          bash securewave_app/ios/scripts/ensure_workspace.sh
+          bash securewave_app/scripts/verify_ios_build.sh
+      - name: Build iOS (no codesign via workspace)
+        run: |
+          cd securewave_app
           flutter build ios --release --no-codesign
       - uses: actions/upload-artifact@v4
         with:

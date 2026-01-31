@@ -7,6 +7,7 @@ abstract class VpnService {
   Future<VpnStatus> connect({required VpnProtocol protocol});
   Future<VpnStatus> disconnect();
   VpnStatus getStatus();
+  bool get isNativeAvailable;
 }
 
 class ChannelVpnService implements VpnService {
@@ -16,6 +17,10 @@ class ChannelVpnService implements VpnService {
   final MethodChannel _channel = const MethodChannel('securewave/vpn');
   final VpnService _fallback;
   VpnStatus _status = VpnStatus.disconnected;
+  bool _nativeAvailable = true;
+
+  @override
+  bool get isNativeAvailable => _nativeAvailable;
 
   @override
   Future<VpnStatus> connect({required VpnProtocol protocol}) async {
@@ -29,8 +34,10 @@ class ChannelVpnService implements VpnService {
       });
       _status = VpnStatus.connected;
     } on PlatformException {
+      _nativeAvailable = false;
       _status = await _fallback.connect(protocol: protocol);
     } on MissingPluginException {
+      _nativeAvailable = false;
       _status = await _fallback.connect(protocol: protocol);
     }
     return _status;
@@ -45,8 +52,10 @@ class ChannelVpnService implements VpnService {
       await _channel.invokeMethod('disconnect');
       _status = VpnStatus.disconnected;
     } on PlatformException {
+      _nativeAvailable = false;
       _status = await _fallback.disconnect();
     } on MissingPluginException {
+      _nativeAvailable = false;
       _status = await _fallback.disconnect();
     }
     return _status;
@@ -65,6 +74,9 @@ class MockVpnService implements VpnService {
   final Duration connectDelay;
   final Duration disconnectDelay;
   VpnStatus _status = VpnStatus.disconnected;
+
+  @override
+  bool get isNativeAvailable => false;
 
   @override
   Future<VpnStatus> connect({required VpnProtocol protocol}) async {
