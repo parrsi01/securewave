@@ -23,8 +23,8 @@ ERRORS=0
 WARNINGS=0
 
 check_pass() { echo -e "${GREEN}+${NC} $1"; }
-check_fail() { echo -e "${RED}x${NC} $1"; ((ERRORS++)); }
-check_warn() { echo -e "${YELLOW}!${NC} $1"; ((WARNINGS++)); }
+check_fail() { echo -e "${RED}x${NC} $1"; ERRORS=$((ERRORS + 1)); }
+check_warn() { echo -e "${YELLOW}!${NC} $1"; WARNINGS=$((WARNINGS + 1)); }
 
 # ---- 1. Xcode (macOS only) ----
 echo "1. Checking Xcode..."
