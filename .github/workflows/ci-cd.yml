@@ -741,6 +741,37 @@ jobs:
   # ===========================
   # RELEASE (Tag-triggered)
   # ===========================
+  # ===========================
+  # LEGAL PLACEHOLDER GUARD
+  # ===========================
+  legal-placeholder-guard:
+    name: Legal Placeholder Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate legal content placeholders
+        # Guard against shipping placeholder legal text in release builds.
+        run: |
+          set -euo pipefail
+          pattern='TODO|TBD|PLACEHOLDER|<insert|INSERT|Lorem'
+          if command -v rg >/dev/null 2>&1; then
+            if rg -n "$pattern" static/privacy.html static/terms.html; then
+              echo "ERROR: Legal placeholders detected in privacy/terms." >&2
+              exit 1
+            fi
+          else
+            if grep -En "$pattern" static/privacy.html static/terms.html; then
+              echo "ERROR: Legal placeholders detected in privacy/terms." >&2
+              exit 1
+            fi
+          fi
+          echo "OK: No legal placeholders detected."
+
+  # ===========================
+  # RELEASE (Tag-triggered)
+  # ===========================
   release:
     name: Create Release
     runs-on: ubuntu-latest
