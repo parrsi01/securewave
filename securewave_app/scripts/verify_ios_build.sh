@@ -40,6 +40,44 @@ else
   echo "OK:   Runner.xcworkspace"
 fi
 
+# 3b. Workspace must include CocoaPods project (Pods.xcodeproj)
+WORKSPACE_DATA="${IOS_DIR}/Runner.xcworkspace/contents.xcworkspacedata"
+if [[ ! -f "${WORKSPACE_DATA}" ]]; then
+  echo "FAIL: Missing workspace data: ${WORKSPACE_DATA}"
+  echo "  Fix: cd ${IOS_DIR} && pod install"
+  ERRORS=$((ERRORS + 1))
+else
+  if [[ ! -d "${IOS_DIR}/Pods/Pods.xcodeproj" ]]; then
+    echo "FAIL: Missing Pods/Pods.xcodeproj"
+    echo "  Fix: cd ${IOS_DIR} && pod install"
+    ERRORS=$((ERRORS + 1))
+  elif ! grep -q "Pods/Pods.xcodeproj" "${WORKSPACE_DATA}"; then
+    echo "FAIL: Runner.xcworkspace does not reference Pods/Pods.xcodeproj"
+    echo "  Fix: cd ${IOS_DIR} && pod install"
+    ERRORS=$((ERRORS + 1))
+  else
+  echo "OK:   Workspace includes Pods"
+  fi
+fi
+
+# 3c. WireGuardKit (vendored) must exist
+if [[ ! -d "${IOS_DIR}/ThirdParty/wireguard-apple" ]]; then
+  echo "FAIL: Missing vendored WireGuardKit at ios/ThirdParty/wireguard-apple"
+  echo "  Fix: restore the vendored dependency directory"
+  ERRORS=$((ERRORS + 1))
+else
+  echo "OK:   Vendored WireGuardKit"
+fi
+
+# 3d. Go toolchain must exist (required to build libwg-go.a)
+if ! command -v go >/dev/null 2>&1; then
+  echo "FAIL: Missing Go toolchain (required to build libwg-go.a)"
+  echo "  Fix: brew install go"
+  ERRORS=$((ERRORS + 1))
+else
+  echo "OK:   Go toolchain"
+fi
+
 # 4. Guard against direct xcodeproj usage (Xcode env vars)
 if [[ -n "${PROJECT_FILE_PATH:-}" ]] && [[ "${PROJECT_FILE_PATH}" == *"Runner.xcodeproj"* ]] && [[ -z "${WORKSPACE_PATH:-}" ]]; then
   echo "FAIL: Build is using Runner.xcodeproj instead of Runner.xcworkspace"

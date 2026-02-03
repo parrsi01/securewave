@@ -1,78 +1,80 @@
 # iOS VPN Setup (Xcode Required)
 
-## DO NOT OPEN Runner.xcodeproj
+## 1) Workspace-only entry point (enforced)
 
-**Always open `Runner.xcworkspace`.** The workspace includes CocoaPods-managed
-dependencies and the Flutter engine. If you open the `.xcodeproj` directly,
-the build will fail with missing framework errors.
+SecureWave iOS must be built from `Runner.xcworkspace`, not `Runner.xcodeproj`.
 
+This repo enforces it at build time:
+- `securewave_app/ios/scripts/ensure_workspace.sh`
+- Schemes (pre-action): **Workspace Guard** (`Runner`, `PacketTunnel`)
+- Targets (build phase): **Workspace Guard** (`Runner`, `PacketTunnel`)
+
+Open the workspace:
 ```bash
-# CORRECT
-open ios/Runner.xcworkspace
-
-# WRONG - will break the build
-open ios/Runner.xcodeproj
+open securewave_app/ios/Runner.xcworkspace
 ```
 
-Guard scripts enforce this rule automatically. If the error appears anyway,
-close Xcode completely, then re-open with the workspace.
+## 2) Deterministic dependencies (CocoaPods + vendored WireGuardKit)
 
----
+### CocoaPods
+```bash
+cd securewave_app/ios
+pod install
+```
 
-## Xcode-Only Steps (Cannot Be Automated)
+### WireGuardKit (vendored)
+WireGuardKit is vendored at:
+- `securewave_app/ios/ThirdParty/wireguard-apple`
 
-1. **Open workspace**: `securewave_app/ios/Runner.xcworkspace` in Xcode
-2. **Runner target -> Signing & Capabilities**:
-   - Set your Apple Team
-   - Confirm the bundle identifier (e.g., `com.example.securewaveApp`)
-3. **PacketTunnel target -> Signing & Capabilities**:
-   - Set the same Apple Team
-   - Enable **Network Extensions** capability (+ Capability -> Network Extensions)
-   - Bundle ID must be `<Runner-bundle-id>.PacketTunnel`
-4. **Wait for dependency resolution**:
-   - CocoaPods pods are already installed via `pod install`
-   - Xcode may also resolve WireGuardKit via SPM automatically
-5. **Build on physical device**:
-   - Plug in a physical iPhone (simulators cannot start VPN tunnels)
-   - Select device in Xcode
-   - Product -> Run
+### Go toolchain requirement (wg-go)
+PacketTunnel links `-lwg-go`. The build phase **Build WireGuard Go Backend** invokes:
+- `securewave_app/ios/scripts/build_wg_go.sh`
 
-## Requirements
+If Go is missing, the build fails fast with a clear error. Install Go:
+```bash
+brew install go
+```
 
-- macOS with Xcode 14+ installed
-- Active Apple Developer account (free or paid)
-- Physical iOS device (iOS 14+)
+## 3) Signing & entitlements (cannot be automated)
 
-## Implementation Status
+Files in this repo (minimal entitlements):
+- App: `securewave_app/ios/Runner/Runner.entitlements`
+- Extension: `securewave_app/ios/PacketTunnel/PacketTunnel.entitlements`
 
-- Packet Tunnel Extension exists and compiles
-- VPNManager Swift bridge implemented
-- Flutter MethodChannel integration complete
-- Signing & Capabilities must be configured per-developer in Xcode UI
-- WireGuardKit dependency resolves via SPM
+Xcode requirements:
+1. Set the same Apple Team for **Runner** and **PacketTunnel**
+2. Ensure the **Network Extensions** capability is enabled (Packet Tunnel)
+3. Ensure bundle identifiers are consistent:
+   - Runner: `com.yourcompany.securewave`
+   - PacketTunnel: `com.yourcompany.securewave.PacketTunnel`
 
-## Troubleshooting
+Important: the **Network Extension entitlement** is granted by Apple. Without it, preference load/save/start will fail and the app will return a descriptive error.
 
-| Symptom | Fix |
-|---------|-----|
-| "Runner.xcodeproj won't build" | Close Xcode. Open `Runner.xcworkspace` instead. |
-| "No such module WireGuardKit" | File -> Packages -> Resolve Package Versions |
-| "VPN tunnel won't start" | Must use physical device, not simulator |
-| "Signing failed" | Both Runner and PacketTunnel need the same team |
-| Pods out of sync | `cd ios && rm -rf Pods Podfile.lock && pod install` |
+## 4) Build verification (CLI)
 
-## Recovery Checklist
+Preflight:
+```bash
+bash securewave_app/scripts/verify_ios_build.sh
+```
 
-If the workspace error keeps appearing:
+Debug compile (device SDK, no codesign):
+```bash
+xcodebuild -workspace securewave_app/ios/Runner.xcworkspace -scheme Runner -configuration Debug -sdk iphoneos -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO build
+```
 
-1. Quit Xcode completely (Cmd+Q)
-2. `cd securewave_app/ios`
-3. `rm -rf Pods Podfile.lock build`
-4. `cd .. && flutter clean && flutter pub get`
-5. `cd ios && pod install`
-6. `open Runner.xcworkspace`
+Release compile (no codesign):
+```bash
+xcodebuild -workspace securewave_app/ios/Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO build
+```
 
-## References
+Guard verification (this must FAIL with the workspace message):
+```bash
+xcodebuild -project securewave_app/ios/Runner.xcodeproj -scheme Runner -configuration Debug -sdk iphoneos -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO build
+```
 
-- Apple Network Extension docs: https://developer.apple.com/documentation/networkextension
-- WireGuardKit source: https://github.com/WireGuard/wireguard-apple
+## 5) Production/TestFlight checklist (Apple-specific)
+
+- Confirm PacketTunnel is embedded: `Runner.app/PlugIns/PacketTunnel.appex`
+- Confirm connect/disconnect works on a physical device
+- Confirm failures are explicit (no silent “mock success”)
+- Archive from Xcode with valid signing for both targets
