@@ -71,11 +71,16 @@ class AppConfig {
     );
     // CRITICAL: In release/profile, default to false unless explicitly enabled via env
     const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
-    final useMock = _parseBool(
+    const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
+    var useMock = _parseBool(
       env['SECUREWAVE_USE_MOCK_API'] ??
           const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
             defaultValue: kIsDebugMode ? 'true' : 'false'),
     );
+    if (kIsReleaseMode && useMock) {
+      AppLogger.warning('Config: mock API disabled in release builds.');
+      useMock = false;
+    }
     final resetSessionOnBoot = _parseBool(
       env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
           const String.fromEnvironment(

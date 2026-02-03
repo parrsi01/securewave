@@ -77,6 +77,10 @@ jobs:
         run: |
           bash scripts/check_plan_copy.sh
 
+      - name: Verify release guards and VPN bridges
+        run: |
+          bash scripts/verify_release_guards.sh
+
   # ===========================
   # FLUTTER ANALYZE (Non-blocking)
   # ===========================
@@ -99,6 +103,29 @@ jobs:
           cd securewave_app
           flutter pub get
           flutter analyze
+
+  flutter-linux-build:
+    name: Flutter Linux Build
+    needs: [ui-guard]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install Linux deps
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+
+      - name: Build Linux
+        run: |
+          cd securewave_app
+          flutter pub get
+          flutter build linux --release
 
   # ===========================
   # UNIT TESTS (Non-blocking for UI changes)

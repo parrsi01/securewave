@@ -1,27 +1,29 @@
-# macOS VPN Setup (Native Integration)
+# macOS VPN Setup (Channel Prep Only)
 
-SecureWave includes a macOS MethodChannel handler that returns a
-`vpn_not_configured` error until a WireGuard backend is added.
+SecureWave exposes the `securewave/vpn` MethodChannel on macOS but does not
+attempt to create a tunnel. Native availability returns `false` until a signed
+Network Extension or WireGuardKit integration is added.
 
-## Steps
+## Integration Summary
 
-1. Decide on backend:
+- MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`)
+- Current behavior: returns `vpn_not_configured` for connect/disconnect
+- No signing or entitlements are added in this repo
+
+## Next Steps (when ready)
+
+1. Choose a backend:
    - Network Extension (NEVPNManager + NEPacketTunnelProvider)
-   - WireGuardKit Swift package integration
-   - Go-based embedded backend
-2. Implement a native bridge in `macos/Runner`:
-   - Accept the WireGuard config string via method channel
-   - Configure and start/stop a VPN tunnel
-   - Report connection status back to Flutter
-3. Add required entitlements:
+   - WireGuardKit Swift package
+2. Add required entitlements:
    - Network Extensions
    - Personal VPN
-4. Code sign with a valid Apple Developer certificate
+3. Codesign the app with a valid Apple Developer certificate.
 
-## Current Bridge
+## Verification (current state)
 
-`securewave/vpn` MethodChannel exists in [macos/Runner/AppDelegate.swift](macos/Runner/AppDelegate.swift:20-34)
-and returns a clear error if no backend is configured.
+- `isAvailable` returns `false` on macOS.
+- Connect attempts return `vpn_not_configured` until entitlements exist.
 
 ## References
 

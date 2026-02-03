@@ -234,6 +234,13 @@ class AuthService:
     # TWO-FACTOR AUTHENTICATION
     # ===========================
     def _load_fernet(self) -> Optional[Fernet]:
+        """
+        Load Fernet encryption key for 2FA secret storage.
+
+        SECURITY: This method validates that the encryption key is a valid
+        Fernet key (44-byte base64-encoded). Invalid keys cause explicit failure
+        rather than silent degradation to prevent weak encryption.
+        """
         key = os.getenv("AUTH_ENCRYPTION_KEY") or os.getenv("WG_ENCRYPTION_KEY")
         environment = os.getenv("ENVIRONMENT", "").lower()
         if not key:
@@ -243,8 +250,14 @@ class AuthService:
             logger.warning("Auth encryption key not set - 2FA secrets stored with base64 fallback")
             return None
         key_bytes = key.encode()
+        # Fernet keys must be exactly 44 bytes (32 bytes base64-encoded)
         if len(key_bytes) != 44:
-            key_bytes = base64.urlsafe_b64encode(key_bytes.ljust(32, b"0")[:32])
+            error_msg = (
+                f"Invalid encryption key length: {len(key_bytes)} bytes (expected 44). "
+                "Generate a valid key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         return Fernet(key_bytes)
 
     def _encrypt_value(self, value: str) -> str:

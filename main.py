@@ -88,6 +88,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not create data directory: {e}")
 
+    require_encryption_keys(logger)
+
     # Schedule background initialization to run after startup completes
     if os.getenv("TESTING", "").lower() != "true":
         asyncio.create_task(initialize_app_background())
@@ -283,6 +285,21 @@ def validate_production_env(logger: logging.Logger) -> None:
     admin_email = os.getenv("ADMIN_EMAIL", "").strip()
     if admin_email:
         logger.warning("ADMIN_EMAIL is set in production; ensure this is intended.")
+
+
+def require_encryption_keys(logger: logging.Logger) -> None:
+    """Fail fast if encryption keys are missing in production."""
+    if os.getenv("ENVIRONMENT", "").lower() != "production":
+        return
+    missing = []
+    if not os.getenv("AUTH_ENCRYPTION_KEY"):
+        missing.append("AUTH_ENCRYPTION_KEY")
+    if not os.getenv("WG_ENCRYPTION_KEY"):
+        missing.append("WG_ENCRYPTION_KEY")
+    if missing:
+        message = f"Missing required encryption keys in production: {', '.join(missing)}"
+        logger.error(message)
+        raise RuntimeError(message)
 
 
 async def initialize_app_background():
@@ -485,7 +502,6 @@ for page in html_pages:
 
 # Mount static assets (CSS, JS, images, etc.) under /static and root
 # Note: We mount unconditionally - Starlette will handle missing directories gracefully
-import logging
 _logger = logging.getLogger(__name__)
 _logger.info(f"Static directory path: {static_directory}")
 _logger.info(f"Static directory exists: {static_directory.exists()}")
@@ -534,9 +550,7 @@ async def not_found_handler(request: Request, exc):
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.error(f"Internal server error: {exc}")
+    _logger.error(f"Internal server error: {exc}")
 
     # For API requests, return JSON
     if request.url.path.startswith("/api"):

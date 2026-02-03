@@ -2,6 +2,23 @@
 
 All notable changes to SecureWave VPN will be documented in this file.
 
+## [1.1.0] - 2026-02-03 (VPN Platform Bridges + Email Providers)
+
+### VPN Platform Bridges
+- Android: real WireGuard tunnel via official library, permission flow, and foreground service
+- Windows: WireGuard for Windows service bridge with config file provisioning
+- Linux: wg-quick bridge with config persistence and native availability checks
+- macOS: MethodChannel availability hook added (still requires entitlements)
+- Flutter: native availability detection and mock-only fallback with explicit logging
+
+### Backend Production Readiness
+- Multi-provider email delivery in `EmailService` (SMTP, SendGrid, AWS SES)
+- Production startup validation for AUTH_ENCRYPTION_KEY and WG_ENCRYPTION_KEY
+
+### CI / Tooling
+- Added release guard and VPN bridge verification script
+- Added Linux Flutter build in CI (no Xcode dependency)
+
 ## [1.0.0] - 2026-01-25 (UI v1.0.0 — DEMO-STABLE)
 
 ### UI v1.0.0 — DEMO-STABLE
