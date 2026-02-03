@@ -17,8 +17,8 @@ def test_home_trust_copy():
 def test_legal_placeholders_present():
     privacy = _read_page("privacy.html")
     terms = _read_page("terms.html")
-    assert "Placeholder policy for development." in privacy
-    assert "Placeholder terms for development." in terms
+    assert "TODO: Finalize the Privacy Policy content and link before launch." in privacy
+    assert "TODO: Finalize the Terms of Service content and link before launch." in terms
 
 
 def test_no_exaggerated_claims_in_static_pages():

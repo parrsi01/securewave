@@ -24,6 +24,7 @@ from models.wireguard_peer import WireGuardPeer
 from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
 from services.jwt_service import get_current_user
+from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 from services.subscription_access import require_active_subscription
 from services.vpn_peer_manager import get_peer_manager
 from services.wireguard_service import WireGuardService
@@ -51,8 +52,8 @@ def rate_limit(rule: str):
 
 # Check if we're in demo/mock mode
 IS_TESTING = os.getenv("TESTING", "").lower() == "true"
-DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true" or IS_TESTING
-WG_MOCK_MODE = os.getenv("WG_MOCK_MODE", "false").lower() == "true"
+DEMO_MODE = demo_mode_enabled() or IS_TESTING
+WG_MOCK_MODE = wg_mock_mode_enabled()
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
 
 

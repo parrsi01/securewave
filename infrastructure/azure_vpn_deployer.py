@@ -296,13 +296,13 @@ write_files:
     content: |
       #!/bin/bash
       # Export metrics for monitoring system
-      echo "{"
+      echo "{{"
       echo "  \\"cpu_load\\": $(awk '{{print $1}}' /proc/loadavg),"
       echo "  \\"memory_used\\": $(free | grep Mem | awk '{{printf \\"%.2f\\", $3/$2 * 100}}'),"
       echo "  \\"disk_used\\": $(df / | tail -1 | awk '{{print $5}}' | sed 's/%//'),"
       echo "  \\"connections\\": $(wg show wg0 | grep peer | wc -l),"
       echo "  \\"timestamp\\": \\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\""
-      echo "}"
+      echo "}}"
     permissions: '0755'
 
 runcmd:

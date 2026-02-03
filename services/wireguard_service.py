@@ -1,4 +1,5 @@
 import base64
+import logging
 import os
 import secrets
 import shutil
@@ -11,10 +12,14 @@ import qrcode
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 
+from utils.env_validation import validate_fernet_key, is_production
+
 from models.user import User
 
 # Load environment variables
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class WireGuardService:
@@ -52,18 +57,22 @@ class WireGuardService:
         if mock_env == "true":
             return True
 
+        if is_production():
+            raise RuntimeError("WG_MOCK_MODE must be explicitly set to false in production")
+
         # Auto-detect only if not explicitly configured
         tun_exists = Path("/dev/net/tun").exists()
         return self.wg_path is None or not tun_exists
 
     def _load_fernet(self):
         key = os.getenv("WG_ENCRYPTION_KEY")
-        if not key:
+        issue = validate_fernet_key(key)
+        if issue:
+            if is_production():
+                raise RuntimeError(f"WG_ENCRYPTION_KEY {issue} in production")
+            logger.warning("WG_ENCRYPTION_KEY %s; private key encryption disabled", issue)
             return None
-        key_bytes = key.encode()
-        if len(key_bytes) != 44:
-            key_bytes = base64.urlsafe_b64encode(key_bytes.ljust(32, b"0")[:32])
-        return Fernet(key_bytes)
+        return Fernet(key.encode())
 
     def generate_keypair(self) -> Tuple[str, str]:
         try:

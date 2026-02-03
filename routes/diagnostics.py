@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.session import get_db
+from utils.env_validation import demo_mode_enabled
 from models.audit_log import AuditLog
 from models.vpn_demo_session import VPNDemoSession
 from services.jwt_service import get_current_user
@@ -180,7 +181,7 @@ def diagnostics_summary(
     current_user=Depends(get_current_user)
 ):
     env = os.getenv("ENVIRONMENT", "development")
-    demo_mode = os.getenv("DEMO_MODE", "true").lower() == "true"
+    demo_mode = demo_mode_enabled()
     db_url = os.getenv("DATABASE_URL", "")
     db_type = "sqlite" if db_url.startswith("sqlite") else "postgres"
 

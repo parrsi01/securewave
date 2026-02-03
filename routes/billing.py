@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from database.session import get_db
+from utils.env_validation import demo_mode_enabled
 from services.subscription_manager import SubscriptionManager
 from services.billing_automation import BillingAutomationService
 from services.stripe_service import StripeService
@@ -24,7 +25,7 @@ from services.jwt_service import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
-DEMO_BILLING = os.getenv("DEMO_BILLING", "").lower() == "true" or os.getenv("DEMO_MODE", "").lower() == "true"
+DEMO_BILLING = os.getenv("DEMO_BILLING", "").lower() == "true" or demo_mode_enabled()
 
 
 def _missing_provider_config(provider: str) -> bool:

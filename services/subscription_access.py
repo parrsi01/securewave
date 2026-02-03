@@ -17,11 +17,12 @@ from models.user import User
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from services.wireguard_server_manager import get_wireguard_server_manager, server_connection_from_db
+from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 
 logger = logging.getLogger(__name__)
 
-DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
-WG_MOCK_MODE = os.getenv("WG_MOCK_MODE", "false").lower() == "true"
+DEMO_MODE = demo_mode_enabled()
+WG_MOCK_MODE = wg_mock_mode_enabled()
 FREE_TIER_MONTHLY_GB = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
 FREE_TIER_MONTHLY_BYTES = int(FREE_TIER_MONTHLY_GB * 1024 * 1024 * 1024)
 

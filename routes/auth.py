@@ -19,6 +19,7 @@ from database.session import get_db, SessionLocal
 from models.user import User
 from services.hashing_service import hash_password, verify_password
 from utils.password_policy import validate_password_strength
+from utils.env_validation import demo_mode_enabled
 from services.jwt_service import (
     ACCESS_EXPIRE_MINUTES,
     REFRESH_EXPIRE_MINUTES,
@@ -33,7 +34,7 @@ from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
-DEMO_MODE = os.getenv("DEMO_MODE", "true").lower() == "true"
+DEMO_MODE = demo_mode_enabled()
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 
 
