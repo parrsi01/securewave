@@ -151,8 +151,7 @@ bash securewave_app/ios/scripts/ensure_workspace.sh
 ## 7) macOS (Stub Only)
 
 ```bash
-cd securewave_app
-flutter build macos --release
+bash securewave_app/scripts/build_macos_release.sh
 ```
 
 **Expected output:**

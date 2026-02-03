@@ -85,9 +85,7 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
       - name: Build macOS (unsigned)
         run: |
-          cd securewave_app
-          flutter pub get
-          flutter build macos --release
+          bash securewave_app/scripts/build_macos_release.sh
       - uses: actions/upload-artifact@v4
         with:
           name: securewave-macos
