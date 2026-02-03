@@ -26,8 +26,8 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
-FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER)
-FROM_NAME = os.getenv("FROM_NAME", "SecureWave VPN")
+FROM_EMAIL = os.getenv("FROM_EMAIL") or os.getenv("SMTP_FROM_EMAIL") or SMTP_USER
+FROM_NAME = os.getenv("FROM_NAME") or os.getenv("SMTP_FROM_NAME") or "SecureWave VPN"
 APP_URL = os.getenv("APP_URL", "https://securewave.example.com")
 
 
@@ -49,9 +49,9 @@ class EnhancedEmailService:
     def _check_provider_config(self) -> bool:
         """Check if provider is properly configured"""
         if self.provider == "smtp":
-            return SMTP_USER and SMTP_PASSWORD
+            return SMTP_USER and SMTP_PASSWORD and FROM_EMAIL
         elif self.provider == "sendgrid":
-            return SENDGRID_API_KEY is not None
+            return SENDGRID_API_KEY is not None and FROM_EMAIL
         elif self.provider == "aws_ses":
             # AWS SES uses boto3 with environment credentials
             try:

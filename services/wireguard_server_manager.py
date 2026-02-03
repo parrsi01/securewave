@@ -23,6 +23,8 @@ from datetime import datetime
 import httpx
 from cryptography.fernet import Fernet
 
+from utils.env_validation import validate_fernet_key, is_production
+
 logger = logging.getLogger(__name__)
 
 # Communication method type
@@ -70,8 +72,13 @@ class WireGuardServerManager:
     def _load_fernet(self) -> Optional[Fernet]:
         """Load Fernet encryption key for API keys"""
         key = os.getenv("WG_ENCRYPTION_KEY")
-        if not key:
+        issue = validate_fernet_key(key)
+        if issue:
+            if is_production():
+                raise RuntimeError(f"WG_ENCRYPTION_KEY {issue} in production")
+            logger.warning("WG_ENCRYPTION_KEY %s; API key encryption disabled", issue)
             return None
+        return Fernet(key.encode())
 
     def _validate_peer_inputs(self, public_key: str, allowed_ips: str) -> Optional[str]:
         if not self._wg_key_pattern.match(public_key):
@@ -81,15 +88,6 @@ class WireGuardServerManager:
         except ValueError:
             return "Invalid allowed IPs format"
         return None
-        try:
-            import base64
-            key_bytes = key.encode()
-            if len(key_bytes) != 44:
-                key_bytes = base64.urlsafe_b64encode(key_bytes.ljust(32, b"0")[:32])
-            return Fernet(key_bytes)
-        except Exception as e:
-            logger.warning(f"Failed to load Fernet key: {e}")
-            return None
 
     @property
     def http_client(self) -> httpx.AsyncClient:

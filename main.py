@@ -28,6 +28,14 @@ from models import user, subscription, audit_log, vpn_server, vpn_connection, vp
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin
 from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests
 from services.wireguard_service import WireGuardService
+from services.email_service import EmailService
+from utils.env_validation import (
+    email_config_issues,
+    validate_fernet_key,
+    is_production,
+    demo_mode_enabled,
+    wg_mock_mode_enabled,
+)
 
 # Request ID context
 request_id_ctx = contextvars.ContextVar("request_id", default="-")
@@ -89,6 +97,7 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Could not create data directory: {e}")
 
     require_encryption_keys(logger)
+    require_production_config(logger)
 
     # Schedule background initialization to run after startup completes
     if os.getenv("TESTING", "").lower() != "true":
@@ -247,9 +256,9 @@ def sync_static_assets():
 
 def validate_wireguard_production_config(logger: logging.Logger, server_count: int) -> None:
     """Log warnings for missing WireGuard production configuration."""
-    if os.getenv("WG_MOCK_MODE", "false").lower() == "true":
+    if wg_mock_mode_enabled():
         return
-    if os.getenv("DEMO_MODE", "false").lower() == "true":
+    if demo_mode_enabled():
         return
 
     if not os.getenv("WG_ENCRYPTION_KEY"):
@@ -289,18 +298,44 @@ def validate_production_env(logger: logging.Logger) -> None:
 
 def require_encryption_keys(logger: logging.Logger) -> None:
     """Fail fast if encryption keys are missing in production."""
-    if os.getenv("ENVIRONMENT", "").lower() != "production":
+    if not is_production():
         return
     missing = []
-    if not os.getenv("AUTH_ENCRYPTION_KEY"):
-        missing.append("AUTH_ENCRYPTION_KEY")
-    if not os.getenv("WG_ENCRYPTION_KEY"):
-        missing.append("WG_ENCRYPTION_KEY")
+    auth_issue = validate_fernet_key(os.getenv("AUTH_ENCRYPTION_KEY"))
+    wg_issue = validate_fernet_key(os.getenv("WG_ENCRYPTION_KEY"))
+    if auth_issue:
+        missing.append(f"AUTH_ENCRYPTION_KEY ({auth_issue})")
+    if wg_issue:
+        missing.append(f"WG_ENCRYPTION_KEY ({wg_issue})")
     if missing:
         message = f"Missing required encryption keys in production: {', '.join(missing)}"
         logger.error(message)
         raise RuntimeError(message)
 
+
+def require_production_config(logger: logging.Logger) -> None:
+    """Fail fast on production config that must be explicit."""
+    if not is_production():
+        return
+
+    errors = []
+    if os.getenv("EMAIL_PROVIDER") is None:
+        errors.append("EMAIL_PROVIDER must be explicitly set in production")
+    provider, missing = email_config_issues()
+    if missing:
+        errors.append(f"EMAIL_PROVIDER({provider}) missing: {', '.join(missing)}")
+
+    for flag in ("DEMO_MODE", "WG_MOCK_MODE"):
+        value = os.getenv(flag)
+        if value is None:
+            errors.append(f"{flag} must be set to false in production")
+        elif value.strip().lower() != "false":
+            errors.append(f"{flag} must be false in production (got {value})")
+
+    if errors:
+        message = "Production configuration errors: " + "; ".join(errors)
+        logger.error(message)
+        raise RuntimeError(message)
 
 async def initialize_app_background():
     """Background initialization that happens AFTER the app starts responding to health checks"""
@@ -353,8 +388,8 @@ async def initialize_app_background():
             # If no servers in database, log warning
             if server_count == 0:
                 logger.warning("No VPN servers in database.")
-                demo_mode = os.getenv("DEMO_MODE", "true").lower() == "true"
-                wg_mock = os.getenv("WG_MOCK_MODE", "").lower() == "true"
+                demo_mode = demo_mode_enabled()
+                wg_mock = wg_mock_mode_enabled()
                 if demo_mode or wg_mock:
                     logger.info("Seeding demo VPN servers for demo mode...")
                     try:
@@ -435,6 +470,15 @@ def healthcheck():
 @app.get("/api/health")
 def api_healthcheck():
     return {"status": "ok", "service": "securewave-vpn-demo"}
+
+
+@app.get("/api/health/email")
+def email_healthcheck():
+    service = EmailService()
+    status = service.config_status()
+    if status["enabled"]:
+        return {"status": "ok", "email": status}
+    return JSONResponse(status_code=503, content={"status": "not_configured", "email": status})
 
 
 @app.get("/api/ready")

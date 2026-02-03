@@ -21,8 +21,10 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER)
-SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "SecureWave VPN")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL")
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME")
+FROM_EMAIL = os.getenv("FROM_EMAIL") or SMTP_FROM_EMAIL or SMTP_USER
+FROM_NAME = os.getenv("FROM_NAME") or SMTP_FROM_NAME or "SecureWave VPN"
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp").strip().lower()
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
@@ -41,6 +43,40 @@ class EmailService:
         self.enabled = self._provider_ready()
         if not self.enabled:
             logger.warning("Email provider not configured - Email functionality disabled")
+
+    def config_status(self) -> Dict[str, object]:
+        """Return provider configuration status without sending email."""
+        missing = []
+        provider = self.provider
+
+        def require(name: str, value: Optional[str]) -> None:
+            if not value:
+                missing.append(name)
+
+        if provider == "smtp":
+            require("SMTP_HOST", os.getenv("SMTP_HOST"))
+            require("SMTP_PORT", os.getenv("SMTP_PORT"))
+            require("SMTP_USER", SMTP_USER)
+            require("SMTP_PASSWORD", SMTP_PASSWORD)
+            require("FROM_EMAIL", FROM_EMAIL)
+        elif provider == "sendgrid":
+            require("SENDGRID_API_KEY", SENDGRID_API_KEY)
+            require("FROM_EMAIL", FROM_EMAIL)
+        elif provider in ("ses", "aws_ses"):
+            require("FROM_EMAIL", FROM_EMAIL)
+            require("AWS_SES_REGION", AWS_SES_REGION)
+        else:
+            missing.append(f"EMAIL_PROVIDER({provider})")
+
+        return {
+            "provider": provider,
+            "enabled": self.enabled,
+            "missing": missing,
+            "from_email": FROM_EMAIL,
+            "from_name": FROM_NAME,
+            "smtp_host": SMTP_HOST if provider == "smtp" else None,
+            "smtp_port": SMTP_PORT if provider == "smtp" else None,
+        }
 
     def send_email(
         self,
@@ -88,11 +124,11 @@ class EmailService:
 
     def _provider_ready(self) -> bool:
         if self.provider == "smtp":
-            return bool(SMTP_USER and SMTP_PASSWORD)
+            return bool(SMTP_USER and SMTP_PASSWORD and FROM_EMAIL)
         if self.provider == "sendgrid":
-            return bool(SENDGRID_API_KEY and SMTP_FROM_EMAIL)
+            return bool(SENDGRID_API_KEY and FROM_EMAIL)
         if self.provider in ("ses", "aws_ses"):
-            return bool(SMTP_FROM_EMAIL)
+            return bool(FROM_EMAIL)
         logger.error(f"Unknown email provider: {self.provider}")
         return False
 
@@ -105,7 +141,7 @@ class EmailService:
     ) -> bool:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+        message["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
         message["To"] = to_email
 
         if text_content:
@@ -115,7 +151,7 @@ class EmailService:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_FROM_EMAIL, to_email, message.as_string())
+            server.sendmail(FROM_EMAIL, to_email, message.as_string())
         return True
 
     def _send_via_sendgrid(
@@ -136,7 +172,7 @@ class EmailService:
             return False
 
         mail = Mail(
-            from_email=Email(SMTP_FROM_EMAIL, SMTP_FROM_NAME),
+            from_email=Email(FROM_EMAIL, FROM_NAME),
             to_emails=To(to_email),
             subject=subject,
             html_content=Content("text/html", html_content),
@@ -166,7 +202,7 @@ class EmailService:
         if text_content:
             body["Text"] = {"Data": text_content}
         response = client.send_email(
-            Source=f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>",
+            Source=f"{FROM_NAME} <{FROM_EMAIL}>",
             Destination={"ToAddresses": [to_email]},
             Message={
                 "Subject": {"Data": subject},

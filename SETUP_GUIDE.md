@@ -39,15 +39,33 @@ JWT_SECRET_KEY=[REDACTED]
 
 # Encryption (required in production)
 AUTH_ENCRYPTION_KEY=your-fernet-key
+WG_ENCRYPTION_KEY=your-fernet-key
 
-# Email/SMTP Configuration
+# Email Configuration (provider-agnostic)
+EMAIL_PROVIDER=smtp
+FROM_EMAIL=noreply@securewave.com
+FROM_NAME=SecureWave VPN
+APP_URL=http://localhost:8000
+
+# SMTP Provider
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
 SMTP_FROM_EMAIL=noreply@securewave.com
 SMTP_FROM_NAME=SecureWave VPN
-APP_URL=http://localhost:8000
+
+# SendGrid Provider
+# EMAIL_PROVIDER=sendgrid
+# SENDGRID_API_KEY=your-sendgrid-api-key
+# FROM_EMAIL=noreply@securewave.com
+# FROM_NAME=SecureWave VPN
+
+# AWS SES Provider
+# EMAIL_PROVIDER=aws_ses
+# AWS_SES_REGION=us-east-1
+# FROM_EMAIL=noreply@securewave.com
+# FROM_NAME=SecureWave VPN
 
 # Payment Providers
 STRIPE_SECRET_KEY=sk_test_...
