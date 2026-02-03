@@ -75,7 +75,7 @@ static void handle_vpn_call(FlMethodCall* method_call, gpointer user_data) {
       respond_error(
           method_call,
           "vpn_unavailable",
-          "wg-quick not found. Install WireGuard tools and retry.",
+          "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
           fl_value_new_map());
       return;
     }
@@ -123,7 +123,7 @@ static void handle_vpn_call(FlMethodCall* method_call, gpointer user_data) {
       respond_error(
           method_call,
           "vpn_unavailable",
-          "wg-quick not found. Install WireGuard tools and retry.",
+          "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
           fl_value_new_map());
       return;
     }

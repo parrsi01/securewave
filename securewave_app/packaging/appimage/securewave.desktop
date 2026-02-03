@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=SecureWave
+Exec=securewave_app
+Icon=securewave
+Type=Application
+Categories=Network;Security;
