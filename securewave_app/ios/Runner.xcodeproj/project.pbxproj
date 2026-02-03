@@ -6,18 +6,20 @@
 	objectVersion = 54;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
-		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
-		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
-		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
-		A1B2C3D4E5F6010203040511 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010203040501 /* PacketTunnelProvider.swift */; };
-		A1B2C3D4E5F6010203040512 /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010203040506 /* VPNManager.swift */; };
-		A1B2C3D4E5F6010203040513 /* PacketTunnel.appex in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010203040504 /* PacketTunnel.appex */; };
-		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
-		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
-		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
-/* End PBXBuildFile section */
+	/* Begin PBXBuildFile section */
+			1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+			331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
+			3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+			74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
+			97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
+			97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
+			97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+			A1B2C3D4E5F6010203040511 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010203040501 /* PacketTunnelProvider.swift */; };
+			A1B2C3D4E5F6010203040512 /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010203040506 /* VPNManager.swift */; };
+			A1B2C3D4E5F6010203040513 /* PacketTunnel.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010203040504 /* PacketTunnel.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+			A1B2C3D4E5F6010203040604 /* WireGuardKit in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6010203040602 /* WireGuardKit */; };
+			DC7ECE0024D36F30ED94D5D9 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 90F3B7B7664FBAD08B092647 /* Pods_Runner.framework */; };
+	/* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		331C8085294A63A400263BE5 /* PBXContainerItemProxy */ = {
@@ -46,7 +48,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				A1B2C3D4E5F6010203040513 /* PacketTunnel.appex in Embed Frameworks */,
+				A1B2C3D4E5F6010203040513 /* PacketTunnel.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -56,18 +58,15 @@
 /* Begin PBXFileReference section */
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		182C0412152C14960F65A1F9 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		481DE918138E3FE377473BE6 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6010203040501 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6010203040502 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A1B2C3D4E5F6010203040503 /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
-		A1B2C3D4E5F6010203040504 /* PacketTunnel.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; includeInIndex = 0; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1B2C3D4E5F6010203040505 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Runner.entitlements; sourceTree = "<group>"; };
-		A1B2C3D4E5F6010203040506 /* VPNManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNManager.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
+		90F3B7B7664FBAD08B092647 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
 		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -75,6 +74,13 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010203040501 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010203040502 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010203040503 /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010203040504 /* PacketTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D4E5F6010203040505 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Runner.entitlements; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010203040506 /* VPNManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNManager.swift; sourceTree = "<group>"; };
+		B08A9AC7F5078988D5C76C5D /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,17 +88,19 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DC7ECE0024D36F30ED94D5D9 /* Pods_Runner.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A1B2C3D4E5F6010203040532 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
+			A1B2C3D4E5F6010203040532 /* Frameworks */ = {
+				isa = PBXFrameworksBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					A1B2C3D4E5F6010203040604 /* WireGuardKit in Frameworks */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
+	/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		331C8082294A63A400263BE5 /* RunnerTests */ = {
@@ -101,6 +109,17 @@
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 			);
 			path = RunnerTests;
+			sourceTree = "<group>";
+		};
+		8124EC0334355F848131094E /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				182C0412152C14960F65A1F9 /* Pods-Runner.debug.xcconfig */,
+				B08A9AC7F5078988D5C76C5D /* Pods-Runner.release.xcconfig */,
+				481DE918138E3FE377473BE6 /* Pods-Runner.profile.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -122,6 +141,8 @@
 				A1B2C3D4E5F6010203040520 /* PacketTunnel */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
+				8124EC0334355F848131094E /* Pods */,
+				CBECC17E08EA84048FFAA49E /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -162,6 +183,14 @@
 			path = PacketTunnel;
 			sourceTree = "<group>";
 		};
+		CBECC17E08EA84048FFAA49E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				90F3B7B7664FBAD08B092647 /* Pods_Runner.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -182,47 +211,51 @@
 			productReference = 331C8081294A63A400263BE5 /* RunnerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		A1B2C3D4E5F6010203040540 /* PacketTunnel */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A1B2C3D4E5F6010203040550 /* Build configuration list for PBXNativeTarget "PacketTunnel" */;
-			buildPhases = (
-				A1B2C3D4E5F6010203040530 /* Sources */,
-				A1B2C3D4E5F6010203040532 /* Frameworks */,
-				A1B2C3D4E5F6010203040531 /* Resources */,
-			);
+			97C146ED1CF9000F007C117D /* Runner */ = {
+				isa = PBXNativeTarget;
+				buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
+				buildPhases = (
+					1288A04C5F5C27C6AD020AEE /* [CP] Check Pods Manifest.lock */,
+					B9C2A40F2C8A4C2B0099A123 /* Workspace Guard */,
+					9740EEB61CF901F6004384FC /* Run Script */,
+					97C146EA1CF9000F007C117D /* Sources */,
+					97C146EB1CF9000F007C117D /* Frameworks */,
+					97C146EC1CF9000F007C117D /* Resources */,
+					9705A1C41CF9048500538489 /* Embed Frameworks */,
+					A1B2C3D4E5F6010203040560 /* Embed App Extensions */,
+					3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+					3E27FD6DD17BE7B40E1D3E4C /* [CP] Copy Pods Resources */,
+				);
+				buildRules = (
+				);
+					dependencies = (
+					);
+					name = Runner;
+					productName = Runner;
+					productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
+					productType = "com.apple.product-type.application";
+				};
+			A1B2C3D4E5F6010203040540 /* PacketTunnel */ = {
+				isa = PBXNativeTarget;
+				buildConfigurationList = A1B2C3D4E5F6010203040550 /* Build configuration list for PBXNativeTarget "PacketTunnel" */;
+				buildPhases = (
+					B9C2A40F2C8A4C2B0099A124 /* Workspace Guard (PacketTunnel) */,
+					A1B2C3D4E5F6010203040610 /* Build WireGuard Go Backend */,
+					A1B2C3D4E5F6010203040530 /* Sources */,
+					A1B2C3D4E5F6010203040532 /* Frameworks */,
+					A1B2C3D4E5F6010203040531 /* Resources */,
+				);
 			buildRules = (
-			);
-			packageProductDependencies = (
-				A1B2C3D4E5F6010203040602 /* WireGuardKit */,
 			);
 			dependencies = (
 			);
 			name = PacketTunnel;
+			packageProductDependencies = (
+				A1B2C3D4E5F6010203040602 /* WireGuardKit */,
+			);
 			productName = PacketTunnel;
 			productReference = A1B2C3D4E5F6010203040504 /* PacketTunnel.appex */;
-			productType = "com.apple.product-type.network-extension";
-		};
-		97C146ED1CF9000F007C117D /* Runner */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
-			buildPhases = (
-				B9C2A40F2C8A4C2B0099A123 /* Workspace Guard */,
-				9740EEB61CF901F6004384FC /* Run Script */,
-				97C146EA1CF9000F007C117D /* Sources */,
-				97C146EB1CF9000F007C117D /* Frameworks */,
-				97C146EC1CF9000F007C117D /* Resources */,
-				9705A1C41CF9048500538489 /* Embed Frameworks */,
-				A1B2C3D4E5F6010203040560 /* Embed App Extensions */,
-				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = Runner;
-			productName = Runner;
-			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
-			productType = "com.apple.product-type.application";
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -238,12 +271,12 @@
 						CreatedOnToolsVersion = 14.0;
 						TestTargetID = 97C146ED1CF9000F007C117D;
 					};
-					A1B2C3D4E5F6010203040540 = {
-						CreatedOnToolsVersion = 15.0;
-					};
 					97C146ED1CF9000F007C117D = {
 						CreatedOnToolsVersion = 7.3.1;
 						LastSwiftMigration = 1100;
+					};
+					A1B2C3D4E5F6010203040540 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
@@ -255,13 +288,13 @@
 				en,
 				Base,
 			);
-			mainGroup = 97C146E51CF9000F007C117D;
-			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
-			projectDirPath = "";
-			projectRoot = "";
-			packageReferences = (
-				A1B2C3D4E5F6010203040601 /* WireGuardKit */,
-			);
+				mainGroup = 97C146E51CF9000F007C117D;
+				packageReferences = (
+					A1B2C3D4E5F6010203040603 /* XCLocalSwiftPackageReference "wireguard-apple" */,
+				);
+				productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
+				projectDirPath = "";
+				projectRoot = "";
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
 				A1B2C3D4E5F6010203040540 /* PacketTunnel */,
@@ -272,13 +305,6 @@
 
 /* Begin PBXResourcesBuildPhase section */
 		331C807F294A63A400263BE5 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A1B2C3D4E5F6010203040531 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -296,9 +322,38 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1B2C3D4E5F6010203040531 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		1288A04C5F5C27C6AD020AEE /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Runner-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -315,6 +370,23 @@
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" embed_and_thin";
 		};
+		3E27FD6DD17BE7B40E1D3E4C /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 		9740EEB61CF901F6004384FC /* Run Script */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -330,7 +402,38 @@
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
 		};
-		B9C2A40F2C8A4C2B0099A123 /* Workspace Guard */ = {
+			B9C2A40F2C8A4C2B0099A123 /* Workspace Guard */ = {
+				isa = PBXShellScriptBuildPhase;
+				alwaysOutOfDate = 1;
+				buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Workspace Guard";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+				shellPath = /bin/sh;
+				shellScript = "/bin/sh \"$PROJECT_DIR/scripts/ensure_workspace.sh\"";
+			};
+			A1B2C3D4E5F6010203040610 /* Build WireGuard Go Backend */ = {
+				isa = PBXShellScriptBuildPhase;
+				alwaysOutOfDate = 1;
+				buildActionMask = 2147483647;
+				files = (
+				);
+				inputPaths = (
+				);
+				name = "Build WireGuard Go Backend";
+				outputPaths = (
+					"$(CONFIGURATION_BUILD_DIR)/libwg-go.a",
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+				shellPath = /bin/sh;
+				shellScript = "/bin/sh \"$PROJECT_DIR/scripts/build_wg_go.sh\"";
+			};
+		B9C2A40F2C8A4C2B0099A124 /* Workspace Guard (PacketTunnel) */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -345,7 +448,7 @@
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$PROJECT_DIR/scripts/ensure_workspace.sh\"";
 		};
-/* End PBXShellScriptBuildPhase section */
+	/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		331C807D294A63A400263BE5 /* Sources */ = {
@@ -356,14 +459,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A1B2C3D4E5F6010203040530 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A1B2C3D4E5F6010203040511 /* PacketTunnelProvider.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		97C146EA1CF9000F007C117D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -371,6 +466,14 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				A1B2C3D4E5F6010203040512 /* VPNManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1B2C3D4E5F6010203040530 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D4E5F6010203040511 /* PacketTunnelProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -404,18 +507,19 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-		249021D3217E4FDB00AE95B9 /* Profile */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
+			249021D3217E4FDB00AE95B9 /* Profile */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					ALWAYS_SEARCH_USER_PATHS = NO;
+					ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+					CLANG_ANALYZER_NONNULL = YES;
+					CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+					CLANG_CXX_LIBRARY = "libc++";
+					CLANG_ENABLE_EXPLICIT_MODULES = NO;
+					CLANG_ENABLE_MODULES = YES;
+					CLANG_ENABLE_OBJC_ARC = YES;
+					CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+					CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
@@ -448,14 +552,15 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
+					MTL_ENABLE_DEBUG_INFO = NO;
+					SDKROOT = iphoneos;
+					SUPPORTED_PLATFORMS = iphoneos;
+					SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+					TARGETED_DEVICE_FAMILY = "1,2";
+					VALIDATE_PRODUCT = YES;
+				};
+				name = Profile;
 			};
-			name = Profile;
-		};
 		249021D4217E4FDB00AE95B9 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
@@ -525,75 +630,19 @@
 			};
 			name = Profile;
 		};
-		A1B2C3D4E5F6010203040551 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
-				ENABLE_BITCODE = NO;
-				INFOPLIST_FILE = PacketTunnel/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.securewaveApp.PacketTunnel;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		A1B2C3D4E5F6010203040552 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
-				ENABLE_BITCODE = NO;
-				INFOPLIST_FILE = PacketTunnel/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.securewaveApp.PacketTunnel;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		A1B2C3D4E5F6010203040553 /* Profile */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
-				ENABLE_BITCODE = NO;
-				INFOPLIST_FILE = PacketTunnel/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.securewaveApp.PacketTunnel;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Profile;
-		};
-		97C147031CF9000F007C117D /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
+			97C147031CF9000F007C117D /* Debug */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					ALWAYS_SEARCH_USER_PATHS = NO;
+					ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+					CLANG_ANALYZER_NONNULL = YES;
+					CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+					CLANG_CXX_LIBRARY = "libc++";
+					CLANG_ENABLE_EXPLICIT_MODULES = NO;
+					CLANG_ENABLE_MODULES = YES;
+					CLANG_ENABLE_OBJC_ARC = YES;
+					CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+					CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
@@ -632,25 +681,27 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
-				MTL_ENABLE_DEBUG_INFO = YES;
-				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+					MTL_ENABLE_DEBUG_INFO = YES;
+					ONLY_ACTIVE_ARCH = YES;
+					SDKROOT = iphoneos;
+					SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+					TARGETED_DEVICE_FAMILY = "1,2";
+				};
+				name = Debug;
 			};
-			name = Debug;
-		};
-		97C147041CF9000F007C117D /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
+			97C147041CF9000F007C117D /* Release */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					ALWAYS_SEARCH_USER_PATHS = NO;
+					ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+					CLANG_ANALYZER_NONNULL = YES;
+					CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+					CLANG_CXX_LIBRARY = "libc++";
+					CLANG_ENABLE_EXPLICIT_MODULES = NO;
+					CLANG_ENABLE_MODULES = YES;
+					CLANG_ENABLE_OBJC_ARC = YES;
+					CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+					CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
@@ -685,14 +736,15 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = iphoneos;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
+					SUPPORTED_PLATFORMS = iphoneos;
+					SWIFT_COMPILATION_MODE = wholemodule;
+					SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+					SWIFT_OPTIMIZATION_LEVEL = "-O";
+					TARGETED_DEVICE_FAMILY = "1,2";
+					VALIDATE_PRODUCT = YES;
+				};
+				name = Release;
 			};
-			name = Release;
-		};
 		97C147061CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
@@ -738,26 +790,79 @@
 			};
 			name = Release;
 		};
-/* End XCBuildConfiguration section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		A1B2C3D4E5F6010203040601 /* WireGuardKit */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/WireGuard/wireguard-apple";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.0;
+			A1B2C3D4E5F6010203040551 /* Debug */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					APPLICATION_EXTENSION_API_ONLY = YES;
+					CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+					ENABLE_BITCODE = NO;
+					INFOPLIST_FILE = PacketTunnel/Info.plist;
+					LD_RUNPATH_SEARCH_PATHS = "$(inherited)";
+					OTHER_SWIFT_FLAGS = (
+						"$(inherited)",
+						"-Xcc",
+						"-I$(PROJECT_DIR)/ThirdParty/wireguard-apple/Sources/WireGuardKitC/include",
+						"-Xcc",
+						"-I$(PROJECT_DIR)/ThirdParty/wireguard-apple/Sources/WireGuardKitGo/include",
+					);
+					PRODUCT_BUNDLE_IDENTIFIER = com.example.securewaveApp.PacketTunnel;
+					PRODUCT_NAME = "$(TARGET_NAME)";
+					SDKROOT = iphoneos;
+					SKIP_INSTALL = YES;
+					SWIFT_VERSION = 5.0;
+					TARGETED_DEVICE_FAMILY = "1,2";
+				};
+				name = Debug;
 			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		A1B2C3D4E5F6010203040602 /* WireGuardKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D4E5F6010203040601 /* WireGuardKit */;
-			productName = WireGuardKit;
-		};
-/* End XCSwiftPackageProductDependency section */
+			A1B2C3D4E5F6010203040552 /* Release */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					APPLICATION_EXTENSION_API_ONLY = YES;
+					CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+					ENABLE_BITCODE = NO;
+					INFOPLIST_FILE = PacketTunnel/Info.plist;
+					LD_RUNPATH_SEARCH_PATHS = "$(inherited)";
+					OTHER_SWIFT_FLAGS = (
+						"$(inherited)",
+						"-Xcc",
+						"-I$(PROJECT_DIR)/ThirdParty/wireguard-apple/Sources/WireGuardKitC/include",
+						"-Xcc",
+						"-I$(PROJECT_DIR)/ThirdParty/wireguard-apple/Sources/WireGuardKitGo/include",
+					);
+					PRODUCT_BUNDLE_IDENTIFIER = com.example.securewaveApp.PacketTunnel;
+					PRODUCT_NAME = "$(TARGET_NAME)";
+					SDKROOT = iphoneos;
+					SKIP_INSTALL = YES;
+					SWIFT_VERSION = 5.0;
+					TARGETED_DEVICE_FAMILY = "1,2";
+				};
+				name = Release;
+			};
+			A1B2C3D4E5F6010203040553 /* Profile */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					APPLICATION_EXTENSION_API_ONLY = YES;
+					CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+					ENABLE_BITCODE = NO;
+					INFOPLIST_FILE = PacketTunnel/Info.plist;
+					LD_RUNPATH_SEARCH_PATHS = "$(inherited)";
+					OTHER_SWIFT_FLAGS = (
+						"$(inherited)",
+						"-Xcc",
+						"-I$(PROJECT_DIR)/ThirdParty/wireguard-apple/Sources/WireGuardKitC/include",
+						"-Xcc",
+						"-I$(PROJECT_DIR)/ThirdParty/wireguard-apple/Sources/WireGuardKitGo/include",
+					);
+					PRODUCT_BUNDLE_IDENTIFIER = com.example.securewaveApp.PacketTunnel;
+					PRODUCT_NAME = "$(TARGET_NAME)";
+					SDKROOT = iphoneos;
+					SKIP_INSTALL = YES;
+					SWIFT_VERSION = 5.0;
+					TARGETED_DEVICE_FAMILY = "1,2";
+				};
+				name = Profile;
+			};
+/* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */ = {
@@ -766,16 +871,6 @@
 				331C8088294A63A400263BE5 /* Debug */,
 				331C8089294A63A400263BE5 /* Release */,
 				331C808A294A63A400263BE5 /* Profile */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A1B2C3D4E5F6010203040550 /* Build configuration list for PBXNativeTarget "PacketTunnel" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1B2C3D4E5F6010203040551 /* Debug */,
-				A1B2C3D4E5F6010203040552 /* Release */,
-				A1B2C3D4E5F6010203040553 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -800,7 +895,32 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		A1B2C3D4E5F6010203040550 /* Build configuration list for PBXNativeTarget "PacketTunnel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1B2C3D4E5F6010203040551 /* Debug */,
+				A1B2C3D4E5F6010203040552 /* Release */,
+				A1B2C3D4E5F6010203040553 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+	/* Begin XCLocalSwiftPackageReference section */
+			A1B2C3D4E5F6010203040603 /* XCLocalSwiftPackageReference "wireguard-apple" */ = {
+				isa = XCLocalSwiftPackageReference;
+				relativePath = ThirdParty/wireguard-apple;
+			};
+	/* End XCLocalSwiftPackageReference section */
+
+	/* Begin XCSwiftPackageProductDependency section */
+			A1B2C3D4E5F6010203040602 /* WireGuardKit */ = {
+				isa = XCSwiftPackageProductDependency;
+				package = A1B2C3D4E5F6010203040603 /* XCLocalSwiftPackageReference "wireguard-apple" */;
+				productName = WireGuardKit;
+			};
+	/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 97C146E61CF9000F007C117D /* Project object */;
 }

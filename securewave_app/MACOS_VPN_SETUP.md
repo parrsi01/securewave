@@ -4,6 +4,13 @@ SecureWave exposes the `securewave/vpn` MethodChannel on macOS but does not
 attempt to create a tunnel. Native availability returns `false` until a signed
 Network Extension or WireGuardKit integration is added.
 
+## Current repo status (macOS)
+
+- Workspace: `securewave_app/macos/Runner.xcworkspace`
+- Workspace-only entry point is enforced by: `securewave_app/macos/scripts/ensure_workspace.sh` (scheme pre-action **Workspace Guard**)
+- There is no macOS Packet Tunnel extension target under `securewave_app/macos` in this repo.
+- Production VPN on macOS is blocked until a Network Extension target is added and signed.
+
 ## Integration Summary
 
 - MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`)
@@ -24,6 +31,11 @@ Network Extension or WireGuardKit integration is added.
 
 - `isAvailable` returns `false` on macOS.
 - Connect attempts return `vpn_not_configured` until entitlements exist.
+
+Build (no codesign):
+```bash
+xcodebuild -workspace securewave_app/macos/Runner.xcworkspace -scheme Runner -configuration Debug -sdk macosx -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO build
+```
 
 ## References
 
