@@ -4,6 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Guard against packaging when WireGuard tooling is missing on the target platform.
+if ! command -v wg-quick >/dev/null 2>&1; then
+  echo "ERROR: wg-quick not found. Install WireGuard tools before packaging." >&2
+  echo "Install (Debian/Ubuntu): sudo apt-get install -y wireguard-tools" >&2
+  exit 1
+fi
+
 if ! command -v flutter >/dev/null 2>&1; then
   echo "ERROR: flutter is not installed or not on PATH." >&2
   exit 1
