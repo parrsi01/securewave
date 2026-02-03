@@ -23,6 +23,9 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER)
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "SecureWave VPN")
+EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp").strip().lower()
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
 APP_URL = os.getenv("APP_URL", "https://securewave.example.com")
 
 
@@ -34,11 +37,10 @@ class EmailService:
 
     def __init__(self):
         """Initialize email service"""
-        if not SMTP_USER or not SMTP_PASSWORD:
-            logger.warning("SMTP credentials not configured - Email functionality disabled")
-            self.enabled = False
-        else:
-            self.enabled = True
+        self.provider = EMAIL_PROVIDER
+        self.enabled = self._provider_ready()
+        if not self.enabled:
+            logger.warning("Email provider not configured - Email functionality disabled")
 
     def send_email(
         self,
@@ -64,32 +66,114 @@ class EmailService:
             return False
 
         try:
-            # Create message
-            message = MIMEMultipart("alternative")
-            message["Subject"] = subject
-            message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
-            message["To"] = to_email
+            if self.provider == "smtp":
+                success = self._send_via_smtp(to_email, subject, html_content, text_content)
+            elif self.provider == "sendgrid":
+                success = self._send_via_sendgrid(to_email, subject, html_content, text_content)
+            elif self.provider in ("ses", "aws_ses"):
+                success = self._send_via_ses(to_email, subject, html_content, text_content)
+            else:
+                logger.error(f"Unknown email provider: {self.provider}")
+                return False
 
-            # Add text and HTML parts
-            if text_content:
-                part1 = MIMEText(text_content, "plain")
-                message.attach(part1)
-
-            part2 = MIMEText(html_content, "html")
-            message.attach(part2)
-
-            # Connect and send
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-                server.starttls()  # Enable TLS
-                server.login(SMTP_USER, SMTP_PASSWORD)
-                server.sendmail(SMTP_FROM_EMAIL, to_email, message.as_string())
-
-            logger.info(f"✓ Email sent successfully: {subject} to {to_email}")
-            return True
+            if success:
+                logger.info(f"✓ Email sent successfully: {subject} to {to_email}")
+            else:
+                logger.error(f"✗ Failed to send email to {to_email}")
+            return success
 
         except Exception as e:
             logger.error(f"✗ Failed to send email to {to_email}: {e}")
             return False
+
+    def _provider_ready(self) -> bool:
+        if self.provider == "smtp":
+            return bool(SMTP_USER and SMTP_PASSWORD)
+        if self.provider == "sendgrid":
+            return bool(SENDGRID_API_KEY and SMTP_FROM_EMAIL)
+        if self.provider in ("ses", "aws_ses"):
+            return bool(SMTP_FROM_EMAIL)
+        logger.error(f"Unknown email provider: {self.provider}")
+        return False
+
+    def _send_via_smtp(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: Optional[str],
+    ) -> bool:
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+        message["To"] = to_email
+
+        if text_content:
+            message.attach(MIMEText(text_content, "plain"))
+        message.attach(MIMEText(html_content, "html"))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM_EMAIL, to_email, message.as_string())
+        return True
+
+    def _send_via_sendgrid(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: Optional[str],
+    ) -> bool:
+        if not SENDGRID_API_KEY:
+            logger.error("SENDGRID_API_KEY not configured")
+            return False
+        try:
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail, Email, To, Content
+        except ImportError as exc:
+            logger.error(f"SendGrid SDK not installed: {exc}")
+            return False
+
+        mail = Mail(
+            from_email=Email(SMTP_FROM_EMAIL, SMTP_FROM_NAME),
+            to_emails=To(to_email),
+            subject=subject,
+            html_content=Content("text/html", html_content),
+        )
+        if text_content:
+            mail.add_content(Content("text/plain", text_content))
+
+        client = SendGridAPIClient(SENDGRID_API_KEY)
+        response = client.send(mail)
+        return 200 <= response.status_code < 300
+
+    def _send_via_ses(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: Optional[str],
+    ) -> bool:
+        try:
+            import boto3
+        except ImportError as exc:
+            logger.error(f"boto3 not installed: {exc}")
+            return False
+
+        client = boto3.client("ses", region_name=AWS_SES_REGION)
+        body = {"Html": {"Data": html_content}}
+        if text_content:
+            body["Text"] = {"Data": text_content}
+        response = client.send_email(
+            Source=f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>",
+            Destination={"ToAddresses": [to_email]},
+            Message={
+                "Subject": {"Data": subject},
+                "Body": body,
+            },
+        )
+        return "MessageId" in response
 
     def send_verification_email(
         self,

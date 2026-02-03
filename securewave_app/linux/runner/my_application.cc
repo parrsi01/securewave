@@ -4,8 +4,161 @@
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
+#include <gio/gio.h>
+#include <glib/gstdio.h>
 
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+const char* kChannelName = "securewave/vpn";
+const char* kConfigFileName = "securewave.conf";
+
+typedef struct {
+  FlMethodChannel* channel;
+  gchar* config_path;
+} VpnChannelState;
+
+static void vpn_channel_state_free(VpnChannelState* state) {
+  if (!state) {
+    return;
+  }
+  g_clear_object(&state->channel);
+  g_clear_pointer(&state->config_path, g_free);
+  g_free(state);
+}
+
+static const gchar* get_string_arg(FlValue* args, const gchar* key) {
+  if (!args || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return nullptr;
+  }
+  FlValue* value = fl_value_lookup_string(args, key);
+  if (!value || fl_value_get_type(value) != FL_VALUE_TYPE_STRING) {
+    return nullptr;
+  }
+  return fl_value_get_string(value);
+}
+
+static gboolean wg_quick_available() {
+  g_autofree gchar* wg_quick = g_find_program_in_path("wg-quick");
+  return wg_quick != nullptr;
+}
+
+static gchar* build_config_path() {
+  g_autofree gchar* config_dir = g_build_filename(g_get_user_config_dir(), "securewave", nullptr);
+  if (g_mkdir_with_parents(config_dir, 0700) != 0) {
+    return nullptr;
+  }
+  return g_build_filename(config_dir, kConfigFileName, nullptr);
+}
+
+static void respond_error(
+    FlMethodCall* method_call,
+    const gchar* code,
+    const gchar* message,
+    FlValue* details) {
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_error_response_new(code, message, details));
+  fl_method_call_respond(method_call, response, nullptr);
+}
+
+static void handle_vpn_call(FlMethodCall* method_call, gpointer user_data) {
+  VpnChannelState* state = static_cast<VpnChannelState*>(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (g_strcmp0(method, "isAvailable") == 0) {
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(fl_value_new_bool(wg_quick_available())));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+  if (g_strcmp0(method, "connect") == 0) {
+    if (!wg_quick_available()) {
+      respond_error(
+          method_call,
+          "vpn_unavailable",
+          "wg-quick not found. Install WireGuard tools and retry.",
+          fl_value_new_map());
+      return;
+    }
+    FlValue* args = fl_method_call_get_args(method_call);
+    const gchar* config = get_string_arg(args, "config");
+    if (!config || *config == '\0') {
+      respond_error(method_call, "invalid_config", "Missing WireGuard configuration.", nullptr);
+      return;
+    }
+    if (state->config_path == nullptr) {
+      state->config_path = build_config_path();
+    }
+    if (state->config_path == nullptr) {
+      respond_error(method_call, "vpn_config_write_failed", "Unable to write config file.", nullptr);
+      return;
+    }
+    g_autoptr(GError) error = nullptr;
+    if (!g_file_set_contents(state->config_path, config, -1, &error)) {
+      respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
+      return;
+    }
+    gchar* argv[] = {
+        const_cast<gchar*>("wg-quick"),
+        const_cast<gchar*>("up"),
+        state->config_path,
+        nullptr
+    };
+    gint exit_status = 0;
+    if (!g_spawn_sync(nullptr, argv, nullptr, G_SPAWN_SEARCH_PATH, nullptr, nullptr,
+                      nullptr, nullptr, &exit_status, &error)) {
+      respond_error(method_call, "vpn_connect_failed", error->message, nullptr);
+      return;
+    }
+    if (!g_spawn_check_exit_status(exit_status, &error)) {
+      respond_error(method_call, "vpn_connect_failed", error->message, nullptr);
+      return;
+    }
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(nullptr));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+  if (g_strcmp0(method, "disconnect") == 0) {
+    if (!wg_quick_available()) {
+      respond_error(
+          method_call,
+          "vpn_unavailable",
+          "wg-quick not found. Install WireGuard tools and retry.",
+          fl_value_new_map());
+      return;
+    }
+    if (!state->config_path || !g_file_test(state->config_path, G_FILE_TEST_EXISTS)) {
+      respond_error(method_call, "vpn_config_missing", "WireGuard config file not found.", nullptr);
+      return;
+    }
+    g_autoptr(GError) error = nullptr;
+    gchar* argv[] = {
+        const_cast<gchar*>("wg-quick"),
+        const_cast<gchar*>("down"),
+        state->config_path,
+        nullptr
+    };
+    gint exit_status = 0;
+    if (!g_spawn_sync(nullptr, argv, nullptr, G_SPAWN_SEARCH_PATH, nullptr, nullptr,
+                      nullptr, nullptr, &exit_status, &error)) {
+      respond_error(method_call, "vpn_disconnect_failed", error->message, nullptr);
+      return;
+    }
+    if (!g_spawn_check_exit_status(exit_status, &error)) {
+      respond_error(method_call, "vpn_disconnect_failed", error->message, nullptr);
+      return;
+    }
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(nullptr));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_not_implemented_response_new());
+  fl_method_call_respond(method_call, response, nullptr);
+}
+
+}  // namespace
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -74,6 +227,18 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+
+  FlEngine* engine = fl_view_get_engine(view);
+  VpnChannelState* vpn_state = g_new0(VpnChannelState, 1);
+  vpn_state->channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(engine),
+      kChannelName,
+      FL_METHOD_CODEC(fl_standard_method_codec_new()));
+  fl_method_channel_set_method_call_handler(
+      vpn_state->channel,
+      handle_vpn_call,
+      vpn_state,
+      reinterpret_cast<GDestroyNotify>(vpn_channel_state_free));
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }

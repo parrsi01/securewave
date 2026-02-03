@@ -8,6 +8,8 @@ import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 import '../optimization/marlxgb.dart';
 import '../services/secure_storage.dart';
+import '../../services/api_client.dart';
+import '../services/vpn_service.dart';
 import 'app_state.dart';
 
 class VpnState {
@@ -106,7 +108,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     AppLogger.info('VPN connect requested');
     try {
       final service = _ref.read(vpnServiceProvider);
-      final nextStatus = await service.connect(protocol: state.protocol);
+      String? config;
+      if (service.isNativeAvailable) {
+        final api = _ref.read(apiClientProvider);
+        config = await api.fetchVpnConfig(serverId: state.selectedServerId);
+      }
+      final nextStatus = await service.connect(protocol: state.protocol, config: config);
       _setStatus(nextStatus);
       if (nextStatus == VpnStatus.connected) {
         _updateStability(success: true);
@@ -116,7 +123,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       }
     } catch (error, stackTrace) {
       _setStatus(VpnStatus.error);
-      state = state.copyWith(errorMessage: 'Unable to connect right now.');
+      state = state.copyWith(errorMessage: _vpnErrorMessage(error));
       _updateStability(success: false);
       AppLogger.error('VPN connect failed', error: error, stackTrace: stackTrace);
     } finally {
@@ -138,7 +145,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       _updateStability(success: true);
     } catch (error, stackTrace) {
       _setStatus(VpnStatus.error);
-      state = state.copyWith(errorMessage: 'Unable to disconnect right now.');
+      state = state.copyWith(errorMessage: _vpnErrorMessage(error));
       _updateStability(success: false);
       AppLogger.error('VPN disconnect failed', error: error, stackTrace: stackTrace);
     } finally {
@@ -202,6 +209,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       failures: _stabilityFailures,
     );
     state = state.copyWith(stabilityScore: score);
+  }
+
+  String _vpnErrorMessage(Object error) {
+    if (error is VpnServiceException) {
+      return error.message;
+    }
+    if (error is StateError) {
+      return error.message;
+    }
+    return 'Unable to complete the VPN request right now.';
   }
 
   @override

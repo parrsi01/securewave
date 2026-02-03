@@ -1,22 +1,31 @@
-# Android VPN Setup (Native Integration)
+# Android VPN Setup (WireGuard)
 
-SecureWave includes a placeholder VpnService and MethodChannel bridge. To enable
-real WireGuard tunnels on Android, you must add a WireGuard backend.
+SecureWave uses the official WireGuard Android library to bring up a real VPN
+tunnel. The Flutter MethodChannel drives a foreground `VpnService`, and
+`VpnService.prepare()` handles user permission prompts.
 
-## Steps
+## Integration Summary
 
-1. Open `securewave_app/android` in Android Studio.
-2. Add a WireGuard backend dependency (wireguard-go or official library).
-3. Update `SecureWaveVpnService` to:
-   - Parse the WireGuard config string.
-   - Start the tunnel via the backend.
-   - Report status back to Flutter (optional).
-4. Request VPN permission using `VpnService.prepare()` before starting.
+- MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`)
+- Permission: `VpnService.prepare()` via `MainActivity`
+- Service: `SecureWaveVpnService` uses `GoBackend` and runs foreground
+- Dependency: `com.wireguard.android:tunnel:1.0.20260102`
 
-## Current Bridge
+## Requirements
 
-Flutter calls the `securewave/vpn` channel. Android receives:
-- `connect` with `config`
-- `disconnect`
+- Android device or emulator with VPN permission support
+- WireGuard config from backend `/api/vpn/config` (or `/api/vpn/allocate`)
+- Internet access to reach the WireGuard endpoint
 
-The service currently starts a foreground notification and exits.
+## Verification
+
+1. `cd securewave_app`
+2. `flutter pub get`
+3. `flutter run -d <android-device-id>`
+4. Tap Connect and approve the VPN permission prompt.
+5. Confirm the tunnel is up:
+   - `adb logcat | rg "SecureWave VPN"`
+   - `adb shell dumpsys vpn`
+
+If the permission prompt is denied, Flutter receives
+`missing_vpn_permission` and no mock tunnel is used.

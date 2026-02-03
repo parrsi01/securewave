@@ -20,6 +20,8 @@ class AppDelegate: FlutterAppDelegate {
       let channel = FlutterMethodChannel(name: channelName, binaryMessenger: controller.engine.binaryMessenger)
       channel.setMethodCallHandler { call, result in
         switch call.method {
+        case "isAvailable":
+          result(false)
         case "connect":
           result(FlutterError(code: "vpn_not_configured",
                               message: "Native VPN not configured for macOS. See MACOS_VPN_SETUP.md for integration steps.",

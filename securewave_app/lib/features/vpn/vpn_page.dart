@@ -21,12 +21,14 @@ class VpnPage extends ConsumerWidget {
     }
     switch (os) {
       case OperatingSystem.linux:
-        return 'Linux VPN uses a simulated tunnel (mock mode). '
-            'WireGuard kernel module is required for production use.';
+        return 'Linux VPN uses wg-quick. Install WireGuard tools and allow '
+            'the app to run elevated commands when prompted.';
       case OperatingSystem.windows:
-        return 'Windows VPN tunnel is not configured yet. '
-            'WireGuard for Windows is required.';
+        return 'Windows VPN requires WireGuard for Windows (wireguard.exe). '
+            'Install it to enable native tunneling.';
       case OperatingSystem.macOS:
+        return 'macOS VPN support is coming soon. The app requires additional '
+            'Apple approvals before VPN tunnels can be established on Mac.';
       case OperatingSystem.iOS:
       case OperatingSystem.android:
         return null; // Fully supported
@@ -102,14 +104,14 @@ class VpnPage extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'VPN certificate not yet configured',
+                            'Native VPN unavailable',
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: AppUIv1.space1),
                           Text(
                             'The native VPN tunnel is not available on this device. '
                             'The app is running in demo mode with simulated connections. '
-                            'Once the VPN certificate is approved and installed, real '
+                            'Once the native bridge is installed and configured, real '
                             'tunnel connections will activate automatically.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),

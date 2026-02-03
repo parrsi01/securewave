@@ -5,20 +5,35 @@ import '../core/config/app_config.dart';
 import '../core/logging/app_logger.dart';
 import '../core/models/server_region.dart';
 import '../core/models/user_plan.dart';
+import '../core/services/auth_session.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final config = ref.watch(appConfigProvider);
-  return ApiClient(config);
+  final session = ref.watch(authSessionProvider);
+  return ApiClient(config, session: session);
 });
 
 class ApiClient {
-  ApiClient(this._config) {
+  ApiClient(this._config, {AuthSession? session}) {
     _dio = Dio(
       BaseOptions(
         baseUrl: _config.apiBaseUrl,
         headers: {'Content-Type': 'application/json'},
       ),
     );
+    if (session != null) {
+      _dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            final token = session.accessToken;
+            if (token != null && token.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
+            return handler.next(options);
+          },
+        ),
+      );
+    }
   }
 
   final AppConfig _config;
@@ -27,6 +42,7 @@ class ApiClient {
   DateTime? _serversFetchedAt;
   UserPlan? _cachedPlan;
   DateTime? _planFetchedAt;
+  bool _mockNoticeLogged = false;
 
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
@@ -39,6 +55,7 @@ class ApiClient {
       }
     }
     if (_config.useMockApi) {
+      _logMockApi();
       final data = _mockServers();
       _cachedServers = data;
       _serversFetchedAt = DateTime.now();
@@ -72,6 +89,7 @@ class ApiClient {
       }
     }
     if (_config.useMockApi) {
+      _logMockApi();
       final plan = _mockPlan();
       _cachedPlan = plan;
       _planFetchedAt = DateTime.now();
@@ -96,6 +114,7 @@ class ApiClient {
 
   Future<AuthTokens> login({required String email, required String password}) async {
     if (_config.useMockApi) {
+      _logMockApi();
       return _mockTokens(email);
     }
     try {
@@ -117,6 +136,7 @@ class ApiClient {
 
   Future<AuthTokens?> register({required String email, required String password}) async {
     if (_config.useMockApi) {
+      _logMockApi();
       return _mockTokens(email);
     }
     try {
@@ -160,6 +180,60 @@ class ApiClient {
       dataCapGb: 5,
       usedGb: 1.6,
     );
+  }
+
+  Future<String> fetchVpnConfig({String? serverId}) async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return _mockVpnConfig();
+    }
+    Map<String, dynamic>? payload;
+    if (serverId != null && serverId.isNotEmpty) {
+      try {
+        final response = await _dio.post<Map<String, dynamic>>(
+          '/vpn/allocate',
+          data: {'server_id': serverId},
+        );
+        payload = response.data;
+      } catch (error, stackTrace) {
+        AppLogger.warning('VPN allocation failed, falling back to existing config.');
+        AppLogger.error('VPN allocation error', error: error, stackTrace: stackTrace);
+      }
+    }
+    try {
+      final response = payload == null
+          ? await _dio.get<Map<String, dynamic>>('/vpn/config')
+          : null;
+      final data = payload ?? response?.data ?? <String, dynamic>{};
+      final config = data['config'];
+      if (config is String && config.trim().isNotEmpty) {
+        return config;
+      }
+      throw StateError('VPN configuration missing from response.');
+    } catch (error, stackTrace) {
+      AppLogger.error('VPN config fetch failed', error: error, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  void _logMockApi() {
+    if (_mockNoticeLogged) return;
+    _mockNoticeLogged = true;
+    AppLogger.warning('Mock API enabled: returning demo data instead of live endpoints.');
+  }
+
+  String _mockVpnConfig() {
+    return '''
+[Interface]
+PrivateKey = DEMO_PRIVATE_KEY
+Address = 10.10.0.2/32
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = DEMO_PUBLIC_KEY
+AllowedIPs = 0.0.0.0/0
+Endpoint = demo.securewave.invalid:51820
+''';
   }
 }
 
