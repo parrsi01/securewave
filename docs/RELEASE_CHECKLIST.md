@@ -182,14 +182,14 @@ build/app/outputs/bundle/release/app-release.aab
 
 ```powershell
 where.exe wireguard.exe
-Get-Service -Name \"WireGuardManager\"
+Get-Service -Name "WireGuardManager"
 cd securewave_app
 ./scripts/build_windows_installer.ps1 -Version 4.0.0
 ```
 
 **Expected output:**
 ```
-WireGuard binary found: C:\\Program Files\\WireGuard\\wireguard.exe
+C:\Program Files\WireGuard\wireguard.exe
 OK: Built securewave_app\\build\\installer\\SecureWaveVPN-4.0.0-setup.exe
 ```
 
