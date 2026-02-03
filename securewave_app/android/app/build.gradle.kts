@@ -53,6 +53,7 @@ android {
     val keyAliasValue = resolveProp("keyAlias", envKeyAlias)
     val keyPasswordValue = resolveProp("keyPassword", envKeyPassword)
 
+    // Guard against unsigned release builds by requiring explicit signing config.
     val releaseSigningConfigured = !storeFileValue.isNullOrBlank() &&
         !storePasswordValue.isNullOrBlank() &&
         !keyAliasValue.isNullOrBlank() &&
@@ -76,7 +77,7 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             } else if (isReleaseTask) {
                 throw GradleException(
-                    "Release signing is not configured. Provide android/key.properties or ANDROID_KEYSTORE_* env vars."
+                    "Release signing is not configured. Provide android/key.properties or ANDROID_KEYSTORE_* env vars. See ANDROID_VPN_SETUP.md."
                 )
             } else {
                 signingConfig = signingConfigs.getByName("debug")
