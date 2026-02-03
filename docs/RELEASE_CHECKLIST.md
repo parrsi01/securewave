@@ -4,6 +4,19 @@ Use this checklist before staging or production releases. Complete in order.
 
 ---
 
+## 0) Release Preflight (Mandatory)
+
+```bash
+bash scripts/release_preflight.sh
+```
+
+**Expected output:**
+```
+OK: Release preflight checks passed.
+```
+
+---
+
 ## 1) SMTP / Email Provider
 
 **Required env vars (pick one provider):**
