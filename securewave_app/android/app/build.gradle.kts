@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -30,11 +32,55 @@ android {
         versionName = flutter.versionName
     }
 
+    val keystoreProperties = Properties()
+    val keystorePropertiesFile = rootProject.file("key.properties")
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+    }
+
+    val envStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
+    val envStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+    val envKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+    val envKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+
+    fun resolveProp(name: String, envValue: String?): String? {
+        val value = keystoreProperties.getProperty(name)
+        return if (!value.isNullOrBlank()) value else envValue
+    }
+
+    val storeFileValue = resolveProp("storeFile", envStoreFile)
+    val storePasswordValue = resolveProp("storePassword", envStorePassword)
+    val keyAliasValue = resolveProp("keyAlias", envKeyAlias)
+    val keyPasswordValue = resolveProp("keyPassword", envKeyPassword)
+
+    val releaseSigningConfigured = !storeFileValue.isNullOrBlank() &&
+        !storePasswordValue.isNullOrBlank() &&
+        !keyAliasValue.isNullOrBlank() &&
+        !keyPasswordValue.isNullOrBlank()
+
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured) {
+                storeFile = file(storeFileValue!!)
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            val isReleaseTask = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            } else if (isReleaseTask) {
+                throw GradleException(
+                    "Release signing is not configured. Provide android/key.properties or ANDROID_KEYSTORE_* env vars."
+                )
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }

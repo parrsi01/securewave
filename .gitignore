@@ -44,6 +44,11 @@ env/
 .env.production
 .secrets
 
+# Android signing
+securewave_app/android/key.properties
+*.jks
+*.keystore
+
 # Databases
 *.db
 *.sqlite
