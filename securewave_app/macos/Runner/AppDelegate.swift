@@ -24,11 +24,11 @@ class AppDelegate: FlutterAppDelegate {
           result(false)
         case "connect":
           result(FlutterError(code: "vpn_not_configured",
-                              message: "Native VPN not configured for macOS. See MACOS_VPN_SETUP.md for integration steps.",
+                              message: "SecureWave VPN is not implemented for macOS. See MACOS_VPN_SETUP.md for integration steps.",
                               details: ["platform": "macos", "configured": false]))
         case "disconnect":
           result(FlutterError(code: "vpn_not_configured",
-                              message: "Native VPN not configured for macOS. See MACOS_VPN_SETUP.md for integration steps.",
+                              message: "SecureWave VPN is not implemented for macOS. See MACOS_VPN_SETUP.md for integration steps.",
                               details: ["platform": "macos", "configured": false]))
         default:
           result(FlutterMethodNotImplemented)

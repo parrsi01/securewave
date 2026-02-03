@@ -16,6 +16,32 @@ to install and start a tunnel service from a WireGuard config string.
 - App running with privileges to install the tunnel service
 - WireGuard config from backend `/api/vpn/config` (or `/api/vpn/allocate`)
 
+## WireGuard Detection Logic
+
+SecureWave resolves `wireguard.exe` in this order:
+
+1. `SECUREWAVE_WIREGUARD_PATH` override (full path to `wireguard.exe`)
+2. `C:\Program Files\WireGuard\wireguard.exe`
+3. `C:\Program Files (x86)\WireGuard\wireguard.exe`
+
+Verify detection on a target machine:
+
+```powershell
+where.exe wireguard.exe
+```
+
+If the path is not on `PATH`, set `SECUREWAVE_WIREGUARD_PATH` explicitly.
+
+## Installer Scaffolding (NSIS)
+
+Installer scaffolding lives in `securewave_app/windows/installer/securewave_installer.nsi`.
+Build on Windows with:
+
+```powershell
+cd securewave_app
+./scripts/build_windows_installer.ps1 -Version 4.0.0
+```
+
 ## Verification
 
 1. Install WireGuard for Windows.
