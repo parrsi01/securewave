@@ -124,6 +124,9 @@ jobs:
     needs: release-preflight
     steps:
       - uses: actions/checkout@v4
+      - name: Verify iOS store compliance
+        # Guard against App Store blockers before running Xcode builds.
+        run: bash scripts/verify_ios_store_compliance.sh
       - uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
