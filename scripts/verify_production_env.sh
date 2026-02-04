@@ -6,6 +6,13 @@ if [[ "${1:-}" == "--strict" || "${VERIFY_STRICT:-}" == "true" ]]; then
   STRICT=true
 fi
 
+ENVIRONMENT_VALUE="${ENVIRONMENT:-}"
+ENVIRONMENT_LOWER="${ENVIRONMENT_VALUE,,}"
+ENFORCE_REQUIRED=false
+if [[ "$STRICT" == "true" || "$ENVIRONMENT_LOWER" == "production" ]]; then
+  ENFORCE_REQUIRED=true
+fi
+
 errors=0
 warnings=0
 
@@ -23,7 +30,7 @@ require_var() {
   local name="$1"
   local value="${!name-}"
   if [[ -z "$value" ]]; then
-    if [[ "$STRICT" == "true" ]]; then
+    if [[ "$ENFORCE_REQUIRED" == "true" ]]; then
       log_error "$name is required."
     else
       log_warning "$name is not set."
@@ -35,7 +42,7 @@ require_port() {
   local name="$1"
   local value="${!name-}"
   if [[ -z "$value" ]]; then
-    if [[ "$STRICT" == "true" ]]; then
+    if [[ "$ENFORCE_REQUIRED" == "true" ]]; then
       log_error "$name is required for SMTP."
     else
       log_warning "$name is not set."
@@ -83,7 +90,7 @@ validate_fernet() {
   local name="$1"
   local value="${!name-}"
   if [[ -z "$value" ]]; then
-    if [[ "$STRICT" == "true" ]]; then
+    if [[ "$ENFORCE_REQUIRED" == "true" ]]; then
       log_error "$name is required."
     else
       log_warning "$name is not set."
@@ -115,7 +122,7 @@ PY
 
 provider="${EMAIL_PROVIDER:-}"
 if [[ -z "$provider" ]]; then
-  if [[ "$STRICT" == "true" ]]; then
+  if [[ "$ENFORCE_REQUIRED" == "true" ]]; then
     log_error "EMAIL_PROVIDER is required (smtp, sendgrid, ses)."
   else
     log_warning "EMAIL_PROVIDER is not set."
@@ -130,7 +137,7 @@ else
       require_var SMTP_USER
       require_var SMTP_PASSWORD
       if [[ -z "$from_email" ]]; then
-        if [[ "$STRICT" == "true" ]]; then
+        if [[ "$ENFORCE_REQUIRED" == "true" ]]; then
           log_error "FROM_EMAIL is required for SMTP (or set SMTP_FROM_EMAIL/SMTP_USER fallback)."
         else
           log_warning "FROM_EMAIL is not set for SMTP."
@@ -140,7 +147,7 @@ else
     sendgrid)
       require_var SENDGRID_API_KEY
       if [[ -z "$from_email" ]]; then
-        if [[ "$STRICT" == "true" ]]; then
+        if [[ "$ENFORCE_REQUIRED" == "true" ]]; then
           log_error "FROM_EMAIL is required for SendGrid."
         else
           log_warning "FROM_EMAIL is not set for SendGrid."
@@ -150,7 +157,7 @@ else
     ses|aws_ses)
       require_var AWS_SES_REGION
       if [[ -z "$from_email" ]]; then
-        if [[ "$STRICT" == "true" ]]; then
+        if [[ "$ENFORCE_REQUIRED" == "true" ]]; then
           log_error "FROM_EMAIL is required for AWS SES."
         else
           log_warning "FROM_EMAIL is not set for AWS SES."
@@ -158,7 +165,7 @@ else
       fi
       ;;
     *)
-      if [[ "$STRICT" == "true" ]]; then
+      if [[ "$ENFORCE_REQUIRED" == "true" ]]; then
         log_error "EMAIL_PROVIDER '$provider' is not supported."
       else
         log_warning "EMAIL_PROVIDER '$provider' is not supported."
@@ -169,6 +176,13 @@ fi
 
 validate_fernet AUTH_ENCRYPTION_KEY
 validate_fernet WG_ENCRYPTION_KEY
+
+# Guard against missing database configuration in production.
+if [[ "$ENVIRONMENT_LOWER" == "production" ]]; then
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    log_error "DATABASE_URL is required for production (example: postgresql://user:pass@host:5432/securewave)."
+  fi
+fi
 
 echo "Verification mode: $([[ "$STRICT" == "true" ]] && echo strict || echo safe)"
 echo "Errors: $errors"

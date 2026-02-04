@@ -45,6 +45,8 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSVPNUsageDescription</key>
+	<string>SecureWave uses VPN technology to encrypt your internet traffic and protect your privacy on untrusted networks.</string>
 	<key>SecureWaveVPNUsageDescription</key>
 	<string>SecureWave establishes a VPN tunnel on this device using Network Extension when the user taps Connect.</string>
 </dict>
