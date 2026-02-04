@@ -141,6 +141,22 @@ bash scripts/run_smoke_tests.sh
 - [ ] Configure signing + team for both Runner and PacketTunnel targets
 - [ ] Build and validate device install
 
+**App Store compliance requirements:**
+- [ ] `securewave_app/ios/Runner/PrivacyInfo.xcprivacy` present and in Runner resources
+- [ ] `securewave_app/ios/PacketTunnel/PrivacyInfo.xcprivacy` present and in PacketTunnel resources
+- [ ] `NSVPNUsageDescription` set in `securewave_app/ios/Runner/Info.plist`
+- [ ] Entitlements are still configured manually in Xcode (no automation here)
+
+**Verify compliance (macOS only):**
+```bash
+bash scripts/verify_ios_store_compliance.sh
+```
+
+**Expected output:**
+```
+PASS: iOS store compliance checks passed.
+```
+
 **Verify workspace guard:**
 ```bash
 bash securewave_app/ios/scripts/ensure_workspace.sh
