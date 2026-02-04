@@ -1,31 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# setup_production_env.sh - Generate missing production secrets and print copy/paste exports.
+
 fail() {
   echo "ERROR: $*" >&2
   exit 1
-}
-
-require_var() {
-  local name="$1"
-  local value="${!name-}"
-  if [[ -z "$value" ]]; then
-    fail "$name is required. Set it in your production environment or .env file."
-  fi
-}
-
-require_port() {
-  local name="$1"
-  local value="${!name-}"
-  if [[ -z "$value" ]]; then
-    fail "$name is required for SMTP."
-  fi
-  if [[ ! "$value" =~ ^[0-9]+$ ]]; then
-    fail "$name must be numeric (got '$value')."
-  fi
-  if (( value < 1 || value > 65535 )); then
-    fail "$name must be between 1 and 65535 (got '$value')."
-  fi
 }
 
 ensure_python() {
@@ -34,7 +14,7 @@ ensure_python() {
     if command -v python >/dev/null 2>&1; then
       python_bin="python"
     else
-      fail "python3 is required to validate Fernet keys. Install Python or set PYTHON_BIN."
+      fail "python3 is required to generate Fernet keys. Install Python or set PYTHON_BIN."
     fi
   fi
   echo "$python_bin"
@@ -53,66 +33,63 @@ PY
   fi
 }
 
-validate_fernet() {
-  local name="$1"
-  local value="${!name-}"
-  if [[ -z "$value" ]]; then
-    fail "$name is required. Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
-  fi
+generate_fernet_key() {
   local python_bin
   python_bin="$(ensure_python)"
   ensure_cryptography "$python_bin"
-  if ! "$python_bin" - <<PY
+  "$python_bin" - <<'PY'
 from cryptography.fernet import Fernet
-import sys
-value = "${value}"
-try:
-    Fernet(value.encode())
-except Exception as exc:
-    print(f"Invalid {name}: {exc}")
-    sys.exit(1)
+print(Fernet.generate_key().decode())
 PY
-  then
-    fail "$name is not a valid Fernet key. Regenerate with scripts/generate_keys.sh or the Fernet command."
-  fi
 }
 
-provider="${EMAIL_PROVIDER:-}"
-if [[ -z "$provider" ]]; then
-  fail "EMAIL_PROVIDER is required. Supported: smtp, sendgrid, ses."
+print_export() {
+  local name="$1"
+  local value="$2"
+  local mask="${3:-false}"
+  if [[ "$mask" == "true" ]]; then
+    value="<set-in-secret-manager>"
+  fi
+  if [[ -z "$value" ]]; then
+    value="<set-me>"
+  fi
+  echo "export ${name}=\"${value}\""
+}
+
+email_provider="${EMAIL_PROVIDER:-smtp}"
+from_email="${FROM_EMAIL:-${SMTP_FROM_EMAIL:-}}"
+
+auth_key="${AUTH_ENCRYPTION_KEY:-}"
+wg_key="${WG_ENCRYPTION_KEY:-}"
+
+if [[ -z "$auth_key" ]]; then
+  # Guard against missing keys by generating new Fernet secrets.
+  auth_key="$(generate_fernet_key)"
+  echo "INFO: Generated AUTH_ENCRYPTION_KEY"
 fi
-provider="${provider,,}"
 
-from_email="${FROM_EMAIL:-${SMTP_FROM_EMAIL:-${SMTP_USER:-}}}"
+if [[ -z "$wg_key" ]]; then
+  # Guard against missing keys by generating new Fernet secrets.
+  wg_key="$(generate_fernet_key)"
+  echo "INFO: Generated WG_ENCRYPTION_KEY"
+fi
 
-case "$provider" in
-  smtp)
-    require_var SMTP_HOST
-    require_port SMTP_PORT
-    require_var SMTP_USER
-    require_var SMTP_PASSWORD
-    if [[ -z "$from_email" ]]; then
-      fail "FROM_EMAIL is required for SMTP (or set SMTP_FROM_EMAIL/SMTP_USER fallback)."
-    fi
-    ;;
-  sendgrid)
-    require_var SENDGRID_API_KEY
-    if [[ -z "$from_email" ]]; then
-      fail "FROM_EMAIL is required for SendGrid."
-    fi
-    ;;
-  ses|aws_ses)
-    require_var AWS_SES_REGION
-    if [[ -z "$from_email" ]]; then
-      fail "FROM_EMAIL is required for AWS SES."
-    fi
-    ;;
-  *)
-    fail "EMAIL_PROVIDER '$provider' is not supported. Use smtp, sendgrid, or ses."
-    ;;
- esac
+cat <<'HEADER'
+### SecureWave production environment exports
+### Copy/paste into your shell or .env file as needed.
+HEADER
 
-validate_fernet AUTH_ENCRYPTION_KEY
-validate_fernet WG_ENCRYPTION_KEY
+print_export "ENVIRONMENT" "production"
+print_export "DATABASE_URL" "${DATABASE_URL:-}"
+print_export "EMAIL_PROVIDER" "$email_provider"
+print_export "SMTP_HOST" "${SMTP_HOST:-}"
+print_export "SMTP_PORT" "${SMTP_PORT:-}"
+print_export "SMTP_USER" "${SMTP_USER:-}"
+print_export "SMTP_PASSWORD" "${SMTP_PASSWORD:-}" true
+print_export "FROM_EMAIL" "$from_email"
+print_export "AUTH_ENCRYPTION_KEY" "$auth_key"
+print_export "WG_ENCRYPTION_KEY" "$wg_key"
 
-echo "OK: Production environment variables validated."
+cat <<'FOOTER'
+### Reminder: keep DEMO_MODE=false and WG_MOCK_MODE=false in production.
+FOOTER
