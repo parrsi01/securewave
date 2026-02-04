@@ -105,23 +105,21 @@ if [[ "${WG_MOCK_MODE:-false}" =~ ^([Tt][Rr][Uu][Ee])$ ]]; then
   fail_with_fix "WG_MOCK_MODE must be false for release." "export WG_MOCK_MODE=false"
 fi
 
-# Guard against Xcode project usage, which bypasses CocoaPods workspace.
-project_refs=""
-if command -v rg >/dev/null 2>&1; then
-  project_refs="$(rg -n "Runner\.xcodeproj" -S . || true)"
-else
-  project_refs="$(grep -R -n "Runner\.xcodeproj" . || true)"
-fi
-if [[ -n "$project_refs" ]]; then
-  fail_with_fix "Runner.xcodeproj reference detected." "python - <<'PY'
-import pathlib
-for path in pathlib.Path('.').rglob('*'):
-    if path.is_file():
-        text = path.read_text(errors='ignore')
-        if 'Runner.xcodeproj' in text:
-            path.write_text(text.replace('Runner.xcodeproj', 'Runner.xcworkspace'))
-print('Replaced Runner.xcodeproj with Runner.xcworkspace')
-PY"
+# Guard against Xcode project usage in build commands (not documentation warnings).
+# We explicitly allow mentions in .md files, guard scripts, and error messages.
+check_xcodeproj_misuse() {
+  local bad_refs=""
+  # Only check CI workflows for actual -project Runner.xcodeproj build commands
+  if command -v rg >/dev/null 2>&1; then
+    bad_refs="$(rg -n "\-project.*Runner\.xcodeproj" .github/workflows/*.yml 2>/dev/null || true)"
+  else
+    bad_refs="$(grep -r -n "\-project.*Runner\.xcodeproj" .github/workflows/*.yml 2>/dev/null || true)"
+  fi
+  echo "$bad_refs"
+}
+project_misuse="$(check_xcodeproj_misuse)"
+if [[ -n "$project_misuse" ]]; then
+  fail_with_fix "xcodebuild -project Runner.xcodeproj found in CI workflow." "Use -workspace Runner.xcworkspace in CI build commands"
 fi
 
 # Guard against non-versioned releases by enforcing v* tags.
