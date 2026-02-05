@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,23 +15,36 @@ import 'features/settings/language_page.dart';
 import 'features/settings/settings_page.dart';
 import 'features/vpn/vpn_page.dart';
 import 'core/routing/app_shell.dart';
+import 'ui/app_ui_v1.dart';
 
-CustomTransitionPage<T> _fadePage<T>({
+Page<T> _buildPage<T>({
   required GoRouterState state,
   required Widget child,
 }) {
+  if (AppUIv1.isApplePlatform) {
+    return CupertinoPage<T>(key: state.pageKey, child: child);
+  }
   return CustomTransitionPage<T>(
     key: state.pageKey,
-    transitionDuration: const Duration(milliseconds: 120),
-    reverseTransitionDuration: const Duration(milliseconds: 120),
+    transitionDuration: AppUIv1.durationNormal,
+    reverseTransitionDuration: AppUIv1.durationFast,
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       final curved = CurvedAnimation(
         parent: animation,
-        curve: Curves.easeOut,
-        reverseCurve: Curves.easeIn,
+        curve: AppUIv1.curveEnter,
+        reverseCurve: AppUIv1.curveExit,
       );
-      return FadeTransition(opacity: curved, child: child);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.015),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
     },
   );
 }
@@ -74,11 +88,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/boot',
         pageBuilder: (context, state) =>
-            _fadePage<void>(state: state, child: const BootScreen()),
+            _buildPage<void>(state: state, child: const BootScreen()),
       ),
       GoRoute(
         path: '/error',
-        pageBuilder: (context, state) => _fadePage<void>(
+        pageBuilder: (context, state) => _buildPage<void>(
           state: state,
           child: const FallbackErrorScreen(
             message: 'Startup failed. See diagnostics below.',
@@ -88,12 +102,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/login',
         pageBuilder: (context, state) =>
-            _fadePage<void>(state: state, child: const LoginPage()),
+            _buildPage<void>(state: state, child: const LoginPage()),
       ),
       GoRoute(
         path: '/register',
         pageBuilder: (context, state) =>
-            _fadePage<void>(state: state, child: const RegisterPage()),
+            _buildPage<void>(state: state, child: const RegisterPage()),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
@@ -101,27 +115,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/vpn',
             pageBuilder: (context, state) =>
-                _fadePage<void>(state: state, child: const VpnPage()),
+                _buildPage<void>(state: state, child: const VpnPage()),
           ),
           GoRoute(
             path: '/servers',
             pageBuilder: (context, state) =>
-                _fadePage<void>(state: state, child: const ServersPage()),
+                _buildPage<void>(state: state, child: const ServersPage()),
           ),
           GoRoute(
             path: '/settings',
             pageBuilder: (context, state) =>
-                _fadePage<void>(state: state, child: const SettingsPage()),
+                _buildPage<void>(state: state, child: const SettingsPage()),
           ),
           GoRoute(
             path: '/settings/language',
             pageBuilder: (context, state) =>
-                _fadePage<void>(state: state, child: const LanguagePage()),
+                _buildPage<void>(state: state, child: const LanguagePage()),
           ),
           GoRoute(
             path: '/account',
             pageBuilder: (context, state) =>
-                _fadePage<void>(state: state, child: const AccountPage()),
+                _buildPage<void>(state: state, child: const AccountPage()),
           ),
         ],
       ),
