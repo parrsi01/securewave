@@ -1,4 +1,29 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Load the local-only SecureWave Assistant widget on marketing/dashboard pages.
+  // This is intentionally optional: if the script fails to load, the site continues to work.
+  const ensureAssistant = () => {
+    if (window.SecureWaveAssistant && typeof window.SecureWaveAssistant.init === 'function') {
+      window.SecureWaveAssistant.init({});
+      return;
+    }
+
+    if (document.querySelector('script[data-sw-assistant]')) return;
+    const script = document.createElement('script');
+    script.src = '/js/chat_assistant.js';
+    script.defer = true;
+    script.setAttribute('data-sw-assistant', '1');
+    script.addEventListener('load', () => {
+      try {
+        if (window.SecureWaveAssistant && typeof window.SecureWaveAssistant.init === 'function') {
+          window.SecureWaveAssistant.init({});
+        }
+      } catch {
+        // Ignore assistant init errors to avoid breaking the site.
+      }
+    });
+    document.head.appendChild(script);
+  };
+
   const nav = document.querySelector('.navbar');
   const toggle = document.querySelector('[data-nav-toggle]');
   if (nav && toggle) {
@@ -46,4 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const yearEl = document.querySelector('[data-year]');
   if (yearEl) yearEl.textContent = new Date().getFullYear();
+
+  ensureAssistant();
 });

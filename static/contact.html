@@ -53,24 +53,27 @@
                 <li><strong>App not working?</strong> Try reinstalling from the <a href="/home.html#download">download page</a>.</li>
               </ul>
             </div>
-          </div>
-          <div class="card layout-side">
-            <div class="chatbot">
-              <div class="chatbot-header">
-                <div class="icon-circle">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3>SecureWave Assistant</h3>
-                  <p class="subtitle">Ask about anything.</p>
-                </div>
+            <div class="card content-stack">
+              <div>
+                <h3>Ask SecureWave Assistant</h3>
+                <p class="subtitle text-measure">Local-only guided help. Answer a few questions and get a recommended next step.</p>
               </div>
-              <div class="chatbot-panel">
-                <div class="chat-bubble">How do I change my plan?</div>
-                <div class="chat-bubble chat-bubble-accent">Go to your dashboard, then select "Manage plan". You can switch between Free Starter and Pro at any time.</div>
-                <div class="chat-input" data-chat-input>Type your question here...</div>
+              <div class="stat-list">
+                <button class="btn btn-primary" type="button" data-open-assistant data-assistant-intent="support">Open assistant</button>
+                <a class="btn btn-secondary" href="/diagnostics.html">Open diagnostics</a>
+              </div>
+            </div>
+          </div>
+          <div class="layout-side">
+            <div class="card content-stack">
+              <div>
+                <h3>Quick links</h3>
+                <p class="subtitle text-measure">Most issues are solved in a minute.</p>
+              </div>
+              <div class="stat-list">
+                <a class="btn btn-secondary" href="/home.html#download">Download</a>
+                <a class="btn btn-outline" href="/subscription.html">Plans</a>
+                <a class="btn btn-outline" href="/dashboard.html">Dashboard</a>
               </div>
             </div>
           </div>
@@ -81,8 +84,15 @@
     <footer class="footer">
       <div class="container footer-top">
         <div class="footer-brand">
-          <strong>SecureWave VPN</strong>
+          <a class="footer-logo" href="/home.html">
+            <img src="/img/logo.svg" alt="SecureWave logo" width="34" height="34">
+            <strong>SecureWave</strong>
+          </a>
           <p>Calm protection for everyday connections.</p>
+          <div class="footer-badges">
+            <a class="footer-pill" href="/home.html#download">Download</a>
+            <a class="footer-pill" href="/diagnostics.html">Status</a>
+          </div>
         </div>
         <div class="footer-columns">
           <div class="footer-column">
@@ -92,18 +102,29 @@
             <a href="/dashboard.html">Dashboard</a>
           </div>
           <div class="footer-column">
-            <div class="footer-title">Legal</div>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/terms.html">Terms</a>
+            <div class="footer-title">Download</div>
+            <a href="/home.html#download">Get the app</a>
+            <a href="/downloads/securewave-app-linux-arm64.zip">Linux (ARM64)</a>
+            <span class="footer-muted">macOS, Windows, Android, iOS: Coming soon</span>
           </div>
           <div class="footer-column">
             <div class="footer-title">Support</div>
             <a href="/contact.html">Help</a>
+            <a href="/diagnostics.html">Status / Diagnostics</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Legal</div>
+            <a href="/privacy.html">Privacy</a>
+            <a href="/terms.html">Terms</a>
           </div>
         </div>
       </div>
       <div class="container footer-bottom">
-        <span data-year>2026</span> SecureWave. All rights reserved.
+        <div><span data-year>2026</span> SecureWave. All rights reserved.</div>
+        <div class="footer-bottom-links">
+          <a href="/privacy.html">Privacy</a>
+          <a href="/terms.html">Terms</a>
+        </div>
       </div>
     </footer>
 
