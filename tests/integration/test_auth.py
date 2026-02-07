@@ -28,7 +28,7 @@ class TestRegistration:
         response = client.post(
             "/api/auth/register",
             json={
-                "email": "test@example.com",
+                "email": "testuser@example.com",
                 "password": "SecurePass123!",
                 "password_confirm": "SecurePass123!"
             }
@@ -56,8 +56,8 @@ class TestLogin:
         response = client.post(
             "/api/auth/login",
             json={
-                "email": "test@example.com",
-                "password": "testpassword123"
+                "email": "testuser@example.com",
+                "password": "TestPass123"
             }
         )
         assert response.status_code == status.HTTP_200_OK
@@ -70,7 +70,7 @@ class TestLogin:
         response = client.post(
             "/api/auth/login",
             json={
-                "email": "test@example.com",
+                "email": "testuser@example.com",
                 "password": "wrongpassword"
             }
         )

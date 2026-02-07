@@ -568,15 +568,22 @@ async def get_available_plans():
 
         plans = []
         for plan_id, plan_data in stripe_service.PLANS.items():
+            monthly = plan_data["price_monthly"]
+            yearly = plan_data["price_yearly"]
+            if monthly > 0:
+                yearly_discount = round((1 - (yearly / (monthly * 12))) * 100)
+            else:
+                yearly_discount = 0
+
             plans.append({
                 "id": plan_id,
                 "name": plan_data["name"],
                 "description": plan_data.get("description", ""),
                 "features": plan_data.get("features", []),
                 "pricing": {
-                    "monthly": plan_data["price_monthly"],
-                    "yearly": plan_data["price_yearly"],
-                    "yearly_discount": round((1 - (plan_data["price_yearly"] / (plan_data["price_monthly"] * 12))) * 100)
+                    "monthly": monthly,
+                    "yearly": yearly,
+                    "yearly_discount": yearly_discount,
                 }
             })
 

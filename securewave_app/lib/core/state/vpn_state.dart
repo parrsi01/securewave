@@ -108,10 +108,19 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     AppLogger.info('VPN connect requested');
     try {
       final service = _ref.read(vpnServiceProvider);
+      final api = _ref.read(apiClientProvider);
       String? config;
       if (service.isNativeAvailable) {
-        final api = _ref.read(apiClientProvider);
+        // Native tunnel: fetch WireGuard config from backend for real connection.
         config = await api.fetchVpnConfig(serverId: state.selectedServerId);
+      } else {
+        // Demo/mock path: notify the backend so it tracks the session,
+        // but do not block on failures since the mock tunnel is local-only.
+        try {
+          await api.notifyVpnConnected(region: state.selectedServerId);
+        } catch (_) {
+          AppLogger.info('Backend connect notification skipped (demo mode).');
+        }
       }
       final nextStatus = await service.connect(protocol: state.protocol, config: config);
       _setStatus(nextStatus);
@@ -143,6 +152,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       _stopRateSimulation();
       state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
       _updateStability(success: true);
+      // Notify the backend so demo/live session tracking stays in sync.
+      try {
+        final api = _ref.read(apiClientProvider);
+        await api.notifyVpnDisconnected();
+      } catch (_) {
+        AppLogger.info('Backend disconnect notification skipped.');
+      }
     } catch (error, stackTrace) {
       _setStatus(VpnStatus.error);
       state = state.copyWith(errorMessage: _vpnErrorMessage(error));

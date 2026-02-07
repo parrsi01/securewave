@@ -2,135 +2,149 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
-  <meta name="ui-version" content="UI_VERSION v1.0">
-  <title>Help - SecureWave</title>
-  <meta name="description" content="SecureWave help and support." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Get in touch with the SecureWave team. We are here to help with technical support, billing questions, partnerships, and general inquiries.">
+  <title>Contact Us - SecureWave</title>
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/web_ui_v1.css">
 </head>
 <body>
-  <div class="page">
-    <header class="navbar navbar-expand-lg">
-      <div class="container navbar-row">
-        <a class="brand navbar-brand" href="/home.html">
-          <img src="/img/logo.svg" alt="SecureWave logo">
-          <span>SecureWave</span>
-        </a>
-        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
-          <a href="/home.html" class="nav-link">Home</a>
-          <a href="/services.html" class="nav-link">Services</a>
-          <a href="/subscription.html" class="nav-link">Plans</a>
-          <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="btn btn-ghost" href="/login.html">Sign in</a>
-          <a class="btn btn-primary" href="/home.html#download">Download app</a>
-        </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
+
+  <!-- Navigation -->
+  <nav class="nav" id="navbar">
+    <div class="nav-inner">
+      <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+      <div class="nav-links">
+        <a href="/home">Features</a>
+        <a href="/services">Services</a>
+        <a href="/subscription">Pricing</a>
+        <a href="/about">About</a>
+        <a href="/contact" class="active">Contact</a>
       </div>
-    </header>
+      <div class="nav-actions">
+        <a class="btn btn-ghost btn-sm" href="/login">Sign in</a>
+        <a class="btn btn-primary btn-sm" href="/register">Get Started</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
+        <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="nav-mobile">
+      <a href="/home">Features</a><a href="/services">Services</a><a href="/subscription">Pricing</a><a href="/about">About</a><a href="/contact">Contact</a>
+      <div class="nav-mobile-actions">
+        <a class="btn btn-ghost btn-block" href="/login">Sign in</a>
+        <a class="btn btn-primary btn-block" href="/register">Get Started</a>
+      </div>
+    </div>
+  </nav>
 
-    <main>
-      <section class="section">
-        <div class="container layout">
-          <div class="layout-main content-stack">
-            <div class="section-header">
-              <span class="badge">Help</span>
-              <h1>Get help with SecureWave.</h1>
-              <p class="subtitle text-measure">Start with the app's built-in diagnostics, then ask SecureWave Assistant for the next step.</p>
-            </div>
-            <div class="card">
-              <h3>Common questions</h3>
-              <ul class="list">
-                <li><strong>Can't connect?</strong> Open the app, go to Settings, run diagnostics.</li>
-                <li><strong>Plan questions?</strong> Visit <a href="/subscription.html">Plans</a> to compare Free Starter and Pro.</li>
-                <li><strong>Account issues?</strong> Sign in to the <a href="/dashboard.html">dashboard</a> to manage your account.</li>
-                <li><strong>App not working?</strong> Try reinstalling from the <a href="/home.html#download">download page</a>.</li>
-              </ul>
-            </div>
-            <div class="card content-stack">
-              <div>
-                <h3>Ask SecureWave Assistant</h3>
-                <p class="subtitle text-measure">Local-only guided help. Answer a few questions and get a recommended next step.</p>
-              </div>
-              <div class="stat-list">
-                <button class="btn btn-primary" type="button" data-open-assistant data-assistant-intent="support">Open assistant</button>
-                <a class="btn btn-secondary" href="/diagnostics.html">Open diagnostics</a>
-              </div>
-            </div>
-          </div>
-          <div class="layout-side">
-            <div class="card content-stack">
-              <div>
-                <h3>Quick links</h3>
-                <p class="subtitle text-measure">Most issues are solved in a minute.</p>
-              </div>
-              <div class="stat-list">
-                <a class="btn btn-secondary" href="/home.html#download">Download</a>
-                <a class="btn btn-outline" href="/subscription.html">Plans</a>
-                <a class="btn btn-outline" href="/dashboard.html">Dashboard</a>
-              </div>
-            </div>
-          </div>
+  <main>
+
+    <!-- Hero -->
+    <section class="hero hero-centered">
+      <div class="container">
+        <div class="hero-content">
+          <span class="section-eyebrow">Contact</span>
+          <h1>Get in <span class="highlight">Touch</span></h1>
+          <p class="hero-desc">Have questions about SecureWave? We would love to hear from you. Our team typically responds within 24 hours.</p>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
 
-    <footer class="footer">
-      <div class="container footer-top">
+    <!-- Contact Form + Info -->
+    <section class="section">
+      <div class="container">
+        <div class="grid grid-2">
+
+          <!-- Contact Form -->
+          <div class="card card-elevated">
+            <div class="card-header">
+              <h3 class="card-title">Send Us a Message</h3>
+              <p class="card-subtitle">Fill out the form below and we will get back to you as soon as possible.</p>
+            </div>
+            <div class="form-message" id="form-message"></div>
+            <form id="contact-form" method="post" novalidate>
+              <div class="form-group">
+                <label class="form-label" for="contact-name">Full Name</label>
+                <input class="form-input" type="text" id="contact-name" name="name" placeholder="Your full name" required autocomplete="name">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="contact-email">Email</label>
+                <input class="form-input" type="email" id="contact-email" name="email" placeholder="you@example.com" required autocomplete="email">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="contact-subject">Subject</label>
+                <select class="form-select" id="contact-subject" name="subject" required>
+                  <option value="" disabled selected>Select a subject</option>
+                  <option value="general">General Inquiry</option>
+                  <option value="support">Technical Support</option>
+                  <option value="billing">Billing</option>
+                  <option value="partnership">Partnership</option>
+                  <option value="bug">Bug Report</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="contact-message">Message</label>
+                <textarea class="form-textarea" id="contact-message" name="message" placeholder="Tell us how we can help..." rows="5" required></textarea>
+              </div>
+              <button class="btn btn-primary btn-block" type="submit">Send Message</button>
+            </form>
+          </div>
+
+          <!-- Contact Info Cards -->
+          <div class="flex flex-col gap-6">
+            <div class="card card-elevated">
+              <div class="card-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              </div>
+              <h4>Email Us</h4>
+              <p>For general questions, technical support, or partnership inquiries, reach us directly at:</p>
+              <a href="mailto:support@securewave.app"><strong>support@securewave.app</strong></a>
+            </div>
+            <div class="card card-elevated">
+              <div class="card-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <h4>Response Time</h4>
+              <p>Our support team aims to respond to all inquiries within <strong>24 hours</strong> during business days. Priority support is available for Pro and Enterprise subscribers.</p>
+            </div>
+            <div class="card card-elevated">
+              <div class="card-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <h4>Frequently Asked Questions</h4>
+              <p>Many common questions are answered on our pricing page. Check the FAQ section before reaching out.</p>
+              <a href="/subscription#faq"><strong>View FAQ</strong></a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
         <div class="footer-brand">
-          <a class="footer-logo" href="/home.html">
-            <img src="/img/logo.svg" alt="SecureWave logo" width="34" height="34">
-            <strong>SecureWave</strong>
-          </a>
-          <p>Calm protection for everyday connections.</p>
-          <div class="footer-badges">
-            <a class="footer-pill" href="/home.html#download">Download</a>
-            <a class="footer-pill" href="/diagnostics.html">Status</a>
-          </div>
+          <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+          <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
         </div>
-        <div class="footer-columns">
-          <div class="footer-column">
-            <div class="footer-title">Product</div>
-            <a href="/services.html">Services</a>
-            <a href="/subscription.html">Plans</a>
-            <a href="/dashboard.html">Dashboard</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Download</div>
-            <a href="/home.html#download">Get the app</a>
-            <a href="/downloads/securewave-app-linux-arm64.zip">Linux (ARM64)</a>
-            <span class="footer-muted">macOS, Windows, Android, iOS: Coming soon</span>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Help</a>
-            <a href="/diagnostics.html">Status / Diagnostics</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Legal</div>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/terms.html">Terms</a>
-          </div>
-        </div>
+        <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/vpn">VPN Dashboard</a></div>
+        <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
+        <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/settings">Settings</a><a href="/dashboard">Dashboard</a></div>
       </div>
-      <div class="container footer-bottom">
-        <div><span data-year>2026</span> SecureWave. All rights reserved.</div>
-        <div class="footer-bottom-links">
-          <a href="/privacy.html">Privacy</a>
-          <a href="/terms.html">Terms</a>
-        </div>
+      <div class="footer-bottom">
+        <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
+        <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
       </div>
-    </footer>
+    </div>
+  </footer>
 
-  </div>
-
-  <script src="/js/bootstrap.bundle.min.js" defer></script>
-  <script src="/js/site.js" defer></script>
+  <script src="/js/site.js"></script>
+  <script src="/js/contact.js"></script>
 </body>
 </html>

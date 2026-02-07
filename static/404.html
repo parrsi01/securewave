@@ -2,25 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
-  <meta name="ui-version" content="UI_VERSION v1.0">
-  <title>Page Not Found - SecureWave</title>
-  <meta name="description" content="SecureWave page not found." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 - Page Not Found | SecureWave</title>
+  <meta name="description" content="The page you're looking for doesn't exist or has been moved.">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/web_ui_v1.css">
 </head>
 <body>
-  <main class="form-shell">
-    <div class="form-card" style="text-align: center;">
-      <img src="/img/logo.svg" alt="SecureWave logo" width="48" height="48" style="margin: 0 auto;">
-      <h1 style="margin-top: var(--space-4);">Page not found</h1>
-      <p class="subtitle">We could not locate that page. Head back to the SecureWave home page.</p>
-      <div class="stat-list" style="margin-top: var(--space-4);">
-        <a class="btn btn-primary" href="/home.html">Go to home</a>
-        <a class="btn btn-secondary" href="/contact.html">Support center</a>
-      </div>
+
+<nav class="nav" id="navbar">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+    <div class="nav-links">
+      <a href="/home">Features</a>
+      <a href="/services">Services</a>
+      <a href="/subscription">Pricing</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
     </div>
-  </main>
+    <div class="nav-actions">
+      <a class="btn btn-ghost btn-sm" href="/login">Sign in</a>
+      <a class="btn btn-primary btn-sm" href="/register">Get Started</a>
+    </div>
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
+      <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="nav-mobile">
+    <a href="/home">Features</a><a href="/services">Services</a><a href="/subscription">Pricing</a><a href="/about">About</a><a href="/contact">Contact</a>
+    <div class="nav-mobile-actions">
+      <a class="btn btn-ghost btn-block" href="/login">Sign in</a>
+      <a class="btn btn-primary btn-block" href="/register">Get Started</a>
+    </div>
+  </div>
+</nav>
+
+<main class="error-page">
+  <div class="error-code">404</div>
+  <h1>Page not found</h1>
+  <p>The page you're looking for doesn't exist or has been moved.</p>
+  <div class="error-actions">
+    <a class="btn btn-primary" href="/">Go Home</a>
+    <a class="btn btn-secondary" href="/contact">Contact Support</a>
+  </div>
+</main>
+
+<script src="/js/site.js"></script>
 </body>
 </html>

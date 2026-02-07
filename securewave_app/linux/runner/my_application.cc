@@ -9,6 +9,16 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+// g_spawn_check_exit_status was renamed to g_spawn_check_wait_status in
+// glib 2.70.  Provide a compatibility shim so the build succeeds on both
+// older and newer versions of glib.
+#if !GLIB_CHECK_VERSION(2, 70, 0)
+static inline gboolean g_spawn_check_wait_status(gint wait_status,
+                                                  GError** error) {
+  return g_spawn_check_exit_status(wait_status, error);
+}
+#endif
+
 namespace {
 const char* kChannelName = "securewave/vpn";
 const char* kConfigFileName = "securewave.conf";
@@ -61,7 +71,10 @@ static void respond_error(
   fl_method_call_respond(method_call, response, nullptr);
 }
 
-static void handle_vpn_call(FlMethodCall* method_call, gpointer user_data) {
+static void handle_vpn_call(FlMethodChannel* channel,
+                            FlMethodCall* method_call,
+                            gpointer user_data) {
+  (void)channel;  // Unused; the channel is already held in VpnChannelState.
   VpnChannelState* state = static_cast<VpnChannelState*>(user_data);
   const gchar* method = fl_method_call_get_name(method_call);
   if (g_strcmp0(method, "isAvailable") == 0) {
@@ -109,7 +122,7 @@ static void handle_vpn_call(FlMethodCall* method_call, gpointer user_data) {
       respond_error(method_call, "vpn_connect_failed", error->message, nullptr);
       return;
     }
-    if (!g_spawn_check_exit_status(exit_status, &error)) {
+    if (!g_spawn_check_wait_status(exit_status, &error)) {
       respond_error(method_call, "vpn_connect_failed", error->message, nullptr);
       return;
     }
@@ -144,7 +157,7 @@ static void handle_vpn_call(FlMethodCall* method_call, gpointer user_data) {
       respond_error(method_call, "vpn_disconnect_failed", error->message, nullptr);
       return;
     }
-    if (!g_spawn_check_exit_status(exit_status, &error)) {
+    if (!g_spawn_check_wait_status(exit_status, &error)) {
       respond_error(method_call, "vpn_disconnect_failed", error->message, nullptr);
       return;
     }
@@ -169,7 +182,12 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
-  gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+  // gtk_widget_get_toplevel is deprecated in GTK 3.24 (preparing for GTK4)
+  // but remains the correct API for GTK3 Flutter embedder builds.
+  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+  GtkWidget* toplevel = gtk_widget_get_toplevel(GTK_WIDGET(view));
+  G_GNUC_END_IGNORE_DEPRECATIONS
+  gtk_widget_show(toplevel);
 }
 
 // Implements GApplication::activate.
@@ -187,6 +205,7 @@ static void my_application_activate(GApplication* application) {
   // if future cases occur).
   gboolean use_header_bar = TRUE;
 #ifdef GDK_WINDOWING_X11
+  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
   GdkScreen* screen = gtk_window_get_screen(window);
   if (GDK_IS_X11_SCREEN(screen)) {
     const gchar* wm_name = gdk_x11_screen_get_window_manager_name(screen);
@@ -194,15 +213,18 @@ static void my_application_activate(GApplication* application) {
       use_header_bar = FALSE;
     }
   }
+  G_GNUC_END_IGNORE_DEPRECATIONS
 #endif
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "securewave_app");
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+    gtk_header_bar_set_title(header_bar, "SecureWave VPN");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
+    G_GNUC_END_IGNORE_DEPRECATIONS
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "securewave_app");
+    gtk_window_set_title(window, "SecureWave VPN");
   }
 
   gtk_window_set_default_size(window, 1280, 720);

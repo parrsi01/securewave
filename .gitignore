@@ -131,6 +131,11 @@ yarn-error.log*
 # Application specific
 quota_request.json
 
+# Secret keys and storage - NEVER COMMIT
+keys_and_storage_configurations/*.key
+keys_and_storage_configurations/*.env
+keys_and_storage_configurations/.env.*
+
 # Azure deployment artifacts
 azure-logs/
 LogFiles/

@@ -14,19 +14,20 @@ class TestEmailServiceConfigStatus:
     """Test EmailService.config_status() method."""
 
     def test_smtp_disabled_when_not_configured(self):
-        env = {"EMAIL_PROVIDER": "smtp"}
-        with patch.dict(os.environ, env, clear=True):
+        env = {
+            "EMAIL_PROVIDER": "smtp",
+            "TESTING": "true",
+        }
+        with patch.dict(os.environ, env, clear=False):
             os.environ.pop("SMTP_USER", None)
             os.environ.pop("SMTP_PASSWORD", None)
             os.environ.pop("FROM_EMAIL", None)
 
-            from services.email_service import EmailService
-            # Force re-evaluation by creating fresh instance
-            # Note: module-level constants are evaluated at import time
-            # so we need to reimport or mock appropriately
+            import importlib
+            import services.email_service as email_module
+            importlib.reload(email_module)
 
-            # For this test, we verify the config_status method behavior
-            service = EmailService()
+            service = email_module.EmailService()
             status = service.config_status()
 
             assert status["provider"] == "smtp"

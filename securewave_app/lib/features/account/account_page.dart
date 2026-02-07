@@ -48,11 +48,12 @@ class AccountPage extends ConsumerWidget {
                       title: 'Free',
                       price: '5 GB included',
                       description:
-                          'Best for occasional browsing and short trips.',
+                          'Connect to VPN for free with basic encryption.',
                       features: const [
                         '5 GB monthly data',
-                        'Region auto-select',
-                        'Email support'
+                        '3 server locations',
+                        'WireGuard encryption',
+                        'Email support',
                       ],
                       actionLabel: 'Stay on Free',
                       onAction: () => AppLogger.info('Free plan intent'),
@@ -64,8 +65,9 @@ class AccountPage extends ConsumerWidget {
                       description: 'Unlimited data with priority routing.',
                       features: const [
                         'Unlimited data',
-                        'Priority servers',
-                        'Priority support'
+                        'All server locations',
+                        'Kill switch & split tunneling',
+                        'Priority support',
                       ],
                       actionLabel: 'Upgrade to Premium',
                       onAction: () => ref

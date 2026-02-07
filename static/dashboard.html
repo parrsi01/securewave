@@ -2,163 +2,251 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
-  <meta name="ui-version" content="UI_VERSION v1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - SecureWave</title>
-  <meta name="description" content="SecureWave account dashboard." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/web_ui_v1.css">
 </head>
 <body>
-  <div class="page">
-    <header class="navbar navbar-expand-lg">
-      <div class="container navbar-row">
-        <a class="brand navbar-brand" href="/home.html">
-          <img src="/img/logo.svg" alt="SecureWave logo">
-          <span>SecureWave</span>
-        </a>
-        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
-          <a href="/home.html" class="nav-link">Home</a>
-          <a href="/services.html" class="nav-link">Services</a>
-          <a href="/subscription.html" class="nav-link">Plans</a>
-          <a class="nav-link active" href="/dashboard.html" aria-current="page">Dashboard</a>
-        </nav>
-        <div class="nav-actions">
-          <button class="btn btn-outline" type="button" data-logout>Sign out</button>
-          <a class="btn btn-secondary" href="/home.html#download">Download app</a>
-        </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
+
+<nav class="nav" id="navbar">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+    <div class="nav-links">
+      <a href="/dashboard" class="active">Dashboard</a>
+      <a href="/vpn">VPN</a>
+      <a href="/settings">Settings</a>
+      <a href="/subscription">Plan</a>
+      <a href="/diagnostics">Diagnostics</a>
+    </div>
+    <div class="nav-actions">
+      <a class="btn btn-ghost btn-sm" href="/dashboard">Dashboard</a>
+      <button class="btn btn-secondary btn-sm" type="button" data-logout>Sign out</button>
+    </div>
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
+      <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="nav-mobile">
+    <a href="/dashboard">Dashboard</a><a href="/vpn">VPN</a><a href="/settings">Settings</a><a href="/subscription">Plan</a><a href="/diagnostics">Diagnostics</a>
+    <div class="nav-mobile-actions">
+      <button class="btn btn-secondary btn-block" type="button" data-logout>Sign out</button>
+    </div>
+  </div>
+</nav>
+
+<main class="main">
+  <div class="container">
+
+    <!-- Greeting -->
+    <section class="section">
+      <div class="section-header">
+        <h1>Welcome back</h1>
+        <p><span data-user-email>you@example.com</span> <span class="badge badge-primary" data-plan-label>Starter (Free)</span></p>
       </div>
-    </header>
+    </section>
 
-    <main>
-      <section class="section">
-        <div class="container layout">
-          <div class="card layout-main">
-            <div class="pill">Dashboard</div>
-            <h1 style="margin-top: var(--space-3);">Welcome back</h1>
-            <p class="subtitle">Signed in as <strong data-user-email>you@example.com</strong></p>
-            <p class="subtitle text-measure" style="margin-top: var(--space-3);">Your next step is in services or plan settings.</p>
-            <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-primary" href="/services.html">View services</a>
-              <a class="btn btn-ghost" href="/subscription.html">Manage plan</a>
-            </div>
-          </div>
-          <div class="card layout-side">
-            <div class="pill">Account status</div>
-            <h2 style="margin-top: var(--space-3);">Ready to connect</h2>
-            <p class="subtitle">Plan, connection, and region status at a glance.</p>
-            <ul class="list" style="margin-top: var(--space-3);">
-              <li><strong>Plan:</strong> <span data-plan-label>Starter (Free)</span></li>
-              <li><strong>Connection:</strong> Ready</li>
-              <li><strong>Region:</strong> Auto-select</li>
-            </ul>
-          </div>
+    <!-- Metrics Grid -->
+    <section class="section">
+      <div class="metrics-grid">
+        <div class="dash-metric">
+          <span class="dash-metric-label">Connection Status</span>
+          <span class="dash-metric-value" data-metric="connection-status">Disconnected</span>
+          <span class="dash-metric-sub">Last connected 2 hours ago</span>
         </div>
-      </section>
+        <div class="dash-metric">
+          <span class="dash-metric-label">Data Used</span>
+          <span class="dash-metric-value" data-metric="data-used">1.24 GB</span>
+          <span class="dash-metric-sub">of 5 GB this month</span>
+        </div>
+        <div class="dash-metric">
+          <span class="dash-metric-label">Active Sessions</span>
+          <span class="dash-metric-value" data-metric="active-sessions">0</span>
+          <span class="dash-metric-sub">across 3 devices</span>
+        </div>
+        <div class="dash-metric">
+          <span class="dash-metric-label">Security Score</span>
+          <span class="dash-metric-value" data-metric="security-score">92 / 100</span>
+          <span class="dash-metric-sub">Excellent</span>
+        </div>
+      </div>
+    </section>
 
-      <section class="section">
-        <div class="container content-stack">
-          <div class="section-header">
-            <h2>Next steps</h2>
-            <p class="subtitle text-measure">Keep actions focused and easy to find.</p>
-          </div>
-          <div class="dashboard-actions">
-            <div class="card">
-              <h3>Manage devices</h3>
-              <p class="subtitle">Device access is handled directly in the app.</p>
-              <div class="stat-list" style="margin-top: var(--space-4);">
-                <a class="btn btn-secondary" href="/home.html#download">Download app</a>
-                <a class="btn btn-ghost" href="/services.html">Learn more</a>
+    <!-- Dashboard Layout -->
+    <section class="section">
+      <div class="dash-layout">
+
+        <!-- Main Column -->
+        <div class="dash-main">
+
+          <!-- Recent Activity -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Recent Activity</h3>
+            </div>
+            <div class="card-body">
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Action</th>
+                      <th>Location</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>2026-02-06 14:32</td>
+                      <td>VPN Disconnected</td>
+                      <td>US East - New York</td>
+                    </tr>
+                    <tr>
+                      <td>2026-02-06 12:05</td>
+                      <td>VPN Connected</td>
+                      <td>US East - New York</td>
+                    </tr>
+                    <tr>
+                      <td>2026-02-05 20:18</td>
+                      <td>Server Changed</td>
+                      <td>EU - London</td>
+                    </tr>
+                    <tr>
+                      <td>2026-02-05 09:41</td>
+                      <td>VPN Connected</td>
+                      <td>EU - London</td>
+                    </tr>
+                    <tr>
+                      <td>2026-02-04 17:55</td>
+                      <td>Settings Updated</td>
+                      <td>--</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div class="card">
-              <h3>Run diagnostics</h3>
-              <p class="subtitle">Open the app for a quick connection health check.</p>
-              <div class="stat-list" style="margin-top: var(--space-4);">
-                <a class="btn btn-secondary" href="/home.html#download">Open the app</a>
-                <a class="btn btn-ghost" href="/services.html">Review services</a>
+          </div>
+
+          <!-- Connection History -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Connection History</h3>
+              <span class="badge badge-muted">Last 7 days</span>
+            </div>
+            <div class="card-body">
+              <div class="chart-placeholder">
+                <div class="chart-bar-group">
+                  <span class="chart-bar-label">Mon</span>
+                  <div class="progress"><div class="progress-bar" style="width:72%"></div></div>
+                  <span class="chart-bar-value">3.6 hrs</span>
+                </div>
+                <div class="chart-bar-group">
+                  <span class="chart-bar-label">Tue</span>
+                  <div class="progress"><div class="progress-bar" style="width:88%"></div></div>
+                  <span class="chart-bar-value">4.4 hrs</span>
+                </div>
+                <div class="chart-bar-group">
+                  <span class="chart-bar-label">Wed</span>
+                  <div class="progress"><div class="progress-bar" style="width:64%"></div></div>
+                  <span class="chart-bar-value">3.2 hrs</span>
+                </div>
+                <div class="chart-bar-group">
+                  <span class="chart-bar-label">Thu</span>
+                  <div class="progress"><div class="progress-bar" style="width:96%"></div></div>
+                  <span class="chart-bar-value">4.8 hrs</span>
+                </div>
+                <div class="chart-bar-group">
+                  <span class="chart-bar-label">Fri</span>
+                  <div class="progress"><div class="progress-bar" style="width:40%"></div></div>
+                  <span class="chart-bar-value">2.0 hrs</span>
+                </div>
+                <div class="chart-bar-group">
+                  <span class="chart-bar-label">Sat</span>
+                  <div class="progress"><div class="progress-bar" style="width:20%"></div></div>
+                  <span class="chart-bar-value">1.0 hrs</span>
+                </div>
+                <div class="chart-bar-group">
+                  <span class="chart-bar-label">Sun</span>
+                  <div class="progress"><div class="progress-bar" style="width:56%"></div></div>
+                  <span class="chart-bar-value">2.8 hrs</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section class="section">
-        <div class="container split">
-          <div class="section-header">
-            <h2>Support, simplified</h2>
-            <p class="subtitle text-measure">Use the local SecureWave Assistant for guided next steps, or open Diagnostics in the app.</p>
-          </div>
-          <div class="card content-stack">
-            <div>
-              <h3>SecureWave Assistant</h3>
-              <p class="subtitle text-measure">Local-only help for plans and common issues.</p>
-            </div>
-            <div class="stat-list">
-              <button class="btn btn-primary" type="button" data-open-assistant data-assistant-intent="support">Open assistant</button>
-              <a class="btn btn-secondary" href="/contact.html">Help center</a>
-            </div>
-          </div>
         </div>
-      </section>
-    </main>
 
-        <footer class="footer">
-      <div class="container footer-top">
-        <div class="footer-brand">
-          <a class="footer-logo" href="/home.html">
-            <img src="/img/logo.svg" alt="SecureWave logo" width="34" height="34">
-            <strong>SecureWave</strong>
-          </a>
-          <p>Calm protection for everyday connections.</p>
-          <div class="footer-badges">
-            <a class="footer-pill" href="/home.html#download">Download</a>
-            <a class="footer-pill" href="/diagnostics.html">Status</a>
+        <!-- Sidebar -->
+        <div class="dash-sidebar">
+
+          <!-- Quick Actions -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Quick Actions</h3>
+            </div>
+            <div class="card-body">
+              <div class="stack">
+                <a href="/vpn" class="btn btn-primary btn-block">Connect VPN</a>
+                <a href="/diagnostics" class="btn btn-secondary btn-block">Run Diagnostics</a>
+                <a href="/subscription" class="btn btn-ghost btn-block">Upgrade Plan</a>
+              </div>
+            </div>
           </div>
+
+          <!-- Security Status -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Security Status</h3>
+            </div>
+            <div class="card-body">
+              <div class="anomaly-indicator anomaly-safe">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span>Network Safe</span>
+              </div>
+              <ul class="check-list">
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Encryption: <strong>Active</strong></span>
+                </li>
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>DNS Leak: <strong>None</strong></span>
+                </li>
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Kill Switch: <strong>Enabled</strong></span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
         </div>
-        <div class="footer-columns">
-          <div class="footer-column">
-            <div class="footer-title">Product</div>
-            <a href="/services.html">Services</a>
-            <a href="/subscription.html">Plans</a>
-            <a href="/dashboard.html">Dashboard</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Download</div>
-            <a href="/home.html#download">Get the app</a>
-            <a href="/downloads/securewave-app-linux-arm64.zip">Linux (ARM64)</a>
-            <span class="footer-muted">macOS, Windows, Android, iOS: Coming soon</span>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Help</a>
-            <a href="/diagnostics.html">Status / Diagnostics</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Legal</div>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/terms.html">Terms</a>
-          </div>
-        </div>
+
       </div>
-      <div class="container footer-bottom">
-        <div><span data-year>2026</span> SecureWave. All rights reserved.</div>
-        <div class="footer-bottom-links">
-          <a href="/privacy.html">Privacy</a>
-          <a href="/terms.html">Terms</a>
-        </div>
-      </div>
-    </footer>
+    </section>
 
   </div>
+</main>
 
-  <script src="/js/bootstrap.bundle.min.js" defer></script>
-  <script src="/js/site.js" defer></script>
-  <script src="/js/dashboard.js" defer></script>
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+        <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
+      </div>
+      <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/vpn">VPN Dashboard</a></div>
+      <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
+      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/settings">Settings</a><a href="/dashboard">Dashboard</a></div>
+    </div>
+    <div class="footer-bottom">
+      <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
+      <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/site.js"></script>
+<script src="/js/dashboard.js"></script>
 </body>
 </html>
