@@ -237,7 +237,11 @@ class DatabaseBackupManager:
             tables = cursor.fetchall()
 
             for schema, table in tables:
-                cursor.execute(f"ANALYZE {schema}.{table};")
+                # Use SQL identifier quoting to prevent SQL injection
+                from psycopg2 import sql
+                cursor.execute(sql.SQL("ANALYZE {}.{}").format(
+                    sql.Identifier(schema), sql.Identifier(table)
+                ))
 
             maintenance_tasks["statistics"] = True
             logger.info(f"✓ Statistics updated for {len(tables)} tables")

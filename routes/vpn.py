@@ -14,7 +14,6 @@ from datetime import datetime
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
-from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -40,18 +39,17 @@ from slowapi.util import get_remote_address
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn", tags=["vpn"])
 limiter = Limiter(key_func=get_remote_address)
-is_testing = os.getenv("TESTING", "").lower() == "true"
+IS_TESTING = os.getenv("TESTING", "").lower() == "true"
 
 
 def rate_limit(rule: str):
-    if is_testing:
+    if IS_TESTING:
         def decorator(func):
             return func
         return decorator
     return limiter.limit(rule)
 
 # Check if we're in demo/mock mode
-IS_TESTING = os.getenv("TESTING", "").lower() == "true"
 DEMO_MODE = demo_mode_enabled() or IS_TESTING
 WG_MOCK_MODE = wg_mock_mode_enabled()
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
@@ -146,15 +144,21 @@ class ServerListResponse(BaseModel):
 # =============================================================================
 
 def get_user_tier(user: User, db: Session) -> str:
-    """Get user's subscription tier"""
+    """Get user's subscription tier.
+
+    Returns the plan_id from the active subscription (e.g. 'basic', 'premium',
+    'ultra') or 'free' when the user has no active/trialing subscription.
+    For server tier-restriction checks, any paid plan ('basic', 'premium',
+    'ultra') grants access to servers with tier_restriction='premium'.
+    """
     from models.subscription import Subscription
     sub = db.query(Subscription).filter(
         Subscription.user_id == user.id,
         Subscription.status.in_(["active", "trialing"])
     ).first()
 
-    if sub:
-        return "premium"
+    if sub and sub.plan_id:
+        return sub.plan_id  # 'basic', 'premium', 'ultra'
     return "free"
 
 

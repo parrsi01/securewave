@@ -2,60 +2,106 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
-  <meta name="ui-version" content="UI_VERSION v1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Create Account - SecureWave</title>
-  <meta name="description" content="Create your SecureWave account." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/web_ui_v1.css">
 </head>
 <body>
-  <main class="form-shell">
-    <div class="form-card">
-      <div class="card-row" style="margin-bottom: var(--space-4);">
-        <img src="/img/logo.svg" alt="SecureWave logo" width="44" height="44">
-        <div>
-          <h1>Create your account</h1>
-          <p class="subtitle">Start with Free Starter (5 GB) or upgrade to Pro ($9/mo) anytime.</p>
-        </div>
-      </div>
-      <div class="form-message" data-form-message>All fields are required.</div>
-      <form class="form-grid" data-auth="register" novalidate>
-        <div class="field">
-          <label for="email">Email address</label>
-          <input class="input" id="email" name="email" type="email" placeholder="you@example.com" required>
-          <div class="field-hint">Required</div>
-        </div>
-        <div class="field">
-          <label for="password">Password</label>
-          <input class="input" id="password" name="password" type="password" placeholder="Create a password" required>
-          <div class="field-hint">Minimum 8 characters</div>
-        </div>
-        <div class="field">
-          <label for="passwordConfirm">Confirm password</label>
-          <input class="input" id="passwordConfirm" name="passwordConfirm" type="password" placeholder="Repeat your password" required>
-          <div class="field-hint">Must match your password</div>
-        </div>
-        <button class="btn btn-primary" type="submit">Create account</button>
-      </form>
-      <div class="stat-list" style="margin-top: var(--space-4);">
-        <a class="btn btn-secondary" href="/login.html">Already have an account? Sign in</a>
-        <a class="btn btn-ghost" href="/home.html">Back to home</a>
-      </div>
-      <div class="card" style="margin-top: var(--space-5);">
-        <h3>Next: Download SecureWave App</h3>
-        <p class="subtitle">After creating your account, install the app to connect.</p>
-        <div class="download-grid" style="margin-top: var(--space-4);">
-          <button class="btn download-btn" type="button" disabled>macOS <small>Coming soon</small></button>
-          <button class="btn download-btn" type="button" disabled>Windows <small>Coming soon</small></button>
-          <a class="btn download-btn" href="/downloads/securewave-app-linux-arm64.zip">Linux <small>ARM64 demo</small></a>
-          <button class="btn download-btn" type="button" disabled>Android <small>Coming soon</small></button>
-          <button class="btn download-btn" type="button" disabled>iOS <small>Coming soon</small></button>
-        </div>
-      </div>
+
+<nav class="nav" id="navbar">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+    <div class="nav-links">
+      <a href="/home">Features</a>
+      <a href="/services">Services</a>
+      <a href="/subscription">Pricing</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
     </div>
-  </main>
-  <script src="/js/auth.js" defer></script>
+    <div class="nav-actions">
+      <a class="btn btn-ghost btn-sm" href="/login">Sign in</a>
+      <a class="btn btn-primary btn-sm" href="/register">Get Started</a>
+    </div>
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
+      <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="nav-mobile">
+    <a href="/home">Features</a><a href="/services">Services</a><a href="/subscription">Pricing</a><a href="/about">About</a><a href="/contact">Contact</a>
+    <div class="nav-mobile-actions">
+      <a class="btn btn-ghost btn-block" href="/login">Sign in</a>
+      <a class="btn btn-primary btn-block" href="/register">Get Started</a>
+    </div>
+  </div>
+</nav>
+
+<main class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <img src="/img/logo.svg" alt="SecureWave" width="48" height="48">
+      <h1>Create your account</h1>
+      <p>Start protecting your privacy today</p>
+    </div>
+
+    <form data-auth="register">
+      <div class="form-message" data-form-message></div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input id="email" type="email" class="form-input" placeholder="you@example.com" required autocomplete="email">
+        <span class="field-hint"></span>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input id="password" type="password" class="form-input" placeholder="Enter your password" required autocomplete="new-password">
+        <span class="field-hint">At least 8 characters</span>
+      </div>
+
+      <div class="form-group">
+        <label for="passwordConfirm">Confirm password</label>
+        <input id="passwordConfirm" type="password" class="form-input" placeholder="Confirm your password" required autocomplete="new-password">
+        <span class="field-hint"></span>
+      </div>
+
+      <div class="form-check">
+        <input id="terms" type="checkbox" required>
+        <label for="terms">I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a></label>
+      </div>
+
+      <button class="btn btn-primary btn-block" type="submit">Create account</button>
+    </form>
+
+    <div class="auth-footer">
+      <p>Already have an account? <a href="/login">Sign in</a></p>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+        <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
+      </div>
+      <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/vpn">VPN Dashboard</a></div>
+      <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
+      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/settings">Settings</a><a href="/dashboard">Dashboard</a></div>
+    </div>
+    <div class="footer-bottom">
+      <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
+      <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/auth.js"></script>
+<script src="/js/site.js"></script>
 </body>
 </html>

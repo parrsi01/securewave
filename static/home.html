@@ -3,210 +3,339 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
-  <meta name="ui-version" content="UI_VERSION v1.0">
-  <title>SecureWave VPN</title>
-  <meta name="description" content="SecureWave VPN app-first protection." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>Features — SecureWave VPN</title>
+  <meta name="description" content="Powerful VPN protection for every device. Download SecureWave for Windows, macOS, Linux, and mobile. Military-grade encryption with zero-log privacy.">
+  <link rel="stylesheet" href="/css/web_ui_v1.css">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
 </head>
 <body>
-  <div class="page">
-    <header class="navbar navbar-expand-lg">
-      <div class="container navbar-row">
-        <a class="brand navbar-brand" href="/home.html">
-          <img src="/img/logo.svg" alt="SecureWave logo">
-          <span>SecureWave</span>
-        </a>
-        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
-          <a class="nav-link active" href="/home.html" aria-current="page">Home</a>
-          <a href="/services.html" class="nav-link">Services</a>
-          <a href="/subscription.html" class="nav-link">Plans</a>
-          <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="btn btn-ghost" href="/login.html">Sign in</a>
-          <a class="btn btn-secondary" href="#download">Download app</a>
-        </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="nav" id="navbar">
+    <div class="nav-inner">
+      <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+      <div class="nav-links">
+        <a href="/home" class="active">Features</a>
+        <a href="/services">Services</a>
+        <a href="/subscription">Pricing</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
       </div>
-    </header>
+      <div class="nav-actions">
+        <a class="btn btn-ghost btn-sm" href="/login">Sign in</a>
+        <a class="btn btn-primary btn-sm" href="/register">Get Started</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
+        <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="nav-mobile">
+      <a href="/home" class="active">Features</a>
+      <a href="/services">Services</a>
+      <a href="/subscription">Pricing</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+      <div class="nav-mobile-actions">
+        <a class="btn btn-ghost btn-block" href="/login">Sign in</a>
+        <a class="btn btn-primary btn-block" href="/register">Get Started</a>
+      </div>
+    </div>
+  </nav>
 
-    <main>
-      <section class="section">
-        <div class="container hero">
-          <div class="content-stack">
-            <div class="section-header">
-              <span class="badge">App-first protection</span>
-              <h1>Calm protection in one tap.</h1>
-              <p class="subtitle text-measure">Use the SecureWave app to connect. The website keeps your account simple and clear.</p>
-            </div>
-            <div class="stat-list">
-              <a class="btn btn-primary" href="#download">Download SecureWave App</a>
-              <a class="btn btn-ghost" href="/login.html">Sign in to your account</a>
-            </div>
-          </div>
-          <div class="card">
-            <h2>Connection preview</h2>
-            <p class="subtitle">SecureWave chooses the best region and keeps you protected automatically.</p>
-            <div class="split" style="margin-top: var(--space-4);">
-              <div>
-                <div class="pill">Status</div>
-                <h3 style="margin-top: var(--space-2);">Ready to connect</h3>
-              </div>
-              <div>
-                <div class="pill">Region</div>
-                <h3 style="margin-top: var(--space-2);">Auto-select</h3>
-              </div>
-            </div>
-            <p class="subtitle" style="margin-top: var(--space-4);">The SecureWave app establishes the VPN tunnel on your device.</p>
-            <p class="subtitle">This website manages your account and device configuration.</p>
+  <main>
+
+    <!-- ===== Hero Section ===== -->
+    <section class="hero hero-centered">
+      <div class="container">
+        <div class="hero-content">
+          <span class="hero-eyebrow">VPN Protection</span>
+          <h1>Powerful VPN Protection for <span class="highlight">Every Device</span></h1>
+          <p class="hero-desc">One account, unlimited security. Download SecureWave on all your devices and browse with confidence wherever you go.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="#downloads">Download Now</a>
+            <a class="btn btn-secondary btn-lg" href="#how-it-works">How It Works</a>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="section">
-        <div class="container content-stack">
-          <div class="section-header">
-            <h2>How it works</h2>
-            <p class="subtitle text-measure">Three simple steps, the same flow as the SecureWave app.</p>
+    <!-- ===== How It Works ===== -->
+    <section class="section" id="how-it-works">
+      <div class="container">
+        <div class="section-header centered">
+          <span class="section-eyebrow">Getting Started</span>
+          <h2>Up and Running in Three Steps</h2>
+          <p>No complicated setup. No technical knowledge required. Secure your connection in under two minutes.</p>
+        </div>
+        <div class="grid grid-3">
+          <div class="card card-elevated feature-card text-center reveal">
+            <div class="card-icon card-icon-lg mx-auto">1</div>
+            <h4>Download the App</h4>
+            <p>Choose your platform below and install SecureWave. Native apps are available for Windows, macOS, Linux, iOS, and Android.</p>
           </div>
-          <div class="grid">
-            <div class="card card-row">
-              <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5z" />
-                  <path d="M20 21a8 8 0 0 0-16 0" />
-                </svg>
-              </div>
-              <div>
-                <h3>Create an account</h3>
-                <p class="subtitle">Get started in under a minute.</p>
-              </div>
+          <div class="card card-elevated feature-card text-center reveal">
+            <div class="card-icon card-icon-lg mx-auto">2</div>
+            <h4>Connect to a Server</h4>
+            <p>Sign in with your account and tap Connect. SecureWave automatically selects the fastest server, or you can choose from 50+ locations.</p>
+          </div>
+          <div class="card card-elevated feature-card text-center reveal">
+            <div class="card-icon card-icon-lg mx-auto">3</div>
+            <h4>Browse Securely</h4>
+            <p>That is it. Your traffic is now encrypted with AES-256. Browse, stream, and work knowing your data and identity are fully protected.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Platform Downloads ===== -->
+    <section class="section bg-alt" id="downloads">
+      <div class="container">
+        <div class="section-header centered">
+          <span class="section-eyebrow">Downloads</span>
+          <h2>Available on All Platforms</h2>
+          <p>Native applications built for performance on every major operating system. One subscription covers up to 6 devices.</p>
+        </div>
+        <div class="grid grid-4">
+          <div class="card card-elevated text-center reveal">
+            <div class="card-icon card-icon-lg mx-auto">&#x1F5A5;</div>
+            <h4>Windows</h4>
+            <p class="text-muted">Windows 10 and later. Full WireGuard integration with system tray controls.</p>
+            <div class="mt-4">
+              <a class="btn btn-primary btn-block" href="/downloads/securewave-windows-x64.zip">Download for Windows</a>
             </div>
-            <div class="card card-row">
-              <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 3v12" />
-                  <path d="m7 10 5 5 5-5" />
-                  <path d="M5 21h14" />
-                </svg>
-              </div>
-              <div>
-                <h3>Download the app</h3>
-                <p class="subtitle">Available for desktop and mobile.</p>
-              </div>
+          </div>
+          <div class="card card-elevated text-center reveal">
+            <div class="card-icon card-icon-lg mx-auto">&#x1F34E;</div>
+            <h4>macOS</h4>
+            <p class="text-muted">macOS 12 Monterey and later. Native menu bar app with Network Extension support.</p>
+            <div class="mt-4">
+              <a class="btn btn-secondary btn-block disabled" href="#" title="Coming soon - requires Apple Developer signing">macOS Coming Soon</a>
             </div>
-            <div class="card card-row">
-              <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z" />
-                </svg>
-              </div>
-              <div>
-                <h3>Tap connect</h3>
-                <p class="subtitle">SecureWave handles routing automatically.</p>
-              </div>
+          </div>
+          <div class="card card-elevated text-center reveal">
+            <div class="card-icon card-icon-lg mx-auto">&#x1F427;</div>
+            <h4>Linux</h4>
+            <p class="text-muted">Ubuntu, Fedora, Debian, and Arch. CLI and GUI with wg-quick integration.</p>
+            <div class="mt-4">
+              <a class="btn btn-primary btn-block" href="/downloads/securewave-linux-x64.tar.gz">Download for Linux</a>
+            </div>
+          </div>
+          <div class="card card-elevated text-center reveal">
+            <div class="card-icon card-icon-lg mx-auto">&#x1F4F1;</div>
+            <h4>Mobile</h4>
+            <p class="text-muted">iOS 15+ and Android 10+. Always-on VPN with battery-optimized connections.</p>
+            <div class="mt-4">
+              <a class="btn btn-primary btn-block" href="/downloads/securewave-android.apk">Android APK</a>
+              <a class="btn btn-secondary btn-block disabled mt-2" href="#" title="Coming soon - requires Apple Developer certificate">iOS App Store (Soon)</a>
             </div>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="section">
-        <div class="container split">
-          <div class="section-header">
-            <h2>Designed for beginners</h2>
-            <p class="subtitle text-measure">Clear status, large buttons, and simple language mirror the app UI.</p>
-            <ul class="list">
-              <li>Connection status is always visible.</li>
-              <li>Large touch targets for every action.</li>
-              <li>Guided steps when something needs attention.</li>
+    <!-- ===== Detailed Features ===== -->
+    <section class="section" id="detailed-features">
+      <div class="container">
+
+        <div class="section-header centered">
+          <span class="section-eyebrow">Feature Deep Dive</span>
+          <h2>Built for Security, Designed for Speed</h2>
+          <p>Every feature in SecureWave exists to protect your privacy without compromising your experience.</p>
+        </div>
+
+        <!-- Feature: Encryption -->
+        <div class="hero-split section-sm">
+          <div class="reveal">
+            <span class="section-eyebrow">Encryption</span>
+            <h3>AES-256 Military-Grade Encryption</h3>
+            <p>Every packet leaving your device is encrypted with the Advanced Encryption Standard using 256-bit keys. This is the same cipher suite used by intelligence agencies and financial institutions. Combined with WireGuard protocol, you get unbreakable security with minimal overhead.</p>
+            <ul class="mt-4" style="list-style:none;padding:0">
+              <li class="flex items-center gap-3 mb-3"><span class="badge badge-success">AES-256</span> <span class="text-muted">Cipher standard</span></li>
+              <li class="flex items-center gap-3 mb-3"><span class="badge badge-success">WireGuard</span> <span class="text-muted">Tunnel protocol</span></li>
+              <li class="flex items-center gap-3 mb-3"><span class="badge badge-success">Perfect Forward Secrecy</span> <span class="text-muted">Key rotation</span></li>
             </ul>
           </div>
-          <div class="card">
-            <h3>Account clarity</h3>
-            <p class="subtitle">Manage billing, plans, and devices without complex settings.</p>
-            <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-secondary" href="/subscription.html">View plans</a>
-              <a class="btn btn-secondary" href="/register.html">Create an account</a>
+          <div class="reveal">
+            <div class="card card-elevated p-8 text-center">
+              <div class="shield-visual">
+                <img src="/img/logo.svg" alt="Encryption shield" width="80" height="80">
+              </div>
+              <p class="mt-4 text-muted">Your data, encrypted end-to-end</p>
             </div>
           </div>
         </div>
-      </section>
 
-      <section class="section" id="download">
-        <div class="container">
-          <div class="card content-stack">
-            <div class="section-header">
-              <h2>Download SecureWave App</h2>
-              <p class="subtitle text-measure">The app connects you to the VPN. This website manages your account. Choose your platform below.</p>
+        <!-- Feature: Speed -->
+        <div class="hero-split section-sm">
+          <div class="reveal">
+            <div class="card card-elevated p-8">
+              <div class="mb-4">
+                <div class="flex justify-between mb-2">
+                  <span class="text-muted">Download Speed</span>
+                  <span class="text-primary" style="font-weight:700">94% retained</span>
+                </div>
+                <div class="progress"><div class="progress-bar" style="width:94%"></div></div>
+              </div>
+              <div class="mb-4">
+                <div class="flex justify-between mb-2">
+                  <span class="text-muted">Upload Speed</span>
+                  <span class="text-primary" style="font-weight:700">91% retained</span>
+                </div>
+                <div class="progress"><div class="progress-bar" style="width:91%"></div></div>
+              </div>
+              <div>
+                <div class="flex justify-between mb-2">
+                  <span class="text-muted">Latency Impact</span>
+                  <span class="text-primary" style="font-weight:700">+3ms avg</span>
+                </div>
+                <div class="progress"><div class="progress-bar success" style="width:97%"></div></div>
+              </div>
             </div>
-            <div class="download-grid">
-              <button class="btn download-btn" type="button" disabled>macOS <small>Coming soon</small></button>
-              <button class="btn download-btn" type="button" disabled>Windows <small>Coming soon</small></button>
-              <a class="btn download-btn" href="/downloads/securewave-app-linux-arm64.zip">Linux <small>ARM64 demo</small></a>
-              <button class="btn download-btn" type="button" disabled>Android <small>Coming soon</small></button>
-              <button class="btn download-btn" type="button" disabled>iOS <small>Coming soon</small></button>
-            </div>
-            <p class="subtitle" style="margin-top: var(--space-3);">Don't have an account yet? <a href="/register.html">Create one free</a>, then download the app.</p>
+          </div>
+          <div class="reveal">
+            <span class="section-eyebrow">Performance</span>
+            <h3>Speed That Never Compromises</h3>
+            <p>Unlike traditional VPNs that slow you down, SecureWave uses the WireGuard protocol to maintain near-native speeds. Our optimized server infrastructure and intelligent routing keep latency low and throughput high, even across continents.</p>
+            <p>Stream 4K video, join video calls, and download large files without noticing the VPN is active. Speed tests consistently show 90%+ speed retention across all server locations.</p>
           </div>
         </div>
-      </section>
-    </main>
 
-        <footer class="footer">
-      <div class="container footer-top">
+        <!-- Feature: Privacy -->
+        <div class="hero-split section-sm">
+          <div class="reveal">
+            <span class="section-eyebrow">Privacy</span>
+            <h3>Independently Audited Zero-Logs</h3>
+            <p>We do not store connection timestamps, browsing history, IP addresses, or DNS queries. Our no-logs policy has been verified by independent security auditors, and our infrastructure runs on RAM-only servers that cannot retain data after reboot.</p>
+            <p>Based in a privacy-friendly jurisdiction with no mandatory data retention laws. Your browsing activity is yours alone.</p>
+          </div>
+          <div class="reveal">
+            <div class="card card-elevated p-6">
+              <h4 class="mb-4">What We Never Store</h4>
+              <div class="flex flex-col gap-3">
+                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>Browsing history</span></div>
+                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>Connection timestamps</span></div>
+                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>Original IP addresses</span></div>
+                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>DNS query logs</span></div>
+                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>Bandwidth usage per session</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===== FAQ Section ===== -->
+    <section class="section bg-alt" id="faq">
+      <div class="container">
+        <div class="section-header centered">
+          <span class="section-eyebrow">FAQ</span>
+          <h2>Frequently Asked Questions</h2>
+          <p>Find answers to common questions about SecureWave VPN.</p>
+        </div>
+        <div style="max-width:720px;margin:0 auto">
+          <div class="accordion-item">
+            <button class="accordion-trigger" type="button" aria-expanded="false">
+              What is a VPN and why do I need one?
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+            </button>
+            <div class="accordion-content">
+              <div class="accordion-body">A VPN (Virtual Private Network) creates an encrypted tunnel between your device and the internet. It prevents your ISP, hackers, and third parties from monitoring your online activity. With public Wi-Fi attacks on the rise and ISPs selling browsing data, a VPN is essential for maintaining your digital privacy and security.</div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <button class="accordion-trigger" type="button" aria-expanded="false">
+              Will SecureWave slow down my internet connection?
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+            </button>
+            <div class="accordion-content">
+              <div class="accordion-body">SecureWave uses the WireGuard protocol, which is significantly faster than older protocols like OpenVPN or IPSec. Most users retain over 90% of their base internet speed. In some cases, a VPN can actually improve speeds by bypassing ISP throttling on streaming and gaming traffic.</div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <button class="accordion-trigger" type="button" aria-expanded="false">
+              How many devices can I connect simultaneously?
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+            </button>
+            <div class="accordion-content">
+              <div class="accordion-body">A single SecureWave subscription allows up to 6 simultaneous connections across all platforms. This means you can protect your laptop, phone, tablet, and home devices all at the same time. Business plans offer unlimited device connections for team deployments.</div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <button class="accordion-trigger" type="button" aria-expanded="false">
+              Does SecureWave work in countries with internet restrictions?
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+            </button>
+            <div class="accordion-content">
+              <div class="accordion-body">Yes. SecureWave includes obfuscation technology that disguises VPN traffic as regular HTTPS traffic. This allows the connection to work in regions where VPN protocols are actively blocked. Our stealth servers are specifically optimized for restricted network environments.</div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <button class="accordion-trigger" type="button" aria-expanded="false">
+              What happens if the VPN connection drops unexpectedly?
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+            </button>
+            <div class="accordion-content">
+              <div class="accordion-body">SecureWave includes an automatic kill switch on all platforms. If the VPN connection drops for any reason, the kill switch immediately blocks all internet traffic from your device, preventing any data from leaking outside the encrypted tunnel. The connection is restored automatically once the VPN reconnects.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CTA Banner ===== -->
+    <section class="section">
+      <div class="container">
+        <div class="cta-banner reveal">
+          <h2>Ready to Secure Your Connection?</h2>
+          <p>Download SecureWave today and experience enterprise-grade VPN protection on every device you own.</p>
+          <a class="btn btn-primary btn-lg" href="/register">Get Started Free</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
         <div class="footer-brand">
-          <a class="footer-logo" href="/home.html">
-            <img src="/img/logo.svg" alt="SecureWave logo" width="34" height="34">
-            <strong>SecureWave</strong>
-          </a>
-          <p>Calm protection for everyday connections.</p>
-          <div class="footer-badges">
-            <a class="footer-pill" href="/home.html#download">Download</a>
-            <a class="footer-pill" href="/diagnostics.html">Status</a>
-          </div>
+          <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+          <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
         </div>
-        <div class="footer-columns">
-          <div class="footer-column">
-            <div class="footer-title">Product</div>
-            <a href="/services.html">Services</a>
-            <a href="/subscription.html">Plans</a>
-            <a href="/dashboard.html">Dashboard</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Download</div>
-            <a href="/home.html#download">Get the app</a>
-            <a href="/downloads/securewave-app-linux-arm64.zip">Linux (ARM64)</a>
-            <span class="footer-muted">macOS, Windows, Android, iOS: Coming soon</span>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Help</a>
-            <a href="/diagnostics.html">Status / Diagnostics</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Legal</div>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/terms.html">Terms</a>
-          </div>
+        <div class="footer-col">
+          <h5>Product</h5>
+          <a href="/home">Features</a>
+          <a href="/subscription">Pricing</a>
+          <a href="/services">Services</a>
+          <a href="/vpn">VPN Dashboard</a>
+        </div>
+        <div class="footer-col">
+          <h5>Company</h5>
+          <a href="/about">About Us</a>
+          <a href="/contact">Contact</a>
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Service</a>
+        </div>
+        <div class="footer-col">
+          <h5>Support</h5>
+          <a href="/diagnostics">Diagnostics</a>
+          <a href="/settings">Settings</a>
+          <a href="/dashboard">Dashboard</a>
         </div>
       </div>
-      <div class="container footer-bottom">
-        <div><span data-year>2026</span> SecureWave. All rights reserved.</div>
-        <div class="footer-bottom-links">
-          <a href="/privacy.html">Privacy</a>
-          <a href="/terms.html">Terms</a>
+      <div class="footer-bottom">
+        <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
+        <div class="footer-legal">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
         </div>
       </div>
-    </footer>
+    </div>
+  </footer>
 
-  </div>
-
-  <script src="/js/bootstrap.bundle.min.js" defer></script>
-  <script src="/js/site.js" defer></script>
+  <script src="/js/site.js"></script>
 </body>
 </html>

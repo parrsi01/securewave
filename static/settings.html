@@ -2,127 +2,256 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
-  <meta name="ui-version" content="UI_VERSION v1.0">
-  <title>Settings - SecureWave</title>
-  <meta name="description" content="SecureWave account settings." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings | SecureWave</title>
+  <meta name="description" content="Manage your SecureWave account settings, security preferences, and connection configuration.">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/web_ui_v1.css">
 </head>
 <body>
-  <div class="page">
-    <header class="navbar navbar-expand-lg">
-      <div class="container navbar-row">
-        <a class="brand navbar-brand" href="/home.html">
-          <img src="/img/logo.svg" alt="SecureWave logo">
-          <span>SecureWave</span>
-        </a>
-        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
-          <a href="/home.html" class="nav-link">Home</a>
-          <a href="/services.html" class="nav-link">Services</a>
-          <a href="/subscription.html" class="nav-link">Plans</a>
-          <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="btn btn-ghost" href="/login.html">Sign in</a>
-          <a class="btn btn-primary" href="/home.html#download">Download app</a>
-        </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
-      </div>
-    </header>
 
-    <main>
-      <section class="section">
-        <div class="container split">
-          <div>
-            <span class="badge">Settings</span>
-            <h1>Settings live in the app.</h1>
-            <p class="subtitle">Connection preferences, VPN protocol, and device controls are managed from the SecureWave app on your device.</p>
-            <p class="subtitle" style="margin-top: var(--space-3);">This website is your control plane: account management, plan changes, and billing.</p>
-          </div>
-          <div class="card">
-            <h3>Available in the app</h3>
-            <ul class="list">
-              <li>VPN protocol selection (WireGuard, IKEv2, OpenVPN)</li>
-              <li>Server / region selection</li>
-              <li>Ad-blocking and tracker protection</li>
-              <li>Connection guard (kill switch)</li>
-              <li>Language preferences</li>
-              <li>Diagnostics and support logs</li>
-            </ul>
-            <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-primary" href="/home.html#download">Download the app</a>
-              <a class="btn btn-secondary" href="/dashboard.html">Back to dashboard</a>
+<nav class="nav" id="navbar">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/vpn">VPN</a>
+      <a href="/settings" class="active">Settings</a>
+      <a href="/subscription">Plan</a>
+      <a href="/diagnostics">Diagnostics</a>
+    </div>
+    <div class="nav-actions">
+      <a class="btn btn-ghost btn-sm" href="/dashboard">Dashboard</a>
+      <button class="btn btn-secondary btn-sm" type="button" data-logout>Sign out</button>
+    </div>
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
+      <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="nav-mobile">
+    <a href="/dashboard">Dashboard</a><a href="/vpn">VPN</a><a href="/settings" class="active">Settings</a><a href="/subscription">Plan</a><a href="/diagnostics">Diagnostics</a>
+    <div class="nav-mobile-actions">
+      <button class="btn btn-secondary btn-block" type="button" data-logout>Sign out</button>
+    </div>
+  </div>
+</nav>
+
+<main class="main">
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <h1>Settings</h1>
+        <p>Manage your account, security preferences, and connection configuration.</p>
+      </div>
+
+      <div class="settings-layout">
+        <aside class="settings-nav">
+          <a href="#profile" class="active">Profile</a>
+          <a href="#security">Security</a>
+          <a href="#connection">Connection</a>
+          <a href="#notifications">Notifications</a>
+        </aside>
+
+        <div class="settings-content">
+
+          <div class="card" id="profile">
+            <div class="card-header">
+              <h3>Profile</h3>
+            </div>
+            <div class="card-body">
+              <form data-profile-form>
+                <div class="form-group">
+                  <label class="form-label" for="email">Email address</label>
+                  <input class="form-input" type="email" id="email" data-user-email disabled readonly>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="display-name">Display name</label>
+                  <input class="form-input" type="text" id="display-name" name="display_name" placeholder="Enter your display name" autocomplete="name">
+                </div>
+                <div class="form-actions">
+                  <button class="btn btn-primary" type="submit">Save Changes</button>
+                </div>
+              </form>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section class="section">
-        <div class="container">
-          <div class="card">
-            <h3>About website preferences</h3>
-            <p class="subtitle">Any preferences you set on this website (such as display theme or session data) are <strong>stored on this device only</strong> using your browser's local storage. They do not sync across devices or browsers.</p>
-            <p class="subtitle" style="margin-top: var(--space-2);">To manage your account settings (plan, email, password), visit the <a href="/dashboard.html">dashboard</a>.</p>
-          </div>
-        </div>
-      </section>
-    </main>
+          <div class="card" id="security">
+            <div class="card-header">
+              <h3>Security</h3>
+            </div>
+            <div class="card-body">
+              <h4>Change Password</h4>
+              <form data-password-form>
+                <div class="form-group">
+                  <label class="form-label" for="current-password">Current password</label>
+                  <input class="form-input" type="password" id="current-password" name="current_password" required autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="new-password">New password</label>
+                  <input class="form-input" type="password" id="new-password" name="new_password" required autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="confirm-password">Confirm new password</label>
+                  <input class="form-input" type="password" id="confirm-password" name="confirm_password" required autocomplete="new-password">
+                </div>
+                <div class="form-actions">
+                  <button class="btn btn-primary" type="submit">Update Password</button>
+                </div>
+              </form>
 
-    <footer class="footer">
-      <div class="container footer-top">
-        <div class="footer-brand">
-          <a class="footer-logo" href="/home.html">
-            <img src="/img/logo.svg" alt="SecureWave logo" width="34" height="34">
-            <strong>SecureWave</strong>
-          </a>
-          <p>Calm protection for everyday connections.</p>
-          <div class="footer-badges">
-            <a class="footer-pill" href="/home.html#download">Download</a>
-            <a class="footer-pill" href="/diagnostics.html">Status</a>
+              <hr class="divider">
+
+              <h4>Two-Factor Authentication</h4>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <span class="toggle-label">Enable 2FA</span>
+                  <span class="toggle-desc">Add an extra layer of security to your account with time-based one-time passwords.</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" data-toggle="2fa">
+                  <span class="toggle-track"></span>
+                </label>
+              </div>
+
+              <hr class="divider">
+
+              <h4>Active Sessions</h4>
+              <div class="sessions-list" data-sessions-list>
+                <div class="session-item">
+                  <div class="session-info">
+                    <span class="session-device">Current session</span>
+                    <span class="session-detail">This device</span>
+                  </div>
+                  <span class="badge badge-success">Active</span>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="footer-columns">
-          <div class="footer-column">
-            <div class="footer-title">Product</div>
-            <a href="/services.html">Services</a>
-            <a href="/subscription.html">Plans</a>
-            <a href="/dashboard.html">Dashboard</a>
+
+          <div class="card" id="connection">
+            <div class="card-header">
+              <h3>Connection</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label" for="protocol">VPN Protocol</label>
+                <select class="form-select" id="protocol" name="protocol" data-setting="protocol">
+                  <option value="wireguard" selected>WireGuard</option>
+                  <option value="openvpn">OpenVPN</option>
+                  <option value="ikev2">IKEv2</option>
+                </select>
+              </div>
+
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <span class="toggle-label">Auto-connect</span>
+                  <span class="toggle-desc">Automatically connect to VPN when your device starts or joins an untrusted network.</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" data-toggle="auto-connect">
+                  <span class="toggle-track"></span>
+                </label>
+              </div>
+
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <span class="toggle-label">Kill switch</span>
+                  <span class="toggle-desc">Block all internet traffic if the VPN connection drops unexpectedly.</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" data-toggle="kill-switch">
+                  <span class="toggle-track"></span>
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="dns">DNS Settings</label>
+                <select class="form-select" id="dns" name="dns" data-setting="dns">
+                  <option value="default" selected>Default</option>
+                  <option value="cloudflare">Cloudflare (1.1.1.1)</option>
+                  <option value="google">Google (8.8.8.8)</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <div class="footer-column">
-            <div class="footer-title">Download</div>
-            <a href="/home.html#download">Get the app</a>
-            <a href="/downloads/securewave-app-linux-arm64.zip">Linux (ARM64)</a>
-            <span class="footer-muted">macOS, Windows, Android, iOS: Coming soon</span>
+
+          <div class="card" id="notifications">
+            <div class="card-header">
+              <h3>Notifications</h3>
+            </div>
+            <div class="card-body">
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <span class="toggle-label">Email notifications</span>
+                  <span class="toggle-desc">Receive email updates about your account activity and connection status.</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" data-toggle="email-notifications" checked>
+                  <span class="toggle-track"></span>
+                </label>
+              </div>
+
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <span class="toggle-label">Security alerts</span>
+                  <span class="toggle-desc">Get notified about suspicious login attempts and security events.</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" data-toggle="security-alerts" checked>
+                  <span class="toggle-track"></span>
+                </label>
+              </div>
+
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <span class="toggle-label">Marketing emails</span>
+                  <span class="toggle-desc">Receive product updates, tips, and promotional offers.</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" data-toggle="marketing-emails">
+                  <span class="toggle-track"></span>
+                </label>
+              </div>
+            </div>
           </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Help</a>
-            <a href="/diagnostics.html">Status / Diagnostics</a>
+
+          <div class="card card-danger">
+            <div class="card-header">
+              <h3>Danger Zone</h3>
+            </div>
+            <div class="card-body">
+              <p class="text-muted">Permanently delete your account and all associated data. This action cannot be undone.</p>
+              <button class="btn btn-danger" type="button" data-delete-account>Delete Account</button>
+            </div>
           </div>
-          <div class="footer-column">
-            <div class="footer-title">Legal</div>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/terms.html">Terms</a>
-          </div>
+
         </div>
       </div>
-      <div class="container footer-bottom">
-        <div><span data-year>2026</span> SecureWave. All rights reserved.</div>
-        <div class="footer-bottom-links">
-          <a href="/privacy.html">Privacy</a>
-          <a href="/terms.html">Terms</a>
-        </div>
-      </div>
-    </footer>
 
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+        <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
+      </div>
+      <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/vpn">VPN Dashboard</a></div>
+      <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
+      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/settings">Settings</a><a href="/dashboard">Dashboard</a></div>
+    </div>
+    <div class="footer-bottom">
+      <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
+      <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
+    </div>
   </div>
+</footer>
 
-  <script src="/js/bootstrap.bundle.min.js" defer></script>
-  <script src="/js/site.js" defer></script>
+<script src="/js/site.js"></script>
 </body>
 </html>

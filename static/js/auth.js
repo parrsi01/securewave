@@ -14,7 +14,7 @@ function setFieldError(input, text) {
   const hint = input?.parentElement.querySelector('.field-hint');
   if (hint && text) {
     hint.textContent = text;
-    hint.style.color = '#c26b1f';
+    hint.style.color = 'var(--sw-danger)';
   }
   if (input) input.setAttribute('aria-invalid', 'true');
 }
@@ -23,7 +23,10 @@ function clearFieldStates(form) {
   form.querySelectorAll('input').forEach((input) => {
     input.removeAttribute('aria-invalid');
     const hint = input.parentElement.querySelector('.field-hint');
-    if (hint) hint.style.color = 'var(--ink-soft)';
+    if (hint) {
+      hint.style.color = '';
+      hint.textContent = hint.getAttribute('data-default') || '';
+    }
   });
   setMessage(form, '');
 }
@@ -72,7 +75,7 @@ async function handleAuth(event) {
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
       localStorage.setItem('user_email', email);
-      window.location.href = '/dashboard.html';
+      window.location.href = '/dashboard';
       return;
     }
     setMessage(form, data.detail || 'Unable to continue. Check your details and try again.');
@@ -91,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetch('/api/auth/me', { credentials: 'include' })
     .then((res) => {
       if (res.ok) {
-        window.location.href = '/dashboard.html';
+        window.location.href = '/dashboard';
       }
     })
     .catch(() => {});

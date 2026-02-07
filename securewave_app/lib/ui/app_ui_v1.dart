@@ -5,11 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppUIv1 {
-  // ── Palette (unchanged) ──────────────────────────────────────────────
-  static const Color background = Color(0xFFF5F7FB);
-  static const Color backgroundStrong = Color(0xFFE7EDF3);
+  // ── Palette (white + teal, matching website) ────────────────────────
+  static const Color background = Color(0xFFFFFFFF);
+  static const Color backgroundStrong = Color(0xFFF5F5F5);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceMuted = Color(0xFFF0F4F7);
+  static const Color surfaceMuted = Color(0xFFF5F5F5);
   static const Color accent = Color(0xFF1B6B68);
   static const Color accentStrong = Color(0xFF0F4F4C);
   static const Color accentSoft = Color(0xFFD5EFEC);
@@ -19,7 +19,7 @@ class AppUIv1 {
   static const Color ink = Color(0xFF0B1F2A);
   static const Color inkMuted = Color(0xFF4A5B66);
   static const Color inkSoft = Color(0xFF72838F);
-  static const Color border = Color(0xFFD7E0E7);
+  static const Color border = Color(0xFFE0E0E0);
 
   // ── Spacing (8dp grid) ──────────────────────────────────────────────
   static const double space1 = 4;

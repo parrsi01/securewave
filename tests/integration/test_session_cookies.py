@@ -4,7 +4,7 @@ from fastapi import status
 def test_login_sets_secure_cookies(client, test_user):
     response = client.post(
         "/api/auth/login",
-        json={"email": "test@example.com", "password": "testpassword123"},
+        json={"email": "testuser@example.com", "password": "TestPass123"},
     )
     assert response.status_code == status.HTTP_200_OK
     set_cookies = response.headers.get_list("set-cookie")
@@ -16,7 +16,7 @@ def test_login_sets_secure_cookies(client, test_user):
 def test_csrf_required_for_cookie_session(client, test_user):
     login = client.post(
         "/api/auth/login",
-        json={"email": "test@example.com", "password": "testpassword123"},
+        json={"email": "testuser@example.com", "password": "TestPass123"},
     )
     assert login.status_code == status.HTTP_200_OK
     csrf_token = client.cookies.get("csrf_token")

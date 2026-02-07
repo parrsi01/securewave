@@ -2,6 +2,8 @@
 Subscription access helpers for VPN endpoints.
 
 Enforces active/trial subscriptions and revokes peers on expiration.
+Free-tier users (no subscription) are allowed up to a configurable
+monthly data cap and device limit.
 """
 
 import os
@@ -25,6 +27,7 @@ DEMO_MODE = demo_mode_enabled()
 WG_MOCK_MODE = wg_mock_mode_enabled()
 FREE_TIER_MONTHLY_GB = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
 FREE_TIER_MONTHLY_BYTES = int(FREE_TIER_MONTHLY_GB * 1024 * 1024 * 1024)
+FREE_TIER_DEVICE_LIMIT = int(os.getenv("FREE_TIER_DEVICE_LIMIT", "1"))
 
 
 def _get_active_subscription(db: Session, user_id: int) -> Optional[Subscription]:
@@ -150,7 +153,13 @@ def _user_bytes_used(peers: List[WireGuardPeer]) -> int:
 
 
 async def enforce_free_tier_cap(db: Session, user: User) -> None:
-    """Enforce the free-tier monthly data cap."""
+    """Enforce the free-tier monthly data cap.
+
+    This is called for users who have NO active subscription.  If the
+    user's total transfer across all peers is under the cap, they are
+    silently allowed through.  Only when the cap is exceeded are peers
+    revoked and a 402 raised.
+    """
     await _sync_user_usage(db, user)
     peers = (
         db.query(WireGuardPeer)
@@ -171,10 +180,19 @@ async def enforce_free_tier_cap(db: Session, user: User) -> None:
         )
 
 
-async def require_active_subscription(db: Session, user: User) -> Subscription:
+async def require_active_subscription(db: Session, user: User) -> Optional[Subscription]:
     """
-    Enforce that the user has an active/trialing subscription.
-    Revokes peers if subscription is inactive/expired.
+    Enforce that the user has an active/trialing subscription OR qualifies
+    for the free tier.
+
+    Free-tier users (no subscription record) are permitted as long as they
+    have not exceeded the monthly data cap.  This function returns ``None``
+    for free-tier and demo/admin users -- callers MUST handle that case
+    gracefully (treat None as "free tier allowed").
+
+    Raises ``HTTPException 402`` only when:
+    - The free-tier data cap has been exceeded, or
+    - A paid subscription has expired.
     """
     if user.is_admin or DEMO_MODE or WG_MOCK_MODE:
         sub = _get_active_subscription(db, user.id)
@@ -183,6 +201,7 @@ async def require_active_subscription(db: Session, user: User) -> Subscription:
     subscription = _get_active_subscription(db, user.id)
 
     if not subscription:
+        # Free-tier path: allow VPN access within the monthly cap.
         await enforce_free_tier_cap(db, user)
         return None
 
@@ -197,3 +216,38 @@ async def require_active_subscription(db: Session, user: User) -> Subscription:
         )
 
     return subscription
+
+
+# =========================================================================
+# Convenience helpers used by device and VPN route modules
+# =========================================================================
+
+def is_free_tier(db: Session, user: User) -> bool:
+    """Return True when the user has no active paid subscription."""
+    return _get_active_subscription(db, user.id) is None
+
+
+def get_effective_device_limit(db: Session, user: User) -> int:
+    """Return the device limit respecting plan tier.
+
+    Free tier: 1 device (configurable via FREE_TIER_DEVICE_LIMIT env).
+    Basic:     3 devices.
+    Premium:   5 devices.
+    Ultra:     10 devices.
+    Admin:     unlimited (100).
+    """
+    if user.is_admin:
+        return 100
+
+    sub = _get_active_subscription(db, user.id)
+    if not sub or not sub.plan_id:
+        return FREE_TIER_DEVICE_LIMIT
+
+    plan = (sub.plan_id or "").lower()
+    limits = {
+        "basic": 3,
+        "premium": 5,
+        "pro": 5,
+        "ultra": 10,
+    }
+    return limits.get(plan, FREE_TIER_DEVICE_LIMIT)

@@ -3,165 +3,265 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
-  <meta name="ui-version" content="UI_VERSION v1.0">
-  <title>Services - SecureWave</title>
-  <meta name="description" content="SecureWave services and features." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
+  <title>Services - SecureWave VPN</title>
+  <meta name="description" content="Comprehensive VPN solutions from personal browsing to enterprise deployment with AI-powered network security.">
+  <link rel="stylesheet" href="/css/web_ui_v1.css">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-  <div class="page">
-    <header class="navbar navbar-expand-lg">
-      <div class="container navbar-row">
-        <a class="brand navbar-brand" href="/home.html">
-          <img src="/img/logo.svg" alt="SecureWave logo">
-          <span>SecureWave</span>
-        </a>
-        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
-          <a href="/home.html" class="nav-link">Home</a>
-          <a class="nav-link active" href="/services.html" aria-current="page">Services</a>
-          <a href="/subscription.html" class="nav-link">Plans</a>
-          <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="btn btn-ghost" href="/login.html">Sign in</a>
-          <a class="btn btn-secondary" href="/home.html#download">Download app</a>
-        </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
+
+  <!-- Navigation -->
+  <nav class="nav" id="navbar">
+    <div class="nav-inner">
+      <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+      <div class="nav-links">
+        <a href="/home">Features</a>
+        <a href="/services" class="active">Services</a>
+        <a href="/subscription">Pricing</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
       </div>
-    </header>
+      <div class="nav-actions">
+        <a class="btn btn-ghost btn-sm" href="/login">Sign in</a>
+        <a class="btn btn-primary btn-sm" href="/register">Get Started</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
+        <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="nav-mobile">
+      <a href="/home">Features</a><a href="/services" class="active">Services</a><a href="/subscription">Pricing</a><a href="/about">About</a><a href="/contact">Contact</a>
+      <div class="nav-mobile-actions">
+        <a class="btn btn-ghost btn-block" href="/login">Sign in</a>
+        <a class="btn btn-primary btn-block" href="/register">Get Started</a>
+      </div>
+    </div>
+  </nav>
 
-    <main>
-      <section class="section">
-        <div class="container hero">
-          <div class="content-stack">
-            <div class="section-header">
-              <span class="badge">Services</span>
-              <h1>Protection that stays calm.</h1>
-              <p class="subtitle text-measure">SecureWave keeps your connection private while remaining easy to use.</p>
-              <p class="subtitle text-measure">Basic includes a 5 GB monthly cap.</p>
+  <main>
+    <!-- Hero -->
+    <section class="hero hero-centered">
+      <div class="container">
+        <div class="hero-content">
+          <span class="section-eyebrow">Services</span>
+          <h1>Comprehensive VPN Solutions</h1>
+          <p class="hero-desc">From personal browsing to enterprise deployment, SecureWave provides layered protection tailored to your needs.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Services Grid -->
+    <section class="section">
+      <div class="container">
+        <div class="section-header centered">
+          <span class="section-eyebrow">What We Offer</span>
+          <h2>Solutions for every use case</h2>
+          <p>Whether you are securing personal browsing or managing an enterprise network, we have you covered.</p>
+        </div>
+
+        <div class="grid grid-3">
+          <!-- Personal VPN -->
+          <article class="card card-elevated feature-card">
+            <div class="card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
-            <div class="stat-list">
-              <a class="btn btn-primary" href="/subscription.html">Choose a plan</a>
-              <a class="btn btn-ghost" href="/register.html">Create an account</a>
+            <h4>Personal VPN</h4>
+            <p>Protect your everyday browsing, streaming, and online banking with encrypted tunnels across all your personal devices.</p>
+          </article>
+
+          <!-- Business VPN -->
+          <article class="card card-elevated feature-card">
+            <div class="card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+            </div>
+            <h4>Business VPN</h4>
+            <p>Secure remote access for distributed teams with centralized management, role-based access control, and compliance reporting.</p>
+          </article>
+
+          <!-- Dedicated IP -->
+          <article class="card card-elevated feature-card">
+            <div class="card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+            </div>
+            <h4>Dedicated IP</h4>
+            <p>Get a static IP address that is exclusively yours. Ideal for accessing IP-restricted services, hosting, and maintaining a consistent online identity.</p>
+          </article>
+
+          <!-- DDoS Protection -->
+          <article class="card card-elevated feature-card">
+            <div class="card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h4>DDoS Protection</h4>
+            <p>Enterprise-grade distributed denial-of-service mitigation that absorbs volumetric attacks and keeps your services online under heavy traffic.</p>
+          </article>
+
+          <!-- Secure DNS -->
+          <article class="card card-elevated feature-card">
+            <div class="card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <h4>Secure DNS</h4>
+            <p>Encrypted DNS resolution that prevents DNS leaks, blocks malicious domains, and stops ISPs from tracking your browsing activity.</p>
+          </article>
+
+          <!-- Network Monitoring -->
+          <article class="card card-elevated feature-card">
+            <div class="card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            </div>
+            <h4>Network Monitoring</h4>
+            <p>ML-powered anomaly detection continuously monitors your connection for suspicious patterns, unauthorized access attempts, and data exfiltration signals.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- How We Protect You -->
+    <section class="section bg-alt">
+      <div class="container">
+        <div class="section-header centered">
+          <span class="section-eyebrow">How It Works</span>
+          <h2>How we protect you</h2>
+          <p>Three layers of defense that work together to keep your data safe.</p>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="card card-elevated text-center">
+            <div class="card-icon card-icon-lg mx-auto">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            </div>
+            <h4>1. Encrypted Tunnel</h4>
+            <p>Your traffic is wrapped in AES-256 encryption using the WireGuard protocol, creating a secure tunnel between your device and our servers.</p>
+          </div>
+
+          <div class="card card-elevated text-center">
+            <div class="card-icon card-icon-lg mx-auto">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <h4>2. Threat Detection</h4>
+            <p>Our AI-powered system inspects traffic metadata in real time, identifying threats before they reach your device using behavioral analysis.</p>
+          </div>
+
+          <div class="card card-elevated text-center">
+            <div class="card-icon card-icon-lg mx-auto">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            </div>
+            <h4>3. Adaptive Response</h4>
+            <p>When threats are detected, the system automatically reroutes traffic, blocks malicious endpoints, and adjusts encryption parameters in real time.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI-Powered Network Security -->
+    <section class="section">
+      <div class="container">
+        <div class="section-header centered">
+          <span class="section-eyebrow">Advanced Protection</span>
+          <h2>AI-powered network security</h2>
+          <p>Machine learning meets enterprise-grade threat detection.</p>
+        </div>
+
+        <div class="card card-elevated" style="max-width:800px;margin:0 auto">
+          <div class="flex items-center justify-between flex-wrap gap-4 mb-6">
+            <div>
+              <h3 class="mb-2">MARL + XGBoost Anomaly Detection</h3>
+              <p class="mb-0">Our multi-agent reinforcement learning system, combined with XGBoost classifiers, provides layered threat detection that adapts to emerging attack patterns in real time.</p>
+            </div>
+            <span class="anomaly-indicator safe">
+              <span class="anomaly-dot"></span>
+              Network Safe
+            </span>
+          </div>
+
+          <div class="grid grid-3 mt-6">
+            <div class="p-4 bg-alt rounded-lg">
+              <h5 class="mb-2">Real-time Threat Detection</h5>
+              <p class="text-muted mb-0" style="font-size:.875rem">Continuous analysis of network traffic patterns with sub-second response times to identify and neutralize threats.</p>
+            </div>
+            <div class="p-4 bg-alt rounded-lg">
+              <h5 class="mb-2">Behavioral Analysis</h5>
+              <p class="text-muted mb-0" style="font-size:.875rem">Learns normal traffic patterns for your network and flags deviations that indicate potential intrusion or data exfiltration.</p>
+            </div>
+            <div class="p-4 bg-alt rounded-lg">
+              <h5 class="mb-2">Adaptive Protection</h5>
+              <p class="text-muted mb-0" style="font-size:.875rem">Protection policies evolve automatically as the system encounters new threat vectors, reducing manual intervention.</p>
             </div>
           </div>
-          <div class="card">
-            <h2>App-first experience</h2>
-            <p class="subtitle">The app handles connection, routing, and diagnostics.</p>
-            <ul class="list">
-              <li>Auto-selects the best region.</li>
-              <li>Shows clear connection status.</li>
-              <li>Guides you through diagnostics.</li>
+        </div>
+      </div>
+    </section>
+
+    <!-- Enterprise Section -->
+    <section class="section bg-alt">
+      <div class="container">
+        <div class="section-header centered">
+          <span class="section-eyebrow">Enterprise</span>
+          <h2>Built for organizations that demand more</h2>
+          <p>SecureWave Enterprise gives your team the tools and control needed to operate securely at scale.</p>
+        </div>
+
+        <div class="grid grid-2" style="max-width:900px;margin:0 auto">
+          <div class="card card-elevated">
+            <h4 class="mb-4">Infrastructure Benefits</h4>
+            <ul class="pricing-features">
+              <li>Dedicated server clusters in 15+ regions</li>
+              <li>99.99% uptime SLA with automatic failover</li>
+              <li>Custom DNS and domain filtering rules</li>
+              <li>On-premise deployment options available</li>
+              <li>SOC 2 Type II compliant infrastructure</li>
             </ul>
-            <p class="subtitle" style="margin-top: var(--space-3);">The SecureWave app establishes the VPN tunnel on your device.</p>
-            <p class="subtitle">This website manages your account and device configuration.</p>
           </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="container content-stack">
-          <div class="section-header">
-            <h2>Core features</h2>
-            <p class="subtitle text-measure">Mirrors the same language and density as the app.</p>
-          </div>
-          <div class="grid">
-            <div class="card">
-              <h3>Connection essentials</h3>
-              <ul class="list">
-                <li>Smart routing chooses the best region automatically.</li>
-                <li>One-tap connect without setup.</li>
-              </ul>
-            </div>
-            <div class="card">
-              <h3>Clarity and guidance</h3>
-              <ul class="list">
-                <li>Clear status shows when you are protected.</li>
-                <li>Guided support keeps diagnostics readable.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="container split">
-          <div class="section-header">
-            <h2>Built for everyday use</h2>
-            <p class="subtitle text-measure">SecureWave keeps the experience beginner-friendly.</p>
-            <ul class="list">
-              <li>Large buttons and clear labels.</li>
-              <li>No complex configuration.</li>
-              <li>Consistent visuals across web and app.</li>
+          <div class="card card-elevated">
+            <h4 class="mb-4">Management Benefits</h4>
+            <ul class="pricing-features">
+              <li>Centralized admin dashboard for all users</li>
+              <li>Role-based access control with audit logging</li>
+              <li>SSO integration with SAML and OIDC providers</li>
+              <li>RESTful API for programmatic configuration</li>
+              <li>Dedicated account manager and priority support</li>
             </ul>
           </div>
-          <div class="card">
-            <h3>Ready to connect?</h3>
-            <p class="subtitle">Download the app and sign in to get started.</p>
-            <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-secondary" href="/home.html#download">Download app</a>
-              <a class="btn btn-ghost" href="/login.html">Sign in</a>
-            </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Banner -->
+    <section class="section">
+      <div class="container">
+        <div class="cta-banner">
+          <h2>Ready to secure your network?</h2>
+          <p>Get started in minutes with SecureWave. No credit card required for the free plan.</p>
+          <div class="flex justify-center gap-3 flex-wrap">
+            <a class="btn btn-primary" href="/register">Get Started Free</a>
+            <button class="btn btn-white" type="button" data-open-assistant>Talk to our assistant</button>
           </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
+  </main>
 
-        <footer class="footer">
-      <div class="container footer-top">
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
         <div class="footer-brand">
-          <a class="footer-logo" href="/home.html">
-            <img src="/img/logo.svg" alt="SecureWave logo" width="34" height="34">
-            <strong>SecureWave</strong>
-          </a>
-          <p>Calm protection for everyday connections.</p>
-          <div class="footer-badges">
-            <a class="footer-pill" href="/home.html#download">Download</a>
-            <a class="footer-pill" href="/diagnostics.html">Status</a>
-          </div>
+          <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+          <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
         </div>
-        <div class="footer-columns">
-          <div class="footer-column">
-            <div class="footer-title">Product</div>
-            <a href="/services.html">Services</a>
-            <a href="/subscription.html">Plans</a>
-            <a href="/dashboard.html">Dashboard</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Download</div>
-            <a href="/home.html#download">Get the app</a>
-            <a href="/downloads/securewave-app-linux-arm64.zip">Linux (ARM64)</a>
-            <span class="footer-muted">macOS, Windows, Android, iOS: Coming soon</span>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Help</a>
-            <a href="/diagnostics.html">Status / Diagnostics</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Legal</div>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/terms.html">Terms</a>
-          </div>
-        </div>
+        <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/vpn">VPN Dashboard</a></div>
+        <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
+        <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/settings">Settings</a><a href="/dashboard">Dashboard</a></div>
       </div>
-      <div class="container footer-bottom">
-        <div><span data-year>2026</span> SecureWave. All rights reserved.</div>
-        <div class="footer-bottom-links">
-          <a href="/privacy.html">Privacy</a>
-          <a href="/terms.html">Terms</a>
-        </div>
+      <div class="footer-bottom">
+        <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
+        <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
       </div>
-    </footer>
+    </div>
+  </footer>
 
-  </div>
-
-  <script src="/js/bootstrap.bundle.min.js" defer></script>
-  <script src="/js/site.js" defer></script>
+  <script src="/js/site.js"></script>
 </body>
 </html>

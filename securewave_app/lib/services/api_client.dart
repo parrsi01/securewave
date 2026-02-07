@@ -216,6 +216,40 @@ class ApiClient {
     }
   }
 
+  /// Notify the backend that the VPN tunnel has been established.
+  ///
+  /// In demo/mock mode this triggers the demo VPN session on the server so
+  /// that the dashboard and status endpoints reflect a connected state.
+  Future<void> notifyVpnConnected({String? region}) async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return;
+    }
+    try {
+      await _dio.post<Map<String, dynamic>>(
+        '/vpn/connect',
+        data: region != null ? {'region': region} : {},
+      );
+    } catch (error, stackTrace) {
+      AppLogger.warning('Backend VPN connect notification failed (non-fatal).');
+      AppLogger.error('VPN connect notify error', error: error, stackTrace: stackTrace);
+    }
+  }
+
+  /// Notify the backend that the VPN tunnel has been torn down.
+  Future<void> notifyVpnDisconnected() async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return;
+    }
+    try {
+      await _dio.post<Map<String, dynamic>>('/vpn/disconnect');
+    } catch (error, stackTrace) {
+      AppLogger.warning('Backend VPN disconnect notification failed (non-fatal).');
+      AppLogger.error('VPN disconnect notify error', error: error, stackTrace: stackTrace);
+    }
+  }
+
   void _logMockApi() {
     if (_mockNoticeLogged) return;
     _mockNoticeLogged = true;
