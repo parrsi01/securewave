@@ -5,7 +5,7 @@ import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/services/api_client.dart';
 
 void main() {
-  Dio _failingDio(String baseUrl) {
+  Dio failingDio(String baseUrl) {
     final dio = Dio(BaseOptions(baseUrl: baseUrl));
     dio.interceptors.add(
       InterceptorsWrapper(
@@ -31,7 +31,7 @@ void main() {
       useMockApi: false,
       resetSessionOnBoot: false,
     );
-    final client = ApiClient(config, dio: _failingDio(config.apiBaseUrl));
+    final client = ApiClient(config, dio: failingDio(config.apiBaseUrl));
 
     await expectLater(
       client.login(email: 'a@b.com', password: 'pw'),
@@ -59,7 +59,7 @@ void main() {
       useMockApi: true,
       resetSessionOnBoot: false,
     );
-    final client = ApiClient(config, dio: _failingDio(config.apiBaseUrl));
+    final client = ApiClient(config, dio: failingDio(config.apiBaseUrl));
 
     final tokens = await client.login(email: 'alice@example.com', password: 'pw');
     expect(tokens.accessToken, contains('mock-token-'));
@@ -71,4 +71,3 @@ void main() {
     expect(plan.name, isNotEmpty);
   });
 }
-
