@@ -2,12 +2,18 @@
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
+#include <atomic>
+#include <cassert>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
 #include <optional>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <thread>
 #include <shlobj.h>
+#include <winsvc.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -15,8 +21,15 @@ namespace {
 const wchar_t* kTunnelName = L"SecureWave";
 constexpr UINT kVpnOpCompleteMessage = WM_APP + 42;
 constexpr DWORD kWireGuardCommandTimeoutMs = 30000;
+constexpr size_t kMaxPendingVpnOps = 8;
+
+enum class VpnOpType { kConnect, kDisconnect };
+
+enum class TunnelState { kUnknown, kConnected, kDisconnected, kConnecting, kDisconnecting };
 
 struct VpnOpPending {
+  VpnOpType type = VpnOpType::kDisconnect;
+  std::string config;  // only used for connect
   std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result;
   bool ok = false;
   std::string error_code;
@@ -157,7 +170,275 @@ std::optional<std::string> GetStringArg(const flutter::EncodableValue* value) {
   return std::nullopt;
 }
 
+bool ServiceExists(const std::wstring& name) {
+  SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+  if (manager == nullptr) {
+    return false;
+  }
+  SC_HANDLE svc = OpenServiceW(manager, name.c_str(), SERVICE_QUERY_STATUS);
+  if (svc != nullptr) {
+    CloseServiceHandle(svc);
+    CloseServiceHandle(manager);
+    return true;
+  }
+  CloseServiceHandle(manager);
+  return false;
+}
+
+bool TunnelServiceInstalled() {
+  // WireGuard for Windows typically uses the service name:
+  //   WireGuardTunnel$<tunnelName>
+  // where tunnelName is derived from the config filename (SecureWave.conf -> SecureWave).
+  if (ServiceExists(std::wstring(L"WireGuardTunnel$") + kTunnelName)) {
+    return true;
+  }
+  // Fallback: some builds may expose the tunnel name as the service name.
+  return ServiceExists(std::wstring(kTunnelName));
+}
+
 }  // namespace
+
+struct FlutterWindow::VpnWorker {
+  explicit VpnWorker(HWND hwnd) : hwnd_(hwnd) {}
+
+  void Start() {
+    std::lock_guard<std::mutex> lock(mu_);
+    if (running_) {
+      return;
+    }
+    stop_ = false;
+    running_ = true;
+    worker_ = std::thread([this]() { this->Run(); });
+  }
+
+  void Stop() {
+    std::deque<std::unique_ptr<VpnOpPending>> pending;
+    std::deque<std::unique_ptr<VpnOpPending>> completed;
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      stop_ = true;
+      pending.swap(queue_);
+      completed.swap(completed_);
+    }
+    cv_.notify_all();
+    if (worker_.joinable()) {
+      worker_.join();
+    }
+    running_ = false;
+
+    // Drain anything completed after we took the first snapshot but before the
+    // worker thread exited.
+    std::deque<std::unique_ptr<VpnOpPending>> completed_after_join;
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      completed_after_join.swap(completed_);
+    }
+
+    // Respond to any operations that were never processed.
+    for (auto& op : pending) {
+      if (op && op->result) {
+        op->result->Error(
+            "vpn_shutdown",
+            "VPN operation cancelled (app shutting down).",
+            nullptr);
+      }
+    }
+
+    // Flush any completed ops synchronously on the UI thread.
+    for (auto& op : completed) {
+      if (!op || !op->result) {
+        continue;
+      }
+      if (op->ok) {
+        op->result->Success(flutter::EncodableValue());
+      } else {
+        op->result->Error(op->error_code, op->error_message, nullptr);
+      }
+    }
+
+    for (auto& op : completed_after_join) {
+      if (!op || !op->result) {
+        continue;
+      }
+      if (op->ok) {
+        op->result->Success(flutter::EncodableValue());
+      } else {
+        op->result->Error(op->error_code, op->error_message, nullptr);
+      }
+    }
+  }
+
+  void Enqueue(std::unique_ptr<VpnOpPending> op) {
+    assert(op && op->result);
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      if (stop_) {
+        op->result->Error(
+            "vpn_shutdown",
+            "VPN operation rejected (app shutting down).",
+            nullptr);
+        return;
+      }
+      // Defensive: bound queue to avoid runaway memory growth on repeated toggles.
+      if (queue_.size() >= kMaxPendingVpnOps) {
+        op->result->Error(
+            "vpn_busy",
+            "VPN operation already in progress. Please wait and retry.",
+            nullptr);
+        return;
+      }
+      queue_.push_back(std::move(op));
+    }
+    cv_.notify_one();
+  }
+
+  void DrainCompleted() {
+    std::deque<std::unique_ptr<VpnOpPending>> batch;
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      batch.swap(completed_);
+    }
+    for (auto& op : batch) {
+      if (!op || !op->result) {
+        continue;
+      }
+      if (op->ok) {
+        op->result->Success(flutter::EncodableValue());
+      } else {
+        op->result->Error(op->error_code, op->error_message, nullptr);
+      }
+    }
+  }
+
+ private:
+  void Run() {
+    while (true) {
+      std::unique_ptr<VpnOpPending> op;
+      {
+        std::unique_lock<std::mutex> lock(mu_);
+        cv_.wait(lock, [this]() { return stop_ || !queue_.empty(); });
+        if (stop_ && queue_.empty()) {
+          return;
+        }
+        op = std::move(queue_.front());
+        queue_.pop_front();
+      }
+
+      assert(op && op->result);
+
+      // Tunnel state assertions: operations are processed serially.
+      if (op->type == VpnOpType::kConnect) {
+        assert(state_ != TunnelState::kConnecting);
+        assert(state_ != TunnelState::kDisconnecting);
+      } else {
+        assert(state_ != TunnelState::kDisconnecting);
+        assert(state_ != TunnelState::kConnecting);
+      }
+
+      ProcessOperation(*op);
+
+      {
+        std::lock_guard<std::mutex> lock(mu_);
+        completed_.push_back(std::move(op));
+      }
+
+      if (hwnd_ != nullptr) {
+        PostMessage(hwnd_, kVpnOpCompleteMessage, 0, 0);
+      }
+    }
+  }
+
+  void ProcessOperation(VpnOpPending& op) {
+    // Resolve WireGuard executable lazily.
+    if (!wireguard_path_.has_value()) {
+      wireguard_path_ = GetWireGuardPath();
+    }
+    if (!wireguard_path_.has_value()) {
+      op.ok = false;
+      op.error_code = "vpn_unavailable";
+      op.error_message =
+          "WireGuard for Windows not found. Install WireGuard and retry.";
+      return;
+    }
+    if (config_path_.empty()) {
+      config_path_ = GetConfigPath();
+    }
+
+    if (op.type == VpnOpType::kConnect) {
+      if (state_ == TunnelState::kConnected) {
+        op.ok = true;  // idempotent
+        return;
+      }
+
+      state_ = TunnelState::kConnecting;
+
+      std::string write_error;
+      if (!WriteConfigFile(config_path_, op.config, &write_error)) {
+        state_ = TunnelState::kDisconnected;
+        op.ok = false;
+        op.error_code = "vpn_config_write_failed";
+        op.error_message = write_error;
+        return;
+      }
+
+      std::string err;
+      op.ok = RunWireGuardCommand(
+          *wireguard_path_,
+          L"/installtunnelservice \"" + config_path_ + L"\"",
+          &err);
+      if (!op.ok) {
+        state_ = TunnelState::kDisconnected;
+        op.error_code = "vpn_connect_failed";
+        op.error_message = err;
+        return;
+      }
+      state_ = TunnelState::kConnected;
+      return;
+    }
+
+    // Disconnect
+    if (state_ == TunnelState::kDisconnected) {
+      op.ok = true;  // idempotent
+      return;
+    }
+
+    // If the tunnel service isn't installed, treat disconnect as a no-op.
+    if (!TunnelServiceInstalled()) {
+      state_ = TunnelState::kDisconnected;
+      op.ok = true;
+      return;
+    }
+
+    state_ = TunnelState::kDisconnecting;
+
+    std::string err;
+    op.ok = RunWireGuardCommand(
+        *wireguard_path_,
+        std::wstring(L"/uninstalltunnelservice ") + kTunnelName,
+        &err);
+    if (!op.ok) {
+      // Keep state unknown; we couldn't deterministically stop it.
+      state_ = TunnelState::kUnknown;
+      op.error_code = "vpn_disconnect_failed";
+      op.error_message = err;
+      return;
+    }
+    state_ = TunnelState::kDisconnected;
+  }
+
+  HWND hwnd_ = nullptr;
+  std::mutex mu_;
+  std::condition_variable cv_;
+  std::deque<std::unique_ptr<VpnOpPending>> queue_;
+  std::deque<std::unique_ptr<VpnOpPending>> completed_;
+  std::thread worker_;
+  bool stop_ = false;
+  bool running_ = false;
+
+  TunnelState state_ = TunnelState::kUnknown;
+  std::optional<std::wstring> wireguard_path_;
+  std::wstring config_path_;
+};
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -181,6 +462,9 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  vpn_worker_ = std::make_unique<VpnWorker>(GetHandle());
+  vpn_worker_->Start();
 
   auto channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
       flutter_controller_->engine()->messenger(), "securewave/vpn",
@@ -207,79 +491,18 @@ bool FlutterWindow::OnCreate() {
             result->Error("invalid_config", "Missing WireGuard configuration.", nullptr);
             return;
           }
-          const auto wireguard_path = GetWireGuardPath();
-          if (!wireguard_path.has_value()) {
-            result->Error("vpn_unavailable",
-                          "WireGuard for Windows not found. Install WireGuard and retry.",
-                          flutter::EncodableValue(flutter::EncodableMap{
-                              {flutter::EncodableValue("platform"), flutter::EncodableValue("windows")},
-                              {flutter::EncodableValue("configured"), flutter::EncodableValue(false)}
-                          }));
-            return;
-          }
-          const std::wstring config_path = GetConfigPath();
-          std::string error;
-          if (!WriteConfigFile(config_path, *config, &error)) {
-            result->Error("vpn_config_write_failed", error, nullptr);
-            return;
-          }
-          auto* pending = new VpnOpPending();
-          pending->result = std::move(result);
-          std::thread([this, pending, exe = *wireguard_path, cfg = config_path]() {
-            std::string err;
-            pending->ok = RunWireGuardCommand(
-                exe, L"/installtunnelservice \"" + cfg + L"\"", &err);
-            if (!pending->ok) {
-              pending->error_code = "vpn_connect_failed";
-              pending->error_message = err;
-            }
-            HWND hwnd = GetHandle();
-            if (hwnd != nullptr) {
-              PostMessage(hwnd, kVpnOpCompleteMessage, 0,
-                          reinterpret_cast<LPARAM>(pending));
-            } else {
-              if (pending->ok) {
-                pending->result->Success(flutter::EncodableValue());
-              } else {
-                pending->result->Error(pending->error_code, pending->error_message, nullptr);
-              }
-              delete pending;
-            }
-          }).detach();
+          auto op = std::make_unique<VpnOpPending>();
+          op->type = VpnOpType::kConnect;
+          op->config = *config;
+          op->result = std::move(result);
+          vpn_worker_->Enqueue(std::move(op));
+          return;
         } else if (call.method_name() == "disconnect") {
-          const auto wireguard_path = GetWireGuardPath();
-          if (!wireguard_path.has_value()) {
-            result->Error("vpn_unavailable",
-                          "WireGuard for Windows not found. Install WireGuard and retry.",
-                          flutter::EncodableValue(flutter::EncodableMap{
-                              {flutter::EncodableValue("platform"), flutter::EncodableValue("windows")},
-                              {flutter::EncodableValue("configured"), flutter::EncodableValue(false)}
-                          }));
-            return;
-          }
-          auto* pending = new VpnOpPending();
-          pending->result = std::move(result);
-          std::thread([this, pending, exe = *wireguard_path]() {
-            std::string err;
-            pending->ok = RunWireGuardCommand(
-                exe, std::wstring(L"/uninstalltunnelservice ") + kTunnelName, &err);
-            if (!pending->ok) {
-              pending->error_code = "vpn_disconnect_failed";
-              pending->error_message = err;
-            }
-            HWND hwnd = GetHandle();
-            if (hwnd != nullptr) {
-              PostMessage(hwnd, kVpnOpCompleteMessage, 0,
-                          reinterpret_cast<LPARAM>(pending));
-            } else {
-              if (pending->ok) {
-                pending->result->Success(flutter::EncodableValue());
-              } else {
-                pending->result->Error(pending->error_code, pending->error_message, nullptr);
-              }
-              delete pending;
-            }
-          }).detach();
+          auto op = std::make_unique<VpnOpPending>();
+          op->type = VpnOpType::kDisconnect;
+          op->result = std::move(result);
+          vpn_worker_->Enqueue(std::move(op));
+          return;
         } else {
           result->NotImplemented();
         }
@@ -298,6 +521,10 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  if (vpn_worker_) {
+    vpn_worker_->Stop();
+    vpn_worker_ = nullptr;
+  }
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -310,14 +537,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
   if (message == kVpnOpCompleteMessage) {
-    auto* pending = reinterpret_cast<VpnOpPending*>(lparam);
-    if (pending != nullptr) {
-      if (pending->ok) {
-        pending->result->Success(flutter::EncodableValue());
-      } else {
-        pending->result->Error(pending->error_code, pending->error_message, nullptr);
-      }
-      delete pending;
+    if (vpn_worker_) {
+      vpn_worker_->DrainCompleted();
     }
     return 0;
   }
