@@ -6,6 +6,7 @@
 #endif
 #include <gio/gio.h>
 #include <glib/gstdio.h>
+#include <signal.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -22,6 +23,7 @@ static inline gboolean g_spawn_check_wait_status(gint wait_status,
 namespace {
 const char* kChannelName = "securewave/vpn";
 const char* kConfigFileName = "securewave.conf";
+const guint kWgQuickTimeoutMs = 30000;
 
 typedef struct {
   FlMethodChannel* channel;
@@ -72,12 +74,24 @@ static void respond_error(
 }
 
 typedef struct {
+  gint ref_count;
   FlMethodCall* method_call;
   gchar* error_code;
+  GPid pid;
+  guint timeout_id;
+  gboolean responded;
 } WgQuickSpawnContext;
 
-static void wg_quick_spawn_context_free(WgQuickSpawnContext* ctx) {
+static WgQuickSpawnContext* wg_quick_spawn_context_ref(WgQuickSpawnContext* ctx) {
+  g_atomic_int_inc(&ctx->ref_count);
+  return ctx;
+}
+
+static void wg_quick_spawn_context_unref(WgQuickSpawnContext* ctx) {
   if (!ctx) {
+    return;
+  }
+  if (!g_atomic_int_dec_and_test(&ctx->ref_count)) {
     return;
   }
   g_clear_object(&ctx->method_call);
@@ -85,17 +99,49 @@ static void wg_quick_spawn_context_free(WgQuickSpawnContext* ctx) {
   g_free(ctx);
 }
 
+static void wg_quick_respond_ok_once(WgQuickSpawnContext* ctx) {
+  if (ctx->responded) {
+    return;
+  }
+  ctx->responded = TRUE;
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(nullptr));
+  fl_method_call_respond(ctx->method_call, response, nullptr);
+}
+
+static void wg_quick_respond_error_once(WgQuickSpawnContext* ctx, const gchar* message) {
+  if (ctx->responded) {
+    return;
+  }
+  ctx->responded = TRUE;
+  respond_error(ctx->method_call, ctx->error_code, message, nullptr);
+}
+
 static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_data) {
-  g_autoptr(WgQuickSpawnContext) ctx = static_cast<WgQuickSpawnContext*>(user_data);
+  WgQuickSpawnContext* ctx = static_cast<WgQuickSpawnContext*>(user_data);
+  if (ctx->timeout_id != 0) {
+    g_source_remove(ctx->timeout_id);
+    ctx->timeout_id = 0;
+  }
   g_autoptr(GError) error = nullptr;
   if (!g_spawn_check_wait_status(wait_status, &error)) {
-    respond_error(ctx->method_call, ctx->error_code, error ? error->message : "wg-quick failed.", nullptr);
+    wg_quick_respond_error_once(ctx, error ? error->message : "wg-quick failed.");
   } else {
-    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
-        fl_method_success_response_new(nullptr));
-    fl_method_call_respond(ctx->method_call, response, nullptr);
+    wg_quick_respond_ok_once(ctx);
   }
   g_spawn_close_pid(pid);
+}
+
+static gboolean wg_quick_timeout_cb(gpointer user_data) {
+  WgQuickSpawnContext* ctx = static_cast<WgQuickSpawnContext*>(user_data);
+  ctx->timeout_id = 0;
+  wg_quick_respond_error_once(
+      ctx,
+      "WireGuard operation timed out. Ensure you have the required permissions and retry.");
+  if (ctx->pid != 0) {
+    kill(ctx->pid, SIGKILL);
+  }
+  return G_SOURCE_REMOVE;
 }
 
 static void spawn_wg_quick_async(
@@ -120,9 +166,24 @@ static void spawn_wg_quick_async(
   }
 
   WgQuickSpawnContext* ctx = g_new0(WgQuickSpawnContext, 1);
+  ctx->ref_count = 1;
   ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
   ctx->error_code = g_strdup(error_code);
-  g_child_watch_add(pid, wg_quick_child_watch_cb, ctx);
+  ctx->pid = pid;
+  ctx->responded = FALSE;
+  g_child_watch_add_full(
+      G_PRIORITY_DEFAULT,
+      pid,
+      wg_quick_child_watch_cb,
+      wg_quick_spawn_context_ref(ctx),
+      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
+  ctx->timeout_id = g_timeout_add_full(
+      G_PRIORITY_DEFAULT,
+      kWgQuickTimeoutMs,
+      wg_quick_timeout_cb,
+      wg_quick_spawn_context_ref(ctx),
+      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
+  wg_quick_spawn_context_unref(ctx);
 }
 
 static void handle_vpn_call(FlMethodChannel* channel,

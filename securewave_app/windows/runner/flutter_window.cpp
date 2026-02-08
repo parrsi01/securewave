@@ -14,6 +14,7 @@
 namespace {
 const wchar_t* kTunnelName = L"SecureWave";
 constexpr UINT kVpnOpCompleteMessage = WM_APP + 42;
+constexpr DWORD kWireGuardCommandTimeoutMs = 30000;
 
 struct VpnOpPending {
   std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result;
@@ -114,7 +115,25 @@ bool RunWireGuardCommand(
     }
     return false;
   }
-  WaitForSingleObject(process_info.hProcess, INFINITE);
+  DWORD wait_result = WaitForSingleObject(process_info.hProcess, kWireGuardCommandTimeoutMs);
+  if (wait_result == WAIT_TIMEOUT) {
+    TerminateProcess(process_info.hProcess, 1);
+    CloseHandle(process_info.hProcess);
+    CloseHandle(process_info.hThread);
+    if (error) {
+      *error = "WireGuard command timed out. Ensure the app has required privileges and retry.";
+    }
+    return false;
+  }
+  if (wait_result == WAIT_FAILED) {
+    DWORD last_error = GetLastError();
+    CloseHandle(process_info.hProcess);
+    CloseHandle(process_info.hThread);
+    if (error) {
+      *error = "WireGuard wait failed (error " + std::to_string(last_error) + ").";
+    }
+    return false;
+  }
   DWORD exit_code = 0;
   GetExitCodeProcess(process_info.hProcess, &exit_code);
   CloseHandle(process_info.hProcess);
