@@ -11,6 +11,13 @@ from typing import Tuple
 
 import qrcode
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    PrivateFormat,
+    PublicFormat,
+    NoEncryption,
+)
 from dotenv import load_dotenv
 
 from utils.env_validation import validate_fernet_key, is_production
@@ -27,12 +34,25 @@ class WireGuardService:
     def __init__(self):
         self.base_dir = Path(os.getenv("WG_DATA_DIR", "/wg")).expanduser()
         self.base_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.base_dir.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        except OSError:
+            pass
         self.users_dir = self.base_dir / "users"
         self.users_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.users_dir.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        except OSError:
+            pass
         self.server_private_path = self.base_dir / "server_private.key"
         self.server_public_path = self.base_dir / "server_public.key"
         self.endpoint = os.getenv("WG_ENDPOINT", "securewave-app.azurewebsites.net:51820")
-        self.dns = os.getenv("WG_DNS", "1.1.1.1")
+        # Prefer SECUREWAVE_TUNNEL_DNS (used by the profile provisioning path).
+        raw_dns = os.getenv("SECUREWAVE_TUNNEL_DNS", "").strip() or os.getenv("WG_DNS", "").strip()
+        if not raw_dns:
+            raw_dns = "94.140.14.14,94.140.15.15"
+        dns_parts = [p.strip() for p in raw_dns.split(",") if p.strip()]
+        self.dns = ",".join(dns_parts) if dns_parts else "94.140.14.14,94.140.15.15"
         self.server_public_override = os.getenv("WG_SERVER_PUBLIC_KEY", "").strip() or None
         self.fernet = self._load_fernet()
         self.wg_path = shutil.which("wg")
@@ -76,17 +96,27 @@ class WireGuardService:
         return Fernet(key.encode())
 
     def generate_keypair(self) -> Tuple[str, str]:
-        try:
-            if not self.wg_path:
-                raise FileNotFoundError("wg not available")
-            private_key = subprocess.check_output([self.wg_path, "genkey"]).decode().strip()  # nosec B603
-            public_key = subprocess.check_output([self.wg_path, "pubkey"], input=private_key.encode()).decode().strip()  # nosec B603
-            return private_key, public_key
-        except Exception:
-            private_bytes = secrets.token_bytes(32)
-            private_key = base64.b64encode(private_bytes).decode()
-            public_key = base64.b64encode(secrets.token_bytes(32)).decode()
-            return private_key, public_key
+        if self.wg_path:
+            try:
+                private_key = subprocess.check_output([self.wg_path, "genkey"]).decode().strip()  # nosec B603
+                public_key = subprocess.check_output(  # nosec B603
+                    [self.wg_path, "pubkey"], input=private_key.encode()
+                ).decode().strip()
+                return private_key, public_key
+            except Exception as e:
+                logger.warning("wg key generation failed; falling back to X25519: %s", e)
+
+        # In production, do not silently proceed without wg when not in explicit mock mode.
+        if is_production() and not self.mock_mode:
+            raise RuntimeError("WireGuard key generation requires the 'wg' binary in production")
+
+        # WireGuard keys are Curve25519 (X25519) keys, base64-encoded.
+        private = X25519PrivateKey.generate()
+        private_bytes = private.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+        public_bytes = private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        private_key = base64.b64encode(private_bytes).decode()
+        public_key = base64.b64encode(public_bytes).decode()
+        return private_key, public_key
 
     def encrypt_private_key(self, key: str) -> str:
         if self.fernet:
