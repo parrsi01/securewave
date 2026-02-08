@@ -97,8 +97,10 @@ class DatabaseInitializer:
 
             if not admin:
                 logger.info("Creating admin user...")
+                import secrets as _secrets
+                generated_password = _secrets.token_urlsafe(16)
                 password_hash = bcrypt.hashpw(
-                    "SecureWave2026!".encode('utf-8'),
+                    generated_password.encode('utf-8'),
                     bcrypt.gensalt()
                 ).decode('utf-8')
 
@@ -112,7 +114,7 @@ class DatabaseInitializer:
                     created_at=datetime.utcnow()
                 )
                 db.add(admin)
-                logger.info("✓ Admin user created (email: admin@securewave.app, password: SecureWave2026!)")
+                logger.info("✓ Admin user created (email: admin@securewave.app). Password must be changed on first login.")
             else:
                 logger.info("✓ Admin user already exists")
 

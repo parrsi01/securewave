@@ -1,0 +1,26 @@
+SecureWave VPN Test Environment Snapshot
+=========================================
+Date: 2026-02-08 11:34:37 UTC
+Commit: 36668d8fa1fb0d1b3b65f5e0ee8fbea1e4199ba5
+Branch: master
+Last commit msg: polish: app UX/haptics + connection diagnostics; optimizer fallback
+
+OS: Linux ubuntu-server 6.8.0-94-generic aarch64 (Ubuntu)
+CPU: aarch64, 6 cores
+RAM: 5.8Gi total, 3.8Gi available
+
+Flutter: 3.38.7 stable (2026-01-13)
+Dart: 3.10.7 stable
+Python: 3.12.3
+
+WireGuard: wireguard-tools v1.0.20210914
+  wg: /usr/bin/wg
+  wg-quick: /usr/bin/wg-quick
+
+Firewall: iptables v1.8.10 (nf_tables), nftables v1.0.9
+
+Network Interfaces:
+  lo: 127.0.0.1/8
+  enp0s1: 192.168.64.2/24 (primary)
+  docker0: 172.17.0.1/16
+  veth*: Docker container interfaces
