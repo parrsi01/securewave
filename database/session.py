@@ -181,7 +181,22 @@ def get_db() -> Generator[Session, None, None]:
 def create_tables():
     """Create all database tables"""
     from database import base
-    from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session
+    # Import all models so SQLAlchemy registers them before metadata.create_all().
+    # This is only used for non-production/dev/test environments.
+    from models import (  # noqa: F401
+        user,
+        subscription,
+        audit_log,
+        vpn_server,
+        vpn_connection,
+        vpn_demo_session,
+        wireguard_peer,
+        gdpr,
+        support_ticket,
+        usage_analytics,
+        invoice,
+        email_log,
+    )
 
     logger.info("Creating database tables...")
     try:
