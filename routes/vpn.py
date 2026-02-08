@@ -10,7 +10,7 @@ This module provides endpoints for:
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
@@ -138,6 +138,51 @@ class ServerListResponse(BaseModel):
     total: int
     recommended_server_id: Optional[str] = None
 
+class VpnProfileRequest(BaseModel):
+    """Provision an app-consumable VPN tunnel profile (no downloadable files)."""
+    device_id: Optional[int] = Field(
+        None,
+        description="Existing device ID. If omitted, the server will look up or create a device for this user.",
+    )
+    device_name: Optional[str] = Field(None, max_length=64, description="Device name for registration")
+    device_type: Optional[str] = Field(
+        None,
+        description="Client device type (windows, macos, linux, ios, android)",
+    )
+    protocol: str = Field("wireguard", description="VPN protocol (wireguard only for now)")
+    server_id: Optional[str] = Field(None, description="Preferred server ID (null = auto)")
+    force_rotate_keys: bool = Field(False, description="Rotate device keys before issuing a profile")
+
+
+class VpnProfileDns(BaseModel):
+    mode: str = "tunnel"
+    servers: List[str]
+    ad_malware_blocking: str = "on"
+    enforcement: str = "best_effort"
+
+
+class VpnProfileKillSwitch(BaseModel):
+    mode: str
+    enforcement: str
+    notes: Optional[str] = None
+
+
+class VpnProfileResponse(BaseModel):
+    device_id: int
+    device_name: Optional[str] = None
+    device_type: Optional[str] = None
+    protocol: str
+    server_id: str
+    server_location: str
+    key_version: int
+    issued_at: str
+    expires_at: str
+    wireguard_config: str
+    dns: VpnProfileDns
+    kill_switch: VpnProfileKillSwitch
+    peer_registered: bool = False
+    registration_status: Optional[str] = None
+
 
 # =============================================================================
 # Helper Functions
@@ -190,6 +235,100 @@ async def register_peer_on_server(
     except Exception as e:
         logger.error(f"Failed to register peer on server {server.server_id}: {e}")
         return False, str(e)
+
+def _profile_dns_servers() -> list[str]:
+    """Always-on secure DNS for tunnel profiles (ads/malware blocking via DNS)."""
+    raw = os.getenv("SECUREWAVE_TUNNEL_DNS", "").strip()
+    if not raw:
+        raw = "94.140.14.14,94.140.15.15"  # AdGuard DNS (ads + malware)
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    return parts or ["94.140.14.14", "94.140.15.15"]
+
+
+def _profile_keepalive_seconds() -> int:
+    raw = os.getenv("SECUREWAVE_WG_KEEPALIVE", "25").strip()
+    try:
+        value = int(raw)
+        return max(0, min(value, 600))
+    except ValueError:
+        return 25
+
+
+def _profile_mtu() -> Optional[int]:
+    raw = os.getenv("SECUREWAVE_WG_MTU", "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+        # Common safe range for WireGuard tunnels.
+        if 1200 <= value <= 1500:
+            return value
+    except ValueError:
+        return None
+    return None
+
+
+def _linux_kill_switch_snippet() -> str:
+    """
+    Best-effort Linux kill switch via wg-quick hooks.
+
+    This uses the WireGuard fwmark to allow the tunnel handshake while
+    rejecting non-tunnel traffic when the interface is down.
+    """
+    return (
+        "PostUp = sh -c 'command -v iptables >/dev/null 2>&1 && "
+        "iptables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
+        "-m addrtype ! --dst-type LOCAL -j REJECT || true'\n"
+        "PostDown = sh -c 'command -v iptables >/dev/null 2>&1 && "
+        "iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
+        "-m addrtype ! --dst-type LOCAL -j REJECT || true'\n"
+        "PostUp = sh -c 'command -v ip6tables >/dev/null 2>&1 && "
+        "ip6tables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
+        "-m addrtype ! --dst-type LOCAL -j REJECT || true' || true\n"
+        "PostDown = sh -c 'command -v ip6tables >/dev/null 2>&1 && "
+        "ip6tables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
+        "-m addrtype ! --dst-type LOCAL -j REJECT || true' || true\n"
+    )
+
+
+def _build_wireguard_profile_config(
+    peer: WireGuardPeer,
+    server: VPNServer,
+    *,
+    device_type: Optional[str],
+) -> str:
+    wg_service = WireGuardService()
+    private_key = wg_service.decrypt_private_key(peer.private_key_encrypted)
+    dns_servers = _profile_dns_servers()
+    keepalive = _profile_keepalive_seconds()
+    mtu = _profile_mtu()
+
+    interface_lines = [
+        "[Interface]",
+        f"PrivateKey = {private_key}",
+        f"Address = {peer.ipv4_address}",
+        f"DNS = {','.join(dns_servers)}",
+    ]
+    if mtu is not None:
+        interface_lines.append(f"MTU = {mtu}")
+
+    # NOTE: wg-quick supports PostUp/PostDown hooks, but mobile/embedded WireGuard
+    # parsers do not. Only include these when the client is Linux and uses wg-quick.
+    if (device_type or "").lower() == "linux":
+        interface_lines.append(_linux_kill_switch_snippet().rstrip("\n"))
+
+    peer_lines = [
+        "",
+        "[Peer]",
+        f"PublicKey = {server.wg_public_key}",
+        f"Endpoint = {server.endpoint}",
+        "AllowedIPs = 0.0.0.0/0, ::/0",
+    ]
+    if keepalive > 0:
+        peer_lines.append(f"PersistentKeepalive = {keepalive}")
+
+    prefix = "# SecureWave VPN DEMO CONFIG (testing only)\n" if (DEMO_MODE or WG_MOCK_MODE) else ""
+    return prefix + "\n".join(interface_lines + peer_lines) + "\n"
 
 
 # =============================================================================
@@ -383,18 +522,30 @@ async def allocate_config(
     if DEMO_MODE or WG_MOCK_MODE:
         config_prefix = "# SecureWave VPN DEMO CONFIG (testing only)\n"
 
-    config_content = (
-        config_prefix +
-        "[Interface]\n"
-        f"PrivateKey = {private_key}\n"
-        f"Address = {client_ip}\n"
-        f"DNS = {wg_service.dns}\n\n"
-        "[Peer]\n"
-        f"PublicKey = {server.wg_public_key}\n"
-        f"Endpoint = {server.endpoint}\n"
-        "AllowedIPs = 0.0.0.0/0, ::/0\n"
-        "PersistentKeepalive = 25\n"
-    )
+    dns_servers = _profile_dns_servers()
+    keepalive = _profile_keepalive_seconds()
+    mtu = _profile_mtu()
+
+    interface_lines = [
+        "[Interface]",
+        f"PrivateKey = {private_key}",
+        f"Address = {client_ip}",
+        f"DNS = {','.join(dns_servers)}",
+    ]
+    if mtu is not None:
+        interface_lines.append(f"MTU = {mtu}")
+
+    peer_lines = [
+        "",
+        "[Peer]",
+        f"PublicKey = {server.wg_public_key}",
+        f"Endpoint = {server.endpoint}",
+        "AllowedIPs = 0.0.0.0/0, ::/0",
+    ]
+    if keepalive > 0:
+        peer_lines.append(f"PersistentKeepalive = {keepalive}")
+
+    config_content = config_prefix + "\n".join(interface_lines + peer_lines) + "\n"
 
     # Save config file
     config_path = wg_service.config_path_for_server(current_user.id, server.server_id)
@@ -452,6 +603,186 @@ async def allocate_config(
         peer_registered=peer_registered,
         instructions=instructions,
         download_filename=filename,
+    )
+
+
+@router.post("/profile", response_model=VpnProfileResponse)
+@rate_limit("30/minute")
+async def provision_profile(
+    payload: VpnProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Provision an app-consumable VPN profile.
+
+    This endpoint is the primary control-plane API used by native apps:
+    - Registers/looks up a per-device WireGuard peer (keys encrypted at rest)
+    - Selects an allowed server by tier (or uses device/server preference)
+    - Returns a WireGuard config blob + metadata (no downloadable files)
+    """
+    await require_active_subscription(db, current_user)
+
+    protocol = (payload.protocol or "wireguard").lower().strip()
+    if protocol not in ("wireguard", "wg", "wire_guard"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only WireGuard is available right now.",
+        )
+
+    user_tier = get_user_tier(current_user, db)
+    peer_manager = get_peer_manager(db)
+
+    # Resolve device/peer
+    peer: Optional[WireGuardPeer] = None
+    if payload.device_id:
+        peer = db.query(WireGuardPeer).filter(
+            WireGuardPeer.id == payload.device_id,
+            WireGuardPeer.user_id == current_user.id,
+            WireGuardPeer.is_revoked == False,
+        ).first()
+        if not peer:
+            raise HTTPException(status_code=404, detail="Device not found or revoked")
+    else:
+        device_name = (payload.device_name or "This device").strip()[:64]
+        peer = db.query(WireGuardPeer).filter(
+            WireGuardPeer.user_id == current_user.id,
+            WireGuardPeer.device_name == device_name,
+            WireGuardPeer.is_revoked == False,
+        ).first()
+
+        if not peer:
+            from services.subscription_access import get_effective_device_limit
+            limit = get_effective_device_limit(db, current_user)
+            active_count = db.query(WireGuardPeer).filter(
+                WireGuardPeer.user_id == current_user.id,
+                WireGuardPeer.is_revoked == False,
+                WireGuardPeer.is_active == True,
+            ).count()
+            if active_count >= limit:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Device limit reached ({limit}). Upgrade your plan or revoke an existing device.",
+                )
+
+            device_type = (payload.device_type or "").lower().strip() or None
+            peer = peer_manager.create_peer(
+                user=current_user,
+                server=None,
+                device_name=device_name,
+                device_type=device_type,
+            )
+
+    # Resolve server
+    server: Optional[VPNServer] = None
+    if payload.server_id:
+        server = VPNServerService.get_server_by_id(db, payload.server_id)
+        if not server:
+            raise HTTPException(status_code=404, detail="Server not found")
+        if server.tier_restriction and user_tier == "free":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This server requires a {server.tier_restriction} subscription",
+            )
+
+    if server is None and peer.server_id:
+        server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+        if server and server.tier_restriction and user_tier == "free":
+            server = None
+
+    if server is None:
+        candidates = VPNServerService.get_active_servers(db, user_tier)
+        if not candidates:
+            raise HTTPException(status_code=503, detail="No VPN servers available. Please try again later.")
+        # Prefer healthy + high performance score.
+        candidates.sort(
+            key=lambda s: (
+                1 if s.health_status == "healthy" else 0,
+                float(s.performance_score or 0),
+                -float(s.latency_ms or 0),
+            ),
+            reverse=True,
+        )
+        server = candidates[0]
+
+    assert server is not None
+
+    # Optional key rotation
+    if payload.force_rotate_keys:
+        old_public_key = peer.public_key
+        peer = peer_manager.rotate_peer_keys(peer.id)
+        if peer.server_id:
+            old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+            if old_server:
+                try:
+                    manager = get_wireguard_server_manager()
+                    conn = server_connection_from_db(old_server)
+                    await manager.remove_peer(conn, old_public_key)
+                except Exception as e:
+                    logger.warning(f"Peer rotation cleanup deferred for device {peer.id}: {e}")
+
+    # Ensure peer is associated with selected server.
+    if peer.server_id != server.id:
+        # Best-effort remove old peer from old server.
+        if peer.server_id:
+            old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+            if old_server:
+                try:
+                    manager = get_wireguard_server_manager()
+                    conn = server_connection_from_db(old_server)
+                    await manager.remove_peer(conn, peer.public_key)
+                except Exception as e:
+                    logger.warning(f"Failed to remove peer {peer.id} from server {old_server.server_id}: {e}")
+
+        peer.server_id = server.id
+        peer.is_active = True
+        db.add(peer)
+        db.commit()
+        db.refresh(peer)
+
+    # Register peer on the data-plane server (best effort).
+    peer_registered = False
+    registration_status: Optional[str] = None
+    if AUTO_REGISTER_PEERS:
+        success, message = await register_peer_on_server(server, peer.public_key, peer.ipv4_address)
+        peer_registered = success
+        registration_status = message
+
+    wireguard_config = _build_wireguard_profile_config(peer, server, device_type=payload.device_type)
+    dns_servers = _profile_dns_servers()
+
+    device_type = (payload.device_type or peer.device_type or "").lower().strip() or None
+    kill_switch = VpnProfileKillSwitch(
+        mode="enabled",
+        enforcement="wg-quick hooks (best effort)" if device_type == "linux" else "best effort",
+        notes=(
+            "Linux uses wg-quick firewall hooks when iptables is available."
+            if device_type == "linux"
+            else "Enable Always-on VPN / 'block without VPN' where supported for maximum protection."
+        ),
+    )
+
+    issued_at = datetime.utcnow()
+    ttl_seconds = int(os.getenv("SECUREWAVE_PROFILE_TTL_SECONDS", "3600"))
+    if ttl_seconds < 60:
+        ttl_seconds = 60
+    expires_at = issued_at + timedelta(seconds=ttl_seconds)
+
+    return VpnProfileResponse(
+        device_id=peer.id,
+        device_name=peer.device_name,
+        device_type=peer.device_type,
+        protocol="wireguard",
+        server_id=server.server_id,
+        server_location=f"{server.city}, {server.country}",
+        key_version=peer.key_version or 1,
+        issued_at=issued_at.isoformat(),
+        expires_at=expires_at.isoformat(),
+        wireguard_config=wireguard_config,
+        dns=VpnProfileDns(servers=dns_servers, enforcement="config"),
+        kill_switch=kill_switch,
+        peer_registered=peer_registered,
+        registration_status=registration_status,
     )
 
 
@@ -639,17 +970,30 @@ async def connect_vpn(
     client_ip = wg_service.allocate_ip(current_user.id)
     config_path = wg_service.config_path_for_server(current_user.id, server.server_id)
     if not config_path.exists():
-        config_content = (
-            "[Interface]\n"
-            f"PrivateKey = {wg_service.decrypt_private_key(current_user.wg_private_key_encrypted)}\n"
-            f"Address = {client_ip}\n"
-            f"DNS = {wg_service.dns}\n\n"
-            "[Peer]\n"
-            f"PublicKey = {server.wg_public_key}\n"
-            f"Endpoint = {server.endpoint}\n"
-            "AllowedIPs = 0.0.0.0/0, ::/0\n"
-            "PersistentKeepalive = 25\n"
-        )
+        dns_servers = _profile_dns_servers()
+        keepalive = _profile_keepalive_seconds()
+        mtu = _profile_mtu()
+
+        interface_lines = [
+            "[Interface]",
+            f"PrivateKey = {wg_service.decrypt_private_key(current_user.wg_private_key_encrypted)}",
+            f"Address = {client_ip}",
+            f"DNS = {','.join(dns_servers)}",
+        ]
+        if mtu is not None:
+            interface_lines.append(f"MTU = {mtu}")
+
+        peer_lines = [
+            "",
+            "[Peer]",
+            f"PublicKey = {server.wg_public_key}",
+            f"Endpoint = {server.endpoint}",
+            "AllowedIPs = 0.0.0.0/0, ::/0",
+        ]
+        if keepalive > 0:
+            peer_lines.append(f"PersistentKeepalive = {keepalive}")
+
+        config_content = "\n".join(interface_lines + peer_lines) + "\n"
         config_path.write_text(config_content)
 
     if AUTO_REGISTER_PEERS and not current_user.wg_peer_registered:

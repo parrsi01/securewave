@@ -26,7 +26,7 @@ from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
 from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
-from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads
+from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user
 from services.wireguard_service import WireGuardService
 from services.email_service import EmailService
 from utils.env_validation import (
@@ -45,11 +45,16 @@ class RedactFilter(logging.Filter):
     """Redact emails and obvious secrets from log messages."""
     _email_re = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
     _token_re = re.compile(r"(Bearer\\s+)[A-Za-z0-9._\\-]+")
+    _wg_priv_re = re.compile(r"(PrivateKey\\s*=\\s*)([^\\s]+)")
+    _wg_psk_re = re.compile(r"(PresharedKey\\s*=\\s*)([^\\s]+)")
 
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
         message = self._email_re.sub("[redacted-email]", message)
         message = self._token_re.sub(r"\\1[redacted-token]", message)
+        # Defensive: never emit WireGuard secrets if a config blob is accidentally logged.
+        message = self._wg_priv_re.sub(r"\\1[redacted-wg-privatekey]", message)
+        message = self._wg_psk_re.sub(r"\\1[redacted-wg-psk]", message)
         record.msg = message
         record.args = ()
         record.request_id = request_id_ctx.get("-")
@@ -452,6 +457,8 @@ app.include_router(contact.router, prefix="/api/contact", tags=["contact"])
 app.include_router(security.router, prefix="/api/security", tags=["security"])
 app.include_router(diagnostics.router, tags=["diagnostics"])
 app.include_router(downloads.router, tags=["downloads"])
+app.include_router(tools.router, tags=["tools"])
+app.include_router(user.router, tags=["user"])
 
 
 def api_error(code: str, message: str, details=None, status_code: int = 400):
@@ -511,10 +518,13 @@ page_routes = {
     "/register": "register.html",
     "/dashboard": "dashboard.html",
     "/vpn": "vpn.html",
-    "/vpn/test": "vpn.html",
-    "/vpn/results": "vpn.html",
+    # Legacy "VPN dashboard control" routes now point to diagnostics/support.
+    "/vpn/test": "diagnostics.html",
+    "/vpn/results": "diagnostics.html",
     "/settings": "settings.html",
     "/diagnostics": "diagnostics.html",
+    "/download": "download.html",
+    "/leak-test": "leak_test.html",
     "/subscription": "subscription.html",
     "/services": "services.html",
     "/about": "about.html",
@@ -525,7 +535,7 @@ page_routes = {
 
 html_pages = [
     "index.html", "home.html", "login.html", "register.html",
-    "dashboard.html", "vpn.html", "services.html", "subscription.html",
+    "dashboard.html", "vpn.html", "services.html", "subscription.html", "download.html", "leak_test.html",
     "about.html", "contact.html", "privacy.html", "terms.html",
     "settings.html", "diagnostics.html"
 ]

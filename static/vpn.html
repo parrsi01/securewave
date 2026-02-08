@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VPN - SecureWave</title>
+  <title>Devices - SecureWave</title>
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
   <link rel="stylesheet" href="/css/web_ui_v1.css">
 </head>
@@ -14,10 +14,11 @@
     <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
     <div class="nav-links">
       <a href="/dashboard">Dashboard</a>
-      <a href="/vpn" class="active">VPN</a>
+      <a href="/vpn" class="active">Devices</a>
       <a href="/settings">Settings</a>
       <a href="/subscription">Plan</a>
       <a href="/diagnostics">Diagnostics</a>
+      <a href="/download">Download</a>
     </div>
     <div class="nav-actions">
       <a class="btn btn-ghost btn-sm" href="/dashboard">Dashboard</a>
@@ -29,7 +30,7 @@
     </button>
   </div>
   <div class="nav-mobile">
-    <a href="/dashboard">Dashboard</a><a href="/vpn">VPN</a><a href="/settings">Settings</a><a href="/subscription">Plan</a><a href="/diagnostics">Diagnostics</a>
+    <a href="/dashboard">Dashboard</a><a href="/vpn">Devices</a><a href="/settings">Settings</a><a href="/subscription">Plan</a><a href="/diagnostics">Diagnostics</a><a href="/download">Download</a>
     <div class="nav-mobile-actions">
       <button class="btn btn-secondary btn-block" type="button" data-logout>Sign out</button>
     </div>
@@ -42,63 +43,95 @@
     <!-- Section Header -->
     <section class="section">
       <div class="section-header">
-        <h1>VPN Connection</h1>
-        <p>Manage your secure tunnel and server preferences.</p>
+        <h1>Device &amp; Session Center</h1>
+        <p>VPN tunnels are controlled from the SecureWave apps, not the web. Use this center to manage devices, review status, and get support.</p>
       </div>
     </section>
 
-    <!-- VPN Layout -->
+    <!-- Center Layout -->
     <section class="section">
       <div class="dash-layout">
 
         <!-- Main Column -->
         <div class="dash-main">
-          <div class="card">
+          <!-- Metrics -->
+          <div class="metrics-grid">
+            <div class="dash-metric">
+              <span class="dash-metric-label">Subscription</span>
+              <span class="dash-metric-value" data-metric="plan">--</span>
+              <span class="dash-metric-sub">Billing status from your account</span>
+            </div>
+            <div class="dash-metric">
+              <span class="dash-metric-label">Devices</span>
+              <span class="dash-metric-value" data-metric="devices">--</span>
+              <span class="dash-metric-sub">Registered devices on your account</span>
+            </div>
+            <div class="dash-metric">
+              <span class="dash-metric-label">Data Used</span>
+              <span class="dash-metric-value" data-metric="data-used">--</span>
+              <span class="dash-metric-sub">Across all devices (best effort)</span>
+            </div>
+            <div class="dash-metric">
+              <span class="dash-metric-label">Security Posture</span>
+              <span class="dash-metric-value" data-metric="posture">Protected</span>
+              <span class="dash-metric-sub">Ad/Malware DNS always-on in the tunnel</span>
+            </div>
+          </div>
+
+          <!-- Devices -->
+          <div class="card" style="margin-top: var(--space-4)">
+            <div class="card-header">
+              <h3>Devices</h3>
+              <span class="badge badge-muted" data-device-count>--</span>
+            </div>
             <div class="card-body">
-              <div class="vpn-widget">
-
-                <!-- Status Ring -->
-                <div class="vpn-status-ring" data-vpn-state="disconnected">
-                  <svg viewBox="0 0 180 180" width="180" height="180">
-                    <circle class="ring-bg" cx="90" cy="90" r="80" fill="none" stroke-width="8"/>
-                    <circle class="ring-progress" cx="90" cy="90" r="80" fill="none" stroke-width="8"
-                      stroke-dasharray="502.65"
-                      stroke-dashoffset="502.65"
-                      stroke-linecap="round"
-                      transform="rotate(-90 90 90)"/>
-                  </svg>
-                  <div class="vpn-status-label">
-                    <svg class="vpn-status-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                    </svg>
-                    <span data-vpn-status-text>Disconnected</span>
-                  </div>
-                </div>
-
-                <!-- Connect Button -->
-                <button class="btn btn-primary vpn-connect-btn" type="button" data-vpn-toggle>Connect</button>
-
-                <!-- VPN Info Grid -->
-                <div class="vpn-info">
-                  <div class="vpn-info-item">
-                    <span class="vpn-info-label">Server</span>
-                    <span class="vpn-info-value" data-vpn-server>Auto</span>
-                  </div>
-                  <div class="vpn-info-item">
-                    <span class="vpn-info-label">Protocol</span>
-                    <span class="vpn-info-value" data-vpn-protocol>WireGuard</span>
-                  </div>
-                  <div class="vpn-info-item">
-                    <span class="vpn-info-label">IP</span>
-                    <span class="vpn-info-value" data-vpn-ip>Not connected</span>
-                  </div>
-                  <div class="vpn-info-item">
-                    <span class="vpn-info-label">Latency</span>
-                    <span class="vpn-info-value" data-vpn-latency>--</span>
-                  </div>
-                </div>
-
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Device</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Last seen</th>
+                      <th>Preferred server</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody data-devices-body>
+                    <tr><td colspan="6">Loading devices…</td></tr>
+                  </tbody>
+                </table>
               </div>
+              <p class="muted" style="margin-top: var(--space-3)">
+                SecureWave delivers tunnel profiles directly to the app after sign-in. No manual configuration files are required.
+              </p>
+            </div>
+          </div>
+
+          <!-- Security posture -->
+          <div class="card" style="margin-top: var(--space-4)">
+            <div class="card-header">
+              <h3>Security posture</h3>
+            </div>
+            <div class="card-body">
+              <ul class="check-list">
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Encryption: <strong>WireGuard</strong></span>
+                </li>
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Ad/Malware blocking: <strong>ON</strong> <span class="badge badge-muted">via DNS</span></span>
+                </li>
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>DNS leak protection: <strong>Best effort</strong></span>
+                </li>
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Kill switch: <strong>Best effort</strong> <span class="badge badge-muted">per platform</span></span>
+                </li>
+              </ul>
             </div>
           </div>
         </div>
@@ -106,73 +139,37 @@
         <!-- Sidebar -->
         <div class="dash-sidebar">
 
-          <!-- Server Selection -->
           <div class="card">
             <div class="card-header">
-              <h3>Server Selection</h3>
-            </div>
-            <div class="card-body">
-              <label class="form-label" for="server-select">Preferred Server</label>
-              <select class="form-select" id="server-select" data-server-select>
-                <option value="auto" selected>Auto - Fastest</option>
-                <option value="us-east">US East</option>
-                <option value="us-west">US West</option>
-                <option value="eu-london">EU London</option>
-                <option value="eu-frankfurt">EU Frankfurt</option>
-                <option value="asia-tokyo">Asia Tokyo</option>
-                <option value="asia-singapore">Asia Singapore</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Connection Settings -->
-          <div class="card">
-            <div class="card-header">
-              <h3>Connection Settings</h3>
+              <h3>Troubleshooting</h3>
             </div>
             <div class="card-body">
               <div class="stack">
-                <label class="toggle">
-                  <input type="checkbox" checked data-setting="kill-switch">
-                  <span class="toggle-track"></span>
-                  <span class="toggle-label">Kill Switch</span>
-                </label>
-                <label class="toggle">
-                  <input type="checkbox" data-setting="auto-connect">
-                  <span class="toggle-track"></span>
-                  <span class="toggle-label">Auto-connect</span>
-                </label>
-                <label class="toggle">
-                  <input type="checkbox" data-setting="split-tunneling">
-                  <span class="toggle-track"></span>
-                  <span class="toggle-label">Split Tunneling</span>
-                </label>
+                <a href="/download" class="btn btn-primary btn-block">Download the app</a>
+                <a href="/diagnostics" class="btn btn-secondary btn-block">Diagnostics</a>
+                <a href="/leak-test" class="btn btn-ghost btn-block">Leak test</a>
+                <a href="/contact" class="btn btn-ghost btn-block">Contact support</a>
               </div>
             </div>
           </div>
 
-          <!-- Network Status -->
           <div class="card">
             <div class="card-header">
-              <h3>Network Status</h3>
+              <h3>Backend status</h3>
             </div>
             <div class="card-body">
-              <div class="anomaly-indicator anomaly-safe">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span>Network Secure</span>
-              </div>
-              <div class="stack" style="margin-top: var(--space-3)">
+              <div class="stack">
                 <div class="vpn-info-item">
-                  <span class="vpn-info-label">Download</span>
-                  <span class="vpn-info-value" data-net-download>-- Mbps</span>
+                  <span class="vpn-info-label">API</span>
+                  <span class="vpn-info-value" data-backend-api>Checking…</span>
                 </div>
                 <div class="vpn-info-item">
-                  <span class="vpn-info-label">Upload</span>
-                  <span class="vpn-info-value" data-net-upload>-- Mbps</span>
+                  <span class="vpn-info-label">Database</span>
+                  <span class="vpn-info-value" data-backend-db>Checking…</span>
                 </div>
                 <div class="vpn-info-item">
-                  <span class="vpn-info-label">Packets Lost</span>
-                  <span class="vpn-info-value" data-net-loss>0%</span>
+                  <span class="vpn-info-label">VPN fleet</span>
+                  <span class="vpn-info-value" data-backend-fleet>Checking…</span>
                 </div>
               </div>
             </div>
@@ -193,9 +190,9 @@
         <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
         <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
       </div>
-      <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/vpn">VPN Dashboard</a></div>
+      <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/download">Downloads</a></div>
       <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
-      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/settings">Settings</a><a href="/dashboard">Dashboard</a></div>
+      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/dashboard">Dashboard</a></div>
     </div>
     <div class="footer-bottom">
       <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
@@ -205,5 +202,6 @@
 </footer>
 
 <script src="/js/site.js"></script>
+<script src="/js/device_center.js"></script>
 </body>
 </html>

@@ -103,20 +103,44 @@ def _format_size(size_bytes: int) -> str:
 # ---------------------------------------------------------------------------
 
 DOWNLOAD_MANIFEST = [
+    # Windows
     {
         "platform": "windows",
         "architecture": "x64",
-        "filename": "securewave-windows-x64.zip",
-        "url": "/downloads/securewave-windows-x64.zip",
-        "notes": "Windows 10 and later. Extract and run SecureWave.exe.",
+        "filename": "securewave-windows-x64-setup.exe",
+        "url": "/downloads/securewave-windows-x64-setup.exe",
+        "notes": "Windows 10+. NSIS installer (may be unsigned in early builds).",
+    },
+    # Linux
+    {
+        "platform": "linux",
+        "architecture": "x64",
+        "filename": "securewave-linux-x64.deb",
+        "url": "/downloads/securewave-linux-x64.deb",
+        "notes": "Debian/Ubuntu package (coming soon).",
+    },
+    {
+        "platform": "linux",
+        "architecture": "x64",
+        "filename": "securewave-linux-x64.AppImage",
+        "url": "/downloads/securewave-linux-x64.AppImage",
+        "notes": "Portable AppImage build (coming soon).",
     },
     {
         "platform": "linux",
         "architecture": "x64",
         "filename": "securewave-linux-x64.tar.gz",
         "url": "/downloads/securewave-linux-x64.tar.gz",
-        "notes": "Ubuntu, Fedora, Debian, Arch. Includes install-linux.sh script.",
+        "notes": "Portable tarball (x64).",
     },
+    {
+        "platform": "linux",
+        "architecture": "arm64",
+        "filename": "securewave-app-linux-arm64.zip",
+        "url": "/downloads/securewave-app-linux-arm64.zip",
+        "notes": "Portable zip (ARM64).",
+    },
+    # Apple
     {
         "platform": "macos",
         "architecture": "arm64",
@@ -125,18 +149,19 @@ DOWNLOAD_MANIFEST = [
         "notes": "Coming soon. Requires Apple Developer signing and notarization.",
     },
     {
-        "platform": "android",
-        "architecture": "universal",
-        "filename": "securewave-android.apk",
-        "url": "/downloads/securewave-android.apk",
-        "notes": "Android 10 and later. Sideload APK or install from Google Play.",
-    },
-    {
         "platform": "ios",
         "architecture": "arm64",
         "filename": "",
         "url": "#",
-        "notes": "Coming soon. Will be available on the Apple App Store.",
+        "notes": "Coming soon. Will be available on the Apple App Store / TestFlight.",
+    },
+    # Android
+    {
+        "platform": "android",
+        "architecture": "universal",
+        "filename": "securewave-android.apk",
+        "url": "/downloads/securewave-android.apk",
+        "notes": "Android 10+. APK link appears here when published.",
     },
 ]
 
