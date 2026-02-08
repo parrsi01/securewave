@@ -18,6 +18,7 @@
         <a href="/home" class="active">Features</a>
         <a href="/services">Services</a>
         <a href="/subscription">Pricing</a>
+        <a href="/download">Download</a>
         <a href="/about">About</a>
         <a href="/contact">Contact</a>
       </div>
@@ -34,6 +35,7 @@
       <a href="/home" class="active">Features</a>
       <a href="/services">Services</a>
       <a href="/subscription">Pricing</a>
+      <a href="/download">Download</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
       <div class="nav-mobile-actions">
@@ -94,7 +96,7 @@
         <div class="section-header centered">
           <span class="section-eyebrow">Downloads</span>
           <h2>Available on All Platforms</h2>
-          <p>Native applications built for performance on every major operating system. One subscription covers up to 6 devices.</p>
+          <p>Native applications built for performance on every major operating system. SecureWave provisions VPN profiles automatically after sign-in, with no manual configuration files.</p>
         </div>
         <div class="grid grid-4">
           <div class="card card-elevated text-center reveal">
@@ -102,7 +104,7 @@
             <h4>Windows</h4>
             <p class="text-muted">Windows 10 and later. Full WireGuard integration with system tray controls.</p>
             <div class="mt-4">
-              <a class="btn btn-primary btn-block" href="/downloads/securewave-windows-x64.zip">Download for Windows</a>
+              <a class="btn btn-primary btn-block" href="/download">Get Windows build</a>
             </div>
           </div>
           <div class="card card-elevated text-center reveal">
@@ -110,7 +112,7 @@
             <h4>macOS</h4>
             <p class="text-muted">macOS 12 Monterey and later. Native menu bar app with Network Extension support.</p>
             <div class="mt-4">
-              <a class="btn btn-secondary btn-block disabled" href="#" title="Coming soon - requires Apple Developer signing">macOS Coming Soon</a>
+              <a class="btn btn-secondary btn-block" href="/download">View macOS status</a>
             </div>
           </div>
           <div class="card card-elevated text-center reveal">
@@ -118,7 +120,7 @@
             <h4>Linux</h4>
             <p class="text-muted">Ubuntu, Fedora, Debian, and Arch. CLI and GUI with wg-quick integration.</p>
             <div class="mt-4">
-              <a class="btn btn-primary btn-block" href="/downloads/securewave-linux-x64.tar.gz">Download for Linux</a>
+              <a class="btn btn-primary btn-block" href="/download">Get Linux build</a>
             </div>
           </div>
           <div class="card card-elevated text-center reveal">
@@ -126,8 +128,7 @@
             <h4>Mobile</h4>
             <p class="text-muted">iOS 15+ and Android 10+. Always-on VPN with battery-optimized connections.</p>
             <div class="mt-4">
-              <a class="btn btn-primary btn-block" href="/downloads/securewave-android.apk">Android APK</a>
-              <a class="btn btn-secondary btn-block disabled mt-2" href="#" title="Coming soon - requires Apple Developer certificate">iOS App Store (Soon)</a>
+              <a class="btn btn-primary btn-block" href="/download">Get mobile builds</a>
             </div>
           </div>
         </div>
@@ -268,7 +269,7 @@
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
             </button>
             <div class="accordion-content">
-              <div class="accordion-body">Yes. SecureWave includes obfuscation technology that disguises VPN traffic as regular HTTPS traffic. This allows the connection to work in regions where VPN protocols are actively blocked. Our stealth servers are specifically optimized for restricted network environments.</div>
+              <div class="accordion-body">SecureWave focuses on legal, standards-based reliability: WireGuard keepalive, MTU tuning, and resilient reconnect behavior. Some networks may still block VPN protocols entirely, but these best-effort options can improve connectivity without impersonating other services or using domain fronting.</div>
             </div>
           </div>
           <div class="accordion-item">
@@ -277,7 +278,7 @@
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
             </button>
             <div class="accordion-content">
-              <div class="accordion-body">SecureWave includes an automatic kill switch on all platforms. If the VPN connection drops for any reason, the kill switch immediately blocks all internet traffic from your device, preventing any data from leaking outside the encrypted tunnel. The connection is restored automatically once the VPN reconnects.</div>
+              <div class="accordion-body">SecureWave provides a best-effort kill switch and reconnect behavior. On supported platforms, traffic is blocked if the tunnel drops unexpectedly to help prevent leaks, and the app will attempt to reconnect on network changes. For maximum protection on mobile, enable Always-on VPN and “block without VPN” in your OS settings.</div>
             </div>
           </div>
         </div>
@@ -310,7 +311,7 @@
           <a href="/home">Features</a>
           <a href="/subscription">Pricing</a>
           <a href="/services">Services</a>
-          <a href="/vpn">VPN Dashboard</a>
+          <a href="/download">Downloads</a>
         </div>
         <div class="footer-col">
           <h5>Company</h5>
@@ -322,8 +323,8 @@
         <div class="footer-col">
           <h5>Support</h5>
           <a href="/diagnostics">Diagnostics</a>
-          <a href="/settings">Settings</a>
-          <a href="/dashboard">Dashboard</a>
+          <a href="/leak-test">Leak test</a>
+          <a href="/contact">Contact</a>
         </div>
       </div>
       <div class="footer-bottom">

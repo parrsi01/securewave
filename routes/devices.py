@@ -27,6 +27,7 @@ from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from services.jwt_service import get_current_user
 from services.vpn_peer_manager import get_peer_manager
+from services.vpn_server_service import VPNServerService
 from services.subscription_access import require_active_subscription
 from services.wireguard_server_manager import (
     get_wireguard_server_manager,
@@ -91,6 +92,8 @@ class DeviceResponse(BaseModel):
     name: Optional[str]
     device_type: Optional[str]
     ip_address: str
+    server_id: Optional[str] = None
+    server_location: Optional[str] = None
     is_active: bool
     is_revoked: bool
     created_at: str
@@ -122,6 +125,11 @@ class DeviceConfigResponse(BaseModel):
     filename: str
 
 
+class DeviceServerPreference(BaseModel):
+    """Update a device's preferred server (null = auto)."""
+    server_id: Optional[str] = Field(None, description="Preferred server ID or null for auto-select")
+
+
 class DeviceUsageResponse(BaseModel):
     """Device usage statistics"""
     device_id: int
@@ -132,6 +140,34 @@ class DeviceUsageResponse(BaseModel):
     last_handshake: Optional[str]
     days_since_rotation: int
     connection_count: int
+
+
+# =============================================================================
+# Helpers
+# =============================================================================
+
+def _device_response(peer: WireGuardPeer) -> DeviceResponse:
+    server_id = peer.server.server_id if getattr(peer, "server", None) else None
+    server_location = None
+    if getattr(peer, "server", None):
+        server_location = f"{peer.server.city}, {peer.server.country}"
+
+    return DeviceResponse(
+        id=peer.id,
+        name=peer.device_name,
+        device_type=peer.device_type,
+        ip_address=peer.ipv4_address,
+        server_id=server_id,
+        server_location=server_location,
+        is_active=peer.is_active,
+        is_revoked=peer.is_revoked,
+        created_at=peer.created_at.isoformat() if peer.created_at else "",
+        last_handshake=peer.last_handshake_at.isoformat() if peer.last_handshake_at else None,
+        data_sent_mb=round(peer.total_data_sent / 1024 / 1024, 2) if peer.total_data_sent else 0,
+        data_received_mb=round(peer.total_data_received / 1024 / 1024, 2) if peer.total_data_received else 0,
+        key_version=peer.key_version or 1,
+        needs_rotation=peer.needs_rotation if hasattr(peer, 'needs_rotation') else False,
+    )
 
 
 # =============================================================================
@@ -154,23 +190,7 @@ async def list_devices(
     device_limit = get_device_limit(current_user, db)
     active_count = len([p for p in peers if p.is_active and not p.is_revoked])
 
-    devices = [
-        DeviceResponse(
-            id=peer.id,
-            name=peer.device_name,
-            device_type=peer.device_type,
-            ip_address=peer.ipv4_address,
-            is_active=peer.is_active,
-            is_revoked=peer.is_revoked,
-            created_at=peer.created_at.isoformat() if peer.created_at else "",
-            last_handshake=peer.last_handshake_at.isoformat() if peer.last_handshake_at else None,
-            data_sent_mb=round(peer.total_data_sent / 1024 / 1024, 2) if peer.total_data_sent else 0,
-            data_received_mb=round(peer.total_data_received / 1024 / 1024, 2) if peer.total_data_received else 0,
-            key_version=peer.key_version or 1,
-            needs_rotation=peer.needs_rotation if hasattr(peer, 'needs_rotation') else False
-        )
-        for peer in peers
-    ]
+    devices = [_device_response(peer) for peer in peers]
 
     return DeviceListResponse(
         devices=devices,
@@ -250,20 +270,7 @@ async def add_device(
             except Exception as e:
                 logger.warning(f"Peer registration deferred for device {peer.id}: {e}")
 
-        return DeviceResponse(
-            id=peer.id,
-            name=peer.device_name,
-            device_type=peer.device_type,
-            ip_address=peer.ipv4_address,
-            is_active=peer.is_active,
-            is_revoked=peer.is_revoked,
-            created_at=peer.created_at.isoformat() if peer.created_at else "",
-            last_handshake=None,
-            data_sent_mb=0,
-            data_received_mb=0,
-            key_version=peer.key_version or 1,
-            needs_rotation=False
-        )
+        return _device_response(peer)
 
     except Exception as e:
         logger.error(f"Failed to create device: {e}")
@@ -291,20 +298,7 @@ async def get_device(
             detail="Device not found"
         )
 
-    return DeviceResponse(
-        id=peer.id,
-        name=peer.device_name,
-        device_type=peer.device_type,
-        ip_address=peer.ipv4_address,
-        is_active=peer.is_active,
-        is_revoked=peer.is_revoked,
-        created_at=peer.created_at.isoformat() if peer.created_at else "",
-        last_handshake=peer.last_handshake_at.isoformat() if peer.last_handshake_at else None,
-        data_sent_mb=round(peer.total_data_sent / 1024 / 1024, 2) if peer.total_data_sent else 0,
-        data_received_mb=round(peer.total_data_received / 1024 / 1024, 2) if peer.total_data_received else 0,
-        key_version=peer.key_version or 1,
-        needs_rotation=peer.needs_rotation if hasattr(peer, 'needs_rotation') else False
-    )
+    return _device_response(peer)
 
 
 @router.patch("/{device_id}", response_model=DeviceResponse)
@@ -343,20 +337,67 @@ async def rename_device(
     db.commit()
     db.refresh(peer)
 
-    return DeviceResponse(
-        id=peer.id,
-        name=peer.device_name,
-        device_type=peer.device_type,
-        ip_address=peer.ipv4_address,
-        is_active=peer.is_active,
-        is_revoked=peer.is_revoked,
-        created_at=peer.created_at.isoformat() if peer.created_at else "",
-        last_handshake=peer.last_handshake_at.isoformat() if peer.last_handshake_at else None,
-        data_sent_mb=round(peer.total_data_sent / 1024 / 1024, 2) if peer.total_data_sent else 0,
-        data_received_mb=round(peer.total_data_received / 1024 / 1024, 2) if peer.total_data_received else 0,
-        key_version=peer.key_version or 1,
-        needs_rotation=peer.needs_rotation if hasattr(peer, 'needs_rotation') else False
-    )
+    return _device_response(peer)
+
+
+@router.put("/{device_id}/server", response_model=DeviceResponse)
+async def set_device_server_preference(
+    device_id: int,
+    request: DeviceServerPreference,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Set a device's preferred server without exposing downloadable configs.
+
+    - ``server_id``: WireGuard server identifier (e.g. "us-east-1-001")
+    - null: auto-select the best server
+    """
+    await require_active_subscription(db, current_user)
+
+    peer = db.query(WireGuardPeer).filter(
+        WireGuardPeer.id == device_id,
+        WireGuardPeer.user_id == current_user.id,
+        WireGuardPeer.is_revoked == False,
+    ).first()
+    if not peer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found or revoked")
+
+    server = None
+    if request.server_id:
+        server = db.query(VPNServer).filter(
+            VPNServer.server_id == request.server_id,
+            VPNServer.status == "active",
+        ).first()
+        if not server:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
+
+        # Enforce tier restriction for free users.
+        from services.subscription_access import is_free_tier
+        if server.tier_restriction and is_free_tier(db, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This server requires a {server.tier_restriction} subscription",
+            )
+
+    # Best-effort cleanup on old server to avoid stale peers.
+    if peer.server_id and (server is None or peer.server_id != server.id):
+        old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+        if old_server:
+            try:
+                manager = get_wireguard_server_manager()
+                conn = server_connection_from_db(old_server)
+                await manager.remove_peer(conn, peer.public_key)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to remove peer {peer.id} from server {old_server.server_id}: {e}"
+                )
+
+    peer.server_id = server.id if server else None
+    db.add(peer)
+    db.commit()
+    db.refresh(peer)
+    return _device_response(peer)
 
 
 @router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -622,7 +663,7 @@ async def rotate_device_keys(
     Rotate WireGuard keys for a device.
 
     Generates new keypair and invalidates old configuration.
-    You will need to download a new config after rotation.
+    The SecureWave app will fetch a fresh tunnel profile automatically on the next connect.
     """
     await require_active_subscription(db, current_user)
     peer = db.query(WireGuardPeer).filter(
@@ -654,20 +695,7 @@ async def rotate_device_keys(
                 except Exception as e:
                     logger.warning(f"Peer rotation sync deferred for device {device_id}: {e}")
 
-        return DeviceResponse(
-            id=updated_peer.id,
-            name=updated_peer.device_name,
-            device_type=updated_peer.device_type,
-            ip_address=updated_peer.ipv4_address,
-            is_active=updated_peer.is_active,
-            is_revoked=updated_peer.is_revoked,
-            created_at=updated_peer.created_at.isoformat() if updated_peer.created_at else "",
-            last_handshake=None,  # Keys rotated, no handshake yet
-            data_sent_mb=0,
-            data_received_mb=0,
-            key_version=updated_peer.key_version or 1,
-            needs_rotation=False
-        )
+        return _device_response(updated_peer)
 
     except Exception as e:
         logger.error(f"Failed to rotate keys: {e}")

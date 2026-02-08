@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In - SecureWave</title>
-  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>Download - SecureWave</title>
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
   <link rel="stylesheet" href="/css/web_ui_v1.css">
 </head>
 <body>
@@ -19,7 +16,7 @@
       <a href="/home">Features</a>
       <a href="/services">Services</a>
       <a href="/subscription">Pricing</a>
-      <a href="/download">Download</a>
+      <a href="/download" class="active">Download</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
     </div>
@@ -33,7 +30,12 @@
     </button>
   </div>
   <div class="nav-mobile">
-    <a href="/home">Features</a><a href="/services">Services</a><a href="/subscription">Pricing</a><a href="/download">Download</a><a href="/about">About</a><a href="/contact">Contact</a>
+    <a href="/home">Features</a>
+    <a href="/services">Services</a>
+    <a href="/subscription">Pricing</a>
+    <a href="/download" class="active">Download</a>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
     <div class="nav-mobile-actions">
       <a class="btn btn-ghost btn-block" href="/login">Sign in</a>
       <a class="btn btn-primary btn-block" href="/register">Get Started</a>
@@ -41,40 +43,48 @@
   </div>
 </nav>
 
-<main class="auth-page">
-  <div class="auth-card">
-    <div class="auth-header">
-      <img src="/img/logo.svg" alt="SecureWave" width="48" height="48">
-      <h1>Welcome back</h1>
-      <p>Sign in to your account</p>
-    </div>
+<main class="main">
+  <div class="container">
 
-    <form data-auth="login">
-      <div class="form-message" data-form-message></div>
+    <section class="section">
+      <div class="section-header">
+        <h1>Download SecureWave</h1>
+        <p>Pick a platform and install the app. SecureWave provisions VPN tunnel profiles automatically after sign-in. No manuals. No config files.</p>
+      </div>
+    </section>
 
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input id="email" type="email" class="form-input" placeholder="you@example.com" required autocomplete="email">
-        <span class="field-hint"></span>
+    <section class="section">
+      <div class="card" id="recommendation-card" style="display:none">
+        <div class="card-header">
+          <h3>Recommended for this device</h3>
+          <span class="badge badge-primary" data-reco-platform>--</span>
+        </div>
+        <div class="card-body">
+          <p class="muted" data-reco-notes></p>
+          <div class="stack" style="margin-top: var(--space-3)">
+            <a class="btn btn-primary" data-reco-link href="#" rel="nofollow">Download</a>
+            <a class="btn btn-ghost" href="/vpn">Device &amp; Session Center</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>All platforms</h2>
+        <p>Some builds may show as coming soon if a signed installer is not available yet.</p>
       </div>
 
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input id="password" type="password" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
-        <span class="field-hint"></span>
+      <div class="grid grid-3" data-download-grid>
+        <div class="card card-elevated">
+          <div class="card-body">
+            <h4>Loading downloads…</h4>
+            <p class="muted">Fetching the latest build list from the backend.</p>
+          </div>
+        </div>
       </div>
+    </section>
 
-      <div class="form-check">
-        <input id="remember" type="checkbox">
-        <label for="remember">Remember me</label>
-      </div>
-
-      <button class="btn btn-primary btn-block" type="submit">Sign in</button>
-    </form>
-
-    <div class="auth-footer">
-      <p>Don't have an account? <a href="/register">Create one</a></p>
-    </div>
   </div>
 </main>
 
@@ -87,7 +97,7 @@
       </div>
       <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/download">Downloads</a></div>
       <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
-      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/contact">Contact</a></div>
+      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/vpn">Device Center</a></div>
     </div>
     <div class="footer-bottom">
       <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
@@ -96,7 +106,8 @@
   </div>
 </footer>
 
-<script src="/js/auth.js"></script>
 <script src="/js/site.js"></script>
+<script src="/js/downloads.js"></script>
 </body>
 </html>
+
