@@ -16,13 +16,14 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 });
 
 class ApiClient {
-  ApiClient(this._config, {AuthSession? session}) {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: _config.apiBaseUrl,
-        headers: {'Content-Type': 'application/json'},
-      ),
-    );
+  ApiClient(this._config, {AuthSession? session, Dio? dio}) {
+    _dio = dio ??
+        Dio(
+          BaseOptions(
+            baseUrl: _config.apiBaseUrl,
+            headers: {'Content-Type': 'application/json'},
+          ),
+        );
     if (session != null) {
       _dio.interceptors.add(
         InterceptorsWrapper(
@@ -75,12 +76,17 @@ class ApiClient {
       _serversFetchedAt = DateTime.now();
       return servers;
     } catch (error, stackTrace) {
-      AppLogger.warning('Server list unavailable, using mock regions.');
+      if (_config.useMockApi) {
+        _logMockApi();
+        AppLogger.warning('Server list unavailable; using mock regions (mock API mode).');
+        AppLogger.error('Server list error', error: error, stackTrace: stackTrace);
+        final data = _mockServers();
+        _cachedServers = data;
+        _serversFetchedAt = DateTime.now();
+        return data;
+      }
       AppLogger.error('Server list error', error: error, stackTrace: stackTrace);
-      final data = _mockServers();
-      _cachedServers = data;
-      _serversFetchedAt = DateTime.now();
-      return data;
+      rethrow;
     }
   }
 
@@ -106,12 +112,17 @@ class ApiClient {
       _planFetchedAt = DateTime.now();
       return plan;
     } catch (error, stackTrace) {
-      AppLogger.warning('Plan lookup failed, using mock plan.');
+      if (_config.useMockApi) {
+        _logMockApi();
+        AppLogger.warning('Plan lookup failed; using mock plan (mock API mode).');
+        AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
+        final plan = _mockPlan();
+        _cachedPlan = plan;
+        _planFetchedAt = DateTime.now();
+        return plan;
+      }
       AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
-      final plan = _mockPlan();
-      _cachedPlan = plan;
-      _planFetchedAt = DateTime.now();
-      return plan;
+      rethrow;
     }
   }
 
@@ -131,9 +142,8 @@ class ApiClient {
         refreshToken: data['refresh_token']?.toString(),
       );
     } catch (error, stackTrace) {
-      AppLogger.warning('Login failed, returning mock token.');
       AppLogger.error('Login error', error: error, stackTrace: stackTrace);
-      return _mockTokens(email);
+      rethrow;
     }
   }
 
@@ -155,9 +165,8 @@ class ApiClient {
         refreshToken: data['refresh_token']?.toString(),
       );
     } catch (error, stackTrace) {
-      AppLogger.warning('Registration failed, returning mock token.');
       AppLogger.error('Registration error', error: error, stackTrace: stackTrace);
-      return _mockTokens(email);
+      rethrow;
     }
   }
 
