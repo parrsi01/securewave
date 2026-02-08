@@ -83,7 +83,7 @@ void main() {
 
     await SecureStorage().saveString(
       SecureStorage.vpnProfileConfigKey,
-      'PostUp = sh -c \"iptables -I OUTPUT -j REJECT\"\\n',
+      'PostUp = sh -c "iptables -I OUTPUT -j REJECT"\n',
     );
     await notifier.handleConnectivityChange(hasNetwork: false);
     expect(container.read(vpnStateProvider).status, VpnStatus.error);
