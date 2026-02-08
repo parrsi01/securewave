@@ -278,16 +278,16 @@ def _linux_kill_switch_snippet() -> str:
     return (
         "PostUp = sh -c 'command -v iptables >/dev/null 2>&1 && "
         "iptables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT || true'\n"
+        "-m addrtype ! --dst-type LOCAL -j REJECT'\n"
         "PostDown = sh -c 'command -v iptables >/dev/null 2>&1 && "
         "iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
         "-m addrtype ! --dst-type LOCAL -j REJECT || true'\n"
         "PostUp = sh -c 'command -v ip6tables >/dev/null 2>&1 && "
         "ip6tables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT || true' || true\n"
+        "-m addrtype ! --dst-type LOCAL -j REJECT'\n"
         "PostDown = sh -c 'command -v ip6tables >/dev/null 2>&1 && "
         "ip6tables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT || true' || true\n"
+        "-m addrtype ! --dst-type LOCAL -j REJECT || true'\n"
     )
 
 
