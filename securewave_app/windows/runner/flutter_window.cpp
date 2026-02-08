@@ -6,12 +6,21 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <thread>
 #include <shlobj.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
 namespace {
 const wchar_t* kTunnelName = L"SecureWave";
+constexpr UINT kVpnOpCompleteMessage = WM_APP + 42;
+
+struct VpnOpPending {
+  std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result;
+  bool ok = false;
+  std::string error_code;
+  std::string error_message;
+};
 
 std::wstring GetEnvVar(const wchar_t* name) {
   wchar_t buffer[32767];
@@ -195,14 +204,29 @@ bool FlutterWindow::OnCreate() {
             result->Error("vpn_config_write_failed", error, nullptr);
             return;
           }
-          if (!RunWireGuardCommand(
-                  *wireguard_path,
-                  L"/installtunnelservice \"" + config_path + L"\"",
-                  &error)) {
-            result->Error("vpn_connect_failed", error, nullptr);
-            return;
-          }
-          result->Success(flutter::EncodableValue());
+          auto* pending = new VpnOpPending();
+          pending->result = std::move(result);
+          std::thread([this, pending, exe = *wireguard_path, cfg = config_path]() {
+            std::string err;
+            pending->ok = RunWireGuardCommand(
+                exe, L"/installtunnelservice \"" + cfg + L"\"", &err);
+            if (!pending->ok) {
+              pending->error_code = "vpn_connect_failed";
+              pending->error_message = err;
+            }
+            HWND hwnd = GetHandle();
+            if (hwnd != nullptr) {
+              PostMessage(hwnd, kVpnOpCompleteMessage, 0,
+                          reinterpret_cast<LPARAM>(pending));
+            } else {
+              if (pending->ok) {
+                pending->result->Success(flutter::EncodableValue());
+              } else {
+                pending->result->Error(pending->error_code, pending->error_message, nullptr);
+              }
+              delete pending;
+            }
+          }).detach();
         } else if (call.method_name() == "disconnect") {
           const auto wireguard_path = GetWireGuardPath();
           if (!wireguard_path.has_value()) {
@@ -214,15 +238,29 @@ bool FlutterWindow::OnCreate() {
                           }));
             return;
           }
-          std::string error;
-          if (!RunWireGuardCommand(
-                  *wireguard_path,
-                  std::wstring(L"/uninstalltunnelservice ") + kTunnelName,
-                  &error)) {
-            result->Error("vpn_disconnect_failed", error, nullptr);
-            return;
-          }
-          result->Success(flutter::EncodableValue());
+          auto* pending = new VpnOpPending();
+          pending->result = std::move(result);
+          std::thread([this, pending, exe = *wireguard_path]() {
+            std::string err;
+            pending->ok = RunWireGuardCommand(
+                exe, std::wstring(L"/uninstalltunnelservice ") + kTunnelName, &err);
+            if (!pending->ok) {
+              pending->error_code = "vpn_disconnect_failed";
+              pending->error_message = err;
+            }
+            HWND hwnd = GetHandle();
+            if (hwnd != nullptr) {
+              PostMessage(hwnd, kVpnOpCompleteMessage, 0,
+                          reinterpret_cast<LPARAM>(pending));
+            } else {
+              if (pending->ok) {
+                pending->result->Success(flutter::EncodableValue());
+              } else {
+                pending->result->Error(pending->error_code, pending->error_message, nullptr);
+              }
+              delete pending;
+            }
+          }).detach();
         } else {
           result->NotImplemented();
         }
@@ -252,6 +290,18 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == kVpnOpCompleteMessage) {
+    auto* pending = reinterpret_cast<VpnOpPending*>(lparam);
+    if (pending != nullptr) {
+      if (pending->ok) {
+        pending->result->Success(flutter::EncodableValue());
+      } else {
+        pending->result->Error(pending->error_code, pending->error_message, nullptr);
+      }
+      delete pending;
+    }
+    return 0;
+  }
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
