@@ -124,7 +124,11 @@ class VPNServerService:
         preferred_location: Optional[str] = None,
     ) -> Optional[VPNServer]:
         """
-        Use optimizer to select best server for user
+        Use optimizer to select best server for user.
+
+        IMPORTANT: The optimizer is a *suggestion engine* only. Selection must
+        never hard-block VPN connectivity. If the optimizer returns an invalid
+        or unknown server, we fall back deterministically to an available server.
 
         Args:
             db: Database session
@@ -150,6 +154,10 @@ class VPNServerService:
                 logger.warning(f"No available servers for user {user.id} (tier: {user_tier})")
                 return None
 
+            # Deterministic fallback so optimizer failures never block connections.
+            fallback_server = available_servers[0]
+            allowed_server_ids = {s.server_id for s in available_servers}
+
             # Use optimizer to select best server
             result = optimizer.select_optimal_server(
                 user_id=user.id,
@@ -158,7 +166,17 @@ class VPNServerService:
             )
 
             # Get the selected server from database
-            server = VPNServerService.get_server_by_id(db, result["server_id"])
+            suggested_id = result.get("server_id") if isinstance(result, dict) else None
+            if not suggested_id or suggested_id not in allowed_server_ids:
+                logger.warning(
+                    "Optimizer suggested invalid server_id=%s for user %s; falling back to %s",
+                    suggested_id,
+                    user.id,
+                    fallback_server.server_id,
+                )
+                return fallback_server
+
+            server = VPNServerService.get_server_by_id(db, suggested_id)
 
             if server:
                 logger.info(
@@ -166,8 +184,9 @@ class VPNServerService:
                 )
             else:
                 logger.warning(
-                    f"Optimizer selected non-existent server {result['server_id']} for user {user.id}"
+                    f"Optimizer selected non-existent server {suggested_id} for user {user.id}"
                 )
+                return fallback_server
 
             return server
 

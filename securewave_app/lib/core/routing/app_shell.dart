@@ -19,7 +19,8 @@ class AppShell extends ConsumerWidget {
     _NavDestination('Home', Icons.shield_outlined, Icons.shield, '/vpn'),
     _NavDestination('Servers', Icons.public_outlined, Icons.public, '/servers'),
     _NavDestination('Account', Icons.person_outline, Icons.person, '/account'),
-    _NavDestination('Settings', Icons.settings_outlined, Icons.settings, '/settings'),
+    _NavDestination(
+        'Settings', Icons.settings_outlined, Icons.settings, '/settings'),
   ];
 
   int _currentIndex(BuildContext context) {
@@ -34,10 +35,14 @@ class AppShell extends ConsumerWidget {
     final vpnState = ref.watch(vpnStateProvider);
     final config = ref.watch(appConfigProvider);
 
+    final backendUnreachable = vpnState.status == VpnStatus.error &&
+        vpnState.errorKind == VpnErrorKind.backendUnreachable;
+
     final statusColor = switch (vpnState.status) {
       VpnStatus.connected => AppUIv1.success,
       VpnStatus.connecting => AppUIv1.accentSun,
-      VpnStatus.error => AppUIv1.warning,
+      VpnStatus.disconnecting => AppUIv1.accentSun,
+      VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
       VpnStatus.disconnected => AppUIv1.inkSoft,
     };
 
@@ -66,52 +71,59 @@ class AppShell extends ConsumerWidget {
         }
 
         // Mobile: bottom nav + drawer
+        final location = GoRouterState.of(context).matchedLocation;
+        final isNestedRoute =
+            location.startsWith('/settings/') && location != '/settings';
         return Scaffold(
-          appBar: AppBar(
-            title: AnimatedSwitcher(
-              duration: AppUIv1.durationFast,
-              child: Row(
-                key: ValueKey(vpnState.status),
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedContainer(
-                    duration: AppUIv1.durationNormal,
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      shape: BoxShape.circle,
+          appBar: isNestedRoute
+              ? null
+              : AppBar(
+                  title: AnimatedSwitcher(
+                    duration: AppUIv1.durationFast,
+                    child: Row(
+                      key: ValueKey(vpnState.status),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedContainer(
+                          duration: AppUIv1.durationNormal,
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: AppUIv1.space2),
+                        Text(
+                          'SecureWave',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: AppUIv1.space2),
-                  Text(
-                    'SecureWave',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.logout, size: 20),
-                tooltip: 'Sign out',
-                onPressed: () => _logout(context, ref),
-              ),
-              const SizedBox(width: AppUIv1.space1),
-            ],
-          ),
-          drawer: _AppDrawer(
-            config: config,
-            vpnStatus: vpnState.status,
-            statusColor: statusColor,
-            onLogout: () => _logout(context, ref),
-            onNavigate: (route) {
-              Navigator.of(context).maybePop();
-              context.go(route);
-            },
-            onExternalLink: (url) =>
-                ref.read(externalLinksProvider).openUrl(url),
-          ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.logout, size: 20),
+                      tooltip: 'Sign out',
+                      onPressed: () => _logout(context, ref),
+                    ),
+                    const SizedBox(width: AppUIv1.space1),
+                  ],
+                ),
+          drawer: isNestedRoute
+              ? null
+              : _AppDrawer(
+                  config: config,
+                  vpnStatus: vpnState.status,
+                  statusColor: statusColor,
+                  onLogout: () => _logout(context, ref),
+                  onNavigate: (route) {
+                    Navigator.of(context).maybePop();
+                    context.go(route);
+                  },
+                  onExternalLink: (url) =>
+                      ref.read(externalLinksProvider).openUrl(url),
+                ),
           body: child,
           bottomNavigationBar: NavigationBar(
             selectedIndex: currentIndex,
@@ -230,6 +242,7 @@ class _AppDrawer extends StatelessWidget {
     final statusLabel = switch (vpnStatus) {
       VpnStatus.connected => 'Connected',
       VpnStatus.connecting => 'Connecting',
+      VpnStatus.disconnecting => 'Disconnecting',
       VpnStatus.error => 'Needs attention',
       VpnStatus.disconnected => 'Disconnected',
     };
@@ -290,10 +303,14 @@ class _AppDrawer extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: AppUIv1.space2),
                 children: [
-                  _drawerTile(context, Icons.shield, 'VPN Home', () => onNavigate('/vpn')),
-                  _drawerTile(context, Icons.public, 'Servers', () => onNavigate('/servers')),
-                  _drawerTile(context, Icons.person, 'Account', () => onNavigate('/account')),
-                  _drawerTile(context, Icons.settings, 'Settings', () => onNavigate('/settings')),
+                  _drawerTile(context, Icons.shield, 'VPN Home',
+                      () => onNavigate('/vpn')),
+                  _drawerTile(context, Icons.public, 'Servers',
+                      () => onNavigate('/servers')),
+                  _drawerTile(context, Icons.person, 'Account',
+                      () => onNavigate('/account')),
+                  _drawerTile(context, Icons.settings, 'Settings',
+                      () => onNavigate('/settings')),
                   const Divider(height: AppUIv1.space5),
                   _drawerTile(
                     context,

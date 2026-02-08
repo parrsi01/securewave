@@ -1,7 +1,11 @@
 # SecureWave App
 
 SecureWave is a Flutter control-plane app that integrates with the SecureWave API
-and hands real WireGuard configs to native VPN tunnel providers.
+and provisions ephemeral WireGuard tunnel profiles for native VPN tunnel providers.
+
+**No config files ever:** users never download or manage `.conf` files. The app fetches
+profiles from the backend after login, stores them in secure storage, and connects via
+native implementations.
 
 ## What Works Without Xcode
 
@@ -16,12 +20,18 @@ and hands real WireGuard configs to native VPN tunnel providers.
 - Code signing + entitlements
 - WireGuardKit package fetch
 
+## Diagnostics
+
+- **Connection diagnostics (small):** Home → "Connection diagnostics" (read-only checks: backend, auth, profile, tunnel).
+- **Full diagnostics:** Settings → "Run diagnostics" (includes copyable logs + cache clear).
+
 ## Quick Start (Linux/macOS with Flutter)
 
 1. Install Flutter SDK and run `flutter doctor`.
 2. From `securewave_app/`:
    - `flutter pub get`
-   - `flutter run -d linux` (or `-d macos`)
+   - `flutter run -d linux`
+   - `flutter run -d macos` (UI only; VPN tunneling is unavailable on macOS yet)
 
 ## iOS Setup
 

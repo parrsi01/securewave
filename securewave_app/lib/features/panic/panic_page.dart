@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import '../../core/services/auth_session.dart';
 import '../../core/services/secure_storage.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
+import '../../ui/app_haptics.dart';
 import '../../ui/app_ui_v1.dart';
 
 class PanicPage extends ConsumerStatefulWidget {
@@ -79,7 +81,8 @@ class _PanicPageState extends ConsumerState<PanicPage> {
     if (serverList != null && serverList.length > 1) {
       // Pick a different server than the current one
       final rng = Random();
-      final candidates = serverList.where((s) => s.id != currentServerId).toList();
+      final candidates =
+          serverList.where((s) => s.id != currentServerId).toList();
       if (candidates.isNotEmpty) {
         final newServer = candidates[rng.nextInt(candidates.length)];
         ref.read(vpnStateProvider.notifier).selectServer(newServer.id);
@@ -103,7 +106,8 @@ class _PanicPageState extends ConsumerState<PanicPage> {
     if (!mounted) return;
     setState(() {
       if (_steps.isNotEmpty) {
-        _steps[_steps.length - 1] = _PanicStep(label: label, completed: success);
+        _steps[_steps.length - 1] =
+            _PanicStep(label: label, completed: success);
       }
     });
   }
@@ -118,11 +122,13 @@ class _PanicPageState extends ConsumerState<PanicPage> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
+            constraints:
+                const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
             child: ListView(
               padding: const EdgeInsets.all(AppUIv1.space5),
               children: [
-                Text('Emergency actions', style: Theme.of(context).textTheme.titleLarge),
+                Text('Emergency actions',
+                    style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: AppUIv1.space2),
                 Text(
                   'This performs a safe, reversible emergency protocol: disconnects the VPN, '
@@ -156,15 +162,23 @@ class _PanicPageState extends ConsumerState<PanicPage> {
                               backgroundColor: AppUIv1.danger,
                               foregroundColor: Colors.white,
                             ),
-                            onPressed: _running ? null : _runPanic,
+                            onPressed: _running
+                                ? null
+                                : () {
+                                    unawaited(AppHaptics.panicTap());
+                                    _runPanic();
+                                  },
                             icon: _running
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   )
                                 : const Icon(Icons.warning_amber_rounded),
-                            label: Text(_running ? 'Working...' : 'Panic: Emergency disconnect'),
+                            label: Text(_running
+                                ? 'Working...'
+                                : 'Panic: Emergency disconnect'),
                           ),
                         ),
                       ],
@@ -181,29 +195,37 @@ class _PanicPageState extends ConsumerState<PanicPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Progress', style: Theme.of(context).textTheme.titleMedium),
+                          Text('Progress',
+                              style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: AppUIv1.space2),
                           ..._steps.map((step) => Padding(
-                            padding: const EdgeInsets.only(bottom: AppUIv1.space2),
-                            child: Row(
-                              children: [
-                                if (step.completed == null)
-                                  const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                else if (step.completed!)
-                                  const Icon(Icons.check_circle, size: 16, color: AppUIv1.success)
-                                else
-                                  const Icon(Icons.error, size: 16, color: AppUIv1.danger),
-                                const SizedBox(width: AppUIv1.space2),
-                                Expanded(
-                                  child: Text(step.label, style: Theme.of(context).textTheme.bodySmall),
+                                padding: const EdgeInsets.only(
+                                    bottom: AppUIv1.space2),
+                                child: Row(
+                                  children: [
+                                    if (step.completed == null)
+                                      const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    else if (step.completed!)
+                                      const Icon(Icons.check_circle,
+                                          size: 16, color: AppUIv1.success)
+                                    else
+                                      const Icon(Icons.error,
+                                          size: 16, color: AppUIv1.danger),
+                                    const SizedBox(width: AppUIv1.space2),
+                                    Expanded(
+                                      child: Text(step.label,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          )),
+                              )),
                         ],
                       ),
                     ),
@@ -230,9 +252,12 @@ class _PanicPageState extends ConsumerState<PanicPage> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.check_circle, color: AppUIv1.success),
+                              const Icon(Icons.check_circle,
+                                  color: AppUIv1.success),
                               const SizedBox(width: AppUIv1.space2),
-                              Text('Emergency protocol completed', style: Theme.of(context).textTheme.titleMedium),
+                              Text('Emergency protocol completed',
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium),
                             ],
                           ),
                           const SizedBox(height: AppUIv1.space3),
@@ -241,19 +266,25 @@ class _PanicPageState extends ConsumerState<PanicPage> {
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           const SizedBox(height: AppUIv1.space2),
-                          const _Step('Change your SecureWave password immediately from a trusted device.'),
-                          const _Step('Enable 2FA in the web portal if available.'),
-                          const _Step('Revoke unknown devices in the web Device Center.'),
-                          const _Step('Close any sensitive browser tabs and clear browser cache manually.'),
+                          const _Step(
+                              'Change your SecureWave password immediately from a trusted device.'),
+                          const _Step(
+                              'Enable 2FA in the web portal if available.'),
+                          const _Step(
+                              'Revoke unknown devices in the web Device Center.'),
+                          const _Step(
+                              'Close any sensitive browser tabs and clear browser cache manually.'),
                           const _Step('Update your OS and run a malware scan.'),
-                          const _Step('If you suspect account takeover, contact support and request a forced key rotation.'),
+                          const _Step(
+                              'If you suspect account takeover, contact support and request a forced key rotation.'),
                           const SizedBox(height: AppUIv1.space3),
                           Text(
                             'Note: This action does not close other apps or clear system browser '
                             'caches. You must do these manually for full protection.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontStyle: FontStyle.italic,
-                            ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      fontStyle: FontStyle.italic,
+                                    ),
                           ),
                         ],
                       ),
@@ -266,18 +297,27 @@ class _PanicPageState extends ConsumerState<PanicPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('What this does', style: Theme.of(context).textTheme.titleMedium),
+                          Text('What this does',
+                              style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: AppUIv1.space2),
-                          const _StepNumbered(1, 'Instantly disconnects the VPN tunnel.'),
-                          const _StepNumbered(2, 'Clears your cached tunnel profile data.'),
-                          const _StepNumbered(3, 'Rotates your server preference to a different location.'),
-                          const _StepNumbered(4, 'Signs you out and clears all authentication tokens.'),
+                          const _StepNumbered(
+                              1, 'Instantly disconnects the VPN tunnel.'),
+                          const _StepNumbered(
+                              2, 'Clears your cached tunnel profile data.'),
+                          const _StepNumbered(3,
+                              'Rotates your server preference to a different location.'),
+                          const _StepNumbered(4,
+                              'Signs you out and clears all authentication tokens.'),
                           const SizedBox(height: AppUIv1.space3),
-                          Text('When to use this', style: Theme.of(context).textTheme.titleMedium),
+                          Text('When to use this',
+                              style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: AppUIv1.space2),
-                          const _Step('You think your account or device may be compromised.'),
-                          const _Step('You want to immediately stop tunneling and invalidate tokens.'),
-                          const _Step('You are troubleshooting auth/profile issues and want a clean reset.'),
+                          const _Step(
+                              'You think your account or device may be compromised.'),
+                          const _Step(
+                              'You want to immediately stop tunneling and invalidate tokens.'),
+                          const _Step(
+                              'You are troubleshooting auth/profile issues and want a clean reset.'),
                         ],
                       ),
                     ),
@@ -315,7 +355,8 @@ class _Step extends StatelessWidget {
             child: Icon(Icons.arrow_right, size: 18, color: AppUIv1.inkSoft),
           ),
           const SizedBox(width: AppUIv1.space1),
-          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
+          Expanded(
+              child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
         ],
       ),
     );
@@ -354,7 +395,8 @@ class _StepNumbered extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppUIv1.space2),
-          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
+          Expanded(
+              child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
         ],
       ),
     );

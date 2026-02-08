@@ -7,6 +7,7 @@ import '../../core/models/vpn_protocol.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/preferences_state.dart';
 import '../../core/state/vpn_state.dart';
+import '../diagnostics/connection_diagnostics_sheet.dart';
 import '../../ui/app_ui_v1.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -23,7 +24,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     final deviceInfo = ref.watch(deviceInfoProvider);
     final language = ref.watch(preferencesProvider).language;
-    final protocol = ref.watch(vpnStateProvider.select((state) => state.protocol));
+    final protocol =
+        ref.watch(vpnStateProvider.select((state) => state.protocol));
     final languageLabel = switch (language) {
       'es' => 'Spanish',
       'fr' => 'French',
@@ -69,7 +71,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const SizedBox(height: AppUIv1.space5),
 
               // ── Connection ────────────────────────────────────────
-              Text('Connection', style: Theme.of(context).textTheme.titleMedium),
+              Text('Connection',
+                  style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: AppUIv1.space3),
               Card(
                 child: Column(
@@ -135,7 +138,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 child: ListTile(
                   leading: Icon(Icons.call_split_outlined),
                   title: Text('Split tunneling'),
-                  subtitle: Text('Coming soon. This build routes all traffic through the tunnel.'),
+                  subtitle: Text(
+                      'Coming soon. This build routes all traffic through the tunnel.'),
                   trailing: Chip(label: Text('Soon')),
                 ),
               ),
@@ -168,7 +172,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ListTile(
                       leading: Icon(Icons.lock_outline),
                       title: Text('Kill switch'),
-                      subtitle: Text('Best effort. Enable Always-on VPN where supported.'),
+                      subtitle: Text(
+                          'Best effort. Enable Always-on VPN where supported.'),
                     ),
                   ],
                 ),
@@ -176,23 +181,36 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const SizedBox(height: AppUIv1.space5),
 
               // ── Diagnostics & About ───────────────────────────────
-              Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
+              Text('Diagnostics',
+                  style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: AppUIv1.space3),
               Card(
                 child: Column(
                   children: [
                     ListTile(
                       leading: const Icon(Icons.monitor_heart_outlined),
+                      title: const Text('Connection diagnostics'),
+                      subtitle: const Text(
+                          'Backend, auth, profile fetch, tunnel status (read-only)'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => ConnectionDiagnosticsSheet.show(context),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.bug_report_outlined),
                       title: const Text('Run diagnostics'),
-                      subtitle: const Text('Backend reachability, auth, profile fetch, native tunnel'),
+                      subtitle: const Text(
+                          'Backend reachability, auth, profile fetch, native tunnel'),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => context.push('/diagnostics'),
                     ),
                     const Divider(height: 1),
                     ListTile(
-                      leading: const Icon(Icons.warning_amber_rounded, color: AppUIv1.warning),
+                      leading: const Icon(Icons.warning_amber_rounded,
+                          color: AppUIv1.warning),
                       title: const Text('Panic button'),
-                      subtitle: const Text('Disconnect, sign out, and clear cached tunnel profile'),
+                      subtitle: const Text(
+                          'Disconnect, sign out, and clear cached tunnel profile'),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => context.push('/panic'),
                     ),

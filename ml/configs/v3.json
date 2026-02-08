@@ -40,5 +40,9 @@
     "discount_factor": 0.95,
     "exploration_rate": 0.02
   },
-  "output_dir": "runs"
+  "output_dir": "runs",
+  "success_criteria": {
+    "definition_of_10x_improvement": "Not a marketing claim. Measured as 10x fewer false-positive server picks that lead to rapid reconnects, plus sub-millisecond selection latency, plus fewer reconnect loops by preferring stability (loss/jitter) over noisy bandwidth spikes.",
+    "non_blocking": "ML/optimizer must suggest only; it must never hard-block VPN connectivity. Callers must always fall back to a known-good server when suggestions are invalid."
+  }
 }

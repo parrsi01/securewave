@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,10 +10,21 @@ import '../../core/models/vpn_status.dart';
 import '../../core/config/app_config.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
+import '../diagnostics/connection_diagnostics_sheet.dart';
+import '../../ui/app_haptics.dart';
 import '../../ui/app_ui_v1.dart';
 
-class VpnPage extends ConsumerWidget {
+class VpnPage extends ConsumerStatefulWidget {
   const VpnPage({super.key});
+
+  @override
+  ConsumerState<VpnPage> createState() => _VpnPageState();
+}
+
+class _VpnPageState extends ConsumerState<VpnPage> {
+  bool _pendingConnectHaptic = false;
+  bool _pendingDisconnectHaptic = false;
+  late final ProviderSubscription<VpnStatus> _statusSubscription;
 
   String? _platformNotice() {
     final os = platform.operatingSystem;
@@ -26,8 +39,8 @@ class VpnPage extends ConsumerWidget {
         return 'Windows VPN requires WireGuard for Windows (wireguard.exe). '
             'Install it to enable native tunneling.';
       case OperatingSystem.macOS:
-        return 'macOS VPN support is coming soon. The app requires additional '
-            'Apple approvals before VPN tunnels can be established on Mac.';
+        return 'VPN unavailable on macOS (yet). This build does not include the '
+            'required Apple Network Extension entitlements for real tunneling.';
       case OperatingSystem.iOS:
       case OperatingSystem.android:
         return null;
@@ -37,7 +50,38 @@ class VpnPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    _statusSubscription = ref.listenManual<VpnStatus>(
+      vpnStateProvider.select((state) => state.status),
+      (prev, next) {
+        if (prev == next) return;
+        if (next == VpnStatus.connected && _pendingConnectHaptic) {
+          _pendingConnectHaptic = false;
+          unawaited(AppHaptics.connectConfirmed());
+          return;
+        }
+        if (next == VpnStatus.disconnected && _pendingDisconnectHaptic) {
+          _pendingDisconnectHaptic = false;
+          unawaited(AppHaptics.disconnectConfirmed());
+          return;
+        }
+        if (next == VpnStatus.error) {
+          _pendingConnectHaptic = false;
+          _pendingDisconnectHaptic = false;
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _statusSubscription.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final vpnState = ref.watch(vpnStateProvider);
     final servers = ref.watch(serversProvider);
     final vpnService = ref.watch(vpnServiceProvider);
@@ -57,27 +101,38 @@ class VpnPage extends ConsumerWidget {
                 )
                 .name;
 
+    final backendUnreachable = vpnState.status == VpnStatus.error &&
+        vpnState.errorKind == VpnErrorKind.backendUnreachable;
+
     final statusText = switch (vpnState.status) {
       VpnStatus.connected => 'Connected',
       VpnStatus.connecting => 'Connecting...',
-      VpnStatus.error => 'Needs attention',
+      VpnStatus.disconnecting => 'Disconnecting...',
+      VpnStatus.error =>
+        backendUnreachable ? 'Backend unreachable' : 'Needs attention',
       VpnStatus.disconnected => 'Disconnected',
     };
 
     final statusColor = switch (vpnState.status) {
       VpnStatus.connected => AppUIv1.success,
       VpnStatus.connecting => AppUIv1.accentSun,
-      VpnStatus.error => AppUIv1.warning,
+      VpnStatus.disconnecting => AppUIv1.accentSun,
+      VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
       VpnStatus.disconnected => AppUIv1.inkSoft,
     };
 
     final isConnected = vpnState.status == VpnStatus.connected;
     final isConnecting = vpnState.status == VpnStatus.connecting;
+    final isDisconnecting = vpnState.status == VpnStatus.disconnecting;
     final platformNotice = _platformNotice();
     final nativeUnavailable = !vpnService.isNativeAvailable;
     final canSimulate = config.useMockApi;
     final canAttemptConnect = !nativeUnavailable || canSimulate;
-    final connectEnabled = !vpnState.isBusy && (isConnected || canAttemptConnect);
+    final connectEnabled =
+        !vpnState.isBusy && (isConnected || canAttemptConnect);
+    final needsSetupTitle = platform.operatingSystem == OperatingSystem.macOS
+        ? 'VPN unavailable'
+        : 'Setup required';
 
     return SafeArea(
       child: Center(
@@ -104,7 +159,7 @@ class VpnPage extends ConsumerWidget {
                 _NoticeCard(
                   icon: Icons.devices,
                   color: AppUIv1.warning,
-                  title: 'Setup required',
+                  title: needsSetupTitle,
                   body: platformNotice,
                 ),
                 const SizedBox(height: AppUIv1.space3),
@@ -113,7 +168,8 @@ class VpnPage extends ConsumerWidget {
                   icon: Icons.warning_amber_rounded,
                   color: AppUIv1.warning,
                   title: 'VPN not available',
-                  body: 'Native VPN tunnel unavailable on this device. Install required VPN components and retry.',
+                  body:
+                      'Native VPN tunnel unavailable on this device. Install required VPN components and retry.',
                 ),
                 const SizedBox(height: AppUIv1.space3),
               ],
@@ -136,8 +192,14 @@ class VpnPage extends ConsumerWidget {
                   onPressed: connectEnabled
                       ? () {
                           if (isConnected) {
+                            _pendingDisconnectHaptic = true;
+                            _pendingConnectHaptic = false;
+                            unawaited(AppHaptics.disconnectTap());
                             ref.read(vpnStateProvider.notifier).disconnect();
                           } else {
+                            _pendingConnectHaptic = true;
+                            _pendingDisconnectHaptic = false;
+                            unawaited(AppHaptics.connectTap());
                             ref.read(vpnStateProvider.notifier).connect();
                           }
                         }
@@ -157,6 +219,14 @@ class VpnPage extends ConsumerWidget {
                           color: statusColor,
                         ),
                   ),
+                ),
+              ),
+              const SizedBox(height: AppUIv1.space2),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => ConnectionDiagnosticsSheet.show(context),
+                  icon: const Icon(Icons.monitor_heart_outlined, size: 18),
+                  label: const Text('Connection diagnostics'),
                 ),
               ),
               const SizedBox(height: AppUIv1.space5),
@@ -190,14 +260,12 @@ class VpnPage extends ConsumerWidget {
                               ),
                               Text(
                                 selectedServerLabel,
-                                style:
-                                    Theme.of(context).textTheme.titleMedium,
+                                style: Theme.of(context).textTheme.titleMedium,
                               ),
                             ],
                           ),
                         ),
-                        const Icon(Icons.chevron_right,
-                            color: AppUIv1.inkSoft),
+                        const Icon(Icons.chevron_right, color: AppUIv1.inkSoft),
                       ],
                     ),
                   ),
@@ -210,13 +278,18 @@ class VpnPage extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(AppUIv1.space3),
                   decoration: BoxDecoration(
-                    color: AppUIv1.warning.withValues(alpha: 0.08),
+                    color: statusColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(AppUIv1.radiusM),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded,
-                          size: 18, color: AppUIv1.warning),
+                      Icon(
+                        backendUnreachable
+                            ? Icons.cloud_off
+                            : Icons.warning_amber_rounded,
+                        size: 18,
+                        color: statusColor,
+                      ),
                       const SizedBox(width: AppUIv1.space2),
                       Expanded(
                         child: Text(
@@ -224,7 +297,7 @@ class VpnPage extends ConsumerWidget {
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(color: AppUIv1.warning),
+                              ?.copyWith(color: statusColor),
                         ),
                       ),
                     ],
@@ -236,7 +309,8 @@ class VpnPage extends ConsumerWidget {
               const SizedBox(height: AppUIv1.space4),
               AnimatedOpacity(
                 duration: AppUIv1.durationNormal,
-                opacity: isConnected || isConnecting ? 1.0 : 0.4,
+                opacity:
+                    isConnected || isConnecting || isDisconnecting ? 1.0 : 0.4,
                 child: Row(
                   children: [
                     Expanded(
@@ -252,8 +326,7 @@ class VpnPage extends ConsumerWidget {
                       child: _MetricTile(
                         icon: Icons.arrow_upward_rounded,
                         label: 'Upload',
-                        value:
-                            '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps',
+                        value: '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps',
                       ),
                     ),
                   ],
@@ -285,76 +358,86 @@ class _ConnectButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isConnected = status == VpnStatus.connected;
-    final isConnecting = status == VpnStatus.connecting;
-    final buttonColor = isConnected ? AppUIv1.success : AppUIv1.accent;
+    final isWorking =
+        status == VpnStatus.connecting || status == VpnStatus.disconnecting;
+    final isDisconnecting = status == VpnStatus.disconnecting;
+    final buttonColor =
+        (isConnected || isDisconnecting) ? AppUIv1.success : AppUIv1.accent;
     final ringColor = statusColor.withValues(alpha: 0.15);
 
-    final label = isConnecting
-        ? 'Connecting'
+    final label = isWorking
+        ? isDisconnecting
+            ? 'Disconnecting'
+            : 'Connecting'
         : isConnected
             ? 'Disconnect'
             : 'Connect';
 
-    final icon = isConnecting
+    final icon = isWorking
         ? Icons.sync
         : isConnected
             ? Icons.stop_rounded
             : Icons.power_settings_new_rounded;
 
-    return GestureDetector(
-      onTap: onPressed,
-      child: AnimatedContainer(
-        duration: AppUIv1.durationSlow,
-        curve: AppUIv1.curveDefault,
-        width: 160,
-        height: 160,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: ringColor,
-          boxShadow: isConnected
-              ? [
-                  BoxShadow(
-                    color: AppUIv1.success.withValues(alpha: 0.15),
-                    blurRadius: 32,
-                    spreadRadius: 4,
+    return AnimatedContainer(
+      duration: AppUIv1.durationSlow,
+      curve: AppUIv1.curveDefault,
+      width: 160,
+      height: 160,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: ringColor,
+        boxShadow: isConnected
+            ? [
+                BoxShadow(
+                  color: AppUIv1.success.withValues(alpha: 0.15),
+                  blurRadius: 32,
+                  spreadRadius: 4,
+                ),
+              ]
+            : [],
+      ),
+      child: Center(
+        child: AnimatedContainer(
+          duration: AppUIv1.durationNormal,
+          curve: AppUIv1.curveDefault,
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: buttonColor,
+            boxShadow: AppUIv1.shadowMd,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onPressed,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedSwitcher(
+                    duration: AppUIv1.durationFast,
+                    child: isWorking
+                        ? SizedBox(
+                            key: const ValueKey('spinner'),
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          )
+                        : Icon(icon,
+                            key: ValueKey(icon), color: Colors.white, size: 32),
                   ),
-                ]
-              : [],
-        ),
-        child: Center(
-          child: AnimatedContainer(
-            duration: AppUIv1.durationNormal,
-            curve: AppUIv1.curveDefault,
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: buttonColor,
-              boxShadow: AppUIv1.shadowMd,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: onPressed,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (isConnecting)
-                      SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white.withValues(alpha: 0.9),
-                        ),
-                      )
-                    else
-                      Icon(icon, color: Colors.white, size: 32),
-                    const SizedBox(height: 6),
-                    Text(
+                  const SizedBox(height: 6),
+                  AnimatedSwitcher(
+                    duration: AppUIv1.durationFast,
+                    child: Text(
                       label,
+                      key: ValueKey(label),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -362,8 +445,8 @@ class _ConnectButton extends StatelessWidget {
                         letterSpacing: 0.3,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
