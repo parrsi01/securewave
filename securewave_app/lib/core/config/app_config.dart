@@ -11,7 +11,6 @@ class AppConfig {
     required this.apiBaseUrl,
     required this.portalUrl,
     required this.upgradeUrl,
-    required this.adblockListUrl,
     required this.useMockApi,
     required this.resetSessionOnBoot,
   });
@@ -19,7 +18,6 @@ class AppConfig {
   final String apiBaseUrl;
   final String portalUrl;
   final String upgradeUrl;
-  final String adblockListUrl;
   final bool useMockApi;
   final bool resetSessionOnBoot;
   static AppConfig? _cached;
@@ -31,7 +29,6 @@ class AppConfig {
       apiBaseUrl: AppConstants.baseUrlFallback,
       portalUrl: AppConstants.portalUrlFallback,
       upgradeUrl: AppConstants.upgradeUrlFallback,
-      adblockListUrl: AppConstants.adblockListUrlFallback,
       useMockApi: kIsDebugMode, // Only mock in debug by default
       resetSessionOnBoot: false,
     );
@@ -64,11 +61,6 @@ class AppConfig {
       'SECUREWAVE_UPGRADE_URL',
       AppConstants.upgradeUrlFallback,
     );
-    final adblockUrl = _envOrDefault(
-      env,
-      'SECUREWAVE_ADBLOCK_LIST_URL',
-      AppConstants.adblockListUrlFallback,
-    );
     // CRITICAL: In release/profile, default to false unless explicitly enabled via env
     const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
     const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
@@ -93,7 +85,6 @@ class AppConfig {
       apiBaseUrl: baseUrl,
       portalUrl: portalUrl,
       upgradeUrl: upgradeUrl,
-      adblockListUrl: adblockUrl,
       useMockApi: useMock,
       resetSessionOnBoot: resetSessionOnBoot,
     );

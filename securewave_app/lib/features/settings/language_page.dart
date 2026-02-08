@@ -20,40 +20,23 @@ class LanguagePage extends ConsumerWidget {
             Text('Choose your language', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: AppUIv1.space3),
             Card(
-              child: Column(
-                children: [
-                  _LanguageTile(
-                    label: 'English',
-                    value: 'en',
-                    groupValue: language,
-                    onSelected: (value) =>
-                        ref.read(preferencesProvider.notifier).setLanguage(value),
-                  ),
-                  const Divider(height: 1),
-                  _LanguageTile(
-                    label: 'Spanish',
-                    value: 'es',
-                    groupValue: language,
-                    onSelected: (value) =>
-                        ref.read(preferencesProvider.notifier).setLanguage(value),
-                  ),
-                  const Divider(height: 1),
-                  _LanguageTile(
-                    label: 'French',
-                    value: 'fr',
-                    groupValue: language,
-                    onSelected: (value) =>
-                        ref.read(preferencesProvider.notifier).setLanguage(value),
-                  ),
-                  const Divider(height: 1),
-                  _LanguageTile(
-                    label: 'German',
-                    value: 'de',
-                    groupValue: language,
-                    onSelected: (value) =>
-                        ref.read(preferencesProvider.notifier).setLanguage(value),
-                  ),
-                ],
+              child: RadioGroup<String>(
+                groupValue: language,
+                onChanged: (value) {
+                  if (value == null) return;
+                  ref.read(preferencesProvider.notifier).setLanguage(value);
+                },
+                child: const Column(
+                  children: [
+                    _LanguageTile(label: 'English', value: 'en'),
+                    Divider(height: 1),
+                    _LanguageTile(label: 'Spanish', value: 'es'),
+                    Divider(height: 1),
+                    _LanguageTile(label: 'French', value: 'fr'),
+                    Divider(height: 1),
+                    _LanguageTile(label: 'German', value: 'de'),
+                  ],
+                ),
               ),
             ),
           ],
@@ -67,25 +50,16 @@ class _LanguageTile extends StatelessWidget {
   const _LanguageTile({
     required this.label,
     required this.value,
-    required this.groupValue,
-    required this.onSelected,
   });
 
   final String label;
   final String value;
-  final String groupValue;
-  final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
     return RadioListTile<String>(
       title: Text(label),
       value: value,
-      groupValue: groupValue,
-      onChanged: (value) {
-        if (value == null) return;
-        onSelected(value);
-      },
     );
   }
 }

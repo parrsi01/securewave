@@ -22,11 +22,6 @@ class ServersPage extends ConsumerWidget {
           constraints: const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
           child: servers.when(
             data: (data) {
-              if (data.isNotEmpty && vpnState.selectedServerId == null) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  ref.read(vpnStateProvider.notifier).selectServer(data.first.id);
-                });
-              }
               final sorted = List.of(data);
               sorted.sort((a, b) {
                 final aScore =
@@ -60,12 +55,52 @@ class ServersPage extends ConsumerWidget {
                   ),
                   if (sorted.isNotEmpty)
                     SliverPadding(
-                      padding:
+                    padding:
                           const EdgeInsets.symmetric(horizontal: AppUIv1.space5),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
-                            final server = sorted[index];
+                            if (index == 0) {
+                              final isSelected = vpnState.selectedServerId == null;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: AppUIv1.space3),
+                                child: AnimatedContainer(
+                                  duration: AppUIv1.durationFast,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(AppUIv1.radiusXL),
+                                    border: Border.all(
+                                      color: isSelected ? AppUIv1.accent : AppUIv1.border,
+                                      width: isSelected ? 1.5 : 1,
+                                    ),
+                                    color: AppUIv1.surface,
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.all(AppUIv1.space4),
+                                    leading: CircleAvatar(
+                                      backgroundColor: isSelected ? AppUIv1.accentSoft : AppUIv1.surfaceMuted,
+                                      child: Icon(
+                                        Icons.bolt,
+                                        color: isSelected ? AppUIv1.accentStrong : AppUIv1.inkSoft,
+                                      ),
+                                    ),
+                                    title: Text('Auto-select (recommended)',
+                                        style: Theme.of(context).textTheme.titleMedium),
+                                    subtitle: Text(
+                                      isSelected
+                                          ? 'Selected \u2022 SecureWave picks the fastest server'
+                                          : 'SecureWave picks the fastest server',
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                    trailing: isSelected
+                                        ? const Icon(Icons.check_circle, color: AppUIv1.accent)
+                                        : const Icon(Icons.chevron_right),
+                                    onTap: () => ref.read(vpnStateProvider.notifier).selectServer(null),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final server = sorted[index - 1];
                             final isSelected =
                                 server.id == vpnState.selectedServerId;
                             final isFavorite = favorites.contains(server.id);
@@ -158,7 +193,7 @@ class ServersPage extends ConsumerWidget {
                               ),
                             );
                           },
-                          childCount: sorted.length,
+                          childCount: sorted.length + 1,
                         ),
                       ),
                     ),

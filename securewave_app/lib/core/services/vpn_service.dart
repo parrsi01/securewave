@@ -25,14 +25,16 @@ class VpnServiceException implements Exception {
 }
 
 class ChannelVpnService implements VpnService {
-  ChannelVpnService({VpnService? fallback})
-      : _fallback = fallback ?? MockVpnService() {
+  ChannelVpnService({VpnService? fallback, bool allowFallback = true})
+      : _fallback = fallback ?? MockVpnService(),
+        _allowFallback = allowFallback {
     _nativeAvailable = _supportsNativeChannel();
     _refreshNativeAvailability();
   }
 
   final MethodChannel _channel = const MethodChannel('securewave/vpn');
   final VpnService _fallback;
+  final bool _allowFallback;
   VpnStatus _status = VpnStatus.disconnected;
   bool _nativeAvailable = false;
   bool _mockNoticeLogged = false;
@@ -49,9 +51,16 @@ class ChannelVpnService implements VpnService {
     try {
       final available = await _refreshNativeAvailability();
       if (!available) {
-        _logMockUse('Native VPN unavailable; falling back to mock tunnel.');
-        _status = await _fallback.connect(protocol: protocol, config: config);
-        return _status;
+        if (_allowFallback) {
+          _logMockUse('Native VPN unavailable; falling back to demo tunnel.');
+          _status = await _fallback.connect(protocol: protocol, config: config);
+          return _status;
+        }
+        _status = VpnStatus.disconnected;
+        throw VpnServiceException(
+          'vpn_unavailable',
+          'Native VPN tunnel unavailable on this device. Install required VPN components and retry.',
+        );
       }
       if (config == null || config.trim().isEmpty) {
         throw VpnServiceException(
@@ -67,8 +76,17 @@ class ChannelVpnService implements VpnService {
     } on PlatformException catch (error) {
       if (_isNativeUnavailableError(error)) {
         _nativeAvailable = false;
-        _logMockUse('Native VPN not configured; using mock tunnel.');
-        _status = await _fallback.connect(protocol: protocol, config: config);
+        if (_allowFallback) {
+          _logMockUse('Native VPN not configured; using demo tunnel.');
+          _status = await _fallback.connect(protocol: protocol, config: config);
+        } else {
+          _status = VpnStatus.disconnected;
+          throw VpnServiceException(
+            error.code,
+            error.message ?? 'Native VPN is not configured on this device.',
+            details: error.details,
+          );
+        }
       } else {
         throw VpnServiceException(
           error.code,
@@ -78,8 +96,16 @@ class ChannelVpnService implements VpnService {
       }
     } on MissingPluginException {
       _nativeAvailable = false;
-      _logMockUse('Native VPN plugin missing; using mock tunnel.');
-      _status = await _fallback.connect(protocol: protocol, config: config);
+      if (_allowFallback) {
+        _logMockUse('Native VPN plugin missing; using demo tunnel.');
+        _status = await _fallback.connect(protocol: protocol, config: config);
+      } else {
+        _status = VpnStatus.disconnected;
+        throw VpnServiceException(
+          'vpn_unavailable',
+          'Native VPN plugin missing for this platform/build.',
+        );
+      }
     }
     return _status;
   }
@@ -92,8 +118,12 @@ class ChannelVpnService implements VpnService {
     try {
       final available = await _refreshNativeAvailability();
       if (!available) {
-        _logMockUse('Native VPN unavailable; using mock disconnect.');
-        _status = await _fallback.disconnect();
+        if (_allowFallback) {
+          _logMockUse('Native VPN unavailable; using demo disconnect.');
+          _status = await _fallback.disconnect();
+          return _status;
+        }
+        _status = VpnStatus.disconnected;
         return _status;
       }
       await _channel.invokeMethod('disconnect');
@@ -101,8 +131,12 @@ class ChannelVpnService implements VpnService {
     } on PlatformException catch (error) {
       if (_isNativeUnavailableError(error)) {
         _nativeAvailable = false;
-        _logMockUse('Native VPN not configured; using mock disconnect.');
-        _status = await _fallback.disconnect();
+        if (_allowFallback) {
+          _logMockUse('Native VPN not configured; using demo disconnect.');
+          _status = await _fallback.disconnect();
+        } else {
+          _status = VpnStatus.disconnected;
+        }
       } else {
         throw VpnServiceException(
           error.code,
@@ -112,8 +146,12 @@ class ChannelVpnService implements VpnService {
       }
     } on MissingPluginException {
       _nativeAvailable = false;
-      _logMockUse('Native VPN plugin missing; using mock disconnect.');
-      _status = await _fallback.disconnect();
+      if (_allowFallback) {
+        _logMockUse('Native VPN plugin missing; using demo disconnect.');
+        _status = await _fallback.disconnect();
+      } else {
+        _status = VpnStatus.disconnected;
+      }
     }
     return _status;
   }

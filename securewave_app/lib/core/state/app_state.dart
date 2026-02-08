@@ -3,11 +3,16 @@ import 'package:platform_info/platform_info.dart';
 
 import '../models/server_region.dart';
 import '../models/user_plan.dart';
+import '../config/app_config.dart';
 import '../services/vpn_service.dart';
 import '../../services/api_client.dart';
 
 final vpnServiceProvider = Provider<VpnService>((ref) {
-  return ChannelVpnService(fallback: MockVpnService());
+  final config = ref.read(appConfigProvider);
+  return ChannelVpnService(
+    fallback: MockVpnService(),
+    allowFallback: config.useMockApi,
+  );
 });
 
 final deviceInfoProvider = Provider<String>((ref) {

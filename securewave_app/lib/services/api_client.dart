@@ -6,6 +6,8 @@ import '../core/logging/app_logger.dart';
 import '../core/models/server_region.dart';
 import '../core/models/user_plan.dart';
 import '../core/services/auth_session.dart';
+import '../core/models/vpn_profile.dart';
+import '../core/models/vpn_protocol.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final config = ref.watch(appConfigProvider);
@@ -62,9 +64,10 @@ class ApiClient {
       return data;
     }
     try {
-      final response = await _dio.get<List<dynamic>>('/vpn/servers');
-      final data = response.data ?? <dynamic>[];
-      final servers = data
+      final response = await _dio.get<Map<String, dynamic>>('/vpn/servers');
+      final data = response.data ?? <String, dynamic>{};
+      final rawList = data['servers'] is List ? data['servers'] as List : <dynamic>[];
+      final servers = rawList
           .whereType<Map>()
           .map((entry) => ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
           .toList();
@@ -182,36 +185,55 @@ class ApiClient {
     );
   }
 
-  Future<String> fetchVpnConfig({String? serverId}) async {
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
     if (_config.useMockApi) {
       _logMockApi();
-      return _mockVpnConfig();
-    }
-    Map<String, dynamic>? payload;
-    if (serverId != null && serverId.isNotEmpty) {
-      try {
-        final response = await _dio.post<Map<String, dynamic>>(
-          '/vpn/allocate',
-          data: {'server_id': serverId},
-        );
-        payload = response.data;
-      } catch (error, stackTrace) {
-        AppLogger.warning('VPN allocation failed, falling back to existing config.');
-        AppLogger.error('VPN allocation error', error: error, stackTrace: stackTrace);
-      }
+      return VpnProfile.fromJson({
+        'device_id': 0,
+        'device_name': deviceName,
+        'device_type': deviceType,
+        'protocol': 'wireguard',
+        'server_id': serverId ?? 'mock',
+        'server_location': 'Mock',
+        'issued_at': DateTime.now().toIso8601String(),
+        'expires_at': DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+        'wireguard_config': _mockVpnConfig(),
+        'dns': {
+          'servers': ['94.140.14.14', '94.140.15.15'],
+          'ad_malware_blocking': 'on',
+          'enforcement': 'config',
+        },
+        'kill_switch': {
+          'mode': 'enabled',
+          'enforcement': 'best effort',
+        },
+        'peer_registered': true,
+        'registration_status': 'mock',
+      });
     }
     try {
-      final response = payload == null
-          ? await _dio.get<Map<String, dynamic>>('/vpn/config')
-          : null;
-      final data = payload ?? response?.data ?? <String, dynamic>{};
-      final config = data['config'];
-      if (config is String && config.trim().isNotEmpty) {
-        return config;
-      }
-      throw StateError('VPN configuration missing from response.');
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/vpn/profile',
+        data: {
+          if (deviceId != null && deviceId > 0) 'device_id': deviceId,
+          'device_name': deviceName,
+          'device_type': deviceType,
+          'protocol': vpnProtocolStorageValue(protocol),
+          if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
+          if (forceRotateKeys) 'force_rotate_keys': true,
+        },
+      );
+      final data = response.data ?? <String, dynamic>{};
+      return VpnProfile.fromJson(data);
     } catch (error, stackTrace) {
-      AppLogger.error('VPN config fetch failed', error: error, stackTrace: stackTrace);
+      AppLogger.error('VPN profile fetch failed', error: error, stackTrace: stackTrace);
       rethrow;
     }
   }

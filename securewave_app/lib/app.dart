@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'core/config/app_config.dart';
 import 'core/logging/app_logger.dart';
@@ -16,17 +19,23 @@ class SecureWaveApp extends ConsumerStatefulWidget {
 
 class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
   late final AppLifecycleObserver _observer;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   @override
   void initState() {
     super.initState();
     _observer = AppLifecycleObserver(onStateChange: _handleLifecycle);
     WidgetsBinding.instance.addObserver(_observer);
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+      final hasNetwork = !results.contains(ConnectivityResult.none);
+      ref.read(vpnStateProvider.notifier).handleConnectivityChange(hasNetwork: hasNetwork);
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(_observer);
+    _connectivitySub?.cancel();
     super.dispose();
   }
 

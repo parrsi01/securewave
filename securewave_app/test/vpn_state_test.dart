@@ -36,7 +36,7 @@ void main() {
     expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
   });
 
-  test('VpnStateNotifier requires a selected server', () async {
+  test('VpnStateNotifier allows auto-select server', () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
@@ -44,7 +44,6 @@ void main() {
     await notifier.connect();
 
     final state = container.read(vpnStateProvider);
-    expect(state.status, VpnStatus.disconnected);
-    expect(state.errorMessage, isNotNull);
+    expect(state.status, VpnStatus.connected);
   });
 }

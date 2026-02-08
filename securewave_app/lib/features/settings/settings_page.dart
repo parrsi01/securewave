@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/models/vpn_protocol.dart';
-import '../../core/state/adblock_state.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/preferences_state.dart';
 import '../../core/state/vpn_state.dart';
@@ -19,7 +18,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool autoConnect = true;
-  bool connectionGuard = true;
 
   @override
   Widget build(BuildContext context) {
@@ -82,15 +80,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       value: autoConnect,
                       onChanged: (value) => setState(() => autoConnect = value),
                     ),
-                    const Divider(height: 1),
-                    SwitchListTile(
-                      title: const Text('Connection guard'),
-                      subtitle: const Text(
-                          'Pause traffic if the VPN drops where supported.'),
-                      value: connectionGuard,
-                      onChanged: (value) =>
-                          setState(() => connectionGuard = value),
-                    ),
                   ],
                 ),
               ),
@@ -100,86 +89,114 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               Text('Protocol', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: AppUIv1.space3),
               Card(
+                child: RadioGroup<VpnProtocol>(
+                  groupValue: protocol,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    ref.read(vpnStateProvider.notifier).selectProtocol(value);
+                  },
+                  child: const Column(
+                    children: [
+                      RadioListTile<VpnProtocol>(
+                        title: Text('WireGuard'),
+                        subtitle: Text('Balanced speed and privacy.'),
+                        value: VpnProtocol.wireGuard,
+                      ),
+                      Divider(height: 1),
+                      RadioListTile<VpnProtocol>(
+                        title: Text('IKEv2'),
+                        subtitle: Text('Not available yet.'),
+                        value: VpnProtocol.ikev2,
+                        enabled: false,
+                      ),
+                      Divider(height: 1),
+                      RadioListTile<VpnProtocol>(
+                        title: Text('OpenVPN'),
+                        subtitle: Text('Not available yet.'),
+                        value: VpnProtocol.openVpn,
+                        enabled: false,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppUIv1.space5),
+
+              // ── Split tunneling ──────────────────────────────────
+              Text('Split tunneling',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppUIv1.space2),
+              Text(
+                'Choose which traffic should bypass the VPN (not yet supported).',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppUIv1.space3),
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.call_split_outlined),
+                  title: Text('Split tunneling'),
+                  subtitle: Text('Coming soon. This build routes all traffic through the tunnel.'),
+                  trailing: Chip(label: Text('Soon')),
+                ),
+              ),
+              const SizedBox(height: AppUIv1.space5),
+
+              // ── Security posture ──────────────────────────────────
+              Text('Security', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppUIv1.space2),
+              Text(
+                'Always-on protections applied when the VPN is connected.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppUIv1.space3),
+              const Card(
                 child: Column(
                   children: [
-                    RadioListTile<VpnProtocol>(
-                      title: const Text('WireGuard'),
-                      subtitle: const Text('Balanced speed and privacy.'),
-                      value: VpnProtocol.wireGuard,
-                      groupValue: protocol,
-                      onChanged: (value) {
-                        if (value == null) return;
-                        ref.read(vpnStateProvider.notifier).selectProtocol(value);
-                      },
+                    ListTile(
+                      leading: Icon(Icons.shield_outlined),
+                      title: Text('Ad/Malware blocking'),
+                      subtitle: Text('ON (via DNS)'),
+                      trailing: Chip(label: Text('ON')),
                     ),
-                    const Divider(height: 1),
-                    RadioListTile<VpnProtocol>(
-                      title: const Text('IKEv2'),
-                      subtitle: const Text('Reliable on mobile networks.'),
-                      value: VpnProtocol.ikev2,
-                      groupValue: protocol,
-                      onChanged: (value) {
-                        if (value == null) return;
-                        ref.read(vpnStateProvider.notifier).selectProtocol(value);
-                      },
+                    Divider(height: 1),
+                    ListTile(
+                      leading: Icon(Icons.dns_outlined),
+                      title: Text('DNS leak protection'),
+                      subtitle: Text('Best effort (platform dependent)'),
                     ),
-                    const Divider(height: 1),
-                    RadioListTile<VpnProtocol>(
-                      title: const Text('OpenVPN'),
-                      subtitle: const Text('Compatibility mode.'),
-                      value: VpnProtocol.openVpn,
-                      groupValue: protocol,
-                      onChanged: (value) {
-                        if (value == null) return;
-                        ref.read(vpnStateProvider.notifier).selectProtocol(value);
-                      },
+                    Divider(height: 1),
+                    ListTile(
+                      leading: Icon(Icons.lock_outline),
+                      title: Text('Kill switch'),
+                      subtitle: Text('Best effort. Enable Always-on VPN where supported.'),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: AppUIv1.space5),
 
-              // ── Ad blocking ───────────────────────────────────────
-              Text('Ad blocking', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppUIv1.space2),
-              Text(
-                'DNS-level blocking inside the VPN tunnel. No traffic inspection.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: AppUIv1.space3),
-              _AdblockCard(),
-              const SizedBox(height: AppUIv1.space5),
-
               // ── Diagnostics & About ───────────────────────────────
               Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: AppUIv1.space3),
               Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppUIv1.space4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.check_circle,
-                              color: AppUIv1.success, size: 20),
-                          const SizedBox(width: AppUIv1.space2),
-                          Text('App services available',
-                              style: Theme.of(context).textTheme.bodyMedium),
-                        ],
-                      ),
-                      const SizedBox(height: AppUIv1.space2),
-                      Row(
-                        children: [
-                          const Icon(Icons.info_outline,
-                              color: AppUIv1.accent, size: 20),
-                          const SizedBox(width: AppUIv1.space2),
-                          Text('Run checks after connecting',
-                              style: Theme.of(context).textTheme.bodyMedium),
-                        ],
-                      ),
-                    ],
-                  ),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.monitor_heart_outlined),
+                      title: const Text('Run diagnostics'),
+                      subtitle: const Text('Backend reachability, auth, profile fetch, native tunnel'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('/diagnostics'),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.warning_amber_rounded, color: AppUIv1.warning),
+                      title: const Text('Panic button'),
+                      subtitle: const Text('Disconnect, sign out, and clear cached tunnel profile'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('/panic'),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: AppUIv1.space3),
@@ -204,75 +221,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const SizedBox(height: AppUIv1.space5),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AdblockCard extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final adblock = ref.watch(adblockStateProvider);
-    final updatedLabel = adblock.lastUpdated == null
-        ? 'Not updated yet'
-        : 'Last updated ${adblock.lastUpdated!.toLocal().toString().split('.').first}';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppUIv1.space4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SwitchListTile(
-              title: const Text('Block Ads & Trackers'),
-              value: adblock.blockAds,
-              onChanged: (value) =>
-                  ref.read(adblockStateProvider.notifier).setBlockAds(value),
-            ),
-            const Divider(height: 1),
-            SwitchListTile(
-              title: const Text('Block Malware'),
-              value: adblock.blockMalware,
-              onChanged: (value) =>
-                  ref.read(adblockStateProvider.notifier).setBlockMalware(value),
-            ),
-            const Divider(height: 1),
-            SwitchListTile(
-              title: const Text('Strict mode'),
-              subtitle: const Text('May block more aggressively.'),
-              value: adblock.strictMode,
-              onChanged: (value) =>
-                  ref.read(adblockStateProvider.notifier).setStrictMode(value),
-            ),
-            const SizedBox(height: AppUIv1.space3),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${adblock.totalRules} rules',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      Text(updatedLabel,
-                          style: Theme.of(context).textTheme.bodySmall),
-                    ],
-                  ),
-                ),
-                FilledButton.icon(
-                  onPressed: adblock.isUpdating
-                      ? null
-                      : () => ref
-                          .read(adblockStateProvider.notifier)
-                          .updateFromRemote(),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label:
-                      Text(adblock.isUpdating ? 'Updating...' : 'Update'),
-                ),
-              ],
-            ),
-          ],
         ),
       ),
     );

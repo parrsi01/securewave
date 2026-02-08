@@ -16,6 +16,7 @@ class AppUIv1 {
   static const Color accentSun = Color(0xFFF6C14D);
   static const Color success = Color(0xFF1F8F5C);
   static const Color warning = Color(0xFFC26B1F);
+  static const Color danger = Color(0xFFB3261E);
   static const Color ink = Color(0xFF0B1F2A);
   static const Color inkMuted = Color(0xFF4A5B66);
   static const Color inkSoft = Color(0xFF72838F);

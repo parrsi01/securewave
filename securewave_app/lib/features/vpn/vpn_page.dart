@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:platform_info/platform_info.dart';
 
 import '../../core/models/vpn_status.dart';
+import '../../core/config/app_config.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
 import '../../ui/app_ui_v1.dart';
@@ -40,20 +41,16 @@ class VpnPage extends ConsumerWidget {
     final vpnState = ref.watch(vpnStateProvider);
     final servers = ref.watch(serversProvider);
     final vpnService = ref.watch(vpnServiceProvider);
+    final config = ref.watch(appConfigProvider);
 
     final serversData =
         servers.maybeWhen(data: (data) => data, orElse: () => null);
-    if (serversData != null &&
-        serversData.isNotEmpty &&
-        vpnState.selectedServerId == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(vpnStateProvider.notifier).selectServer(serversData.first.id);
-      });
-    }
 
-    final selectedServerLabel = serversData == null || serversData.isEmpty
+    final selectedServerLabel = vpnState.selectedServerId == null
         ? 'Auto-select'
-        : serversData
+        : (serversData == null || serversData.isEmpty)
+            ? vpnState.selectedServerId!
+            : serversData
                 .firstWhere(
                   (server) => server.id == vpnState.selectedServerId,
                   orElse: () => serversData.first,
@@ -78,6 +75,9 @@ class VpnPage extends ConsumerWidget {
     final isConnecting = vpnState.status == VpnStatus.connecting;
     final platformNotice = _platformNotice();
     final nativeUnavailable = !vpnService.isNativeAvailable;
+    final canSimulate = config.useMockApi;
+    final canAttemptConnect = !nativeUnavailable || canSimulate;
+    final connectEnabled = !vpnState.isBusy && (isConnected || canAttemptConnect);
 
     return SafeArea(
       child: Center(
@@ -90,7 +90,7 @@ class VpnPage extends ConsumerWidget {
             ),
             children: [
               // ── Notices (collapsed if none) ───────────────────────
-              if (nativeUnavailable) ...[
+              if (nativeUnavailable && canSimulate) ...[
                 const _NoticeCard(
                   icon: Icons.info_outline,
                   color: AppUIv1.accentSun,
@@ -98,6 +98,22 @@ class VpnPage extends ConsumerWidget {
                   body: 'Native VPN tunnel unavailable on this device. '
                       'Connections are simulated. Install the native bridge '
                       'for real tunnel support.',
+                ),
+                const SizedBox(height: AppUIv1.space3),
+              ] else if (nativeUnavailable && platformNotice != null) ...[
+                _NoticeCard(
+                  icon: Icons.devices,
+                  color: AppUIv1.warning,
+                  title: 'Setup required',
+                  body: platformNotice,
+                ),
+                const SizedBox(height: AppUIv1.space3),
+              ] else if (nativeUnavailable) ...[
+                const _NoticeCard(
+                  icon: Icons.warning_amber_rounded,
+                  color: AppUIv1.warning,
+                  title: 'VPN not available',
+                  body: 'Native VPN tunnel unavailable on this device. Install required VPN components and retry.',
                 ),
                 const SizedBox(height: AppUIv1.space3),
               ],
@@ -117,15 +133,15 @@ class VpnPage extends ConsumerWidget {
                   status: vpnState.status,
                   statusColor: statusColor,
                   isBusy: vpnState.isBusy,
-                  onPressed: vpnState.isBusy
-                      ? null
-                      : () {
+                  onPressed: connectEnabled
+                      ? () {
                           if (isConnected) {
                             ref.read(vpnStateProvider.notifier).disconnect();
                           } else {
                             ref.read(vpnStateProvider.notifier).connect();
                           }
-                        },
+                        }
+                      : null,
                 ),
               ),
               const SizedBox(height: AppUIv1.space5),

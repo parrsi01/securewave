@@ -10,6 +10,8 @@ import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
 import 'features/bootstrap/boot_screen.dart';
 import 'features/bootstrap/fallback_error_screen.dart';
+import 'features/diagnostics/diagnostics_page.dart';
+import 'features/panic/panic_page.dart';
 import 'features/servers/servers_page.dart';
 import 'features/settings/language_page.dart';
 import 'features/settings/settings_page.dart';
@@ -73,10 +75,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final isLoggedIn = authSession.isAuthenticated;
       final isAuthRoute = location == '/login' || location == '/register';
+      final isToolRoute = location == '/diagnostics' || location == '/panic';
       if (location == '/boot') {
         return isLoggedIn ? '/vpn' : '/login';
       }
-      if (!isLoggedIn && !isAuthRoute) {
+      if (!isLoggedIn && !isAuthRoute && !isToolRoute) {
         return '/login';
       }
       if (isLoggedIn && isAuthRoute) {
@@ -108,6 +111,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/register',
         pageBuilder: (context, state) =>
             _buildPage<void>(state: state, child: const RegisterPage()),
+      ),
+      GoRoute(
+        path: '/diagnostics',
+        pageBuilder: (context, state) =>
+            _buildPage<void>(state: state, child: const DiagnosticsPage()),
+      ),
+      GoRoute(
+        path: '/panic',
+        pageBuilder: (context, state) =>
+            _buildPage<void>(state: state, child: const PanicPage()),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
