@@ -282,8 +282,32 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
-  void handleConnectivityChange({required bool hasNetwork}) {
-    if (!hasNetwork) return;
+  Future<void> handleConnectivityChange({required bool hasNetwork}) async {
+    if (!hasNetwork) {
+      if (!state.desiredOn) return;
+      if (state.isBusy) return;
+      if (state.status != VpnStatus.connected) return;
+
+      // Best-effort: if the Linux kill switch hooks are present and the
+      // tunnel drops, traffic may be blocked, so "connected" becomes misleading.
+      try {
+        final storage = SecureStorage();
+        final config = await storage.getString(SecureStorage.vpnProfileConfigKey);
+        final hasKillSwitchHooks = (config ?? '').contains('PostUp') || (config ?? '').contains('PostDown');
+        if (!hasKillSwitchHooks) return;
+      } catch (_) {
+        return;
+      }
+
+      _stopRateSimulation();
+      _setStatus(VpnStatus.error);
+      state = state.copyWith(
+        errorKind: VpnErrorKind.unknown,
+        errorMessage: 'VPN tunnel appears down; kill switch may be blocking traffic.',
+        lastTunnelStartOk: false,
+      );
+      return;
+    }
     if (!state.desiredOn) return;
     if (state.isBusy) return;
     if (state.status == VpnStatus.connected ||
