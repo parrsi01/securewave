@@ -76,6 +76,7 @@ class WireGuardService:
 
         # Explicit true = mock mode
         if mock_env == "true":
+            logger.warning("WG_MOCK_MODE=true: WireGuard operations are mocked (no real tunnel).")
             return True
 
         if is_production():
@@ -83,7 +84,15 @@ class WireGuardService:
 
         # Auto-detect only if not explicitly configured
         tun_exists = Path("/dev/net/tun").exists()
-        return self.wg_path is None or not tun_exists
+        mock = self.wg_path is None or not tun_exists
+        if mock:
+            reason = []
+            if self.wg_path is None:
+                reason.append("'wg' binary not found")
+            if not tun_exists:
+                reason.append("/dev/net/tun missing")
+            logger.warning("WG_MOCK_MODE not set: entering mock mode (%s).", ", ".join(reason))
+        return mock
 
     def _load_fernet(self):
         key = os.getenv("WG_ENCRYPTION_KEY")
