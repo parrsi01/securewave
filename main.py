@@ -44,7 +44,7 @@ request_id_ctx = contextvars.ContextVar("request_id", default="-")
 class RedactFilter(logging.Filter):
     """Redact emails and obvious secrets from log messages."""
     _email_re = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-    _token_re = re.compile(r"(Bearer\s+)[A-Za-z0-9._\-]+")
+    _token_re = re.compile(r"(Bearer\s+)[A-Za-z0-9._\-]+", re.IGNORECASE)
     _wg_priv_re = re.compile(r"(PrivateKey\s*=\s*)([^\s]+)")
     _wg_psk_re = re.compile(r"(PresharedKey\s*=\s*)([^\s]+)")
 
