@@ -1,0 +1,5 @@
+timestamp=20260208_173317
+branch=release/v1.0.0-non-apple-freeze
+commit=00f9d00
+azure_excluded=true
+platforms_validated=android,windows,linux,web (non-apple)
