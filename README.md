@@ -9,7 +9,10 @@ SecureWave is a website-first VPN control plane. It manages accounts, subscripti
 - VPN performance test harness
 - Azure App Service deployment
 
-## What It Is Not
+## What SecureWave Does NOT Do
+- macOS VPN tunneling is currently unimplemented.
+- No censorship impersonation (does not pretend to be other protocols to bypass censorship).
+- No manual config file editing/imports (profiles are provisioned by SecureWave; you are not expected to manage config files by hand).
 - No custom VPN protocol
 - No in-browser tunneling
 - No browser-based VPN or proxying
