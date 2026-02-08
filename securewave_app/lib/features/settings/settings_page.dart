@@ -105,14 +105,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       Divider(height: 1),
                       RadioListTile<VpnProtocol>(
                         title: Text('IKEv2'),
-                        subtitle: Text('Not available yet.'),
+                        subtitle: Text('Unavailable — not yet implemented.'),
                         value: VpnProtocol.ikev2,
                         enabled: false,
                       ),
                       Divider(height: 1),
                       RadioListTile<VpnProtocol>(
                         title: Text('OpenVPN'),
-                        subtitle: Text('Not available yet.'),
+                        subtitle: Text('Unavailable — not yet implemented.'),
                         value: VpnProtocol.openVpn,
                         enabled: false,
                       ),

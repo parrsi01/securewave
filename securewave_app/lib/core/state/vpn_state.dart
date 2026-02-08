@@ -301,12 +301,41 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   String _vpnErrorMessage(Object error) {
     if (error is VpnServiceException) {
+      if (error.code == 'protocol_unavailable') {
+        return error.message;
+      }
       return error.message;
     }
     if (error is StateError) {
       return error.message;
     }
-    return 'Unable to complete the VPN request right now.';
+    // Check for network/backend-unreachable errors
+    final msg = error.toString().toLowerCase();
+    if (msg.contains('socketexception') ||
+        msg.contains('connection refused') ||
+        msg.contains('connection timed out') ||
+        msg.contains('host not found') ||
+        msg.contains('network is unreachable') ||
+        msg.contains('no address associated') ||
+        msg.contains('handshake') ||
+        msg.contains('certificate')) {
+      return 'Backend unreachable. The VPN service cannot be reached right now. '
+          'Check your internet connection or try again later. '
+          'If the problem persists, the backend server may be temporarily offline.';
+    }
+    if (msg.contains('401') || msg.contains('unauthorized') || msg.contains('forbidden')) {
+      return 'Authentication failed. Please sign in again.';
+    }
+    if (msg.contains('404') || msg.contains('not found')) {
+      return 'Profile fetch failed. The server endpoint was not found. '
+          'Please update the app or contact support.';
+    }
+    if (msg.contains('500') || msg.contains('502') || msg.contains('503')) {
+      return 'Backend server error. The VPN service is experiencing issues. '
+          'Please try again in a few minutes.';
+    }
+    return 'Unable to complete the VPN request right now. '
+        'If this persists, check Diagnostics for details.';
   }
 
   @override

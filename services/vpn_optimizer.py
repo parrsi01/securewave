@@ -164,26 +164,55 @@ class OptimizedVPNOptimizer:
             timestamp=time.time()
         )
 
+    @staticmethod
+    def _validate_metric(value, min_val: float, max_val: float, default: float) -> float:
+        """Validate and clamp a telemetry metric to prevent model poisoning."""
+        try:
+            v = float(value)
+            if v != v:  # NaN check
+                return default
+            return max(min_val, min(max_val, v))
+        except (TypeError, ValueError):
+            return default
+
     def update_server_metrics(self, server_id: str, metrics: Dict):
-        """Update real-time server metrics"""
+        """Update real-time server metrics with input validation.
+
+        All telemetry values are validated and clamped to prevent model
+        poisoning via untrusted or malformed inputs.
+        """
         if server_id not in self.servers:
             return
 
         server = self.servers[server_id]
-        server.latency_ms = metrics.get('latency_ms', server.latency_ms)
-        server.bandwidth_mbps = metrics.get('bandwidth_mbps', server.bandwidth_mbps)
-        server.cpu_load = metrics.get('cpu_load', server.cpu_load)
-        server.active_connections = metrics.get('active_connections', server.active_connections)
-        server.packet_loss = metrics.get('packet_loss', server.packet_loss)
-        server.jitter_ms = metrics.get('jitter_ms', server.jitter_ms)
-        server.security_score = metrics.get('security_score', server.security_score)
+        # Validate all inputs to prevent model poisoning
+        server.latency_ms = self._validate_metric(
+            metrics.get('latency_ms', server.latency_ms), 0, 10000, server.latency_ms)
+        server.bandwidth_mbps = self._validate_metric(
+            metrics.get('bandwidth_mbps', server.bandwidth_mbps), 0, 100000, server.bandwidth_mbps)
+        server.cpu_load = self._validate_metric(
+            metrics.get('cpu_load', server.cpu_load), 0, 1.0, server.cpu_load)
+        server.active_connections = int(self._validate_metric(
+            metrics.get('active_connections', server.active_connections), 0, 100000, server.active_connections))
+        server.packet_loss = self._validate_metric(
+            metrics.get('packet_loss', server.packet_loss), 0, 1.0, server.packet_loss)
+        server.jitter_ms = self._validate_metric(
+            metrics.get('jitter_ms', server.jitter_ms), 0, 5000, server.jitter_ms)
+        server.security_score = self._validate_metric(
+            metrics.get('security_score', server.security_score), 0, 1.0, server.security_score)
         server.timestamp = time.time()
 
-        # Store in history (automatic limit via deque)
+        # Store validated metrics in history (automatic limit via deque)
         self.metrics_history.append({
             'server_id': server_id,
             'timestamp': server.timestamp,
-            **metrics
+            'latency_ms': server.latency_ms,
+            'bandwidth_mbps': server.bandwidth_mbps,
+            'cpu_load': server.cpu_load,
+            'active_connections': server.active_connections,
+            'packet_loss': server.packet_loss,
+            'jitter_ms': server.jitter_ms,
+            'security_score': server.security_score,
         })
 
     def _extract_features_simple(self, server: ServerMetrics, user_state: ConnectionState) -> List[float]:
@@ -384,9 +413,16 @@ class OptimizedVPNOptimizer:
 
     def report_connection_quality(self, user_id: int, server_id: str,
                                   actual_latency: float, actual_throughput: float):
-        """Report actual connection quality (optimized incremental learning)"""
+        """Report actual connection quality (optimized incremental learning).
+
+        Input validation prevents model poisoning from malicious telemetry.
+        """
         if user_id not in self.connection_states or server_id not in self.servers:
             return
+
+        # Validate inputs to prevent model poisoning
+        actual_latency = self._validate_metric(actual_latency, 0, 10000, 100)
+        actual_throughput = self._validate_metric(actual_throughput, 0, 100000, 50)
 
         server = self.servers[server_id]
         user_state = self.connection_states[user_id]
