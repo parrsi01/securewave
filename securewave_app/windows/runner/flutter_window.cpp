@@ -206,6 +206,9 @@ struct FlutterWindow::VpnWorker {
     if (running_) {
       return;
     }
+    // Sync initial state to the system tunnel state so connect/disconnect are
+    // idempotent across app restarts.
+    state_ = TunnelServiceInstalled() ? TunnelState::kConnected : TunnelState::kDisconnected;
     stop_ = false;
     running_ = true;
     worker_ = std::thread([this]() { this->Run(); });
@@ -476,6 +479,12 @@ bool FlutterWindow::OnCreate() {
         if (call.method_name() == "isAvailable") {
           const bool available = GetWireGuardPath().has_value();
           result->Success(flutter::EncodableValue(available));
+          return;
+        }
+        if (call.method_name() == "getStatus") {
+          // Best-effort status for boot-time UI sync.
+          const bool connected = TunnelServiceInstalled();
+          result->Success(flutter::EncodableValue(connected ? "connected" : "disconnected"));
           return;
         }
         if (call.method_name() == "connect") {

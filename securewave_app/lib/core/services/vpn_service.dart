@@ -43,6 +43,33 @@ class ChannelVpnService implements VpnService {
   @override
   bool get isNativeAvailable => _nativeAvailable;
 
+  /// Best-effort sync of tunnel status from the native layer.
+  ///
+  /// This is primarily used to avoid "stuck disconnected" states after an app
+  /// restart when a tunnel/service may still be running.
+  Future<VpnStatus> refreshStatus() async {
+    if (!_supportsNativeChannel()) {
+      _status = VpnStatus.disconnected;
+      return _status;
+    }
+    try {
+      final raw = await _channel.invokeMethod<String>('getStatus');
+      final normalized = (raw ?? '').toLowerCase().trim();
+      if (normalized == 'connected') {
+        _status = VpnStatus.connected;
+      } else if (normalized == 'disconnected') {
+        _status = VpnStatus.disconnected;
+      }
+    } on MissingPluginException {
+      // No native implementation for this platform/build.
+    } on PlatformException catch (error) {
+      AppLogger.warning('Native VPN status check failed: ${error.code}');
+    } catch (_) {
+      // Best-effort: never fail app startup due to status sync.
+    }
+    return _status;
+  }
+
   @override
   Future<VpnStatus> connect(
       {required VpnProtocol protocol, String? config}) async {
@@ -142,8 +169,7 @@ class ChannelVpnService implements VpnService {
 
   @override
   Future<VpnStatus> disconnect() async {
-    if (_status == VpnStatus.disconnected ||
-        _status == VpnStatus.disconnecting) {
+    if (_status == VpnStatus.disconnecting) {
       return _status;
     }
     _status = VpnStatus.disconnecting;

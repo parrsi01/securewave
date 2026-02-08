@@ -83,7 +83,7 @@ logging.basicConfig(level=LOG_LEVEL, handlers=[handler])
 # NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD
 # base.Base.metadata.create_all(bind=engine)  # Commented out to avoid conflicts with migrations
 
-docs_enabled = os.getenv("ENVIRONMENT") != "production" or os.getenv("DEMO_OK", "false").lower() == "true"
+docs_enabled = os.getenv("ENVIRONMENT", "development").strip().lower() != "production" or os.getenv("DEMO_OK", "false").lower() == "true"
 
 
 @asynccontextmanager
@@ -498,7 +498,9 @@ def readiness():
         db.close()
         return {"status": "ready", "database": "connected"}
     except Exception as e:
-        return {"status": "not_ready", "error": str(e)}
+        # Ops signal: return non-200 when not ready, and don't leak internal DB details.
+        _logger.warning("Readiness check failed", exc_info=True)
+        return JSONResponse(status_code=503, content={"status": "not_ready", "database": "unavailable"})
 
 
 @app.get("/version")

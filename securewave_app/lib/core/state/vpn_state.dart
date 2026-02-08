@@ -91,6 +91,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   VpnStateNotifier(this._ref)
       : super(VpnState(status: _ref.read(vpnServiceProvider).getStatus())) {
     _loadProtocol();
+    _syncNativeStatus();
   }
 
   final Ref _ref;
@@ -107,6 +108,18 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final stored =
         await SecureStorage().getString(SecureStorage.vpnProtocolKey);
     state = state.copyWith(protocol: vpnProtocolFromStorage(stored));
+  }
+
+  Future<void> _syncNativeStatus() async {
+    final service = _ref.read(vpnServiceProvider);
+    if (service is ChannelVpnService) {
+      try {
+        final next = await service.refreshStatus();
+        state = state.copyWith(status: next);
+      } catch (_) {
+        // Best-effort only.
+      }
+    }
   }
 
   void selectServer(String? serverId) {

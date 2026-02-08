@@ -54,7 +54,8 @@ if DATABASE_URL.startswith("sqlite:///"):
             DATABASE_URL = f"sqlite:///{db_path}"
 
     # Preserve in-memory SQLite for tests/dev
-    if db_path == ":memory:":
+    is_memory_sqlite = db_path == ":memory:"
+    if is_memory_sqlite:
         DATABASE_URL = "sqlite:///:memory:"
     # For Azure/Cloud: use /tmp if not absolute path
     elif not db_path.startswith("/"):
@@ -76,8 +77,10 @@ if DATABASE_URL.startswith("sqlite:///"):
     # SQLite-specific settings
     engine_config.update({
         "connect_args": {"check_same_thread": False},
-        "poolclass": pool.StaticPool,  # Use static pool for SQLite
     })
+    # StaticPool is correct for in-memory DBs. For file-backed sqlite, sharing a single
+    # connection across threads can cause hard-to-debug runtime errors under ASGI load.
+    engine_config["poolclass"] = pool.StaticPool if is_memory_sqlite else pool.NullPool
 
     engine = create_engine(DATABASE_URL, **engine_config)
 
