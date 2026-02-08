@@ -549,7 +549,8 @@ async def allocate_config(
 
     # Save config file
     config_path = wg_service.config_path_for_server(current_user.id, server.server_id)
-    config_path.write_text(config_content)
+    # Defensive: ensure private keys are never written with world-readable permissions.
+    wg_service._write_secret_file(config_path, config_content)
 
     # Generate QR code
     qr_base64 = wg_service.qr_from_config(config_content)
@@ -994,7 +995,8 @@ async def connect_vpn(
             peer_lines.append(f"PersistentKeepalive = {keepalive}")
 
         config_content = "\n".join(interface_lines + peer_lines) + "\n"
-        config_path.write_text(config_content)
+        # Defensive: ensure private keys are never written with world-readable permissions.
+        wg_service._write_secret_file(config_path, config_content)
 
     if AUTO_REGISTER_PEERS and not current_user.wg_peer_registered:
         success, _ = await register_peer_on_server(
