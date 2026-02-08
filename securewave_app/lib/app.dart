@@ -28,7 +28,9 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     WidgetsBinding.instance.addObserver(_observer);
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final hasNetwork = !results.contains(ConnectivityResult.none);
-      ref.read(vpnStateProvider.notifier).handleConnectivityChange(hasNetwork: hasNetwork);
+      unawaited(ref
+          .read(vpnStateProvider.notifier)
+          .handleConnectivityChange(hasNetwork: hasNetwork));
     });
   }
 
