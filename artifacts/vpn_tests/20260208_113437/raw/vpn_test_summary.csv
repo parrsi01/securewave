@@ -1,0 +1,18 @@
+Phase,Test,Pass,Key Metric,Value
+tunneling,wireguard_tools_available,True,,
+tunneling,wireguard_kernel_module,False,,
+tunneling,pre_vpn_baseline,True,,
+tunneling,generate_test_config,True,,
+tunneling,validate_config_format,True,,
+tunneling,wg_interface_lifecycle,False,,
+performance,baseline_performance,N/A,,
+reliability,connect_disconnect_cycles,False,success_rate,0.0%
+network_anomaly,packet_loss_1pct,True,,
+network_anomaly,packet_loss_5pct,True,,
+network_anomaly,packet_loss_10pct,True,,
+network_anomaly,jitter_20ms,True,,
+network_anomaly,jitter_50ms,True,,
+network_anomaly,bandwidth_cap_5000kbit,True,,
+security,dns_resolver_check,False,,
+security,dns_resolution,True,,
+security,config_security,False,,

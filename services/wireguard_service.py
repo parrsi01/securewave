@@ -3,6 +3,7 @@ import logging
 import os
 import secrets
 import shutil
+import stat
 import subprocess  # nosec B404 - controlled subprocess usage
 from io import BytesIO
 from pathlib import Path
@@ -99,13 +100,22 @@ class WireGuardService:
             return self.fernet.decrypt(encrypted.encode()).decode()
         return base64.b64decode(encrypted.encode()).decode()
 
+    @staticmethod
+    def _write_secret_file(path: Path, content: str) -> None:
+        """Write a file and restrict permissions to owner-only (0600)."""
+        path.write_text(content)
+        try:
+            path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        except OSError:
+            pass  # Windows or permission-restricted environment
+
     def ensure_server_keys(self) -> None:
         if self.server_public_override:
             return
         if self.server_private_path.exists() and self.server_public_path.exists():
             return
         private_key, public_key = self.generate_keypair()
-        self.server_private_path.write_text(private_key)
+        self._write_secret_file(self.server_private_path, private_key)
         self.server_public_path.write_text(public_key)
 
     def allocate_ip(self, user_id: int) -> str:
@@ -137,7 +147,7 @@ class WireGuardService:
         )
 
         config_path = self.users_dir / f"{user.id}.conf"
-        config_path.write_text(config_content)
+        self._write_secret_file(config_path, config_content)
         return config_path, config_content
 
     def config_exists(self, user_id: int) -> bool:
@@ -198,7 +208,7 @@ class WireGuardService:
 
         # Save config with server_id in filename
         config_path = self.config_path_for_server(user.id, server.server_id)
-        config_path.write_text(config_content)
+        self._write_secret_file(config_path, config_content)
         return config_path, config_content
 
     def qr_from_config(self, config_text: str) -> str:

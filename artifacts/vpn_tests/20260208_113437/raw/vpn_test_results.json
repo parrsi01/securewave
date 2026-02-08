@@ -1,0 +1,259 @@
+{
+  "tunneling": {
+    "phase": "tunneling_validation",
+    "timestamp": "2026-02-08T12:40:50.928496+00:00",
+    "tests": [
+      {
+        "test": "wireguard_tools_available",
+        "wg_binary": "/usr/bin/wg",
+        "wg_quick_binary": "/usr/bin/wg-quick",
+        "tun_device": true,
+        "pass": true
+      },
+      {
+        "test": "wireguard_kernel_module",
+        "loaded": false,
+        "pass": false
+      },
+      {
+        "test": "pre_vpn_baseline",
+        "public_ip": "92.105.134.148",
+        "dns_resolvers": [
+          "127.0.0.53"
+        ],
+        "default_route": "default via 192.168.64.1 dev enp0s1 proto dhcp src 192.168.64.2 metric 100",
+        "timestamp": "2026-02-08T12:40:51.131170+00:00",
+        "pass": true
+      },
+      {
+        "test": "generate_test_config",
+        "config_path": "/tmp/securewave-test-wg.conf",
+        "client_address": "10.99.0.2/24",
+        "dns": "1.1.1.1, 1.0.0.1",
+        "allowed_ips": "10.99.0.0/24",
+        "keepalive": 25,
+        "config_masked": "# INTERNAL TEST ONLY - SecureWave VPN Test Config\n# Generated: 2026-02-08T12:40:51.135642+00:00\n[Interface]\nPrivateKey = [MASKED_CLIENT_PRIVKEY]\nAddress = 10.99.0.2/24\nDNS = 1.1.1.1, 1.0.0.1\n\n[Peer]\nPublicKey = zbUN99PAS5fnEs39Em9jHS7AfD4JCCDnIdxPzvxoDkM=\nEndpoint = 127.0.0.1:51821\nAllowedIPs = 10.99.0.0/24\nPersistentKeepalive = 25\n",
+        "pass": true
+      },
+      {
+        "test": "validate_config_format",
+        "checks": {
+          "has_interface": true,
+          "has_private_key": true,
+          "has_address": true,
+          "has_dns": true,
+          "has_peer": true,
+          "has_public_key": true,
+          "has_endpoint": true,
+          "has_allowed_ips": true,
+          "has_keepalive": true
+        },
+        "all_present": true,
+        "pass": true
+      },
+      {
+        "test": "wg_interface_lifecycle",
+        "up_success": false,
+        "up_output": "sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper\nsudo: a password is required ",
+        "interface_created": false,
+        "wg_active": false,
+        "down_success": false,
+        "pass": false
+      }
+    ],
+    "summary": {
+      "total_tests": 6,
+      "passed": 4,
+      "failed": 2,
+      "pass_rate": "66.7%"
+    }
+  },
+  "performance": {
+    "phase": "performance_testing",
+    "timestamp": "2026-02-08T12:40:51.146647+00:00",
+    "tests": [
+      {
+        "test": "baseline_performance",
+        "vpn_active": false,
+        "latency": {
+          "host": "1.1.1.1",
+          "count": 20,
+          "samples": 20,
+          "avg_ms": 19.53,
+          "p50_ms": 15.2,
+          "p95_ms": 105.0,
+          "min_ms": 8.39,
+          "max_ms": 105.0,
+          "loss_pct": 0.0
+        },
+        "throughput": {
+          "test": "download_throughput",
+          "url": "https://speed.cloudflare.com/__down?bytes=10000000",
+          "size_label": "10MB",
+          "speed_bytes_per_sec": 26026687.0,
+          "speed_mbps": 208.21,
+          "elapsed_sec": 0.39,
+          "pass": true
+        },
+        "http_latency": {
+          "test": "http_latency",
+          "url": "https://1.1.1.1/cdn-cgi/trace",
+          "samples": 5,
+          "avg_ms": 43.9,
+          "p50_ms": 40.7,
+          "p95_ms": 54.4,
+          "min_ms": 36.7,
+          "max_ms": 54.4
+        },
+        "timestamp": "2026-02-08T12:41:10.836649+00:00"
+      }
+    ],
+    "summary": {
+      "note": "VPN-on performance requires a live WireGuard server. Baseline captured for future comparison.",
+      "baseline_captured": true,
+      "vpn_comparison_available": false
+    }
+  },
+  "reliability": {
+    "phase": "reliability_testing",
+    "timestamp": "2026-02-08T12:41:10.836679+00:00",
+    "tests": [
+      {
+        "test": "connect_disconnect_cycles",
+        "total_cycles": 10,
+        "successes": 0,
+        "failures": 10,
+        "avg_connect_sec": null,
+        "avg_disconnect_sec": null,
+        "max_connect_sec": null,
+        "max_disconnect_sec": null,
+        "errors": [
+          "Cycle 1 UP failed: ",
+          "Cycle 2 UP failed: ",
+          "Cycle 3 UP failed: ",
+          "Cycle 4 UP failed: ",
+          "Cycle 5 UP failed: "
+        ],
+        "pass": false,
+        "pass_rate": "0.0%"
+      }
+    ],
+    "summary": {
+      "note": "Soak test (30-60min) and concurrency test require live VPN server. Cycle test validates wg-quick up/down reliability."
+    }
+  },
+  "network_anomaly": {
+    "phase": "network_anomaly_resilience",
+    "timestamp": "2026-02-08T12:41:10.864865+00:00",
+    "tests": [
+      {
+        "test": "packet_loss_1pct",
+        "simulated_loss": "1%",
+        "measured_loss": "0.0%",
+        "avg_latency_ms": 18.2,
+        "p95_latency_ms": 20.6,
+        "pass": true
+      },
+      {
+        "test": "packet_loss_5pct",
+        "simulated_loss": "5%",
+        "measured_loss": "0.0%",
+        "avg_latency_ms": 15.94,
+        "p95_latency_ms": 21.1,
+        "pass": true
+      },
+      {
+        "test": "packet_loss_10pct",
+        "simulated_loss": "10%",
+        "measured_loss": "0.0%",
+        "avg_latency_ms": 13.33,
+        "p95_latency_ms": 23.2,
+        "pass": true
+      },
+      {
+        "test": "jitter_20ms",
+        "simulated_jitter": "20ms",
+        "avg_latency_ms": 15.94,
+        "p50_latency_ms": 17.8,
+        "p95_latency_ms": 20.8,
+        "jitter_range_ms": 12.42,
+        "pass": true
+      },
+      {
+        "test": "jitter_50ms",
+        "simulated_jitter": "50ms",
+        "avg_latency_ms": 17.58,
+        "p50_latency_ms": 18.1,
+        "p95_latency_ms": 23.0,
+        "jitter_range_ms": 12.0,
+        "pass": true
+      },
+      {
+        "test": "bandwidth_cap_5000kbit",
+        "cap_kbit": 5000,
+        "measured_mbps": 210.6,
+        "pass": true
+      }
+    ],
+    "summary": {
+      "total_tests": 6,
+      "passed": 6,
+      "interface_tested": "enp0s1"
+    }
+  },
+  "security": {
+    "phase": "security_sanity",
+    "timestamp": "2026-02-08T12:42:02.491737+00:00",
+    "tests": [
+      {
+        "test": "dns_resolver_check",
+        "resolvers": [
+          "127.0.0.53"
+        ],
+        "leaky_resolvers": [
+          "127.0.0.53"
+        ],
+        "leak_risk": true,
+        "pass": false
+      },
+      {
+        "test": "dns_resolution",
+        "domains_tested": 3,
+        "results": [
+          {
+            "domain": "cloudflare.com",
+            "resolved_ip": "104.16.132.229",
+            "latency_ms": 9.5,
+            "success": true
+          },
+          {
+            "domain": "google.com",
+            "resolved_ip": "172.217.208.101",
+            "latency_ms": 6.8,
+            "success": true
+          },
+          {
+            "domain": "example.com",
+            "resolved_ip": "104.18.26.120",
+            "latency_ms": 7.1,
+            "success": true
+          }
+        ],
+        "all_resolved": true,
+        "pass": true
+      },
+      {
+        "test": "config_security",
+        "issues": [
+          "World-readable config files found: /tmp/securewave-test-wg.conf"
+        ],
+        "pass": false
+      }
+    ],
+    "summary": {
+      "total_tests": 3,
+      "passed": 1,
+      "failed": 2
+    }
+  }
+}
