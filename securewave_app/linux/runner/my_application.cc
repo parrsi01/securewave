@@ -71,6 +71,60 @@ static void respond_error(
   fl_method_call_respond(method_call, response, nullptr);
 }
 
+typedef struct {
+  FlMethodCall* method_call;
+  gchar* error_code;
+} WgQuickSpawnContext;
+
+static void wg_quick_spawn_context_free(WgQuickSpawnContext* ctx) {
+  if (!ctx) {
+    return;
+  }
+  g_clear_object(&ctx->method_call);
+  g_clear_pointer(&ctx->error_code, g_free);
+  g_free(ctx);
+}
+
+static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_data) {
+  g_autoptr(WgQuickSpawnContext) ctx = static_cast<WgQuickSpawnContext*>(user_data);
+  g_autoptr(GError) error = nullptr;
+  if (!g_spawn_check_wait_status(wait_status, &error)) {
+    respond_error(ctx->method_call, ctx->error_code, error ? error->message : "wg-quick failed.", nullptr);
+  } else {
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(nullptr));
+    fl_method_call_respond(ctx->method_call, response, nullptr);
+  }
+  g_spawn_close_pid(pid);
+}
+
+static void spawn_wg_quick_async(
+    FlMethodCall* method_call,
+    const gchar* error_code,
+    const gchar* action,
+    const gchar* config_path) {
+  g_autoptr(GError) error = nullptr;
+  gchar* argv[] = {
+      const_cast<gchar*>("wg-quick"),
+      const_cast<gchar*>(action),
+      const_cast<gchar*>(config_path),
+      nullptr
+  };
+
+  GPid pid = 0;
+  if (!g_spawn_async(nullptr, argv, nullptr,
+                     static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
+                     nullptr, nullptr, &pid, &error)) {
+    respond_error(method_call, error_code, error ? error->message : "Failed to spawn wg-quick.", nullptr);
+    return;
+  }
+
+  WgQuickSpawnContext* ctx = g_new0(WgQuickSpawnContext, 1);
+  ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
+  ctx->error_code = g_strdup(error_code);
+  g_child_watch_add(pid, wg_quick_child_watch_cb, ctx);
+}
+
 static void handle_vpn_call(FlMethodChannel* channel,
                             FlMethodCall* method_call,
                             gpointer user_data) {
@@ -110,25 +164,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
       return;
     }
-    gchar* argv[] = {
-        const_cast<gchar*>("wg-quick"),
-        const_cast<gchar*>("up"),
-        state->config_path,
-        nullptr
-    };
-    gint exit_status = 0;
-    if (!g_spawn_sync(nullptr, argv, nullptr, G_SPAWN_SEARCH_PATH, nullptr, nullptr,
-                      nullptr, nullptr, &exit_status, &error)) {
-      respond_error(method_call, "vpn_connect_failed", error->message, nullptr);
-      return;
-    }
-    if (!g_spawn_check_wait_status(exit_status, &error)) {
-      respond_error(method_call, "vpn_connect_failed", error->message, nullptr);
-      return;
-    }
-    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
-        fl_method_success_response_new(nullptr));
-    fl_method_call_respond(method_call, response, nullptr);
+    spawn_wg_quick_async(method_call, "vpn_connect_failed", "up", state->config_path);
     return;
   }
   if (g_strcmp0(method, "disconnect") == 0) {
@@ -144,26 +180,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       respond_error(method_call, "vpn_config_missing", "WireGuard config file not found.", nullptr);
       return;
     }
-    g_autoptr(GError) error = nullptr;
-    gchar* argv[] = {
-        const_cast<gchar*>("wg-quick"),
-        const_cast<gchar*>("down"),
-        state->config_path,
-        nullptr
-    };
-    gint exit_status = 0;
-    if (!g_spawn_sync(nullptr, argv, nullptr, G_SPAWN_SEARCH_PATH, nullptr, nullptr,
-                      nullptr, nullptr, &exit_status, &error)) {
-      respond_error(method_call, "vpn_disconnect_failed", error->message, nullptr);
-      return;
-    }
-    if (!g_spawn_check_wait_status(exit_status, &error)) {
-      respond_error(method_call, "vpn_disconnect_failed", error->message, nullptr);
-      return;
-    }
-    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
-        fl_method_success_response_new(nullptr));
-    fl_method_call_respond(method_call, response, nullptr);
+    spawn_wg_quick_async(method_call, "vpn_disconnect_failed", "down", state->config_path);
     return;
   }
   g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
