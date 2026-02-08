@@ -223,7 +223,7 @@ python3 infrastructure/database_init.py --skip-initial-data
 ```
 
 **Creates:**
-- Admin user (email: admin@securewave.app, password: SecureWave2026!)
+- Admin user (email: admin@securewave.app, password is generated at init time and must be changed on first login)
 - 3 demo VPN servers (US East, EU West, Asia Southeast)
 - All database tables via Alembic
 - Health verification
