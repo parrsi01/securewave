@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - SecureWave</title>
+  <title>Account Center - SecureWave</title>
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
   <link rel="stylesheet" href="/css/web_ui_v1.css">
 </head>
@@ -13,7 +13,7 @@
   <div class="nav-inner">
     <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
     <div class="nav-links">
-      <a href="/dashboard" class="active">Dashboard</a>
+      <a href="/dashboard" class="active">Account</a>
       <a href="/vpn">Devices</a>
       <a href="/settings">Settings</a>
       <a href="/subscription">Plan</a>
@@ -21,7 +21,7 @@
       <a href="/download">Download</a>
     </div>
     <div class="nav-actions">
-      <a class="btn btn-ghost btn-sm" href="/dashboard">Dashboard</a>
+      <a class="btn btn-ghost btn-sm" href="/dashboard">Account</a>
       <button class="btn btn-secondary btn-sm" type="button" data-logout>Sign out</button>
     </div>
     <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
@@ -30,7 +30,7 @@
     </button>
   </div>
   <div class="nav-mobile">
-    <a href="/dashboard">Dashboard</a><a href="/vpn">Devices</a><a href="/settings">Settings</a><a href="/subscription">Plan</a><a href="/diagnostics">Diagnostics</a><a href="/download">Download</a>
+    <a href="/dashboard">Account</a><a href="/vpn">Devices</a><a href="/settings">Settings</a><a href="/subscription">Plan</a><a href="/diagnostics">Diagnostics</a><a href="/download">Download</a>
     <div class="nav-mobile-actions">
       <button class="btn btn-secondary btn-block" type="button" data-logout>Sign out</button>
     </div>
@@ -43,135 +43,103 @@
     <!-- Greeting -->
     <section class="section">
       <div class="section-header">
-        <h1>Welcome back</h1>
-        <p><span data-user-email>you@example.com</span> <span class="badge badge-primary" data-plan-label>Starter (Free)</span></p>
+        <h1>Account Center</h1>
+        <p>Manage your account, review devices, and check your security posture. VPN connections are controlled from the <a href="/download">SecureWave app</a>.</p>
       </div>
     </section>
 
-    <!-- Metrics Grid -->
+    <!-- Account Overview -->
     <section class="section">
       <div class="metrics-grid">
         <div class="dash-metric">
-          <span class="dash-metric-label">Connection Status</span>
-          <span class="dash-metric-value" data-metric="connection-status">Disconnected</span>
-          <span class="dash-metric-sub">Last connected 2 hours ago</span>
+          <span class="dash-metric-label">Account</span>
+          <span class="dash-metric-value" data-user-email>you@example.com</span>
+          <span class="dash-metric-sub"><span class="badge badge-primary" data-plan-label>Starter (Free)</span></span>
         </div>
         <div class="dash-metric">
-          <span class="dash-metric-label">Data Used</span>
-          <span class="dash-metric-value" data-metric="data-used">1.24 GB</span>
-          <span class="dash-metric-sub">of 5 GB this month</span>
+          <span class="dash-metric-label">Devices</span>
+          <span class="dash-metric-value" data-metric="device-count">--</span>
+          <span class="dash-metric-sub">Registered on your account</span>
         </div>
         <div class="dash-metric">
           <span class="dash-metric-label">Active Sessions</span>
-          <span class="dash-metric-value" data-metric="active-sessions">0</span>
-          <span class="dash-metric-sub">across 3 devices</span>
+          <span class="dash-metric-value" data-metric="active-sessions">--</span>
+          <span class="dash-metric-sub">Currently connected</span>
         </div>
         <div class="dash-metric">
-          <span class="dash-metric-label">Security Score</span>
-          <span class="dash-metric-value" data-metric="security-score">92 / 100</span>
-          <span class="dash-metric-sub">Excellent</span>
+          <span class="dash-metric-label">Security</span>
+          <span class="dash-metric-value" data-metric="security-posture">Protected</span>
+          <span class="dash-metric-sub">Always-on protections</span>
         </div>
       </div>
     </section>
 
-    <!-- Dashboard Layout -->
+    <!-- Main Layout -->
     <section class="section">
       <div class="dash-layout">
 
         <!-- Main Column -->
         <div class="dash-main">
 
-          <!-- Recent Activity -->
+          <!-- Security Posture -->
           <div class="card">
             <div class="card-header">
-              <h3>Recent Activity</h3>
+              <h3>Security posture</h3>
+            </div>
+            <div class="card-body">
+              <ul class="check-list">
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Encryption: <strong>WireGuard (ChaCha20)</strong></span>
+                </li>
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Ad/Malware blocking: <strong>Always ON</strong> <span class="badge badge-muted">via DNS</span></span>
+                </li>
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>DNS leak protection: <strong>Active</strong></span>
+                </li>
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Kill switch: <strong>Best effort</strong> <span class="badge badge-muted">per platform</span></span>
+                </li>
+                <li class="check-list-item check-pass">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>No config files required: <strong>Profiles delivered securely to app</strong></span>
+                </li>
+              </ul>
+              <p class="muted" style="margin-top: var(--space-3)">
+                SecureWave provisions tunnel profiles directly after sign-in. No manual config files, keys, or setup steps are needed.
+              </p>
+            </div>
+          </div>
+
+          <!-- Active Sessions -->
+          <div class="card" style="margin-top: var(--space-4)">
+            <div class="card-header">
+              <h3>Active sessions</h3>
+              <span class="badge badge-muted" data-session-count>--</span>
             </div>
             <div class="card-body">
               <div class="table-wrap">
                 <table class="table">
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>Action</th>
-                      <th>Location</th>
+                      <th>Device</th>
+                      <th>Platform</th>
+                      <th>Status</th>
+                      <th>Last seen</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    <tr>
-                      <td>2026-02-06 14:32</td>
-                      <td>VPN Disconnected</td>
-                      <td>US East - New York</td>
-                    </tr>
-                    <tr>
-                      <td>2026-02-06 12:05</td>
-                      <td>VPN Connected</td>
-                      <td>US East - New York</td>
-                    </tr>
-                    <tr>
-                      <td>2026-02-05 20:18</td>
-                      <td>Server Changed</td>
-                      <td>EU - London</td>
-                    </tr>
-                    <tr>
-                      <td>2026-02-05 09:41</td>
-                      <td>VPN Connected</td>
-                      <td>EU - London</td>
-                    </tr>
-                    <tr>
-                      <td>2026-02-04 17:55</td>
-                      <td>Settings Updated</td>
-                      <td>--</td>
-                    </tr>
+                  <tbody data-sessions-body>
+                    <tr><td colspan="4">Loading sessions&hellip;</td></tr>
                   </tbody>
                 </table>
               </div>
-            </div>
-          </div>
-
-          <!-- Connection History -->
-          <div class="card">
-            <div class="card-header">
-              <h3>Connection History</h3>
-              <span class="badge badge-muted">Last 7 days</span>
-            </div>
-            <div class="card-body">
-              <div class="chart-placeholder">
-                <div class="chart-bar-group">
-                  <span class="chart-bar-label">Mon</span>
-                  <div class="progress"><div class="progress-bar" style="width:72%"></div></div>
-                  <span class="chart-bar-value">3.6 hrs</span>
-                </div>
-                <div class="chart-bar-group">
-                  <span class="chart-bar-label">Tue</span>
-                  <div class="progress"><div class="progress-bar" style="width:88%"></div></div>
-                  <span class="chart-bar-value">4.4 hrs</span>
-                </div>
-                <div class="chart-bar-group">
-                  <span class="chart-bar-label">Wed</span>
-                  <div class="progress"><div class="progress-bar" style="width:64%"></div></div>
-                  <span class="chart-bar-value">3.2 hrs</span>
-                </div>
-                <div class="chart-bar-group">
-                  <span class="chart-bar-label">Thu</span>
-                  <div class="progress"><div class="progress-bar" style="width:96%"></div></div>
-                  <span class="chart-bar-value">4.8 hrs</span>
-                </div>
-                <div class="chart-bar-group">
-                  <span class="chart-bar-label">Fri</span>
-                  <div class="progress"><div class="progress-bar" style="width:40%"></div></div>
-                  <span class="chart-bar-value">2.0 hrs</span>
-                </div>
-                <div class="chart-bar-group">
-                  <span class="chart-bar-label">Sat</span>
-                  <div class="progress"><div class="progress-bar" style="width:20%"></div></div>
-                  <span class="chart-bar-value">1.0 hrs</span>
-                </div>
-                <div class="chart-bar-group">
-                  <span class="chart-bar-label">Sun</span>
-                  <div class="progress"><div class="progress-bar" style="width:56%"></div></div>
-                  <span class="chart-bar-value">2.8 hrs</span>
-                </div>
-              </div>
+              <p class="muted" style="margin-top: var(--space-3)">
+                Manage individual devices in the <a href="/vpn">Device &amp; Session Center</a>.
+              </p>
             </div>
           </div>
 
@@ -185,39 +153,50 @@
             <div class="card-header">
               <h3>Quick Actions</h3>
             </div>
-          <div class="card-body">
+            <div class="card-body">
               <div class="stack">
                 <a href="/download" class="btn btn-primary btn-block">Download the app</a>
-                <a href="/diagnostics" class="btn btn-secondary btn-block">Run Diagnostics</a>
+                <a href="/vpn" class="btn btn-secondary btn-block">Device &amp; Session Center</a>
+                <a href="/diagnostics" class="btn btn-ghost btn-block">Run Diagnostics</a>
+                <a href="/leak-test" class="btn btn-ghost btn-block">DNS Leak Test</a>
                 <a href="/subscription" class="btn btn-ghost btn-block">Upgrade Plan</a>
               </div>
             </div>
           </div>
 
-          <!-- Security Status -->
+          <!-- Backend Status -->
           <div class="card">
             <div class="card-header">
-              <h3>Security Status</h3>
+              <h3>Backend status</h3>
             </div>
             <div class="card-body">
-              <div class="anomaly-indicator anomaly-safe">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span>Network Safe</span>
+              <div class="stack">
+                <div class="vpn-info-item">
+                  <span class="vpn-info-label">API</span>
+                  <span class="vpn-info-value" data-backend-api>Checking&hellip;</span>
+                </div>
+                <div class="vpn-info-item">
+                  <span class="vpn-info-label">Database</span>
+                  <span class="vpn-info-value" data-backend-db>Checking&hellip;</span>
+                </div>
+                <div class="vpn-info-item">
+                  <span class="vpn-info-label">VPN fleet</span>
+                  <span class="vpn-info-value" data-backend-fleet>Checking&hellip;</span>
+                </div>
               </div>
-              <ul class="check-list">
-                <li class="check-list-item check-pass">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>Encryption: <strong>Active</strong></span>
-                </li>
-                <li class="check-list-item check-pass">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>DNS Leak: <strong>None</strong></span>
-                </li>
-                <li class="check-list-item check-pass">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>Kill Switch: <strong>Enabled</strong></span>
-                </li>
-              </ul>
+            </div>
+          </div>
+
+          <!-- Help -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Need help?</h3>
+            </div>
+            <div class="card-body">
+              <p class="muted">VPN tunnels are controlled exclusively from the SecureWave app. Download it to connect.</p>
+              <div class="stack" style="margin-top: var(--space-3)">
+                <a href="/contact" class="btn btn-ghost btn-block">Contact support</a>
+              </div>
             </div>
           </div>
 
@@ -238,7 +217,7 @@
       </div>
       <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/download">Downloads</a></div>
       <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
-      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/dashboard">Dashboard</a></div>
+      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/vpn">Device Center</a></div>
     </div>
     <div class="footer-bottom">
       <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
