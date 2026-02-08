@@ -1,0 +1,34 @@
+import logging
+
+from main import RedactFilter
+
+
+def _apply_filter(message: str) -> str:
+    record = logging.LogRecord(
+        name="securewave.test",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg=message,
+        args=(),
+        exc_info=None,
+    )
+    RedactFilter().filter(record)
+    return record.getMessage()
+
+
+def test_redact_filter_redacts_bearer_tokens_and_wireguard_keys():
+    token = "Bearer abcDEF.123-_XYZ"
+    priv = "PrivateKey = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    psk = "PresharedKey = yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    msg = f"auth={token} cfg: {priv} {psk}"
+
+    redacted = _apply_filter(msg)
+
+    assert "abcDEF.123-_XYZ" not in redacted
+    assert "xxxxxxxxxxxxxxxx" not in redacted
+    assert "yyyyyyyyyyyyyyyy" not in redacted
+    assert "Bearer [redacted-token]" in redacted
+    assert "PrivateKey = [redacted-wg-privatekey]" in redacted
+    assert "PresharedKey = [redacted-wg-psk]" in redacted
+
