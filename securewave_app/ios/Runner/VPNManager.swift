@@ -13,6 +13,10 @@ final class SecureWaveVPNManager {
     return "\(baseId).PacketTunnel"
   }
 
+  func availabilityError() -> Error? {
+    return preflightError()
+  }
+
   func connect(config: String, completion: @escaping (Error?) -> Void) {
     if let error = preflightError() {
       log.error("preflight failed: \(error.localizedDescription, privacy: .public)")
