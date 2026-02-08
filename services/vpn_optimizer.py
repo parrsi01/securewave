@@ -3,6 +3,18 @@ SecureWave VPN Routing Optimizer (Optimized ML Version)
 Multi-Agent Reinforcement Learning (MARL) + XGBoost for intelligent server selection
 OPTIMIZED: Memory-efficient, lazy-loaded dependencies, production-ready
 
+Success criteria ("10x improvement" definition):
+- 10x fewer false-positive server picks vs baseline heuristics, measured as
+  reductions in selections that lead to rapid reconnects or immediate downgrade.
+- Faster selection: scoring/selection stays sub-millisecond for typical fleets.
+- Lower reconnect frequency: optimizer should bias toward stability signals
+  (packet loss/jitter) rather than chasing noisy bandwidth spikes.
+
+Safety:
+- Optimizer output is a *suggestion* only. It must never be treated as a hard
+  gate for connectivity. Callers must fall back to a known-good server if the
+  suggested server is invalid or unavailable.
+
 Key Optimizations:
 - Lazy import of ML dependencies (app works without them)
 - Efficient Q-table with LRU eviction

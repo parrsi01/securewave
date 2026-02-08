@@ -67,7 +67,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         receiveTimeout: const Duration(seconds: 6),
         headers: <String, String>{
           'Content-Type': 'application/json',
-          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+          if (token != null && token.isNotEmpty)
+            'Authorization': 'Bearer $token',
         },
       ),
     );
@@ -107,21 +108,26 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       status: isAuthed ? _CheckStatus.ok : _CheckStatus.fail,
       title: 'Authentication',
       message: isAuthed ? 'Access token present.' : 'Not signed in.',
-      details: isAuthed ? null : 'Sign in to provision a tunnel profile and fetch your plan.',
+      details: isAuthed
+          ? null
+          : 'Sign in to provision a tunnel profile and fetch your plan.',
     );
 
     // Native tunnel availability (local)
     results['native'] = _CheckResult(
-      status: vpnService.isNativeAvailable ? _CheckStatus.ok : _CheckStatus.warn,
+      status:
+          vpnService.isNativeAvailable ? _CheckStatus.ok : _CheckStatus.warn,
       title: 'Native VPN bridge',
-      message: vpnService.isNativeAvailable ? 'Available.' : 'Unavailable on this device.',
+      message: vpnService.isNativeAvailable
+          ? 'Available.'
+          : 'Unavailable on this device.',
       details: switch (platform.operatingSystem) {
         OperatingSystem.windows =>
           'Windows requires WireGuard for Windows (wireguard.exe). Install it to enable tunneling.',
         OperatingSystem.linux =>
           'Linux requires wg-quick (wireguard-tools). Install it and ensure the app can run elevated commands when prompted.',
         OperatingSystem.macOS =>
-          'macOS native tunneling is not configured in this build yet.',
+          'VPN unavailable on macOS (yet). This build does not include the required Apple Network Extension entitlements.',
         _ => null,
       },
     );
@@ -132,7 +138,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           await storage.getString(SecureStorage.vpnProfileConfigKey);
       final expiresRaw =
           await storage.getString(SecureStorage.vpnProfileExpiresAtKey);
-      final expiresAt = expiresRaw != null ? DateTime.tryParse(expiresRaw) : null;
+      final expiresAt =
+          expiresRaw != null ? DateTime.tryParse(expiresRaw) : null;
       results['cache'] = _CheckResult(
         status: (cachedConfig != null && cachedConfig.trim().isNotEmpty)
             ? _CheckStatus.info
@@ -154,7 +161,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     // Backend checks (network)
     Future<_CheckResult> checkHealth() async {
       try {
-        final resp = await dio.get<Map<String, dynamic>>(_apiPath(config, '/health'));
+        final resp =
+            await dio.get<Map<String, dynamic>>(_apiPath(config, '/health'));
         final data = resp.data ?? const <String, dynamic>{};
         final status = data['status']?.toString();
         if (status == 'ok') {
@@ -184,7 +192,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
 
     Future<_CheckResult> checkReady() async {
       try {
-        final resp = await dio.get<Map<String, dynamic>>(_apiPath(config, '/ready'));
+        final resp =
+            await dio.get<Map<String, dynamic>>(_apiPath(config, '/ready'));
         final data = resp.data ?? const <String, dynamic>{};
         final status = data['status']?.toString();
         if (status == 'ready') {
@@ -221,13 +230,15 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         );
       }
       try {
-        final resp = await dio.get<Map<String, dynamic>>(_apiPath(config, '/user/plan'));
+        final resp =
+            await dio.get<Map<String, dynamic>>(_apiPath(config, '/user/plan'));
         if (resp.statusCode == 200) {
           return _CheckResult(
             status: _CheckStatus.ok,
             title: 'Plan lookup',
             message: 'OK',
-            details: 'plan_tier=${resp.data?['plan_tier']} used_gb=${resp.data?['used_gb']}',
+            details:
+                'plan_tier=${resp.data?['plan_tier']} used_gb=${resp.data?['used_gb']}',
           );
         }
         return _CheckResult(
@@ -263,7 +274,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           'device_name': identity.name,
           'device_type': identity.type,
           'protocol': 'wireguard',
-          if (vpnState.selectedServerId != null) 'server_id': vpnState.selectedServerId,
+          if (vpnState.selectedServerId != null)
+            'server_id': vpnState.selectedServerId,
         };
 
         final resp = await dio.post<Map<String, dynamic>>(
@@ -273,8 +285,11 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         final data = resp.data ?? const <String, dynamic>{};
         final serverId = data['server_id']?.toString() ?? '';
         final expiresAt = data['expires_at']?.toString();
-        final dns = data['dns'] is Map ? Map<String, dynamic>.from(data['dns'] as Map) : const <String, dynamic>{};
-        final dnsServers = dns['servers'] is List ? (dns['servers'] as List).length : 0;
+        final dns = data['dns'] is Map
+            ? Map<String, dynamic>.from(data['dns'] as Map)
+            : const <String, dynamic>{};
+        final dnsServers =
+            dns['servers'] is List ? (dns['servers'] as List).length : 0;
         final killSwitch = data['kill_switch'] is Map
             ? Map<String, dynamic>.from(data['kill_switch'] as Map)
             : const <String, dynamic>{};
@@ -284,7 +299,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           status: _CheckStatus.ok,
           title: 'Profile provisioning',
           message: 'OK',
-          details: 'server=$serverId expires=$expiresAt dns_servers=$dnsServers kill_switch=$ksEnforcement',
+          details:
+              'server=$serverId expires=$expiresAt dns_servers=$dnsServers kill_switch=$ksEnforcement',
         );
       } on DioException catch (e) {
         return _dioFailure('Profile provisioning', e);
@@ -385,7 +401,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       ..._results.entries.map((e) {
         final r = e.value;
         final status = r.status.name.toUpperCase();
-        final detail = r.details == null || r.details!.trim().isEmpty ? '' : '\n  ${r.details}';
+        final detail = r.details == null || r.details!.trim().isEmpty
+            ? ''
+            : '\n  ${r.details}';
         return '- [$status] ${r.title}: ${r.message}$detail';
       }),
       if (_runError != null) '',
@@ -422,11 +440,13 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
+            constraints:
+                const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
             child: ListView(
               padding: const EdgeInsets.all(AppUIv1.space5),
               children: [
-                Text('Run checks', style: Theme.of(context).textTheme.titleLarge),
+                Text('Run checks',
+                    style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: AppUIv1.space2),
                 Text(
                   'These checks help classify common failures (backend unreachable, auth expired, profile provisioning issues, missing WireGuard tools).',
@@ -442,7 +462,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.play_arrow),
                         label: Text(_running ? 'Running…' : 'Run diagnostics'),
@@ -455,11 +476,14 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                           : () async {
                               final messenger = ScaffoldMessenger.of(context);
                               final storage = SecureStorage();
-                              await storage.delete(SecureStorage.vpnProfileConfigKey);
-                              await storage.delete(SecureStorage.vpnProfileExpiresAtKey);
+                              await storage
+                                  .delete(SecureStorage.vpnProfileConfigKey);
+                              await storage
+                                  .delete(SecureStorage.vpnProfileExpiresAtKey);
                               if (!mounted) return;
                               messenger.showSnackBar(
-                                const SnackBar(content: Text('Cached profile cleared')),
+                                const SnackBar(
+                                    content: Text('Cached profile cleared')),
                               );
                               await _runChecks();
                             },
@@ -473,7 +497,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                     children: [
                       for (final r in rows) ...[
                         ListTile(
-                          leading: Icon(_statusIcon(r.status), color: _statusColor(r.status)),
+                          leading: Icon(_statusIcon(r.status),
+                              color: _statusColor(r.status)),
                           title: Text(r.title),
                           subtitle: Text(
                             r.details == null || r.details!.trim().isEmpty

@@ -240,13 +240,21 @@ static void my_application_activate(GApplication* application) {
   gdk_rgba_parse(&background_color, "#000000");
   fl_view_set_background_color(view, &background_color);
   gtk_widget_show(GTK_WIDGET(view));
+  // gtk_container_add is deprecated in GTK 3.24 (preparing for GTK4) but
+  // remains required for the GTK3 Flutter embedder.
+  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
+  G_GNUC_END_IGNORE_DEPRECATIONS
 
   // Show the window when Flutter renders.
   // Requires the view to be realized so we can start rendering.
   g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
                            self);
+  // gtk_widget_realize is deprecated in GTK 3.24, but still used by the GTK3
+  // Flutter embedder to ensure the view is ready before rendering starts.
+  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
   gtk_widget_realize(GTK_WIDGET(view));
+  G_GNUC_END_IGNORE_DEPRECATIONS
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 

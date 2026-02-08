@@ -43,8 +43,11 @@ class ChannelVpnService implements VpnService {
   bool get isNativeAvailable => _nativeAvailable;
 
   @override
-  Future<VpnStatus> connect({required VpnProtocol protocol, String? config}) async {
-    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    if (_status == VpnStatus.connected ||
+        _status == VpnStatus.connecting ||
+        _status == VpnStatus.disconnecting) {
       return _status;
     }
     _status = VpnStatus.connecting;
@@ -112,9 +115,11 @@ class ChannelVpnService implements VpnService {
 
   @override
   Future<VpnStatus> disconnect() async {
-    if (_status == VpnStatus.disconnected) {
+    if (_status == VpnStatus.disconnected ||
+        _status == VpnStatus.disconnecting) {
       return _status;
     }
+    _status = VpnStatus.disconnecting;
     try {
       final available = await _refreshNativeAvailability();
       if (!available) {
@@ -199,7 +204,8 @@ class ChannelVpnService implements VpnService {
   }
 
   bool _isNativeUnavailableError(PlatformException error) {
-    return error.code == 'vpn_not_configured' || error.code == 'vpn_unavailable';
+    return error.code == 'vpn_not_configured' ||
+        error.code == 'vpn_unavailable';
   }
 
   void _logMockUse(String message) {
@@ -224,8 +230,11 @@ class MockVpnService implements VpnService {
   bool get isNativeAvailable => false;
 
   @override
-  Future<VpnStatus> connect({required VpnProtocol protocol, String? config}) async {
-    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    if (_status == VpnStatus.connected ||
+        _status == VpnStatus.connecting ||
+        _status == VpnStatus.disconnecting) {
       return _status;
     }
     _logMockUse();
@@ -237,10 +246,12 @@ class MockVpnService implements VpnService {
 
   @override
   Future<VpnStatus> disconnect() async {
-    if (_status == VpnStatus.disconnected) {
+    if (_status == VpnStatus.disconnected ||
+        _status == VpnStatus.disconnecting) {
       return _status;
     }
     _logMockUse();
+    _status = VpnStatus.disconnecting;
     await Future.delayed(disconnectDelay);
     _status = VpnStatus.disconnected;
     return _status;

@@ -8,6 +8,13 @@ import '../models/server_region.dart';
 /// - False positive rate: anomaly clamping prevents >2x spikes from skewing metrics
 /// - Decision latency: O(n) per server scoring, < 1ms for typical fleet sizes
 /// - Compute overhead: no ML inference on-device, pure arithmetic
+///
+/// When we say "10x improvement" in this project, it is not a magic claim. It is a
+/// concrete success criterion measured against a baseline:
+/// - 10x fewer false-positive telemetry spikes that would otherwise trigger bad server picks
+///   (count of >threshold outliers affecting the score).
+/// - Faster server selection decisions (sub-millisecond scoring over a typical server list).
+/// - Lower reconnect frequency by biasing selection toward recent stability and penalizing jitter/load.
 class MarLXGBPredictor {
   const MarLXGBPredictor({
     this.recentWeight = 0.65,
@@ -19,6 +26,7 @@ class MarLXGBPredictor {
 
   final double recentWeight;
   final double favoriteBoost;
+
   /// Samples deviating more than this factor from EMA are clamped (anti-poisoning).
   final double anomalyThreshold;
   final double jitterPenaltyWeight;
@@ -48,7 +56,8 @@ class MarLXGBPredictor {
         safeSample = previous / anomalyThreshold;
       }
     }
-    final blended = (previous * recentWeight) + (safeSample * (1 - recentWeight));
+    final blended =
+        (previous * recentWeight) + (safeSample * (1 - recentWeight));
     return blended.clamp(min, max).toDouble();
   }
 
