@@ -9,6 +9,24 @@
     "trust_weight": 1.15,
     "feature_decay": 0.95
   },
+  "feature_schema": {
+    "qos": [
+      "latency_ms",
+      "packet_loss",
+      "jitter_ms",
+      "bandwidth_mbps",
+      "connection_stability"
+    ],
+    "risk": [
+      "login_failures",
+      "reconnect_frequency",
+      "unusual_hours",
+      "ip_reputation",
+      "geo_anomaly",
+      "data_exfil_indicator",
+      "session_duration_anomaly"
+    ]
+  },
   "xgb_qos": {
     "n_estimators": 120,
     "max_depth": 6,

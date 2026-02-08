@@ -22,16 +22,20 @@ from typing import List, Tuple
 def load_data(csv_path: str) -> Tuple[List[dict], List[str]]:
     """Load telemetry data from CSV"""
     records = []
-    with open(csv_path, 'r') as f:
+    with open(csv_path, 'r', encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             records.append({
+                'timestamp': row.get('timestamp', ''),
+                'user_id': int(row.get('user_id', 0) or 0),
+                'server_id': row.get('server_id', ''),
                 'latency_ms': float(row['latency_ms']),
                 'packet_loss': float(row['packet_loss']),
                 'jitter_ms': float(row['jitter_ms']),
                 'bandwidth_mbps': float(row['bandwidth_mbps']),
                 'connection_stability': float(row['connection_stability']),
                 'disconnect_count': int(row['disconnect_count']),
+                'session_duration_minutes': int(row.get('session_duration_minutes', 0) or 0),
                 'qos_label': row['qos_label'],
                 'risk_score': float(row['risk_score']),
             })
@@ -101,6 +105,7 @@ def train_qos_model(records: List[dict], output_path: str) -> dict:
 def train_risk_model(records: List[dict], output_path: str) -> dict:
     """Train Risk scoring model"""
     from services.xgb_risk import get_risk_scorer
+    from ml.data import extract_risk_features
 
     print(f"\n{'='*50}")
     print("Training Risk Scoring Model")
@@ -112,23 +117,17 @@ def train_risk_model(records: List[dict], output_path: str) -> dict:
     X = []
     y = []
     for r in records:
-        # Simulate risk features from available data
-        login_failures = 0 if r['risk_score'] < 0.3 else int(r['risk_score'] * 5)
-        reconnect_freq = r['disconnect_count']
-        unusual_hours = 1.0 if r['risk_score'] > 0.4 else 0.0
-        ip_reputation = max(0.3, 1.0 - r['risk_score'])
-        geo_anomaly = 1.0 if r['risk_score'] > 0.5 else 0.0
-        data_exfil = r['risk_score'] * 0.5 if r['risk_score'] > 0.3 else 0.0
-        session_anomaly = r['risk_score'] * 2 if r['risk_score'] > 0.2 else 0.0
+        # IMPORTANT: do not derive features from the label (`risk_score`).
+        features = extract_risk_features(r)
 
         X.append([
-            float(login_failures),
-            float(reconnect_freq),
-            unusual_hours,
-            ip_reputation,
-            geo_anomaly,
-            data_exfil,
-            session_anomaly,
+            float(features["login_failures"]),
+            float(features["reconnect_frequency"]),
+            1.0 if features["unusual_hours"] else 0.0,
+            float(features["ip_reputation"]),
+            1.0 if features["geo_anomaly"] else 0.0,
+            float(features["data_exfil_indicator"]),
+            float(features["session_duration_anomaly"]),
         ])
         y.append(r['risk_score'])
 

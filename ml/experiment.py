@@ -11,6 +11,7 @@ from ml.data import (
     apply_feature_decay,
     build_qos_dataset,
     build_risk_dataset,
+    extract_risk_features,
     load_telemetry_csv,
     split_records,
 )
@@ -99,14 +100,15 @@ def run_experiment(
 
     risk_preds = []
     for record in test_records:
+        features = extract_risk_features(record)
         inp = RiskInput(
-            login_failures=0 if record["risk_score"] < 0.3 else int(record["risk_score"] * 5),
-            reconnect_frequency=int(record["disconnect_count"]),
-            unusual_hours=record["risk_score"] > 0.4,
-            ip_reputation=max(0.3, 1.0 - record["risk_score"]),
-            geo_anomaly=record["risk_score"] > 0.5,
-            data_exfil_indicator=record["risk_score"] * 0.5 if record["risk_score"] > 0.3 else 0.0,
-            session_duration_anomaly=record["risk_score"] * 2 if record["risk_score"] > 0.2 else 0.0,
+            login_failures=int(features["login_failures"]),
+            reconnect_frequency=int(features["reconnect_frequency"]),
+            unusual_hours=bool(features["unusual_hours"]),
+            ip_reputation=float(features["ip_reputation"]),
+            geo_anomaly=bool(features["geo_anomaly"]),
+            data_exfil_indicator=float(features["data_exfil_indicator"]),
+            session_duration_anomaly=float(features["session_duration_anomaly"]),
         )
         risk_preds.append(risk_scorer.predict(inp).score)
 
