@@ -38,6 +38,7 @@ class ChannelVpnService implements VpnService {
   VpnStatus _status = VpnStatus.disconnected;
   bool _nativeAvailable = false;
   bool _mockNoticeLogged = false;
+  String? _lastNativeAvailabilityMessage;
 
   @override
   bool get isNativeAvailable => _nativeAvailable;
@@ -52,8 +53,17 @@ class ChannelVpnService implements VpnService {
     }
     _status = VpnStatus.connecting;
     try {
+      final os = platform.operatingSystem.name.toLowerCase();
       final available = await _refreshNativeAvailability();
       if (!available) {
+        if (os == 'ios') {
+          _status = VpnStatus.disconnected;
+          throw VpnServiceException(
+            'vpn_unavailable',
+            _lastNativeAvailabilityMessage ??
+                'Native VPN tunnel unavailable on this iOS build.',
+          );
+        }
         if (_allowFallback) {
           _logMockUse('Native VPN unavailable; falling back to demo tunnel.');
           _status = await _fallback.connect(protocol: protocol, config: config);
@@ -77,8 +87,17 @@ class ChannelVpnService implements VpnService {
       });
       _status = VpnStatus.connected;
     } on PlatformException catch (error) {
+      final os = platform.operatingSystem.name.toLowerCase();
       if (_isNativeUnavailableError(error)) {
         _nativeAvailable = false;
+        if (os == 'ios') {
+          _status = VpnStatus.disconnected;
+          throw VpnServiceException(
+            error.code,
+            error.message ?? 'Native VPN is not configured on this device.',
+            details: error.details,
+          );
+        }
         if (_allowFallback) {
           _logMockUse('Native VPN not configured; using demo tunnel.');
           _status = await _fallback.connect(protocol: protocol, config: config);
@@ -99,6 +118,14 @@ class ChannelVpnService implements VpnService {
       }
     } on MissingPluginException {
       _nativeAvailable = false;
+      final os = platform.operatingSystem.name.toLowerCase();
+      if (os == 'ios') {
+        _status = VpnStatus.disconnected;
+        throw VpnServiceException(
+          'vpn_unavailable',
+          'Native VPN plugin missing for this iOS build.',
+        );
+      }
       if (_allowFallback) {
         _logMockUse('Native VPN plugin missing; using demo tunnel.');
         _status = await _fallback.connect(protocol: protocol, config: config);
@@ -121,8 +148,13 @@ class ChannelVpnService implements VpnService {
     }
     _status = VpnStatus.disconnecting;
     try {
+      final os = platform.operatingSystem.name.toLowerCase();
       final available = await _refreshNativeAvailability();
       if (!available) {
+        if (os == 'ios') {
+          _status = VpnStatus.disconnected;
+          return _status;
+        }
         if (_allowFallback) {
           _logMockUse('Native VPN unavailable; using demo disconnect.');
           _status = await _fallback.disconnect();
@@ -134,8 +166,13 @@ class ChannelVpnService implements VpnService {
       await _channel.invokeMethod('disconnect');
       _status = VpnStatus.disconnected;
     } on PlatformException catch (error) {
+      final os = platform.operatingSystem.name.toLowerCase();
       if (_isNativeUnavailableError(error)) {
         _nativeAvailable = false;
+        if (os == 'ios') {
+          _status = VpnStatus.disconnected;
+          return _status;
+        }
         if (_allowFallback) {
           _logMockUse('Native VPN not configured; using demo disconnect.');
           _status = await _fallback.disconnect();
@@ -151,6 +188,11 @@ class ChannelVpnService implements VpnService {
       }
     } on MissingPluginException {
       _nativeAvailable = false;
+      final os = platform.operatingSystem.name.toLowerCase();
+      if (os == 'ios') {
+        _status = VpnStatus.disconnected;
+        return _status;
+      }
       if (_allowFallback) {
         _logMockUse('Native VPN plugin missing; using demo disconnect.');
         _status = await _fallback.disconnect();
@@ -179,11 +221,6 @@ class ChannelVpnService implements VpnService {
       _nativeAvailable = false;
       return _nativeAvailable;
     }
-    final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'ios') {
-      _nativeAvailable = true;
-      return _nativeAvailable;
-    }
     try {
       final available = await _channel.invokeMethod<bool>('isAvailable');
       if (available != null) {
@@ -191,14 +228,15 @@ class ChannelVpnService implements VpnService {
       } else {
         _nativeAvailable = true;
       }
+      if (_nativeAvailable) {
+        _lastNativeAvailabilityMessage = null;
+      }
     } on MissingPluginException {
       _nativeAvailable = false;
+      _lastNativeAvailabilityMessage = 'Native VPN plugin missing for this platform/build.';
     } on PlatformException catch (error) {
-      if (_isNativeUnavailableError(error)) {
-        _nativeAvailable = false;
-      } else {
-        _nativeAvailable = false;
-      }
+      _lastNativeAvailabilityMessage = error.message;
+      _nativeAvailable = false;
     }
     return _nativeAvailable;
   }

@@ -13,6 +13,12 @@ import UIKit
       let channel = FlutterMethodChannel(name: "securewave/vpn", binaryMessenger: controller.binaryMessenger)
       channel.setMethodCallHandler { call, result in
         switch call.method {
+        case "isAvailable":
+          if let error = SecureWaveVPNManager.shared.availabilityError() {
+            result(FlutterError(code: "vpn_unavailable", message: error.localizedDescription, details: nil))
+          } else {
+            result(true)
+          }
         case "connect":
           guard let args = call.arguments as? [String: Any],
                 let config = args["config"] as? String,
