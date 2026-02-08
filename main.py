@@ -44,17 +44,17 @@ request_id_ctx = contextvars.ContextVar("request_id", default="-")
 class RedactFilter(logging.Filter):
     """Redact emails and obvious secrets from log messages."""
     _email_re = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-    _token_re = re.compile(r"(Bearer\\s+)[A-Za-z0-9._\\-]+")
-    _wg_priv_re = re.compile(r"(PrivateKey\\s*=\\s*)([^\\s]+)")
-    _wg_psk_re = re.compile(r"(PresharedKey\\s*=\\s*)([^\\s]+)")
+    _token_re = re.compile(r"(Bearer\s+)[A-Za-z0-9._\-]+")
+    _wg_priv_re = re.compile(r"(PrivateKey\s*=\s*)([^\s]+)")
+    _wg_psk_re = re.compile(r"(PresharedKey\s*=\s*)([^\s]+)")
 
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
         message = self._email_re.sub("[redacted-email]", message)
-        message = self._token_re.sub(r"\\1[redacted-token]", message)
+        message = self._token_re.sub(r"\1[redacted-token]", message)
         # Defensive: never emit WireGuard secrets if a config blob is accidentally logged.
-        message = self._wg_priv_re.sub(r"\\1[redacted-wg-privatekey]", message)
-        message = self._wg_psk_re.sub(r"\\1[redacted-wg-psk]", message)
+        message = self._wg_priv_re.sub(r"\1[redacted-wg-privatekey]", message)
+        message = self._wg_psk_re.sub(r"\1[redacted-wg-psk]", message)
         record.msg = message
         record.args = ()
         record.request_id = request_id_ctx.get("-")
