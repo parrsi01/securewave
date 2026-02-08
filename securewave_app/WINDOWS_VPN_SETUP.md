@@ -14,7 +14,7 @@ to install and start a tunnel service from a WireGuard config string.
 
 - WireGuard for Windows installed
 - App running with privileges to install the tunnel service
-- WireGuard config from backend `/api/vpn/config` (or `/api/vpn/allocate`)
+- Tunnel profile from backend `POST /api/vpn/profile` (JSON; the app fetches this automatically after sign-in)
 
 ## WireGuard Detection Logic
 
@@ -51,5 +51,6 @@ cd securewave_app
    - PowerShell: `Get-Service -Name "WireGuardTunnel$SecureWave"`
    - Or check the WireGuard UI for the SecureWave tunnel.
 
-If `wireguard.exe` is missing, Flutter receives `vpn_unavailable` and the app
-falls back to mock mode only when native tools are unavailable.
+If `wireguard.exe` is missing, Flutter receives `vpn_unavailable`. In demo mode
+(`SECUREWAVE_USE_MOCK_API=true`) the app can simulate a tunnel; in live mode it
+will not connect until WireGuard is installed.

@@ -7,7 +7,6 @@ import '../config/app_config.dart';
 import '../logging/app_logger.dart';
 import '../services/auth_session.dart';
 import '../services/secure_storage.dart';
-import '../state/adblock_state.dart';
 import '../state/vpn_state.dart';
 
 enum BootStatus { initializing, ready, failed }
@@ -99,12 +98,6 @@ class BootController extends ChangeNotifier {
       AppLogger.warning('Boot: could not restore server selection');
     }
 
-    // Step 3: Load adblock lists (can fail gracefully)
-    try {
-      await _ref.read(adblockStateProvider.notifier).load();
-      AppLogger.info('Boot: adblock loaded');
-    } catch (error) {
-      AppLogger.warning('Boot: adblock load failed, will use fallback');
-    }
+    // Step 3: (reserved for future security posture initialization)
   }
 }

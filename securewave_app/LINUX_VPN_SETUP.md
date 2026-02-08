@@ -13,7 +13,7 @@ MethodChannel writes the config to disk and executes `wg-quick up/down`.
 
 - WireGuard tools installed (`wg-quick` on PATH)
 - Permission to run `wg-quick` (typically via sudo)
-- WireGuard config from backend `/api/vpn/config` (or `/api/vpn/allocate`)
+- Tunnel profile from backend `POST /api/vpn/profile` (JSON; the app fetches this automatically after sign-in)
 
 ## Verification
 
@@ -25,5 +25,6 @@ MethodChannel writes the config to disk and executes `wg-quick up/down`.
    - `sudo wg show securewave`
    - `ip addr show securewave`
 
-If `wg-quick` is not found, Flutter receives `vpn_unavailable` and the app
-falls back to mock mode only when native tools are unavailable.
+If `wg-quick` is not found, Flutter receives `vpn_unavailable`. In demo mode
+(`SECUREWAVE_USE_MOCK_API=true`) the app can simulate a tunnel; in live mode it
+will not connect until the tools are installed.

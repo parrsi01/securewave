@@ -7,6 +7,7 @@ import '../logging/app_logger.dart';
 import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 import '../optimization/marlxgb.dart';
+import '../services/device_identity.dart';
 import '../services/secure_storage.dart';
 import '../../services/api_client.dart';
 import '../services/vpn_service.dart';
@@ -17,6 +18,7 @@ class VpnState {
     this.status = VpnStatus.disconnected,
     this.selectedServerId,
     this.protocol = VpnProtocol.wireGuard,
+    this.desiredOn = false,
     this.isBusy = false,
     this.dataRateDown = 0,
     this.dataRateUp = 0,
@@ -27,6 +29,7 @@ class VpnState {
   final VpnStatus status;
   final String? selectedServerId;
   final VpnProtocol protocol;
+  final bool desiredOn;
   final bool isBusy;
   final double dataRateDown;
   final double dataRateUp;
@@ -37,6 +40,7 @@ class VpnState {
     VpnStatus? status,
     String? selectedServerId,
     VpnProtocol? protocol,
+    bool? desiredOn,
     bool? isBusy,
     double? dataRateDown,
     double? dataRateUp,
@@ -48,6 +52,7 @@ class VpnState {
       status: status ?? this.status,
       selectedServerId: selectedServerId ?? this.selectedServerId,
       protocol: protocol ?? this.protocol,
+      desiredOn: desiredOn ?? this.desiredOn,
       isBusy: isBusy ?? this.isBusy,
       dataRateDown: dataRateDown ?? this.dataRateDown,
       dataRateUp: dataRateUp ?? this.dataRateUp,
@@ -75,6 +80,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   double _lastUp = 0;
   int _stabilitySuccesses = 0;
   int _stabilityFailures = 0;
+  DateTime? _lastAutoReconnectAt;
 
   Future<void> _loadProtocol() async {
     final stored = await SecureStorage().getString(SecureStorage.vpnProtocolKey);
@@ -83,8 +89,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   void selectServer(String? serverId) {
     state = state.copyWith(selectedServerId: serverId);
+    final storage = SecureStorage();
     if (serverId != null) {
-      SecureStorage().saveString(SecureStorage.selectedServerKey, serverId);
+      storage.saveString(SecureStorage.selectedServerKey, serverId);
+    } else {
+      storage.delete(SecureStorage.selectedServerKey);
     }
   }
 
@@ -97,22 +106,64 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> connect() async {
-    if (state.selectedServerId == null) {
-      state = state.copyWith(errorMessage: 'Select a server region before connecting.');
-      return;
-    }
     if (state.isBusy) return;
 
-    state = state.copyWith(isBusy: true, clearError: true);
+    // User intent: VPN should be on.
+    state = state.copyWith(isBusy: true, desiredOn: true, clearError: true);
     _setStatus(VpnStatus.connecting);
     AppLogger.info('VPN connect requested');
     try {
       final service = _ref.read(vpnServiceProvider);
       final api = _ref.read(apiClientProvider);
       String? config;
-      if (service.isNativeAvailable) {
-        // Native tunnel: fetch WireGuard config from backend for real connection.
-        config = await api.fetchVpnConfig(serverId: state.selectedServerId);
+
+      // Only WireGuard is implemented in the native bridges today.
+      if (state.protocol != VpnProtocol.wireGuard) {
+        throw VpnServiceException(
+          'protocol_unavailable',
+          'This protocol is not available yet. Please use WireGuard.',
+        );
+      }
+
+	      if (service.isNativeAvailable) {
+	        final identity = await DeviceIdentity.load();
+	        final storage = SecureStorage();
+	        final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
+	        try {
+	          final profile = await api.fetchVpnProfile(
+	            deviceId: deviceId,
+	            deviceName: identity.name,
+	            deviceType: identity.type,
+	            protocol: state.protocol,
+	            serverId: state.selectedServerId,
+	          );
+	          if (profile.wireguardConfig.trim().isEmpty) {
+	            throw StateError('VPN profile missing configuration.');
+	          }
+	          config = profile.wireguardConfig;
+	          if (profile.deviceId > 0) {
+	            await storage.saveInt(SecureStorage.vpnDeviceIdKey, profile.deviceId);
+	          }
+	          await storage.saveString(SecureStorage.vpnProfileConfigKey, config);
+	          if (profile.expiresAt != null) {
+	            await storage.saveString(
+	              SecureStorage.vpnProfileExpiresAtKey,
+	              profile.expiresAt!.toIso8601String(),
+	            );
+	          }
+	          if (!profile.peerRegistered && profile.registrationStatus != null) {
+	            AppLogger.warning('Peer registration: ${profile.registrationStatus}');
+	          }
+	        } catch (error) {
+	          // Fallback: try last known config from secure storage for resilience.
+	          final cached = await storage.getString(SecureStorage.vpnProfileConfigKey);
+	          if (cached != null && cached.trim().isNotEmpty) {
+	            AppLogger.warning('Using cached VPN profile (profile fetch failed).');
+	            config = cached;
+	          } else {
+	            rethrow;
+	          }
+	        }
       } else {
         // Demo/mock path: notify the backend so it tracks the session,
         // but do not block on failures since the mock tunnel is local-only.
@@ -143,7 +194,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   Future<void> disconnect() async {
     if (state.isBusy) return;
 
-    state = state.copyWith(isBusy: true, clearError: true);
+    // User intent: VPN should be off.
+    state = state.copyWith(isBusy: true, desiredOn: false, clearError: true);
     AppLogger.info('VPN disconnect requested');
     try {
       final service = _ref.read(vpnServiceProvider);
@@ -167,6 +219,26 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     } finally {
       state = state.copyWith(isBusy: false);
     }
+  }
+
+  void handleConnectivityChange({required bool hasNetwork}) {
+    if (!hasNetwork) return;
+    if (!state.desiredOn) return;
+    if (state.isBusy) return;
+    if (state.status == VpnStatus.connected || state.status == VpnStatus.connecting) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastAutoReconnectAt != null &&
+        now.difference(_lastAutoReconnectAt!) < const Duration(seconds: 10)) {
+      return;
+    }
+    _lastAutoReconnectAt = now;
+
+    AppLogger.info('Connectivity restored; attempting VPN reconnect.');
+    // Fire-and-forget: state.isBusy gate prevents overlap.
+    unawaited(connect());
   }
 
   void _setStatus(VpnStatus status) {

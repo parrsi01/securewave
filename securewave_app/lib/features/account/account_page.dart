@@ -127,9 +127,11 @@ class _PlanSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final usageLabel =
-        '${plan.usedGb.toStringAsFixed(1)} GB of ${plan.dataCapGb.toStringAsFixed(0)} GB';
-    final remainingLabel = '${plan.remainingGb.toStringAsFixed(1)} GB remaining';
+    final usageLabel = plan.isUnlimited
+        ? '${plan.usedGb.toStringAsFixed(1)} GB used'
+        : '${plan.usedGb.toStringAsFixed(1)} GB of ${plan.dataCapGb.toStringAsFixed(0)} GB';
+    final remainingLabel =
+        plan.isUnlimited ? 'Unlimited data' : '${plan.remainingGb.toStringAsFixed(1)} GB remaining';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppUIv1.space5),
@@ -170,7 +172,7 @@ class _PlanSummary extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(AppUIv1.radiusFull),
               child: LinearProgressIndicator(
-                value: plan.usagePercent,
+                value: plan.isUnlimited ? null : plan.usagePercent,
                 minHeight: 8,
                 backgroundColor: AppUIv1.surfaceMuted,
                 color: AppUIv1.accent,

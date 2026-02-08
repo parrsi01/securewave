@@ -14,7 +14,7 @@ tunnel. The Flutter MethodChannel drives a foreground `VpnService`, and
 ## Requirements
 
 - Android device or emulator with VPN permission support
-- WireGuard config from backend `/api/vpn/config` (or `/api/vpn/allocate`)
+- Tunnel profile from backend `POST /api/vpn/profile` (JSON; the app fetches this automatically after sign-in)
 - Internet access to reach the WireGuard endpoint
 
 ## Release Signing (required for --release)

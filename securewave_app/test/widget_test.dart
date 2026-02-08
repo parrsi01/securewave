@@ -13,7 +13,6 @@ void main() {
             apiBaseUrl: 'https://example.com',
             portalUrl: 'https://portal.example.com',
             upgradeUrl: 'https://upgrade.example.com',
-            adblockListUrl: 'https://adblock.example.com/list.txt',
             useMockApi: true,
             resetSessionOnBoot: false,
           ),
