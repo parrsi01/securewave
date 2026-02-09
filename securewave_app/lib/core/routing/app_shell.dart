@@ -37,6 +37,7 @@ class AppShell extends ConsumerWidget {
 
     final backendUnreachable = vpnState.status == VpnStatus.error &&
         vpnState.errorKind == VpnErrorKind.backendUnreachable;
+    final statusLabel = vpnState.statusText();
 
     final statusColor = switch (vpnState.status) {
       VpnStatus.connected => AppUIv1.success,
@@ -115,6 +116,7 @@ class AppShell extends ConsumerWidget {
               : _AppDrawer(
                   config: config,
                   vpnStatus: vpnState.status,
+                  statusLabel: statusLabel,
                   statusColor: statusColor,
                   onLogout: () => _logout(context, ref),
                   onNavigate: (route) {
@@ -224,6 +226,7 @@ class _AppDrawer extends StatelessWidget {
   const _AppDrawer({
     required this.config,
     required this.vpnStatus,
+    required this.statusLabel,
     required this.statusColor,
     required this.onLogout,
     required this.onNavigate,
@@ -232,6 +235,7 @@ class _AppDrawer extends StatelessWidget {
 
   final AppConfig config;
   final VpnStatus vpnStatus;
+  final String statusLabel;
   final Color statusColor;
   final VoidCallback onLogout;
   final ValueChanged<String> onNavigate;
@@ -239,14 +243,6 @@ class _AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusLabel = switch (vpnStatus) {
-      VpnStatus.connected => 'Connected',
-      VpnStatus.connecting => 'Connecting',
-      VpnStatus.disconnecting => 'Disconnecting',
-      VpnStatus.error => 'Needs attention',
-      VpnStatus.disconnected => 'Disconnected',
-    };
-
     return Drawer(
       child: SafeArea(
         child: Column(

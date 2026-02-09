@@ -269,7 +269,8 @@ class ChannelVpnService implements VpnService {
 
   bool _isNativeUnavailableError(PlatformException error) {
     return error.code == 'vpn_not_configured' ||
-        error.code == 'vpn_unavailable';
+        error.code == 'vpn_unavailable' ||
+        error.code == 'vpn_permission_required';
   }
 
   void _logMockUse(String message) {

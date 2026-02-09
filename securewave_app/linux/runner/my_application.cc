@@ -7,6 +7,7 @@
 #include <gio/gio.h>
 #include <glib/gstdio.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -55,6 +56,23 @@ static gboolean wg_quick_available() {
   return wg_quick != nullptr;
 }
 
+static gboolean pkexec_available() {
+  g_autofree gchar* pkexec = g_find_program_in_path("pkexec");
+  return pkexec != nullptr;
+}
+
+static gboolean elevation_available() {
+  if (geteuid() == 0) {
+    return TRUE;
+  }
+  // GUI apps can't reliably prompt for sudo passwords; prefer pkexec.
+  return pkexec_available();
+}
+
+static gboolean native_vpn_available() {
+  return wg_quick_available() && elevation_available();
+}
+
 static gchar* build_config_path() {
   g_autofree gchar* config_dir = g_build_filename(g_get_user_config_dir(), "securewave", nullptr);
   if (g_mkdir_with_parents(config_dir, 0700) != 0) {
@@ -73,11 +91,59 @@ static void respond_error(
   fl_method_call_respond(method_call, response, nullptr);
 }
 
+static gchar* read_all_from_fd(gint fd) {
+  if (fd < 0) {
+    return nullptr;
+  }
+  GString* out = g_string_new(nullptr);
+  char buffer[4096];
+  ssize_t n = 0;
+  while ((n = read(fd, buffer, sizeof(buffer))) > 0) {
+    g_string_append_len(out, buffer, static_cast<gssize>(n));
+  }
+  return g_string_free(out, FALSE);
+}
+
+static gchar* last_non_empty_line(const gchar* text) {
+  if (!text) {
+    return nullptr;
+  }
+  g_auto(GStrv) lines = g_strsplit(text, "\n", -1);
+  if (!lines) {
+    return nullptr;
+  }
+  const gint len = static_cast<gint>(g_strv_length(lines));
+  for (gint idx = len - 1; idx >= 0; idx--) {
+    if (!lines[idx]) {
+      continue;
+    }
+    g_autofree gchar* candidate = g_strdup(lines[idx]);
+    g_strstrip(candidate);
+    if (candidate && *candidate != '\0') {
+      return g_strdup(candidate);
+    }
+  }
+  return nullptr;
+}
+
+static gboolean looks_like_permission_error(const gchar* stderr_text) {
+  if (!stderr_text || *stderr_text == '\0') {
+    return FALSE;
+  }
+  g_autofree gchar* lower = g_ascii_strdown(stderr_text, -1);
+  return g_strrstr(lower, "permission denied") != nullptr ||
+         g_strrstr(lower, "not authorized") != nullptr ||
+         g_strrstr(lower, "authentication failed") != nullptr ||
+         g_strrstr(lower, "no authentication agent") != nullptr;
+}
+
 typedef struct {
   gint ref_count;
   FlMethodCall* method_call;
   gchar* error_code;
   GPid pid;
+  gint stdout_fd;
+  gint stderr_fd;
   guint timeout_id;
   gboolean responded;
 } WgQuickSpawnContext;
@@ -96,6 +162,14 @@ static void wg_quick_spawn_context_unref(WgQuickSpawnContext* ctx) {
   }
   g_clear_object(&ctx->method_call);
   g_clear_pointer(&ctx->error_code, g_free);
+  if (ctx->stdout_fd >= 0) {
+    close(ctx->stdout_fd);
+    ctx->stdout_fd = -1;
+  }
+  if (ctx->stderr_fd >= 0) {
+    close(ctx->stderr_fd);
+    ctx->stderr_fd = -1;
+  }
   g_free(ctx);
 }
 
@@ -109,12 +183,15 @@ static void wg_quick_respond_ok_once(WgQuickSpawnContext* ctx) {
   fl_method_call_respond(ctx->method_call, response, nullptr);
 }
 
-static void wg_quick_respond_error_once(WgQuickSpawnContext* ctx, const gchar* message) {
+static void wg_quick_respond_error_once(
+    WgQuickSpawnContext* ctx,
+    const gchar* code,
+    const gchar* message) {
   if (ctx->responded) {
     return;
   }
   ctx->responded = TRUE;
-  respond_error(ctx->method_call, ctx->error_code, message, nullptr);
+  respond_error(ctx->method_call, code ? code : ctx->error_code, message, nullptr);
 }
 
 static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_data) {
@@ -123,9 +200,29 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
     g_source_remove(ctx->timeout_id);
     ctx->timeout_id = 0;
   }
+  g_autofree gchar* stdout_text = read_all_from_fd(ctx->stdout_fd);
+  (void)stdout_text;  // Reserved for future troubleshooting; stderr is more actionable.
+  g_autofree gchar* stderr_text = read_all_from_fd(ctx->stderr_fd);
+  g_autofree gchar* stderr_line = last_non_empty_line(stderr_text);
+
+  if (ctx->stdout_fd >= 0) {
+    close(ctx->stdout_fd);
+    ctx->stdout_fd = -1;
+  }
+  if (ctx->stderr_fd >= 0) {
+    close(ctx->stderr_fd);
+    ctx->stderr_fd = -1;
+  }
   g_autoptr(GError) error = nullptr;
   if (!g_spawn_check_wait_status(wait_status, &error)) {
-    wg_quick_respond_error_once(ctx, error ? error->message : "wg-quick failed.");
+    const gchar* base = error ? error->message : "wg-quick failed.";
+    g_autofree gchar* message =
+        stderr_line ? g_strdup_printf("%s: %s", base, stderr_line) : g_strdup(base);
+    const gchar* code = ctx->error_code;
+    if (looks_like_permission_error(stderr_text)) {
+      code = "vpn_permission_required";
+    }
+    wg_quick_respond_error_once(ctx, code, message);
   } else {
     wg_quick_respond_ok_once(ctx);
   }
@@ -137,6 +234,7 @@ static gboolean wg_quick_timeout_cb(gpointer user_data) {
   ctx->timeout_id = 0;
   wg_quick_respond_error_once(
       ctx,
+      ctx->error_code,
       "WireGuard operation timed out. Ensure you have the required permissions and retry.");
   if (ctx->pid != 0) {
     kill(ctx->pid, SIGKILL);
@@ -150,18 +248,62 @@ static void spawn_wg_quick_async(
     const gchar* action,
     const gchar* config_path) {
   g_autoptr(GError) error = nullptr;
-  gchar* argv[] = {
-      const_cast<gchar*>("wg-quick"),
-      const_cast<gchar*>(action),
-      const_cast<gchar*>(config_path),
-      nullptr
-  };
+
+  g_autofree gchar* wg_quick_path = g_find_program_in_path("wg-quick");
+  if (!wg_quick_path) {
+    respond_error(
+        method_call,
+        "vpn_unavailable",
+        "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
+        nullptr);
+    return;
+  }
+
+  const bool needs_elevation = geteuid() != 0;
+  g_autofree gchar* pkexec_path = nullptr;
+  if (needs_elevation) {
+    pkexec_path = g_find_program_in_path("pkexec");
+    if (!pkexec_path) {
+      respond_error(
+          method_call,
+          "vpn_permission_required",
+          "Administrator privileges required to start the VPN tunnel. "
+          "Install PolicyKit (pkexec) or run the app with sudo.",
+          nullptr);
+      return;
+    }
+  }
+
+  gchar* argv[8] = {nullptr};
+  int idx = 0;
+  if (needs_elevation) {
+    argv[idx++] = pkexec_path;
+  }
+  argv[idx++] = wg_quick_path;
+  argv[idx++] = const_cast<gchar*>(action);
+  argv[idx++] = const_cast<gchar*>(config_path);
+  argv[idx] = nullptr;
 
   GPid pid = 0;
-  if (!g_spawn_async(nullptr, argv, nullptr,
-                     static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
-                     nullptr, nullptr, &pid, &error)) {
-    respond_error(method_call, error_code, error ? error->message : "Failed to spawn wg-quick.", nullptr);
+  gint stdout_fd = -1;
+  gint stderr_fd = -1;
+  if (!g_spawn_async_with_pipes(
+          nullptr,
+          argv,
+          nullptr,
+          static_cast<GSpawnFlags>(G_SPAWN_DO_NOT_REAP_CHILD),
+          nullptr,
+          nullptr,
+          &pid,
+          nullptr,
+          &stdout_fd,
+          &stderr_fd,
+          &error)) {
+    respond_error(
+        method_call,
+        error_code,
+        error ? error->message : "Failed to spawn wg-quick.",
+        nullptr);
     return;
   }
 
@@ -170,6 +312,8 @@ static void spawn_wg_quick_async(
   ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
   ctx->error_code = g_strdup(error_code);
   ctx->pid = pid;
+  ctx->stdout_fd = stdout_fd;
+  ctx->stderr_fd = stderr_fd;
   ctx->responded = FALSE;
   g_child_watch_add_full(
       G_PRIORITY_DEFAULT,
@@ -194,7 +338,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
   const gchar* method = fl_method_call_get_name(method_call);
   if (g_strcmp0(method, "isAvailable") == 0) {
     g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
-        fl_method_success_response_new(fl_value_new_bool(wg_quick_available())));
+        fl_method_success_response_new(fl_value_new_bool(native_vpn_available())));
     fl_method_call_respond(method_call, response, nullptr);
     return;
   }
@@ -204,6 +348,15 @@ static void handle_vpn_call(FlMethodChannel* channel,
           method_call,
           "vpn_unavailable",
           "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
+          fl_value_new_map());
+      return;
+    }
+    if (!elevation_available()) {
+      respond_error(
+          method_call,
+          "vpn_permission_required",
+          "Administrator privileges required to start the VPN tunnel. "
+          "Install PolicyKit (pkexec) or run the app with sudo.",
           fl_value_new_map());
       return;
     }
@@ -234,6 +387,15 @@ static void handle_vpn_call(FlMethodChannel* channel,
           method_call,
           "vpn_unavailable",
           "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
+          fl_value_new_map());
+      return;
+    }
+    if (!elevation_available()) {
+      respond_error(
+          method_call,
+          "vpn_permission_required",
+          "Administrator privileges required to stop the VPN tunnel. "
+          "Install PolicyKit (pkexec) or run the app with sudo.",
           fl_value_new_map());
       return;
     }

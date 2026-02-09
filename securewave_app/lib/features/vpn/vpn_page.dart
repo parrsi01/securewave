@@ -33,8 +33,8 @@ class _VpnPageState extends ConsumerState<VpnPage> {
     }
     switch (os) {
       case OperatingSystem.linux:
-        return 'Linux VPN uses wg-quick. Install WireGuard tools and allow '
-            'the app to run elevated commands when prompted.';
+        return 'Linux VPN uses wg-quick and requires elevation (PolicyKit/pkexec). '
+            'Install WireGuard tools and approve the system prompt when connecting.';
       case OperatingSystem.windows:
         return 'Windows VPN requires WireGuard for Windows (wireguard.exe). '
             'Install it to enable native tunneling.';
@@ -104,14 +104,7 @@ class _VpnPageState extends ConsumerState<VpnPage> {
     final backendUnreachable = vpnState.status == VpnStatus.error &&
         vpnState.errorKind == VpnErrorKind.backendUnreachable;
 
-    final statusText = switch (vpnState.status) {
-      VpnStatus.connected => 'Connected',
-      VpnStatus.connecting => 'Connecting...',
-      VpnStatus.disconnecting => 'Disconnecting...',
-      VpnStatus.error =>
-        backendUnreachable ? 'Backend unreachable' : 'Needs attention',
-      VpnStatus.disconnected => 'Disconnected',
-    };
+    final statusText = vpnState.statusText(includeEllipsis: true);
 
     final statusColor = switch (vpnState.status) {
       VpnStatus.connected => AppUIv1.success,
@@ -150,9 +143,8 @@ class _VpnPageState extends ConsumerState<VpnPage> {
                   icon: Icons.info_outline,
                   color: AppUIv1.accentSun,
                   title: 'Demo mode',
-                  body: 'Native VPN tunnel unavailable on this device. '
-                      'Connections are simulated. Install the native bridge '
-                      'for real tunnel support.',
+                  body: 'Mock API is enabled. VPN connections are simulated '
+                      '(no device setup required). Disable mock API to use a real tunnel.',
                 ),
                 const SizedBox(height: AppUIv1.space3),
               ] else if (nativeUnavailable && platformNotice != null) ...[

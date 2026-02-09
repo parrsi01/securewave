@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
@@ -404,6 +405,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (error.code == 'protocol_unavailable') {
         return (kind: VpnErrorKind.protocolUnavailable, message: error.message);
       }
+      if (error.code == 'vpn_permission_required') {
+        return (kind: VpnErrorKind.permissionRequired, message: error.message);
+      }
       if (error.code == 'vpn_unavailable' ||
           error.code == 'vpn_not_configured') {
         return (kind: VpnErrorKind.nativeUnavailable, message: error.message);
@@ -413,8 +417,75 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     if (error is StateError) {
       return (kind: VpnErrorKind.unknown, message: error.message);
     }
+    if (error is DioException) {
+      String? detail;
+      final data = error.response?.data;
+      if (data is Map && data['detail'] != null) {
+        detail = data['detail']?.toString();
+      } else if (data is String && data.trim().isNotEmpty) {
+        detail = data.trim();
+      }
+
+      final status = error.response?.statusCode;
+      final isNetworkFailure = error.type == DioExceptionType.connectionError ||
+          error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.sendTimeout ||
+          error.type == DioExceptionType.badCertificate;
+      if (isNetworkFailure) {
+        final host = error.requestOptions.uri.host;
+        final target = host.isNotEmpty ? ' ($host)' : '';
+        return (
+          kind: VpnErrorKind.backendUnreachable,
+          message:
+              'Backend unreachable$target. The VPN service cannot be reached right now. '
+              'Check your internet connection or try again later.',
+        );
+      }
+      if (status == 401 || status == 403) {
+        return (
+          kind: VpnErrorKind.auth,
+          message: detail != null && detail.isNotEmpty
+              ? 'Authentication failed: $detail'
+              : 'Authentication failed. Please sign in again.',
+        );
+      }
+      if (status == 404) {
+        return (
+          kind: VpnErrorKind.profileNotFound,
+          message: detail != null && detail.isNotEmpty
+              ? 'Profile fetch failed: $detail'
+              : 'Profile fetch failed. The server endpoint was not found.',
+        );
+      }
+      if (status != null && status >= 500) {
+        return (
+          kind: VpnErrorKind.backendError,
+          message: detail != null && detail.isNotEmpty
+              ? 'Backend error: $detail'
+              : 'Backend server error. Please try again in a few minutes.',
+        );
+      }
+      if (status != null) {
+        return (
+          kind: VpnErrorKind.unknown,
+          message: detail != null && detail.isNotEmpty
+              ? 'Request failed (HTTP $status): $detail'
+              : 'Request failed (HTTP $status).',
+        );
+      }
+    }
     // Check for network/backend-unreachable errors
     final msg = error.toString().toLowerCase();
+    if (msg.contains('permission denied') ||
+        msg.contains('not authorized') ||
+        msg.contains('authentication failed')) {
+      return (
+        kind: VpnErrorKind.permissionRequired,
+        message:
+            'Permission required to start the VPN tunnel. Approve the system prompt or run the app with administrator privileges.',
+      );
+    }
     if (msg.contains('socketexception') ||
         msg.contains('connection refused') ||
         msg.contains('connection timed out') ||
@@ -474,6 +545,33 @@ enum VpnErrorKind {
   profileNotFound,
   backendError,
   protocolUnavailable,
+  permissionRequired,
   nativeUnavailable,
   unknown,
+}
+
+extension VpnStatePresentation on VpnState {
+  String statusText({bool includeEllipsis = false}) {
+    return switch (status) {
+      VpnStatus.connected => 'Connected',
+      VpnStatus.connecting => includeEllipsis ? 'Connecting...' : 'Connecting',
+      VpnStatus.disconnecting =>
+        includeEllipsis ? 'Disconnecting...' : 'Disconnecting',
+      VpnStatus.disconnected => 'Disconnected',
+      VpnStatus.error => _errorHeadline(),
+    };
+  }
+
+  String _errorHeadline() {
+    return switch (errorKind) {
+      VpnErrorKind.backendUnreachable => 'Backend unreachable',
+      VpnErrorKind.backendError => 'Backend error',
+      VpnErrorKind.auth => 'Sign-in required',
+      VpnErrorKind.profileNotFound => 'Profile not found',
+      VpnErrorKind.protocolUnavailable => 'Protocol unavailable',
+      VpnErrorKind.permissionRequired => 'Permission required',
+      VpnErrorKind.nativeUnavailable => 'VPN not available',
+      VpnErrorKind.unknown || null => 'Connection failed',
+    };
+  }
 }

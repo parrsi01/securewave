@@ -18,12 +18,12 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  bool autoConnect = true;
-
   @override
   Widget build(BuildContext context) {
     final deviceInfo = ref.watch(deviceInfoProvider);
-    final language = ref.watch(preferencesProvider).language;
+    final preferences = ref.watch(preferencesProvider);
+    final language = preferences.language;
+    final autoConnect = preferences.autoConnect;
     final protocol =
         ref.watch(vpnStateProvider.select((state) => state.protocol));
     final languageLabel = switch (language) {
@@ -81,7 +81,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       title: const Text('Auto-connect'),
                       subtitle: const Text('Connect when the app opens.'),
                       value: autoConnect,
-                      onChanged: (value) => setState(() => autoConnect = value),
+                      onChanged: (value) => ref
+                          .read(preferencesProvider.notifier)
+                          .setAutoConnect(value),
                     ),
                   ],
                 ),

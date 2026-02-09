@@ -12,7 +12,7 @@ MethodChannel writes the config to disk and executes `wg-quick up/down`.
 ## Requirements
 
 - WireGuard tools installed (`wg-quick` on PATH)
-- Permission to run `wg-quick` (typically via sudo)
+- Permission to run `wg-quick` (via PolicyKit/pkexec prompt)
 - Tunnel profile from backend `POST /api/vpn/profile` (JSON; the app fetches this automatically after sign-in)
 
 ## Verification
@@ -20,7 +20,7 @@ MethodChannel writes the config to disk and executes `wg-quick up/down`.
 1. Install WireGuard tools:
    - Ubuntu/Debian: `sudo apt-get install wireguard`
 2. `flutter run -d linux`
-3. Tap Connect (allow elevation if prompted).
+3. Tap Connect (approve the PolicyKit/pkexec elevation prompt).
 4. Verify the interface:
    - `sudo wg show securewave`
    - `ip addr show securewave`
