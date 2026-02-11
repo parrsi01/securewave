@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-SecureWave non-Azure website/API simulation.
+SecureWave local-only website/API simulation.
 
-This intentionally avoids any Azure dependencies and runs against a local uvicorn
+This intentionally avoids external cloud dependencies and runs against a local uvicorn
 instance backed by sqlite.
 """
 
@@ -66,7 +66,7 @@ def _json(body: str) -> Dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="SecureWave non-Azure website simulation")
+    parser = argparse.ArgumentParser(description="SecureWave local-only website simulation")
     parser.add_argument("--base-url", required=True, help="Local base URL (http://127.0.0.1:PORT)")
     parser.add_argument("--out", default=None, help="Write JSON results to this path")
     args = parser.parse_args()
@@ -150,6 +150,50 @@ def main() -> int:
     status, body, _ = _request("GET", f"{base_url}/api/vpn/servers", token=token, timeout=10)
     record("vpn:servers", status == 200, status, None if status == 200 else body[:400])
 
+    # Device registration (app flow)
+    status, body, _ = _request(
+        "POST",
+        f"{base_url}/api/vpn/devices",
+        payload={"name": "Sim Device", "device_type": "android"},
+        token=token,
+        timeout=10,
+    )
+    device_id: Optional[int] = None
+    if status in (200, 201):
+        try:
+            device_id = int(_json(body).get("id"))
+        except Exception:
+            device_id = None
+    record("vpn:device_register", status in (200, 201) and bool(device_id), status, None if status in (200, 201) else body[:400])
+
+    # VPN profile fetch (app flow)
+    profile_payload: Dict[str, Any] = {"device_type": "android", "protocol": "wireguard"}
+    if device_id:
+        profile_payload["device_id"] = device_id
+    else:
+        profile_payload["device_name"] = "Sim Device"
+
+    status, body, _ = _request(
+        "POST",
+        f"{base_url}/api/vpn/profile",
+        payload=profile_payload,
+        token=token,
+        timeout=10,
+    )
+    endpoint_line = None
+    if status == 200:
+        try:
+            cfg = _json(body).get("wireguard_config", "")
+            endpoint_line = next((ln for ln in cfg.splitlines() if ln.strip().startswith("Endpoint =")), None)
+        except Exception:
+            endpoint_line = None
+    record(
+        "vpn:profile_fetch",
+        status == 200 and bool(endpoint_line),
+        status,
+        None if (status == 200 and endpoint_line) else body[:400],
+    )
+
     # VPN demo connect/disconnect flows (no real tunnel required)
     status, body, _ = _request("POST", f"{base_url}/api/vpn/connect", payload={"region": "us-east"}, token=token, timeout=10)
     ok = status == 200
@@ -176,7 +220,7 @@ def main() -> int:
             "name": "Sim User",
             "email": "sim.user@example.com",
             "subject": "Support request",
-            "message": "Testing contact form in non-Azure simulation mode.",
+            "message": "Testing contact form in local-only simulation mode.",
         },
         timeout=10,
     )
@@ -219,4 +263,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
