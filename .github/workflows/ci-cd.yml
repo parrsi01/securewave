@@ -12,7 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for full git-history secret scanning.
+          fetch-depth: 0  # Keep full history available for manual audits.
 
       - name: Secret scan (gitleaks)
         env:
