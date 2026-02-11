@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=oneshot
-User=azureuser
+User=securewave
 WorkingDirectory=/home/sp/cyber-course/projects/securewave
 ExecStart=/home/sp/cyber-course/projects/securewave/infrastructure/database_maintenance_scheduler.sh
 StandardOutput=journal

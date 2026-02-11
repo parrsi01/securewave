@@ -60,8 +60,15 @@ fi
 
 # Task 4: Verify backups
 log "[4/5] Verifying backups..."
-BACKUP_COUNT=$(python3 infrastructure/database_backup_manager.py list-backups 2>/dev/null | grep -c '"type": "automatic"' || echo "0")
-log "✓ Found $BACKUP_COUNT automatic backups"
+BACKUP_COUNT=$(python3 - << 'EOF'
+import json
+import subprocess
+result = subprocess.check_output(["python3", "infrastructure/database_backup_manager.py", "list-backups"])
+data = json.loads(result.decode())
+print(len(data))
+EOF
+)
+log "✓ Found $BACKUP_COUNT backups"
 
 if [ "$BACKUP_COUNT" -lt 7 ]; then
     log "⚠ WARNING: Less than 7 backups available"

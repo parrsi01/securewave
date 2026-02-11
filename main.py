@@ -271,8 +271,9 @@ def validate_wireguard_production_config(logger: logging.Logger, server_count: i
 
     if server_count == 0:
         logger.warning(
-            "No VPN servers registered. Run infrastructure/init_production_server.py or "
-            "use /api/admin/servers to register a live server."
+            "No VPN servers registered. Register a live Hetzner WireGuard server via "
+            "python3 infrastructure/hetzner/sync_vpn_servers.py (recommended) or "
+            "use /api/admin/servers to register manually."
         )
 
 
@@ -473,12 +474,12 @@ def api_error(code: str, message: str, details=None, status_code: int = 400):
 
 @app.get("/health")
 def healthcheck():
-    return {"status": "ok", "service": "securewave-vpn-demo"}
+    return {"status": "ok", "service": "securewave-vpn"}
 
 
 @app.get("/api/health")
 def api_healthcheck():
-    return {"status": "ok", "service": "securewave-vpn-demo"}
+    return {"status": "ok", "service": "securewave-vpn"}
 
 
 @app.get("/api/health/email")
@@ -637,5 +638,5 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 """
 Note: For local dev, use `uvicorn main:app --reload`.
-Azure App Service uses gunicorn with the startup command in AZURE_DEPLOY.md.
+Production uses gunicorn managed by systemd or Docker (see docs/HETZNER_RUNBOOK.md).
 """

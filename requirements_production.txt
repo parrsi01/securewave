@@ -1,4 +1,4 @@
-# Production Requirements - Optimized for Azure Deployment
+# Production Requirements
 # ML dependencies are OPTIONAL - optimizer auto-detects and adapts
 # Install without ML for fastest deployment, or with ML for enhanced performance
 
