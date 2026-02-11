@@ -1,38 +1,0 @@
-Resolving dependencies...
-Downloading packages...
-  characters 1.4.0 (1.4.1 available)
-  code_assets 0.19.10 (1.0.0 available)
-  connectivity_plus 6.1.5 (7.0.0 available)
-  dbus 0.7.11 (0.7.12 available)
-  dio 5.9.0 (5.9.1 available)
-  flutter_dotenv 5.2.1 (6.0.0 available)
-  flutter_launcher_icons 0.13.1 (0.14.4 available)
-  flutter_lints 3.0.2 (6.0.0 available)
-  flutter_riverpod 2.6.1 (3.2.1 available)
-  flutter_secure_storage 9.2.4 (10.0.0 available)
-  flutter_secure_storage_linux 1.2.3 (3.0.0 available)
-  flutter_secure_storage_macos 3.1.3 (4.0.0 available)
-  flutter_secure_storage_platform_interface 1.1.2 (2.0.1 available)
-  flutter_secure_storage_web 1.2.1 (2.1.0 available)
-  flutter_secure_storage_windows 3.1.2 (4.1.0 available)
-  go_router 14.8.1 (17.1.0 available)
-  google_fonts 6.3.3 (8.0.1 available)
-  hooks 0.20.5 (1.0.1 available)
-  intl 0.19.0 (0.20.2 available)
-  js 0.6.7 (0.7.2 available)
-  json_annotation 4.9.0 (4.10.0 available)
-  lints 3.0.0 (6.1.0 available)
-  matcher 0.12.17 (0.12.18 available)
-  material_color_utilities 0.11.1 (0.13.0 available)
-  meta 1.17.0 (1.18.1 available)
-  native_toolchain_c 0.17.2 (0.17.4 available)
-  objective_c 9.2.2 (9.2.5 available)
-  platform_info 4.0.2 (5.0.0 available)
-  riverpod 2.6.1 (3.2.1 available)
-  source_span 1.10.1 (1.10.2 available)
-  test_api 0.7.7 (0.7.9 available)
-  vector_graphics_compiler 1.1.19 (1.1.20 available)
-Got dependencies!
-32 packages have newer versions incompatible with dependency constraints.
-Try `flutter pub outdated` for more information.
-00:00 +0: loading /home/sp/cyber-course/projects/securewave/securewave_app/test/widget_test.dart                                                                                                       00:01 +0: loading /home/sp/cyber-course/projects/securewave/securewave_app/test/widget_test.dart                                                                                                       00:01 +0: /home/sp/cyber-course/projects/securewave/securewave_app/test/widget_test.dart: SecureWave app config provider initializes                                                                   00:02 +0: /home/sp/cyber-course/projects/securewave/securewave_app/test/widget_test.dart: SecureWave app config provider initializes                                                                   00:02 +1: /home/sp/cyber-course/projects/securewave/securewave_app/test/api_client_fallback_test.dart: ApiClient does not fall back to mock data when mock API is disabled                             00:02 +2: /home/sp/cyber-course/projects/securewave/securewave_app/test/widget_test.dart: BootState has correct initial values                                                                         00:02 +3: /home/sp/cyber-course/projects/securewave/securewave_app/test/widget_test.dart: BootState has correct initial values                                                                         00:02 +4: /home/sp/cyber-course/projects/securewave/securewave_app/test/widget_test.dart: BootState has correct initial values                                                                         00:02 +4: /home/sp/cyber-course/projects/securewave/securewave_app/test/widget_test.dart: BootState copyWith works correctly                                                                           00:02 +5: /home/sp/cyber-course/projects/securewave/securewave_app/test/widget_test.dart: BootState copyWith works correctly                                                                           00:02 +5: loading /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart                                                                                                    00:02 +5: /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart: VpnStateNotifier transitions through connect and disconnect                                               00:02 +6: /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart: VpnStateNotifier transitions through connect and disconnect                                               00:02 +6: /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart: VpnStateNotifier allows auto-select server                                                                00:02 +7: /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart: VpnStateNotifier allows auto-select server                                                                00:03 +7: /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart: VpnStateNotifier allows auto-select server                                                                00:04 +7: /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart: VpnStateNotifier allows auto-select server                                                                00:04 +8: /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart: VpnStateNotifier allows auto-select server                                                                00:04 +8: /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart: VpnStateNotifier cannot remain connected when kill switch hooks present and network drops                 00:04 +9: /home/sp/cyber-course/projects/securewave/securewave_app/test/vpn_state_test.dart: VpnStateNotifier cannot remain connected when kill switch hooks present and network drops                 00:04 +9: All tests passed!                                                                                                                                                                            
