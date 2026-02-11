@@ -1,0 +1,8 @@
+title = "SecureWave gitleaks config"
+
+[allowlist]
+description = "Vendored third-party code (false-positive prone)"
+paths = [
+  '''securewave_app/ios/ThirdParty/.*''',
+]
+

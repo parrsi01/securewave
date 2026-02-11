@@ -40,9 +40,19 @@ env/
 
 # Environment Variables
 .env
+*.env
 .env.local
 .env.production
+.env.*
+!.env.template
+!.env.production.example
 .secrets
+
+# Certificates / key material (never commit)
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Android signing
 securewave_app/android/key.properties
@@ -60,6 +70,7 @@ logs/
 LogFiles/
 webapp-logs/
 *.zip
+*.pid
 
 # Allow app downloads hosted via the website
 !static/downloads/
@@ -130,6 +141,7 @@ yarn-error.log*
 
 # Application specific
 quota_request.json
+PROJECT_STATUS_REPORT*.txt
 
 # Secret keys and storage - NEVER COMMIT
 keys_and_storage_configurations/*.key
@@ -142,6 +154,21 @@ LogFiles/
 deployments/
 *.log
 deploy.zip
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+terraform.tfvars
+*.tfvars
+*.tfvars.json
+
+# Test/simulation artifacts (generated locally and in CI)
+artifacts/**
+!artifacts/hetzner/
+!artifacts/hetzner/DEPLOY_READINESS_REPORT.md
 
 # Python
 __pycache__/

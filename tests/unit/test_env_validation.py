@@ -55,9 +55,6 @@ class TestValidateFernetKey:
         assert validate_fernet_key("") == "missing"
 
     def test_valid_key_returns_none(self):
-        # Valid Fernet key (base64 encoded 32-byte key)
-        valid_key = "VGhpc0lzQTMyQnl0ZUtleUZvclRlc3Rpbmc9MQ=="
-        # Actually generate a proper key for testing
         from cryptography.fernet import Fernet
         valid_key = Fernet.generate_key().decode()
         assert validate_fernet_key(valid_key) is None
