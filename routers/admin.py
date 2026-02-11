@@ -20,17 +20,29 @@ from services.wireguard_service import WireGuardService
 
 router = APIRouter()
 
-# WireGuard VM details (from Azure setup)
-WG_VM_NAME = os.getenv("WG_VM_NAME", "securewave-wg")
-WG_RESOURCE_GROUP = os.getenv("WG_RESOURCE_GROUP", "SecureWaveRG")
+# WireGuard server details (SSH)
+WG_SSH_HOST = os.getenv("WG_SSH_HOST", "127.0.0.1")
+WG_SSH_USER = os.getenv("WG_SSH_USER", "securewave")
+WG_SSH_PORT = int(os.getenv("WG_SSH_PORT", "22"))
+WG_SSH_KEY_PATH = os.getenv("WG_SSH_KEY_PATH")
 WG_KEY_PATTERN = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
 
 
-def _resolve_az_cli() -> str:
-    az_path = shutil.which("az")
-    if not az_path:
-        raise FileNotFoundError("Azure CLI not available. Run the command manually on the WG VM.")
-    return az_path
+def _resolve_ssh() -> str:
+    ssh_path = shutil.which("ssh")
+    if not ssh_path:
+        raise FileNotFoundError("SSH client not available. Run the command manually on the WG server.")
+    return ssh_path
+
+
+def _build_ssh_command(command: str) -> List[str]:
+    ssh_path = _resolve_ssh()
+    cmd = [ssh_path, "-p", str(WG_SSH_PORT)]
+    if WG_SSH_KEY_PATH:
+        cmd.extend(["-i", WG_SSH_KEY_PATH])
+    cmd.append(f"{WG_SSH_USER}@{WG_SSH_HOST}")
+    cmd.append(command)
+    return cmd
 
 
 def _validate_wg_peer_inputs(public_key: str, client_ip: str) -> None:
@@ -133,7 +145,7 @@ def register_peer(
     db: Session = Depends(get_db)
 ):
     """
-    Register a single peer on the WireGuard server using Azure VM Run Command.
+    Register a single peer on the WireGuard server via SSH.
     """
     user = db.query(User).filter(User.id == request.user_id).first()
     if not user:
@@ -153,19 +165,11 @@ def register_peer(
     full_command = f"{wg_command} && {persist_command}"
 
     try:
-        # Execute on Azure VM using Run Command
-        az_path = _resolve_az_cli()
         result = subprocess.run(  # nosec B603 - args are validated and not user-controlled beyond key/ip
-            [
-                az_path, "vm", "run-command", "invoke",
-                "-g", WG_RESOURCE_GROUP,
-                "-n", WG_VM_NAME,
-                "--command-id", "RunShellScript",
-                "--scripts", full_command
-            ],
+            _build_ssh_command(full_command),
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60,
         )
 
         if result.returncode == 0:
@@ -197,7 +201,7 @@ def register_peer(
             user_id=user.id,
             client_public_key=user.wg_public_key,
             client_ip=client_ip,
-            message="Timeout executing Azure VM Run Command",
+            message="Timeout executing SSH command on WireGuard server",
             wg_command=wg_command
         )
     except FileNotFoundError as exc:
@@ -244,18 +248,11 @@ def register_all_pending_peers(
 
     results = []
     try:
-        az_path = _resolve_az_cli()
         result = subprocess.run(  # nosec B603 - args are validated and not user-controlled beyond key/ip
-            [
-                az_path, "vm", "run-command", "invoke",
-                "-g", WG_RESOURCE_GROUP,
-                "-n", WG_VM_NAME,
-                "--command-id", "RunShellScript",
-                "--scripts", full_command
-            ],
+            _build_ssh_command(full_command),
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=120,
         )
 
         if result.returncode == 0:
@@ -284,7 +281,7 @@ def register_all_pending_peers(
 
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
         return {
-            "message": f"Could not auto-register: {str(e)}. Run manually on WG VM.",
+            "message": f"Could not auto-register: {str(e)}. Run manually on WG server.",
             "registered": 0,
             "command": full_command,
             "peers": [

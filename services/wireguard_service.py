@@ -46,7 +46,7 @@ class WireGuardService:
             pass
         self.server_private_path = self.base_dir / "server_private.key"
         self.server_public_path = self.base_dir / "server_public.key"
-        self.endpoint = os.getenv("WG_ENDPOINT", "securewave-app.azurewebsites.net:51820")
+        self.endpoint = os.getenv("WG_ENDPOINT", "127.0.0.1:51820")
         # Prefer SECUREWAVE_TUNNEL_DNS (used by the profile provisioning path).
         raw_dns = os.getenv("SECUREWAVE_TUNNEL_DNS", "").strip() or os.getenv("WG_DNS", "").strip()
         if not raw_dns:

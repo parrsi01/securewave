@@ -35,17 +35,8 @@ class AppShell extends ConsumerWidget {
     final vpnState = ref.watch(vpnStateProvider);
     final config = ref.watch(appConfigProvider);
 
-    final backendUnreachable = vpnState.status == VpnStatus.error &&
-        vpnState.errorKind == VpnErrorKind.backendUnreachable;
     final statusLabel = vpnState.statusText();
-
-    final statusColor = switch (vpnState.status) {
-      VpnStatus.connected => AppUIv1.success,
-      VpnStatus.connecting => AppUIv1.accentSun,
-      VpnStatus.disconnecting => AppUIv1.accentSun,
-      VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
-      VpnStatus.disconnected => AppUIv1.inkSoft,
-    };
+    final statusColor = vpnState.statusColor;
 
     return LayoutBuilder(
       builder: (context, constraints) {

@@ -50,7 +50,9 @@ def rate_limit(rule: str):
     return limiter.limit(rule)
 
 # Check if we're in demo/mock mode
-DEMO_MODE = demo_mode_enabled() or IS_TESTING
+# NOTE: Do not implicitly enable DEMO_MODE just because TESTING=true. Tests and
+# simulations should control demo/mock state explicitly via env vars.
+DEMO_MODE = demo_mode_enabled()
 WG_MOCK_MODE = wg_mock_mode_enabled()
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
 
@@ -610,6 +612,7 @@ async def allocate_config(
 @router.post("/profile", response_model=VpnProfileResponse)
 @rate_limit("30/minute")
 async def provision_profile(
+    request: Request,
     payload: VpnProfileRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

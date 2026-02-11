@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# SecureWave VPN - Azure App Service Startup Script (Production)
+# SecureWave VPN - Production Startup Script
 # Ensures dependencies exist before launching gunicorn.
 ###############################################################################
 
@@ -9,7 +9,7 @@ set -euo pipefail
 export PYTHONUNBUFFERED=1
 export PORT="${PORT:-8000}"
 
-APP_DIR="/home/site/wwwroot"
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="${APP_DIR}/antenv"
 PYTHON_BIN="${PYTHON_BIN:-}"
 if [ -n "${PYTHON_BIN}" ] && [ -x "${PYTHON_BIN}" ]; then

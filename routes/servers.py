@@ -52,9 +52,10 @@ class CreateServerRequest(BaseModel):
     region: Optional[str] = Field(None, description="Geographic region (Americas, Europe, Asia, etc.)")
     latitude: Optional[float] = Field(None, description="Latitude for map display")
     longitude: Optional[float] = Field(None, description="Longitude for map display")
-    azure_region: str = Field(..., description="Azure region code (e.g., 'eastus')")
-    azure_resource_group: Optional[str] = Field(None, description="Azure resource group name")
-    azure_vm_name: Optional[str] = Field(None, description="Azure VM name")
+    hcloud_location: str = Field(..., description="Hetzner location code (e.g., 'fsn1', 'nbg1', 'hel1', 'ash')")
+    hcloud_server_id: Optional[str] = Field(None, description="Hetzner server ID")
+    hcloud_server_name: Optional[str] = Field(None, description="Hetzner server name")
+    hcloud_server_type: Optional[str] = Field("cx33", description="Hetzner server type (default: cx33)")
     public_ip: str = Field(..., description="Server's public IP address")
     wg_public_key: str = Field(..., description="WireGuard server public key")
     wg_private_key: Optional[str] = Field(None, description="WireGuard private key (will be encrypted)")
@@ -70,7 +71,7 @@ class UpdateServerRequest(BaseModel):
     max_connections: Optional[int] = Field(None, description="Maximum connections")
     tier_restriction: Optional[str] = Field(None, description="Tier restriction")
     wg_public_key: Optional[str] = Field(None, description="New WireGuard public key")
-    azure_vm_state: Optional[str] = Field(None, description="Azure VM state")
+    hcloud_server_state: Optional[str] = Field(None, description="Hetzner server state")
 
 
 class ServerResponse(BaseModel):
@@ -159,9 +160,10 @@ async def create_server(
         region=request.region,
         latitude=request.latitude,
         longitude=request.longitude,
-        azure_region=request.azure_region,
-        azure_resource_group=request.azure_resource_group,
-        azure_vm_name=request.azure_vm_name,
+        hcloud_location=request.hcloud_location,
+        hcloud_server_id=request.hcloud_server_id,
+        hcloud_server_name=request.hcloud_server_name,
+        hcloud_server_type=request.hcloud_server_type,
         public_ip=request.public_ip,
         endpoint=f"{request.public_ip}:{request.wg_listen_port}",
         wg_public_key=request.wg_public_key,
@@ -171,7 +173,7 @@ async def create_server(
         tier_restriction=request.tier_restriction,
         status="active",
         health_status="unknown",
-        azure_vm_state="running",
+        hcloud_server_state="running",
         provisioned_at=datetime.utcnow(),
     )
 
@@ -295,8 +297,8 @@ async def update_server(
         server.tier_restriction = request.tier_restriction if request.tier_restriction else None
     if request.wg_public_key is not None:
         server.wg_public_key = request.wg_public_key
-    if request.azure_vm_state is not None:
-        server.azure_vm_state = request.azure_vm_state
+    if request.hcloud_server_state is not None:
+        server.hcloud_server_state = request.hcloud_server_state
 
     db.commit()
 
@@ -315,7 +317,7 @@ async def delete_server(
     Remove a server from the system.
 
     This only removes the database record. The actual VM should be
-    decommissioned separately using Azure CLI or portal.
+    decommissioned separately using Terraform or the Hetzner Cloud API.
     """
     server = db.query(VPNServer).filter(VPNServer.server_id == server_id).first()
     if not server:

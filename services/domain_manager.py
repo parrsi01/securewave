@@ -13,8 +13,14 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 
 # Configuration
-APP_URL = os.getenv("APP_URL", "https://securewave.azurewebsites.net")
-DEFAULT_DOMAIN = os.getenv("DEFAULT_DOMAIN", "securewave.azurewebsites.net")
+APP_URL = os.getenv("APP_URL", "http://localhost:8000")
+_default_domain = os.getenv("DEFAULT_DOMAIN")
+if not _default_domain:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(APP_URL)
+    _default_domain = parsed.hostname or "localhost"
+DEFAULT_DOMAIN = _default_domain
 DNS_VERIFICATION_PREFIX = "_securewave-verify"
 
 
@@ -138,45 +144,45 @@ class DomainManager:
         Returns:
             Dictionary with DNS configuration instructions
         """
-        # Get current Azure app IP (or use default)
+        # Resolve current app IP (or use default)
         target_ip = self._get_app_ip()
 
         return {
             "custom_domain": custom_domain,
-            "configuration_type": "Azure Web App Custom Domain",
+            "configuration_type": "Custom Domain",
             "dns_records_required": [
                 {
                     "type": "A",
                     "host": "@" if custom_domain.count('.') == 1 else custom_domain.split('.')[0],
                     "value": target_ip,
                     "ttl": 3600,
-                    "description": "Points your domain to the Azure web app IP",
+                    "description": "Points your domain to the SecureWave server IP",
                 },
                 {
                     "type": "CNAME",
                     "host": "www" if custom_domain.count('.') == 1 else f"www.{custom_domain.split('.')[0]}",
                     "value": self.default_domain,
                     "ttl": 3600,
-                    "description": "Alternative: CNAME to Azure default domain",
+                    "description": "Optional: CNAME to your canonical app domain",
                 },
             ],
             "recommended_configuration": {
-                "method": "CNAME",
-                "reason": "More flexible if Azure IP changes",
+                "method": "A record",
+                "reason": "Single-server deployment with stable IP",
                 "record": {
-                    "type": "CNAME",
-                    "host": custom_domain,
-                    "value": self.default_domain,
+                    "type": "A",
+                    "host": "@" if custom_domain.count('.') == 1 else custom_domain.split('.')[0],
+                    "value": target_ip,
                     "ttl": 3600,
                 },
             },
             "steps": [
                 "1. Log in to your domain registrar (GoDaddy, Namecheap, etc.)",
                 "2. Navigate to DNS management",
-                f"3. Add CNAME record: {custom_domain} -> {self.default_domain}",
+                f"3. Add an A record: {custom_domain} -> {target_ip}",
                 "4. Wait for DNS propagation (5-30 minutes)",
                 "5. Verify domain ownership using TXT record",
-                "6. Configure SSL certificate",
+                "6. Configure SSL certificate on the server",
             ],
         }
 
@@ -240,7 +246,7 @@ class DomainManager:
 
     def _get_app_ip(self) -> str:
         """
-        Get the current IP address of the Azure web app
+        Get the current IP address of the app endpoint
 
         Returns:
             IP address
@@ -272,34 +278,19 @@ class DomainManager:
             "custom_domain": custom_domain,
             "ssl_options": [
                 {
-                    "method": "Azure Managed Certificate",
-                    "cost": "Free",
-                    "description": "Automatic SSL certificate from Azure",
-                    "steps": [
-                        "1. Add custom domain in Azure Portal",
-                        "2. Navigate to 'TLS/SSL settings'",
-                        "3. Click 'Add certificate' -> 'Create App Service Managed Certificate'",
-                        "4. Select your custom domain",
-                        "5. Add TLS/SSL binding",
-                    ],
-                    "pros": ["Free", "Auto-renewal", "Easy setup"],
-                    "cons": ["Only works with Azure", "Limited customization"],
-                    "recommended": True,
-                },
-                {
                     "method": "Let's Encrypt (Certbot)",
                     "cost": "Free",
-                    "description": "Free SSL from Let's Encrypt",
+                    "description": "Automatic SSL certificate via Certbot",
                     "steps": [
                         "1. SSH into your server",
                         "2. Install certbot",
-                        "3. Run: certbot certonly --webroot -w /var/www/html -d " + custom_domain,
-                        "4. Upload certificate to Azure",
-                        "5. Add TLS/SSL binding",
+                        f"3. Run: certbot certonly --standalone -d {custom_domain}",
+                        "4. Configure your reverse proxy to use the certificate",
+                        "5. Set up automatic renewal (certbot timer)",
                     ],
-                    "pros": ["Free", "Widely trusted", "Full control"],
-                    "cons": ["Manual renewal", "More complex setup"],
-                    "recommended": False,
+                    "pros": ["Free", "Auto-renewal", "Widely trusted"],
+                    "cons": ["Requires server access", "Needs periodic renewal checks"],
+                    "recommended": True,
                 },
                 {
                     "method": "Commercial Certificate",
@@ -310,28 +301,13 @@ class DomainManager:
                         "2. Generate CSR",
                         "3. Verify domain ownership",
                         "4. Download certificate files",
-                        "5. Upload to Azure and bind",
+                        "5. Install certificate on your reverse proxy",
                     ],
                     "pros": ["Extended validation options", "Premium support"],
                     "cons": ["Cost", "Manual renewal"],
                     "recommended": False,
                 },
             ],
-            "azure_portal_steps": {
-                "description": "Configure custom domain in Azure Portal",
-                "steps": [
-                    "1. Open Azure Portal -> App Services",
-                    "2. Select 'SecureWave VPN' app",
-                    "3. Navigate to 'Custom domains'",
-                    "4. Click 'Add custom domain'",
-                    f"5. Enter domain: {custom_domain}",
-                    "6. Validate domain ownership",
-                    "7. Add domain",
-                    "8. Navigate to 'TLS/SSL settings'",
-                    "9. Create managed certificate",
-                    "10. Add HTTPS binding",
-                ],
-            },
         }
 
     # ===========================
@@ -444,53 +420,6 @@ class DomainManager:
             }
 
         return results
-
-    # ===========================
-    # AZURE CONFIGURATION
-    # ===========================
-
-    def get_azure_cli_commands(self, custom_domain: str, resource_group: str, app_name: str) -> Dict:
-        """
-        Get Azure CLI commands for custom domain setup
-
-        Args:
-            custom_domain: Custom domain
-            resource_group: Azure resource group
-            app_name: Azure app service name
-
-        Returns:
-            Dictionary with Azure CLI commands
-        """
-        return {
-            "custom_domain": custom_domain,
-            "resource_group": resource_group,
-            "app_name": app_name,
-            "prerequisites": {
-                "install_azure_cli": "https://docs.microsoft.com/en-us/cli/azure/install-azure-cli",
-                "login_command": "az login",
-            },
-            "commands": {
-                "verify_domain": f"az webapp config hostname add --webapp-name {app_name} --resource-group {resource_group} --hostname {custom_domain}",
-                "create_managed_certificate": f"az webapp config ssl create --resource-group {resource_group} --name {app_name} --hostname {custom_domain}",
-                "bind_certificate": f"az webapp config ssl bind --certificate-thumbprint <thumbprint> --ssl-type SNI --name {app_name} --resource-group {resource_group}",
-                "list_hostnames": f"az webapp config hostname list --webapp-name {app_name} --resource-group {resource_group}",
-                "list_certificates": f"az webapp config ssl list --resource-group {resource_group}",
-            },
-            "example_workflow": [
-                "# Step 1: Add custom domain",
-                f"az webapp config hostname add --webapp-name {app_name} --resource-group {resource_group} --hostname {custom_domain}",
-                "",
-                "# Step 2: Create managed certificate",
-                f"az webapp config ssl create --resource-group {resource_group} --name {app_name} --hostname {custom_domain}",
-                "",
-                "# Step 3: Get certificate thumbprint",
-                f"az webapp config ssl list --resource-group {resource_group}",
-                "",
-                "# Step 4: Bind certificate (replace <thumbprint>)",
-                f"az webapp config ssl bind --certificate-thumbprint <thumbprint> --ssl-type SNI --name {app_name} --resource-group {resource_group}",
-            ],
-        }
-
 
 def get_domain_manager() -> DomainManager:
     """Get domain manager instance"""

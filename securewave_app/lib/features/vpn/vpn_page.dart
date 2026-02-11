@@ -101,18 +101,8 @@ class _VpnPageState extends ConsumerState<VpnPage> {
                 )
                 .name;
 
-    final backendUnreachable = vpnState.status == VpnStatus.error &&
-        vpnState.errorKind == VpnErrorKind.backendUnreachable;
-
     final statusText = vpnState.statusText(includeEllipsis: true);
-
-    final statusColor = switch (vpnState.status) {
-      VpnStatus.connected => AppUIv1.success,
-      VpnStatus.connecting => AppUIv1.accentSun,
-      VpnStatus.disconnecting => AppUIv1.accentSun,
-      VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
-      VpnStatus.disconnected => AppUIv1.inkSoft,
-    };
+    final statusColor = vpnState.statusColor;
 
     final isConnected = vpnState.status == VpnStatus.connected;
     final isConnecting = vpnState.status == VpnStatus.connecting;
@@ -206,7 +196,7 @@ class _VpnPageState extends ConsumerState<VpnPage> {
                   duration: AppUIv1.durationNormal,
                   child: Text(
                     statusText,
-                    key: ValueKey(vpnState.status),
+                    key: ValueKey('${vpnState.status}_${vpnState.errorKind}'),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: statusColor,
                         ),
@@ -276,9 +266,7 @@ class _VpnPageState extends ConsumerState<VpnPage> {
                   child: Row(
                     children: [
                       Icon(
-                        backendUnreachable
-                            ? Icons.cloud_off
-                            : Icons.warning_amber_rounded,
+                        vpnState.statusIcon,
                         size: 18,
                         color: statusColor,
                       ),
@@ -309,8 +297,9 @@ class _VpnPageState extends ConsumerState<VpnPage> {
                       child: _MetricTile(
                         icon: Icons.arrow_downward_rounded,
                         label: 'Download',
-                        value:
-                            '${vpnState.dataRateDown.toStringAsFixed(1)} Mbps',
+                        value: isConnected
+                            ? '${vpnState.dataRateDown.toStringAsFixed(1)} Mbps'
+                            : '--',
                       ),
                     ),
                     const SizedBox(width: AppUIv1.space3),
@@ -318,7 +307,9 @@ class _VpnPageState extends ConsumerState<VpnPage> {
                       child: _MetricTile(
                         icon: Icons.arrow_upward_rounded,
                         label: 'Upload',
-                        value: '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps',
+                        value: isConnected
+                            ? '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps'
+                            : '--',
                       ),
                     ),
                   ],
@@ -353,9 +344,13 @@ class _ConnectButton extends StatelessWidget {
     final isWorking =
         status == VpnStatus.connecting || status == VpnStatus.disconnecting;
     final isDisconnecting = status == VpnStatus.disconnecting;
-    final buttonColor =
-        (isConnected || isDisconnecting) ? AppUIv1.success : AppUIv1.accent;
-    final ringColor = statusColor.withValues(alpha: 0.15);
+    final isDisabled = onPressed == null && !isWorking;
+    final buttonColor = isDisabled
+        ? AppUIv1.inkSoft
+        : (isConnected || isDisconnecting)
+            ? AppUIv1.success
+            : AppUIv1.accent;
+    final ringColor = statusColor.withValues(alpha: isDisabled ? 0.08 : 0.15);
 
     final label = isWorking
         ? isDisconnecting
@@ -371,7 +366,10 @@ class _ConnectButton extends StatelessWidget {
             ? Icons.stop_rounded
             : Icons.power_settings_new_rounded;
 
-    return AnimatedContainer(
+    return AnimatedOpacity(
+      duration: AppUIv1.durationNormal,
+      opacity: isDisabled ? 0.45 : 1.0,
+      child: AnimatedContainer(
       duration: AppUIv1.durationSlow,
       curve: AppUIv1.curveDefault,
       width: 160,
@@ -444,6 +442,7 @@ class _ConnectButton extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

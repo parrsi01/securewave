@@ -1,4 +1,4 @@
-# Gunicorn configuration file for Azure App Service
+# Gunicorn configuration file for SecureWave
 import os
 import multiprocessing
 

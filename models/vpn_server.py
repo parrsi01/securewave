@@ -21,12 +21,12 @@ class VPNServer(Base):
     latitude = Column(Float, nullable=True)  # For map display
     longitude = Column(Float, nullable=True)  # For map display
 
-    # Azure Infrastructure Details
-    azure_resource_group = Column(String, nullable=True)  # Azure resource group name
-    azure_vm_name = Column(String, nullable=True)  # Azure VM name
-    azure_region = Column(String, nullable=False)  # eastus, westeurope, japaneast, etc.
-    azure_vm_size = Column(String, default="Standard_B2s")  # VM size/tier
-    azure_vm_state = Column(String, nullable=True)  # running, stopped, deallocated, etc.
+    # Hetzner Infrastructure Details
+    hcloud_server_id = Column(String, nullable=True)  # Hetzner server ID
+    hcloud_server_name = Column(String, nullable=True)  # Hetzner server name
+    hcloud_location = Column(String, nullable=False)  # fsn1, nbg1, hel1, ash, etc.
+    hcloud_server_type = Column(String, default="cx33")  # Server type/tier
+    hcloud_server_state = Column(String, nullable=True)  # running, stopped, etc.
 
     # Network Configuration
     public_ip = Column(String, nullable=False)
@@ -97,7 +97,7 @@ class VPNServer(Base):
             self.status == "active" and
             self.health_status in ["healthy", "degraded"] and
             self.current_connections < self.max_connections and
-            self.azure_vm_state == "running"
+            self.hcloud_server_state == "running"
         )
 
     @property
@@ -154,9 +154,9 @@ class VPNServer(Base):
                 "public_ip": self.public_ip,
                 "private_ip": self.private_ip,
                 "wg_public_key": self.wg_public_key,
-                "azure_vm_name": self.azure_vm_name,
-                "azure_region": self.azure_region,
-                "azure_vm_state": self.azure_vm_state,
+                "hcloud_server_name": self.hcloud_server_name,
+                "hcloud_location": self.hcloud_location,
+                "hcloud_server_state": self.hcloud_server_state,
             })
 
         return data
@@ -167,8 +167,8 @@ class VPNServer(Base):
             **self.to_dict(include_sensitive=True),
             "wg_listen_port": self.wg_listen_port,
             "dns_servers": self.dns_servers,
-            "azure_resource_group": self.azure_resource_group,
-            "azure_vm_size": self.azure_vm_size,
+            "hcloud_server_id": self.hcloud_server_id,
+            "hcloud_server_type": self.hcloud_server_type,
             "priority": self.priority,
             "auto_scale_enabled": self.auto_scale_enabled,
             "is_auto_scaled": self.is_auto_scaled,

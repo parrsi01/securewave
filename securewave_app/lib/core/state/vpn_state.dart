@@ -2,8 +2,10 @@ import 'dart:math';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ui/app_ui_v1.dart';
 import '../logging/app_logger.dart';
 import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
@@ -559,6 +561,31 @@ extension VpnStatePresentation on VpnState {
         includeEllipsis ? 'Disconnecting...' : 'Disconnecting',
       VpnStatus.disconnected => 'Disconnected',
       VpnStatus.error => _errorHeadline(),
+    };
+  }
+
+  Color get statusColor {
+    final backendUnreachable = status == VpnStatus.error &&
+        errorKind == VpnErrorKind.backendUnreachable;
+    return switch (status) {
+      VpnStatus.connected => AppUIv1.success,
+      VpnStatus.connecting => AppUIv1.accentSun,
+      VpnStatus.disconnecting => AppUIv1.accentSun,
+      VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
+      VpnStatus.disconnected => AppUIv1.inkSoft,
+    };
+  }
+
+  IconData get statusIcon {
+    final backendUnreachable = status == VpnStatus.error &&
+        errorKind == VpnErrorKind.backendUnreachable;
+    return switch (status) {
+      VpnStatus.connected => Icons.check_circle,
+      VpnStatus.connecting => Icons.sync,
+      VpnStatus.disconnecting => Icons.sync,
+      VpnStatus.error =>
+        backendUnreachable ? Icons.cloud_off : Icons.warning_amber_rounded,
+      VpnStatus.disconnected => Icons.shield_outlined,
     };
   }
 

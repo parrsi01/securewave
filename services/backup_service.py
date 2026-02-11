@@ -1,6 +1,6 @@
 """
 Backup Service
-Automated backup management for database, configurations, and VPN data
+Automated backup management for database, configurations, and VPN data.
 """
 
 import os
@@ -10,26 +10,27 @@ import subprocess  # nosec B404 - controlled subprocess usage with validated arg
 import tempfile
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
+from pathlib import Path
+import tarfile
 
 logger = logging.getLogger(__name__)
 
 # Configuration
 BACKUP_RETENTION_DAYS = int(os.getenv("BACKUP_RETENTION_DAYS", "35"))
-BACKUP_STORAGE_ACCOUNT = os.getenv("BACKUP_STORAGE_ACCOUNT", "securewave")
-BACKUP_CONTAINER = os.getenv("BACKUP_CONTAINER", "backups")
+BACKUP_ROOT = Path(os.getenv("BACKUP_ROOT", "backups")).expanduser()
 
 
 class BackupService:
     """
     Backup Service
-    Handles automated backups of database, configurations, and VPN settings
+    Handles automated backups of database, configurations, and VPN settings.
     """
 
     def __init__(self):
         """Initialize backup service"""
         self.retention_days = BACKUP_RETENTION_DAYS
-        self.storage_account = BACKUP_STORAGE_ACCOUNT
-        self.container = BACKUP_CONTAINER
+        self.backup_root = BACKUP_ROOT
+        self.backup_root.mkdir(parents=True, exist_ok=True)
 
     def _resolve_executable(self, name: str) -> str:
         path = shutil.which(name)
@@ -37,13 +38,18 @@ class BackupService:
             raise FileNotFoundError(f"Required executable not found: {name}")
         return path
 
+    def _ensure_dir(self, subdir: str) -> Path:
+        target = self.backup_root / subdir
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+
     # ===========================
     # DATABASE BACKUPS
     # ===========================
 
     def create_database_backup(self, backup_name: Optional[str] = None) -> Dict:
         """
-        Create database backup using Azure PostgreSQL
+        Create a database backup stored on local disk.
 
         Args:
             backup_name: Custom backup name (default: auto-generated)
@@ -53,47 +59,41 @@ class BackupService:
         """
         try:
             if not backup_name:
-                backup_name = f"auto-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+                backup_name = f"db-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
 
-            # Use Azure CLI to create backup
-            az_path = self._resolve_executable("az")
-            cmd = [
-                az_path, "postgres", "flexible-server", "backup", "create",
-                "--resource-group", os.getenv("AZURE_RESOURCE_GROUP", "securewave-rg"),
-                "--server-name", os.getenv("DATABASE_SERVER_NAME", "securewave-db"),
-                "--backup-name", backup_name,
-                "--output", "json"
-            ]
+            db_url = os.getenv("DATABASE_URL", "")
+            if not db_url:
+                return {"success": False, "error": "DATABASE_URL not set", "type": "database"}
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)  # nosec B603
+            backup_dir = self._ensure_dir("database")
+            output_path = backup_dir / f"{backup_name}.dump"
 
-            if result.returncode == 0:
-                logger.info(f"Database backup created successfully: {backup_name}")
-                return {
-                    "success": True,
-                    "backup_name": backup_name,
-                    "created_at": datetime.utcnow().isoformat(),
-                    "type": "database"
-                }
+            if db_url.startswith("sqlite:///"):
+                sqlite_path = db_url.replace("sqlite:///", "")
+                if sqlite_path == ":memory:":
+                    return {"success": False, "error": "In-memory SQLite cannot be backed up", "type": "database"}
+                shutil.copy2(sqlite_path, output_path)
             else:
-                logger.error(f"Database backup failed: {result.stderr}")
-                return {
-                    "success": False,
-                    "error": result.stderr,
-                    "type": "database"
-                }
+                export_result = self.export_database_to_file(str(output_path))
+                if not export_result.get("success"):
+                    return {"success": False, "error": export_result.get("error"), "type": "database"}
+
+            logger.info("Database backup created successfully: %s", output_path)
+            return {
+                "success": True,
+                "backup_name": backup_name,
+                "path": str(output_path),
+                "created_at": datetime.utcnow().isoformat(),
+                "type": "database",
+            }
 
         except Exception as e:
-            logger.error(f"Failed to create database backup: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "type": "database"
-            }
+            logger.error("Failed to create database backup: %s", e)
+            return {"success": False, "error": str(e), "type": "database"}
 
     def export_database_to_file(self, output_path: str) -> Dict:
         """
-        Export database to file using pg_dump
+        Export database to file using pg_dump.
 
         Args:
             output_path: Path to save backup file
@@ -106,10 +106,10 @@ class BackupService:
             if not db_url:
                 return {"success": False, "error": "DATABASE_URL not set"}
 
-            # Parse database URL
-            # Format: postgresql://user:pass@host:port/dbname
             import urllib.parse
             parsed = urllib.parse.urlparse(db_url)
+            if not parsed.scheme.startswith("postgresql"):
+                return {"success": False, "error": "pg_dump requires a PostgreSQL DATABASE_URL"}
 
             pg_dump_path = self._resolve_executable("pg_dump")
             cmd = [
@@ -117,70 +117,53 @@ class BackupService:
                 "-h", parsed.hostname,
                 "-p", str(parsed.port or 5432),
                 "-U", parsed.username,
-                "-d", parsed.path.lstrip('/'),
-                "-F", "custom",  # Custom format for better compression
-                "-f", output_path
+                "-d", parsed.path.lstrip("/"),
+                "-F", "custom",
+                "-f", output_path,
             ]
 
-            # Set password via environment
             env = os.environ.copy()
-            env["PGPASSWORD"] = parsed.password
+            env["PGPASSWORD"] = parsed.password or ""
 
             result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)  # nosec B603
 
             if result.returncode == 0:
-                # Get file size
                 file_size = os.path.getsize(output_path)
-
-                logger.info(f"Database exported successfully to {output_path}")
+                logger.info("Database exported successfully to %s", output_path)
                 return {
                     "success": True,
                     "output_path": output_path,
                     "file_size_mb": round(file_size / 1024 / 1024, 2),
-                    "created_at": datetime.utcnow().isoformat()
+                    "created_at": datetime.utcnow().isoformat(),
                 }
             else:
-                logger.error(f"Database export failed: {result.stderr}")
-                return {
-                    "success": False,
-                    "error": result.stderr
-                }
+                logger.error("Database export failed: %s", result.stderr)
+                return {"success": False, "error": result.stderr}
 
         except Exception as e:
-            logger.error(f"Failed to export database: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            logger.error("Failed to export database: %s", e)
+            return {"success": False, "error": str(e)}
 
     def list_database_backups(self) -> List[Dict]:
         """
-        List available database backups
+        List available database backups.
 
         Returns:
             List of backups
         """
         try:
-            az_path = self._resolve_executable("az")
-            cmd = [
-                az_path, "postgres", "flexible-server", "backup", "list",
-                "--resource-group", os.getenv("AZURE_RESOURCE_GROUP", "securewave-rg"),
-                "--server-name", os.getenv("DATABASE_SERVER_NAME", "securewave-db"),
-                "--output", "json"
-            ]
-
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603
-
-            if result.returncode == 0:
-                import json
-                backups = json.loads(result.stdout)
-                return backups
-            else:
-                logger.error(f"Failed to list backups: {result.stderr}")
-                return []
-
+            backup_dir = self._ensure_dir("database")
+            backups = []
+            for file in sorted(backup_dir.glob("*.dump")):
+                backups.append({
+                    "name": file.name,
+                    "path": str(file),
+                    "size_bytes": file.stat().st_size,
+                    "modified_at": datetime.utcfromtimestamp(file.stat().st_mtime).isoformat(),
+                })
+            return backups
         except Exception as e:
-            logger.error(f"Failed to list database backups: {e}")
+            logger.error("Failed to list database backups: %s", e)
             return []
 
     # ===========================
@@ -189,146 +172,104 @@ class BackupService:
 
     def backup_application_config(self) -> Dict:
         """
-        Backup application configuration
+        Backup application configuration files.
 
         Returns:
             Backup details
         """
         try:
             backup_name = f"config-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+            backup_dir = self._ensure_dir("config")
+            output_path = backup_dir / f"{backup_name}.tar.gz"
 
-            az_path = self._resolve_executable("az")
-            cmd = [
-                az_path, "webapp", "config", "backup", "create",
-                "--resource-group", os.getenv("AZURE_RESOURCE_GROUP", "securewave-rg"),
-                "--webapp-name", os.getenv("WEBAPP_NAME", "securewave"),
-                "--backup-name", backup_name,
-                "--storage-account-url", f"https://{self.storage_account}.blob.core.windows.net/{self.container}",
-                "--output", "json"
+            config_files = [
+                ".env",
+                ".env.production",
+                "alembic.ini",
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)  # nosec B603
+            with tarfile.open(output_path, "w:gz") as tar:
+                for config_file in config_files:
+                    if os.path.exists(config_file):
+                        tar.add(config_file)
 
-            if result.returncode == 0:
-                logger.info(f"Application config backed up: {backup_name}")
-                return {
-                    "success": True,
-                    "backup_name": backup_name,
-                    "created_at": datetime.utcnow().isoformat(),
-                    "type": "application_config"
-                }
-            else:
-                logger.error(f"Config backup failed: {result.stderr}")
-                return {
-                    "success": False,
-                    "error": result.stderr,
-                    "type": "application_config"
-                }
+            logger.info("Application config backed up: %s", output_path)
+            return {
+                "success": True,
+                "backup_name": backup_name,
+                "path": str(output_path),
+                "created_at": datetime.utcnow().isoformat(),
+                "type": "application_config",
+            }
 
         except Exception as e:
-            logger.error(f"Failed to backup application config: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "type": "application_config"
-            }
+            logger.error("Failed to backup application config: %s", e)
+            return {"success": False, "error": str(e), "type": "application_config"}
 
     # ===========================
     # VPN CONFIGURATION BACKUPS
     # ===========================
 
     def backup_vpn_configurations(self) -> Dict:
-        """
-        Backup VPN server configurations
-
-        Returns:
-            Backup details
-        """
+        """Backup VPN server configurations."""
         try:
             from database.session import get_db
             from models.vpn_server import VPNServer
             import json
 
             db = next(get_db())
-
-            # Get all VPN servers
             servers = db.query(VPNServer).all()
 
             backup_data = {
                 "created_at": datetime.utcnow().isoformat(),
-                "servers": []
+                "servers": [],
             }
 
             for server in servers:
                 backup_data["servers"].append({
                     "id": server.id,
-                    "name": server.name,
-                    "ip_address": server.ip_address,
-                    "port": server.port,
+                    "name": server.name if hasattr(server, "name") else None,
+                    "ip_address": server.public_ip,
+                    "port": server.wg_listen_port,
                     "location": server.location,
                     "region": server.region,
-                    "is_active": server.is_active,
-                    "public_key": server.public_key,
-                    "endpoint": server.endpoint
+                    "is_active": server.status == "active",
+                    "public_key": server.wg_public_key,
+                    "endpoint": server.endpoint,
                 })
 
-            backup_file = None
-            try:
-                with tempfile.NamedTemporaryFile(
-                    mode="w",
-                    encoding="utf-8",
-                    prefix="vpn_config_backup_",
-                    suffix=".json",
-                    delete=False,
-                ) as tmp_file:
-                    json.dump(backup_data, tmp_file, indent=2)
-                    backup_file = tmp_file.name
+            backup_dir = self._ensure_dir("vpn-configs")
+            output_path = backup_dir / f"vpn_config_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+            with output_path.open("w", encoding="utf-8") as f:
+                json.dump(backup_data, f, indent=2)
 
-                upload_result = self._upload_to_blob_storage(
-                    backup_file,
-                    f"vpn-configs/vpn_config_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-                )
-            finally:
-                if backup_file and os.path.exists(backup_file):
-                    os.remove(backup_file)
-
-            logger.info(f"VPN configurations backed up: {len(servers)} servers")
+            logger.info("VPN configurations backed up: %s servers", len(servers))
 
             return {
-                "success": upload_result["success"],
+                "success": True,
                 "servers_backed_up": len(servers),
                 "created_at": datetime.utcnow().isoformat(),
-                "type": "vpn_config"
+                "type": "vpn_config",
+                "path": str(output_path),
             }
 
         except Exception as e:
-            logger.error(f"Failed to backup VPN configurations: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "type": "vpn_config"
-            }
+            logger.error("Failed to backup VPN configurations: %s", e)
+            return {"success": False, "error": str(e), "type": "vpn_config"}
 
     def backup_wireguard_peers(self) -> Dict:
-        """
-        Backup WireGuard peer configurations
-
-        Returns:
-            Backup details
-        """
+        """Backup WireGuard peer configurations."""
         try:
             from database.session import get_db
             from models.wireguard_peer import WireGuardPeer
             import json
 
             db = next(get_db())
-
-            # Get all active peers
             peers = db.query(WireGuardPeer).filter(WireGuardPeer.is_active == True).all()
 
             backup_data = {
                 "created_at": datetime.utcnow().isoformat(),
-                "peers": []
+                "peers": [],
             }
 
             for peer in peers:
@@ -340,101 +281,69 @@ class BackupService:
                     "ipv4_address": peer.ipv4_address,
                     "ipv6_address": peer.ipv6_address,
                     "device_name": peer.device_name,
-                    "is_active": peer.is_active
-                    # Note: Private keys are encrypted - not included in backup
+                    "is_active": peer.is_active,
                 })
 
-            backup_file = None
-            try:
-                with tempfile.NamedTemporaryFile(
-                    mode="w",
-                    encoding="utf-8",
-                    prefix="wireguard_peers_",
-                    suffix=".json",
-                    delete=False,
-                ) as tmp_file:
-                    json.dump(backup_data, tmp_file, indent=2)
-                    backup_file = tmp_file.name
+            backup_dir = self._ensure_dir("wireguard-peers")
+            output_path = backup_dir / f"peers_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+            with output_path.open("w", encoding="utf-8") as f:
+                json.dump(backup_data, f, indent=2)
 
-                upload_result = self._upload_to_blob_storage(
-                    backup_file,
-                    f"wireguard-peers/peers_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-                )
-            finally:
-                if backup_file and os.path.exists(backup_file):
-                    os.remove(backup_file)
-
-            logger.info(f"WireGuard peers backed up: {len(peers)} peers")
+            logger.info("WireGuard peers backed up: %s peers", len(peers))
 
             return {
-                "success": upload_result["success"],
+                "success": True,
                 "peers_backed_up": len(peers),
                 "created_at": datetime.utcnow().isoformat(),
-                "type": "wireguard_peers"
+                "type": "wireguard_peers",
+                "path": str(output_path),
             }
 
         except Exception as e:
-            logger.error(f"Failed to backup WireGuard peers: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "type": "wireguard_peers"
-            }
+            logger.error("Failed to backup WireGuard peers: %s", e)
+            return {"success": False, "error": str(e), "type": "wireguard_peers"}
 
     # ===========================
     # COMPREHENSIVE BACKUP
     # ===========================
 
     def run_full_backup(self) -> Dict:
-        """
-        Run comprehensive backup of all systems
-
-        Returns:
-            Backup summary
-        """
+        """Run comprehensive backup of all systems."""
         summary = {
             "started_at": datetime.utcnow().isoformat(),
             "backups": [],
             "success_count": 0,
-            "failure_count": 0
+            "failure_count": 0,
         }
 
-        # Database backup
         db_backup = self.create_database_backup()
         summary["backups"].append(db_backup)
-        if db_backup["success"]:
-            summary["success_count"] += 1
-        else:
-            summary["failure_count"] += 1
+        summary["success_count"] += 1 if db_backup.get("success") else 0
+        summary["failure_count"] += 0 if db_backup.get("success") else 1
 
-        # Application config backup
         app_backup = self.backup_application_config()
         summary["backups"].append(app_backup)
-        if app_backup["success"]:
-            summary["success_count"] += 1
-        else:
-            summary["failure_count"] += 1
+        summary["success_count"] += 1 if app_backup.get("success") else 0
+        summary["failure_count"] += 0 if app_backup.get("success") else 1
 
-        # VPN config backup
         vpn_backup = self.backup_vpn_configurations()
         summary["backups"].append(vpn_backup)
-        if vpn_backup["success"]:
-            summary["success_count"] += 1
-        else:
-            summary["failure_count"] += 1
+        summary["success_count"] += 1 if vpn_backup.get("success") else 0
+        summary["failure_count"] += 0 if vpn_backup.get("success") else 1
 
-        # WireGuard peers backup
         peers_backup = self.backup_wireguard_peers()
         summary["backups"].append(peers_backup)
-        if peers_backup["success"]:
-            summary["success_count"] += 1
-        else:
-            summary["failure_count"] += 1
+        summary["success_count"] += 1 if peers_backup.get("success") else 0
+        summary["failure_count"] += 0 if peers_backup.get("success") else 1
 
         summary["completed_at"] = datetime.utcnow().isoformat()
         summary["overall_status"] = "success" if summary["failure_count"] == 0 else "partial_failure"
 
-        logger.info(f"Full backup completed: {summary['success_count']} succeeded, {summary['failure_count']} failed")
+        logger.info(
+            "Full backup completed: %s succeeded, %s failed",
+            summary["success_count"],
+            summary["failure_count"],
+        )
 
         return summary
 
@@ -443,123 +352,53 @@ class BackupService:
     # ===========================
 
     def cleanup_old_backups(self) -> Dict:
-        """
-        Remove backups older than retention period
-
-        Returns:
-            Cleanup summary
-        """
+        """Remove backups older than retention period."""
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=self.retention_days)
-
-            # List backups
-            backups = self.list_database_backups()
-
             deleted_count = 0
-            for backup in backups:
-                # Parse backup date
-                # This depends on Azure backup format
-                # Implement based on actual backup metadata
-                pass
 
-            logger.info(f"Cleaned up {deleted_count} old backups")
+            for backup_dir in self.backup_root.glob("*"):
+                if not backup_dir.is_dir():
+                    continue
+                for file in backup_dir.glob("*"):
+                    modified = datetime.utcfromtimestamp(file.stat().st_mtime)
+                    if modified < cutoff_date:
+                        file.unlink()
+                        deleted_count += 1
+
+            logger.info("Cleaned up %s old backups", deleted_count)
 
             return {
                 "success": True,
                 "deleted_count": deleted_count,
                 "retention_days": self.retention_days,
-                "cutoff_date": cutoff_date.isoformat()
+                "cutoff_date": cutoff_date.isoformat(),
             }
 
         except Exception as e:
-            logger.error(f"Failed to cleanup old backups: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            logger.error("Failed to cleanup old backups: %s", e)
+            return {"success": False, "error": str(e)}
 
     # ===========================
     # HELPER METHODS
     # ===========================
 
-    def _upload_to_blob_storage(self, local_file: str, blob_name: str) -> Dict:
-        """
-        Upload file to Azure Blob Storage
-
-        Args:
-            local_file: Local file path
-            blob_name: Blob name in storage
-
-        Returns:
-            Upload result
-        """
-        try:
-            az_path = self._resolve_executable("az")
-            cmd = [
-                az_path, "storage", "blob", "upload",
-                "--account-name", self.storage_account,
-                "--container-name", self.container,
-                "--name", blob_name,
-                "--file", local_file,
-                "--output", "json"
-            ]
-
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)  # nosec B603
-
-            if result.returncode == 0:
-                return {
-                    "success": True,
-                    "blob_name": blob_name
-                }
-            else:
-                logger.error(f"Blob upload failed: {result.stderr}")
-                return {
-                    "success": False,
-                    "error": result.stderr
-                }
-
-        except Exception as e:
-            logger.error(f"Failed to upload to blob storage: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
     def verify_backup(self, backup_name: str) -> Dict:
-        """
-        Verify backup integrity
-
-        Args:
-            backup_name: Backup to verify
-
-        Returns:
-            Verification result
-        """
+        """Verify backup integrity (placeholder)."""
         try:
-            # This would involve:
-            # 1. Attempting to restore to test environment
-            # 2. Running integrity checks
-            # 3. Verifying data consistency
-
-            logger.info(f"Verifying backup: {backup_name}")
-
+            logger.info("Verifying backup: %s", backup_name)
             return {
                 "success": True,
                 "backup_name": backup_name,
                 "verified_at": datetime.utcnow().isoformat(),
-                "status": "valid"
+                "status": "valid",
             }
 
         except Exception as e:
-            logger.error(f"Backup verification failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "status": "invalid"
-            }
+            logger.error("Backup verification failed: %s", e)
+            return {"success": False, "error": str(e), "status": "invalid"}
 
 
-# Singleton instance
 _backup_service: Optional[BackupService] = None
 
 
