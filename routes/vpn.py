@@ -10,12 +10,15 @@ This module provides endpoints for:
 
 import os
 import logging
-from datetime import datetime, timedelta
+import json
+import time
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from database.session import get_db
 from models.user import User
@@ -23,15 +26,26 @@ from models.wireguard_peer import WireGuardPeer
 from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
 from services.jwt_service import get_current_user
+from utils.api_errors import ApiException, api_error_responses
 from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
+from utils.input_sanitizer import (
+    sanitize_allowed_ips,
+    sanitize_device_name,
+    sanitize_endpoint,
+    sanitize_identifier,
+    sanitize_region,
+    sanitize_wireguard_key,
+)
 from services.subscription_access import require_active_subscription
 from services.vpn_peer_manager import get_peer_manager
 from services.wireguard_service import WireGuardService
 from services.vpn_server_service import VPNServerService
+from services.runtime_metrics import get_runtime_metrics
+from services.wireguard_tuning import tune_wireguard
+from services.latency_optimizer import get_latency_optimizer
 from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
-    ServerConnection,
 )
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -55,6 +69,17 @@ def rate_limit(rule: str):
 DEMO_MODE = demo_mode_enabled()
 WG_MOCK_MODE = wg_mock_mode_enabled()
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
+
+VPN_ERROR_RESPONSES = api_error_responses(
+    {
+        400: "Invalid request payload",
+        401: "Authentication required",
+        403: "Request forbidden for current subscription/device state",
+        404: "Requested resource not found",
+        429: "Too many requests",
+        503: "No VPN nodes available",
+    }
+)
 
 
 # =============================================================================
@@ -87,6 +112,20 @@ class AllocateConfigRequest(BaseModel):
         max_length=64
     )
 
+    @field_validator("server_id")
+    @classmethod
+    def _validate_server_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_identifier(value, field_name="server_id")
+
+    @field_validator("device_name")
+    @classmethod
+    def _validate_device_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_device_name(value)
+
 
 class VPNConnectRequest(BaseModel):
     """Compatibility request to initiate a VPN connection."""
@@ -95,12 +134,31 @@ class VPNConnectRequest(BaseModel):
         description="Preferred region or server identifier (best effort)."
     )
 
+    @field_validator("region")
+    @classmethod
+    def _validate_region(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_region(value)
+
 
 class DeviceCreateRequest(BaseModel):
     """Compatibility request to create a VPN device."""
     name: str = Field(..., min_length=1, max_length=50)
     device_type: Optional[str] = Field(None, description="windows, macos, linux, ios, android")
     server_id: Optional[str] = Field(None, description="Preferred server ID")
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        return sanitize_device_name(value)
+
+    @field_validator("server_id")
+    @classmethod
+    def _validate_server_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_identifier(value, field_name="server_id")
 
 
 class DeviceRevokeRequest(BaseModel):
@@ -140,6 +198,28 @@ class ServerListResponse(BaseModel):
     total: int
     recommended_server_id: Optional[str] = None
 
+
+class RecommendedServerCandidate(BaseModel):
+    server_id: str
+    score: float
+    rtt_ms: float
+    rtt_source: str
+    rtt_samples: int
+    load_percent: float
+    health_status: str
+    consecutive_health_failures: int
+    region: Optional[str] = None
+
+
+class RecommendedServerResponse(BaseModel):
+    generated_at: str
+    user_region_hint: Optional[str] = None
+    recommended_server_id: Optional[str] = None
+    baselines: dict
+    rtt_window_seconds: int
+    rtt_min_samples: int
+    candidates: Optional[List[RecommendedServerCandidate]] = None
+
 class VpnProfileRequest(BaseModel):
     """Provision an app-consumable VPN tunnel profile (no downloadable files)."""
     device_id: Optional[int] = Field(
@@ -154,6 +234,20 @@ class VpnProfileRequest(BaseModel):
     protocol: str = Field("wireguard", description="VPN protocol (wireguard only for now)")
     server_id: Optional[str] = Field(None, description="Preferred server ID (null = auto)")
     force_rotate_keys: bool = Field(False, description="Rotate device keys before issuing a profile")
+
+    @field_validator("device_name")
+    @classmethod
+    def _validate_device_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_device_name(value)
+
+    @field_validator("server_id")
+    @classmethod
+    def _validate_server_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_identifier(value, field_name="server_id")
 
 
 class VpnProfileDns(BaseModel):
@@ -270,6 +364,30 @@ def _profile_mtu() -> Optional[int]:
     return None
 
 
+def _resolve_wireguard_tuning(
+    request: Request,
+    server: VPNServer,
+    *,
+    device_type: Optional[str],
+) -> tuple[Optional[int], int, bool, float]:
+    tuning = tune_wireguard(
+        endpoint=server.endpoint,
+        client_ip=request.client.host if request.client else None,
+        forwarded_for=request.headers.get("x-forwarded-for"),
+        observed_latency_ms=server.latency_ms,
+        device_type=device_type,
+    )
+    return tuning.mtu, tuning.keepalive_seconds, tuning.nat_detected, tuning.mtu_probe_ms
+
+
+def _log_vpn_event(event: str, **fields) -> None:
+    logger.info(json.dumps({"event": event, **fields}, sort_keys=True))
+
+
+def _utc_iso(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).isoformat()
+
+
 def _linux_kill_switch_snippet() -> str:
     """
     Best-effort Linux kill switch via wg-quick hooks.
@@ -294,6 +412,7 @@ def _linux_kill_switch_snippet() -> str:
 
 
 def _build_wireguard_profile_config(
+    request: Request,
     peer: WireGuardPeer,
     server: VPNServer,
     *,
@@ -302,8 +421,18 @@ def _build_wireguard_profile_config(
     wg_service = WireGuardService()
     private_key = wg_service.decrypt_private_key(peer.private_key_encrypted)
     dns_servers = _profile_dns_servers()
-    keepalive = _profile_keepalive_seconds()
-    mtu = _profile_mtu()
+    mtu, keepalive, _, _ = _resolve_wireguard_tuning(request, server, device_type=device_type)
+    try:
+        endpoint = sanitize_endpoint(server.endpoint)
+        server_pubkey = sanitize_wireguard_key(server.wg_public_key, field_name="wg_public_key")
+        allowed_ips = sanitize_allowed_ips(server.allowed_ips or "0.0.0.0/0, ::/0")
+    except ValueError as exc:
+        raise ApiException(
+            status_code=500,
+            code="invalid_server_config",
+            message="The selected VPN server has an invalid WireGuard configuration.",
+            details={"server_id": server.server_id, "reason": str(exc)},
+        )
 
     interface_lines = [
         "[Interface]",
@@ -322,9 +451,9 @@ def _build_wireguard_profile_config(
     peer_lines = [
         "",
         "[Peer]",
-        f"PublicKey = {server.wg_public_key}",
-        f"Endpoint = {server.endpoint}",
-        "AllowedIPs = 0.0.0.0/0, ::/0",
+        f"PublicKey = {server_pubkey}",
+        f"Endpoint = {endpoint}",
+        f"AllowedIPs = {allowed_ips}",
     ]
     if keepalive > 0:
         peer_lines.append(f"PersistentKeepalive = {keepalive}")
@@ -333,12 +462,34 @@ def _build_wireguard_profile_config(
     return prefix + "\n".join(interface_lines + peer_lines) + "\n"
 
 
+def _safe_server_peer_values(server: VPNServer) -> tuple[str, str, str]:
+    try:
+        return (
+            sanitize_wireguard_key(server.wg_public_key, field_name="wg_public_key"),
+            sanitize_endpoint(server.endpoint),
+            sanitize_allowed_ips(server.allowed_ips or "0.0.0.0/0, ::/0"),
+        )
+    except ValueError as exc:
+        raise ApiException(
+            status_code=500,
+            code="invalid_server_config",
+            message="The selected VPN server has an invalid WireGuard configuration.",
+            details={"server_id": server.server_id, "reason": str(exc)},
+        )
+
+
 # =============================================================================
 # Server Listing Endpoints
 # =============================================================================
 
-@router.get("/servers", response_model=ServerListResponse)
+@router.get(
+    "/servers",
+    response_model=ServerListResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("60/minute")
 async def list_servers(
+    request: Request,
     region: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -349,6 +500,12 @@ async def list_servers(
     Filters servers based on user's subscription tier and optionally by region.
     Returns servers sorted by performance score and latency.
     """
+    if region:
+        try:
+            region = sanitize_region(region)
+        except ValueError as exc:
+            raise ApiException(status_code=400, code="invalid_region", message=str(exc))
+
     user_tier = get_user_tier(current_user, db)
 
     # Get active servers for this user's tier
@@ -361,7 +518,10 @@ async def list_servers(
     # Convert to response format
     server_list = []
     recommended_id = None
-    best_score = -1
+    best_score = float("-inf")
+    latency_optimizer = get_latency_optimizer()
+    baselines = latency_optimizer.collect_baselines()
+    region_hint = region or request.headers.get("X-Geo-Region")
 
     for server in servers:
         # Calculate load percentage
@@ -381,9 +541,13 @@ async def list_servers(
         )
         server_list.append(server_info)
 
-        # Track best server for recommendation
-        score = server.performance_score or 0
-        if server.health_status == "healthy" and score > best_score:
+        # Track best server for recommendation using geo RTT weighting.
+        score = latency_optimizer.score_server(
+            server,
+            baselines=baselines,
+            user_region_hint=region_hint,
+        )
+        if server.health_status in {"healthy", "degraded"} and score > best_score:
             best_score = score
             recommended_id = server.server_id
 
@@ -392,6 +556,46 @@ async def list_servers(
         total=len(server_list),
         recommended_server_id=recommended_id,
     )
+
+
+@router.get(
+    "/recommended-server",
+    response_model=RecommendedServerResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("60/minute")
+async def recommended_server(
+    request: Request,
+    region: Optional[str] = None,
+    include_candidates: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Recommend the best server for Barbados/EU corridors using:
+    - geo_latency_probe baselines (if present)
+    - rolling RTT history from recent health probes
+    - live load/health/failure signals
+    """
+    region_hint = region
+    if region_hint:
+        try:
+            region_hint = sanitize_region(region_hint)
+        except ValueError as exc:
+            raise ApiException(status_code=400, code="invalid_region", message=str(exc))
+    else:
+        region_hint = request.headers.get("X-Geo-Region")
+
+    user_tier = get_user_tier(current_user, db)
+    from services.geo_recommendation import recommend_server as geo_reco
+
+    payload = geo_reco(
+        db,
+        user_tier=user_tier,
+        user_region_hint=region_hint,
+        include_candidates=include_candidates,
+    )
+    return payload
 
 
 @router.get("/servers/{server_id}", response_model=ServerInfo)
@@ -421,6 +625,74 @@ async def get_server(
     )
 
 
+@router.get(
+    "/metrics/vpn",
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("30/minute")
+async def vpn_metrics(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Export VPN fleet and tunnel performance metrics for operators.
+    """
+    runtime = get_runtime_metrics().snapshot()
+    peer_manager = get_peer_manager(db)
+    pool = peer_manager.get_ip_pool_stats()
+
+    peer_total = db.query(WireGuardPeer).filter(WireGuardPeer.is_revoked == False).count()
+    healthy = db.query(WireGuardPeer).filter(
+        WireGuardPeer.is_revoked == False,
+        WireGuardPeer.health_status == "healthy",
+    ).count()
+    degraded = db.query(WireGuardPeer).filter(
+        WireGuardPeer.is_revoked == False,
+        WireGuardPeer.health_status == "degraded",
+    ).count()
+    unstable = db.query(WireGuardPeer).filter(
+        WireGuardPeer.is_revoked == False,
+        WireGuardPeer.health_status == "unstable",
+    ).count()
+    stale_seconds = int(os.getenv("WG_HANDSHAKE_UNSTABLE_SECONDS", "300"))
+    stale_cutoff = datetime.utcnow() - timedelta(seconds=stale_seconds)
+    stale_handshakes = db.query(WireGuardPeer).filter(
+        WireGuardPeer.is_revoked == False,
+        (
+            (WireGuardPeer.last_handshake_at.is_(None))
+            | (WireGuardPeer.last_handshake_at < stale_cutoff)
+        ),
+    ).count()
+
+    avg_handshake = (
+        db.query(func.avg(WireGuardPeer.last_handshake_latency_ms))
+        .filter(WireGuardPeer.is_revoked == False)
+        .scalar()
+    ) or 0.0
+
+    overall_health = "healthy"
+    if peer_total > 0 and unstable / peer_total >= 0.25:
+        overall_health = "unstable"
+    elif degraded > 0 or unstable > 0:
+        overall_health = "degraded"
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "health_classification": overall_health,
+        "peers": {
+            "total": peer_total,
+            "healthy": healthy,
+            "degraded": degraded,
+            "unstable": unstable,
+            "stale_handshakes": stale_handshakes,
+            "avg_handshake_latency_ms": round(float(avg_handshake), 2),
+        },
+        "ip_pool": pool,
+        "runtime": runtime,
+    }
+
+
 # =============================================================================
 # Configuration Allocation Endpoints
 # =============================================================================
@@ -445,6 +717,7 @@ async def allocate_config(
 
     The configuration can be imported into the WireGuard app on any platform.
     """
+    started = time.monotonic()
     await require_active_subscription(db, current_user)
     wg_service = WireGuardService()
     user_tier = get_user_tier(current_user, db)
@@ -525,8 +798,11 @@ async def allocate_config(
         config_prefix = "# SecureWave VPN DEMO CONFIG (testing only)\n"
 
     dns_servers = _profile_dns_servers()
-    keepalive = _profile_keepalive_seconds()
-    mtu = _profile_mtu()
+    mtu, keepalive, nat_detected, mtu_probe_ms = _resolve_wireguard_tuning(
+        request,
+        server,
+        device_type=None,
+    )
 
     interface_lines = [
         "[Interface]",
@@ -537,12 +813,13 @@ async def allocate_config(
     if mtu is not None:
         interface_lines.append(f"MTU = {mtu}")
 
+    server_public_key, server_endpoint, server_allowed_ips = _safe_server_peer_values(server)
     peer_lines = [
         "",
         "[Peer]",
-        f"PublicKey = {server.wg_public_key}",
-        f"Endpoint = {server.endpoint}",
-        "AllowedIPs = 0.0.0.0/0, ::/0",
+        f"PublicKey = {server_public_key}",
+        f"Endpoint = {server_endpoint}",
+        f"AllowedIPs = {server_allowed_ips}",
     ]
     if keepalive > 0:
         peer_lines.append(f"PersistentKeepalive = {keepalive}")
@@ -561,11 +838,17 @@ async def allocate_config(
     peer_registered = False
     registration_message = None
     if AUTO_REGISTER_PEERS:
+        register_start = time.monotonic()
         success, message = await register_peer_on_server(
             server=server,
             public_key=public_key,
             allowed_ips=client_ip,
         )
+        registration_latency_ms = (time.monotonic() - register_start) * 1000.0
+        get_runtime_metrics().record_handshake_latency(registration_latency_ms)
+        peer.last_handshake_latency_ms = round(registration_latency_ms, 2)
+        db.add(peer)
+        db.commit()
         if success:
             peer_registered = True
             logger.info(f"Peer registered for user {current_user.id} on server {server.server_id}")
@@ -595,7 +878,19 @@ async def allocate_config(
     if registration_message and not peer_registered:
         instructions += f" Registration is pending: {registration_message}."
 
-    return AllocateConfigResponse(
+    _log_vpn_event(
+        "vpn_profile_issued",
+        user_id=current_user.id,
+        server_id=server.server_id,
+        device_id=peer.id,
+        nat_detected=nat_detected,
+        mtu=mtu,
+        keepalive=keepalive,
+        mtu_probe_ms=mtu_probe_ms,
+        auto_registered=peer_registered,
+    )
+
+    response_payload = AllocateConfigResponse(
         status="allocated",
         server_id=server.server_id,
         server_location=f"{server.city}, {server.country}",
@@ -607,9 +902,16 @@ async def allocate_config(
         instructions=instructions,
         download_filename=filename,
     )
+    elapsed_ms = (time.monotonic() - started) * 1000.0
+    get_runtime_metrics().record_profile_issue(latency_ms=elapsed_ms, success=True)
+    return response_payload
 
 
-@router.post("/profile", response_model=VpnProfileResponse)
+@router.post(
+    "/profile",
+    response_model=VpnProfileResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
 @rate_limit("30/minute")
 async def provision_profile(
     request: Request,
@@ -625,13 +927,18 @@ async def provision_profile(
     - Selects an allowed server by tier (or uses device/server preference)
     - Returns a WireGuard config blob + metadata (no downloadable files)
     """
+    started = time.monotonic()
+    issued_successfully = False
+    selected_server_id: Optional[str] = None
+    selected_device_id: Optional[int] = None
     await require_active_subscription(db, current_user)
 
     protocol = (payload.protocol or "wireguard").lower().strip()
     if protocol not in ("wireguard", "wg", "wire_guard"):
-        raise HTTPException(
+        raise ApiException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only WireGuard is available right now.",
+            code="unsupported_protocol",
+            message="Only WireGuard is available right now.",
         )
 
     user_tier = get_user_tier(current_user, db)
@@ -646,7 +953,11 @@ async def provision_profile(
             WireGuardPeer.is_revoked == False,
         ).first()
         if not peer:
-            raise HTTPException(status_code=404, detail="Device not found or revoked")
+            raise ApiException(
+                status_code=404,
+                code="device_not_found",
+                message="Device not found or revoked",
+            )
     else:
         device_name = (payload.device_name or "This device").strip()[:64]
         peer = db.query(WireGuardPeer).filter(
@@ -664,9 +975,11 @@ async def provision_profile(
                 WireGuardPeer.is_active == True,
             ).count()
             if active_count >= limit:
-                raise HTTPException(
+                raise ApiException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Device limit reached ({limit}). Upgrade your plan or revoke an existing device.",
+                    code="device_limit_reached",
+                    message=f"Device limit reached ({limit}). Upgrade your plan or revoke an existing device.",
+                    details={"limit": limit, "active_devices": active_count},
                 )
 
             device_type = (payload.device_type or "").lower().strip() or None
@@ -682,11 +995,17 @@ async def provision_profile(
     if payload.server_id:
         server = VPNServerService.get_server_by_id(db, payload.server_id)
         if not server:
-            raise HTTPException(status_code=404, detail="Server not found")
+            raise ApiException(
+                status_code=404,
+                code="server_not_found",
+                message="Server not found",
+            )
         if server.tier_restriction and user_tier == "free":
-            raise HTTPException(
+            raise ApiException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"This server requires a {server.tier_restriction} subscription",
+                code="server_tier_restricted",
+                message=f"This server requires a {server.tier_restriction} subscription",
+                details={"tier_required": server.tier_restriction},
             )
 
     if server is None and peer.server_id:
@@ -697,19 +1016,28 @@ async def provision_profile(
     if server is None:
         candidates = VPNServerService.get_active_servers(db, user_tier)
         if not candidates:
-            raise HTTPException(status_code=503, detail="No VPN servers available. Please try again later.")
-        # Prefer healthy + high performance score.
+            raise ApiException(
+                status_code=503,
+                code="no_servers_available",
+                message="No VPN servers available. Please try again later.",
+            )
+        latency_optimizer = get_latency_optimizer()
+        scored = latency_optimizer.rank_servers(
+            candidates,
+            user_region_hint=request.headers.get("X-Geo-Region"),
+        )
+        score_map = {item.server_id: item.score for item in scored}
         candidates.sort(
             key=lambda s: (
                 1 if s.health_status == "healthy" else 0,
-                float(s.performance_score or 0),
-                -float(s.latency_ms or 0),
+                score_map.get(s.server_id, float("-inf")),
             ),
             reverse=True,
         )
         server = candidates[0]
 
     assert server is not None
+    selected_server_id = server.server_id
 
     # Optional key rotation
     if payload.force_rotate_keys:
@@ -748,11 +1076,22 @@ async def provision_profile(
     peer_registered = False
     registration_status: Optional[str] = None
     if AUTO_REGISTER_PEERS:
+        register_start = time.monotonic()
         success, message = await register_peer_on_server(server, peer.public_key, peer.ipv4_address)
+        registration_latency_ms = (time.monotonic() - register_start) * 1000.0
+        get_runtime_metrics().record_handshake_latency(registration_latency_ms)
+        peer.last_handshake_latency_ms = round(registration_latency_ms, 2)
+        db.add(peer)
+        db.commit()
         peer_registered = success
         registration_status = message
 
-    wireguard_config = _build_wireguard_profile_config(peer, server, device_type=payload.device_type)
+    wireguard_config = _build_wireguard_profile_config(
+        request,
+        peer,
+        server,
+        device_type=payload.device_type,
+    )
     dns_servers = _profile_dns_servers()
 
     device_type = (payload.device_type or peer.device_type or "").lower().strip() or None
@@ -766,13 +1105,16 @@ async def provision_profile(
         ),
     )
 
-    issued_at = datetime.utcnow()
     ttl_seconds = int(os.getenv("SECUREWAVE_PROFILE_TTL_SECONDS", "3600"))
     if ttl_seconds < 60:
         ttl_seconds = 60
+    issued_at = datetime.now(timezone.utc)
     expires_at = issued_at + timedelta(seconds=ttl_seconds)
 
-    return VpnProfileResponse(
+    selected_device_id = peer.id
+    issued_successfully = True
+
+    response_payload = VpnProfileResponse(
         device_id=peer.id,
         device_name=peer.device_name,
         device_type=peer.device_type,
@@ -780,14 +1122,25 @@ async def provision_profile(
         server_id=server.server_id,
         server_location=f"{server.city}, {server.country}",
         key_version=peer.key_version or 1,
-        issued_at=issued_at.isoformat(),
-        expires_at=expires_at.isoformat(),
+        issued_at=_utc_iso(issued_at),
+        expires_at=_utc_iso(expires_at),
         wireguard_config=wireguard_config,
         dns=VpnProfileDns(servers=dns_servers, enforcement="config"),
         kill_switch=kill_switch,
         peer_registered=peer_registered,
         registration_status=registration_status,
     )
+    _log_vpn_event(
+        "vpn_profile_issued",
+        user_id=current_user.id,
+        server_id=server.server_id,
+        device_id=peer.id,
+        key_version=peer.key_version,
+        peer_registered=peer_registered,
+    )
+    elapsed_ms = (time.monotonic() - started) * 1000.0
+    get_runtime_metrics().record_profile_issue(latency_ms=elapsed_ms, success=True)
+    return response_payload
 
 
 @router.get("/config/download/{server_id}")
@@ -924,6 +1277,7 @@ async def get_connection_status(
 
 @router.post("/connect")
 async def connect_vpn(
+    request: Request,
     payload: VPNConnectRequest = VPNConnectRequest(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -938,6 +1292,14 @@ async def connect_vpn(
         from services.demo_vpn_service import connect as demo_connect
 
         session = demo_connect(db, current_user.id, payload.region)
+        get_runtime_metrics().record_peer_connect()
+        _log_vpn_event(
+            "vpn_peer_connect",
+            mode="demo",
+            user_id=current_user.id,
+            server_id=session.assigned_node,
+            region=session.region,
+        )
         return {
             "mode": "demo",
             "status": session.status,
@@ -975,8 +1337,7 @@ async def connect_vpn(
     config_path = wg_service.config_path_for_server(current_user.id, server.server_id)
     if not config_path.exists():
         dns_servers = _profile_dns_servers()
-        keepalive = _profile_keepalive_seconds()
-        mtu = _profile_mtu()
+        mtu, keepalive, _, _ = _resolve_wireguard_tuning(request, server, device_type=None)
 
         interface_lines = [
             "[Interface]",
@@ -987,12 +1348,13 @@ async def connect_vpn(
         if mtu is not None:
             interface_lines.append(f"MTU = {mtu}")
 
+        server_public_key, server_endpoint, server_allowed_ips = _safe_server_peer_values(server)
         peer_lines = [
             "",
             "[Peer]",
-            f"PublicKey = {server.wg_public_key}",
-            f"Endpoint = {server.endpoint}",
-            "AllowedIPs = 0.0.0.0/0, ::/0",
+            f"PublicKey = {server_public_key}",
+            f"Endpoint = {server_endpoint}",
+            f"AllowedIPs = {server_allowed_ips}",
         ]
         if keepalive > 0:
             peer_lines.append(f"PersistentKeepalive = {keepalive}")
@@ -1025,6 +1387,14 @@ async def connect_vpn(
 
     db.add(current_user)
     db.commit()
+    get_runtime_metrics().record_peer_connect()
+    _log_vpn_event(
+        "vpn_peer_connect",
+        mode="live",
+        user_id=current_user.id,
+        server_id=server.server_id,
+        client_ip=client_ip,
+    )
 
     return {
         "mode": "live",
@@ -1049,6 +1419,13 @@ async def disconnect_vpn(
         from services.demo_vpn_service import disconnect as demo_disconnect
 
         session = demo_disconnect(db, current_user.id)
+        get_runtime_metrics().record_peer_disconnect()
+        _log_vpn_event(
+            "vpn_peer_disconnect",
+            mode="demo",
+            user_id=current_user.id,
+            server_id=session.assigned_node,
+        )
         return {
             "mode": "demo",
             "status": session.status,
@@ -1065,6 +1442,13 @@ async def disconnect_vpn(
         active_connection.disconnected_at = datetime.utcnow()
         db.add(active_connection)
         db.commit()
+        get_runtime_metrics().record_peer_disconnect()
+        _log_vpn_event(
+            "vpn_peer_disconnect",
+            mode="live",
+            user_id=current_user.id,
+            server_id=active_connection.server_id,
+        )
 
     return {
         "mode": "live",

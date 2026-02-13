@@ -31,6 +31,7 @@ def register_server(
     hcloud_server_name: str = None,
     hcloud_server_id: str = None,
     hcloud_server_type: str = "cx33",
+    allowed_ips: str = "0.0.0.0/0, ::/0",
 ):
     """Register a VPN server in the database"""
     db = SessionLocal()
@@ -73,6 +74,7 @@ def register_server(
         endpoint=endpoint,
         wg_public_key=wg_public_key,
         wg_private_key_encrypted=encrypted_private_key,
+        allowed_ips=allowed_ips,
         status="active",  # Real server, not demo
         health_status="unknown",  # Will be updated by health monitor
         max_connections=1000,
@@ -119,6 +121,7 @@ def main():
     parser.add_argument("--hcloud-server-name", help="Hetzner server name")
     parser.add_argument("--hcloud-server-id", help="Hetzner server ID")
     parser.add_argument("--hcloud-server-type", default="cx33", help="Hetzner server type")
+    parser.add_argument("--allowed-ips", default="0.0.0.0/0, ::/0", help="Allowed IP routes for peers")
     parser.add_argument("--region", default="Americas", help="Server region")
 
     args = parser.parse_args()
@@ -142,6 +145,7 @@ def main():
         hcloud_server_name=args.hcloud_server_name,
         hcloud_server_id=args.hcloud_server_id,
         hcloud_server_type=args.hcloud_server_type,
+        allowed_ips=args.allowed_ips,
         region=args.region,
     )
 

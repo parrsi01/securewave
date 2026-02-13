@@ -1,0 +1,49 @@
+{
+  "baselines": {
+    "barbados_ms": 95.0,
+    "europe_ms": 130.0,
+    "report_generated_at": null,
+    "report_path": null,
+    "source": "env_fallback"
+  },
+  "candidates": [
+    {
+      "consecutive_health_failures": 0,
+      "health_status": "healthy",
+      "load_percent": 5.0,
+      "region": "Americas",
+      "rtt_ms": 44.75,
+      "rtt_samples": 6,
+      "rtt_source": "rtt_history_p95",
+      "score": 585.85,
+      "server_id": "us-east-1-001"
+    },
+    {
+      "consecutive_health_failures": 0,
+      "health_status": "healthy",
+      "load_percent": 12.0,
+      "region": "Europe",
+      "rtt_ms": 78.75,
+      "rtt_samples": 6,
+      "rtt_source": "rtt_history_p95",
+      "score": 548.95,
+      "server_id": "eu-west-1-001"
+    },
+    {
+      "consecutive_health_failures": 0,
+      "health_status": "healthy",
+      "load_percent": 1.0,
+      "region": "Asia",
+      "rtt_ms": 167.5,
+      "rtt_samples": 6,
+      "rtt_source": "rtt_history_p95",
+      "score": 357.35,
+      "server_id": "ap-east-1-001"
+    }
+  ],
+  "generated_at": "2026-02-13T01:47:20.127070+00:00",
+  "recommended_server_id": "us-east-1-001",
+  "rtt_min_samples": 5,
+  "rtt_window_seconds": 3600,
+  "user_region_hint": "barbados"
+}

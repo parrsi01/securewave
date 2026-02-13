@@ -1,40 +1,38 @@
-# SecureWave
+# hcloud: Command-line interface for Hetzner Cloud
 
-SecureWave is a FastAPI-based VPN control plane with a single-server WireGuard data plane. The infrastructure is **Hetzner Cloud only** and is intentionally minimal and cost-safe.
+[![Release](https://img.shields.io/github/v/release/hetznercloud/cli)](https://github.com/hetznercloud/cli/releases/latest)
+![Go Version](https://img.shields.io/github/go-mod/go-version/hetznercloud/cli/main?label=Go)
+[![CI](https://github.com/hetznercloud/cli/actions/workflows/ci.yml/badge.svg)](https://github.com/hetznercloud/cli/actions/workflows/ci.yml)
+[![Build](https://github.com/hetznercloud/cli/actions/workflows/build.yml/badge.svg)](https://github.com/hetznercloud/cli/actions/workflows/build.yml)
+[![codecov](https://codecov.io/gh/hetznercloud/cli/graph/badge.svg?token=fFDgg6Ua6U)](https://codecov.io/gh/hetznercloud/cli)
 
-## Quick Start (Local)
+`hcloud` is a command-line interface for interacting with Hetzner Cloud.
 
-```bash
-bash deploy.sh local
-```
+[![asciicast](https://asciinema.org/a/157991.png)](https://asciinema.org/a/157991)
 
-Visit:
-- `http://localhost:8000/home.html`
-- `http://localhost:8000/api/docs`
+## Docs
 
-## Production (Hetzner)
+- See [setting up hcloud](docs/tutorials/setup-hcloud-cli.md) for instructions on how to install and configure the CLI.
+- See the [manual](docs/reference/manual/hcloud.md) for a list of all available commands and their options.
 
-Provisioning and deployment are documented in `docs/HETZNER_RUNBOOK.md`.
+For additional information, see the [documentation](docs).
 
-Highlights:
-- Single server by default
-- `cx33` default server type
-- Firewall allows SSH and WireGuard only by default
-- Scaling requires a manual flag
+## Experimental features
 
-## Configuration
+Experimental features are published as part of our regular releases (e.g. a product
+public beta). During an experimental phase, breaking changes on those features may occur
+within minor releases.
 
-Key environment variables:
-- `DATABASE_URL`
-- `APP_URL`
-- `WG_ENDPOINT`
-- `WG_SSH_HOST`, `WG_SSH_USER`, `WG_SSH_KEY_PATH`
+The stability of experimental features is not related to the stability of its upstream API.
 
-Secrets are read from environment variables only.
+Experimental features have different levels of maturity (e.g. experimental, alpha, beta)
+based on the maturity of the upstream API.
 
-## Repository Layout
+While experimental features will be announced in the release notes, you can also find
+whether a command is experimental in its help text. Using experimental commands will show a warning
+when running them. You can suppress this warning by enabling the `no-experimental-warnings` option.
 
-- `infrastructure/hetzner/` Terraform for provisioning
-- `scripts/hetzner_bootstrap.sh` host bootstrap
-- `scripts/check_cost_guardrails.sh` CI guardrails
-- `docs/HETZNER_RUNBOOK.md` deployment guide
+## License
+
+MIT license
+

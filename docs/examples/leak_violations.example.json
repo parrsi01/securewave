@@ -1,0 +1,50 @@
+{
+  "generated_at": "2026-02-12T00:00:00+00:00",
+  "thresholds_path": "leak/leak_thresholds.json",
+  "metrics": {
+    "dns_leak_score": 2.0,
+    "ipv6_block_misses": 1.0,
+    "kill_switch_enforcement_score": 50.0
+  },
+  "detail": {
+    "dns": {
+      "expected": [
+        "1.1.1.1"
+      ],
+      "observed": [
+        "8.8.8.8",
+        "9.9.9.9"
+      ],
+      "leaked": [
+        "8.8.8.8",
+        "9.9.9.9"
+      ]
+    }
+  },
+  "warnings": [],
+  "violation_count": 3,
+  "violations": [
+    {
+      "metric": "dns_leak_score",
+      "observed": 2.0,
+      "threshold": 0.0,
+      "comparator": "lte",
+      "detail": "DNS leak score exceeded maximum"
+    },
+    {
+      "metric": "ipv6_block_misses",
+      "observed": 1.0,
+      "threshold": 0.0,
+      "comparator": "lte",
+      "detail": "IPv6 block misses exceeded tolerance"
+    },
+    {
+      "metric": "kill_switch_enforcement_score",
+      "observed": 50.0,
+      "threshold": 80.0,
+      "comparator": "gte",
+      "detail": "Kill-switch enforcement score fell below minimum"
+    }
+  ]
+}
+

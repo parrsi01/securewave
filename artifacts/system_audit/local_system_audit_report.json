@@ -1,0 +1,17 @@
+{
+  "audit": {
+    "process_memory_mb": 284.77,
+    "process_open_fds": 12.0,
+    "process_threads": 11.0,
+    "wg_processes": 0.0,
+    "zombie_peers": 0,
+    "zombie_processes": 0.0
+  },
+  "generated_at": "2026-02-13T01:47:22.106964+00:00",
+  "login_status": 200,
+  "mode": "inprocess",
+  "prometheus_status": 200,
+  "register_status": 201,
+  "status": "pass",
+  "system_status": 200
+}

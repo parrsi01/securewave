@@ -31,10 +31,18 @@ POOL_PRE_PING = True
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 IS_PRODUCTION = ENVIRONMENT == "production"
 
+# Optional override for SQL echo verbosity.
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
 # Engine configuration
 engine_config = {
     "pool_pre_ping": POOL_PRE_PING,
-    "echo": not IS_PRODUCTION,  # Disable SQL logging in production
+    # Disable SQL logging in production by default; override with DB_ECHO=true/false.
+    "echo": _bool_env("DB_ECHO", not IS_PRODUCTION),
     "future": True,  # Use SQLAlchemy 2.0 style
 }
 
@@ -191,14 +199,17 @@ def create_tables():
         subscription,
         audit_log,
         vpn_server,
+        vpn_server_rtt_sample,
         vpn_connection,
         vpn_demo_session,
         wireguard_peer,
+        jwt_blacklist_token,
         gdpr,
         support_ticket,
         usage_analytics,
         invoice,
         email_log,
+        auth_refresh_token,
     )
 
     logger.info("Creating database tables...")

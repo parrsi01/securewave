@@ -1,0 +1,160 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - release/**
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    env:
+      TESTING: "true"
+      DEMO_MODE: "true"
+      WG_MOCK_MODE: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements_dev.txt
+
+      - name: Install Nginx (for preview proxy tests)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y nginx
+
+      - name: Run pytest
+        run: |
+          mkdir -p artifacts/test-results
+          pytest tests -q \
+            --junitxml=artifacts/test-results/pytest.xml \
+            --cov=. \
+            --cov-report=xml:artifacts/test-results/coverage.xml
+
+      - name: Run chaos suite
+        run: bash sandbox/chaos_tests/run_chaos_suite.sh --strict
+
+      - name: Run benchmark suite
+        run: bash sandbox/benchmark/run_benchmarks.sh --strict
+
+      - name: Run leak suite
+        run: bash sandbox/leak_tests/run_leak_tests.sh --strict
+
+      - name: Generate validation master report
+        run: python scripts/generate_validation_master_report.py
+
+      - name: Upload backend test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: |
+            artifacts/test-results
+            artifacts/chaos_tests
+            artifacts/benchmark
+            artifacts/leak_tests
+            artifacts/validation_master_report.md
+
+  flutter-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: securewave_app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Flutter tests
+        run: flutter test
+
+      - name: Flutter state-machine tests
+        run: flutter test test/state_machine
+
+      - name: Flutter integration harness
+        run: flutter test integration_test
+
+  flutter-state-stress:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Run VPN state stress harness
+        run: bash sandbox/state_stress/run_stress_flows.sh
+
+      - name: Upload state stress artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: state-stress-artifacts
+          path: |
+            artifacts/state_stress
+
+  live-network:
+    runs-on: ubuntu-latest
+    if: ${{ vars.LIVE_NETWORK_ENABLED == 'true' && secrets.LIVE_API_BASE_URL != '' }}
+    env:
+      LIVE_API_BASE_URL: ${{ secrets.LIVE_API_BASE_URL }}
+      LIVE_VALIDATION_PASSWORD: ${{ secrets.LIVE_VALIDATION_PASSWORD }}
+      LIVE_VALIDATION_USERS: "2"
+      LIVE_STRESS_WORKERS: "2"
+      LIVE_STRESS_CYCLES: "2"
+      LIVE_VALIDATION_PLATFORM: "linux"
+      LIVE_STRESS_ENABLE_TUNNEL: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install live validation prerequisites
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements_dev.txt
+          sudo apt-get update -y
+          sudo apt-get install -y wireguard-tools dnsutils iproute2 curl
+
+      - name: Run live E2E validation (strict)
+        run: sudo -E bash sandbox/live_validation/run_live_validation.sh --strict --linux --users 2
+
+      - name: Run live stress validation (strict)
+        run: sudo -E bash sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 2 --cycles 2
+
+      - name: Upload live validation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-validation-artifacts
+          path: |
+            artifacts/live_validation

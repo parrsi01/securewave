@@ -1,0 +1,6 @@
+{
+  "max_wireguard_recovery_time_ms": 15000.0,
+  "allowed_jwt_replay_failures": 0,
+  "max_db_outage_recovery_seconds": 5.0,
+  "notes": "Chaos thresholds. In CI, network_drop runs in safe mode; enforce strict-live on staging for real recovery timings."
+}

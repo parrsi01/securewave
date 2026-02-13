@@ -211,6 +211,92 @@ class WireGuardServerManager:
         else:
             return False, f"Unknown communication method: {conn.method}"
 
+    async def rotate_server_key(
+        self,
+        conn: ServerConnection,
+        private_key: str,
+        *,
+        interface: str = "wg0",
+    ) -> Tuple[bool, str, Optional[str]]:
+        """
+        Rotate a server WireGuard private key over SSH with rollback safeguards.
+
+        Returns:
+            (success, message, new_public_key)
+        """
+        if not self._wg_key_pattern.match(private_key):
+            return False, "Invalid WireGuard private key format", None
+        if conn.method != "ssh":
+            return False, "Server key rotation currently supports SSH mode only", None
+
+        safe_iface = re.sub(r"[^A-Za-z0-9_-]", "", interface) or "wg0"
+        command = (
+            "set -euo pipefail; "
+            f"IFACE='{safe_iface}'; "
+            f"NEW_KEY='{private_key}'; "
+            "KEY_PATH='/etc/wireguard/keys/server_private.key'; "
+            "CONF=\"/etc/wireguard/${IFACE}.conf\"; "
+            "BACKUP=\"/tmp/${IFACE}.conf.bak.$$\"; "
+            "sudo install -d -m 700 /etc/wireguard/keys; "
+            "if [ -f \"$CONF\" ]; then sudo cp \"$CONF\" \"$BACKUP\"; fi; "
+            "printf '%s' \"$NEW_KEY\" | sudo tee \"$KEY_PATH\" >/dev/null; "
+            "sudo chmod 600 \"$KEY_PATH\"; "
+            "if [ -f \"$CONF\" ]; then "
+            "sudo sed -i \"s#^PrivateKey\\s*=.*#PrivateKey = ${NEW_KEY}#g\" \"$CONF\"; "
+            "fi; "
+            "if ! sudo systemctl restart \"wg-quick@${IFACE}\"; then "
+            "if [ -f \"$BACKUP\" ]; then "
+            "sudo cp \"$BACKUP\" \"$CONF\"; "
+            "sudo systemctl restart \"wg-quick@${IFACE}\" || true; "
+            "fi; "
+            "echo rotation_failed; "
+            "exit 11; "
+            "fi; "
+            "if [ -f \"$BACKUP\" ]; then sudo rm -f \"$BACKUP\"; fi; "
+            "printf '%s' \"$NEW_KEY\" | wg pubkey"
+        )
+
+        ok, stdout, stderr = await self._run_ssh_command(conn, command)
+        if not ok:
+            return False, (stderr or stdout or "rotation failed").strip(), None
+
+        candidate = (stdout or "").strip().splitlines()[-1] if stdout else ""
+        if not self._wg_key_pattern.match(candidate):
+            return False, "Rotation applied but could not validate resulting public key", None
+        return True, "Server key rotated", candidate
+
+    async def restart_interface(
+        self,
+        conn: ServerConnection,
+        *,
+        interface: str = "wg0",
+    ) -> Tuple[bool, str]:
+        """
+        Best-effort restart of the WireGuard interface on the VPN node.
+
+        This is used by the self-healing watchdog to recover from missing/stuck tunnels.
+        """
+        if conn.method != "ssh":
+            return False, "Interface restart requires SSH mode"
+
+        safe_iface = re.sub(r"[^A-Za-z0-9_-]", "", interface) or "wg0"
+        command = (
+            "set -euo pipefail; "
+            f"IFACE='{safe_iface}'; "
+            "if command -v systemctl >/dev/null 2>&1; then "
+            "sudo systemctl restart \"wg-quick@${IFACE}\"; "
+            "else "
+            "sudo wg-quick down \"${IFACE}\" || true; "
+            "sudo wg-quick up \"${IFACE}\"; "
+            "fi; "
+            "sudo wg show \"${IFACE}\" >/dev/null 2>&1; "
+            "echo restarted"
+        )
+        ok, stdout, stderr = await self._run_ssh_command(conn, command)
+        if not ok:
+            return False, (stderr or stdout or "restart failed").strip()
+        return True, "Interface restarted"
+
     # =========================================================================
     # HTTP API Implementation
     # =========================================================================

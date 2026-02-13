@@ -1,21 +1,28 @@
 import asyncio
 import logging
+import os
 import secrets
 import subprocess  # nosec B404 - controlled subprocess usage
 import shutil
+import time
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 
 from sqlalchemy.orm import Session
 
 from database.session import SessionLocal
 from models.vpn_server import VPNServer
+from models.wireguard_peer import WireGuardPeer
 from services.vpn_server_service import VPNServerService
+from services.runtime_metrics import get_runtime_metrics
+from services.wireguard_server_manager import get_wireguard_server_manager, server_connection_from_db
 
 logger = logging.getLogger(__name__)
 
 
 RNG = secrets.SystemRandom()
+DEGRADED_HANDSHAKE_SECONDS = int(os.getenv("WG_HANDSHAKE_DEGRADED_SECONDS", "120"))
+UNSTABLE_HANDSHAKE_SECONDS = int(os.getenv("WG_HANDSHAKE_UNSTABLE_SECONDS", "300"))
 
 
 class VPNHealthMonitor:
@@ -65,6 +72,7 @@ class VPNHealthMonitor:
                     self.server_service.update_server_metrics(
                         self.db, server.server_id, metrics
                     )
+                    await self.refresh_peer_handshake_health(server)
 
                     # Update optimizer with fresh metrics
                     try:
@@ -115,6 +123,91 @@ class VPNHealthMonitor:
         }
 
         return metrics
+
+    @staticmethod
+    def classify_handshake_freshness(age_seconds: float | None) -> str:
+        """
+        Classify handshake freshness for a peer.
+        """
+        if age_seconds is None:
+            return "unstable"
+        if age_seconds > UNSTABLE_HANDSHAKE_SECONDS:
+            return "unstable"
+        if age_seconds > DEGRADED_HANDSHAKE_SECONDS:
+            return "degraded"
+        return "healthy"
+
+    @staticmethod
+    def classify_server_health(peer_statuses: List[str]) -> str:
+        """
+        Derive server health from peer statuses.
+        """
+        if not peer_statuses:
+            return "degraded"
+        total = len(peer_statuses)
+        unstable = len([s for s in peer_statuses if s == "unstable"])
+        degraded = len([s for s in peer_statuses if s == "degraded"])
+
+        unstable_ratio = unstable / total
+        degraded_ratio = (unstable + degraded) / total
+
+        if unstable_ratio >= 0.30:
+            return "unstable"
+        if degraded_ratio >= 0.25:
+            return "degraded"
+        return "healthy"
+
+    async def refresh_peer_handshake_health(self, server: VPNServer) -> None:
+        """
+        Pull latest handshake data from the WireGuard node and update peer health.
+        """
+        peers = (
+            self.db.query(WireGuardPeer)
+            .filter(
+                WireGuardPeer.server_id == server.id,
+                WireGuardPeer.is_revoked == False,
+                WireGuardPeer.is_active == True,
+            )
+            .all()
+        )
+        if not peers:
+            return
+
+        now = datetime.utcnow()
+        manager = get_wireguard_server_manager()
+        conn = server_connection_from_db(server)
+        start = time.monotonic()
+        success, remote_peers = await manager.list_peers(conn)
+        request_latency_ms = (time.monotonic() - start) * 1000.0
+        get_runtime_metrics().record_handshake_latency(request_latency_ms)
+
+        remote_by_key = {}
+        if success:
+            remote_by_key = {item.get("public_key"): item for item in remote_peers if item.get("public_key")}
+
+        statuses: List[str] = []
+        for peer in peers:
+            remote = remote_by_key.get(peer.public_key)
+            if remote and remote.get("latest_handshake"):
+                handshake_at = datetime.utcfromtimestamp(remote["latest_handshake"])
+                age_seconds = max(0.0, (now - handshake_at).total_seconds())
+                peer.last_handshake_at = handshake_at
+                peer.last_handshake_latency_ms = round(request_latency_ms, 2)
+                peer.total_data_received = int(remote.get("transfer_rx", peer.total_data_received or 0))
+                peer.total_data_sent = int(remote.get("transfer_tx", peer.total_data_sent or 0))
+            else:
+                age_seconds = None
+                if peer.last_handshake_at:
+                    age_seconds = max(0.0, (now - peer.last_handshake_at).total_seconds())
+
+            peer.health_status = self.classify_handshake_freshness(age_seconds)
+            statuses.append(peer.health_status)
+            self.db.add(peer)
+
+        server.health_status = self.classify_server_health(statuses)
+        server.last_health_check = now
+        self.db.add(server)
+        self.db.commit()
 
     async def ping_server(self, ip: str) -> float:
         """

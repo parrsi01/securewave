@@ -21,6 +21,7 @@ from models.subscription import Subscription  # noqa: E402
 from models.audit_log import AuditLog  # noqa: E402
 from models.vpn_server import VPNServer  # noqa: E402
 from models.vpn_connection import VPNConnection  # noqa: E402
+from models.auth_refresh_token import AuthRefreshToken  # noqa: E402
 
 config = context.config
 fileConfig(config.config_file_name)

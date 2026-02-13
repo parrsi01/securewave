@@ -598,6 +598,104 @@ async def get_available_plans():
 
 
 # ===========================
+# CHECKOUT SESSION
+# ===========================
+
+class CheckoutRequest(BaseModel):
+    """Request for creating a Stripe Checkout session"""
+    plan_id: str = Field(..., description="Plan ID: basic, premium, ultra")
+    billing_cycle: str = Field(default="monthly", description="monthly or yearly")
+    success_url: Optional[str] = Field(None, description="Redirect URL on success")
+    cancel_url: Optional[str] = Field(None, description="Redirect URL on cancel")
+    trial_days: int = Field(default=0, ge=0, le=30, description="Trial period (0-30 days)")
+
+
+@router.post("/checkout-session")
+async def create_checkout_session(
+    payload: CheckoutRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a Stripe Checkout session.
+    Returns a URL to redirect the user to Stripe's hosted payment page.
+    """
+    try:
+        from services.stripe_service import stripe_mode_label
+
+        if _missing_provider_config("stripe"):
+            if DEMO_BILLING:
+                demo_sub = _create_demo_subscription(db, current_user, payload.plan_id, payload.billing_cycle, "stripe")
+                base = _base_url(request)
+                return {"url": f"{base}/billing/success?demo=true", "demo": True, "subscription_id": demo_sub.id}
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe not configured")
+
+        # Verify plan exists
+        plan = StripeService.get_plan_details(payload.plan_id)
+        if not plan:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid plan ID")
+
+        # Check existing active subscription
+        subscription_manager = SubscriptionManager(db)
+        existing = subscription_manager.get_user_subscription(current_user.id)
+        if existing and existing.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already has an active subscription")
+
+        # Ensure user has a Stripe customer ID
+        stripe_service = StripeService()
+        stripe_customer_id = getattr(current_user, "stripe_customer_id", None)
+        if not stripe_customer_id:
+            customer = stripe_service.create_customer(
+                email=current_user.email,
+                name=getattr(current_user, "full_name", current_user.email),
+                metadata={"user_id": str(current_user.id)}
+            )
+            stripe_customer_id = customer.id
+            current_user.stripe_customer_id = stripe_customer_id
+            db.commit()
+
+        base = _base_url(request)
+        success_url = payload.success_url or f"{base}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = payload.cancel_url or f"{base}/subscription.html"
+
+        session = stripe_service.create_checkout_session(
+            customer_id=stripe_customer_id,
+            plan_id=payload.plan_id,
+            billing_cycle=payload.billing_cycle,
+            success_url=success_url,
+            cancel_url=cancel_url,
+            trial_days=payload.trial_days,
+        )
+
+        logger.info(f"Checkout session {session.id} created ({stripe_mode_label()} mode) for user {current_user.id}")
+        return {
+            "session_id": session.id,
+            "url": session.url,
+            "mode": stripe_mode_label(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create checkout session: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create checkout session")
+
+
+@router.get("/stripe-status")
+async def get_stripe_status():
+    """Returns Stripe configuration status (test/live/unconfigured)."""
+    from services.stripe_service import stripe_mode_label
+    configured = bool(os.getenv("STRIPE_SECRET_KEY"))
+    webhook_configured = bool(os.getenv("STRIPE_WEBHOOK_SECRET"))
+    return {
+        "configured": configured,
+        "mode": stripe_mode_label(),
+        "webhook_configured": webhook_configured,
+    }
+
+
+# ===========================
 # WEBHOOK ENDPOINTS
 # ===========================
 

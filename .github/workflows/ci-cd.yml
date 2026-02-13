@@ -31,10 +31,85 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements_dev.txt
+
+      - name: Install Nginx (for preview proxy tests)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y nginx
 
       - name: Cost guardrails
         run: bash scripts/check_cost_guardrails.sh
 
       - name: Run tests
         run: python -m pytest -q
+
+      - name: Run chaos suite
+        run: bash sandbox/chaos_tests/run_chaos_suite.sh --strict
+
+      - name: Run benchmark suite
+        run: bash sandbox/benchmark/run_benchmarks.sh --strict
+
+      - name: Run leak suite
+        run: bash sandbox/leak_tests/run_leak_tests.sh --strict
+
+      - name: Generate validation master report
+        run: python scripts/generate_validation_master_report.py
+
+      - name: Upload validation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-artifacts
+          path: |
+            artifacts/chaos_tests
+            artifacts/benchmark
+            artifacts/leak_tests
+            artifacts/validation_master_report.md
+
+  flutter-state-machine:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: securewave_app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter state-machine suite
+        run: flutter test test/state_machine
+
+      - name: Flutter integration suite
+        run: flutter test integration_test
+
+  flutter-state-stress:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Run VPN state stress harness
+        run: bash sandbox/state_stress/run_stress_flows.sh
+
+      - name: Upload state stress artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: state-stress-artifacts
+          path: |
+            artifacts/state_stress

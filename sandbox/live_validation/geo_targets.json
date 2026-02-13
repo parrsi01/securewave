@@ -1,0 +1,20 @@
+{
+  "regions": [
+    {
+      "name": "barbados",
+      "latency_offset_ms": 28.0,
+      "targets": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    {
+      "name": "europe",
+      "latency_offset_ms": 0.0,
+      "targets": [
+        "1.1.1.1",
+        "9.9.9.9"
+      ]
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import secrets
 import shutil
 import stat
 import subprocess  # nosec B404 - controlled subprocess usage
+import ipaddress
 from io import BytesIO
 from pathlib import Path
 from typing import Tuple
@@ -158,8 +159,31 @@ class WireGuardService:
         self.server_public_path.write_text(public_key)
 
     def allocate_ip(self, user_id: int) -> str:
-        octet = (user_id % 240) + 10
-        return f"10.8.0.{octet}/32"
+        """
+        Deterministic fallback allocator using dynamic /22 expansion blocks.
+
+        NOTE:
+        - Primary allocation path is `VPNPeerManager._allocate_ip_address` with DB uniqueness.
+        - This fallback keeps legacy flows functional and removes the historical 240-IP cap.
+        """
+        base_cidr = os.getenv("WG_IP_POOL_BASE_CIDR", "10.8.0.0/22").strip()
+        try:
+            base_network = ipaddress.ip_network(base_cidr, strict=False)
+        except ValueError:
+            base_network = ipaddress.ip_network("10.8.0.0/22", strict=False)
+        if base_network.prefixlen != 22:
+            base_network = ipaddress.ip_network(f"{base_network.network_address}/22", strict=False)
+
+        reserved_hosts = 10
+        usable_per_block = max(1, (base_network.num_addresses - 2) - reserved_hosts)
+        idx = max(0, int(user_id) - 1)
+        block_offset = idx // usable_per_block
+        host_offset = idx % usable_per_block
+
+        block_start = int(base_network.network_address) + (block_offset * base_network.num_addresses)
+        block_network = ipaddress.ip_network(f"{ipaddress.IPv4Address(block_start)}/{base_network.prefixlen}", strict=False)
+        host_int = int(block_network.network_address) + 1 + reserved_hosts + host_offset
+        return f"{ipaddress.IPv4Address(host_int)}/32"
 
     def generate_client_config(self, user: User) -> Tuple[Path, str]:
         if not user.wg_private_key_encrypted or not user.wg_public_key:

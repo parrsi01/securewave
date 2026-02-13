@@ -1,0 +1,11 @@
+cycle,active_peers,revoked_this_cycle,allocated_this_cycle,reclaimed_this_cycle,unique_active_ips,capacity,allocated,available,utilization_pct,alert_triggered,exhaustion_errors_total
+1,500,50,50,50,True,512,500,12,97.66,True,0
+2,500,50,50,50,True,512,500,12,97.66,True,0
+3,500,50,50,50,True,512,500,12,97.66,True,0
+4,500,50,50,50,True,512,500,12,97.66,True,0
+5,500,50,50,50,True,512,500,12,97.66,True,0
+6,500,50,50,50,True,512,500,12,97.66,True,0
+7,500,50,50,50,True,512,500,12,97.66,True,0
+8,500,50,50,50,True,512,500,12,97.66,True,0
+9,500,50,50,50,True,512,500,12,97.66,True,0
+10,500,50,50,50,True,512,500,12,97.66,True,0

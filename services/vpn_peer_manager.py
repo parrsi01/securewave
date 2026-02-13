@@ -7,6 +7,7 @@ import logging
 import os
 import secrets
 import base64
+import ipaddress
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List, Dict
 from io import BytesIO
@@ -23,8 +24,6 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 DEFAULT_KEY_ROTATION_DAYS = 90
-IP_POOL_START = "10.8.0"
-IP_POOL_END = 254
 
 
 class VPNPeerManager:
@@ -37,6 +36,7 @@ class VPNPeerManager:
         """Initialize peer manager"""
         self.db = db
         self.wg_service = WireGuardService()
+        self._last_ip_alert: Optional[Dict] = None
 
     # ===========================
     # PEER CREATION & MANAGEMENT
@@ -399,6 +399,104 @@ class VPNPeerManager:
     # IP ADDRESS MANAGEMENT
     # ===========================
 
+    @staticmethod
+    def _env_int(name: str, default: int) -> int:
+        raw = os.getenv(name, str(default)).strip()
+        try:
+            return int(raw)
+        except ValueError:
+            return default
+
+    def _pool_settings(self) -> tuple[ipaddress.IPv4Network, int, int, int]:
+        """
+        Return allocator settings:
+        - base /22 network
+        - maximum number of /22 blocks
+        - reserved hosts per block
+        - alert threshold percent
+        """
+        base_cidr = os.getenv("WG_IP_POOL_BASE_CIDR", "10.8.0.0/22").strip()
+        try:
+            base_network = ipaddress.ip_network(base_cidr, strict=False)
+        except ValueError:
+            base_network = ipaddress.ip_network("10.8.0.0/22")
+
+        # Requirement: dynamic /22 expansion.
+        if base_network.prefixlen != 22:
+            base_network = ipaddress.ip_network(f"{base_network.network_address}/22", strict=False)
+
+        max_blocks = max(1, self._env_int("WG_IP_POOL_MAX_BLOCKS", 16))
+        reserved_hosts = max(2, self._env_int("WG_IP_POOL_RESERVED_HOSTS", 10))
+        alert_threshold_pct = max(50, min(99, self._env_int("WG_IP_EXHAUSTION_ALERT_PCT", 90)))
+        return base_network, max_blocks, reserved_hosts, alert_threshold_pct
+
+    def _iter_pool_blocks(self) -> List[ipaddress.IPv4Network]:
+        base_network, max_blocks, _, _ = self._pool_settings()
+        blocks = []
+        increment = base_network.num_addresses
+        start_int = int(base_network.network_address)
+        for i in range(max_blocks):
+            block_addr = ipaddress.IPv4Address(start_int + (i * increment))
+            blocks.append(ipaddress.ip_network(f"{block_addr}/{base_network.prefixlen}", strict=False))
+        return blocks
+
+    def _active_ipv4_addresses(self) -> set[ipaddress.IPv4Address]:
+        used: set[ipaddress.IPv4Address] = set()
+        peers = self.db.query(WireGuardPeer.ipv4_address).filter(
+            WireGuardPeer.is_revoked == False
+        ).all()
+        for (cidr,) in peers:
+            if not cidr:
+                continue
+            try:
+                used.add(ipaddress.ip_interface(cidr).ip)
+            except ValueError:
+                continue
+        return used
+
+    def _emit_pool_alert(self, allocated: int, capacity: int, alert_threshold_pct: int) -> None:
+        if capacity <= 0:
+            return
+        utilization = (allocated / capacity) * 100.0
+        if utilization < alert_threshold_pct:
+            return
+        self._last_ip_alert = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "utilization_pct": round(utilization, 2),
+            "allocated": allocated,
+            "capacity": capacity,
+            "message": "WireGuard IP pool approaching exhaustion",
+        }
+        logger.warning(
+            "WireGuard IP pool utilization high: %.2f%% (%s/%s)",
+            utilization,
+            allocated,
+            capacity,
+        )
+
+    def get_ip_pool_stats(self) -> Dict[str, float]:
+        """Return capacity and utilization stats for all configured /22 blocks."""
+        _, _, reserved_hosts, alert_threshold_pct = self._pool_settings()
+        blocks = self._iter_pool_blocks()
+        used = self._active_ipv4_addresses()
+
+        per_block_capacity = max(0, (blocks[0].num_addresses - 2) - reserved_hosts) if blocks else 0
+        total_capacity = per_block_capacity * len(blocks)
+        allocated = len(used)
+        utilization_pct = round((allocated / total_capacity) * 100.0, 2) if total_capacity else 0.0
+        self._emit_pool_alert(allocated, total_capacity, alert_threshold_pct)
+
+        return {
+            "blocks_configured": len(blocks),
+            "reserved_hosts_per_block": reserved_hosts,
+            "capacity": total_capacity,
+            "allocated": allocated,
+            "available": max(0, total_capacity - allocated),
+            "utilization_pct": utilization_pct,
+            "alert_threshold_pct": alert_threshold_pct,
+            "alert": self._last_ip_alert,
+        }
+
     def _allocate_ip_address(self, user_id: int) -> str:
         """
         Allocate IP address for user
@@ -409,27 +507,34 @@ class VPNPeerManager:
         Returns:
             IPv4 address (CIDR notation)
         """
-        # Allocate the first available IP in the pool.
-        used_octets = set()
-        peers = self.db.query(WireGuardPeer).filter(
-            WireGuardPeer.is_revoked == False
-        ).all()
+        # Allocate the first available IP across dynamically expanded /22 blocks.
+        _, _, reserved_hosts, alert_threshold_pct = self._pool_settings()
+        used = self._active_ipv4_addresses()
+        blocks = self._iter_pool_blocks()
 
-        for peer in peers:
-            if not peer.ipv4_address:
-                continue
-            try:
-                ip_part = peer.ipv4_address.split("/")[0]
-                octet = int(ip_part.split(".")[-1])
-                used_octets.add(octet)
-            except (ValueError, IndexError):
-                continue
+        for block in blocks:
+            for idx, host in enumerate(block.hosts()):
+                # Reserve the first N hosts in each block for infra/router use.
+                if idx < reserved_hosts:
+                    continue
+                if host in used:
+                    continue
 
-        for octet in range(10, IP_POOL_END + 1):
-            if octet not in used_octets:
-                return f"{IP_POOL_START}.{octet}/32"
+                # Emit high-utilization alerts before returning.
+                per_block_capacity = max(0, (block.num_addresses - 2) - reserved_hosts)
+                total_capacity = per_block_capacity * len(blocks)
+                self._emit_pool_alert(len(used) + 1, total_capacity, alert_threshold_pct)
+                return f"{host}/32"
 
-        raise ValueError("No available IP addresses in pool")
+        # Exhaustion alert (critical).
+        capacity = self.get_ip_pool_stats().get("capacity", 0)
+        logger.error(
+            "WireGuard IP pool exhausted: allocated=%s capacity=%s configured_blocks=%s",
+            len(used),
+            capacity,
+            len(blocks),
+        )
+        raise ValueError("No available IP addresses in configured /22 pools")
 
     def get_allocated_ips(self) -> List[str]:
         """
@@ -501,12 +606,17 @@ class VPNPeerManager:
             WireGuardPeer.next_key_rotation_at <= datetime.utcnow()
         ).count()
 
+        pool_stats = self.get_ip_pool_stats()
+
         return {
             "total_peers": total_peers,
             "active_peers": active_peers,
             "revoked_peers": revoked_peers,
             "peers_due_rotation": due_rotation,
             "ip_addresses_allocated": active_peers,
+            "ip_pool_capacity": pool_stats.get("capacity", 0),
+            "ip_pool_utilization_pct": pool_stats.get("utilization_pct", 0.0),
+            "ip_pool_alert": pool_stats.get("alert"),
         }
 
 

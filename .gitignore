@@ -46,6 +46,8 @@ env/
 .env.*
 !.env.template
 !.env.production.example
+!.env.example.backend
+!.env.example.flutter
 .secrets
 
 # Certificates / key material (never commit)
@@ -71,6 +73,9 @@ LogFiles/
 webapp-logs/
 *.zip
 *.pid
+
+# Local/staging preview runtime
+.preview/
 
 # Allow app downloads hosted via the website
 !static/downloads/
@@ -169,6 +174,24 @@ terraform.tfvars
 artifacts/**
 !artifacts/hetzner/
 !artifacts/hetzner/DEPLOY_READINESS_REPORT.md
+!artifacts/final_integration_report.md
+!artifacts/reliability_phase/
+!artifacts/reliability_phase/report.md
+!artifacts/watchdog/
+!artifacts/watchdog/watchdog_events.jsonl
+!artifacts/ip_pool_pressure/
+!artifacts/ip_pool_pressure/report.json
+!artifacts/ip_pool_pressure/summary.csv
+!artifacts/system_audit/
+!artifacts/system_audit/local_prometheus_metrics.txt
+!artifacts/system_audit/local_metrics_system.json
+!artifacts/system_audit/local_system_audit_report.json
+!artifacts/geo_reco/
+!artifacts/geo_reco/geo_reco_report.json
+!artifacts/geo_reco/barbados/
+!artifacts/geo_reco/barbados/**
+!artifacts/geo_reco/europe/
+!artifacts/geo_reco/europe/**
 
 # Python
 __pycache__/
@@ -195,3 +218,4 @@ securewave-tests/results/*.json
 !securewave_app/lib/
 !securewave_app/lib/**/*
 !securewave_app/pubspec.yaml
+.env.hetzner

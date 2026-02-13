@@ -32,13 +32,13 @@ os.environ["AUTO_CREATE_TABLES"] = "false"  # Prevent auto-create on import
 
 import pytest
 from datetime import datetime, timedelta
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database.base import Base
 from database.session import get_db
+from utils.inprocess_testclient import InProcessTestClient
 
 # ---------------------------------------------------------------------------
 # Test database engine (single shared in-memory SQLite)
@@ -59,6 +59,7 @@ def _ensure_tables():
         subscription,
         audit_log,
         vpn_server,
+        vpn_server_rtt_sample,
         vpn_connection,
         vpn_demo_session,
         wireguard_peer,
@@ -67,6 +68,8 @@ def _ensure_tables():
         usage_analytics,
         invoice,
         email_log,
+        auth_refresh_token,
+        jwt_blacklist_token,
     )
     Base.metadata.create_all(bind=TEST_ENGINE)
 
@@ -106,7 +109,7 @@ def client(db):
             pass  # Session cleanup handled by the db fixture
 
     app.dependency_overrides[get_db] = _override_get_db
-    with TestClient(app, raise_server_exceptions=False) as c:
+    with InProcessTestClient(app, raise_server_exceptions=False) as c:
         yield c
     app.dependency_overrides.clear()
 

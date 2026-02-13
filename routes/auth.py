@@ -6,6 +6,7 @@ Complete authentication system with email verification, password reset, and 2FA
 import logging
 import os
 import secrets
+import json
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Response, BackgroundTasks
@@ -26,9 +27,12 @@ from services.jwt_service import (
     create_access_token,
     create_refresh_token,
     verify_refresh_token,
+    revoke_refresh_token,
+    revoke_access_token,
     get_current_user,
 )
 from services.auth_service import AuthService
+from services.runtime_metrics import get_runtime_metrics
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -96,6 +100,13 @@ def record_login_success(user_id: int, ip_address: Optional[str]) -> None:
         db.close()
 
 
+def _log_auth_event(event: str, **fields) -> None:
+    payload = {"event": event, **fields}
+    logger.warning(json.dumps(payload, sort_keys=True))
+    if event == "auth_failed_login":
+        get_runtime_metrics().record_failed_auth()
+
+
 # ===========================
 # REQUEST/RESPONSE MODELS
 # ===========================
@@ -114,6 +125,12 @@ class LoginRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class TokenRevokeRequest(BaseModel):
+    token: Optional[str] = None
+    token_type: str = "access"  # access|refresh
+    reason: Optional[str] = None
 
 
 class UpdateEmailRequest(BaseModel):
@@ -221,7 +238,14 @@ async def register(
 
         if DEMO_MODE:
             access_token = create_access_token(user)
-            refresh_token = create_refresh_token(user)
+            ip_address = request.client.host if request.client else None
+            user_agent = request.headers.get("user-agent")
+            refresh_token = create_refresh_token(
+                user,
+                db,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
             csrf_token = secrets.token_urlsafe(32)
             _set_auth_cookies(response, access_token, refresh_token, csrf_token)
             return {
@@ -280,6 +304,12 @@ async def login(
                 auth_service = AuthService(db)
                 ip_address = request.client.host if request.client else None
                 auth_service.record_login_attempt(user, success=False, ip_address=ip_address)
+            _log_auth_event(
+                "auth_failed_login",
+                email=payload.email,
+                ip_address=request.client.host if request.client else None,
+                reason="invalid_credentials",
+            )
 
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -322,6 +352,12 @@ async def login(
                 # Record failed attempt
                 ip_address = request.client.host if request.client else None
                 auth_service.record_login_attempt(user, success=False, ip_address=ip_address)
+                _log_auth_event(
+                    "auth_failed_login",
+                    user_id=user.id,
+                    ip_address=ip_address,
+                    reason="invalid_2fa",
+                )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid 2FA code"
@@ -339,7 +375,13 @@ async def login(
         logger.info(f"✓ User logged in: {user.email}")
 
         access_token = create_access_token(user)
-        refresh_token = create_refresh_token(user)
+        user_agent = request.headers.get("user-agent")
+        refresh_token = create_refresh_token(
+            user,
+            db,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
         csrf_token = secrets.token_urlsafe(32)
         _set_auth_cookies(response, access_token, refresh_token, csrf_token)
 
@@ -378,7 +420,7 @@ async def refresh(
                 detail="Missing refresh token"
             )
 
-        token_data = verify_refresh_token(refresh_token_value)
+        token_data = verify_refresh_token(refresh_token_value, db)
         user = db.query(User).filter(User.id == int(token_data.get("sub"))).first()
 
         if not user or not user.is_active:
@@ -388,7 +430,18 @@ async def refresh(
             )
 
         access_token = create_access_token(user)
-        refresh_token = create_refresh_token(user)
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        refresh_token = create_refresh_token(
+            user,
+            db,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        new_jti = verify_refresh_token(refresh_token).get("jti")
+        old_jti = token_data.get("jti")
+        if old_jti:
+            revoke_refresh_token(db, old_jti, replaced_by_jti=new_jti)
         csrf_token = secrets.token_urlsafe(32)
         _set_auth_cookies(response, access_token, refresh_token, csrf_token)
 
@@ -414,6 +467,54 @@ async def logout(response: Response):
     response.delete_cookie("refresh_token", path="/")
     response.delete_cookie("csrf_token", path="/")
     return {"status": "ok"}
+
+
+@router.post("/revoke-token")
+async def revoke_token(
+    request: Request,
+    payload: Optional[TokenRevokeRequest] = Body(default=None),
+    db: Session = Depends(get_db),
+):
+    """
+    Revoke an access or refresh token and blacklist its JTI.
+    """
+    token_value = payload.token if payload else None
+    token_type = (payload.token_type if payload else "access").strip().lower()
+    reason = (payload.reason if payload else None) or "manual"
+
+    if not token_value:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            token_value = auth_header.split(" ", 1)[1].strip()
+
+    if not token_value:
+        if token_type == "refresh":
+            token_value = request.cookies.get("refresh_token")
+        else:
+            token_value = request.cookies.get("access_token")
+
+    if not token_value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing token")
+
+    if token_type not in {"access", "refresh"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="token_type must be access or refresh")
+
+    if token_type == "refresh":
+        token_data = verify_refresh_token(token_value, db)
+        jti = token_data.get("jti")
+        if jti:
+            revoke_refresh_token(db, jti)
+    else:
+        token_data = revoke_access_token(db, token_value, reason=reason)
+        jti = token_data.get("jti")
+
+    _log_auth_event(
+        "auth_token_revoked",
+        token_type=token_type,
+        user_id=token_data.get("sub"),
+        jti_present=bool(token_data.get("jti")),
+    )
+    return {"status": "revoked", "token_type": token_type}
 
 
 @router.get("/me")
@@ -540,7 +641,12 @@ async def update_email(
         return {
             "message": "Email updated successfully",
             "access_token": create_access_token(current_user),
-            "refresh_token": create_refresh_token(current_user),
+            "refresh_token": create_refresh_token(
+                current_user,
+                db,
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+            ),
             "token_type": "bearer",
         }
 

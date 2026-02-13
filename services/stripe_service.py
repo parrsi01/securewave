@@ -4,6 +4,7 @@ Complete Stripe integration for subscription management and payment processing
 """
 
 import os
+import uuid
 import logging
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
@@ -19,10 +20,36 @@ logger = logging.getLogger(__name__)
 
 # Configure Stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-stripe.api_version = "2023-10-16"  # Latest stable version
+stripe.api_version = "2023-10-16"
 
 # Webhook secret for signature verification
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+
+def _is_test_mode() -> bool:
+    """Check if Stripe is configured with test keys."""
+    key = stripe.api_key or ""
+    return key.startswith("sk_test_")
+
+
+def _is_live_mode() -> bool:
+    """Check if Stripe is configured with live keys."""
+    key = stripe.api_key or ""
+    return key.startswith("sk_live_")
+
+
+def _idempotency_key(prefix: str = "") -> str:
+    """Generate a unique idempotency key for Stripe API calls."""
+    return f"sw_{prefix}_{uuid.uuid4().hex}"
+
+
+def stripe_mode_label() -> str:
+    """Return 'test' or 'live' for logging/UI display."""
+    if _is_test_mode():
+        return "test"
+    if _is_live_mode():
+        return "live"
+    return "unconfigured"
 
 
 class StripeService:
@@ -97,6 +124,8 @@ class StripeService:
         """Initialize Stripe service"""
         if not stripe.api_key:
             logger.warning("STRIPE_SECRET_KEY not configured - Stripe integration disabled")
+        else:
+            logger.info(f"Stripe initialized in {stripe_mode_label()} mode")
 
     @classmethod
     def get_plan_details(cls, plan_id: str) -> Optional[Dict]:
@@ -137,6 +166,7 @@ class StripeService:
                 name=name,
                 phone=phone,
                 metadata=metadata or {},
+                idempotency_key=_idempotency_key("cust"),
             )
 
             logger.info(f"✓ Stripe customer created: {customer.id} ({email})")
@@ -302,7 +332,8 @@ class StripeService:
             # Automatic tax calculation (if configured)
             subscription_data["automatic_tax"] = {"enabled": True}
 
-            # Create subscription
+            # Create subscription with idempotency
+            subscription_data["idempotency_key"] = _idempotency_key("sub")
             subscription = stripe.Subscription.create(**subscription_data)
 
             logger.info(f"✓ Subscription created: {subscription.id} ({plan_id}/{billing_cycle})")
@@ -499,10 +530,14 @@ class StripeService:
             ValueError: If signature verification fails
         """
         try:
+            if not STRIPE_WEBHOOK_SECRET:
+                raise ValueError("STRIPE_WEBHOOK_SECRET is not configured")
+            tolerance = int(os.getenv("STRIPE_WEBHOOK_TOLERANCE_SECONDS", "300"))
             event = stripe.Webhook.construct_event(
                 payload,
                 signature,
-                STRIPE_WEBHOOK_SECRET
+                STRIPE_WEBHOOK_SECRET,
+                tolerance=tolerance,
             )
             logger.info(f"✓ Webhook event verified: {event['type']}")
             return event
@@ -548,6 +583,7 @@ class StripeService:
                 description=description,
                 metadata=metadata or {},
                 automatic_payment_methods={"enabled": True},
+                idempotency_key=_idempotency_key("pi"),
             )
 
             logger.info(f"✓ Payment intent created: {payment_intent.id} (${amount})")
@@ -627,6 +663,7 @@ class StripeService:
 
             session_data = {
                 "customer": customer_id,
+                "client_reference_id": customer_id,
                 "mode": "subscription",
                 "line_items": [{
                     "price": price_id,
@@ -634,6 +671,11 @@ class StripeService:
                 }],
                 "success_url": success_url,
                 "cancel_url": cancel_url,
+                "metadata": {
+                    "plan_id": plan_id,
+                    "billing_cycle": billing_cycle,
+                    "stripe_mode": stripe_mode_label(),
+                },
             }
 
             # Add trial
@@ -642,7 +684,10 @@ class StripeService:
                     "trial_period_days": trial_days
                 }
 
-            session = stripe.checkout.Session.create(**session_data)
+            session = stripe.checkout.Session.create(
+                **session_data,
+                idempotency_key=_idempotency_key("checkout"),
+            )
             logger.info(f"✓ Checkout session created: {session.id}")
             return session
 

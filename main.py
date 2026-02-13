@@ -7,16 +7,18 @@ import re
 import time
 import uuid
 import contextvars
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, status, Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -24,11 +26,17 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
-from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session  # noqa: F401
+from models import user, subscription, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, vpn_demo_session, auth_refresh_token, jwt_blacklist_token  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
 from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user
 from services.wireguard_service import WireGuardService
 from services.email_service import EmailService
+from services.runtime_metrics import get_runtime_metrics
+from services.jwt_service import get_current_user
+from services.vpn_peer_manager import get_peer_manager
+from models.user import User
+from models.wireguard_peer import WireGuardPeer
+from utils.api_errors import ApiException, ApiErrorResponse
 from utils.env_validation import (
     email_config_issues,
     validate_fernet_key,
@@ -134,6 +142,17 @@ app = FastAPI(
     redoc_url="/api/redoc" if docs_enabled else None,
     openapi_url="/api/openapi.json" if docs_enabled else None,
     lifespan=lifespan,
+    responses={
+        400: {"model": ApiErrorResponse, "description": "Bad request"},
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"},
+        403: {"model": ApiErrorResponse, "description": "Forbidden"},
+        404: {"model": ApiErrorResponse, "description": "Not found"},
+        409: {"model": ApiErrorResponse, "description": "Conflict"},
+        422: {"model": ApiErrorResponse, "description": "Validation error"},
+        429: {"model": ApiErrorResponse, "description": "Rate limited"},
+        500: {"model": ApiErrorResponse, "description": "Internal server error"},
+        503: {"model": ApiErrorResponse, "description": "Service unavailable"},
+    },
 )
 
 is_testing = os.getenv("TESTING", "").lower() == "true"
@@ -152,6 +171,7 @@ if not is_testing:
 
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    get_runtime_metrics().record_rate_limited()
     if request.url.path.startswith("/api"):
         return api_error("rate_limited", "Too many requests", status_code=429)
     return JSONResponse({"detail": "Too many requests"}, status_code=429)
@@ -213,11 +233,53 @@ async def add_request_id(request: Request, call_next):
     return response
 
 
+REVOCATION_EXEMPT_PATHS = {
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/refresh",
+    "/api/auth/revoke-token",
+}
+
+
+@app.middleware("http")
+async def enforce_revoked_access_token(request: Request, call_next):
+    if request.url.path in REVOCATION_EXEMPT_PATHS:
+        return await call_next(request)
+
+    token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    elif "access_token" in request.cookies:
+        token = request.cookies.get("access_token")
+
+    if token:
+        try:
+            from services.jwt_service import ACCESS_SECRET, decode_token, is_token_jti_revoked
+
+            payload = decode_token(token, ACCESS_SECRET)
+            if payload.get("type") == "access":
+                db = SessionLocal()
+                try:
+                    if is_token_jti_revoked(db, payload.get("jti")):
+                        return api_error("token_revoked", "Token revoked", status_code=401)
+                finally:
+                    db.close()
+        except HTTPException:
+            # Existing auth handlers will process invalid/expired token cases.
+            pass
+        except Exception:
+            pass
+
+    return await call_next(request)
+
+
 CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 CSRF_EXEMPT_PATHS = {
     "/api/auth/login",
     "/api/auth/register",
     "/api/auth/refresh",
+    "/api/auth/revoke-token",
     "/api/auth/password-reset/request",
     "/api/auth/password-reset/confirm",
 }
@@ -462,6 +524,22 @@ app.include_router(tools.router, tags=["tools"])
 app.include_router(user.router, tags=["user"])
 
 
+HTTP_STATUS_TO_CODE = {
+    400: "bad_request",
+    401: "unauthorized",
+    403: "forbidden",
+    404: "not_found",
+    405: "method_not_allowed",
+    409: "conflict",
+    422: "validation_error",
+    429: "rate_limited",
+    500: "internal_error",
+    502: "bad_gateway",
+    503: "service_unavailable",
+    504: "gateway_timeout",
+}
+
+
 def api_error(code: str, message: str, details=None, status_code: int = 400):
     return JSONResponse(
         status_code=status_code,
@@ -510,6 +588,97 @@ def version():
         "version": os.getenv("APP_VERSION", "dev"),
         "commit": os.getenv("GIT_SHA", ""),
         "environment": os.getenv("ENVIRONMENT", "development"),
+    }
+
+
+@app.get("/metrics", include_in_schema=False)
+def prometheus_metrics():
+    """
+    Prometheus-compatible metrics export.
+    """
+    return PlainTextResponse(
+        content=get_runtime_metrics().export_prometheus(),
+        media_type="text/plain; version=0.0.4",
+    )
+
+
+@app.get("/api/metrics/vpn")
+def api_vpn_metrics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    JSON VPN performance metrics export.
+    """
+    peer_manager = get_peer_manager(db)
+    pool = peer_manager.get_ip_pool_stats()
+    runtime = get_runtime_metrics().snapshot()
+
+    total = db.query(WireGuardPeer).filter(WireGuardPeer.is_revoked == False).count()
+    healthy = db.query(WireGuardPeer).filter(
+        WireGuardPeer.is_revoked == False,
+        WireGuardPeer.health_status == "healthy",
+    ).count()
+    degraded = db.query(WireGuardPeer).filter(
+        WireGuardPeer.is_revoked == False,
+        WireGuardPeer.health_status == "degraded",
+    ).count()
+    unstable = db.query(WireGuardPeer).filter(
+        WireGuardPeer.is_revoked == False,
+        WireGuardPeer.health_status == "unstable",
+    ).count()
+
+    classification = "healthy"
+    if total > 0 and unstable / total >= 0.25:
+        classification = "unstable"
+    elif degraded > 0 or unstable > 0:
+        classification = "degraded"
+
+    return {
+        "health_classification": classification,
+        "peers": {
+            "total": total,
+            "healthy": healthy,
+            "degraded": degraded,
+            "unstable": unstable,
+        },
+        "ip_pool": pool,
+        "runtime": runtime,
+    }
+
+
+@app.get("/api/metrics/system")
+def api_system_metrics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    JSON system/process metrics for leak/FD/memory audits.
+    """
+    runtime = get_runtime_metrics().snapshot()
+
+    peer_total = db.query(WireGuardPeer).count()
+    peer_active = db.query(WireGuardPeer).filter(
+        WireGuardPeer.is_revoked == False,
+        WireGuardPeer.is_active == True,
+    ).count()
+    peer_revoked = db.query(WireGuardPeer).filter(WireGuardPeer.is_revoked == True).count()
+
+    # "Zombie peers": inconsistent DB state that should not exist long-term.
+    zombie_peers = db.query(WireGuardPeer).filter(
+        WireGuardPeer.is_revoked == False,
+        WireGuardPeer.is_active == False,
+    ).count()
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "runtime": runtime,
+        "wireguard_peers": {
+            "total": peer_total,
+            "active": peer_active,
+            "revoked": peer_revoked,
+            "zombie": zombie_peers,
+        },
     }
 
 
@@ -625,7 +794,15 @@ async def internal_error_handler(request: Request, exc):
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if request.url.path.startswith("/api"):
-        return api_error("http_error", exc.detail, status_code=exc.status_code)
+        if isinstance(exc, ApiException):
+            return api_error(
+                exc.code,
+                exc.message,
+                details=exc.details,
+                status_code=exc.status_code,
+            )
+        code = HTTP_STATUS_TO_CODE.get(exc.status_code, "http_error")
+        return api_error(code, str(exc.detail), status_code=exc.status_code)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
 

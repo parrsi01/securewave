@@ -135,6 +135,7 @@ def _upsert_server(
     public_ip: str,
     wg_public_key: str,
     wg_port: int,
+    allowed_ips: str = "0.0.0.0/0, ::/0",
 ) -> str:
     db = SessionLocal()
     try:
@@ -165,6 +166,7 @@ def _upsert_server(
             existing.endpoint = endpoint
             existing.wg_listen_port = wg_port
             existing.wg_public_key = wg_public_key
+            existing.allowed_ips = allowed_ips
             if existing.wg_private_key_encrypted is None:
                 existing.wg_private_key_encrypted = ""
             existing.status = "active"
@@ -190,6 +192,7 @@ def _upsert_server(
             wg_listen_port=wg_port,
             wg_public_key=wg_public_key,
             wg_private_key_encrypted="",  # Server private key is stored on the server, not in the backend.
+            allowed_ips=allowed_ips,
             status="active",
             health_status="unknown",
             max_connections=1000,

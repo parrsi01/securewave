@@ -1,0 +1,54 @@
+{
+  "generated_at": "2026-02-12T00:00:00+00:00",
+  "thresholds_path": "benchmarks/thresholds.json",
+  "metrics": {
+    "p95_latency_ms": 315.2,
+    "max_jitter_ms": 71.4,
+    "max_packet_loss_pct": 4.5,
+    "handshake_rate": 0.91,
+    "throughput_mbps": 8.4,
+    "latency_points": 80.0,
+    "packet_points": 4.0,
+    "throughput_points": 1.0,
+    "handshake_iterations": 500.0
+  },
+  "violation_count": 5,
+  "violations": [
+    {
+      "metric": "p95_latency_ms",
+      "observed": 315.2,
+      "threshold": 200.0,
+      "comparator": "lte",
+      "detail": "p95 RTT over all samples exceeded maximum"
+    },
+    {
+      "metric": "max_jitter_ms",
+      "observed": 71.4,
+      "threshold": 50.0,
+      "comparator": "lte",
+      "detail": "max jitter exceeded maximum"
+    },
+    {
+      "metric": "max_packet_loss_pct",
+      "observed": 4.5,
+      "threshold": 2.0,
+      "comparator": "lte",
+      "detail": "max packet loss exceeded maximum"
+    },
+    {
+      "metric": "handshake_rate",
+      "observed": 0.91,
+      "threshold": 0.98,
+      "comparator": "gte",
+      "detail": "handshake success rate fell below minimum"
+    },
+    {
+      "metric": "throughput_mbps",
+      "observed": 8.4,
+      "threshold": 25.0,
+      "comparator": "gte",
+      "detail": "effective throughput fell below minimum"
+    }
+  ]
+}
+

@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-02-12T00:00:00+00:00",
+  "thresholds_path": "chaos/chaos_thresholds.json",
+  "metrics": {
+    "wireguard_recovery_time_ms": 18234.0,
+    "db_outage_recovery_seconds": 6.25,
+    "jwt_replay_failures": 1.0
+  },
+  "warnings": [],
+  "violation_count": 3,
+  "violations": [
+    {
+      "metric": "wireguard_recovery_time_ms",
+      "observed": 18234.0,
+      "threshold": 15000.0,
+      "comparator": "lte",
+      "detail": "WireGuard recovery time exceeded maximum"
+    },
+    {
+      "metric": "db_outage_recovery_seconds",
+      "observed": 6.25,
+      "threshold": 5.0,
+      "comparator": "lte",
+      "detail": "DB outage recovery probe exceeded maximum"
+    },
+    {
+      "metric": "jwt_replay_failures",
+      "observed": 1.0,
+      "threshold": 0.0,
+      "comparator": "lte",
+      "detail": "JWT replay failures exceeded allowed tolerance"
+    }
+  ]
+}
+

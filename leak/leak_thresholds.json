@@ -1,0 +1,6 @@
+{
+  "max_dns_leak_score": 0.0,
+  "ipv6_block_miss_tolerance": 0,
+  "min_kill_switch_enforcement_score": 80.0,
+  "notes": "Leak thresholds. CI uses safe mode; use --strict-live on staging for real tunnel enforcement validation."
+}

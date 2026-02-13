@@ -67,10 +67,12 @@ class ApiClient {
     try {
       final response = await _dio.get<Map<String, dynamic>>('/vpn/servers');
       final data = response.data ?? <String, dynamic>{};
-      final rawList = data['servers'] is List ? data['servers'] as List : <dynamic>[];
+      final rawList =
+          data['servers'] is List ? data['servers'] as List : <dynamic>[];
       final servers = rawList
           .whereType<Map>()
-          .map((entry) => ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
+          .map((entry) =>
+              ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
           .toList();
       _cachedServers = servers;
       _serversFetchedAt = DateTime.now();
@@ -78,14 +80,17 @@ class ApiClient {
     } catch (error, stackTrace) {
       if (_config.useMockApi) {
         _logMockApi();
-        AppLogger.warning('Server list unavailable; using mock regions (mock API mode).');
-        AppLogger.error('Server list error', error: error, stackTrace: stackTrace);
+        AppLogger.warning(
+            'Server list unavailable; using mock regions (mock API mode).');
+        AppLogger.error('Server list error',
+            error: error, stackTrace: stackTrace);
         final data = _mockServers();
         _cachedServers = data;
         _serversFetchedAt = DateTime.now();
         return data;
       }
-      AppLogger.error('Server list error', error: error, stackTrace: stackTrace);
+      AppLogger.error('Server list error',
+          error: error, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -114,7 +119,8 @@ class ApiClient {
     } catch (error, stackTrace) {
       if (_config.useMockApi) {
         _logMockApi();
-        AppLogger.warning('Plan lookup failed; using mock plan (mock API mode).');
+        AppLogger.warning(
+            'Plan lookup failed; using mock plan (mock API mode).');
         AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
         final plan = _mockPlan();
         _cachedPlan = plan;
@@ -126,13 +132,15 @@ class ApiClient {
     }
   }
 
-  Future<AuthTokens> login({required String email, required String password}) async {
+  Future<AuthTokens> login(
+      {required String email, required String password}) async {
     if (_config.useMockApi) {
       _logMockApi();
       return _mockTokens(email);
     }
     try {
-      final response = await _dio.post<Map<String, dynamic>>('/auth/login', data: {
+      final response =
+          await _dio.post<Map<String, dynamic>>('/auth/login', data: {
         'email': email,
         'password': password,
       });
@@ -147,13 +155,15 @@ class ApiClient {
     }
   }
 
-  Future<AuthTokens?> register({required String email, required String password}) async {
+  Future<AuthTokens?> register(
+      {required String email, required String password}) async {
     if (_config.useMockApi) {
       _logMockApi();
       return _mockTokens(email);
     }
     try {
-      final response = await _dio.post<Map<String, dynamic>>('/auth/register', data: {
+      final response =
+          await _dio.post<Map<String, dynamic>>('/auth/register', data: {
         'email': email,
         'password': password,
         'password_confirm': password,
@@ -165,23 +175,40 @@ class ApiClient {
         refreshToken: data['refresh_token']?.toString(),
       );
     } catch (error, stackTrace) {
-      AppLogger.error('Registration error', error: error, stackTrace: stackTrace);
+      AppLogger.error('Registration error',
+          error: error, stackTrace: stackTrace);
       rethrow;
     }
   }
 
   AuthTokens _mockTokens(String email) {
     final handle = email.split('@').first;
-    return AuthTokens(accessToken: 'mock-token-$handle', refreshToken: 'mock-refresh-$handle');
+    return AuthTokens(
+        accessToken: 'mock-token-$handle',
+        refreshToken: 'mock-refresh-$handle');
   }
 
   List<ServerRegion> _mockServers() {
     return const [
-      ServerRegion(id: 'us-chi', name: 'Chicago, IL', country: 'United States', latencyMs: 28),
-      ServerRegion(id: 'us-nyc', name: 'New York, NY', country: 'United States', latencyMs: 42),
-      ServerRegion(id: 'uk-lon', name: 'London', country: 'United Kingdom', latencyMs: 75),
-      ServerRegion(id: 'de-fra', name: 'Frankfurt', country: 'Germany', latencyMs: 58),
-      ServerRegion(id: 'sg-sin', name: 'Singapore', country: 'Singapore', latencyMs: 91),
+      ServerRegion(
+          id: 'us-chi',
+          name: 'Chicago, IL',
+          country: 'United States',
+          latencyMs: 28),
+      ServerRegion(
+          id: 'us-nyc',
+          name: 'New York, NY',
+          country: 'United States',
+          latencyMs: 42),
+      ServerRegion(
+          id: 'uk-lon',
+          name: 'London',
+          country: 'United Kingdom',
+          latencyMs: 75),
+      ServerRegion(
+          id: 'de-fra', name: 'Frankfurt', country: 'Germany', latencyMs: 58),
+      ServerRegion(
+          id: 'sg-sin', name: 'Singapore', country: 'Singapore', latencyMs: 91),
     ];
   }
 
@@ -201,6 +228,7 @@ class ApiClient {
     required VpnProtocol protocol,
     String? serverId,
     bool forceRotateKeys = false,
+    CancelToken? cancelToken,
   }) async {
     if (_config.useMockApi) {
       _logMockApi();
@@ -212,7 +240,8 @@ class ApiClient {
         'server_id': serverId ?? 'mock',
         'server_location': 'Mock',
         'issued_at': DateTime.now().toIso8601String(),
-        'expires_at': DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+        'expires_at':
+            DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
         'wireguard_config': _mockVpnConfig(),
         'dns': {
           'servers': ['94.140.14.14', '94.140.15.15'],
@@ -238,12 +267,33 @@ class ApiClient {
           if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
           if (forceRotateKeys) 'force_rotate_keys': true,
         },
+        cancelToken: cancelToken,
       );
       final data = response.data ?? <String, dynamic>{};
       return VpnProfile.fromJson(data);
     } catch (error, stackTrace) {
-      AppLogger.error('VPN profile fetch failed', error: error, stackTrace: stackTrace);
+      AppLogger.error('VPN profile fetch failed',
+          error: error, stackTrace: stackTrace);
       rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchVpnMetricsSnapshot(
+      {CancelToken? cancelToken}) async {
+    if (_config.useMockApi) {
+      return null;
+    }
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/metrics/vpn',
+        cancelToken: cancelToken,
+      );
+      return response.data;
+    } catch (error, stackTrace) {
+      AppLogger.warning('VPN metrics snapshot unavailable (non-fatal).');
+      AppLogger.error('VPN metrics fetch error',
+          error: error, stackTrace: stackTrace);
+      return null;
     }
   }
 
@@ -263,7 +313,8 @@ class ApiClient {
       );
     } catch (error, stackTrace) {
       AppLogger.warning('Backend VPN connect notification failed (non-fatal).');
-      AppLogger.error('VPN connect notify error', error: error, stackTrace: stackTrace);
+      AppLogger.error('VPN connect notify error',
+          error: error, stackTrace: stackTrace);
     }
   }
 
@@ -276,15 +327,18 @@ class ApiClient {
     try {
       await _dio.post<Map<String, dynamic>>('/vpn/disconnect');
     } catch (error, stackTrace) {
-      AppLogger.warning('Backend VPN disconnect notification failed (non-fatal).');
-      AppLogger.error('VPN disconnect notify error', error: error, stackTrace: stackTrace);
+      AppLogger.warning(
+          'Backend VPN disconnect notification failed (non-fatal).');
+      AppLogger.error('VPN disconnect notify error',
+          error: error, stackTrace: stackTrace);
     }
   }
 
   void _logMockApi() {
     if (_mockNoticeLogged) return;
     _mockNoticeLogged = true;
-    AppLogger.warning('Mock API enabled: returning demo data instead of live endpoints.');
+    AppLogger.warning(
+        'Mock API enabled: returning demo data instead of live endpoints.');
   }
 
   String _mockVpnConfig() {

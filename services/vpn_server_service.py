@@ -73,6 +73,19 @@ class VPNServerService:
             server.memory_usage = metrics["memory_usage"]
         if "latency_ms" in metrics:
             server.latency_ms = metrics["latency_ms"]
+            # Persist rolling RTT history for recommendation scoring.
+            try:
+                from services.rtt_history import record_rtt_sample
+
+                record_rtt_sample(
+                    db,
+                    vpn_server_id=server.id,
+                    rtt_ms=float(metrics["latency_ms"]),
+                    source="health_monitor_ping",
+                )
+            except Exception:
+                # Never block health updates on metrics persistence.
+                pass
         if "packet_loss" in metrics:
             server.packet_loss = metrics["packet_loss"]
         if "jitter_ms" in metrics:
@@ -99,15 +112,15 @@ class VPNServerService:
             metrics: Dictionary of server metrics
 
         Returns:
-            Health status string ('healthy', 'degraded', 'unhealthy')
+            Health status string ('healthy', 'degraded', 'unstable')
         """
         # Check for critical issues
         if metrics.get("cpu_load", 0) > 0.95:
-            return "unhealthy"
+            return "unstable"
         if metrics.get("packet_loss", 0) > 0.10:  # >10% packet loss
-            return "unhealthy"
+            return "unstable"
         if metrics.get("latency_ms", 0) > 1000:  # >1 second latency
-            return "unhealthy"
+            return "unstable"
 
         # Check for degraded performance
         if metrics.get("cpu_load", 0) > 0.80:
@@ -158,8 +171,16 @@ class VPNServerService:
                 logger.warning(f"No available servers for user {user.id} (tier: {user_tier})")
                 return None
 
-            # Deterministic fallback so optimizer failures never block connections.
-            fallback_server = available_servers[0]
+            # RTT-first fallback so optimizer failures never block connections.
+            from services.latency_optimizer import get_latency_optimizer
+
+            latency_optimizer = get_latency_optimizer()
+            ranked = latency_optimizer.rank_servers(
+                available_servers,
+                user_region_hint=preferred_location,
+            )
+            ranked_map = {server.server_id: server for server in available_servers}
+            fallback_server = ranked_map.get(ranked[0].server_id, available_servers[0]) if ranked else available_servers[0]
             allowed_server_ids = {s.server_id for s in available_servers}
 
             # Use optimizer to select best server

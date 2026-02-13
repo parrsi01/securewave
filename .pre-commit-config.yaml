@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks scan
+        entry: bash -c 'if command -v gitleaks >/dev/null 2>&1; then gitleaks dir --redact --no-banner -c .gitleaks.toml .; else echo "gitleaks not installed; skipping local pre-commit scan"; fi'
+        language: system
+        pass_filenames: false

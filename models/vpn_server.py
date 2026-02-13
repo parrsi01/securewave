@@ -35,7 +35,11 @@ class VPNServer(Base):
     wg_listen_port = Column(Integer, default=51820)
     wg_public_key = Column(String, nullable=False)  # Server's WireGuard public key
     wg_private_key_encrypted = Column(String, nullable=False)  # Encrypted private key
+    allowed_ips = Column(String, default="0.0.0.0/0, ::/0")
     dns_servers = Column(String, default="1.1.1.1,1.0.0.1")  # Cloudflare DNS
+    wg_key_version = Column(Integer, default=1, nullable=False)
+    wg_last_rotated_at = Column(DateTime, nullable=True)
+    wg_next_rotation_at = Column(DateTime, nullable=True)
 
     # Capacity and limits
     max_connections = Column(Integer, default=1000)
@@ -133,6 +137,7 @@ class VPNServer(Base):
             "latitude": self.latitude,
             "longitude": self.longitude,
             "endpoint": self.endpoint,
+            "allowed_ips": self.allowed_ips,
             "status": self.status,
             "health_status": self.health_status,
             "current_connections": self.current_connections,
@@ -167,6 +172,9 @@ class VPNServer(Base):
             **self.to_dict(include_sensitive=True),
             "wg_listen_port": self.wg_listen_port,
             "dns_servers": self.dns_servers,
+            "wg_key_version": self.wg_key_version,
+            "wg_last_rotated_at": self.wg_last_rotated_at.isoformat() if self.wg_last_rotated_at else None,
+            "wg_next_rotation_at": self.wg_next_rotation_at.isoformat() if self.wg_next_rotation_at else None,
             "hcloud_server_id": self.hcloud_server_id,
             "hcloud_server_type": self.hcloud_server_type,
             "priority": self.priority,

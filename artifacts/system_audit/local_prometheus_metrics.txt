@@ -1,0 +1,42 @@
+# HELP securewave_vpn_profiles_issued_total Total VPN profile issuance attempts.
+# TYPE securewave_vpn_profiles_issued_total counter
+securewave_vpn_profiles_issued_total 0
+# HELP securewave_vpn_profiles_failed_total Total failed VPN profile issuances.
+# TYPE securewave_vpn_profiles_failed_total counter
+securewave_vpn_profiles_failed_total 0
+# HELP securewave_peer_connect_total Total peer connect events.
+# TYPE securewave_peer_connect_total counter
+securewave_peer_connect_total 0
+# HELP securewave_peer_disconnect_total Total peer disconnect events.
+# TYPE securewave_peer_disconnect_total counter
+securewave_peer_disconnect_total 0
+# HELP securewave_auth_failed_total Total failed authentication attempts.
+# TYPE securewave_auth_failed_total counter
+securewave_auth_failed_total 0
+# HELP securewave_profile_issue_latency_p95_ms P95 VPN profile issue latency (ms).
+# TYPE securewave_profile_issue_latency_p95_ms gauge
+securewave_profile_issue_latency_p95_ms 0.0
+# HELP securewave_handshake_latency_p95_ms P95 handshake measurement latency (ms).
+# TYPE securewave_handshake_latency_p95_ms gauge
+securewave_handshake_latency_p95_ms 0.0
+# HELP securewave_system_cpu_percent Host CPU utilization percentage.
+# TYPE securewave_system_cpu_percent gauge
+securewave_system_cpu_percent 77.0
+# HELP securewave_system_memory_percent Host memory utilization percentage.
+# TYPE securewave_system_memory_percent gauge
+securewave_system_memory_percent 78.5
+# HELP securewave_process_memory_mb Process RSS in MB.
+# TYPE securewave_process_memory_mb gauge
+securewave_process_memory_mb 284.44
+# HELP securewave_process_open_fds Process open file descriptors (-1 when unavailable).
+# TYPE securewave_process_open_fds gauge
+securewave_process_open_fds 12.0
+# HELP securewave_process_threads Process thread count.
+# TYPE securewave_process_threads gauge
+securewave_process_threads 11.0
+# HELP securewave_wg_processes Host WireGuard-related process count (best-effort).
+# TYPE securewave_wg_processes gauge
+securewave_wg_processes 0.0
+# HELP securewave_zombie_processes Host zombie process count (best-effort).
+# TYPE securewave_zombie_processes gauge
+securewave_zombie_processes 0.0

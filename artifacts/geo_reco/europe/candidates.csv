@@ -1,0 +1,4 @@
+server_id,score,rtt_ms,rtt_source,rtt_samples,load_percent,health_status,consecutive_health_failures,region
+us-east-1-001,631.375,44.75,rtt_history_p95,6,5.0,healthy,0,Americas
+eu-west-1-001,548.95,78.75,rtt_history_p95,6,12.0,healthy,0,Europe
+ap-east-1-001,357.35,167.5,rtt_history_p95,6,1.0,healthy,0,Asia

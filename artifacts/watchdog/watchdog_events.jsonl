@@ -1,0 +1,2 @@
+{"event": "watchdog_start", "interface": "wg0", "interval_seconds": 5, "max_actions_per_window": 3, "timestamp": "2026-02-13T01:47:20.269504Z", "window_seconds": 600}
+{"event": "watchdog_stop", "timestamp": "2026-02-13T01:47:30.376839Z"}

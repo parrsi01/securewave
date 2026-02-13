@@ -60,6 +60,7 @@ class CreateServerRequest(BaseModel):
     wg_public_key: str = Field(..., description="WireGuard server public key")
     wg_private_key: Optional[str] = Field(None, description="WireGuard private key (will be encrypted)")
     wg_listen_port: int = Field(51820, description="WireGuard listen port")
+    allowed_ips: str = Field("0.0.0.0/0, ::/0", description="Allowed peer routes")
     max_connections: int = Field(1000, description="Maximum concurrent connections")
     tier_restriction: Optional[str] = Field(None, description="Subscription tier restriction (null=all, 'premium'=premium only)")
 
@@ -71,6 +72,7 @@ class UpdateServerRequest(BaseModel):
     max_connections: Optional[int] = Field(None, description="Maximum connections")
     tier_restriction: Optional[str] = Field(None, description="Tier restriction")
     wg_public_key: Optional[str] = Field(None, description="New WireGuard public key")
+    allowed_ips: Optional[str] = Field(None, description="Allowed peer routes")
     hcloud_server_state: Optional[str] = Field(None, description="Hetzner server state")
 
 
@@ -84,6 +86,7 @@ class ServerResponse(BaseModel):
     region: Optional[str]
     public_ip: str
     endpoint: str
+    allowed_ips: str
     wg_public_key: str
     status: str
     health_status: str
@@ -169,6 +172,7 @@ async def create_server(
         wg_public_key=request.wg_public_key,
         wg_private_key_encrypted=encrypted_private_key,
         wg_listen_port=request.wg_listen_port,
+        allowed_ips=request.allowed_ips,
         max_connections=request.max_connections,
         tier_restriction=request.tier_restriction,
         status="active",
@@ -192,6 +196,7 @@ async def create_server(
         region=server.region,
         public_ip=server.public_ip,
         endpoint=server.endpoint,
+        allowed_ips=server.allowed_ips,
         wg_public_key=server.wg_public_key,
         status=server.status,
         health_status=server.health_status,
@@ -224,6 +229,7 @@ async def list_all_servers(
             region=s.region,
             public_ip=s.public_ip,
             endpoint=s.endpoint,
+            allowed_ips=s.allowed_ips,
             wg_public_key=s.wg_public_key,
             status=s.status,
             health_status=s.health_status,
@@ -260,6 +266,7 @@ async def get_server_details(
         region=server.region,
         public_ip=server.public_ip,
         endpoint=server.endpoint,
+        allowed_ips=server.allowed_ips,
         wg_public_key=server.wg_public_key,
         status=server.status,
         health_status=server.health_status,
@@ -297,6 +304,8 @@ async def update_server(
         server.tier_restriction = request.tier_restriction if request.tier_restriction else None
     if request.wg_public_key is not None:
         server.wg_public_key = request.wg_public_key
+    if request.allowed_ips is not None:
+        server.allowed_ips = request.allowed_ips
     if request.hcloud_server_state is not None:
         server.hcloud_server_state = request.hcloud_server_state
 

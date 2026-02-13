@@ -4,7 +4,7 @@ WireGuard Peer Model - Track individual client configurations and keys
 
 from datetime import datetime
 from typing import Dict, Optional
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, Index
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, Index, Float, text
 from sqlalchemy.orm import relationship
 
 from database.base import Base
@@ -19,6 +19,15 @@ class WireGuardPeer(Base):
     __tablename__ = "wireguard_peers"
     __table_args__ = (
         Index('ix_peer_user_server', 'user_id', 'server_id'),
+        # Enforce uniqueness only for *active (non-revoked)* allocations so revoked
+        # peers can release and reclaim IPs safely.
+        Index(
+            "ix_wireguard_peers_ipv4_active_unique",
+            "ipv4_address",
+            unique=True,
+            sqlite_where=text("is_revoked = 0"),
+            postgresql_where=text("is_revoked = false"),
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -48,6 +57,8 @@ class WireGuardPeer(Base):
 
     # Usage tracking
     last_handshake_at = Column(DateTime, nullable=True)  # Last successful WireGuard handshake
+    last_handshake_latency_ms = Column(Float, nullable=True)
+    health_status = Column(String, nullable=False, default="healthy")  # healthy, degraded, unstable
     total_data_sent = Column(Integer, default=0)  # Bytes
     total_data_received = Column(Integer, default=0)  # Bytes
     connection_count = Column(Integer, default=0)  # Number of connection sessions
@@ -100,6 +111,8 @@ class WireGuardPeer(Base):
             "is_active": self.is_active,
             "is_revoked": self.is_revoked,
             "key_version": self.key_version,
+            "health_status": self.health_status,
+            "last_handshake_latency_ms": self.last_handshake_latency_ms,
             "last_handshake_at": self.last_handshake_at.isoformat() if self.last_handshake_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "needs_rotation": self.needs_rotation,
