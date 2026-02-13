@@ -1,7 +1,15 @@
 step,status_code,ok
 signup,201,True
 auth_me,200,True
+checkout_no_csrf,403,True
 create_checkout_session,200,True
+create_checkout_session_replay,200,True
+webhook_invalid_signature,400,True
+webhook_old_timestamp_rejected,400,True
 webhook:checkout.session.completed,200,True
 webhook:customer.subscription.created,200,True
+webhook:invoice.paid,200,True
+webhook:customer.subscription.created,200,True
 verify_db_state,0,True
+login,200,True
+api_invoices,200,True

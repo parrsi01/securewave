@@ -24,6 +24,16 @@ def test_terms_page_loads():
     assert "Terms" in terms
 
 
+def test_data_retention_page_loads():
+    page = _read_page("data_retention.html")
+    assert "Data Retention" in page
+
+
+def test_acceptable_use_page_loads():
+    page = _read_page("acceptable_use.html")
+    assert "Acceptable Use" in page
+
+
 def test_all_static_pages_have_nav():
     """Every HTML page should include the navigation bar."""
     for page in STATIC_DIR.glob("*.html"):

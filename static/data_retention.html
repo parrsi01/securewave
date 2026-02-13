@@ -3,12 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Create Account - SecureWave</title>
-  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>Data Retention - SecureWave</title>
+  <meta name="description" content="SecureWave data retention policy. Learn what we retain, for how long, and why.">
   <link rel="stylesheet" href="/css/web_ui_v1.css">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
 </head>
 <body>
 
@@ -41,46 +39,53 @@
   </div>
 </nav>
 
-<main class="auth-page">
-  <div class="auth-card">
-    <div class="auth-header">
-      <img src="/img/logo.svg" alt="SecureWave" width="48" height="48">
-      <h1>Create your account</h1>
-      <p>Start protecting your privacy today</p>
-    </div>
+<main class="content-page">
+  <div class="container">
+    <p class="content-meta">Last updated: February 2026</p>
+    <h1>Data Retention</h1>
 
-    <form data-auth="register">
-      <div class="form-message" data-form-message></div>
+    <section>
+      <h2>1. Overview</h2>
+      <p>SecureWave retains the minimum data necessary to operate the Service, prevent abuse, and meet legal obligations. We do not keep VPN traffic logs, browsing history, DNS query logs, or content logs.</p>
+      <p>This page summarizes retention periods. For broader privacy commitments and data categories, see our <a href="/privacy">Privacy Policy</a>.</p>
+    </section>
 
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input id="email" type="email" class="form-input" placeholder="you@example.com" required autocomplete="email">
-        <span class="field-hint"></span>
-      </div>
+    <section>
+      <h2>2. Account Data</h2>
+      <ul>
+        <li><strong>Email address</strong> is retained while your account is active.</li>
+        <li><strong>Password</strong> is stored as a one-way hash and retained while your account is active.</li>
+        <li><strong>Account security events</strong> (for example, sign-in attempts) may be retained for a limited time to detect abuse and protect users.</li>
+      </ul>
+      <p>When you close your account, we delete account data within 30 days, subject to Section 4.</p>
+    </section>
 
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input id="password" type="password" class="form-input" placeholder="Enter your password" required autocomplete="new-password">
-        <span class="field-hint">At least 8 characters</span>
-      </div>
+    <section>
+      <h2>3. Connection and Device Metadata</h2>
+      <p>To operate a subscription VPN service, we retain limited operational metadata:</p>
+      <ul>
+        <li><strong>Device enrollment records</strong> (registered devices) while your account is active, and for a short period after closure to prevent fraud and support recovery.</li>
+        <li><strong>Session timestamps</strong> (connect/disconnect times) may be retained for limited periods for abuse prevention, service reliability, and support.</li>
+        <li><strong>Aggregate usage totals</strong> may be retained longer in anonymized form for capacity planning and performance monitoring.</li>
+      </ul>
+      <p>We do not retain traffic content.</p>
+    </section>
 
-      <div class="form-group">
-        <label for="passwordConfirm">Confirm password</label>
-        <input id="passwordConfirm" type="password" class="form-input" placeholder="Confirm your password" required autocomplete="new-password">
-        <span class="field-hint"></span>
-      </div>
+    <section>
+      <h2>4. Billing and Tax Records</h2>
+      <p>Billing records are retained for the minimum period required by applicable financial and tax regulations. This may include transaction identifiers, invoice records, and subscription status history.</p>
+      <p>Payment card details are processed by payment providers. SecureWave does not store full card numbers.</p>
+    </section>
 
-      <div class="form-check">
-        <input id="terms" type="checkbox" required>
-        <label for="terms">I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a></label>
-      </div>
+    <section>
+      <h2>5. Support Communications</h2>
+      <p>If you contact support, we retain the contents of your support request and our responses for up to 2 years after resolution, unless a shorter retention period is required or you request deletion (subject to Section 4).</p>
+    </section>
 
-      <button class="btn btn-primary btn-block" type="submit">Create account</button>
-    </form>
-
-    <div class="auth-footer">
-      <p>Already have an account? <a href="/login">Sign in</a></p>
-    </div>
+    <section>
+      <h2>6. Deletion Requests</h2>
+      <p>You can request deletion of eligible personal data by contacting us via the <a href="/contact">Contact page</a>. We may require verification of your identity to protect your account.</p>
+    </section>
   </div>
 </main>
 
@@ -102,7 +107,7 @@
   </div>
 </footer>
 
-<script src="/js/auth.js"></script>
 <script src="/js/site.js"></script>
 </body>
 </html>
+

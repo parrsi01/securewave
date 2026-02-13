@@ -332,7 +332,8 @@ class StripeService:
         billing_cycle: str = "monthly",
         trial_days: int = 0,
         payment_method_id: Optional[str] = None,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
+        idempotency_key: Optional[str] = None,
     ) -> stripe.Subscription:
         """
         Create a subscription
@@ -382,7 +383,7 @@ class StripeService:
             subscription_data["automatic_tax"] = {"enabled": True}
 
             # Create subscription with idempotency
-            subscription_data["idempotency_key"] = _idempotency_key("sub")
+            subscription_data["idempotency_key"] = idempotency_key or _idempotency_key("sub")
             subscription = stripe.Subscription.create(**subscription_data)
 
             logger.info(f"✓ Subscription created: {subscription.id} ({plan_id}/{billing_cycle})")
@@ -407,7 +408,8 @@ class StripeService:
         plan_id: Optional[str] = None,
         billing_cycle: Optional[str] = None,
         payment_method_id: Optional[str] = None,
-        proration_behavior: str = "create_prorations"
+        proration_behavior: str = "create_prorations",
+        idempotency_key: Optional[str] = None,
     ) -> stripe.Subscription:
         """
         Update subscription (upgrade/downgrade)
@@ -445,7 +447,11 @@ class StripeService:
             if payment_method_id:
                 update_data["default_payment_method"] = payment_method_id
 
-            subscription = stripe.Subscription.modify(subscription_id, **update_data)
+            subscription = stripe.Subscription.modify(
+                subscription_id,
+                **update_data,
+                idempotency_key=idempotency_key or _idempotency_key("submod"),
+            )
             logger.info(f"✓ Subscription updated: {subscription_id}")
             return subscription
 
@@ -457,7 +463,8 @@ class StripeService:
         self,
         subscription_id: str,
         cancel_at_period_end: bool = True,
-        cancellation_reason: Optional[str] = None
+        cancellation_reason: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> stripe.Subscription:
         """
         Cancel subscription
@@ -479,14 +486,16 @@ class StripeService:
                     cancel_at_period_end=True,
                     cancellation_details={
                         "comment": cancellation_reason or "User requested cancellation"
-                    }
+                    },
+                    idempotency_key=idempotency_key or _idempotency_key("subcancel"),
                 )
                 logger.info(f"✓ Subscription set to cancel at period end: {subscription_id}")
             else:
                 # Cancel immediately
                 subscription = stripe.Subscription.delete(
                     subscription_id,
-                    prorate=True
+                    prorate=True,
+                    idempotency_key=idempotency_key or _idempotency_key("subcancel"),
                 )
                 logger.info(f"✓ Subscription canceled immediately: {subscription_id}")
 
@@ -496,13 +505,14 @@ class StripeService:
             logger.error(f"✗ Failed to cancel subscription: {e}")
             raise
 
-    def reactivate_subscription(self, subscription_id: str) -> stripe.Subscription:
+    def reactivate_subscription(self, subscription_id: str, *, idempotency_key: Optional[str] = None) -> stripe.Subscription:
         """Reactivate a canceled subscription (before period end)"""
         try:
             self._ensure_configured()
             subscription = stripe.Subscription.modify(
                 subscription_id,
                 cancel_at_period_end=False,
+                idempotency_key=idempotency_key or _idempotency_key("subreactivate"),
             )
             logger.info(f"✓ Subscription reactivated: {subscription_id}")
             return subscription

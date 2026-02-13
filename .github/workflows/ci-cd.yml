@@ -41,6 +41,9 @@ jobs:
       - name: Cost guardrails
         run: bash scripts/check_cost_guardrails.sh
 
+      - name: Legal placeholder guard
+        run: bash scripts/check_legal_placeholders.sh
+
       - name: Run tests
         run: python -m pytest -q
 

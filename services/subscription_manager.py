@@ -44,7 +44,8 @@ class SubscriptionManager:
         plan_id: str,
         billing_cycle: str = "monthly",
         payment_method_id: Optional[str] = None,
-        trial_days: int = 0
+        trial_days: int = 0,
+        idempotency_key: Optional[str] = None,
     ) -> Subscription:
         """
         Create Stripe subscription
@@ -71,7 +72,8 @@ class SubscriptionManager:
                 customer = self.stripe.create_customer(
                     email=user.email,
                     name=user.full_name,
-                    metadata={"user_id": user_id}
+                    metadata={"user_id": user_id},
+                    idempotency_key=f"sw_stripe_customer_create_{user_id}",
                 )
                 stripe_customer_id = customer.id
                 user.stripe_customer_id = stripe_customer_id
@@ -89,7 +91,8 @@ class SubscriptionManager:
                 billing_cycle=billing_cycle,
                 trial_days=trial_days,
                 payment_method_id=payment_method_id,
-                metadata={"user_id": user_id}
+                metadata={"user_id": user_id},
+                idempotency_key=idempotency_key,
             )
 
             # Create database subscription record
@@ -209,7 +212,8 @@ class SubscriptionManager:
         self,
         subscription_id: int,
         new_plan_id: str,
-        billing_cycle: Optional[str] = None
+        billing_cycle: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> Subscription:
         """
         Upgrade/downgrade subscription to new plan
@@ -239,7 +243,8 @@ class SubscriptionManager:
                     subscription_id=subscription.stripe_subscription_id,
                     plan_id=new_plan_id,
                     billing_cycle=billing_cycle,
-                    proration_behavior="create_prorations"  # Prorate the difference
+                    proration_behavior="create_prorations",  # Prorate the difference
+                    idempotency_key=idempotency_key,
                 )
 
                 # Get updated plan details
@@ -285,7 +290,8 @@ class SubscriptionManager:
         self,
         subscription_id: int,
         cancel_at_period_end: bool = True,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> Subscription:
         """
         Cancel subscription
@@ -307,7 +313,8 @@ class SubscriptionManager:
                 self.stripe.cancel_subscription(
                     subscription_id=subscription.stripe_subscription_id,
                     cancel_at_period_end=cancel_at_period_end,
-                    cancellation_reason=reason
+                    cancellation_reason=reason,
+                    idempotency_key=idempotency_key,
                 )
             elif subscription.provider == "paypal":
                 if not cancel_at_period_end:
@@ -342,7 +349,7 @@ class SubscriptionManager:
             logger.error(f"✗ Failed to cancel subscription: {e}")
             raise
 
-    def reactivate_subscription(self, subscription_id: int) -> Subscription:
+    def reactivate_subscription(self, subscription_id: int, *, idempotency_key: Optional[str] = None) -> Subscription:
         """Reactivate a canceled subscription (before period end)"""
         try:
             subscription = self.db.query(Subscription).filter_by(id=subscription_id).first()
@@ -353,7 +360,7 @@ class SubscriptionManager:
                 raise ValueError("Subscription is not set to cancel at period end")
 
             if subscription.provider == "stripe":
-                self.stripe.reactivate_subscription(subscription.stripe_subscription_id)
+                self.stripe.reactivate_subscription(subscription.stripe_subscription_id, idempotency_key=idempotency_key)
             elif subscription.provider == "paypal":
                 # For PayPal, we just update database flag
                 pass

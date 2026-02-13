@@ -167,7 +167,13 @@ def main() -> int:
         user_id = me_data.get("id")
         steps.append({"step": "auth_me", "status_code": me.status_code, "ok": me.status_code == 200})
 
-        # 2) Create checkout session (cookie + CSRF)
+        # 2) Checkout session create (anti-abuse + idempotency)
+        no_csrf = client.post(
+            "/api/payments/stripe/create-checkout-session",
+            json={"plan_id": "basic", "billing_cycle": "monthly"},
+        )
+        steps.append({"step": "checkout_no_csrf", "status_code": no_csrf.status_code, "ok": no_csrf.status_code == 403})
+
         checkout = client.post(
             "/api/payments/stripe/create-checkout-session",
             json={"plan_id": "basic", "billing_cycle": "monthly"},
@@ -179,6 +185,20 @@ def main() -> int:
             _write_outputs(artifacts_dir, steps, stripe_calls, {"error": checkout_data or checkout.text})
             return 1
 
+        checkout_replay = client.post(
+            "/api/payments/stripe/create-checkout-session",
+            json={"plan_id": "basic", "billing_cycle": "monthly"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        checkout_replay_data = checkout_replay.json() if checkout_replay.headers.get("content-type", "").startswith("application/json") else {}
+        replay_ok = (
+            checkout_replay.status_code == 200
+            and checkout_replay_data.get("session_id") == checkout_data.get("session_id")
+            and checkout_replay_data.get("checkout_url") == checkout_data.get("checkout_url")
+            and checkout_replay_data.get("replayed") is True
+        )
+        steps.append({"step": "create_checkout_session_replay", "status_code": checkout_replay.status_code, "ok": replay_ok})
+
         # 3) Simulate Stripe webhooks
         # Stripe webhooks do not carry SecureWave auth cookies; clear them so CSRF
         # middleware doesn't block the requests.
@@ -186,6 +206,20 @@ def main() -> int:
 
         webhook_secret = os.environ["STRIPE_WEBHOOK_SECRET"]
         now = int(time.time())
+
+        # 3a) Negative: invalid signature rejected
+        invalid_evt = {"id": "evt_sim_invalid_sig", "type": "customer.subscription.created", "data": {"object": {"id": "sub_invalid", "customer": "cus_test_123"}}}
+        payload = json.dumps(invalid_evt, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        bad_sig = _stripe_signature_header(payload=payload, secret="whsec_wrong")
+        bad = client.post("/api/payments/stripe/webhook", data=payload, headers={"Stripe-Signature": bad_sig})
+        steps.append({"step": "webhook_invalid_signature", "status_code": bad.status_code, "ok": bad.status_code == 400})
+
+        # 3b) Negative: old timestamp replay rejected via tolerance
+        os.environ["STRIPE_WEBHOOK_TOLERANCE_SECONDS"] = "5"
+        old_sig = _stripe_signature_header(payload=payload, secret=webhook_secret, timestamp=int(time.time()) - 3600)
+        old = client.post("/api/payments/stripe/webhook", data=payload, headers={"Stripe-Signature": old_sig})
+        steps.append({"step": "webhook_old_timestamp_rejected", "status_code": old.status_code, "ok": old.status_code == 400})
+        os.environ["STRIPE_WEBHOOK_TOLERANCE_SECONDS"] = "300"
 
         # a) checkout.session.completed
         checkout_evt = {
@@ -231,18 +265,66 @@ def main() -> int:
         }
         _post_webhook(client, steps, sub_evt, webhook_secret)
 
+        # c) invoice.paid (create invoice record)
+        invoice_evt = {
+            "id": "evt_sim_invoice_paid",
+            "type": "invoice.paid",
+            "data": {
+                "object": {
+                    "id": "in_sim_123",
+                    "customer": "cus_test_123",
+                    "subscription": "sub_sim_123",
+                    "number": "0001",
+                    "amount_due": 999,
+                    "amount_paid": 999,
+                    "amount_remaining": 0,
+                    "currency": "usd",
+                    "subtotal": 999,
+                    "tax": 0,
+                    "period_start": now,
+                    "period_end": now + 30 * 24 * 3600,
+                    "status_transitions": {"paid_at": now},
+                    "hosted_invoice_url": "https://billing.stripe.test/invoices/in_sim_123",
+                    "invoice_pdf": "https://billing.stripe.test/invoices/in_sim_123.pdf",
+                }
+            },
+        }
+        _post_webhook(client, steps, invoice_evt, webhook_secret)
+
+        # d) Replay: send subscription.created again; should be deduped (200) and not create extra rows.
+        _post_webhook(client, steps, sub_evt, webhook_secret)
+
         # 4) Verify DB state
         from models.subscription import Subscription
+        from models.invoice import Invoice
         from models.user import User
 
         user = db.query(User).filter_by(email=email).first()
         subscription = db.query(Subscription).filter_by(stripe_subscription_id="sub_sim_123").first()
-        ok_state = bool(user and subscription and subscription.status in ("active", "trialing") and user.subscription_status == "active")
+        invoice = db.query(Invoice).filter_by(stripe_invoice_id="in_sim_123").first()
+        ok_state = bool(
+            user
+            and subscription
+            and subscription.status in ("active", "trialing")
+            and user.subscription_status == "active"
+            and invoice
+            and invoice.status == "paid"
+        )
         steps.append({"step": "verify_db_state", "status_code": 0, "ok": ok_state})
+
+        # 5) Re-auth and verify account center APIs can read the state.
+        login = client.post("/api/auth/login", json={"email": email, "password": password})
+        steps.append({"step": "login", "status_code": login.status_code, "ok": login.status_code == 200})
+
+        inv_api = client.get("/api/billing/invoices?limit=10")
+        inv_api_data = inv_api.json() if inv_api.headers.get("content-type", "").startswith("application/json") else {}
+        steps.append({"step": "api_invoices", "status_code": inv_api.status_code, "ok": inv_api.status_code == 200})
 
         report = {
             "user": {"id": getattr(user, "id", None), "email": email, "subscription_status": getattr(user, "subscription_status", None)},
             "subscription": subscription.to_dict(include_sensitive=True) if subscription else None,
+            "invoice": invoice.to_dict(include_urls=True) if invoice else None,
+            "api_invoices_count": len(inv_api_data.get("invoices") or []) if isinstance(inv_api_data, dict) else None,
             "stripe_calls": stripe_calls,
         }
         _write_outputs(artifacts_dir, steps, stripe_calls, report)

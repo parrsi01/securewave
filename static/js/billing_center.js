@@ -21,6 +21,15 @@
     if (el) el.textContent = text;
   }
 
+  function escapeHtml(value) {
+    return String(value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
   function showAlert(el, message, variant) {
     if (!el) return;
     el.style.display = 'flex';
@@ -87,6 +96,57 @@
       .join('');
   }
 
+  function formatMoney(amount, currency) {
+    const num = Number(amount);
+    if (!Number.isFinite(num)) return '--';
+    const cur = (currency || 'USD').toUpperCase();
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur }).format(num);
+    } catch {
+      return `${num.toFixed(2)} ${cur}`;
+    }
+  }
+
+  function invoiceLink(invoice) {
+    if (!invoice) return '';
+    return invoice.hosted_invoice_url || invoice.pdf_url || invoice.receipt_url || '';
+  }
+
+  function renderInvoices(invoices) {
+    const body = document.querySelector('[data-invoices-body]');
+    if (!body) return;
+
+    const badge = document.querySelector('[data-invoice-count]');
+
+    if (!Array.isArray(invoices) || invoices.length === 0) {
+      if (badge) badge.textContent = '0';
+      body.innerHTML = '<tr><td colspan="5">No invoices yet.</td></tr>';
+      return;
+    }
+
+    if (badge) badge.textContent = String(invoices.length);
+    body.innerHTML = invoices
+      .map((inv) => {
+        const invNum = escapeHtml(inv.invoice_number || `#${inv.id || ''}`);
+        const date = formatMaybeDate(inv.paid_at || inv.created_at);
+        const amount = formatMoney(inv.amount_paid ?? inv.amount_due, inv.currency);
+        const status = escapeHtml(inv.status || '--');
+        const link = invoiceLink(inv);
+        const linkHtml = link
+          ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">View</a>`
+          : '';
+
+        return `<tr>
+          <td>${invNum}</td>
+          <td>${escapeHtml(date)}</td>
+          <td>${escapeHtml(amount)}</td>
+          <td><span class="badge badge-muted">${status}</span></td>
+          <td style="text-align:right">${linkHtml}</td>
+        </tr>`;
+      })
+      .join('');
+  }
+
   async function ensureAuth() {
     const me = await fetch('/api/auth/me', { credentials: 'include' });
     if (!me.ok) {
@@ -104,11 +164,13 @@
       fetchJson('/api/billing/subscriptions/current'),
       fetchJson('/api/billing/plans'),
       fetchJson('/api/billing/stripe-status'),
+      fetchJson('/api/billing/invoices?limit=10'),
     ]);
 
     const subResp = results[0].status === 'fulfilled' ? results[0].value : { ok: false, data: {} };
     const plansResp = results[1].status === 'fulfilled' ? results[1].value : { ok: false, data: {} };
     const stripeResp = results[2].status === 'fulfilled' ? results[2].value : { ok: false, data: {} };
+    const invoicesResp = results[3].status === 'fulfilled' ? results[3].value : { ok: false, data: {} };
 
     if (subResp.ok) {
       renderSubscription(subResp.data?.subscription || null);
@@ -123,6 +185,12 @@
 
     if (stripeResp.ok) {
       renderStripeStatus(stripeResp.data);
+    }
+
+    if (invoicesResp.ok) {
+      renderInvoices(invoicesResp.data?.invoices || []);
+    } else {
+      renderInvoices([]);
     }
   }
 
@@ -231,4 +299,3 @@
     }
   });
 }());
-

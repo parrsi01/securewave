@@ -3,12 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Create Account - SecureWave</title>
-  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>Acceptable Use - SecureWave</title>
+  <meta name="description" content="SecureWave acceptable use policy. Learn what is prohibited when using the SecureWave service.">
   <link rel="stylesheet" href="/css/web_ui_v1.css">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
 </head>
 <body>
 
@@ -41,46 +39,51 @@
   </div>
 </nav>
 
-<main class="auth-page">
-  <div class="auth-card">
-    <div class="auth-header">
-      <img src="/img/logo.svg" alt="SecureWave" width="48" height="48">
-      <h1>Create your account</h1>
-      <p>Start protecting your privacy today</p>
-    </div>
+<main class="content-page">
+  <div class="container">
+    <p class="content-meta">Last updated: February 2026</p>
+    <h1>Acceptable Use Policy</h1>
 
-    <form data-auth="register">
-      <div class="form-message" data-form-message></div>
+    <section>
+      <h2>1. Purpose</h2>
+      <p>SecureWave exists to provide secure, private networking using industry-standard VPN technology. This policy describes prohibited use so we can protect users, our infrastructure, and third parties.</p>
+      <p>This policy is part of our <a href="/terms">Terms of Service</a>. If you violate this policy, we may suspend or terminate your account.</p>
+    </section>
 
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input id="email" type="email" class="form-input" placeholder="you@example.com" required autocomplete="email">
-        <span class="field-hint"></span>
-      </div>
+    <section>
+      <h2>2. Prohibited Activities</h2>
+      <ul>
+        <li><strong>Illegal activity</strong> -- using the Service to engage in or facilitate any activity that violates applicable laws or regulations.</li>
+        <li><strong>Network abuse</strong> -- launching denial-of-service attacks, scanning targets without authorization, distributing malware, phishing, or operating botnets.</li>
+        <li><strong>Spam</strong> -- sending unsolicited bulk messages, posting spam content, or operating infrastructure primarily for spamming.</li>
+        <li><strong>Unauthorized access</strong> -- attempting to access systems, accounts, or data without permission.</li>
+        <li><strong>Infringement</strong> -- violating intellectual property rights, including unauthorized distribution of copyrighted material.</li>
+        <li><strong>Fraud</strong> -- payment fraud, account takeovers, or identity theft.</li>
+        <li><strong>Service disruption</strong> -- actions that degrade the Service for others, including excessive automated connections, resource exhaustion, or abusive traffic patterns.</li>
+      </ul>
+    </section>
 
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input id="password" type="password" class="form-input" placeholder="Enter your password" required autocomplete="new-password">
-        <span class="field-hint">At least 8 characters</span>
-      </div>
+    <section>
+      <h2>3. Account and Device Limits</h2>
+      <p>Subscription plans include device and usage limits. You may not:</p>
+      <ul>
+        <li>Share credentials or resell access beyond your plan limits.</li>
+        <li>Create multiple accounts to evade limits or enforcement.</li>
+        <li>Automate enrollment or create churn intended to stress the service.</li>
+      </ul>
+    </section>
 
-      <div class="form-group">
-        <label for="passwordConfirm">Confirm password</label>
-        <input id="passwordConfirm" type="password" class="form-input" placeholder="Confirm your password" required autocomplete="new-password">
-        <span class="field-hint"></span>
-      </div>
-
-      <div class="form-check">
-        <input id="terms" type="checkbox" required>
-        <label for="terms">I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a></label>
-      </div>
-
-      <button class="btn btn-primary btn-block" type="submit">Create account</button>
-    </form>
-
-    <div class="auth-footer">
-      <p>Already have an account? <a href="/login">Sign in</a></p>
-    </div>
+    <section>
+      <h2>4. Enforcement</h2>
+      <p>We may take action based on severity and context, including:</p>
+      <ul>
+        <li>Warning and request for remediation.</li>
+        <li>Temporary suspension.</li>
+        <li>Termination of access.</li>
+        <li>Preservation of required billing/tax records.</li>
+      </ul>
+      <p>If you believe an enforcement action was taken in error, contact support via <a href="/contact">Contact</a>.</p>
+    </section>
   </div>
 </main>
 
@@ -102,7 +105,7 @@
   </div>
 </footer>
 
-<script src="/js/auth.js"></script>
 <script src="/js/site.js"></script>
 </body>
 </html>
+

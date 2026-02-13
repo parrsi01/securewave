@@ -329,7 +329,9 @@ class PaymentWebhookHandler:
             logger.warning("Ignoring Stripe subscription event for unknown/mismatched customer=%s", customer_id)
             return None
 
-        # Resolve plan/billing cycle from metadata first; fall back to price ID mapping.
+        # Resolve plan/billing cycle from Stripe price ID first (authoritative),
+        # then fall back to metadata (portal plan changes typically update the
+        # price but not custom metadata).
         price_id = None
         try:
             items = (subscription_data.get("items") or {}).get("data") or []
@@ -340,8 +342,10 @@ class PaymentWebhookHandler:
             price_id = None
 
         mapping = StripeService.resolve_plan_from_price_id(price_id) if price_id else None
-        plan_id = str(metadata.get("plan_id") or (mapping.get("plan_id") if mapping else None) or "unknown")
-        billing_cycle = str(metadata.get("billing_cycle") or (mapping.get("billing_cycle") if mapping else None) or "monthly")
+        plan_id = str((mapping.get("plan_id") if mapping else None) or metadata.get("plan_id") or "unknown")
+        billing_cycle = str((mapping.get("billing_cycle") if mapping else None) or metadata.get("billing_cycle") or "monthly")
+        if billing_cycle not in {"monthly", "yearly"}:
+            billing_cycle = "monthly"
 
         plan = StripeService.get_plan_details(plan_id)
         plan_name = plan.get("name") if plan else plan_id

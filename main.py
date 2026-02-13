@@ -708,12 +708,14 @@ page_routes = {
     "/contact": "contact.html",
     "/privacy": "privacy.html",
     "/terms": "terms.html",
+    "/data_retention": "data_retention.html",
+    "/acceptable_use": "acceptable_use.html",
 }
 
 html_pages = [
     "index.html", "home.html", "login.html", "register.html",
     "dashboard.html", "vpn.html", "services.html", "subscription.html", "download.html", "leak_test.html",
-    "about.html", "contact.html", "privacy.html", "terms.html",
+    "about.html", "contact.html", "privacy.html", "terms.html", "data_retention.html", "acceptable_use.html",
     "settings.html", "diagnostics.html", "billing.html"
 ]
 

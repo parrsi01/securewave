@@ -134,6 +134,34 @@
               <div class="alert" data-checkout-alert style="display:none; margin-top: var(--space-3)"></div>
             </div>
           </div>
+
+          <div class="card" style="margin-top: var(--space-4)">
+            <div class="card-header">
+              <h3>Invoice history</h3>
+              <span class="badge badge-muted" data-invoice-count>--</span>
+            </div>
+            <div class="card-body">
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Invoice</th>
+                      <th>Date</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody data-invoices-body>
+                    <tr><td colspan="5">Loading invoices…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="muted" style="margin-top: var(--space-3)">
+                Invoice history is read-only here. For full billing management, use the Stripe portal.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div class="dash-sidebar">
@@ -174,12 +202,12 @@
         <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
       </div>
       <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/download">Downloads</a></div>
-      <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
+      <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a><a href="/data_retention">Data Retention</a><a href="/acceptable_use">Acceptable Use</a></div>
       <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/vpn">Device Center</a></div>
     </div>
     <div class="footer-bottom">
       <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
-      <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
+      <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/data_retention">Data retention</a><a href="/acceptable_use">Acceptable use</a></div>
     </div>
   </div>
 </footer>
@@ -188,4 +216,3 @@
 <script src="/js/billing_center.js"></script>
 </body>
 </html>
-

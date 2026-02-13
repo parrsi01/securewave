@@ -18,8 +18,8 @@ ERRORS=0
 WARNINGS=0
 
 pass() { echo "  OK: $1"; }
-fail() { echo "  FAIL: $1"; ((ERRORS++)); }
-warn() { echo "  WARN: $1"; ((WARNINGS++)); }
+fail() { echo "  FAIL: $1"; ERRORS=$((ERRORS + 1)); }
+warn() { echo "  WARN: $1"; WARNINGS=$((WARNINGS + 1)); }
 
 # ---- 1. Required files ----
 echo "1. Checking required files..."
@@ -46,6 +46,8 @@ REQUIRED_FILES=(
   "contact.html"
   "privacy.html"
   "terms.html"
+  "data_retention.html"
+  "acceptable_use.html"
   "404.html"
 )
 

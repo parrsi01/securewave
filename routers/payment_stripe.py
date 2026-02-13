@@ -17,8 +17,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from database.session import get_db
+from models.subscription import Subscription
 from models.user import User
 from services.jwt_service import get_current_user
 from services.stripe_service import StripeService
@@ -30,6 +33,16 @@ from utils.url_safety import require_safe_redirect_url
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
+IS_TESTING = os.getenv("TESTING", "").lower() == "true"
+
+
+def rate_limit(rule: str):
+    if IS_TESTING:
+        def decorator(func):
+            return func
+        return decorator
+    return limiter.limit(rule)
 
 
 def _stripe_configured() -> bool:
@@ -63,6 +76,7 @@ class PortalSessionRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/stripe/create-checkout-session")
+@rate_limit("10/minute")
 async def create_checkout_session(
     payload: CheckoutSessionRequest,
     request: Request,
@@ -109,6 +123,21 @@ async def create_checkout_session(
     base = _base_url(request)
 
     try:
+        # Prevent multiple active subscriptions for a single user (use the portal for upgrades/downgrades).
+        existing = (
+            db.query(Subscription)
+            .filter_by(user_id=current_user.id)
+            .filter(Subscription.status.in_(["active", "trialing", "past_due"]))
+            .order_by(Subscription.created_at.desc())
+            .first()
+        )
+        if existing:
+            raise ApiException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="subscription_exists",
+                message="An active subscription already exists. Use the billing portal to manage your plan.",
+            )
+
         # Ensure the user has a Stripe customer ID
         customer_id = getattr(current_user, "stripe_customer_id", None)
         if not customer_id:
@@ -169,6 +198,7 @@ async def create_checkout_session(
 # ---------------------------------------------------------------------------
 
 @router.post("/stripe/webhook")
+@rate_limit("120/minute")
 async def stripe_webhook(
     request: Request,
     stripe_signature: Optional[str] = Header(None, alias="Stripe-Signature"),
@@ -267,6 +297,7 @@ async def get_stripe_plans():
 # ---------------------------------------------------------------------------
 
 @router.post("/stripe/create-portal-session")
+@rate_limit("10/minute")
 async def create_portal_session(
     payload: PortalSessionRequest,
     request: Request,

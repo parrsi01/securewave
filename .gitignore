@@ -197,6 +197,8 @@ artifacts/**
 !artifacts/payment_sim/
 !artifacts/payment_sim/report.json
 !artifacts/payment_sim/summary.csv
+!artifacts/legal_pages/
+!artifacts/legal_pages/placeholder_free.md
 
 # Python
 __pycache__/

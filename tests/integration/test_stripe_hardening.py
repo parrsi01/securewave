@@ -32,6 +32,8 @@ def _configure_stripe_env(monkeypatch, *, webhook_secret: str = "whsec_test_secr
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", webhook_secret)
     monkeypatch.setenv("STRIPE_PRICE_BASIC_MONTHLY", "price_basic_monthly")
     monkeypatch.setenv("STRIPE_PRICE_BASIC_YEARLY", "price_basic_yearly")
+    monkeypatch.setenv("STRIPE_PRICE_PREMIUM_MONTHLY", "price_premium_monthly")
+    monkeypatch.setenv("STRIPE_PRICE_PREMIUM_YEARLY", "price_premium_yearly")
 
 
 def _patch_stripe_api(monkeypatch, *, session_id: str = "cs_test_123", session_url: str = "https://checkout.stripe.test/cs_test_123"):
@@ -135,6 +137,18 @@ class TestStripeWebhookVerification:
         _configure_stripe_env(monkeypatch, webhook_secret="whsec_correct")
         payload = json.dumps({"id": "evt_1", "type": "customer.subscription.created", "data": {"object": {}}}).encode("utf-8")
         sig = _stripe_signature_header(payload=payload, secret="whsec_wrong")
+        resp = client.post("/api/payments/stripe/webhook", data=payload, headers={"Stripe-Signature": sig})
+        assert resp.status_code == 400
+        body = resp.json()
+        assert body["error"]["code"] in ("bad_request", "validation_error")
+
+    def test_replayed_timestamp_signature_rejected(self, client, monkeypatch):
+        _configure_stripe_env(monkeypatch, webhook_secret="whsec_test_secret")
+        # Tight tolerance so an old timestamp is rejected (webhook replay protection at the signing layer).
+        monkeypatch.setenv("STRIPE_WEBHOOK_TOLERANCE_SECONDS", "5")
+
+        payload = json.dumps({"id": "evt_old_ts", "type": "customer.subscription.created", "data": {"object": {}}}).encode("utf-8")
+        sig = _stripe_signature_header(payload=payload, secret="whsec_test_secret", timestamp=int(time.time()) - 3600)
         resp = client.post("/api/payments/stripe/webhook", data=payload, headers={"Stripe-Signature": sig})
         assert resp.status_code == 400
         body = resp.json()
@@ -297,3 +311,59 @@ class TestStripeWebhookSecurityAndState:
         sub = db.query(Subscription).filter_by(stripe_subscription_id="sub_transition_1").first()
         assert sub is not None
         assert sub.status == "canceled"
+
+    def test_upgrade_downgrade_plan_transitions_follow_price_id(self, client, monkeypatch, test_user, db):
+        _configure_stripe_env(monkeypatch)
+        test_user.stripe_customer_id = "cus_test_123"
+        db.add(test_user)
+        db.commit()
+
+        now = int(time.time())
+        sub_id = "sub_upgrade_path_1"
+
+        # Create subscription on basic/monthly.
+        created = {
+            "id": sub_id,
+            "customer": "cus_test_123",
+            "status": "active",
+            "current_period_start": now,
+            "current_period_end": now + 30 * 24 * 3600,
+            "items": {"data": [{"price": {"id": "price_basic_monthly"}}]},
+            "metadata": {"securewave_user_id": str(test_user.id), "plan_id": "basic", "billing_cycle": "monthly"},
+        }
+        create_event = {"id": "evt_upgrade_create", "type": "customer.subscription.created", "data": {"object": created}}
+        create_payload = json.dumps(create_event, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        create_sig = _stripe_signature_header(payload=create_payload, secret="whsec_test_secret")
+        assert client.post("/api/payments/stripe/webhook", data=create_payload, headers={"Stripe-Signature": create_sig}).status_code == 200
+
+        from models.subscription import Subscription
+        sub = db.query(Subscription).filter_by(stripe_subscription_id=sub_id).first()
+        assert sub is not None
+        assert sub.plan_id == "basic"
+
+        # Upgrade via portal: Stripe price changes but custom metadata often does not.
+        upgraded = dict(created)
+        upgraded["items"] = {"data": [{"price": {"id": "price_premium_monthly"}}]}
+        upgraded["metadata"] = dict(created["metadata"])
+        upgraded["metadata"]["plan_id"] = "basic"  # stale on purpose; handler should follow price_id mapping.
+
+        upgrade_event = {"id": "evt_upgrade_update", "type": "customer.subscription.updated", "data": {"object": upgraded}}
+        upgrade_payload = json.dumps(upgrade_event, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        upgrade_sig = _stripe_signature_header(payload=upgrade_payload, secret="whsec_test_secret")
+        assert client.post("/api/payments/stripe/webhook", data=upgrade_payload, headers={"Stripe-Signature": upgrade_sig}).status_code == 200
+
+        sub = db.query(Subscription).filter_by(stripe_subscription_id=sub_id).first()
+        assert sub is not None
+        assert sub.plan_id == "premium"
+
+        # Downgrade back to basic.
+        downgraded = dict(upgraded)
+        downgraded["items"] = {"data": [{"price": {"id": "price_basic_monthly"}}]}
+        downgrade_event = {"id": "evt_upgrade_downgrade", "type": "customer.subscription.updated", "data": {"object": downgraded}}
+        downgrade_payload = json.dumps(downgrade_event, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        downgrade_sig = _stripe_signature_header(payload=downgrade_payload, secret="whsec_test_secret")
+        assert client.post("/api/payments/stripe/webhook", data=downgrade_payload, headers={"Stripe-Signature": downgrade_sig}).status_code == 200
+
+        sub = db.query(Subscription).filter_by(stripe_subscription_id=sub_id).first()
+        assert sub is not None
+        assert sub.plan_id == "basic"

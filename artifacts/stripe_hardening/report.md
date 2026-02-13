@@ -1,7 +1,7 @@
-# Stripe Hardening + Web Account/Billing Center
+# Stripe Billing Center Hardening + Legal Pages
 
 Date: 2026-02-13
-Branch: `release/stripe-harden-web`
+Branch: `release/stripe-billing-center`
 
 ## A) Changes
 - Removed all Stripe “demo billing” fallbacks. Stripe operations now require explicit Stripe configuration via env vars.
@@ -9,16 +9,28 @@ Branch: `release/stripe-harden-web`
 - Added checkout-session idempotency (double-submit protection) backed by a DB table, and wired it into:
   - `POST /api/payments/stripe/create-checkout-session`
   - `POST /api/billing/checkout-session`
+- Added idempotency wrappers for subscription mutation endpoints:
+  - `POST /api/billing/subscriptions`
+  - `PUT /api/billing/subscriptions/{id}/upgrade`
+  - `POST /api/billing/subscriptions/{id}/cancel`
+  - `POST /api/billing/subscriptions/{id}/reactivate`
 - Hardened Stripe webhook processing:
   - Strict signature requirement + strict secret requirement
   - Replay protection via a DB receipt table (`event_id` dedupe)
+  - Replayed timestamp rejection via `STRIPE_WEBHOOK_TOLERANCE_SECONDS` (tested)
   - Correct subscription creation from webhook events when the DB record is missing
   - Customer/user mismatch safety checks (ignore mismatched events)
+  - Plan upgrades/downgrades follow the Stripe Price ID mapping first (portal-safe)
   - Webhook failures return 5xx so Stripe retries (no silent 200-on-error)
 - Website updates:
   - Removed the “Plan” nav concept from authenticated pages and replaced it with a Billing Center (`/billing`).
   - Added Billing Center page with Stripe Checkout + Stripe Portal actions; messaging reinforces “VPN runs in the app”.
+  - Added read-only invoice history table on `/billing` (backed by `GET /api/billing/invoices`).
   - Diagnostics page now includes Account Diagnostics (backend reachability + subscription/billing status).
+- Legal + policy pages:
+  - Added `/data_retention` and `/acceptable_use` pages.
+  - Added footer navigation links to all policy pages across the site.
+  - Added CI guard `scripts/check_legal_placeholders.sh` and wired it into workflows to fail builds if placeholders remain.
 - Logging hardening:
   - Extended log redaction to also mask Stripe secret keys (`sk_test_…`, `sk_live_…`) and webhook secrets (`whsec_…`).
 
@@ -32,7 +44,7 @@ Branch: `release/stripe-harden-web`
 - Branding/colors/logos and the overall visual design system (`static/css/web_ui_v1.css`).
 - VPN connection control remains in the apps; no web VPN on/off toggle was introduced.
 - Hetzner-only assumptions remain unchanged (no Azure references added).
-- Legal placeholder CI guard scripts were not modified.
+- The VPN API surface and tunnel behavior were not changed as part of billing hardening.
 
 ## D) Risks Introduced + Mitigations
 - Risk: Misconfigured Stripe env vars (missing Price IDs / webhook secret) cause billing actions to fail.
@@ -41,6 +53,8 @@ Branch: `release/stripe-harden-web`
   - Mitigation: Handle both `checkout.session.completed` and `customer.subscription.*` events; subscription records are created/updated idempotently, and replays are deduped.
 - Risk: Any webhook handler exception previously returned 200 and prevented Stripe retries.
   - Mitigation: Processing errors now raise and return 5xx; receipts track attempts and last error.
+- Risk: Users could accidentally create multiple Stripe Checkout sessions while already subscribed.
+  - Mitigation: `POST /api/payments/stripe/create-checkout-session` now rejects when an active subscription exists; users are directed to the portal.
 
 ## E) Stripe Env Var Configuration (Test/Live)
 Required for Stripe billing to function:
@@ -55,6 +69,8 @@ Required for Stripe billing to function:
 
 Optional:
 - `STRIPE_WEBHOOK_TOLERANCE_SECONDS` (default: `300`)
+- `PAYMENT_IDEMPOTENCY_WINDOW_SECONDS` (default: `60`)
+- `PAYMENT_IDEMPOTENCY_STALE_AFTER_SECONDS` (default: `30`)
 
 ## F) Local Test Commands + Results
 Commands (repo root):
@@ -62,6 +78,7 @@ Commands (repo root):
 python3 -m compileall . -q
 .venv/bin/pytest -q
 .venv/bin/python sandbox/payment_sim/run_payment_sim.py
+bash scripts/check_legal_placeholders.sh
 .venv/bin/python scripts/generate_openapi.py
 ```
 
@@ -78,9 +95,11 @@ Then open:
 
 Results (in this sandbox on 2026-02-13):
 - `python3 -m compileall . -q`: PASS
-- `.venv/bin/pytest -q`: `311 passed, 3 skipped` (preview-stack tests skipped: sandbox forbids TCP sockets)
+- `.venv/bin/pytest -q`: `319 passed, 3 skipped` (preview-stack tests skipped: sandbox forbids TCP sockets)
 - `.venv/bin/python sandbox/payment_sim/run_payment_sim.py`: PASS; wrote:
   - `artifacts/payment_sim/report.json`
   - `artifacts/payment_sim/summary.csv`
+- `bash scripts/check_legal_placeholders.sh`: PASS; wrote:
+  - `artifacts/legal_pages/placeholder_free.md`
 - `.venv/bin/python scripts/generate_openapi.py`: PASS; updated `docs/openapi/securewave-openapi.json`
 - Uvicorn smoke test: NOT runnable in this sandbox (TCP sockets are blocked). Run the command above in a normal local environment.

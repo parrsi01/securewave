@@ -41,6 +41,9 @@ jobs:
             --cov=. \
             --cov-report=xml:artifacts/test-results/coverage.xml
 
+      - name: Legal placeholder guard
+        run: bash scripts/check_legal_placeholders.sh
+
       - name: Run chaos suite
         run: bash sandbox/chaos_tests/run_chaos_suite.sh --strict
 

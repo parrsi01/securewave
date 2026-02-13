@@ -24,9 +24,21 @@ from services.jwt_service import get_current_user
 from services.payment_idempotency import run_idempotent
 from utils.api_errors import ApiException
 from utils.url_safety import require_safe_redirect_url
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
+limiter = Limiter(key_func=get_remote_address)
+IS_TESTING = os.getenv("TESTING", "").lower() == "true"
+
+
+def rate_limit(rule: str):
+    if IS_TESTING:
+        def decorator(func):
+            return func
+        return decorator
+    return limiter.limit(rule)
 
 
 def _missing_provider_config(provider: str) -> bool:
@@ -92,6 +104,7 @@ class SubscriptionResponse(BaseModel):
 # ===========================
 
 @router.post("/subscriptions", response_model=Dict, status_code=status.HTTP_201_CREATED)
+@rate_limit("10/minute")
 async def create_subscription(
     payload: CreateSubscriptionRequest,
     request: Request,
@@ -124,59 +137,81 @@ async def create_subscription(
                 details={"provider": payload.provider},
             )
 
-        if payload.provider == "stripe":
-            # Create Stripe subscription
-            subscription = subscription_manager.create_subscription_stripe(
-                user_id=current_user.id,
-                plan_id=payload.plan_id,
-                billing_cycle=payload.billing_cycle,
-                payment_method_id=payload.payment_method_id,
-                trial_days=payload.trial_days
-            )
-
-            return {
-                "subscription_id": subscription.id,
-                "status": subscription.status,
-                "provider": "stripe",
-                "message": "Subscription created successfully"
-            }
-
-        elif payload.provider == "paypal":
-            # Create PayPal subscription (returns approval URL)
-            base_url = _base_url(request)
-            return_url = require_safe_redirect_url(
+        base_url = _base_url(request)
+        safe_return_url = None
+        safe_cancel_url = None
+        if payload.provider == "paypal":
+            safe_return_url = require_safe_redirect_url(
                 base_url=base_url,
                 candidate=payload.return_url or "/billing?payment=success",
                 field_name="return_url",
             )
-            cancel_url = require_safe_redirect_url(
+            safe_cancel_url = require_safe_redirect_url(
                 base_url=base_url,
                 candidate=payload.cancel_url or "/billing?payment=canceled",
                 field_name="cancel_url",
             )
 
-            result = subscription_manager.create_subscription_paypal(
-                user_id=current_user.id,
-                plan_id=payload.plan_id,
-                billing_cycle=payload.billing_cycle,
-                return_url=return_url,
-                cancel_url=cancel_url
-            )
+        idempotency_payload = {
+            "provider": payload.provider,
+            "plan_id": payload.plan_id,
+            "billing_cycle": payload.billing_cycle,
+            "trial_days": payload.trial_days,
+            "payment_method_id": payload.payment_method_id,
+            "return_url": safe_return_url,
+            "cancel_url": safe_cancel_url,
+        }
 
-            return {
-                "subscription_id": result["subscription_id"],
-                "paypal_subscription_id": result["paypal_subscription_id"],
-                "approval_url": result["approval_url"],
-                "status": result["status"],
-                "provider": "paypal",
-                "message": "Please complete payment via PayPal"
-            }
+        def _execute(idempotency_key: str):
+            if payload.provider == "stripe":
+                subscription = subscription_manager.create_subscription_stripe(
+                    user_id=current_user.id,
+                    plan_id=payload.plan_id,
+                    billing_cycle=payload.billing_cycle,
+                    payment_method_id=payload.payment_method_id,
+                    trial_days=payload.trial_days,
+                    idempotency_key=idempotency_key,
+                )
+                return {
+                    "subscription_id": subscription.id,
+                    "status": subscription.status,
+                    "provider": "stripe",
+                    "message": "Subscription created successfully",
+                }
 
-        else:
+            if payload.provider == "paypal":
+                result = subscription_manager.create_subscription_paypal(
+                    user_id=current_user.id,
+                    plan_id=payload.plan_id,
+                    billing_cycle=payload.billing_cycle,
+                    return_url=safe_return_url or "/billing?payment=success",
+                    cancel_url=safe_cancel_url or "/billing?payment=canceled",
+                )
+                return {
+                    "subscription_id": result["subscription_id"],
+                    "paypal_subscription_id": result["paypal_subscription_id"],
+                    "approval_url": result["approval_url"],
+                    "status": result["status"],
+                    "provider": "paypal",
+                    "message": "Please complete payment via PayPal",
+                }
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported payment provider: {payload.provider}"
+                detail=f"Unsupported payment provider: {payload.provider}",
             )
+
+        outcome = run_idempotent(
+            db,
+            provider=payload.provider,
+            operation="subscription_create",
+            user_id=current_user.id,
+            request_payload=idempotency_payload,
+            execute=_execute,
+        )
+        response = dict(outcome.response)
+        response["replayed"] = outcome.replayed
+        return response
 
     except HTTPException:
         raise
@@ -263,9 +298,11 @@ async def get_subscription_history(
 
 
 @router.put("/subscriptions/{subscription_id}/upgrade")
+@rate_limit("10/minute")
 async def upgrade_subscription(
     subscription_id: int,
-    request: UpgradeSubscriptionRequest,
+    payload: UpgradeSubscriptionRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -286,21 +323,40 @@ async def upgrade_subscription(
                 details={"provider": subscription.provider},
             )
 
-        updated_subscription = subscription_manager.upgrade_subscription(
-            subscription_id=subscription_id,
-            new_plan_id=request.new_plan_id,
-            billing_cycle=request.billing_cycle,
-        )
-
-        return {
-            "message": "Subscription upgraded successfully",
-            "subscription": {
-                "id": updated_subscription.id,
-                "plan_name": updated_subscription.plan_name,
-                "amount": updated_subscription.amount,
-                "billing_cycle": updated_subscription.billing_cycle,
-            }
+        idempotency_payload = {
+            "subscription_id": subscription_id,
+            "new_plan_id": payload.new_plan_id,
+            "billing_cycle": payload.billing_cycle,
         }
+
+        def _execute(idempotency_key: str):
+            updated_subscription = subscription_manager.upgrade_subscription(
+                subscription_id=subscription_id,
+                new_plan_id=payload.new_plan_id,
+                billing_cycle=payload.billing_cycle,
+                idempotency_key=idempotency_key,
+            )
+            return {
+                "message": "Subscription upgraded successfully",
+                "subscription": {
+                    "id": updated_subscription.id,
+                    "plan_name": updated_subscription.plan_name,
+                    "amount": updated_subscription.amount,
+                    "billing_cycle": updated_subscription.billing_cycle,
+                },
+            }
+
+        outcome = run_idempotent(
+            db,
+            provider=subscription.provider,
+            operation="subscription_upgrade",
+            user_id=current_user.id,
+            request_payload=idempotency_payload,
+            execute=_execute,
+        )
+        response = dict(outcome.response)
+        response["replayed"] = outcome.replayed
+        return response
 
     except HTTPException:
         raise
@@ -315,9 +371,11 @@ async def upgrade_subscription(
 
 
 @router.post("/subscriptions/{subscription_id}/cancel")
+@rate_limit("10/minute")
 async def cancel_subscription(
     subscription_id: int,
-    request: CancelSubscriptionRequest,
+    payload: CancelSubscriptionRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -338,23 +396,47 @@ async def cancel_subscription(
                 details={"provider": subscription.provider},
             )
 
-        canceled_subscription = subscription_manager.cancel_subscription(
-            subscription_id=subscription_id,
-            cancel_at_period_end=request.cancel_at_period_end,
-            reason=request.reason,
-        )
-
-        message = "Subscription will be canceled at period end" if request.cancel_at_period_end else "Subscription canceled immediately"
-
-        return {
-            "message": message,
-            "subscription": {
-                "id": canceled_subscription.id,
-                "status": canceled_subscription.status,
-                "cancel_at_period_end": canceled_subscription.cancel_at_period_end,
-                "current_period_end": canceled_subscription.current_period_end.isoformat() if canceled_subscription.current_period_end else None,
-            }
+        idempotency_payload = {
+            "subscription_id": subscription_id,
+            "cancel_at_period_end": payload.cancel_at_period_end,
+            "reason": payload.reason,
         }
+
+        def _execute(idempotency_key: str):
+            canceled_subscription = subscription_manager.cancel_subscription(
+                subscription_id=subscription_id,
+                cancel_at_period_end=payload.cancel_at_period_end,
+                reason=payload.reason,
+                idempotency_key=idempotency_key,
+            )
+
+            message = (
+                "Subscription will be canceled at period end"
+                if payload.cancel_at_period_end
+                else "Subscription canceled immediately"
+            )
+
+            return {
+                "message": message,
+                "subscription": {
+                    "id": canceled_subscription.id,
+                    "status": canceled_subscription.status,
+                    "cancel_at_period_end": canceled_subscription.cancel_at_period_end,
+                    "current_period_end": canceled_subscription.current_period_end.isoformat() if canceled_subscription.current_period_end else None,
+                },
+            }
+
+        outcome = run_idempotent(
+            db,
+            provider=subscription.provider,
+            operation="subscription_cancel",
+            user_id=current_user.id,
+            request_payload=idempotency_payload,
+            execute=_execute,
+        )
+        response = dict(outcome.response)
+        response["replayed"] = outcome.replayed
+        return response
 
     except HTTPException:
         raise
@@ -369,8 +451,10 @@ async def cancel_subscription(
 
 
 @router.post("/subscriptions/{subscription_id}/reactivate")
+@rate_limit("10/minute")
 async def reactivate_subscription(
     subscription_id: int,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -391,16 +475,33 @@ async def reactivate_subscription(
                 details={"provider": subscription.provider},
             )
 
-        reactivated_subscription = subscription_manager.reactivate_subscription(subscription_id)
+        idempotency_payload = {"subscription_id": subscription_id}
 
-        return {
-            "message": "Subscription reactivated successfully",
-            "subscription": {
-                "id": reactivated_subscription.id,
-                "status": reactivated_subscription.status,
-                "cancel_at_period_end": reactivated_subscription.cancel_at_period_end,
+        def _execute(idempotency_key: str):
+            reactivated_subscription = subscription_manager.reactivate_subscription(
+                subscription_id,
+                idempotency_key=idempotency_key,
+            )
+            return {
+                "message": "Subscription reactivated successfully",
+                "subscription": {
+                    "id": reactivated_subscription.id,
+                    "status": reactivated_subscription.status,
+                    "cancel_at_period_end": reactivated_subscription.cancel_at_period_end,
+                },
             }
-        }
+
+        outcome = run_idempotent(
+            db,
+            provider=subscription.provider,
+            operation="subscription_reactivate",
+            user_id=current_user.id,
+            request_payload=idempotency_payload,
+            execute=_execute,
+        )
+        response = dict(outcome.response)
+        response["replayed"] = outcome.replayed
+        return response
 
     except HTTPException:
         raise
@@ -419,6 +520,7 @@ async def reactivate_subscription(
 # ===========================
 
 @router.get("/portal")
+@rate_limit("20/minute")
 async def create_billing_portal_session(
     request: Request,
     return_url: Optional[str] = None,
@@ -576,6 +678,7 @@ class CheckoutRequest(BaseModel):
 
 
 @router.post("/checkout-session")
+@rate_limit("10/minute")
 async def create_checkout_session(
     payload: CheckoutRequest,
     request: Request,
@@ -719,6 +822,7 @@ async def get_stripe_status():
 # ===========================
 
 @router.post("/webhooks/stripe", include_in_schema=False)
+@rate_limit("120/minute")
 async def stripe_webhook(
     request: Request,
     stripe_signature: Optional[str] = Header(None, alias="Stripe-Signature"),
@@ -765,6 +869,7 @@ async def stripe_webhook(
 
 
 @router.post("/webhooks/paypal", include_in_schema=False)
+@rate_limit("120/minute")
 async def paypal_webhook(
     request: Request,
     db: Session = Depends(get_db)
