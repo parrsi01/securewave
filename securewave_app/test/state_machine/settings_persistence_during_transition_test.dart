@@ -15,7 +15,7 @@ void main() {
   });
 
   test('test_settings_persistence_during_transition', () async {
-    final config = testAppConfig(useMockApi: false);
+    final config = testAppConfig();
     final service = ControlledVpnService(
       nativeAvailable: true,
       connectDelay: const Duration(milliseconds: 120),

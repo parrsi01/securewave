@@ -524,8 +524,6 @@ def get_vpn_optimizer() -> OptimizedVPNOptimizer:
     global _optimizer_instance
     if _optimizer_instance is None:
         _optimizer_instance = OptimizedVPNOptimizer()
-        # Initialize with demo servers
-        _initialize_demo_servers(_optimizer_instance)
     return _optimizer_instance
 
 
@@ -534,7 +532,7 @@ def load_servers_from_database(optimizer: OptimizedVPNOptimizer, db):
     from models.vpn_server import VPNServer
 
     servers = db.query(VPNServer).filter(
-        VPNServer.status.in_(["active", "demo"])
+        VPNServer.status.in_(["active"])
     ).all()
 
     loaded_count = 0
@@ -555,30 +553,3 @@ def load_servers_from_database(optimizer: OptimizedVPNOptimizer, db):
         loaded_count += 1
 
     return loaded_count
-
-
-def _initialize_demo_servers(optimizer: OptimizedVPNOptimizer):
-    """Initialize demo servers for testing"""
-    demo_servers = [
-        {"id": "us-east-1", "location": "New York", "latency": 25, "bandwidth": 1000},
-        {"id": "us-west-1", "location": "San Francisco", "latency": 30, "bandwidth": 1000},
-        {"id": "eu-west-1", "location": "London", "latency": 40, "bandwidth": 800},
-        {"id": "eu-central-1", "location": "Frankfurt", "latency": 45, "bandwidth": 900},
-        {"id": "ap-southeast-1", "location": "Singapore", "latency": 80, "bandwidth": 700},
-        {"id": "ap-northeast-1", "location": "Tokyo", "latency": 85, "bandwidth": 750},
-    ]
-
-    for server in demo_servers:
-        optimizer.add_server(
-            server_id=server["id"],
-            location=server["location"],
-            initial_metrics={
-                "latency_ms": server["latency"],
-                "bandwidth_mbps": server["bandwidth"],
-                "cpu_load": RNG.uniform(0.2, 0.6),
-                "active_connections": RNG.randint(10, 50),
-                "packet_loss": RNG.uniform(0, 0.01),
-                "jitter_ms": RNG.uniform(1, 5),
-                "security_score": RNG.uniform(0.9, 0.99),
-            }
-        )

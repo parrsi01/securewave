@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from sandbox.chaos_tests.enforce_thresholds import compute_metrics, evaluate_thresholds, write_violations
+from dev_tools.sandbox.chaos_tests.enforce_thresholds import compute_metrics, evaluate_thresholds, write_violations
 
 
 def test_chaos_thresholds_violation_detected(tmp_path: Path):

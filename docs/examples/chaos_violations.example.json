@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-02-12T00:00:00+00:00",
-  "thresholds_path": "chaos/chaos_thresholds.json",
+  "thresholds_path": "dev_tools/chaos/chaos_thresholds.json",
   "metrics": {
     "wireguard_recovery_time_ms": 18234.0,
     "db_outage_recovery_seconds": 6.25,
@@ -32,4 +32,3 @@
     }
   ]
 }
-

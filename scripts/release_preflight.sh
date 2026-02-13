@@ -97,12 +97,9 @@ PY
 validate_fernet "AUTH_ENCRYPTION_KEY"
 validate_fernet "WG_ENCRYPTION_KEY"
 
-# Guard against accidentally releasing demo or mock tunnels.
-if [[ "${DEMO_MODE:-false}" =~ ^([Tt][Rr][Uu][Ee])$ ]]; then
-  fail_with_fix "DEMO_MODE must be false for release." "export DEMO_MODE=false"
-fi
-if [[ "${WG_MOCK_MODE:-false}" =~ ^([Tt][Rr][Uu][Ee])$ ]]; then
-  fail_with_fix "WG_MOCK_MODE must be false for release." "export WG_MOCK_MODE=false"
+# Guard against accidentally releasing with test-mode enabled.
+if [[ "${TESTING:-false}" =~ ^([Tt][Rr][Uu][Ee])$ ]]; then
+  fail_with_fix "TESTING must be false for release." "unset TESTING"
 fi
 
 # Guard against Xcode project usage in build commands (not documentation warnings).

@@ -52,7 +52,7 @@ PY
 
 if [[ "$RUN_TESTS" == "true" ]]; then
   echo "Running backend health/security smoke suite..."
-  TESTING=true DEMO_MODE=true WG_MOCK_MODE=true pytest -q tests/health tests/security/test_secrets_and_rate_limiting.py
+  TESTING=true WG_AUTO_REGISTER_PEERS=false pytest -q tests/health tests/security/test_secrets_and_rate_limiting.py
 fi
 
 echo "Backend deploy checks complete."

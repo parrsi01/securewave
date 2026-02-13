@@ -1,4 +1,4 @@
-from sandbox.benchmark.handshake_performance import compute_handshake_stats
+from dev_tools.sandbox.benchmark.handshake_performance import compute_handshake_stats
 
 
 def test_handshake_variance():

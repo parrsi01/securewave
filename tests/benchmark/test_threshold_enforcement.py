@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from sandbox.benchmark.enforce_thresholds import compute_metrics, evaluate_thresholds, write_violations
+from dev_tools.sandbox.benchmark.enforce_thresholds import compute_metrics, evaluate_thresholds, write_violations
 
 
 def _write_csv(path: Path, header: list[str], rows: list[list[str]]) -> None:

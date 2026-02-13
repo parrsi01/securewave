@@ -1,4 +1,4 @@
-from sandbox.leak_tests.route_table_test import route_leak_detected
+from dev_tools.sandbox.leak_tests.route_table_test import route_leak_detected
 
 
 def test_routing_rules():

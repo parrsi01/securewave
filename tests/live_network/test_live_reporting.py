@@ -2,7 +2,7 @@ import csv
 import json
 from pathlib import Path
 
-from sandbox.live_validation.reporting import generate_readiness_report
+from dev_tools.sandbox.live_validation.reporting import generate_readiness_report
 
 
 def _write_csv(path: Path, header: list[str], rows: list[list[str]]) -> None:

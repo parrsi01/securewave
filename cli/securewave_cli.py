@@ -22,7 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 os.environ.setdefault("AUTO_CREATE_TABLES", "false")
 
-from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session, wireguard_peer, auth_refresh_token  # noqa: E402,F401
+from models import user, subscription, audit_log, vpn_server, vpn_connection, wireguard_peer, auth_refresh_token  # noqa: E402,F401
 from database.session import SessionLocal  # noqa: E402
 from services.vpn_server_key_lifecycle import VPNServerKeyLifecycleService  # noqa: E402
 

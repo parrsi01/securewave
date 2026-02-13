@@ -34,21 +34,8 @@ def _bool_from_env(value: Optional[str]) -> Optional[bool]:
         return None
     return value.strip().lower() in ("1", "true", "yes", "on")
 
-
-def demo_mode_enabled() -> bool:
-    """Demo mode defaults to true for non-release environments."""
-    env_value = _bool_from_env(os.getenv("DEMO_MODE"))
-    if env_value is not None:
-        return env_value
-    return get_environment() not in ("production", "staging")
-
-
-def wg_mock_mode_enabled() -> bool:
-    """WireGuard mock mode defaults to true for non-release environments."""
-    env_value = _bool_from_env(os.getenv("WG_MOCK_MODE"))
-    if env_value is not None:
-        return env_value
-    return get_environment() not in ("production", "staging")
+def is_testing() -> bool:
+    return os.getenv("TESTING", "").strip().lower() == "true"
 
 
 def email_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str]]:
@@ -91,6 +78,9 @@ def production_env_errors() -> List[str]:
 
     errors: List[str] = []
 
+    if is_testing():
+        errors.append("TESTING must not be true in production")
+
     for key_name in ("AUTH_ENCRYPTION_KEY", "WG_ENCRYPTION_KEY"):
         issue = validate_fernet_key(os.getenv(key_name))
         if issue:
@@ -99,12 +89,5 @@ def production_env_errors() -> List[str]:
     provider, missing = email_config_issues()
     if missing:
         errors.append(f"EMAIL_PROVIDER({provider}) missing: {', '.join(missing)}")
-
-    for flag in ("DEMO_MODE", "WG_MOCK_MODE"):
-        value = os.getenv(flag)
-        if value is None:
-            errors.append(f"{flag} must be set to false in production")
-        elif value.strip().lower() != "false":
-            errors.append(f"{flag} must be false in production (got {value})")
 
     return errors

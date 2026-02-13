@@ -94,12 +94,10 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
 
     // App config (local)
     results['config'] = _CheckResult(
-      status: config.useMockApi ? _CheckStatus.warn : _CheckStatus.ok,
+      status: _CheckStatus.ok,
       title: 'App configuration',
       message: 'API base: ${config.apiBaseUrl}',
-      details: config.useMockApi
-          ? 'Mock API is enabled. Set SECUREWAVE_USE_MOCK_API=false in .env for live backend checks.'
-          : 'Using live backend endpoints.',
+      details: 'Using configured backend endpoints.',
     );
 
     // Auth (local)
@@ -393,7 +391,6 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       'Version: ${AppConstants.appVersion}',
       'Platform: ${platform.operatingSystem.name}',
       'API base: ${config.apiBaseUrl}',
-      'Mock API: ${config.useMockApi}',
       'Signed in: ${session.isAuthenticated}',
       if (_lastRunAt != null) 'Last run: ${_lastRunAt!.toIso8601String()}',
       '',

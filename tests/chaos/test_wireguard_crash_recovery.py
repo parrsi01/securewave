@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sandbox.chaos_tests.network_drop import run_harness
+from dev_tools.sandbox.chaos_tests.network_drop import run_harness
 
 
 def test_wireguard_crash_recovery(tmp_path: Path):

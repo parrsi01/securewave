@@ -39,7 +39,7 @@ void main() {
 
   testWidgets('connection button remains stable under rapid taps',
       (tester) async {
-    final config = testAppConfig(useMockApi: false);
+    final config = testAppConfig();
     final service = ControlledVpnService(
       nativeAvailable: true,
       connectDelay: const Duration(milliseconds: 80),

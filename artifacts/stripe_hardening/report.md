@@ -43,7 +43,7 @@ Branch: `release/stripe-billing-center`
 ## C) Untouched
 - Branding/colors/logos and the overall visual design system (`static/css/web_ui_v1.css`).
 - VPN connection control remains in the apps; no web VPN on/off toggle was introduced.
-- Hetzner-only assumptions remain unchanged (no Azure references added).
+- Hetzner-only assumptions remain unchanged (no disallowed provider references added).
 - The VPN API surface and tunnel behavior were not changed as part of billing hardening.
 
 ## D) Risks Introduced + Mitigations
@@ -77,7 +77,7 @@ Commands (repo root):
 ```bash
 python3 -m compileall . -q
 .venv/bin/pytest -q
-.venv/bin/python sandbox/payment_sim/run_payment_sim.py
+.venv/bin/python dev_tools/sandbox/payment_sim/run_payment_sim.py
 bash scripts/check_legal_placeholders.sh
 .venv/bin/python scripts/generate_openapi.py
 ```
@@ -96,7 +96,7 @@ Then open:
 Results (in this sandbox on 2026-02-13):
 - `python3 -m compileall . -q`: PASS
 - `.venv/bin/pytest -q`: `319 passed, 3 skipped` (preview-stack tests skipped: sandbox forbids TCP sockets)
-- `.venv/bin/python sandbox/payment_sim/run_payment_sim.py`: PASS; wrote:
+- `.venv/bin/python dev_tools/sandbox/payment_sim/run_payment_sim.py`: PASS; wrote:
   - `artifacts/payment_sim/report.json`
   - `artifacts/payment_sim/summary.csv`
 - `bash scripts/check_legal_placeholders.sh`: PASS; wrote:

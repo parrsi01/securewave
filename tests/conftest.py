@@ -20,14 +20,12 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key-do-not-use-in-prod"
 os.environ["ACCESS_TOKEN_SECRET"] = "test-access-secret-stable-across-restarts"
 os.environ["REFRESH_TOKEN_SECRET"] = "test-refresh-secret-stable-across-restarts"
-os.environ["DEMO_MODE"] = "true"
-os.environ["WG_MOCK_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
-os.environ["ENABLE_APP_INSIGHTS"] = "false"
 os.environ["ENABLE_SENTRY"] = "false"
 os.environ["EMAIL_VALIDATOR_CHECK_DELIVERABILITY"] = "false"
 os.environ["BCRYPT_ROUNDS"] = "4"  # Fast hashing in tests
 os.environ["WG_DATA_DIR"] = "/tmp/securewave_test_wg"
+os.environ["WG_AUTO_REGISTER_PEERS"] = "false"
 os.environ["AUTO_CREATE_TABLES"] = "false"  # Prevent auto-create on import
 
 import pytest
@@ -63,7 +61,6 @@ def _ensure_tables():
         vpn_server,
         vpn_server_rtt_sample,
         vpn_connection,
-        vpn_demo_session,
         wireguard_peer,
         gdpr,
         support_ticket,

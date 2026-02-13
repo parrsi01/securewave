@@ -15,7 +15,6 @@ class BackgroundTaskManager:
     def __init__(self):
         self.health_monitor_task: Optional[asyncio.Task] = None
         self.watchdog_task: Optional[asyncio.Task] = None
-        self.policy_worker_task: Optional[asyncio.Task] = None
         self.key_rotation_task: Optional[asyncio.Task] = None
         self.token_purge_task: Optional[asyncio.Task] = None
 
@@ -71,15 +70,6 @@ class BackgroundTaskManager:
         except Exception as e:
             logger.warning(f"Tunnel Watchdog not available: {e}")
 
-        # Start Policy Engine Worker (Day 14)
-        try:
-            from services.policy_engine_worker import get_policy_worker
-            policy_worker = get_policy_worker()
-            self.policy_worker_task = asyncio.create_task(policy_worker.start())
-            logger.info("Policy Engine Worker task created")
-        except ImportError as e:
-            logger.warning(f"Policy Engine Worker not available: {e}")
-
         # Start key rotation loop (Phase 5)
         self.key_rotation_task = asyncio.create_task(self._key_rotation_loop())
         logger.info("Key rotation task created")
@@ -91,24 +81,6 @@ class BackgroundTaskManager:
     async def stop_all(self):
         """Stop all background tasks"""
         logger.info("Stopping background tasks...")
-
-        # Stop policy worker
-        if self.policy_worker_task:
-            try:
-                from services.policy_engine_worker import get_policy_worker
-                policy_worker = get_policy_worker()
-                await policy_worker.stop()
-
-                await asyncio.wait_for(self.policy_worker_task, timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("Policy worker task did not stop gracefully, cancelling...")
-                self.policy_worker_task.cancel()
-                try:
-                    await self.policy_worker_task
-                except asyncio.CancelledError:
-                    logger.info("Policy worker task cancelled")
-            except Exception as e:
-                logger.warning(f"Error stopping policy worker: {e}")
 
         # Stop key rotation loop
         if self.key_rotation_task:

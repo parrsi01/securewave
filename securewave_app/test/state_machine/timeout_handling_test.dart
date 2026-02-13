@@ -14,7 +14,7 @@ void main() {
   });
 
   test('test_timeout_handling', () async {
-    final config = testAppConfig(useMockApi: false);
+    final config = testAppConfig();
     final service = ControlledVpnService(
       nativeAvailable: true,
       connectDelay: const Duration(milliseconds: 300),

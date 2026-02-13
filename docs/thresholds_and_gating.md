@@ -1,23 +1,23 @@
 # Thresholds And Gating
 
 SecureWave runs 3 validation suites in CI:
-- Chaos (`sandbox/chaos_tests/`)
-- Benchmark (`sandbox/benchmark/`)
-- Leak/Kill-switch (`sandbox/leak_tests/`)
+- Chaos (`dev_tools/sandbox/chaos_tests/`)
+- Benchmark (`dev_tools/sandbox/benchmark/`)
+- Leak/Kill-switch (`dev_tools/sandbox/leak_tests/`)
 
 This phase adds **measurement-based regression gates**. Suites always emit artifacts, and a dedicated threshold enforcer compares measured metrics against versioned JSON thresholds. In **strict mode**, any threshold violation fails the suite and the CI job.
 
 ## Files And Artifacts
 
 Threshold configs:
-- `benchmarks/thresholds.json`
-- `chaos/chaos_thresholds.json`
-- `leak/leak_thresholds.json`
+- `dev_tools/benchmarks/thresholds.json`
+- `dev_tools/chaos/chaos_thresholds.json`
+- `dev_tools/leak/leak_thresholds.json`
 
 Enforcers (compute metrics + compare + emit violations JSON):
-- `sandbox/benchmark/enforce_thresholds.py`
-- `sandbox/chaos_tests/enforce_thresholds.py`
-- `sandbox/leak_tests/enforce_thresholds.py`
+- `dev_tools/sandbox/benchmark/enforce_thresholds.py`
+- `dev_tools/sandbox/chaos_tests/enforce_thresholds.py`
+- `dev_tools/sandbox/leak_tests/enforce_thresholds.py`
 
 Violation outputs (always written; strict controls the exit code):
 - `artifacts/benchmark/benchmark_violations.json`
@@ -28,9 +28,9 @@ Violation outputs (always written; strict controls the exit code):
 
 Run strict suites locally:
 ```bash
-bash sandbox/chaos_tests/run_chaos_suite.sh --strict
-bash sandbox/benchmark/run_benchmarks.sh --strict
-bash sandbox/leak_tests/run_leak_tests.sh --strict
+bash dev_tools/sandbox/chaos_tests/run_chaos_suite.sh --strict
+bash dev_tools/sandbox/benchmark/run_benchmarks.sh --strict
+bash dev_tools/sandbox/leak_tests/run_leak_tests.sh --strict
 python scripts/generate_validation_master_report.py
 ```
 
@@ -114,4 +114,3 @@ See suite-specific docs:
 - `docs/benchmarks_thresholds.md`
 - `docs/chaos_thresholds.md`
 - `docs/leak_thresholds.md`
-

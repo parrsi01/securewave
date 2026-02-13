@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-02-12T00:00:00+00:00",
-  "thresholds_path": "benchmarks/thresholds.json",
+  "thresholds_path": "dev_tools/benchmarks/thresholds.json",
   "metrics": {
     "p95_latency_ms": 315.2,
     "max_jitter_ms": 71.4,
@@ -51,4 +51,3 @@
     }
   ]
 }
-

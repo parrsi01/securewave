@@ -1,6 +1,6 @@
 # Chaos Engineering Guide
 
-This guide covers SecureWave chaos harnesses under `sandbox/chaos_tests/`.
+This guide covers SecureWave chaos harnesses under `dev_tools/sandbox/chaos_tests/`.
 
 ## Included Harnesses
 - `network_drop.py`: Simulates WireGuard process crash, iptables flush, interface down/up, and firewall rule removal.
@@ -9,7 +9,7 @@ This guide covers SecureWave chaos harnesses under `sandbox/chaos_tests/`.
 
 ## Run Full Chaos Suite
 ```bash
-bash sandbox/chaos_tests/run_chaos_suite.sh
+bash dev_tools/sandbox/chaos_tests/run_chaos_suite.sh
 ```
 
 Outputs:
@@ -22,14 +22,14 @@ Outputs:
 
 Example:
 ```bash
-sudo python sandbox/chaos_tests/network_drop.py --execute --interface wg0
+sudo python dev_tools/sandbox/chaos_tests/network_drop.py --execute --interface wg0
 ```
 
 ## CI Behavior
 CI runs chaos harnesses in safe mode (non-destructive) and validates result schema + summary artifacts.
 
 ## Threshold Gating
-Chaos thresholds are defined in `chaos/chaos_thresholds.json` and enforced by the chaos suite runner in strict mode.
+Chaos thresholds are defined in `dev_tools/chaos/chaos_thresholds.json` and enforced by the chaos suite runner in strict mode.
 
 See:
 - `docs/chaos_thresholds.md`

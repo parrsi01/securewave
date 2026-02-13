@@ -13,7 +13,6 @@ void main() {
             apiBaseUrl: 'https://example.com',
             portalUrl: 'https://portal.example.com',
             upgradeUrl: 'https://upgrade.example.com',
-            useMockApi: true,
             resetSessionOnBoot: false,
           ),
         ),
@@ -23,7 +22,6 @@ void main() {
 
     final config = container.read(appConfigProvider);
     expect(config.apiBaseUrl, 'https://example.com');
-    expect(config.useMockApi, isTrue);
     expect(config.resetSessionOnBoot, isFalse);
   });
 

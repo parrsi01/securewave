@@ -43,7 +43,7 @@ All configuration uses environment variables (no secrets are committed).
 
 **How to run (local smoke):**
 ```bash
-.venv/bin/python sandbox/watchdog/run_watchdog_smoke.py
+.venv/bin/python dev_tools/sandbox/watchdog/run_watchdog_smoke.py
 ```
 
 ## 2) Barbados/EU Routing Optimization (Recommended Server)
@@ -78,7 +78,7 @@ All configuration uses environment variables (no secrets are committed).
 
 **How to generate artifacts (offline harness):**
 ```bash
-.venv/bin/python sandbox/geo_reco/run_geo_reco.py --output-dir artifacts/geo_reco
+.venv/bin/python dev_tools/sandbox/geo_reco/run_geo_reco.py --output-dir artifacts/geo_reco
 ```
 
 ## 3) IP Pool Pressure Simulator
@@ -87,7 +87,7 @@ All configuration uses environment variables (no secrets are committed).
 
 **How to run:**
 ```bash
-.venv/bin/python sandbox/ip_pool_pressure/run_ip_pool_pressure.py --output-dir artifacts/ip_pool_pressure
+.venv/bin/python dev_tools/sandbox/ip_pool_pressure/run_ip_pool_pressure.py --output-dir artifacts/ip_pool_pressure
 ```
 
 **Outputs:**
@@ -110,7 +110,7 @@ All configuration uses environment variables (no secrets are committed).
 
 **Local snapshot (no sockets required):**
 ```bash
-.venv/bin/python sandbox/system_audit/run_local_system_audit.py
+.venv/bin/python dev_tools/sandbox/system_audit/run_local_system_audit.py
 ```
 
 Writes:
@@ -120,7 +120,7 @@ Writes:
 
 **Live snapshot (HTTP probe):**
 ```bash
-.venv/bin/python sandbox/system_audit/system_audit_probe.py \
+.venv/bin/python dev_tools/sandbox/system_audit/system_audit_probe.py \
   --api-base-url "$LIVE_API_BASE_URL" \
   --output-dir artifacts/system_audit \
   --label "snapshot"
@@ -151,7 +151,6 @@ Both scripts require a reachable backend:
 
 Commands:
 ```bash
-bash sandbox/live_validation/run_live_validation.sh --strict --linux --users 3
-bash sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 4 --cycles 5
+bash dev_tools/sandbox/live_validation/run_live_validation.sh --strict --linux --users 3
+bash dev_tools/sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 4 --cycles 5
 ```
-

@@ -1,11 +1,11 @@
 # Hetzner Runbook (SecureWave)
 
-Hetzner Cloud is the only supported infrastructure provider for SecureWave. Azure is forbidden.
+Hetzner Cloud is the only supported infrastructure provider for SecureWave. Other cloud providers are unsupported.
 
 ## Policy / Guardrails
 
 - Provider: Hetzner Cloud only
-- Server type: `cx33` only
+- Server type: `cx23` / `cx33` only (default: `cx33`)
 - Default fleet size: single server
   - Scaling beyond 1 server requires an explicit override (`allow_scale=true`)
 - OS image: Ubuntu LTS (`ubuntu-22.04` or `ubuntu-24.04`)
@@ -106,11 +106,10 @@ python3 infrastructure/register_server.py \
 
 ## Backend Production Config (Must Be Explicit)
 
-In production, SecureWave fails fast unless demo/mock flags are explicitly disabled:
+In production, SecureWave fails fast unless production config is explicit:
 
 - `ENVIRONMENT=production`
-- `DEMO_MODE=false`
-- `WG_MOCK_MODE=false`
+- `TESTING` must not be enabled
 
 You must also set:
 - `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`
@@ -132,7 +131,7 @@ SecureWave does not hardcode user geo assumptions; server selection is driven by
 Local end-to-end simulation (excludes cloud traffic):
 
 ```bash
-bash sandbox/realism/run_full_simulation.sh
+bash dev_tools/sandbox/realism/run_full_simulation.sh
 ```
 
 This includes:
@@ -147,6 +146,5 @@ This includes:
 This repo is prepared to generate real WireGuard profiles backed by Hetzner server registry, but does not enable live traffic by default. Go live only after:
 - a real server is provisioned + hardened
 - the server public key + endpoint are registered in DB
-- `DEMO_MODE=false` and `WG_MOCK_MODE=false` in production env
+- `TESTING` is not enabled in production
 - peer auto-registration is configured intentionally (or explicitly disabled)
-

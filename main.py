@@ -26,7 +26,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
-from models import user, subscription, payment_idempotency_key, webhook_event_receipt, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, vpn_demo_session, auth_refresh_token, jwt_blacklist_token  # noqa: F401
+from models import user, subscription, payment_idempotency_key, webhook_event_receipt, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, auth_refresh_token, jwt_blacklist_token  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
 from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user
 from services.wireguard_service import WireGuardService
@@ -41,8 +41,6 @@ from utils.env_validation import (
     email_config_issues,
     validate_fernet_key,
     is_production,
-    demo_mode_enabled,
-    wg_mock_mode_enabled,
 )
 
 # Request ID context
@@ -327,11 +325,6 @@ def sync_static_assets():
 
 def validate_wireguard_production_config(logger: logging.Logger, server_count: int) -> None:
     """Log warnings for missing WireGuard production configuration."""
-    if wg_mock_mode_enabled():
-        return
-    if demo_mode_enabled():
-        return
-
     if not os.getenv("WG_ENCRYPTION_KEY"):
         logger.warning("WG_ENCRYPTION_KEY not set; private keys will not be encrypted at rest.")
 
@@ -391,18 +384,13 @@ def require_production_config(logger: logging.Logger) -> None:
         return
 
     errors = []
+    if os.getenv("TESTING", "").strip().lower() == "true":
+        errors.append("TESTING must not be true in production")
     if os.getenv("EMAIL_PROVIDER") is None:
         errors.append("EMAIL_PROVIDER must be explicitly set in production")
     provider, missing = email_config_issues()
     if missing:
         errors.append(f"EMAIL_PROVIDER({provider}) missing: {', '.join(missing)}")
-
-    for flag in ("DEMO_MODE", "WG_MOCK_MODE"):
-        value = os.getenv(flag)
-        if value is None:
-            errors.append(f"{flag} must be set to false in production")
-        elif value.strip().lower() != "false":
-            errors.append(f"{flag} must be false in production (got {value})")
 
     if errors:
         message = "Production configuration errors: " + "; ".join(errors)
@@ -460,19 +448,6 @@ async def initialize_app_background():
             # If no servers in database, log warning
             if server_count == 0:
                 logger.warning("No VPN servers in database.")
-                demo_mode = demo_mode_enabled()
-                wg_mock = wg_mock_mode_enabled()
-                if demo_mode or wg_mock:
-                    logger.info("Seeding demo VPN servers for demo mode...")
-                    try:
-                        from infrastructure.init_demo_servers import init_demo_servers
-                        init_demo_servers()
-                        server_count = load_servers_from_database(optimizer, db)
-                        logger.info(f"Demo servers initialized: {server_count}")
-                    except Exception as seed_err:
-                        logger.warning(f"Demo server seeding failed: {seed_err}")
-                else:
-                    logger.warning("Run: python3 infrastructure/init_demo_servers.py")
 
             validate_wireguard_production_config(logger, server_count)
         except Exception as db_err:

@@ -1,4 +1,4 @@
-from sandbox.leak_tests.dns_leak_test import evaluate_dns_servers, parse_nameservers
+from dev_tools.sandbox.leak_tests.dns_leak_test import evaluate_dns_servers, parse_nameservers
 
 
 def test_dns_no_leak():

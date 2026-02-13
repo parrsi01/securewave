@@ -1,12 +1,12 @@
 # Leak/Kill-Switch Thresholds
 
-Leak thresholds are configured in `leak/leak_thresholds.json` and enforced by `sandbox/leak_tests/enforce_thresholds.py`.
+Leak thresholds are configured in `dev_tools/leak/leak_thresholds.json` and enforced by `dev_tools/sandbox/leak_tests/enforce_thresholds.py`.
 
-The leak suite runner `sandbox/leak_tests/run_leak_tests.sh` executes the harnesses, writes summaries, then runs the enforcer. In `--strict` mode, the suite fails if any threshold is violated.
+The leak suite runner `dev_tools/sandbox/leak_tests/run_leak_tests.sh` executes the harnesses, writes summaries, then runs the enforcer. In `--strict` mode, the suite fails if any threshold is violated.
 
 ## Threshold Keys
 
-File: `leak/leak_thresholds.json`
+File: `dev_tools/leak/leak_thresholds.json`
 
 - `max_dns_leak_score`
   - Observed metric: `dns_leak_score`
@@ -34,7 +34,7 @@ File: `leak/leak_thresholds.json`
 
 Run:
 ```bash
-bash sandbox/leak_tests/run_leak_tests.sh --strict
+bash dev_tools/sandbox/leak_tests/run_leak_tests.sh --strict
 ```
 
 Outputs:
@@ -57,10 +57,9 @@ For real leak enforcement on staging:
 
 Example:
 ```bash
-sudo python sandbox/leak_tests/interface_flap_test.py --execute --strict-live --interface wg0 --output-dir artifacts/leak_tests
-python sandbox/leak_tests/enforce_thresholds.py --strict \
+sudo python dev_tools/sandbox/leak_tests/interface_flap_test.py --execute --strict-live --interface wg0 --output-dir artifacts/leak_tests
+python dev_tools/sandbox/leak_tests/enforce_thresholds.py --strict \
   --leak-dir artifacts/leak_tests \
-  --thresholds leak/leak_thresholds.json \
+  --thresholds dev_tools/leak/leak_thresholds.json \
   --output artifacts/leak_tests/leak_violations.json
 ```
-

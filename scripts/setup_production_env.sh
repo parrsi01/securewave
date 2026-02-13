@@ -91,5 +91,5 @@ print_export "AUTH_ENCRYPTION_KEY" "$auth_key"
 print_export "WG_ENCRYPTION_KEY" "$wg_key"
 
 cat <<'FOOTER'
-### Reminder: keep DEMO_MODE=false and WG_MOCK_MODE=false in production.
+### Reminder: ensure TESTING is unset/false in production.
 FOOTER

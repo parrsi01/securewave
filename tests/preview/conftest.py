@@ -56,9 +56,8 @@ def preview_stack(tmp_path_factory: pytest.TempPathFactory) -> PreviewStack:
     env.update(
         {
             "ENVIRONMENT": "preview",
-            "DEMO_MODE": "true",
-            "WG_MOCK_MODE": "true",
             "TESTING": "true",
+            "WG_AUTO_REGISTER_PEERS": "false",
             "EMAIL_PROVIDER": "smtp",
             "DATABASE_URL": f"sqlite:///{tmp_dir}/preview.db",
         }

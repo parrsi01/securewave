@@ -27,7 +27,6 @@ from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
 from services.jwt_service import get_current_user
 from utils.api_errors import ApiException, api_error_responses
-from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 from utils.input_sanitizer import (
     sanitize_allowed_ips,
     sanitize_device_name,
@@ -63,11 +62,6 @@ def rate_limit(rule: str):
         return decorator
     return limiter.limit(rule)
 
-# Check if we're in demo/mock mode
-# NOTE: Do not implicitly enable DEMO_MODE just because TESTING=true. Tests and
-# simulations should control demo/mock state explicitly via env vars.
-DEMO_MODE = demo_mode_enabled()
-WG_MOCK_MODE = wg_mock_mode_enabled()
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
 
 VPN_ERROR_RESPONSES = api_error_responses(
@@ -314,10 +308,6 @@ async def register_peer_on_server(
     Returns:
         Tuple of (success, message)
     """
-    if WG_MOCK_MODE or DEMO_MODE:
-        logger.info(f"[MOCK] Would register peer {public_key[:20]}... on server {server.server_id}")
-        return True, "Peer registered (mock mode)"
-
     if not AUTO_REGISTER_PEERS:
         logger.info(f"Auto-registration disabled. Peer {public_key[:20]}... needs manual registration.")
         return False, "Auto-registration disabled"
@@ -458,8 +448,7 @@ def _build_wireguard_profile_config(
     if keepalive > 0:
         peer_lines.append(f"PersistentKeepalive = {keepalive}")
 
-    prefix = "# SecureWave VPN DEMO CONFIG (testing only)\n" if (DEMO_MODE or WG_MOCK_MODE) else ""
-    return prefix + "\n".join(interface_lines + peer_lines) + "\n"
+    return "\n".join(interface_lines + peer_lines) + "\n"
 
 
 def _safe_server_peer_values(server: VPNServer) -> tuple[str, str, str]:
@@ -793,10 +782,6 @@ async def allocate_config(
     client_ip = peer.ipv4_address
 
     # Generate client configuration for this specific server
-    config_prefix = ""
-    if DEMO_MODE or WG_MOCK_MODE:
-        config_prefix = "# SecureWave VPN DEMO CONFIG (testing only)\n"
-
     dns_servers = _profile_dns_servers()
     mtu, keepalive, nat_detected, mtu_probe_ms = _resolve_wireguard_tuning(
         request,
@@ -824,7 +809,7 @@ async def allocate_config(
     if keepalive > 0:
         peer_lines.append(f"PersistentKeepalive = {keepalive}")
 
-    config_content = config_prefix + "\n".join(interface_lines + peer_lines) + "\n"
+    config_content = "\n".join(interface_lines + peer_lines) + "\n"
 
     # Save config file
     config_path = wg_service.config_path_for_server(current_user.id, server.server_id)
@@ -1240,19 +1225,6 @@ async def get_connection_status(
     Note: This checks if the user has an active configuration allocated.
     Actual tunnel status is managed by the WireGuard client on the user's device.
     """
-    if DEMO_MODE or WG_MOCK_MODE:
-        from services.demo_vpn_service import status as demo_status
-
-        session = demo_status(db, current_user.id)
-        return ConnectionStatusResponse(
-            status=session.status,
-            connected=session.status == "CONNECTED",
-            server_id=session.assigned_node,
-            server_location=session.region,
-            client_ip=session.mock_ip,
-            connected_since=session.connected_since.isoformat() if session.connected_since else None,
-        )
-
     # Check for active VPN connections (if tracking)
     active_connection = db.query(VPNConnection).filter(
         VPNConnection.user_id == current_user.id,
@@ -1283,33 +1255,11 @@ async def connect_vpn(
     db: Session = Depends(get_db),
 ):
     """
-    Compatibility endpoint for demo flows and tests.
+    Allocate a config (if needed) and mark a connection as active.
 
-    - In demo/mock mode: uses the demo VPN session logic.
-    - In live mode: allocates a config and marks a connection as active.
+    Note: This does not establish a tunnel on the client device. The WireGuard
+    client in the SecureWave app performs the actual connect/disconnect.
     """
-    if DEMO_MODE or WG_MOCK_MODE:
-        from services.demo_vpn_service import connect as demo_connect
-
-        session = demo_connect(db, current_user.id, payload.region)
-        get_runtime_metrics().record_peer_connect()
-        _log_vpn_event(
-            "vpn_peer_connect",
-            mode="demo",
-            user_id=current_user.id,
-            server_id=session.assigned_node,
-            region=session.region,
-        )
-        return {
-            "mode": "demo",
-            "status": session.status,
-            "session_id": session.id,
-            "connected_since": session.connected_since.isoformat() if session.connected_since else None,
-            "region": session.region,
-            "assigned_node": session.assigned_node,
-            "mock_ip": session.mock_ip,
-        }
-
     await require_active_subscription(db, current_user)
     wg_service = WireGuardService()
     user_tier = get_user_tier(current_user, db)
@@ -1415,24 +1365,6 @@ async def disconnect_vpn(
 
     Note: This does not terminate a WireGuard tunnel on the client device.
     """
-    if DEMO_MODE or WG_MOCK_MODE:
-        from services.demo_vpn_service import disconnect as demo_disconnect
-
-        session = demo_disconnect(db, current_user.id)
-        get_runtime_metrics().record_peer_disconnect()
-        _log_vpn_event(
-            "vpn_peer_disconnect",
-            mode="demo",
-            user_id=current_user.id,
-            server_id=session.assigned_node,
-        )
-        return {
-            "mode": "demo",
-            "status": session.status,
-            "disconnected_at": datetime.utcnow().isoformat(),
-            "last_error": session.last_error,
-        }
-
     active_connection = db.query(VPNConnection).filter(
         VPNConnection.user_id == current_user.id,
         VPNConnection.disconnected_at.is_(None)
@@ -1462,23 +1394,8 @@ async def get_vpn_config(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Compatibility endpoint for demo flows and tests.
     Returns the latest allocated WireGuard config.
     """
-    if DEMO_MODE or WG_MOCK_MODE:
-        from services.demo_vpn_service import status as demo_status, build_demo_config
-        from database.session import SessionLocal
-
-        db = SessionLocal()
-        try:
-            session = demo_status(db, current_user.id)
-            if session.status != "CONNECTED":
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="VPN not connected")
-            return {"mode": "demo", "config": build_demo_config(session)}
-        finally:
-            db.close()
-
-    # Live mode requires active subscription
     from database.session import SessionLocal
     db = SessionLocal()
     try:
@@ -1760,14 +1677,6 @@ async def check_server_health(
     server = VPNServerService.get_server_by_id(db, server_id)
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
-
-    if WG_MOCK_MODE or DEMO_MODE:
-        return {
-            "server_id": server_id,
-            "mode": "mock",
-            "healthy": True,
-            "message": "Mock mode - health check simulated",
-        }
 
     try:
         manager = get_wireguard_server_manager()

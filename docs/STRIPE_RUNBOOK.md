@@ -106,7 +106,7 @@ stripe trigger customer.subscription.deleted
 STRIPE_SECRET_KEY=sk_test_... uvicorn main:app --port 8000
 
 # Run test harness
-python sandbox/payments/test_stripe_flow.py
+python dev_tools/sandbox/payments/test_stripe_flow.py
 ```
 
 ### Key Test Scenarios

@@ -1,12 +1,12 @@
 # Benchmark Thresholds
 
-Benchmark thresholds are configured in `benchmarks/thresholds.json` and enforced by `sandbox/benchmark/enforce_thresholds.py`.
+Benchmark thresholds are configured in `dev_tools/benchmarks/thresholds.json` and enforced by `dev_tools/sandbox/benchmark/enforce_thresholds.py`.
 
-The full benchmark suite runner `sandbox/benchmark/run_benchmarks.sh` always generates benchmark artifacts, then runs the enforcer. In `--strict` mode, the suite fails if any threshold is violated.
+The full benchmark suite runner `dev_tools/sandbox/benchmark/run_benchmarks.sh` always generates benchmark artifacts, then runs the enforcer. In `--strict` mode, the suite fails if any threshold is violated.
 
 ## Threshold Keys
 
-File: `benchmarks/thresholds.json`
+File: `dev_tools/benchmarks/thresholds.json`
 
 - `max_p95_latency_ms`
   - Observed metric: `p95_latency_ms`
@@ -40,7 +40,7 @@ Note: The effective throughput is computed as:
 
 Run:
 ```bash
-bash sandbox/benchmark/run_benchmarks.sh --strict
+bash dev_tools/sandbox/benchmark/run_benchmarks.sh --strict
 ```
 
 Outputs:
@@ -54,13 +54,12 @@ Example violation payload:
 ## Updating Thresholds
 
 1. Run:
-   - `bash sandbox/benchmark/run_benchmarks.sh`
+   - `bash dev_tools/sandbox/benchmark/run_benchmarks.sh`
 2. Inspect:
    - `artifacts/benchmark/benchmark_violations.json` (computed metrics)
    - `artifacts/benchmark/*.csv` (raw distributions)
-3. Update `benchmarks/thresholds.json` based on a stable baseline.
+3. Update `dev_tools/benchmarks/thresholds.json` based on a stable baseline.
 
 ## CI Notes (ICMP/Simulated Probes)
 
 In some CI environments, ICMP may be blocked. The harnesses degrade gracefully and may emit simulated rows for ping-based measurements. Threshold gates still enforce computed metrics, but you should treat simulated-heavy runs as weaker signals and run the benchmark suite on staging for corridor-grade baselines.
-

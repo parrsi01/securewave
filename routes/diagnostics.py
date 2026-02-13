@@ -6,9 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.session import get_db
-from utils.env_validation import demo_mode_enabled
 from models.audit_log import AuditLog
-from models.vpn_demo_session import VPNDemoSession
 from services.jwt_service import get_current_user
 
 router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
@@ -128,21 +126,7 @@ def debug_session(
     Shows current user session state, VPN status, optimizer stats.
     (Day 10: /debug/session endpoint)
     """
-    # Get VPN demo session if exists
-    vpn_session = db.query(VPNDemoSession).filter(
-        VPNDemoSession.user_id == current_user.id
-    ).first()
-
     vpn_status = None
-    if vpn_session:
-        vpn_status = {
-            "status": vpn_session.status,
-            "region": vpn_session.region,
-            "assigned_node": vpn_session.assigned_node,
-            "mock_ip": vpn_session.mock_ip,
-            "connected_since": vpn_session.connected_since.isoformat() if vpn_session.connected_since else None,
-            "last_error": vpn_session.last_error,
-        }
 
     # Get optimizer stats
     optimizer_stats = None
@@ -181,13 +165,11 @@ def diagnostics_summary(
     current_user=Depends(get_current_user)
 ):
     env = os.getenv("ENVIRONMENT", "development")
-    demo_mode = demo_mode_enabled()
     db_url = os.getenv("DATABASE_URL", "")
     db_type = "sqlite" if db_url.startswith("sqlite") else "postgres"
 
     return {
         "environment": env,
-        "demo_mode": demo_mode,
         "database": db_type,
         "user_id": current_user.id,
     }

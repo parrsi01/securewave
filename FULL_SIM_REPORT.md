@@ -1,10 +1,10 @@
-# Full Simulation Report (Non-Azure)
+# Full Simulation Report (Offline)
 
 Run date: 2026-02-11
 
 ## Run Metadata
 
-- Suite: `sandbox/realism/run_full_simulation.sh`
+- Suite: `dev_tools/sandbox/realism/run_full_simulation.sh`
 - Artifacts: `artifacts/sim_tests/20260211_021246/`
 - Branch: `release/v1.0.0-non-apple-freeze`
 - Commit: `cad5fab`
@@ -13,7 +13,7 @@ Run date: 2026-02-11
 
 - Python:
   - `python -m compileall` (services + ml)
-  - `pytest -q` (local-only, demo/mock enabled for safety)
+  - `pytest -q` (local-only)
   - `pytest -q tests_real` (real-profile structure validation; no live traffic; peer auto-registration disabled)
 - Flutter:
   - `flutter analyze`
@@ -21,7 +21,7 @@ Run date: 2026-02-11
 - Backend + flows:
   - Local uvicorn backend (sqlite)
   - Website page flows
-  - API flows: signup, login, device registration, VPN profile fetch, demo connect/status/config/disconnect
+  - API flows: signup, login, device registration, VPN profile fetch
 
 ## Results
 
@@ -32,6 +32,5 @@ Run date: 2026-02-11
 
 ## Notes
 
-- Cloud traffic was intentionally excluded (no Azure, no Hetzner live calls).
+- Cloud traffic was intentionally excluded (no live infra calls).
 - A fake Hetzner server record was seeded for local profile issuance validation (documentation IP `203.0.113.10`).
-

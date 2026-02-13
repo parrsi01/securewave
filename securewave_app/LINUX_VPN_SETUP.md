@@ -25,6 +25,4 @@ MethodChannel writes the config to disk and executes `wg-quick up/down`.
    - `sudo wg show securewave`
    - `ip addr show securewave`
 
-If `wg-quick` is not found, Flutter receives `vpn_unavailable`. In demo mode
-(`SECUREWAVE_USE_MOCK_API=true`) the app can simulate a tunnel; in live mode it
-will not connect until the tools are installed.
+If `wg-quick` is not found, Flutter receives `vpn_unavailable` and the app will not connect until the tools are installed.

@@ -1,7 +1,7 @@
 import csv
 from pathlib import Path
 
-from sandbox.benchmark.ping_latency import run_benchmark
+from dev_tools.sandbox.benchmark.ping_latency import run_benchmark
 
 
 EXPECTED_COLUMNS = {

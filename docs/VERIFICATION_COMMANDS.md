@@ -161,8 +161,6 @@ Select-String -Path "securewave_app/windows/runner/flutter_window.cpp" -Pattern 
 ```bash
 # Set production env vars
 export ENVIRONMENT=production
-export DEMO_MODE=false
-export WG_MOCK_MODE=false
 
 # Generate encryption keys if needed
 bash scripts/generate_keys.sh
@@ -203,8 +201,6 @@ For GitHub Actions or other CI systems:
 env:
   TESTING: "true"
   ENVIRONMENT: "development"
-  DEMO_MODE: "true"
-  WG_MOCK_MODE: "true"
   DATABASE_URL: "sqlite:///:memory:"
   SECRET_KEY: "test-secret-key-for-ci"
   ACCESS_TOKEN_SECRET: "test-access-token-secret"

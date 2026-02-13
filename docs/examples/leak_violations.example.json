@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-02-12T00:00:00+00:00",
-  "thresholds_path": "leak/leak_thresholds.json",
+  "thresholds_path": "dev_tools/leak/leak_thresholds.json",
   "metrics": {
     "dns_leak_score": 2.0,
     "ipv6_block_misses": 1.0,
@@ -47,4 +47,3 @@
     }
   ]
 }
-

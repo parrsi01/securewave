@@ -14,7 +14,7 @@ void main() {
   });
 
   test('test_async_backend_failure_during_connect', () async {
-    final config = testAppConfig(useMockApi: false);
+    final config = testAppConfig();
     final service = ControlledVpnService(nativeAvailable: true);
     final api = FakeApiClient(
       config: config,

@@ -203,7 +203,6 @@ def create_tables():
         vpn_server,
         vpn_server_rtt_sample,
         vpn_connection,
-        vpn_demo_session,
         wireguard_peer,
         jwt_blacklist_token,
         gdpr,

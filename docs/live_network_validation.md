@@ -29,7 +29,7 @@ export LIVE_PUBLIC_IP_ENDPOINT="https://api.ipify.org"
 ## Run End-to-End Validation
 
 ```bash
-sudo -E bash sandbox/live_validation/run_live_validation.sh --strict --linux --users 3
+sudo -E bash dev_tools/sandbox/live_validation/run_live_validation.sh --strict --linux --users 3
 ```
 
 Artifacts are written to `artifacts/live_validation/`:
@@ -44,7 +44,7 @@ Artifacts are written to `artifacts/live_validation/`:
 ## Run Concurrency Stress Validation
 
 ```bash
-sudo -E bash sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 4 --cycles 5
+sudo -E bash dev_tools/sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 4 --cycles 5
 ```
 
 Stress outputs include:
@@ -60,7 +60,7 @@ Stress outputs include:
 Safe mode (non-destructive):
 
 ```bash
-python sandbox/live_validation/network_failure_cases.py \
+python dev_tools/sandbox/live_validation/network_failure_cases.py \
   --api-base-url "$LIVE_API_BASE_URL" \
   --output-dir artifacts/live_validation
 ```
@@ -68,7 +68,7 @@ python sandbox/live_validation/network_failure_cases.py \
 Destructive mode (root, explicit):
 
 ```bash
-sudo -E python sandbox/live_validation/network_failure_cases.py \
+sudo -E python dev_tools/sandbox/live_validation/network_failure_cases.py \
   --api-base-url "$LIVE_API_BASE_URL" \
   --output-dir artifacts/live_validation \
   --execute --strict

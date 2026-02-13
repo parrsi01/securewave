@@ -57,7 +57,7 @@ export WG_ENCRYPTION_KEY="<generated-key>"
 
 **Validate (strict):**
 ```bash
-ENVIRONMENT=production DEMO_MODE=false WG_MOCK_MODE=false \
+ENVIRONMENT=production \
   bash scripts/setup_production_env.sh
 ```
 
@@ -111,8 +111,6 @@ Warnings: 0
 **Required production settings:**
 ```bash
 export ENVIRONMENT=production
-export DEMO_MODE=false
-export WG_MOCK_MODE=false
 ```
 
 **Verify:**
@@ -351,18 +349,15 @@ alembic upgrade head
 
 ---
 
-### Demo/Mock Mode in Production
+### Testing Flags in Production
 
-**Symptom:** App starts but VPN connections are simulated.
+**Symptom:** Backend fails fast during startup due to environment validation.
 
 **Fix:**
 ```bash
-# Must be explicitly false
-export DEMO_MODE=false
-export WG_MOCK_MODE=false
 export ENVIRONMENT=production
+unset TESTING
 
-# Verify
 bash scripts/verify_env.sh
 ```
 
@@ -383,8 +378,6 @@ bash scripts/verify_env.sh
 export TESTING=true
 export DATABASE_URL=sqlite:///:memory:
 export SECRET_KEY=test-secret-key
-export DEMO_MODE=true
-export WG_MOCK_MODE=true
 
 pip install -r requirements_dev.txt
 pytest tests -v

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sandbox.ip_pool_pressure.simulator import IPPoolPressureConfig, simulate_ip_pool_pressure
+from dev_tools.sandbox.ip_pool_pressure.simulator import IPPoolPressureConfig, simulate_ip_pool_pressure
 
 
 def test_ip_pool_pressure_simulator_validates_uniqueness_and_reclaim(tmp_path):
@@ -37,4 +37,3 @@ def test_ip_pool_pressure_simulator_emits_exhaustion_errors_and_alerts(tmp_path)
     summary = report["summary"]
     assert summary["exhaustion_errors_total"] >= 1
     assert summary["final_pool_stats"]["alert"] is not None
-

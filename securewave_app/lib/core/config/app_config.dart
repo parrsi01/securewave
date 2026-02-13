@@ -11,25 +11,20 @@ class AppConfig {
     required this.apiBaseUrl,
     required this.portalUrl,
     required this.upgradeUrl,
-    required this.useMockApi,
     required this.resetSessionOnBoot,
   });
 
   final String apiBaseUrl;
   final String portalUrl;
   final String upgradeUrl;
-  final bool useMockApi;
   final bool resetSessionOnBoot;
   static AppConfig? _cached;
 
   factory AppConfig.defaults() {
-    // CRITICAL: Do NOT default to mock in release/profile builds
-    const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
     return AppConfig(
       apiBaseUrl: AppConstants.baseUrlFallback,
       portalUrl: AppConstants.portalUrlFallback,
       upgradeUrl: AppConstants.upgradeUrlFallback,
-      useMockApi: kIsDebugMode, // Only mock in debug by default
       resetSessionOnBoot: false,
     );
   }
@@ -61,18 +56,6 @@ class AppConfig {
       'SECUREWAVE_UPGRADE_URL',
       AppConstants.upgradeUrlFallback,
     );
-    // CRITICAL: In release/profile, default to false unless explicitly enabled via env
-    const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
-    const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
-    var useMock = _parseBool(
-      env['SECUREWAVE_USE_MOCK_API'] ??
-          const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
-            defaultValue: kIsDebugMode ? 'true' : 'false'),
-    );
-    if (kIsReleaseMode && useMock) {
-      AppLogger.warning('Config: mock API disabled in release builds.');
-      useMock = false;
-    }
     final resetSessionOnBoot = _parseBool(
       env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
           const String.fromEnvironment(
@@ -85,7 +68,6 @@ class AppConfig {
       apiBaseUrl: baseUrl,
       portalUrl: portalUrl,
       upgradeUrl: upgradeUrl,
-      useMockApi: useMock,
       resetSessionOnBoot: resetSessionOnBoot,
     );
     return _cached!;

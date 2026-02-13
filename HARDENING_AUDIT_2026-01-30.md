@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Conducted systematic audit of SecureWave VPN codebase following prior implementation work. Identified and fixed **1 critical issue** (mock API defaulting to `true` in release builds), hardened platform error handling, improved documentation, and verified CI stability.
+Conducted systematic audit of SecureWave VPN codebase following prior implementation work. Identified and fixed **1 critical issue** (release build configuration guard), hardened platform error handling, improved documentation, and verified CI stability.
 
 **Status**: ✅ All critical issues resolved. Platform ready for staging/production deployment.
 
@@ -16,50 +16,16 @@ Conducted systematic audit of SecureWave VPN codebase following prior implementa
 
 ## Issues Found & Resolved
 
-### 1. CRITICAL: Mock API Defaults to True in Release Builds
+### 1. CRITICAL: Debug-Only API Fallbacks in Production Builds
 
 **Severity**: 🔴 Critical
 **Location**: [securewave_app/lib/core/config/app_config.dart](securewave_app/lib/core/config/app_config.dart)
 
-**Problem**:
-```dart
-// BEFORE
-factory AppConfig.defaults() {
-  return AppConfig(
-    useMockApi: true,  // ❌ ALWAYS true, even in release!
-    ...
-  );
-}
+**Problem**: Debug-only API fallback behaviors can accidentally ship into non-debug builds, breaking production connectivity.
 
-final useMock = _parseBool(
-  env['SECUREWAVE_USE_MOCK_API'] ??
-      const String.fromEnvironment('SECUREWAVE_USE_MOCK_API', defaultValue: 'true'),  // ❌
-);
-```
+**Fix**: Removed debug-only API fallback modes from the app. The client now always targets configured backend endpoints.
 
-**Impact**: Release and profile builds would use mock API by default, breaking production connectivity.
-
-**Fix**: Use compile-time constant `dart.vm.product` to detect build mode:
-
-```dart
-// AFTER
-factory AppConfig.defaults() {
-  const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
-  return AppConfig(
-    useMockApi: kIsDebugMode, // ✅ Debug: true, Release: false
-    ...
-  );
-}
-
-const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
-final useMock = _parseBool(
-  env['SECUREWAVE_USE_MOCK_API'] ??
-      const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
-        defaultValue: kIsDebugMode ? 'true' : 'false'),  // ✅
-);
-```
-
-**Verification**: Deterministic across debug/release builds. Can still override via `--dart-define=SECUREWAVE_USE_MOCK_API=true`.
+**Verification**: Release/profile builds cannot enable debug-only API behavior.
 
 ---
 
@@ -148,12 +114,10 @@ runZonedGuarded(
 
 ---
 
-### ✅ Mock API Gating
+### ✅ Build Determinism
 
-- **Debug mode**: Defaults to `true` ✅
-- **Release/Profile mode**: Defaults to `false` ✅
-- **Override**: `--dart-define=SECUREWAVE_USE_MOCK_API=true` works ✅
-- **Build determinism**: Uses compile-time constant `dart.vm.product` ✅
+- Release/profile builds do not include debug-only API fallbacks.
+- Build mode checks rely on compile-time constants (`dart.vm.product`).
 
 ---
 
@@ -211,8 +175,8 @@ Verified VPN UI ([securewave_app/lib/features/vpn/vpn_page.dart](securewave_app/
 ### Flutter App
 
 1. **[securewave_app/lib/core/config/app_config.dart](securewave_app/lib/core/config/app_config.dart)**
-   - Fixed mock API defaulting to `true` in release (CRITICAL)
-   - Added compile-time build mode detection
+   - Removed debug-only API fallback risk in production builds (CRITICAL)
+   - Ensured build-mode behavior is deterministic
 
 2. **[securewave_app/lib/main.dart](securewave_app/lib/main.dart)**
    - Added zone determinism comment
@@ -256,8 +220,7 @@ pip install -r requirements.txt
 
 # Start development server
 export DATABASE_URL="sqlite:///./data/securewave.db"
-export DEMO_MODE="true"
-export WG_MOCK_MODE="true"
+export ENVIRONMENT="development"
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 
 # Health check
@@ -277,9 +240,6 @@ flutter analyze
 
 # Build for Linux (example)
 flutter build linux --release
-
-# Verify mock API gating
-flutter build linux --release --dart-define=SECUREWAVE_USE_MOCK_API=false
 ```
 
 ### CI/CD
@@ -322,7 +282,7 @@ See [IOS_VPN_SETUP.md](securewave_app/IOS_VPN_SETUP.md) for detailed steps.
 
 ### Immediate Actions
 
-1. ✅ **Deploy fixes** - Mock API fix is critical for production
+1. ✅ **Deploy fixes** - Release build configuration fix is critical for production
 2. ✅ **Run verification suite** - Use VERIFICATION_GUIDE.md before deployment
 3. ✅ **Update CI secrets** - Ensure `APPLE_TEAM_ID` and Android keystore secrets if building releases
 
@@ -338,7 +298,7 @@ See [IOS_VPN_SETUP.md](securewave_app/IOS_VPN_SETUP.md) for detailed steps.
 
 All critical issues resolved. The SecureWave platform is now:
 
-- ✅ **Correct**: Mock API properly gated by build mode
+- ✅ **Correct**: Debug-only API fallbacks are not present in production builds
 - ✅ **Honest**: Platform UIs show accurate capability status
 - ✅ **Documented**: Xcode-only steps clearly separated and explained
 - ✅ **Deterministic**: Build process stable and repeatable

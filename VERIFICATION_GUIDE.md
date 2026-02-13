@@ -23,8 +23,7 @@ pip install -r requirements.txt
 ```bash
 # Set required environment variables
 export DATABASE_URL="sqlite:///./data/securewave.db"
-export DEMO_MODE="true"
-export WG_MOCK_MODE="true"
+export ENVIRONMENT="development"
 
 # Start the server
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
@@ -37,7 +36,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/api/health
 ```
 
-Expected: `{"status":"ok","service":"securewave-vpn-demo"}`
+Expected: `{"status":"ok", ...}`
 
 ## Website Verification
 
@@ -141,16 +140,9 @@ flutter build ios --release --no-codesign
 **IMPORTANT**: See [IOS_VPN_SETUP.md](securewave_app/IOS_VPN_SETUP.md) for required Xcode steps.
 You MUST use `Runner.xcworkspace`, not `Runner.xcodeproj`.
 
-### 5. Verify mock API is disabled in release
+### 5. Release build sanity check
 
-Build with release mode and check logs should show mock API is false:
-
-```bash
-flutter build linux --release --dart-define=SECUREWAVE_USE_MOCK_API=false
-# Check the config loading in app logs
-```
-
-In debug mode, mock API defaults to `true`. In release/profile, it defaults to `false` unless explicitly overridden.
+Build in release mode and verify the app can reach the backend at the configured API base URL.
 
 ## CI/CD Verification
 
@@ -195,7 +187,6 @@ Expected: All plan pricing is consistent across pages.
 ## Deterministic Builds
 
 - Flutter app uses compile-time constants for build mode detection
-- Mock API defaults to `false` in release unless `SECUREWAVE_USE_MOCK_API=true`
 - All HTML timestamps and cache busting injected during CI build step
 - Zone initialization in `main.dart` ensures deterministic error handling
 
@@ -218,4 +209,3 @@ ls -la build/linux/x64/release/bundle/securewave_app || echo "Linux build failed
 - **"No module named pytest"**: Install dev dependencies: `pip install -r requirements_dev.txt`
 - **Flutter build fails**: Run `flutter doctor` and resolve any missing dependencies
 - **iOS build fails**: Ensure you're using `Runner.xcworkspace` in Xcode, not `Runner.xcodeproj`
-- **Mock API in production**: Verify `--release` build mode and check compile-time constants

@@ -3,21 +3,11 @@ import 'package:platform_info/platform_info.dart';
 
 import '../models/server_region.dart';
 import '../models/user_plan.dart';
-import '../config/app_config.dart';
 import '../services/vpn_service.dart';
 import '../../services/api_client.dart';
 
 final vpnServiceProvider = Provider<VpnService>((ref) {
-  final config = ref.read(appConfigProvider);
-  if (config.useMockApi) {
-    // Demo mode: never attempt a real tunnel. This keeps VPN UX testable on
-    // any platform without OS-level VPN components or backend provisioning.
-    return MockVpnService();
-  }
-  return ChannelVpnService(
-    fallback: MockVpnService(),
-    allowFallback: false,
-  );
+  return ChannelVpnService();
 });
 
 final deviceInfoProvider = Provider<String>((ref) {

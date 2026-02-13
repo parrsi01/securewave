@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sandbox.live_validation.network_failure_cases import categorize_fault_result, run_fault_cases
+from dev_tools.sandbox.live_validation.network_failure_cases import categorize_fault_result, run_fault_cases
 
 
 def test_categorize_fault_result_values():

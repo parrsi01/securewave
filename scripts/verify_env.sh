@@ -53,7 +53,7 @@ require_false() {
     if [[ "$STRICT_ENV" == "true" ]]; then
       log_error "$name must be false for $ENVIRONMENT_LOWER (got $value)"
     else
-      log_warning "$name is $value (expected false outside demo)"
+      log_warning "$name is $value (expected false outside production)"
     fi
   fi
 }
@@ -100,8 +100,9 @@ from_email="${FROM_EMAIL:-${SMTP_FROM_EMAIL:-${SMTP_USER:-}}}"
 if [[ "$STRICT_ENV" == "true" ]]; then
   validate_fernet AUTH_ENCRYPTION_KEY
   validate_fernet WG_ENCRYPTION_KEY
-  require_false DEMO_MODE
-  require_false WG_MOCK_MODE
+  if [[ "${TESTING:-false}" =~ ^([Tt][Rr][Uu][Ee])$ ]]; then
+    log_error "TESTING must not be true for $ENVIRONMENT_LOWER"
+  fi
 fi
 
 if [[ "$provider" == "smtp" ]]; then

@@ -11,10 +11,9 @@ from unittest.mock import patch
 
 from utils.env_validation import (
     get_environment,
+    is_testing,
     is_production,
     validate_fernet_key,
-    demo_mode_enabled,
-    wg_mock_mode_enabled,
     email_config_issues,
     production_env_errors,
 )
@@ -65,54 +64,20 @@ class TestValidateFernetKey:
         assert "invalid" in result
 
 
-class TestDemoModeEnabled:
-    def test_explicit_true(self):
-        with patch.dict(os.environ, {"DEMO_MODE": "true", "ENVIRONMENT": "development"}):
-            assert demo_mode_enabled() is True
+class TestIsTesting:
+    def test_false_when_unset(self):
+        with patch.dict(os.environ, {}, clear=True):
+            assert is_testing() is False
 
-    def test_explicit_false(self):
-        with patch.dict(os.environ, {"DEMO_MODE": "false", "ENVIRONMENT": "development"}):
-            assert demo_mode_enabled() is False
+    def test_true_when_enabled(self):
+        with patch.dict(os.environ, {"TESTING": "true"}):
+            assert is_testing() is True
 
-    def test_defaults_true_in_development(self):
-        env = {"ENVIRONMENT": "development"}
-        with patch.dict(os.environ, env, clear=True):
-            os.environ.pop("DEMO_MODE", None)
-            assert demo_mode_enabled() is True
-
-    def test_defaults_false_in_production(self):
-        env = {"ENVIRONMENT": "production"}
-        with patch.dict(os.environ, env, clear=True):
-            os.environ.pop("DEMO_MODE", None)
-            assert demo_mode_enabled() is False
-
-    def test_defaults_false_in_staging(self):
-        env = {"ENVIRONMENT": "staging"}
-        with patch.dict(os.environ, env, clear=True):
-            os.environ.pop("DEMO_MODE", None)
-            assert demo_mode_enabled() is False
-
-
-class TestWgMockModeEnabled:
-    def test_explicit_true(self):
-        with patch.dict(os.environ, {"WG_MOCK_MODE": "true", "ENVIRONMENT": "development"}):
-            assert wg_mock_mode_enabled() is True
-
-    def test_explicit_false(self):
-        with patch.dict(os.environ, {"WG_MOCK_MODE": "false", "ENVIRONMENT": "development"}):
-            assert wg_mock_mode_enabled() is False
-
-    def test_defaults_true_in_development(self):
-        env = {"ENVIRONMENT": "development"}
-        with patch.dict(os.environ, env, clear=True):
-            os.environ.pop("WG_MOCK_MODE", None)
-            assert wg_mock_mode_enabled() is True
-
-    def test_defaults_false_in_production(self):
-        env = {"ENVIRONMENT": "production"}
-        with patch.dict(os.environ, env, clear=True):
-            os.environ.pop("WG_MOCK_MODE", None)
-            assert wg_mock_mode_enabled() is False
+    @pytest.mark.parametrize("value", ["1", "yes", "on", "TRUE"])
+    def test_only_true_string_enables(self, value: str):
+        with patch.dict(os.environ, {"TESTING": value}):
+            # is_testing() is intentionally strict for safety.
+            assert is_testing() is (value.strip().lower() == "true")
 
 
 class TestEmailConfigIssues:
@@ -193,8 +158,6 @@ class TestProductionEnvErrors:
     def test_missing_encryption_keys_in_production(self):
         env = {
             "ENVIRONMENT": "production",
-            "DEMO_MODE": "false",
-            "WG_MOCK_MODE": "false",
             "EMAIL_PROVIDER": "smtp",
             "SMTP_HOST": "smtp.example.com",
             "SMTP_PORT": "587",
@@ -209,15 +172,14 @@ class TestProductionEnvErrors:
             assert any("AUTH_ENCRYPTION_KEY" in e for e in errors)
             assert any("WG_ENCRYPTION_KEY" in e for e in errors)
 
-    def test_demo_mode_must_be_false_in_production(self):
+    def test_testing_must_not_be_true_in_production(self):
         from cryptography.fernet import Fernet
         valid_key = Fernet.generate_key().decode()
         env = {
             "ENVIRONMENT": "production",
             "AUTH_ENCRYPTION_KEY": valid_key,
             "WG_ENCRYPTION_KEY": valid_key,
-            "DEMO_MODE": "true",
-            "WG_MOCK_MODE": "false",
+            "TESTING": "true",
             "EMAIL_PROVIDER": "smtp",
             "SMTP_HOST": "smtp.example.com",
             "SMTP_PORT": "587",
@@ -227,27 +189,7 @@ class TestProductionEnvErrors:
         }
         with patch.dict(os.environ, env):
             errors = production_env_errors()
-            assert any("DEMO_MODE" in e for e in errors)
-
-    def test_wg_mock_mode_must_be_false_in_production(self):
-        from cryptography.fernet import Fernet
-        valid_key = Fernet.generate_key().decode()
-        env = {
-            "ENVIRONMENT": "production",
-            "AUTH_ENCRYPTION_KEY": valid_key,
-            "WG_ENCRYPTION_KEY": valid_key,
-            "DEMO_MODE": "false",
-            "WG_MOCK_MODE": "true",
-            "EMAIL_PROVIDER": "smtp",
-            "SMTP_HOST": "smtp.example.com",
-            "SMTP_PORT": "587",
-            "SMTP_USER": "user@example.com",
-            "SMTP_PASSWORD": "password",
-            "FROM_EMAIL": "noreply@example.com",
-        }
-        with patch.dict(os.environ, env):
-            errors = production_env_errors()
-            assert any("WG_MOCK_MODE" in e for e in errors)
+            assert any("TESTING" in e for e in errors)
 
     def test_no_errors_when_fully_configured(self):
         from cryptography.fernet import Fernet
@@ -256,8 +198,7 @@ class TestProductionEnvErrors:
             "ENVIRONMENT": "production",
             "AUTH_ENCRYPTION_KEY": valid_key,
             "WG_ENCRYPTION_KEY": valid_key,
-            "DEMO_MODE": "false",
-            "WG_MOCK_MODE": "false",
+            "TESTING": "false",
             "EMAIL_PROVIDER": "smtp",
             "SMTP_HOST": "smtp.example.com",
             "SMTP_PORT": "587",

@@ -26,7 +26,6 @@ Date: 2026-02-12
   - refresh-token one-time rotation/revocation tracking
   - Stripe webhook secret+tolerance enforcement
   - pre-commit secrets scanning config
-  - Azure-reference guard script for active code paths
 - Test expansion:
   - health suite
   - VPN profile/config integration tests
@@ -35,7 +34,7 @@ Date: 2026-02-12
   - security redaction/rate-limit/default-secret tests
   - Flutter integration harness scaffold
 - Live simulation scaffold:
-  - `sandbox/simulate_user.py`
+  - `dev_tools/sandbox/simulate_user.py`
   - outputs JSON/CSV/report under `artifacts/simulation/`
 
 ## Validation Summary
@@ -58,9 +57,6 @@ Date: 2026-02-12
   - Result: **13 passed, 0 failed**
   - Command: `flutter test integration_test`
   - Result: **2 passed, 0 failed**
-- Infrastructure/security checks:
-  - Command: `bash scripts/check_no_azure_refs.sh`
-  - Result: **pass**
 
 ### Aggregate Pass/Fail Counts
 - Backend tests executed: **272 passed / 0 failed**

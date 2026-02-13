@@ -19,12 +19,9 @@ from models.user import User
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from services.wireguard_server_manager import get_wireguard_server_manager, server_connection_from_db
-from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 
 logger = logging.getLogger(__name__)
 
-DEMO_MODE = demo_mode_enabled()
-WG_MOCK_MODE = wg_mock_mode_enabled()
 FREE_TIER_MONTHLY_GB = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
 FREE_TIER_MONTHLY_BYTES = int(FREE_TIER_MONTHLY_GB * 1024 * 1024 * 1024)
 FREE_TIER_DEVICE_LIMIT = int(os.getenv("FREE_TIER_DEVICE_LIMIT", "1"))
@@ -56,14 +53,6 @@ async def revoke_user_peers(db: Session, user: User) -> int:
     if not peers:
         return 0
 
-    if DEMO_MODE or WG_MOCK_MODE:
-        for peer in peers:
-            peer.is_revoked = True
-            peer.is_active = False
-            peer.revoked_at = datetime.utcnow()
-        db.commit()
-        return len(peers)
-
     try:
         manager = get_wireguard_server_manager()
     except Exception as exc:
@@ -94,9 +83,6 @@ async def revoke_user_peers(db: Session, user: User) -> int:
 
 async def _sync_user_usage(db: Session, user: User) -> None:
     """Best-effort sync of peer usage from WireGuard servers."""
-    if DEMO_MODE or WG_MOCK_MODE:
-        return
-
     peers = (
         db.query(WireGuardPeer)
         .filter(
@@ -194,7 +180,7 @@ async def require_active_subscription(db: Session, user: User) -> Optional[Subsc
     - The free-tier data cap has been exceeded, or
     - A paid subscription has expired.
     """
-    if user.is_admin or DEMO_MODE or WG_MOCK_MODE:
+    if user.is_admin:
         sub = _get_active_subscription(db, user.id)
         return sub if sub else None
 

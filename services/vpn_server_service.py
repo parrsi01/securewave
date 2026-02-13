@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
 from models.user import User
-from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +26,7 @@ class VPNServerService:
         Returns:
             List of available VPN servers
         """
-        include_demo = demo_mode_enabled() or wg_mock_mode_enabled()
-        allowed_statuses = ["active", "demo"] if include_demo else ["active"]
+        allowed_statuses = ["active"]
 
         query = db.query(VPNServer).filter(
             VPNServer.status.in_(allowed_statuses),

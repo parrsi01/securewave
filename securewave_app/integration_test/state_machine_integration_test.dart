@@ -19,7 +19,7 @@ void main() {
 
   testWidgets('state machine remains deterministic across repeated cycles',
       (tester) async {
-    final config = testAppConfig(useMockApi: false);
+    final config = testAppConfig();
     final service = ControlledVpnService(
       nativeAvailable: true,
       connectDelay: const Duration(milliseconds: 25),

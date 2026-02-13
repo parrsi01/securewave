@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/config/app_config.dart';
 import '../../core/state/app_state.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
@@ -13,10 +12,9 @@ class PlatformNotice extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final vpnService = ref.watch(vpnServiceProvider);
-    final config = ref.watch(appConfigProvider);
 
-    // No notice needed if native VPN is available or demo mode is on.
-    if (vpnService.isNativeAvailable || config.useMockApi) {
+    // No notice needed if native VPN is available.
+    if (vpnService.isNativeAvailable) {
       return const SizedBox.shrink();
     }
 

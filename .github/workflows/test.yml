@@ -45,13 +45,13 @@ jobs:
         run: bash scripts/check_legal_placeholders.sh
 
       - name: Run chaos suite
-        run: bash sandbox/chaos_tests/run_chaos_suite.sh --strict
+        run: bash dev_tools/sandbox/chaos_tests/run_chaos_suite.sh --strict
 
       - name: Run benchmark suite
-        run: bash sandbox/benchmark/run_benchmarks.sh --strict
+        run: bash dev_tools/sandbox/benchmark/run_benchmarks.sh --strict
 
       - name: Run leak suite
-        run: bash sandbox/leak_tests/run_leak_tests.sh --strict
+        run: bash dev_tools/sandbox/leak_tests/run_leak_tests.sh --strict
 
       - name: Generate validation master report
         run: python scripts/generate_validation_master_report.py
@@ -111,7 +111,7 @@ jobs:
           channel: stable
 
       - name: Run VPN state stress harness
-        run: bash sandbox/state_stress/run_stress_flows.sh
+        run: bash dev_tools/sandbox/state_stress/run_stress_flows.sh
 
       - name: Upload state stress artifacts
         uses: actions/upload-artifact@v4
@@ -149,10 +149,10 @@ jobs:
           sudo apt-get install -y wireguard-tools dnsutils iproute2 curl
 
       - name: Run live E2E validation (strict)
-        run: sudo -E bash sandbox/live_validation/run_live_validation.sh --strict --linux --users 2
+        run: sudo -E bash dev_tools/sandbox/live_validation/run_live_validation.sh --strict --linux --users 2
 
       - name: Run live stress validation (strict)
-        run: sudo -E bash sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 2 --cycles 2
+        run: sudo -E bash dev_tools/sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 2 --cycles 2
 
       - name: Upload live validation artifacts
         uses: actions/upload-artifact@v4

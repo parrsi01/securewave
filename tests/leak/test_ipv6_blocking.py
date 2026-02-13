@@ -1,4 +1,4 @@
-from sandbox.leak_tests.ipv6_leak_test import classify_ipv6_state
+from dev_tools.sandbox.leak_tests.ipv6_leak_test import classify_ipv6_state
 
 
 def test_ipv6_blocking():

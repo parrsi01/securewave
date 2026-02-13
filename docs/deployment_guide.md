@@ -2,7 +2,7 @@
 
 ## 1. Prepare environment
 1. Copy `.env.example.backend` to `.env` and set real values.
-2. Ensure `DEMO_MODE=false` and `WG_MOCK_MODE=false`.
+2. Ensure `ENVIRONMENT=production` and `TESTING` is not enabled.
 3. Set `DATABASE_URL` to PostgreSQL.
 
 ## 2. Deploy backend

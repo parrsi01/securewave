@@ -13,7 +13,7 @@ void main() {
   });
 
   test('test_double_disconnect', () async {
-    final config = testAppConfig(useMockApi: false);
+    final config = testAppConfig();
     final service = ControlledVpnService(
       nativeAvailable: true,
       connectDelay: Duration.zero,

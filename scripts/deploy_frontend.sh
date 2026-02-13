@@ -27,12 +27,12 @@ echo "Running flutter integration harness..."
 flutter test integration_test
 
 echo "Building Android APK..."
-flutter build apk --release --dart-define=SECUREWAVE_USE_MOCK_API=false
+flutter build apk --release
 
 if [[ "$(uname -s)" == "Linux" ]]; then
   echo "Building Linux desktop..."
   flutter config --enable-linux-desktop >/dev/null
-  flutter build linux --release --dart-define=SECUREWAVE_USE_MOCK_API=false
+  flutter build linux --release
 else
   echo "Skipping Linux desktop build (not running on Linux host)."
 fi
@@ -40,7 +40,7 @@ fi
 if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname -s)" == CYGWIN* ]]; then
   echo "Building Windows desktop..."
   flutter config --enable-windows-desktop >/dev/null
-  flutter build windows --release --dart-define=SECUREWAVE_USE_MOCK_API=false
+  flutter build windows --release
 else
   echo "Skipping Windows desktop build (run this script on Windows CI/host for windows binaries)."
 fi

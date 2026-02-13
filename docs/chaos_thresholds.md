@@ -1,12 +1,12 @@
 # Chaos Thresholds
 
-Chaos thresholds are configured in `chaos/chaos_thresholds.json` and enforced by `sandbox/chaos_tests/enforce_thresholds.py`.
+Chaos thresholds are configured in `dev_tools/chaos/chaos_thresholds.json` and enforced by `dev_tools/sandbox/chaos_tests/enforce_thresholds.py`.
 
-The chaos suite runner `sandbox/chaos_tests/run_chaos_suite.sh` executes the harnesses, writes summaries, then runs the enforcer. In `--strict` mode, the suite fails if any threshold is violated.
+The chaos suite runner `dev_tools/sandbox/chaos_tests/run_chaos_suite.sh` executes the harnesses, writes summaries, then runs the enforcer. In `--strict` mode, the suite fails if any threshold is violated.
 
 ## Threshold Keys
 
-File: `chaos/chaos_thresholds.json`
+File: `dev_tools/chaos/chaos_thresholds.json`
 
 - `max_wireguard_recovery_time_ms`
   - Observed metric: `wireguard_recovery_time_ms`
@@ -32,7 +32,7 @@ File: `chaos/chaos_thresholds.json`
 
 Run:
 ```bash
-bash sandbox/chaos_tests/run_chaos_suite.sh --strict
+bash dev_tools/sandbox/chaos_tests/run_chaos_suite.sh --strict
 ```
 
 Outputs:
@@ -47,14 +47,13 @@ Example violation payload:
 
 Example (run on a staging host only):
 ```bash
-sudo python sandbox/chaos_tests/network_drop.py --execute --interface wg0 --output-dir artifacts/chaos_tests
-python sandbox/chaos_tests/enforce_thresholds.py --strict \
+sudo python dev_tools/sandbox/chaos_tests/network_drop.py --execute --interface wg0 --output-dir artifacts/chaos_tests
+python dev_tools/sandbox/chaos_tests/enforce_thresholds.py --strict \
   --chaos-dir artifacts/chaos_tests \
-  --thresholds chaos/chaos_thresholds.json \
+  --thresholds dev_tools/chaos/chaos_thresholds.json \
   --output artifacts/chaos_tests/chaos_violations.json
 ```
 
 Safety:
 - `network_drop.py --execute` snapshots iptables rules (when possible) and restores them after fault injection.
 - Still expect transient network disruption; do not run on a production control plane.
-

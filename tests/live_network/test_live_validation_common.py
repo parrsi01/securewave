@@ -1,4 +1,4 @@
-from sandbox.live_validation.common import (
+from dev_tools.sandbox.live_validation.common import (
     evaluate_dns_leak,
     parse_latest_handshake_epoch,
     parse_wireguard_config,

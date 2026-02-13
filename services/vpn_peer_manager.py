@@ -18,7 +18,6 @@ from models.user import User
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from services.wireguard_service import WireGuardService
-from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -242,12 +241,7 @@ class VPNPeerManager:
         private_key = self.wg_service.decrypt_private_key(peer.private_key_encrypted)
 
         # Generate config
-        demo_prefix = ""
-        if demo_mode_enabled() or wg_mock_mode_enabled():
-            demo_prefix = "# SecureWave VPN DEMO CONFIG (testing only)\n"
-
         config = (
-            demo_prefix +
             "[Interface]\n"
             f"PrivateKey = {private_key}\n"
             f"Address = {peer.ipv4_address}\n"

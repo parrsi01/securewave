@@ -3,12 +3,6 @@
 # Uses grep instead of ripgrep (rg) for portability across CI environments
 set -euo pipefail
 
-# Check mock API guard exists in app config
-if ! grep -qn "mock API disabled in release builds" securewave_app/lib/core/config/app_config.dart; then
-  echo "ERROR: Release guard for mock API missing in app_config.dart"
-  exit 1
-fi
-
 # Collect production env files
 env_files=()
 for file in .env.production.example .env.template; do
@@ -17,14 +11,10 @@ for file in .env.production.example .env.template; do
   fi
 done
 
-# Verify mock flags are not enabled in env files
+# Verify testing flags are not enabled in env files
 if [[ ${#env_files[@]} -gt 0 ]]; then
-  if grep -Eqn "SECUREWAVE_USE_MOCK_API\s*=\s*true" "${env_files[@]}" 2>/dev/null; then
-    echo "ERROR: Mock API enabled in release env files."
-    exit 1
-  fi
-  if grep -Eqn "WG_MOCK_MODE\s*=\s*true" "${env_files[@]}" 2>/dev/null; then
-    echo "ERROR: WG_MOCK_MODE enabled in release env files."
+  if grep -Eqn "TESTING\\s*=\\s*(true|1|yes)" "${env_files[@]}" 2>/dev/null; then
+    echo "ERROR: TESTING enabled in release env files."
     exit 1
   fi
 fi

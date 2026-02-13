@@ -11,8 +11,6 @@ set -euo pipefail
 #
 # Environment variables:
 #   ENVIRONMENT            - test environment (default: development)
-#   DEMO_MODE              - enable demo mode (default: true for tests)
-#   WG_MOCK_MODE           - mock wireguard (default: true for tests)
 #   PYTEST_ARGS            - pytest arguments (default: "tests -v")
 #   SKIP_INSTALL           - skip pip install step (default: false)
 #   USE_SYSTEM_PYTHON      - use system python instead of venv (default: false)
@@ -21,9 +19,8 @@ set -euo pipefail
 
 export ENVIRONMENT="${ENVIRONMENT:-development}"
 export TESTING="true"
-export DEMO_MODE="${DEMO_MODE:-true}"
-export WG_MOCK_MODE="${WG_MOCK_MODE:-true}"
 export EMAIL_VALIDATOR_CHECK_DELIVERABILITY="false"
+export WG_AUTO_REGISTER_PEERS="${WG_AUTO_REGISTER_PEERS:-false}"
 
 # Detect CI environment
 IS_CI="${CI:-false}"
@@ -85,8 +82,6 @@ fi
 
 echo "Running tests..."
 echo "ENVIRONMENT=$ENVIRONMENT"
-echo "DEMO_MODE=$DEMO_MODE"
-echo "WG_MOCK_MODE=$WG_MOCK_MODE"
 echo ""
 
 PYTEST_ARGS=${PYTEST_ARGS:-"tests -v"}

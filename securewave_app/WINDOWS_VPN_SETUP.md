@@ -51,6 +51,4 @@ cd securewave_app
    - PowerShell: `Get-Service -Name "WireGuardTunnel$SecureWave"`
    - Or check the WireGuard UI for the SecureWave tunnel.
 
-If `wireguard.exe` is missing, Flutter receives `vpn_unavailable`. In demo mode
-(`SECUREWAVE_USE_MOCK_API=true`) the app can simulate a tunnel; in live mode it
-will not connect until WireGuard is installed.
+If `wireguard.exe` is missing, Flutter receives `vpn_unavailable` and the app will not connect until WireGuard is installed.

@@ -48,13 +48,13 @@ jobs:
         run: python -m pytest -q
 
       - name: Run chaos suite
-        run: bash sandbox/chaos_tests/run_chaos_suite.sh --strict
+        run: bash dev_tools/sandbox/chaos_tests/run_chaos_suite.sh --strict
 
       - name: Run benchmark suite
-        run: bash sandbox/benchmark/run_benchmarks.sh --strict
+        run: bash dev_tools/sandbox/benchmark/run_benchmarks.sh --strict
 
       - name: Run leak suite
-        run: bash sandbox/leak_tests/run_leak_tests.sh --strict
+        run: bash dev_tools/sandbox/leak_tests/run_leak_tests.sh --strict
 
       - name: Generate validation master report
         run: python scripts/generate_validation_master_report.py
@@ -107,7 +107,7 @@ jobs:
           channel: stable
 
       - name: Run VPN state stress harness
-        run: bash sandbox/state_stress/run_stress_flows.sh
+        run: bash dev_tools/sandbox/state_stress/run_stress_flows.sh
 
       - name: Upload state stress artifacts
         uses: actions/upload-artifact@v4

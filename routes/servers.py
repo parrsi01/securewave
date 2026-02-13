@@ -23,7 +23,6 @@ from models.user import User
 from models.vpn_server import VPNServer
 from services.jwt_service import get_current_user
 from services.wireguard_service import WireGuardService
-from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
@@ -32,10 +31,6 @@ from services.wireguard_server_manager import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/servers", tags=["admin-servers"])
-
-# Environment settings
-DEMO_MODE = demo_mode_enabled()
-WG_MOCK_MODE = wg_mock_mode_enabled()
 
 
 # =============================================================================
@@ -359,20 +354,6 @@ async def run_health_check(
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
 
-    if WG_MOCK_MODE or DEMO_MODE:
-        # Simulate health check in mock mode
-        server.health_status = "healthy"
-        server.last_health_check = datetime.utcnow()
-        server.consecutive_health_failures = 0
-        db.commit()
-
-        return {
-            "server_id": server_id,
-            "healthy": True,
-            "mode": "mock",
-            "message": "Mock health check passed",
-        }
-
     try:
         manager = get_wireguard_server_manager()
         conn = server_connection_from_db(server)
@@ -459,19 +440,6 @@ async def get_server_metrics(
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
 
-    if WG_MOCK_MODE or DEMO_MODE:
-        return {
-            "server_id": server_id,
-            "mode": "mock",
-            "metrics": {
-                "cpu_load": 0.25,
-                "memory_percent": 45.2,
-                "disk_percent": 30,
-                "peer_count": server.current_connections,
-                "uptime_seconds": 86400,
-            }
-        }
-
     try:
         manager = get_wireguard_server_manager()
         conn = server_connection_from_db(server)
@@ -523,15 +491,6 @@ async def list_server_peers(
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
 
-    if WG_MOCK_MODE or DEMO_MODE:
-        # Return mock peer list
-        return {
-            "server_id": server_id,
-            "mode": "mock",
-            "peers": [],
-            "count": 0,
-        }
-
     try:
         manager = get_wireguard_server_manager()
         conn = server_connection_from_db(server)
@@ -582,15 +541,6 @@ async def sync_server_peers(
         User.is_active == True
     ).all()
 
-    if WG_MOCK_MODE or DEMO_MODE:
-        return {
-            "server_id": server_id,
-            "mode": "mock",
-            "synced": len(users_with_keys),
-            "failed": 0,
-            "message": f"Would sync {len(users_with_keys)} peers (mock mode)",
-        }
-
     manager = get_wireguard_server_manager()
     conn = server_connection_from_db(server)
 
@@ -640,14 +590,6 @@ async def add_peer_to_server(
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
 
-    if WG_MOCK_MODE or DEMO_MODE:
-        return {
-            "server_id": server_id,
-            "mode": "mock",
-            "success": True,
-            "message": "Peer would be added (mock mode)",
-        }
-
     try:
         manager = get_wireguard_server_manager()
         conn = server_connection_from_db(server)
@@ -681,14 +623,6 @@ async def remove_peer_from_server(
     server = db.query(VPNServer).filter(VPNServer.server_id == server_id).first()
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
-
-    if WG_MOCK_MODE or DEMO_MODE:
-        return {
-            "server_id": server_id,
-            "mode": "mock",
-            "success": True,
-            "message": "Peer would be removed (mock mode)",
-        }
 
     try:
         manager = get_wireguard_server_manager()

@@ -45,7 +45,6 @@ class ApiClient {
   DateTime? _serversFetchedAt;
   UserPlan? _cachedPlan;
   DateTime? _planFetchedAt;
-  bool _mockNoticeLogged = false;
 
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
@@ -56,13 +55,6 @@ class ApiClient {
       if (age < _serversCacheTtl) {
         return _cachedServers!;
       }
-    }
-    if (_config.useMockApi) {
-      _logMockApi();
-      final data = _mockServers();
-      _cachedServers = data;
-      _serversFetchedAt = DateTime.now();
-      return data;
     }
     try {
       final response = await _dio.get<Map<String, dynamic>>('/vpn/servers');
@@ -78,17 +70,6 @@ class ApiClient {
       _serversFetchedAt = DateTime.now();
       return servers;
     } catch (error, stackTrace) {
-      if (_config.useMockApi) {
-        _logMockApi();
-        AppLogger.warning(
-            'Server list unavailable; using mock regions (mock API mode).');
-        AppLogger.error('Server list error',
-            error: error, stackTrace: stackTrace);
-        final data = _mockServers();
-        _cachedServers = data;
-        _serversFetchedAt = DateTime.now();
-        return data;
-      }
       AppLogger.error('Server list error',
           error: error, stackTrace: stackTrace);
       rethrow;
@@ -102,13 +83,6 @@ class ApiClient {
         return _cachedPlan!;
       }
     }
-    if (_config.useMockApi) {
-      _logMockApi();
-      final plan = _mockPlan();
-      _cachedPlan = plan;
-      _planFetchedAt = DateTime.now();
-      return plan;
-    }
     try {
       final response = await _dio.get<Map<String, dynamic>>('/user/plan');
       final data = response.data ?? <String, dynamic>{};
@@ -117,16 +91,6 @@ class ApiClient {
       _planFetchedAt = DateTime.now();
       return plan;
     } catch (error, stackTrace) {
-      if (_config.useMockApi) {
-        _logMockApi();
-        AppLogger.warning(
-            'Plan lookup failed; using mock plan (mock API mode).');
-        AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
-        final plan = _mockPlan();
-        _cachedPlan = plan;
-        _planFetchedAt = DateTime.now();
-        return plan;
-      }
       AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
       rethrow;
     }
@@ -134,10 +98,6 @@ class ApiClient {
 
   Future<AuthTokens> login(
       {required String email, required String password}) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return _mockTokens(email);
-    }
     try {
       final response =
           await _dio.post<Map<String, dynamic>>('/auth/login', data: {
@@ -145,8 +105,12 @@ class ApiClient {
         'password': password,
       });
       final data = response.data ?? <String, dynamic>{};
+      final accessToken = data['access_token']?.toString();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw StateError('Login response missing access_token');
+      }
       return AuthTokens(
-        accessToken: data['access_token']?.toString() ?? 'mock-access-token',
+        accessToken: accessToken,
         refreshToken: data['refresh_token']?.toString(),
       );
     } catch (error, stackTrace) {
@@ -157,10 +121,6 @@ class ApiClient {
 
   Future<AuthTokens?> register(
       {required String email, required String password}) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return _mockTokens(email);
-    }
     try {
       final response =
           await _dio.post<Map<String, dynamic>>('/auth/register', data: {
@@ -171,7 +131,7 @@ class ApiClient {
       final data = response.data ?? <String, dynamic>{};
       if (data['access_token'] == null) return null;
       return AuthTokens(
-        accessToken: data['access_token']?.toString() ?? 'mock-access-token',
+        accessToken: data['access_token']?.toString() ?? '',
         refreshToken: data['refresh_token']?.toString(),
       );
     } catch (error, stackTrace) {
@@ -179,46 +139,6 @@ class ApiClient {
           error: error, stackTrace: stackTrace);
       rethrow;
     }
-  }
-
-  AuthTokens _mockTokens(String email) {
-    final handle = email.split('@').first;
-    return AuthTokens(
-        accessToken: 'mock-token-$handle',
-        refreshToken: 'mock-refresh-$handle');
-  }
-
-  List<ServerRegion> _mockServers() {
-    return const [
-      ServerRegion(
-          id: 'us-chi',
-          name: 'Chicago, IL',
-          country: 'United States',
-          latencyMs: 28),
-      ServerRegion(
-          id: 'us-nyc',
-          name: 'New York, NY',
-          country: 'United States',
-          latencyMs: 42),
-      ServerRegion(
-          id: 'uk-lon',
-          name: 'London',
-          country: 'United Kingdom',
-          latencyMs: 75),
-      ServerRegion(
-          id: 'de-fra', name: 'Frankfurt', country: 'Germany', latencyMs: 58),
-      ServerRegion(
-          id: 'sg-sin', name: 'Singapore', country: 'Singapore', latencyMs: 91),
-    ];
-  }
-
-  UserPlan _mockPlan() {
-    return const UserPlan(
-      name: 'Free',
-      isPremium: false,
-      dataCapGb: 5,
-      usedGb: 1.6,
-    );
   }
 
   Future<VpnProfile> fetchVpnProfile({
@@ -230,32 +150,6 @@ class ApiClient {
     bool forceRotateKeys = false,
     CancelToken? cancelToken,
   }) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return VpnProfile.fromJson({
-        'device_id': 0,
-        'device_name': deviceName,
-        'device_type': deviceType,
-        'protocol': 'wireguard',
-        'server_id': serverId ?? 'mock',
-        'server_location': 'Mock',
-        'issued_at': DateTime.now().toIso8601String(),
-        'expires_at':
-            DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
-        'wireguard_config': _mockVpnConfig(),
-        'dns': {
-          'servers': ['94.140.14.14', '94.140.15.15'],
-          'ad_malware_blocking': 'on',
-          'enforcement': 'config',
-        },
-        'kill_switch': {
-          'mode': 'enabled',
-          'enforcement': 'best effort',
-        },
-        'peer_registered': true,
-        'registration_status': 'mock',
-      });
-    }
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/vpn/profile',
@@ -280,9 +174,6 @@ class ApiClient {
 
   Future<Map<String, dynamic>?> fetchVpnMetricsSnapshot(
       {CancelToken? cancelToken}) async {
-    if (_config.useMockApi) {
-      return null;
-    }
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/metrics/vpn',
@@ -298,14 +189,7 @@ class ApiClient {
   }
 
   /// Notify the backend that the VPN tunnel has been established.
-  ///
-  /// In demo/mock mode this triggers the demo VPN session on the server so
-  /// that the dashboard and status endpoints reflect a connected state.
   Future<void> notifyVpnConnected({String? region}) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return;
-    }
     try {
       await _dio.post<Map<String, dynamic>>(
         '/vpn/connect',
@@ -320,10 +204,6 @@ class ApiClient {
 
   /// Notify the backend that the VPN tunnel has been torn down.
   Future<void> notifyVpnDisconnected() async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return;
-    }
     try {
       await _dio.post<Map<String, dynamic>>('/vpn/disconnect');
     } catch (error, stackTrace) {
@@ -332,27 +212,6 @@ class ApiClient {
       AppLogger.error('VPN disconnect notify error',
           error: error, stackTrace: stackTrace);
     }
-  }
-
-  void _logMockApi() {
-    if (_mockNoticeLogged) return;
-    _mockNoticeLogged = true;
-    AppLogger.warning(
-        'Mock API enabled: returning demo data instead of live endpoints.');
-  }
-
-  String _mockVpnConfig() {
-    return '''
-[Interface]
-PrivateKey = DEMO_PRIVATE_KEY
-Address = 10.10.0.2/32
-DNS = 1.1.1.1
-
-[Peer]
-PublicKey = DEMO_PUBLIC_KEY
-AllowedIPs = 0.0.0.0/0
-Endpoint = demo.securewave.invalid:51820
-''';
   }
 }
 

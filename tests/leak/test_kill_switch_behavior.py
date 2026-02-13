@@ -1,4 +1,4 @@
-from sandbox.leak_tests.interface_flap_test import evaluate_kill_switch
+from dev_tools.sandbox.leak_tests.interface_flap_test import evaluate_kill_switch
 
 
 def test_kill_switch_behavior():

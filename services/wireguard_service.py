@@ -57,43 +57,7 @@ class WireGuardService:
         self.server_public_override = os.getenv("WG_SERVER_PUBLIC_KEY", "").strip() or None
         self.fernet = self._load_fernet()
         self.wg_path = shutil.which("wg")
-        self.mock_mode = self._detect_mock_mode()
         self.ensure_server_keys()
-
-    def _detect_mock_mode(self) -> bool:
-        """
-        Determine if we're in mock mode for WireGuard operations.
-
-        Priority:
-        1. If WG_MOCK_MODE is explicitly set to 'false', use real mode
-        2. If WG_MOCK_MODE is explicitly set to 'true', use mock mode
-        3. If not set, auto-detect based on environment
-        """
-        mock_env = os.getenv("WG_MOCK_MODE", "").lower().strip()
-
-        # Explicit false = real mode (don't auto-detect)
-        if mock_env == "false":
-            return False
-
-        # Explicit true = mock mode
-        if mock_env == "true":
-            logger.warning("WG_MOCK_MODE=true: WireGuard operations are mocked (no real tunnel).")
-            return True
-
-        if is_production():
-            raise RuntimeError("WG_MOCK_MODE must be explicitly set to false in production")
-
-        # Auto-detect only if not explicitly configured
-        tun_exists = Path("/dev/net/tun").exists()
-        mock = self.wg_path is None or not tun_exists
-        if mock:
-            reason = []
-            if self.wg_path is None:
-                reason.append("'wg' binary not found")
-            if not tun_exists:
-                reason.append("/dev/net/tun missing")
-            logger.warning("WG_MOCK_MODE not set: entering mock mode (%s).", ", ".join(reason))
-        return mock
 
     def _load_fernet(self):
         key = os.getenv("WG_ENCRYPTION_KEY")
@@ -115,10 +79,6 @@ class WireGuardService:
                 return private_key, public_key
             except Exception as e:
                 logger.warning("wg key generation failed; falling back to X25519: %s", e)
-
-        # In production, do not silently proceed without wg when not in explicit mock mode.
-        if is_production() and not self.mock_mode:
-            raise RuntimeError("WireGuard key generation requires the 'wg' binary in production")
 
         # WireGuard keys are Curve25519 (X25519) keys, base64-encoded.
         private = X25519PrivateKey.generate()

@@ -1,6 +1,6 @@
 # Benchmarking Guide
 
-SecureWave benchmark harnesses live in `sandbox/benchmark/`.
+SecureWave benchmark harnesses live in `dev_tools/sandbox/benchmark/`.
 
 ## Harnesses
 - `ping_latency.py`: RTT sampling per region (Barbados + Frankfurt defaults).
@@ -11,7 +11,7 @@ SecureWave benchmark harnesses live in `sandbox/benchmark/`.
 
 ## Run Complete Benchmark Suite
 ```bash
-bash sandbox/benchmark/run_benchmarks.sh
+bash dev_tools/sandbox/benchmark/run_benchmarks.sh
 ```
 
 Artifacts:
@@ -33,11 +33,11 @@ export BENCHMARK_COMPETITOR_ENDPOINTS="privado=198.51.100.10,othervpn=198.51.100
 ```bash
 export BENCHMARK_ALLOW_IPERF=true
 export BENCHMARK_IPERF_HOST=203.0.113.50
-bash sandbox/benchmark/run_benchmarks.sh
+bash dev_tools/sandbox/benchmark/run_benchmarks.sh
 ```
 
 ## Threshold Gating
-Thresholds are defined in `benchmarks/thresholds.json` and enforced by the benchmark suite runner in strict mode.
+Thresholds are defined in `dev_tools/benchmarks/thresholds.json` and enforced by the benchmark suite runner in strict mode.
 
 See:
 - `docs/benchmarks_thresholds.md`

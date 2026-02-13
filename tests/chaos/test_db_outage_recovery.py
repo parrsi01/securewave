@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sandbox.chaos_tests.db_disconnect import run_harness
+from dev_tools.sandbox.chaos_tests.db_disconnect import run_harness
 
 
 def test_db_outage_recovery(tmp_path: Path):

@@ -17,7 +17,7 @@
 - Full StripeService class: customers, subscriptions, invoices, payment intents, billing portal, checkout sessions
 - Webhook handler with signature verification (routes/billing.py)
 - PaymentWebhookHandler processes: subscription lifecycle, invoice events, customer events
-- Demo mode fallback when Stripe keys not configured
+- Graceful failure when Stripe keys are not configured
 - Billing portal integration
 
 **Go-live steps (manual):**
@@ -29,9 +29,9 @@
 6. See `docs/STRIPE_RUNBOOK.md` for full checklist
 
 ### Test Harness
-- `sandbox/payments/test_stripe_flow.py` — automated endpoint tests
-- `sandbox/payments/simulate_webhook.py` — webhook simulation
-- `sandbox/payments/README.md` — usage docs
+- `dev_tools/sandbox/payments/test_stripe_flow.py` — automated endpoint tests
+- `dev_tools/sandbox/payments/simulate_webhook.py` — webhook simulation
+- `dev_tools/sandbox/payments/README.md` — usage docs
 
 ---
 
@@ -135,7 +135,7 @@ terraform apply -var="hcloud_token=$HCLOUD_TOKEN"
 | `routes/billing.py` | Added `POST /checkout-session`, `GET /stripe-status` endpoints |
 | `.env.production.example` | Fixed env var names, added price ID vars |
 | `docs/STRIPE_RUNBOOK.md` | NEW — complete Stripe setup/testing/go-live guide |
-| `sandbox/payments/test_stripe_flow.py` | NEW — automated Stripe endpoint tests |
-| `sandbox/payments/simulate_webhook.py` | NEW — webhook simulation tool |
-| `sandbox/payments/README.md` | NEW — test harness docs |
+| `dev_tools/sandbox/payments/test_stripe_flow.py` | NEW — automated Stripe endpoint tests |
+| `dev_tools/sandbox/payments/simulate_webhook.py` | NEW — webhook simulation tool |
+| `dev_tools/sandbox/payments/README.md` | NEW — test harness docs |
 | `FINAL_REPORT.md` | NEW — this file |

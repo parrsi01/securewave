@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sandbox.chaos_tests.jwt_replay_attack import run_harness
+from dev_tools.sandbox.chaos_tests.jwt_replay_attack import run_harness
 
 
 def test_jwt_replay_protection(tmp_path: Path):

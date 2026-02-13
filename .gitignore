@@ -101,9 +101,6 @@ privatekey
 publickey
 keys/
 
-# Azure
-.azure/
-
 # Temporary files
 tmp/
 temp/
@@ -153,13 +150,6 @@ keys_and_storage_configurations/*.key
 keys_and_storage_configurations/*.env
 keys_and_storage_configurations/.env.*
 
-# Azure deployment artifacts
-azure-logs/
-LogFiles/
-deployments/
-*.log
-deploy.zip
-
 # Terraform
 **/.terraform/
 *.tfstate
@@ -199,6 +189,9 @@ artifacts/**
 !artifacts/payment_sim/summary.csv
 !artifacts/legal_pages/
 !artifacts/legal_pages/placeholder_free.md
+!artifacts/DEPENDENCY_LOCK_SNAPSHOT.json
+!artifacts/PRODUCTION_FREEZE_REPORT.md
+!artifacts/SECRET_SCAN_REPORT.md
 
 # Python
 __pycache__/

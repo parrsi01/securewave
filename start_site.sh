@@ -41,8 +41,6 @@ fi
 
 # Preview-safe defaults. Override via env if desired.
 export ENVIRONMENT="${ENVIRONMENT:-preview}"
-export DEMO_MODE="${DEMO_MODE:-true}"
-export WG_MOCK_MODE="${WG_MOCK_MODE:-true}"
 export EMAIL_PROVIDER="${EMAIL_PROVIDER:-smtp}"
 export APP_URL="${APP_URL:-http://localhost:${PREVIEW_PORT}}"
 export DATABASE_URL="${DATABASE_URL:-sqlite:///${PREVIEW_DIR}/securewave_preview.db}"

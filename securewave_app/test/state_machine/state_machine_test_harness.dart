@@ -71,12 +71,11 @@ Future<void> settleStateMachine({int turns = 20}) async {
   }
 }
 
-AppConfig testAppConfig({bool useMockApi = false}) {
+AppConfig testAppConfig() {
   return AppConfig(
     apiBaseUrl: 'https://example.invalid',
     portalUrl: 'https://portal.example.invalid',
     upgradeUrl: 'https://upgrade.example.invalid',
-    useMockApi: useMockApi,
     resetSessionOnBoot: false,
   );
 }
@@ -85,12 +84,10 @@ ProviderContainer buildVpnContainer({
   required VpnService service,
   required ApiClient apiClient,
   VpnStateMachineConfig config = const VpnStateMachineConfig(),
-  bool useMockApi = false,
 }) {
   return ProviderContainer(
     overrides: [
-      appConfigProvider
-          .overrideWith((ref) => testAppConfig(useMockApi: useMockApi)),
+      appConfigProvider.overrideWith((ref) => testAppConfig()),
       vpnServiceProvider.overrideWithValue(service),
       apiClientProvider.overrideWithValue(apiClient),
       vpnStateMachineConfigProvider.overrideWithValue(config),

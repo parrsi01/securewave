@@ -17,7 +17,7 @@ void main() {
   });
 
   test('state machine stress cycles maintain invariants', () async {
-    final config = testAppConfig(useMockApi: false);
+    final config = testAppConfig();
     final service = ControlledVpnService(
       nativeAvailable: true,
       connectDelay: const Duration(milliseconds: 15),

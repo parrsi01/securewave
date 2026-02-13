@@ -22,7 +22,7 @@ from fastapi import status
 class TestFullUserJourney:
     """Complete user journey from registration to logout."""
 
-    def test_register_login_vpn_logout(self, client, db):
+    def test_register_login_vpn_logout(self, client, db, test_vpn_server):
         """
         End-to-end: register -> login -> dashboard -> VPN -> quality report -> logout.
         """
@@ -34,7 +34,7 @@ class TestFullUserJourney:
         })
         assert reg_resp.status_code == 201, f"Registration failed: {reg_resp.text}"
         reg_data = reg_resp.json()
-        # In demo mode we get tokens back directly
+        # In test mode we get tokens back directly
         access_token = reg_data.get("access_token")
 
         # ---- Step 2: Login (if register did not return token) ----
@@ -59,7 +59,7 @@ class TestFullUserJourney:
         dash_resp = client.get("/api/dashboard/user", headers=headers)
         assert dash_resp.status_code == 200
 
-        # ---- Step 5: VPN connect (demo mode) ----
+        # ---- Step 5: VPN connect (backend marks an active connection) ----
         connect_resp = client.post(
             "/api/vpn/connect",
             json={"region": "us-east"},
@@ -67,10 +67,9 @@ class TestFullUserJourney:
         )
         assert connect_resp.status_code == 200
         connect_data = connect_resp.json()
-        assert connect_data.get("status") in ("CONNECTING", "CONNECTED")
+        assert connect_data.get("status") == "CONNECTED"
 
-        # ---- Step 6: Check VPN status (demo transitions after 1 second) ----
-        time.sleep(1.1)
+        # ---- Step 6: Check VPN status ----
         status_resp = client.get("/api/vpn/status", headers=headers)
         assert status_resp.status_code == 200
         assert status_resp.json().get("status") == "CONNECTED"
@@ -85,6 +84,8 @@ class TestFullUserJourney:
         from services.vpn_optimizer import get_vpn_optimizer
 
         optimizer = get_vpn_optimizer()
+        from services.vpn_optimizer import load_servers_from_database
+        load_servers_from_database(optimizer, db)
         initial_stats = optimizer.get_stats()
 
         # Simulate quality report (optimizer is in-memory, no API endpoint needed)
@@ -104,8 +105,7 @@ class TestFullUserJourney:
         # ---- Step 10: Disconnect VPN ----
         disconnect_resp = client.post("/api/vpn/disconnect", headers=headers)
         assert disconnect_resp.status_code == 200
-        # Demo mode returns DISCONNECTING (transitions after 1s)
-        assert disconnect_resp.json().get("status") in ("DISCONNECTING", "DISCONNECTED")
+        assert disconnect_resp.json().get("status") == "DISCONNECTED"
 
         # ---- Step 11: Logout ----
         logout_resp = client.post("/api/auth/logout", headers=headers)

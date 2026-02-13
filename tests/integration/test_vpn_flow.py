@@ -3,11 +3,9 @@ SecureWave - VPN Flow Integration Tests
 ========================================
 Covers:
 - Full VPN flow: register -> login -> servers -> allocate -> connect -> disconnect
-- Free user connect via demo VPN flow
 - Premium servers not accessible to free users (tier restriction)
 - VPN config contains valid WireGuard format
 - Server selection returns optimal server
-- Mock / demo mode returns valid configs
 - Device creation and revocation
 """
 
@@ -22,7 +20,7 @@ from fastapi import status
 # ---------------------------------------------------------------------------
 
 def _create_free_server(db):
-    """Insert a free-tier demo VPN server and return it."""
+    """Insert a free-tier VPN server and return it."""
     from models.vpn_server import VPNServer
 
     server = VPNServer(
@@ -52,7 +50,7 @@ def _create_free_server(db):
 
 
 def _create_premium_server(db):
-    """Insert a premium-tier demo VPN server and return it."""
+    """Insert a premium-tier VPN server and return it."""
     from models.vpn_server import VPNServer
 
     server = VPNServer(
@@ -109,7 +107,7 @@ def _create_subscription(db, user, plan_id="basic"):
 # ---------------------------------------------------------------------------
 
 class TestFullVPNFlow:
-    """End-to-end VPN flow in demo mode."""
+    """End-to-end VPN flow with a seeded VPN server."""
 
     def test_full_vpn_flow(self, client, db):
         """
@@ -144,11 +142,12 @@ class TestFullVPNFlow:
         headers = {"Authorization": f"Bearer {login_token}"}
 
         # Step 3: List servers (may be empty in test, but endpoint must work)
+        _create_free_server(db)
         servers_resp = client.get("/api/vpn/servers", headers=headers)
         assert servers_resp.status_code == 200
         assert "servers" in servers_resp.json()
 
-        # Step 4: Connect to VPN (demo mode)
+        # Step 4: Connect to VPN (backend marks an active connection)
         connect_resp = client.post(
             "/api/vpn/connect",
             json={"region": "us-east"},
@@ -156,10 +155,9 @@ class TestFullVPNFlow:
         )
         assert connect_resp.status_code == 200
         connect_data = connect_resp.json()
-        assert connect_data.get("status") in ("CONNECTING", "CONNECTED")
+        assert connect_data.get("status") == "CONNECTED"
 
-        # Step 5: Check status (wait for CONNECTED in demo mode)
-        time.sleep(1.1)
+        # Step 5: Check status
         status_resp = client.get("/api/vpn/status", headers=headers)
         assert status_resp.status_code == 200
         assert status_resp.json().get("status") == "CONNECTED"
@@ -167,17 +165,17 @@ class TestFullVPNFlow:
         # Step 6: Disconnect
         disconnect_resp = client.post("/api/vpn/disconnect", headers=headers)
         assert disconnect_resp.status_code == 200
-        assert disconnect_resp.json().get("status") in ("DISCONNECTING", "DISCONNECTED")
+        assert disconnect_resp.json().get("status") == "DISCONNECTED"
 
 
 # ---------------------------------------------------------------------------
 # Demo VPN Connect / Disconnect Flow
 # ---------------------------------------------------------------------------
 
-class TestDemoVPNFlow:
-    """In demo/mock mode the VPN connect/disconnect/status cycle must work."""
+class TestVPNConnectionEndpoints:
+    """VPN connect/disconnect/status cycle must work in test mode."""
 
-    def test_connect_returns_status(self, client, auth_headers):
+    def test_connect_returns_status(self, client, auth_headers, test_vpn_server):
         """POST /api/vpn/connect must return a connection status."""
         response = client.post(
             "/api/vpn/connect",
@@ -186,42 +184,32 @@ class TestDemoVPNFlow:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data.get("status") in ("CONNECTING", "CONNECTED")
+        assert data.get("status") == "CONNECTED"
 
-    def test_status_after_connect(self, client, auth_headers):
+    def test_status_after_connect(self, client, auth_headers, test_vpn_server):
         """GET /api/vpn/status after connect should show CONNECTED."""
         client.post("/api/vpn/connect", json={"region": "us-east"}, headers=auth_headers)
-
-        # Demo mode transitions CONNECTING -> CONNECTED after 1 second
-        time.sleep(1.1)
 
         resp = client.get("/api/vpn/status", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json().get("status") == "CONNECTED"
 
-    def test_config_after_connect(self, client, auth_headers):
+    def test_config_after_connect(self, client, auth_headers, test_vpn_server):
         """GET /api/vpn/config after connect should return config data."""
         client.post("/api/vpn/connect", json={"region": "us-east"}, headers=auth_headers)
-
-        # Wait for CONNECTED
-        for _ in range(5):
-            st = client.get("/api/vpn/status", headers=auth_headers)
-            if st.json().get("status") == "CONNECTED":
-                break
-            time.sleep(0.2)
 
         resp = client.get("/api/vpn/config", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert "config" in data
 
-    def test_disconnect(self, client, auth_headers):
-        """POST /api/vpn/disconnect must return a disconnecting or disconnected status."""
+    def test_disconnect(self, client, auth_headers, test_vpn_server):
+        """POST /api/vpn/disconnect must return a disconnected status."""
         client.post("/api/vpn/connect", json={"region": "us-east"}, headers=auth_headers)
         resp = client.post("/api/vpn/disconnect", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert data.get("status") in ("DISCONNECTING", "DISCONNECTED")
+        assert data.get("status") == "DISCONNECTED"
 
 
 # ---------------------------------------------------------------------------
@@ -267,15 +255,9 @@ class TestServerListing:
 class TestVPNConfigFormat:
     """Allocated VPN configs must contain valid WireGuard directives."""
 
-    def test_demo_config_has_wireguard_sections(self, client, auth_headers):
-        """The demo config must contain [Interface] and [Peer]."""
+    def test_config_has_wireguard_sections(self, client, auth_headers, test_vpn_server):
+        """The config must contain [Interface] and [Peer]."""
         client.post("/api/vpn/connect", json={"region": "us-east"}, headers=auth_headers)
-
-        for _ in range(5):
-            st = client.get("/api/vpn/status", headers=auth_headers)
-            if st.json().get("status") == "CONNECTED":
-                break
-            time.sleep(0.2)
 
         resp = client.get("/api/vpn/config", headers=auth_headers)
         assert resp.status_code == 200
@@ -332,9 +314,9 @@ class TestServerSelection:
 # ---------------------------------------------------------------------------
 
 class TestMockMode:
-    """In test/demo mode the VPN flow must produce usable mock configs."""
+    """In test mode the VPN flow must be stable."""
 
-    def test_connect_disconnect_cycle_in_mock(self, client, auth_headers):
+    def test_connect_disconnect_cycle_in_mock(self, client, auth_headers, test_vpn_server):
         """Full connect -> status -> disconnect cycle must not error."""
         conn = client.post("/api/vpn/connect", json={"region": "us-east"}, headers=auth_headers)
         assert conn.status_code == 200

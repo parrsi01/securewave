@@ -98,15 +98,7 @@ class _ConnectionDiagnosticsSheetState
     final items = <_CheckItem>[];
 
     // 1) Backend reachable
-    if (config.useMockApi) {
-      items.add(const _CheckItem(
-        status: _CheckStatus.info,
-        title: 'Backend reachable',
-        message: 'Skipped (mock API enabled).',
-      ));
-    } else {
-      items.add(await _checkHealth(config, token: token));
-    }
+    items.add(await _checkHealth(config, token: token));
 
     // 2) Auth valid
     if (!isAuthed) {
@@ -114,12 +106,6 @@ class _ConnectionDiagnosticsSheetState
         status: _CheckStatus.fail,
         title: 'Auth valid',
         message: 'Not signed in.',
-      ));
-    } else if (config.useMockApi) {
-      items.add(const _CheckItem(
-        status: _CheckStatus.info,
-        title: 'Auth valid',
-        message: 'Token present (mock mode).',
       ));
     } else {
       items.add(await _checkPlan(config, token: token));
@@ -131,12 +117,6 @@ class _ConnectionDiagnosticsSheetState
         status: _CheckStatus.info,
         title: 'Profile fetched',
         message: 'Skipped (not signed in).',
-      ));
-    } else if (config.useMockApi) {
-      items.add(const _CheckItem(
-        status: _CheckStatus.info,
-        title: 'Profile fetched',
-        message: 'Simulated (mock mode).',
       ));
     } else {
       items.add(await _checkProfile(config,

@@ -20,7 +20,6 @@ from database.session import get_db, SessionLocal
 from models.user import User
 from services.hashing_service import hash_password, verify_password
 from utils.password_policy import validate_password_strength
-from utils.env_validation import demo_mode_enabled
 from services.jwt_service import (
     ACCESS_EXPIRE_MINUTES,
     REFRESH_EXPIRE_MINUTES,
@@ -38,7 +37,6 @@ from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
-DEMO_MODE = demo_mode_enabled()
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 
 
@@ -219,15 +217,15 @@ async def register(
             hashed_password=hash_password(payload.password),
             created_at=datetime.utcnow(),
             subscription_status="basic",
-            email_verified=DEMO_MODE,  # Demo: mark verified immediately
+            email_verified=is_testing,
         )
         db.add(user)
         db.commit()
         db.refresh(user)
 
-        # Send verification email (demo skips)
+        # Send verification email (skipped in tests)
         email_sent = False
-        if not DEMO_MODE:
+        if not is_testing:
             auth_service = AuthService(db)
             email_sent = auth_service.send_verification_email(user)
 
@@ -236,7 +234,7 @@ async def register(
 
         logger.info(f"✓ New user registered: {user.email}")
 
-        if DEMO_MODE:
+        if is_testing:
             access_token = create_access_token(user)
             ip_address = request.client.host if request.client else None
             user_agent = request.headers.get("user-agent")
@@ -249,7 +247,7 @@ async def register(
             csrf_token = secrets.token_urlsafe(32)
             _set_auth_cookies(response, access_token, refresh_token, csrf_token)
             return {
-                "message": "Registration successful (demo mode).",
+                "message": "Registration successful.",
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "bearer",
@@ -630,11 +628,11 @@ async def update_email(
             )
 
         current_user.email = new_email
-        current_user.email_verified = DEMO_MODE
+        current_user.email_verified = False
         db.commit()
         db.refresh(current_user)
 
-        if not DEMO_MODE:
+        if not is_testing:
             auth_service = AuthService(db)
             auth_service.send_verification_email(current_user)
 

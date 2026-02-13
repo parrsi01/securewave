@@ -18,7 +18,7 @@ Generated: 2026-02-13
 - Added an offline harness that produces `artifacts/geo_reco/*`.
 
 3) IP pool pressure simulator
-- Added `sandbox/ip_pool_pressure/` to simulate 500 peers with churn + reclaim + forced exhaustion.
+- Added `dev_tools/sandbox/ip_pool_pressure/` to simulate 500 peers with churn + reclaim + forced exhaustion.
 - Added artifacts output: `artifacts/ip_pool_pressure/report.json` and `artifacts/ip_pool_pressure/summary.csv`.
 - Hardened IP reclaim correctness with a partial unique index so revoked peers can reclaim their IPv4 address safely.
 
@@ -64,28 +64,28 @@ Generated: 2026-02-13
 
 Watchdog (local smoke, emits JSONL events):
 ```bash
-.venv/bin/python sandbox/watchdog/run_watchdog_smoke.py
+.venv/bin/python dev_tools/sandbox/watchdog/run_watchdog_smoke.py
 ```
 
 Geo recommendation artifacts (offline harness):
 ```bash
-.venv/bin/python sandbox/geo_reco/run_geo_reco.py --output-dir artifacts/geo_reco
+.venv/bin/python dev_tools/sandbox/geo_reco/run_geo_reco.py --output-dir artifacts/geo_reco
 ```
 
 IP pool pressure simulator:
 ```bash
-.venv/bin/python sandbox/ip_pool_pressure/run_ip_pool_pressure.py --output-dir artifacts/ip_pool_pressure
+.venv/bin/python dev_tools/sandbox/ip_pool_pressure/run_ip_pool_pressure.py --output-dir artifacts/ip_pool_pressure
 ```
 
 System audit snapshot (local/in-process):
 ```bash
-.venv/bin/python sandbox/system_audit/run_local_system_audit.py
+.venv/bin/python dev_tools/sandbox/system_audit/run_local_system_audit.py
 ```
 
 Live validation (requires `LIVE_API_BASE_URL`):
 ```bash
-bash sandbox/live_validation/run_live_validation.sh --strict --linux --users 3
-bash sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 4 --cycles 5
+bash dev_tools/sandbox/live_validation/run_live_validation.sh --strict --linux --users 3
+bash dev_tools/sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 4 --cycles 5
 ```
 
 ## F) Test Results
@@ -98,6 +98,5 @@ Mandatory commands executed from repo root:
 
 Env-gated commands (require `LIVE_API_BASE_URL`):
 
-- `bash sandbox/live_validation/run_live_validation.sh --strict --linux --users 3`: NOT RUN (missing `LIVE_API_BASE_URL`)
-- `bash sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 4 --cycles 5`: NOT RUN (missing `LIVE_API_BASE_URL`)
-
+- `bash dev_tools/sandbox/live_validation/run_live_validation.sh --strict --linux --users 3`: NOT RUN (missing `LIVE_API_BASE_URL`)
+- `bash dev_tools/sandbox/live_validation/run_live_stress_tests.sh --strict --linux --workers 4 --cycles 5`: NOT RUN (missing `LIVE_API_BASE_URL`)

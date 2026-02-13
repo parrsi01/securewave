@@ -13,7 +13,7 @@ void main() {
   });
 
   test('test_multiple_concurrent_connect_requests', () async {
-    final config = testAppConfig(useMockApi: false);
+    final config = testAppConfig();
     final service = ControlledVpnService(
       nativeAvailable: true,
       connectDelay: const Duration(milliseconds: 40),

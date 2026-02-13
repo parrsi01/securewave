@@ -60,7 +60,7 @@ class _DiagnosticsDialogState extends ConsumerState<DiagnosticsDialog> {
     _addResult(
       label: 'Native VPN bridge',
       passed: nativeAvailable,
-      detail: nativeAvailable ? 'Available' : 'Using demo tunnel',
+      detail: nativeAvailable ? 'Available' : 'Unavailable',
     );
 
     await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -73,17 +73,6 @@ class _DiagnosticsDialogState extends ConsumerState<DiagnosticsDialog> {
       label: 'VPN tunnel status',
       passed: tunnelOk,
       detail: vpnStatus.name,
-    );
-
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    if (!mounted) return;
-
-    // Check 5: Demo mode
-    final isDemoMode = appConfig.useMockApi;
-    _addResult(
-      label: 'Demo mode',
-      passed: !isDemoMode,
-      detail: isDemoMode ? 'Active (mock API)' : 'Disabled (live API)',
     );
 
     setState(() => _isRunning = false);

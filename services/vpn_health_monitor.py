@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import secrets
 import subprocess  # nosec B404 - controlled subprocess usage
 import shutil
 import time
@@ -20,7 +19,6 @@ from services.wireguard_server_manager import get_wireguard_server_manager, serv
 logger = logging.getLogger(__name__)
 
 
-RNG = secrets.SystemRandom()
 DEGRADED_HANDSHAKE_SECONDS = int(os.getenv("WG_HANDSHAKE_DEGRADED_SECONDS", "120"))
 UNSTABLE_HANDSHAKE_SECONDS = int(os.getenv("WG_HANDSHAKE_UNSTABLE_SECONDS", "300"))
 
@@ -60,7 +58,7 @@ class VPNHealthMonitor:
 
             servers = (
                 self.db.query(VPNServer)
-                .filter(VPNServer.status.in_(["active", "demo"]))
+                .filter(VPNServer.status.in_(["active"]))
                 .all()
             )
 
@@ -103,10 +101,6 @@ class VPNHealthMonitor:
         Returns:
             Dictionary of metrics
         """
-        # If demo server, use simulated metrics
-        if server.status == "demo":
-            return self._generate_demo_metrics(server)
-
         # For real server, probe actual metrics
         latency = await self.ping_server(server.public_ip)
 
@@ -277,42 +271,6 @@ class VPNHealthMonitor:
         base_load = 0.15  # Idle load
         connection_load = (server.current_connections / server.max_connections) * 0.6
         return min(0.95, base_load + connection_load)
-
-    def _generate_demo_metrics(self, server: VPNServer) -> Dict:
-        """
-        Generate realistic but simulated metrics for demo servers
-
-        Args:
-            server: VPN server object
-
-        Returns:
-            Dictionary of simulated metrics
-        """
-        # Base metrics with some randomness for realism
-        base_latency = {
-            "us-west-1": 30,
-            "eu-west-1": 40,
-            "eu-central-1": 45,
-            "ap-southeast-1": 80,
-            "ap-northeast-1": 85,
-        }.get(server.server_id, 50)
-
-        # Add jitter to latency
-        latency = base_latency + RNG.uniform(-5, 10)
-
-        metrics = {
-            "latency_ms": round(latency, 1),
-            "bandwidth_mbps": RNG.uniform(800, 1000),
-            "cpu_load": RNG.uniform(0.2, 0.6),
-            "active_connections": server.current_connections,
-            "packet_loss": RNG.uniform(0.0, 0.02),  # 0-2%
-            "jitter_ms": RNG.uniform(1, 5),
-            "bandwidth_in_mbps": RNG.uniform(800, 1000),
-            "bandwidth_out_mbps": RNG.uniform(800, 1000),
-        }
-
-        return metrics
-
 
 # Singleton instance
 _health_monitor = None
