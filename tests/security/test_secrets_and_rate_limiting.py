@@ -12,12 +12,18 @@ from utils.inprocess_testclient import InProcessTestClient
 
 
 def test_redact_filter_masks_tokens_and_wireguard_secrets():
-    record = type("Record", (), {"getMessage": lambda self: "Bearer abc123 PrivateKey = secret PresharedKey = psk"})()
+    record = type(
+        "Record",
+        (),
+        {"getMessage": lambda self: "Bearer abc123 sk_test_abc123 whsec_def456 PrivateKey = secret PresharedKey = psk"},
+    )()
     record.msg = record.getMessage()
     record.args = ()
     filtered = RedactFilter().filter(record)
     assert filtered is True
     assert "abc123" not in record.msg
+    assert "sk_test_" not in record.msg
+    assert "whsec_" not in record.msg
     assert "PrivateKey = secret" not in record.msg
     assert "PresharedKey = psk" not in record.msg
     assert "[redacted-token]" in record.msg

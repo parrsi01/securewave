@@ -8,33 +8,34 @@ import uuid
 import logging
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 
 import stripe
 
-# Load environment variables
-load_dotenv()
-load_dotenv(".env.production")
-
 logger = logging.getLogger(__name__)
 
-# Configure Stripe
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-stripe.api_version = "2023-10-16"
+STRIPE_API_VERSION = "2023-10-16"
 
-# Webhook secret for signature verification
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+def _stripe_secret_key() -> str:
+    return (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+
+
+def _configure_stripe() -> None:
+    # Stripe uses global module config; keep it in sync with env for tests and
+    # multi-process deployments.
+    stripe.api_key = _stripe_secret_key()
+    stripe.api_version = STRIPE_API_VERSION
 
 
 def _is_test_mode() -> bool:
     """Check if Stripe is configured with test keys."""
-    key = stripe.api_key or ""
+    key = _stripe_secret_key()
     return key.startswith("sk_test_")
 
 
 def _is_live_mode() -> bool:
     """Check if Stripe is configured with live keys."""
-    key = stripe.api_key or ""
+    key = _stripe_secret_key()
     return key.startswith("sk_live_")
 
 
@@ -122,20 +123,59 @@ class StripeService:
 
     def __init__(self):
         """Initialize Stripe service"""
+        _configure_stripe()
         if not stripe.api_key:
             logger.warning("STRIPE_SECRET_KEY not configured - Stripe integration disabled")
         else:
             logger.info(f"Stripe initialized in {stripe_mode_label()} mode")
 
+    @staticmethod
+    def _ensure_configured() -> None:
+        _configure_stripe()
+        if not stripe.api_key:
+            raise ValueError("STRIPE_SECRET_KEY is not configured")
+
     @classmethod
     def get_plan_details(cls, plan_id: str) -> Optional[Dict]:
         """Get plan configuration"""
-        return cls.PLANS.get(plan_id)
+        plan = cls.PLANS.get(plan_id)
+        if not plan:
+            return None
+        data = dict(plan)
+
+        # Price IDs must be read from the environment at runtime so tests can
+        # override env vars and so deployments can rotate Price IDs without
+        # requiring module reloads.
+        if plan_id and plan_id != "free":
+            env_prefix = plan_id.upper()
+            monthly = os.getenv(f"STRIPE_PRICE_{env_prefix}_MONTHLY")
+            yearly = os.getenv(f"STRIPE_PRICE_{env_prefix}_YEARLY")
+            if monthly:
+                data["stripe_price_id_monthly"] = monthly
+            if yearly:
+                data["stripe_price_id_yearly"] = yearly
+        return data
 
     @classmethod
     def get_all_plans(cls) -> Dict:
         """Get all available plans"""
-        return cls.PLANS
+        return {pid: cls.get_plan_details(pid) for pid in cls.PLANS.keys()}
+
+    @classmethod
+    def resolve_plan_from_price_id(cls, price_id: str) -> Optional[Dict[str, str]]:
+        """
+        Best-effort mapping from a Stripe Price ID to a SecureWave plan.
+
+        Returns {"plan_id": ..., "billing_cycle": ...} when a match is found.
+        """
+        if not price_id:
+            return None
+        for plan_id in cls.PLANS.keys():
+            plan = cls.get_plan_details(plan_id) or {}
+            for cycle in ("monthly", "yearly"):
+                if plan.get(f"stripe_price_id_{cycle}") == price_id:
+                    return {"plan_id": plan_id, "billing_cycle": cycle}
+        return None
 
     # ===========================
     # CUSTOMER MANAGEMENT
@@ -146,7 +186,8 @@ class StripeService:
         email: str,
         name: Optional[str] = None,
         phone: Optional[str] = None,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
+        idempotency_key: Optional[str] = None,
     ) -> stripe.Customer:
         """
         Create a Stripe customer
@@ -161,15 +202,16 @@ class StripeService:
             Stripe Customer object
         """
         try:
+            self._ensure_configured()
             customer = stripe.Customer.create(
                 email=email,
                 name=name,
                 phone=phone,
                 metadata=metadata or {},
-                idempotency_key=_idempotency_key("cust"),
+                idempotency_key=idempotency_key or _idempotency_key("cust"),
             )
 
-            logger.info(f"✓ Stripe customer created: {customer.id} ({email})")
+            logger.info("Stripe customer created: %s", customer.id)
             return customer
 
         except stripe.error.StripeError as e:
@@ -179,6 +221,7 @@ class StripeService:
     def get_customer(self, customer_id: str) -> Optional[stripe.Customer]:
         """Get customer by ID"""
         try:
+            self._ensure_configured()
             return stripe.Customer.retrieve(customer_id)
         except stripe.error.StripeError as e:
             logger.error(f"✗ Failed to retrieve customer {customer_id}: {e}")
@@ -194,6 +237,7 @@ class StripeService:
     ) -> stripe.Customer:
         """Update customer information"""
         try:
+            self._ensure_configured()
             update_data = {}
             if email:
                 update_data["email"] = email
@@ -215,6 +259,7 @@ class StripeService:
     def delete_customer(self, customer_id: str) -> bool:
         """Delete customer (GDPR compliance)"""
         try:
+            self._ensure_configured()
             stripe.Customer.delete(customer_id)
             logger.info(f"✓ Stripe customer deleted: {customer_id}")
             return True
@@ -233,6 +278,7 @@ class StripeService:
     ) -> stripe.PaymentMethod:
         """Attach payment method to customer"""
         try:
+            self._ensure_configured()
             payment_method = stripe.PaymentMethod.attach(
                 payment_method_id,
                 customer=customer_id,
@@ -254,6 +300,7 @@ class StripeService:
     def detach_payment_method(self, payment_method_id: str) -> bool:
         """Detach payment method from customer"""
         try:
+            self._ensure_configured()
             stripe.PaymentMethod.detach(payment_method_id)
             logger.info(f"✓ Payment method detached: {payment_method_id}")
             return True
@@ -264,6 +311,7 @@ class StripeService:
     def list_payment_methods(self, customer_id: str) -> List[stripe.PaymentMethod]:
         """List customer's payment methods"""
         try:
+            self._ensure_configured()
             payment_methods = stripe.PaymentMethod.list(
                 customer=customer_id,
                 type="card",
@@ -301,6 +349,7 @@ class StripeService:
             Stripe Subscription object
         """
         try:
+            self._ensure_configured()
             plan = self.get_plan_details(plan_id)
             if not plan:
                 raise ValueError(f"Invalid plan ID: {plan_id}")
@@ -346,6 +395,7 @@ class StripeService:
     def get_subscription(self, subscription_id: str) -> Optional[stripe.Subscription]:
         """Get subscription by ID"""
         try:
+            self._ensure_configured()
             return stripe.Subscription.retrieve(subscription_id)
         except stripe.error.StripeError as e:
             logger.error(f"✗ Failed to retrieve subscription: {e}")
@@ -373,6 +423,7 @@ class StripeService:
             Updated subscription
         """
         try:
+            self._ensure_configured()
             update_data = {
                 "proration_behavior": proration_behavior,
             }
@@ -420,6 +471,7 @@ class StripeService:
             Canceled subscription
         """
         try:
+            self._ensure_configured()
             if cancel_at_period_end:
                 # Cancel at period end (user keeps access until then)
                 subscription = stripe.Subscription.modify(
@@ -447,6 +499,7 @@ class StripeService:
     def reactivate_subscription(self, subscription_id: str) -> stripe.Subscription:
         """Reactivate a canceled subscription (before period end)"""
         try:
+            self._ensure_configured()
             subscription = stripe.Subscription.modify(
                 subscription_id,
                 cancel_at_period_end=False,
@@ -464,6 +517,7 @@ class StripeService:
     def get_invoice(self, invoice_id: str) -> Optional[stripe.Invoice]:
         """Get invoice by ID"""
         try:
+            self._ensure_configured()
             return stripe.Invoice.retrieve(invoice_id)
         except stripe.error.StripeError as e:
             logger.error(f"✗ Failed to retrieve invoice: {e}")
@@ -476,6 +530,7 @@ class StripeService:
     ) -> List[stripe.Invoice]:
         """List customer invoices"""
         try:
+            self._ensure_configured()
             invoices = stripe.Invoice.list(
                 customer=customer_id,
                 limit=limit,
@@ -494,6 +549,7 @@ class StripeService:
     ) -> stripe.InvoiceItem:
         """Create one-time invoice item (for additional charges)"""
         try:
+            self._ensure_configured()
             amount_cents = int(amount * 100)  # Convert to cents
             invoice_item = stripe.InvoiceItem.create(
                 customer=customer_id,
@@ -530,17 +586,21 @@ class StripeService:
             ValueError: If signature verification fails
         """
         try:
-            if not STRIPE_WEBHOOK_SECRET:
+            webhook_secret = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+            if not webhook_secret:
                 raise ValueError("STRIPE_WEBHOOK_SECRET is not configured")
             tolerance = int(os.getenv("STRIPE_WEBHOOK_TOLERANCE_SECONDS", "300"))
             event = stripe.Webhook.construct_event(
                 payload,
                 signature,
-                STRIPE_WEBHOOK_SECRET,
+                webhook_secret,
                 tolerance=tolerance,
             )
-            logger.info(f"✓ Webhook event verified: {event['type']}")
+            logger.info("Stripe webhook event verified: %s", event.get("type"))
             return event
+        except stripe.error.SignatureVerificationError as e:
+            logger.warning("Invalid Stripe webhook signature")
+            raise ValueError("Invalid webhook signature") from e
         except ValueError as e:
             logger.error(f"✗ Invalid webhook signature: {e}")
             raise
@@ -574,6 +634,7 @@ class StripeService:
             PaymentIntent object with client_secret for frontend
         """
         try:
+            self._ensure_configured()
             amount_cents = int(amount * 100)  # Convert to cents
 
             payment_intent = stripe.PaymentIntent.create(
@@ -619,6 +680,7 @@ class StripeService:
             BillingPortal.Session with url
         """
         try:
+            self._ensure_configured()
             session = stripe.billing_portal.Session.create(
                 customer=customer_id,
                 return_url=return_url,
@@ -640,7 +702,10 @@ class StripeService:
         billing_cycle: str = "monthly",
         success_url: str = "",
         cancel_url: str = "",
-        trial_days: int = 0
+        trial_days: int = 0,
+        user_id: Optional[int] = None,
+        metadata: Optional[Dict] = None,
+        idempotency_key: Optional[str] = None,
     ) -> stripe.checkout.Session:
         """
         Create Stripe Checkout session (hosted payment page)
@@ -652,18 +717,36 @@ class StripeService:
             success_url: Redirect URL on success
             cancel_url: Redirect URL on cancel
             trial_days: Trial period in days
+            user_id: SecureWave user ID (used for client_reference_id/metadata)
+            metadata: Additional metadata to attach to the session/subscription
+            idempotency_key: Provider idempotency key (dedupes at Stripe)
 
         Returns:
             Checkout.Session with url
         """
         try:
+            self._ensure_configured()
             plan = self.get_plan_details(plan_id)
+            if not plan:
+                raise ValueError(f"Invalid plan ID: {plan_id}")
             price_key = f"stripe_price_id_{billing_cycle}"
             price_id = plan.get(price_key)
+            if not price_id:
+                raise ValueError(f"Price ID not configured for {plan_id}/{billing_cycle}")
+
+            base_metadata = {
+                "securewave_user_id": str(user_id) if user_id is not None else None,
+                "plan_id": plan_id,
+                "billing_cycle": billing_cycle,
+                "stripe_mode": stripe_mode_label(),
+            }
+            merged_meta = {k: v for k, v in base_metadata.items() if v is not None}
+            if metadata:
+                merged_meta.update({str(k): str(v) for k, v in metadata.items() if v is not None})
 
             session_data = {
                 "customer": customer_id,
-                "client_reference_id": customer_id,
+                "client_reference_id": str(user_id) if user_id is not None else customer_id,
                 "mode": "subscription",
                 "line_items": [{
                     "price": price_id,
@@ -671,22 +754,18 @@ class StripeService:
                 }],
                 "success_url": success_url,
                 "cancel_url": cancel_url,
-                "metadata": {
-                    "plan_id": plan_id,
-                    "billing_cycle": billing_cycle,
-                    "stripe_mode": stripe_mode_label(),
-                },
+                "metadata": merged_meta,
             }
 
-            # Add trial
+            # Ensure subscription metadata is present for reliable webhook mapping.
+            subscription_data = {"metadata": merged_meta}
             if trial_days > 0:
-                session_data["subscription_data"] = {
-                    "trial_period_days": trial_days
-                }
+                subscription_data["trial_period_days"] = trial_days
+            session_data["subscription_data"] = subscription_data
 
             session = stripe.checkout.Session.create(
                 **session_data,
-                idempotency_key=_idempotency_key("checkout"),
+                idempotency_key=idempotency_key or _idempotency_key("checkout"),
             )
             logger.info(f"✓ Checkout session created: {session.id}")
             return session

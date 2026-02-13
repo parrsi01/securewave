@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from database.session import get_db
-from utils.env_validation import demo_mode_enabled
 from services.subscription_manager import SubscriptionManager
 from services.billing_automation import BillingAutomationService
 from services.stripe_service import StripeService
@@ -22,10 +21,12 @@ from services.payment_webhooks import PaymentWebhookHandler
 from models.subscription import Subscription
 from models.user import User
 from services.jwt_service import get_current_user
+from services.payment_idempotency import run_idempotent
+from utils.api_errors import ApiException
+from utils.url_safety import require_safe_redirect_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
-DEMO_BILLING = os.getenv("DEMO_BILLING", "").lower() == "true" or demo_mode_enabled()
 
 
 def _missing_provider_config(provider: str) -> bool:
@@ -41,42 +42,6 @@ def _base_url(request: Request) -> str:
     if app_url:
         return app_url
     return str(request.base_url).rstrip("/")
-
-
-def _create_demo_subscription(
-    db: Session,
-    user: User,
-    plan_id: str,
-    billing_cycle: str,
-    provider: str
-) -> Subscription:
-    plan = StripeService.get_plan_details(plan_id) if provider == "stripe" else PayPalService.get_plan_details(plan_id)
-    if not plan:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid plan")
-
-    now = datetime.utcnow()
-    period_days = 365 if billing_cycle == "yearly" else 30
-    subscription = Subscription(
-        user_id=user.id,
-        plan_id=plan_id,
-        plan_name=plan["name"],
-        provider=provider,
-        status="active",
-        amount=plan.get(f"price_{billing_cycle}", 0.0),
-        currency="USD",
-        billing_cycle=billing_cycle,
-        activated_at=now,
-        current_period_start=now,
-        current_period_end=now + timedelta(days=period_days),
-        next_billing_date=now + timedelta(days=period_days),
-        auto_renew=True,
-        internal_notes="demo subscription (no payment provider configured)"
-    )
-    db.add(subscription)
-    user.subscription_status = "active"
-    db.commit()
-    db.refresh(subscription)
-    return subscription
 
 
 # ===========================
@@ -145,27 +110,19 @@ async def create_subscription(
         # Check if user already has active subscription
         existing = subscription_manager.get_user_subscription(current_user.id)
         if existing and existing.is_active:
-            raise HTTPException(
+            raise ApiException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User already has an active subscription"
+                code="subscription_exists",
+                message="User already has an active subscription.",
             )
 
-        demo_mode = DEMO_BILLING or _missing_provider_config(payload.provider)
-        if demo_mode:
-            demo_subscription = _create_demo_subscription(
-                db=db,
-                user=current_user,
-                plan_id=payload.plan_id,
-                billing_cycle=payload.billing_cycle,
-                provider=payload.provider
+        if _missing_provider_config(payload.provider):
+            raise ApiException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="payment_provider_not_configured",
+                message="Payment provider is not configured on this server.",
+                details={"provider": payload.provider},
             )
-            return {
-                "subscription_id": demo_subscription.id,
-                "status": demo_subscription.status,
-                "provider": demo_subscription.provider,
-                "message": "Subscription created (demo mode)",
-                "demo": True
-            }
 
         if payload.provider == "stripe":
             # Create Stripe subscription
@@ -187,8 +144,16 @@ async def create_subscription(
         elif payload.provider == "paypal":
             # Create PayPal subscription (returns approval URL)
             base_url = _base_url(request)
-            return_url = payload.return_url or f"{base_url}/billing/success"
-            cancel_url = payload.cancel_url or f"{base_url}/subscription.html"
+            return_url = require_safe_redirect_url(
+                base_url=base_url,
+                candidate=payload.return_url or "/billing?payment=success",
+                field_name="return_url",
+            )
+            cancel_url = require_safe_redirect_url(
+                base_url=base_url,
+                candidate=payload.cancel_url or "/billing?payment=canceled",
+                field_name="cancel_url",
+            )
 
             result = subscription_manager.create_subscription_paypal(
                 user_id=current_user.id,
@@ -213,6 +178,8 @@ async def create_subscription(
                 detail=f"Unsupported payment provider: {payload.provider}"
             )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -311,30 +278,19 @@ async def upgrade_subscription(
         if not subscription or subscription.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
-        demo_mode = DEMO_BILLING or _missing_provider_config(subscription.provider)
-        if demo_mode:
-            billing_cycle = request.billing_cycle or subscription.billing_cycle
-            plan = StripeService.get_plan_details(request.new_plan_id) if subscription.provider == "stripe" else PayPalService.get_plan_details(request.new_plan_id)
-            if not plan:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid plan")
-
-            subscription.plan_id = request.new_plan_id
-            subscription.plan_name = plan["name"]
-            subscription.billing_cycle = billing_cycle
-            subscription.amount = plan.get(f"price_{billing_cycle}", subscription.amount)
-            subscription.status = "active"
-            subscription.cancel_at_period_end = False
-            subscription.canceled_at = None
-            db.commit()
-            db.refresh(subscription)
-            updated_subscription = subscription
-        else:
-            # Upgrade subscription
-            updated_subscription = subscription_manager.upgrade_subscription(
-                subscription_id=subscription_id,
-                new_plan_id=request.new_plan_id,
-                billing_cycle=request.billing_cycle
+        if _missing_provider_config(subscription.provider):
+            raise ApiException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="payment_provider_not_configured",
+                message="Payment provider is not configured on this server.",
+                details={"provider": subscription.provider},
             )
+
+        updated_subscription = subscription_manager.upgrade_subscription(
+            subscription_id=subscription_id,
+            new_plan_id=request.new_plan_id,
+            billing_cycle=request.billing_cycle,
+        )
 
         return {
             "message": "Subscription upgraded successfully",
@@ -346,6 +302,8 @@ async def upgrade_subscription(
             }
         }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -372,26 +330,19 @@ async def cancel_subscription(
         if not subscription or subscription.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
-        demo_mode = DEMO_BILLING or _missing_provider_config(subscription.provider)
-        if demo_mode:
-            if request.cancel_at_period_end:
-                subscription.cancel_at_period_end = True
-                subscription.cancellation_reason = request.reason
-            else:
-                subscription.status = "canceled"
-                subscription.canceled_at = datetime.utcnow()
-                subscription.cancel_at_period_end = False
-            current_user.subscription_status = "active" if subscription.status != "canceled" else "inactive"
-            db.commit()
-            db.refresh(subscription)
-            canceled_subscription = subscription
-        else:
-            # Cancel subscription
-            canceled_subscription = subscription_manager.cancel_subscription(
-                subscription_id=subscription_id,
-                cancel_at_period_end=request.cancel_at_period_end,
-                reason=request.reason
+        if _missing_provider_config(subscription.provider):
+            raise ApiException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="payment_provider_not_configured",
+                message="Payment provider is not configured on this server.",
+                details={"provider": subscription.provider},
             )
+
+        canceled_subscription = subscription_manager.cancel_subscription(
+            subscription_id=subscription_id,
+            cancel_at_period_end=request.cancel_at_period_end,
+            reason=request.reason,
+        )
 
         message = "Subscription will be canceled at period end" if request.cancel_at_period_end else "Subscription canceled immediately"
 
@@ -405,6 +356,8 @@ async def cancel_subscription(
             }
         }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -430,19 +383,15 @@ async def reactivate_subscription(
         if not subscription or subscription.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
-        demo_mode = DEMO_BILLING or _missing_provider_config(subscription.provider)
-        if demo_mode:
-            subscription.status = "active"
-            subscription.cancel_at_period_end = False
-            subscription.canceled_at = None
-            subscription.cancellation_reason = None
-            current_user.subscription_status = "active"
-            db.commit()
-            db.refresh(subscription)
-            reactivated_subscription = subscription
-        else:
-            # Reactivate subscription
-            reactivated_subscription = subscription_manager.reactivate_subscription(subscription_id)
+        if _missing_provider_config(subscription.provider):
+            raise ApiException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="payment_provider_not_configured",
+                message="Payment provider is not configured on this server.",
+                details={"provider": subscription.provider},
+            )
+
+        reactivated_subscription = subscription_manager.reactivate_subscription(subscription_id)
 
         return {
             "message": "Subscription reactivated successfully",
@@ -453,6 +402,8 @@ async def reactivate_subscription(
             }
         }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -469,7 +420,8 @@ async def reactivate_subscription(
 
 @router.get("/portal")
 async def create_billing_portal_session(
-    return_url: str,
+    request: Request,
+    return_url: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -480,23 +432,36 @@ async def create_billing_portal_session(
     try:
         subscription_manager = SubscriptionManager(db)
 
-        demo_mode = DEMO_BILLING or _missing_provider_config("stripe")
-        if demo_mode:
-            return {"url": return_url, "message": "Billing portal unavailable in demo mode", "demo": True}
+        if _missing_provider_config("stripe"):
+            raise ApiException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="stripe_not_configured",
+                message="Stripe is not configured on this server.",
+            )
+
+        base_url = _base_url(request)
+        safe_return_url = require_safe_redirect_url(
+            base_url=base_url,
+            candidate=return_url or "/billing",
+            field_name="return_url",
+        )
 
         portal_url = subscription_manager.create_billing_portal_session(
             user_id=current_user.id,
-            return_url=return_url
+            return_url=safe_return_url
         )
 
         if not portal_url:
-            raise HTTPException(
+            raise ApiException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No Stripe customer found. Please create a subscription first."
+                code="no_billing_account",
+                message="No Stripe customer found. Please create a subscription first.",
             )
 
         return {"url": portal_url}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"✗ Failed to create billing portal session: {e}")
         raise HTTPException(
@@ -625,22 +590,38 @@ async def create_checkout_session(
         from services.stripe_service import stripe_mode_label
 
         if _missing_provider_config("stripe"):
-            if DEMO_BILLING:
-                demo_sub = _create_demo_subscription(db, current_user, payload.plan_id, payload.billing_cycle, "stripe")
-                base = _base_url(request)
-                return {"url": f"{base}/billing/success?demo=true", "demo": True, "subscription_id": demo_sub.id}
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe not configured")
+            raise ApiException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="stripe_not_configured",
+                message="Stripe is not configured on this server.",
+            )
 
         # Verify plan exists
         plan = StripeService.get_plan_details(payload.plan_id)
         if not plan:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid plan ID")
+            raise ApiException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="unknown_plan",
+                message="Invalid plan ID",
+            )
+
+        price_key = f"stripe_price_id_{payload.billing_cycle}"
+        if not plan.get(price_key):
+            raise ApiException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="stripe_price_not_configured",
+                message=f"Stripe Price ID not configured for plan={payload.plan_id} cycle={payload.billing_cycle}.",
+            )
 
         # Check existing active subscription
         subscription_manager = SubscriptionManager(db)
         existing = subscription_manager.get_user_subscription(current_user.id)
         if existing and existing.is_active:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already has an active subscription")
+            raise ApiException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="subscription_exists",
+                message="User already has an active subscription.",
+            )
 
         # Ensure user has a Stripe customer ID
         stripe_service = StripeService()
@@ -649,31 +630,69 @@ async def create_checkout_session(
             customer = stripe_service.create_customer(
                 email=current_user.email,
                 name=getattr(current_user, "full_name", current_user.email),
-                metadata={"user_id": str(current_user.id)}
+                metadata={"securewave_user_id": str(current_user.id)},
+                idempotency_key=f"sw_stripe_customer_create_{current_user.id}",
             )
             stripe_customer_id = customer.id
             current_user.stripe_customer_id = stripe_customer_id
             db.commit()
 
         base = _base_url(request)
-        success_url = payload.success_url or f"{base}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"
-        cancel_url = payload.cancel_url or f"{base}/subscription.html"
-
-        session = stripe_service.create_checkout_session(
-            customer_id=stripe_customer_id,
-            plan_id=payload.plan_id,
-            billing_cycle=payload.billing_cycle,
-            success_url=success_url,
-            cancel_url=cancel_url,
-            trial_days=payload.trial_days,
+        success_url = require_safe_redirect_url(
+            base_url=base,
+            candidate=payload.success_url or "/billing?payment=success&session_id={CHECKOUT_SESSION_ID}",
+            field_name="success_url",
+        )
+        cancel_url = require_safe_redirect_url(
+            base_url=base,
+            candidate=payload.cancel_url or "/billing?payment=canceled",
+            field_name="cancel_url",
         )
 
-        logger.info(f"Checkout session {session.id} created ({stripe_mode_label()} mode) for user {current_user.id}")
-        return {
-            "session_id": session.id,
-            "url": session.url,
-            "mode": stripe_mode_label(),
+        idempotency_payload = {
+            "plan_id": payload.plan_id,
+            "billing_cycle": payload.billing_cycle,
+            "trial_days": payload.trial_days,
+            "success_url": success_url,
+            "cancel_url": cancel_url,
         }
+
+        def _execute(idempotency_key: str):
+            session = stripe_service.create_checkout_session(
+                customer_id=stripe_customer_id,
+                plan_id=payload.plan_id,
+                billing_cycle=payload.billing_cycle,
+                success_url=success_url,
+                cancel_url=cancel_url,
+                trial_days=payload.trial_days,
+                user_id=current_user.id,
+                metadata={"securewave_user_id": str(current_user.id)},
+                idempotency_key=idempotency_key,
+            )
+            return {
+                "session_id": session.id,
+                "url": session.url,
+                "mode": stripe_mode_label(),
+            }
+
+        outcome = run_idempotent(
+            db,
+            provider="stripe",
+            operation="checkout_session_create",
+            user_id=current_user.id,
+            request_payload=idempotency_payload,
+            execute=_execute,
+        )
+
+        response = dict(outcome.response)
+        response["replayed"] = outcome.replayed
+        logger.info(
+            "Checkout session created (%s mode) for user %s (replayed=%s)",
+            stripe_mode_label(),
+            current_user.id,
+            outcome.replayed,
+        )
+        return response
 
     except HTTPException:
         raise
@@ -702,7 +721,7 @@ async def get_stripe_status():
 @router.post("/webhooks/stripe", include_in_schema=False)
 async def stripe_webhook(
     request: Request,
-    stripe_signature: str = Header(None, alias="Stripe-Signature"),
+    stripe_signature: Optional[str] = Header(None, alias="Stripe-Signature"),
     db: Session = Depends(get_db)
 ):
     """
@@ -710,23 +729,33 @@ async def stripe_webhook(
     Verifies signature and processes payment events
     """
     try:
+        if not stripe_signature:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Stripe-Signature header")
+        if not (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip():
+            raise ApiException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="stripe_webhook_not_configured",
+                message="STRIPE_WEBHOOK_SECRET is not configured.",
+            )
+
         # Get raw body
         payload = await request.body()
 
         # Verify webhook signature
-        stripe_service = StripeService()
-        event = stripe_service.construct_webhook_event(payload, stripe_signature)
+        event = StripeService.construct_webhook_event(payload, stripe_signature)
 
         # Process event
         webhook_handler = PaymentWebhookHandler(db)
         result = webhook_handler.handle_stripe_event(event)
 
-        logger.info(f"✓ Processed Stripe webhook: {event['type']}")
+        logger.info("Processed Stripe webhook: %s", event.get("type"))
         return JSONResponse(content={"status": "success", "result": result})
 
     except ValueError as e:
         logger.error(f"✗ Invalid Stripe webhook signature: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"✗ Failed to process Stripe webhook: {e}")
         raise HTTPException(

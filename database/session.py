@@ -197,6 +197,8 @@ def create_tables():
     from models import (  # noqa: F401
         user,
         subscription,
+        payment_idempotency_key,
+        webhook_event_receipt,
         audit_log,
         vpn_server,
         vpn_server_rtt_sample,

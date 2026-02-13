@@ -1,0 +1,7 @@
+step,status_code,ok
+signup,201,True
+auth_me,200,True
+create_checkout_session,200,True
+webhook:checkout.session.completed,200,True
+webhook:customer.subscription.created,200,True
+verify_db_state,0,True

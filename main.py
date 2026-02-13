@@ -26,7 +26,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
-from models import user, subscription, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, vpn_demo_session, auth_refresh_token, jwt_blacklist_token  # noqa: F401
+from models import user, subscription, payment_idempotency_key, webhook_event_receipt, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, vpn_demo_session, auth_refresh_token, jwt_blacklist_token  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
 from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user
 from services.wireguard_service import WireGuardService
@@ -53,6 +53,8 @@ class RedactFilter(logging.Filter):
     """Redact emails and obvious secrets from log messages."""
     _email_re = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
     _token_re = re.compile(r"(Bearer\s+)[A-Za-z0-9._\-]+", re.IGNORECASE)
+    _stripe_sk_re = re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9]+\b")
+    _stripe_whsec_re = re.compile(r"\bwhsec_[A-Za-z0-9]+\b")
     _wg_priv_re = re.compile(r"(PrivateKey\s*=\s*)([^\s]+)")
     _wg_psk_re = re.compile(r"(PresharedKey\s*=\s*)([^\s]+)")
 
@@ -60,6 +62,8 @@ class RedactFilter(logging.Filter):
         message = record.getMessage()
         message = self._email_re.sub("[redacted-email]", message)
         message = self._token_re.sub(r"\1[redacted-token]", message)
+        message = self._stripe_sk_re.sub("[redacted-stripe-secret]", message)
+        message = self._stripe_whsec_re.sub("[redacted-stripe-webhook-secret]", message)
         # Defensive: never emit WireGuard secrets if a config blob is accidentally logged.
         message = self._wg_priv_re.sub(r"\1[redacted-wg-privatekey]", message)
         message = self._wg_psk_re.sub(r"\1[redacted-wg-psk]", message)
@@ -697,6 +701,7 @@ page_routes = {
     "/diagnostics": "diagnostics.html",
     "/download": "download.html",
     "/leak-test": "leak_test.html",
+    "/billing": "billing.html",
     "/subscription": "subscription.html",
     "/services": "services.html",
     "/about": "about.html",
@@ -709,7 +714,7 @@ html_pages = [
     "index.html", "home.html", "login.html", "register.html",
     "dashboard.html", "vpn.html", "services.html", "subscription.html", "download.html", "leak_test.html",
     "about.html", "contact.html", "privacy.html", "terms.html",
-    "settings.html", "diagnostics.html"
+    "settings.html", "diagnostics.html", "billing.html"
 ]
 
 

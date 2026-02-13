@@ -17,7 +17,7 @@
       <a href="/dashboard">Account</a>
       <a href="/vpn">Devices</a>
       <a href="/settings">Settings</a>
-      <a href="/subscription">Plan</a>
+      <a href="/billing">Billing</a>
       <a href="/diagnostics" class="active">Diagnostics</a>
       <a href="/download">Download</a>
     </div>
@@ -31,7 +31,7 @@
     </button>
   </div>
   <div class="nav-mobile">
-    <a href="/dashboard">Account</a><a href="/vpn">Devices</a><a href="/settings">Settings</a><a href="/subscription">Plan</a><a href="/diagnostics" class="active">Diagnostics</a><a href="/download">Download</a>
+    <a href="/dashboard">Account</a><a href="/vpn">Devices</a><a href="/settings">Settings</a><a href="/billing">Billing</a><a href="/diagnostics" class="active">Diagnostics</a><a href="/download">Download</a>
     <div class="nav-mobile-actions">
       <button class="btn btn-secondary btn-block" type="button" data-logout>Sign out</button>
     </div>
@@ -44,6 +44,33 @@
       <div class="section-header">
         <h1>Network Diagnostics</h1>
         <p>Test your connection, detect leaks, and monitor network performance in real time.</p>
+      </div>
+
+      <div class="card" style="margin-top: var(--space-4)">
+        <div class="card-header">
+          <h3>Account Diagnostics</h3>
+        </div>
+        <div class="card-body">
+          <div class="stack">
+            <div class="vpn-info-item">
+              <span class="vpn-info-label">Backend API</span>
+              <span class="vpn-info-value" data-diag-api>Checking…</span>
+            </div>
+            <div class="vpn-info-item">
+              <span class="vpn-info-label">Database</span>
+              <span class="vpn-info-value" data-diag-db>Checking…</span>
+            </div>
+            <div class="vpn-info-item">
+              <span class="vpn-info-label">Subscription</span>
+              <span class="vpn-info-value" data-diag-sub>Checking…</span>
+            </div>
+            <div class="vpn-info-item">
+              <span class="vpn-info-label">Stripe</span>
+              <span class="vpn-info-value" data-diag-stripe>Checking…</span>
+            </div>
+          </div>
+          <p class="muted" style="margin-top: var(--space-3)">VPN tunnels run in the apps; this page checks backend reachability and billing status only.</p>
+        </div>
       </div>
 
       <div class="metrics-grid">
@@ -179,5 +206,6 @@
 </footer>
 
 <script src="/js/site.js"></script>
+<script src="/js/diagnostics_center.js"></script>
 </body>
 </html>

@@ -23,14 +23,13 @@ from models.user import User
 from services.jwt_service import get_current_user
 from services.stripe_service import StripeService
 from services.payment_webhooks import PaymentWebhookHandler
-from utils.env_validation import demo_mode_enabled
+from services.payment_idempotency import run_idempotent
+from utils.api_errors import ApiException
+from utils.url_safety import require_safe_redirect_url
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-stripe_service = StripeService()
-
-DEMO_MODE = os.getenv("DEMO_BILLING", "").lower() == "true" or demo_mode_enabled()
 
 
 def _stripe_configured() -> bool:
@@ -74,13 +73,14 @@ async def create_checkout_session(
     Create a Stripe Checkout session for the specified plan.
 
     Returns the checkout session URL that the frontend should redirect to.
-    In demo mode (no Stripe keys), returns a simulated success response.
     """
+    stripe_service = StripeService()
     plan = stripe_service.get_plan_details(payload.plan_id)
     if not plan:
-        raise HTTPException(
+        raise ApiException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown plan: {payload.plan_id}",
+            code="unknown_plan",
+            message=f"Unknown plan: {payload.plan_id}",
         )
 
     # Free plan does not require Stripe
@@ -91,16 +91,22 @@ async def create_checkout_session(
             "checkout_url": None,
         }
 
-    base = _base_url(request)
+    if not _stripe_configured():
+        raise ApiException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="stripe_not_configured",
+            message="Stripe is not configured on this server.",
+        )
 
-    if not _stripe_configured() or DEMO_MODE:
-        logger.info("Stripe not configured -- returning demo checkout response")
-        return {
-            "checkout_url": f"{base}/subscription?demo=success&plan={payload.plan_id}",
-            "session_id": "demo_session",
-            "demo": True,
-            "message": "Demo mode: no real payment processed",
-        }
+    price_key = f"stripe_price_id_{payload.billing_cycle}"
+    if not plan.get(price_key):
+        raise ApiException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="stripe_price_not_configured",
+            message=f"Stripe Price ID not configured for plan={payload.plan_id} cycle={payload.billing_cycle}.",
+        )
+
+    base = _base_url(request)
 
     try:
         # Ensure the user has a Stripe customer ID
@@ -110,30 +116,51 @@ async def create_checkout_session(
                 email=current_user.email,
                 name=getattr(current_user, "full_name", None),
                 metadata={"securewave_user_id": str(current_user.id)},
+                idempotency_key=f"sw_stripe_customer_create_{current_user.id}",
             )
             customer_id = customer.id
             current_user.stripe_customer_id = customer_id
             db.commit()
 
-        session = stripe_service.create_checkout_session(
-            customer_id=customer_id,
-            plan_id=payload.plan_id,
-            billing_cycle=payload.billing_cycle,
-            success_url=f"{base}/dashboard?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{base}/subscription?payment=canceled",
-            trial_days=payload.trial_days,
+        idempotency_payload = {
+            "plan_id": payload.plan_id,
+            "billing_cycle": payload.billing_cycle,
+            "trial_days": payload.trial_days,
+        }
+
+        def _execute(idempotency_key: str):
+            session = stripe_service.create_checkout_session(
+                customer_id=customer_id,
+                plan_id=payload.plan_id,
+                billing_cycle=payload.billing_cycle,
+                success_url=f"{base}/billing?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{base}/billing?payment=canceled",
+                trial_days=payload.trial_days,
+                user_id=current_user.id,
+                metadata={"securewave_user_id": str(current_user.id)},
+                idempotency_key=idempotency_key,
+            )
+            return {"checkout_url": session.url, "session_id": session.id}
+
+        outcome = run_idempotent(
+            db,
+            provider="stripe",
+            operation="checkout_session_create",
+            user_id=current_user.id,
+            request_payload=idempotency_payload,
+            execute=_execute,
         )
 
-        return {
-            "checkout_url": session.url,
-            "session_id": session.id,
-        }
+        response = dict(outcome.response)
+        response["replayed"] = outcome.replayed
+        return response
 
     except Exception as e:
         logger.error("Failed to create checkout session: %s", e)
-        raise HTTPException(
+        raise ApiException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create checkout session",
+            code="checkout_session_failed",
+            message="Failed to create checkout session.",
         )
 
 
@@ -160,10 +187,17 @@ async def stripe_webhook(
             detail="Missing Stripe-Signature header",
         )
 
+    if not (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip():
+        raise ApiException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="stripe_webhook_not_configured",
+            message="STRIPE_WEBHOOK_SECRET is not configured.",
+        )
+
     payload = await request.body()
 
     try:
-        event = stripe_service.construct_webhook_event(payload, stripe_signature)
+        event = StripeService.construct_webhook_event(payload, stripe_signature)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -180,10 +214,10 @@ async def stripe_webhook(
     try:
         handler = PaymentWebhookHandler(db)
         result = handler.handle_stripe_event(event)
-        logger.info("Stripe webhook processed: %s", event["type"])
+        logger.info("Stripe webhook processed: %s", event.get("type"))
         return JSONResponse(content={"status": "success", "result": result})
     except Exception as e:
-        logger.error("Failed to process webhook event %s: %s", event["type"], e)
+        logger.error("Failed to process webhook event %s: %s", event.get("type"), e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process webhook event",
@@ -203,7 +237,7 @@ async def get_stripe_plans():
     display plans to unauthenticated visitors.
     """
     plans = []
-    for plan_id, plan_data in stripe_service.PLANS.items():
+    for plan_id, plan_data in StripeService.PLANS.items():
         monthly = plan_data["price_monthly"]
         yearly = plan_data["price_yearly"]
 
@@ -245,21 +279,27 @@ async def create_portal_session(
     The portal allows customers to manage their subscription, update
     payment methods, view invoices, and cancel.
     """
+    stripe_service = StripeService()
     base = _base_url(request)
-    return_url = payload.return_url or f"{base}/settings"
+    return_url = require_safe_redirect_url(
+        base_url=base,
+        candidate=payload.return_url or "/billing",
+        field_name="return_url",
+    )
 
-    if not _stripe_configured() or DEMO_MODE:
-        return {
-            "url": return_url,
-            "demo": True,
-            "message": "Billing portal unavailable in demo mode",
-        }
+    if not _stripe_configured():
+        raise ApiException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="stripe_not_configured",
+            message="Stripe is not configured on this server.",
+        )
 
     customer_id = getattr(current_user, "stripe_customer_id", None)
     if not customer_id:
-        raise HTTPException(
+        raise ApiException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No billing account found. Please subscribe to a plan first.",
+            code="no_billing_account",
+            message="No billing account found. Please subscribe to a plan first.",
         )
 
     try:
@@ -270,9 +310,10 @@ async def create_portal_session(
         return {"url": session.url}
     except Exception as e:
         logger.error("Failed to create portal session: %s", e)
-        raise HTTPException(
+        raise ApiException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create billing portal session",
+            code="portal_session_failed",
+            message="Failed to create billing portal session.",
         )
 
 

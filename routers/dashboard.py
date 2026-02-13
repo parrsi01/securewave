@@ -30,7 +30,9 @@ def dashboard_info(current_user: User = Depends(get_current_user), db: Session =
         subscription_data = {
             "provider": latest_sub.provider,
             "status": latest_sub.status,
-            "is_active": latest_sub.status == "active",
+            "is_active": bool(getattr(latest_sub, "is_active", None) or latest_sub.status in ("active", "trialing")),
+            "plan_id": getattr(latest_sub, "plan_id", None),
+            "plan_name": getattr(latest_sub, "plan_name", None),
             "expires_at": latest_sub.expires_at,
         }
 

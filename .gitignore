@@ -192,6 +192,11 @@ artifacts/**
 !artifacts/geo_reco/barbados/**
 !artifacts/geo_reco/europe/
 !artifacts/geo_reco/europe/**
+!artifacts/stripe_hardening/
+!artifacts/stripe_hardening/report.md
+!artifacts/payment_sim/
+!artifacts/payment_sim/report.json
+!artifacts/payment_sim/summary.csv
 
 # Python
 __pycache__/
