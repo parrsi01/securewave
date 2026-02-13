@@ -13,6 +13,7 @@ import '../features/auth/login_page.dart';
 import '../features/auth/register_page.dart';
 import '../features/bootstrap/boot_screen.dart';
 import '../features/bootstrap/fallback_error_screen.dart';
+import '../features/onboarding/onboarding_screen.dart';
 
 // Main app screens
 import '../screens/home/home_screen.dart';
@@ -123,6 +124,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _buildPage(
           state: state,
           child: const RegisterPage(),
+        ),
+      ),
+
+      // Onboarding (first-time users)
+      GoRoute(
+        path: '/onboarding',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: OnboardingScreen(
+            onComplete: () {
+              // Navigate to home after onboarding
+            },
+          ),
         ),
       ),
 

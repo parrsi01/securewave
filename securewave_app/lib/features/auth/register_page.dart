@@ -157,7 +157,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                               .read(authControllerProvider)
                                               .errorMessage ==
                                           null) {
-                                        context.go('/vpn');
+                                        context.go('/home');
                                       }
                                     },
                               child: state.isLoading

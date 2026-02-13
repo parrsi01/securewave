@@ -8,6 +8,7 @@ import '../../core/state/vpn_state.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 import 'widgets/diagnostics_dialog.dart';
+import '../../features/onboarding/feedback_sheet.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -134,6 +135,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               const SizedBox(height: AppSpacing.space5),
 
+              // ── Feedback ──────────────────────────────────────────────
+              _SectionHeader(title: 'Feedback'),
+              Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  leading: const Icon(Icons.feedback_outlined),
+                  title: const Text('Send Feedback'),
+                  subtitle: const Text(
+                    'Report bugs, request features, or share your thoughts.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showFeedbackSheet(context),
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.space5),
+
               // ── Danger Zone ─────────────────────────────────────────────
               _SectionHeader(title: 'Danger Zone'),
               Card(
@@ -201,6 +219,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showFeedbackSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => FeedbackSheet(
+        onSubmit: (category, description) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Thank you for your feedback!'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        },
       ),
     );
   }

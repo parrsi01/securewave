@@ -18,8 +18,7 @@ class AccountScreen extends ConsumerWidget {
     final auth = ref.watch(authSessionProvider);
     final theme = Theme.of(context);
 
-    // Demo fallback for email display
-    const demoEmail = 'demo@securewave.app';
+    final email = auth.email ?? 'Not available';
 
     // Hardcoded plan data for the initial build
     const planName = 'Free Plan';
@@ -61,7 +60,7 @@ class AccountScreen extends ConsumerWidget {
               // -- Email
               Center(
                 child: Text(
-                  auth.isAuthenticated ? demoEmail : 'Not signed in',
+                  auth.isAuthenticated ? email : 'Not signed in',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),

@@ -21,6 +21,7 @@ class AuthService {
     await _session.setSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
+      email: email,
     );
   }
 
@@ -33,6 +34,7 @@ class AuthService {
     await _session.setSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
+      email: email,
     );
   }
 }

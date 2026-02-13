@@ -14,13 +14,39 @@ class ConnectionButton extends ConsumerStatefulWidget {
   ConsumerState<ConnectionButton> createState() => _ConnectionButtonState();
 }
 
-class _ConnectionButtonState extends ConsumerState<ConnectionButton> {
+class _ConnectionButtonState extends ConsumerState<ConnectionButton>
+    with SingleTickerProviderStateMixin {
   bool _pressed = false;
+  late final AnimationController _glowController;
+
+  @override
+  void initState() {
+    super.initState();
+    _glowController = AnimationController(
+      vsync: this,
+      duration: AppAnimations.glowPulseDuration,
+    );
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final vpn = ref.watch(vpnStateProvider);
     final notifier = ref.read(vpnStateProvider.notifier);
+
+    // Manage glow animation based on connection state
+    if (vpn.status == VpnStatus.connected && !_glowController.isAnimating) {
+      _glowController.repeat(reverse: true);
+    } else if (vpn.status != VpnStatus.connected &&
+        _glowController.isAnimating) {
+      _glowController.stop();
+      _glowController.reset();
+    }
 
     final Color bgColor;
     final IconData icon;
@@ -69,47 +95,92 @@ class _ConnectionButtonState extends ConsumerState<ConnectionButton> {
         scale: _pressed ? AppAnimations.connectionButtonScale : 1.0,
         duration: AppAnimations.durationFast,
         curve: AppAnimations.curveDefault,
-        child: AnimatedContainer(
-          duration: AppAnimations.connectionTransition,
-          curve: AppAnimations.curveDefault,
-          width: 160,
-          height: 160,
-          decoration: BoxDecoration(
-            color: bgColor,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: bgColor.withValues(alpha: 0.3),
-                blurRadius: 24,
-                spreadRadius: 4,
-              ),
-            ],
-          ),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (showSpinner)
-                  const SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        child: AnimatedOpacity(
+          opacity: vpn.isBusy ? 0.75 : 1.0,
+          duration: AppAnimations.durationFast,
+          child: SizedBox(
+            width: 180,
+            height: 180,
+            child: AnimatedBuilder(
+              animation: _glowController,
+              builder: (context, child) {
+                final glowOpacity = vpn.status == VpnStatus.connected
+                    ? 0.12 + (_glowController.value * 0.18)
+                    : 0.0;
+                return Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: vpn.status == VpnStatus.connected
+                        ? [
+                            BoxShadow(
+                              color: AppColors.success
+                                  .withValues(alpha: glowOpacity),
+                              blurRadius: 40,
+                              spreadRadius: 8,
+                            ),
+                          ]
+                        : [],
+                  ),
+                  child: child,
+                );
+              },
+              child: AnimatedContainer(
+                duration: AppAnimations.connectionTransition,
+                curve: AppAnimations.curveDefault,
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: bgColor.withValues(alpha: 0.3),
+                      blurRadius: 24,
+                      spreadRadius: 4,
                     ),
-                  )
-                else
-                  Icon(icon, size: 40, color: Colors.white),
-                const SizedBox(height: 8),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                  ],
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: AppAnimations.durationFast,
+                        switchInCurve: AppAnimations.curveEnter,
+                        switchOutCurve: AppAnimations.curveExit,
+                        child: showSpinner
+                            ? SizedBox(
+                                key: const ValueKey('spinner'),
+                                width: 32,
+                                height: 32,
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : Icon(icon,
+                                key: ValueKey(icon),
+                                size: 40,
+                                color: Colors.white),
+                      ),
+                      const SizedBox(height: 8),
+                      AnimatedSwitcher(
+                        duration: AppAnimations.durationFast,
+                        child: Text(
+                          label,
+                          key: ValueKey(label),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),

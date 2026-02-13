@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:platform_info/platform_info.dart';
 
 import '../../core/models/vpn_status.dart';
-import '../../core/config/app_config.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
 import '../diagnostics/connection_diagnostics_sheet.dart';
@@ -85,8 +84,6 @@ class _VpnPageState extends ConsumerState<VpnPage> {
     final vpnState = ref.watch(vpnStateProvider);
     final servers = ref.watch(serversProvider);
     final vpnService = ref.watch(vpnServiceProvider);
-    final config = ref.watch(appConfigProvider);
-
     final serversData =
         servers.maybeWhen(data: (data) => data, orElse: () => null);
 
@@ -109,8 +106,7 @@ class _VpnPageState extends ConsumerState<VpnPage> {
     final isDisconnecting = vpnState.status == VpnStatus.disconnecting;
     final platformNotice = _platformNotice();
     final nativeUnavailable = !vpnService.isNativeAvailable;
-    final canSimulate = config.useMockApi;
-    final canAttemptConnect = !nativeUnavailable || canSimulate;
+    final canAttemptConnect = !nativeUnavailable;
     final connectEnabled =
         !vpnState.isBusy && (isConnected || canAttemptConnect);
     final needsSetupTitle = platform.operatingSystem == OperatingSystem.macOS
@@ -128,16 +124,7 @@ class _VpnPageState extends ConsumerState<VpnPage> {
             ),
             children: [
               // ── Notices (collapsed if none) ───────────────────────
-              if (nativeUnavailable && canSimulate) ...[
-                const _NoticeCard(
-                  icon: Icons.info_outline,
-                  color: AppUIv1.accentSun,
-                  title: 'Demo mode',
-                  body: 'Mock API is enabled. VPN connections are simulated '
-                      '(no device setup required). Disable mock API to use a real tunnel.',
-                ),
-                const SizedBox(height: AppUIv1.space3),
-              ] else if (nativeUnavailable && platformNotice != null) ...[
+              if (nativeUnavailable && platformNotice != null) ...[
                 _NoticeCard(
                   icon: Icons.devices,
                   color: AppUIv1.warning,

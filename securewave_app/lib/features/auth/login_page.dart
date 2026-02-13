@@ -135,7 +135,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                               .read(authControllerProvider)
                                               .errorMessage ==
                                           null) {
-                                        context.go('/vpn');
+                                        context.go('/home');
                                       }
                                     },
                               child: state.isLoading

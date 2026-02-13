@@ -1053,6 +1053,59 @@ tr:hover td{background:var(--sw-gray-50)}
   .container{padding:0 var(--sw-space-10)}
 }
 
+/* --- Mobile toast positioning --- */
+@media(max-width:639px){
+  .toast-container{left:var(--sw-space-4);right:var(--sw-space-4);bottom:var(--sw-space-4)}
+  .toast{text-align:center}
+}
+
+/* --- Mobile modal full-screen --- */
+@media(max-width:639px){
+  .modal{max-width:100%;border-radius:var(--sw-radius-lg) var(--sw-radius-lg) 0 0;margin-top:auto;padding:var(--sw-space-6)}
+  .modal-overlay{align-items:flex-end}
+  .auth-card{padding:var(--sw-space-6)}
+}
+
+/* --- Mobile layout adjustments --- */
+@media(max-width:639px){
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+  .dash-layout{gap:var(--sw-space-4)}
+  .hero{padding:var(--sw-space-10) 0 var(--sw-space-12)}
+  .section{padding:var(--sw-space-12) 0}
+  .section-lg{padding:var(--sw-space-16) 0}
+}
+
+/* --- Focus states for accessibility --- */
+.btn:focus-visible,.form-input:focus-visible,.form-select:focus-visible,.form-textarea:focus-visible,.tab:focus-visible{
+  outline:2px solid var(--sw-primary);outline-offset:2px;
+}
+
+/* --- Chat panel smooth transition --- */
+.sw-chat-panel{transition:transform var(--sw-duration-slow) var(--sw-ease),opacity var(--sw-duration-slow) var(--sw-ease)}
+
+/* --- Mobile touch targets --- */
+@media(max-width:639px){
+  .nav-links a,.settings-nav a{min-height:44px;display:flex;align-items:center}
+  .btn-sm{min-height:36px}
+  .form-check input[type="checkbox"],.form-check input[type="radio"]{width:20px;height:20px}
+}
+
+/* --- Beta badge utility --- */
+.badge-beta{background:var(--sw-primary);color:var(--sw-text-inverse);font-size:.6875rem;letter-spacing:.04em;text-transform:uppercase}
+
+/* --- Feedback FAB --- */
+.feedback-fab{
+  position:fixed;bottom:var(--sw-space-6);left:var(--sw-space-6);
+  z-index:1400;
+  padding:var(--sw-space-2) var(--sw-space-4);
+  background:var(--sw-gray-800);color:var(--sw-text-inverse);
+  border:none;border-radius:var(--sw-radius-full);
+  cursor:pointer;font-family:inherit;font-size:.8125rem;font-weight:600;
+  box-shadow:var(--sw-shadow-md);
+  transition:all var(--sw-duration) var(--sw-ease);
+}
+.feedback-fab:hover{background:var(--sw-gray-900);transform:translateY(-2px)}
+
 /* --- Print --- */
 @media print{
   .nav,.footer,.sw-chat-fab,.sw-chat-panel{display:none !important}

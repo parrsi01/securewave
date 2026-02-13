@@ -83,7 +83,7 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
 
   void _selectServer(String serverId) {
     ref.read(vpnStateProvider.notifier).selectServer(serverId);
-    context.go('/vpn');
+    context.go('/home');
   }
 
   List<ServerRegion> get _filteredServers {
