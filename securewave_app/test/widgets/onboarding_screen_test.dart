@@ -16,7 +16,7 @@ void main() {
       );
 
       expect(find.text('Secure Your Connection'), findsOneWidget);
-      expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.shield_rounded), findsOneWidget);
       expect(find.text('Next'), findsOneWidget);
       expect(find.text('Skip'), findsOneWidget);
       expect(completed, isFalse);
@@ -33,7 +33,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Choose Your Location'), findsOneWidget);
-      expect(find.byIcon(Icons.public), findsOneWidget);
+      expect(find.byIcon(Icons.public_rounded), findsOneWidget);
     });
 
     testWidgets('navigates to third page and shows Get Started',
@@ -53,7 +53,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text("You're All Set"), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
       expect(find.text('Get Started'), findsOneWidget);
     });
 

@@ -6,12 +6,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../ui/app_ui_v1.dart';
+import '../../ui/design/app_colors.dart';
 import '../logging/app_logger.dart';
 import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 import '../optimization/marlxgb.dart';
 import '../services/device_identity.dart';
+import '../services/protocol_selector.dart';
 import '../services/secure_storage.dart';
 import 'vpn_state_machine.dart';
 import '../../services/api_client.dart';
@@ -22,7 +23,7 @@ class VpnState {
   const VpnState({
     this.status = VpnStatus.disconnected,
     this.selectedServerId,
-    this.protocol = VpnProtocol.wireGuard,
+    this.protocol = VpnProtocol.auto,
     this.desiredOn = false,
     this.isBusy = false,
     this.dataRateDown = 0,
@@ -30,6 +31,8 @@ class VpnState {
     this.stabilityScore = 1.0,
     this.errorMessage,
     this.errorKind,
+    this.effectiveProtocol,
+    this.protocolMessage,
     this.lastProfileFetchAt,
     this.lastProfileFetchOk,
     this.lastTunnelStartAt,
@@ -46,6 +49,8 @@ class VpnState {
   final double stabilityScore;
   final String? errorMessage;
   final VpnErrorKind? errorKind;
+  final VpnProtocol? effectiveProtocol;
+  final String? protocolMessage;
   final DateTime? lastProfileFetchAt;
   final bool? lastProfileFetchOk;
   final DateTime? lastTunnelStartAt;
@@ -62,11 +67,15 @@ class VpnState {
     double? stabilityScore,
     String? errorMessage,
     VpnErrorKind? errorKind,
+    VpnProtocol? effectiveProtocol,
+    String? protocolMessage,
     DateTime? lastProfileFetchAt,
     bool? lastProfileFetchOk,
     DateTime? lastTunnelStartAt,
     bool? lastTunnelStartOk,
     bool clearError = false,
+    bool clearEffectiveProtocol = false,
+    bool clearProtocolMessage = false,
   }) {
     return VpnState(
       status: status ?? this.status,
@@ -79,6 +88,12 @@ class VpnState {
       stabilityScore: stabilityScore ?? this.stabilityScore,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       errorKind: clearError ? null : (errorKind ?? this.errorKind),
+      effectiveProtocol: clearEffectiveProtocol
+          ? null
+          : (effectiveProtocol ?? this.effectiveProtocol),
+      protocolMessage: clearProtocolMessage
+          ? null
+          : (protocolMessage ?? this.protocolMessage),
       lastProfileFetchAt: lastProfileFetchAt ?? this.lastProfileFetchAt,
       lastProfileFetchOk: lastProfileFetchOk ?? this.lastProfileFetchOk,
       lastTunnelStartAt: lastTunnelStartAt ?? this.lastTunnelStartAt,
@@ -137,7 +152,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final stored =
         await SecureStorage().getString(SecureStorage.vpnProtocolKey);
     if (!mounted) return;
-    state = state.copyWith(protocol: vpnProtocolFromStorage(stored));
+    state = state.copyWith(
+      protocol: vpnProtocolFromStorage(stored),
+      clearEffectiveProtocol: true,
+      clearProtocolMessage: true,
+    );
     AppLogger.info(
       '[VPN_SM] {"event":"protocol_loaded","protocol":"${state.protocol.name}"}',
     );
@@ -178,7 +197,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> selectProtocol(VpnProtocol protocol) async {
-    state = state.copyWith(protocol: protocol);
+    state = state.copyWith(
+      protocol: protocol,
+      clearEffectiveProtocol: true,
+      clearProtocolMessage: true,
+    );
     await SecureStorage().saveString(
       SecureStorage.vpnProtocolKey,
       vpnProtocolStorageValue(protocol),
@@ -372,25 +395,38 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
     try {
       final service = _ref.read(vpnServiceProvider);
-      String? config;
-      final protocol = state.protocol;
-
-      if (protocol != VpnProtocol.wireGuard) {
+      final selectedProtocol = state.protocol;
+      final capabilities = await service
+          .getCapabilities()
+          .timeout(const Duration(seconds: 3), onTimeout: () {
+        return VpnCapabilities.none;
+      });
+      final plan = const ProtocolSelector().resolve(
+        selected: selectedProtocol,
+        capabilities: capabilities,
+      );
+      if (!plan.isConnectable) {
         throw VpnServiceException(
           'protocol_unavailable',
-          'This protocol is not available yet. Please use WireGuard.',
+          plan.error ??
+              'No supported VPN runtime is available for this protocol.',
         );
       }
+      state = state.copyWith(
+        effectiveProtocol: plan.effective,
+        protocolMessage: plan.warning,
+        clearProtocolMessage: plan.warning == null,
+      );
 
-      if (service.isNativeAvailable) {
-        config = await _resolveVpnConfig(op: op, protocol: protocol);
-      } else {
-        await _notifyBackendConnected();
-      }
+      final profile = await _resolveVpnProfile(
+        op: op,
+        protocol: plan.backendProtocol,
+        effectiveProtocol: plan.effective,
+      );
 
       _throwIfCancelled(op);
       final nextStatus = await service
-          .connect(protocol: protocol, config: config)
+          .connect(protocol: plan.effective, profile: profile)
           .timeout(_config.connectTimeout);
       _throwIfCancelled(op);
 
@@ -427,6 +463,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         state = state.copyWith(
           lastTunnelStartAt: DateTime.now(),
           lastTunnelStartOk: true,
+        );
+        _safeFireAndForget(
+          _notifyBackendConnected(),
+          context: 'notify_backend_connected',
         );
         _updateStability(success: true);
         _startRateSimulation();
@@ -604,9 +644,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
-  Future<String> _resolveVpnConfig({
+  Future<Map<String, dynamic>> _resolveVpnProfile({
     required _VpnOperation op,
     required VpnProtocol protocol,
+    required VpnProtocol effectiveProtocol,
   }) async {
     _throwIfCancelled(op);
     final api = _ref.read(apiClientProvider);
@@ -638,17 +679,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         lastProfileFetchOk: true,
       );
 
-      final configText = profile.wireguardConfig.trim();
-      if (configText.isEmpty) {
-        throw StateError('VPN profile missing configuration.');
-      }
-      await _validateWireGuardConfig(configText);
-      _throwIfCancelled(op);
-
       if (profile.deviceId > 0) {
         await storage.saveInt(SecureStorage.vpnDeviceIdKey, profile.deviceId);
       }
-      await storage.saveString(SecureStorage.vpnProfileConfigKey, configText);
       if (profile.expiresAt != null) {
         await storage.saveString(
           SecureStorage.vpnProfileExpiresAtKey,
@@ -658,7 +691,24 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (!profile.peerRegistered && profile.registrationStatus != null) {
         AppLogger.warning('Peer registration: ${profile.registrationStatus}');
       }
-      return configText;
+
+      final nativeProfile =
+          Map<String, dynamic>.from(profile.toNativeProfile());
+      if (effectiveProtocol == VpnProtocol.wireGuard) {
+        final configText = (profile.wireguardConfig ??
+                nativeProfile['wireguard_config']?.toString() ??
+                '')
+            .trim();
+        if (configText.isEmpty) {
+          throw StateError('VPN profile missing WireGuard configuration.');
+        }
+        await _validateWireGuardConfig(configText);
+        _throwIfCancelled(op);
+        nativeProfile['wireguard_config'] = configText;
+        await storage.saveString(SecureStorage.vpnProfileConfigKey, configText);
+      }
+
+      return nativeProfile;
     } catch (error) {
       if (error is _VpnOperationCancelled ||
           (error is DioException && CancelToken.isCancel(error))) {
@@ -671,12 +721,18 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         );
       }
 
+      if (effectiveProtocol != VpnProtocol.wireGuard) {
+        rethrow;
+      }
       final cached =
           await storage.getString(SecureStorage.vpnProfileConfigKey) ?? '';
       if (cached.trim().isNotEmpty) {
         AppLogger.warning('Using cached VPN profile (profile fetch failed).');
         await _validateWireGuardConfig(cached);
-        return cached;
+        return <String, dynamic>{
+          'type': 'wireguard',
+          'wireguard_config': cached,
+        };
       }
       rethrow;
     }
@@ -696,21 +752,21 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
-  Future<void> _notifyBackendConnected() async {
-    try {
-      final api = _ref.read(apiClientProvider);
-      await api.notifyVpnConnected(region: state.selectedServerId);
-    } catch (_) {
-      AppLogger.info('Backend connect notification skipped.');
-    }
-  }
-
   Future<void> _notifyBackendDisconnected() async {
     try {
       final api = _ref.read(apiClientProvider);
       await api.notifyVpnDisconnected();
     } catch (_) {
       AppLogger.info('Backend disconnect notification skipped.');
+    }
+  }
+
+  Future<void> _notifyBackendConnected() async {
+    try {
+      final api = _ref.read(apiClientProvider);
+      await api.notifyVpnConnected(region: state.selectedServerId);
+    } catch (_) {
+      AppLogger.info('Backend connect notification skipped.');
     }
   }
 
@@ -861,6 +917,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       }
       if (error.code == 'vpn_permission_required') {
         return (kind: VpnErrorKind.permissionRequired, message: error.message);
+      }
+      if (error.code == 'vpn_timeout') {
+        return (kind: VpnErrorKind.backendError, message: error.message);
       }
       if (error.code == 'vpn_unavailable' ||
           error.code == 'vpn_not_configured') {
@@ -1089,11 +1148,11 @@ extension VpnStatePresentation on VpnState {
     final backendUnreachable = status == VpnStatus.error &&
         errorKind == VpnErrorKind.backendUnreachable;
     return switch (status) {
-      VpnStatus.connected => AppUIv1.success,
-      VpnStatus.connecting => AppUIv1.accentSun,
-      VpnStatus.disconnecting => AppUIv1.accentSun,
-      VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
-      VpnStatus.disconnected => AppUIv1.inkSoft,
+      VpnStatus.connected => AppColors.success,
+      VpnStatus.connecting => AppColors.secondary,
+      VpnStatus.disconnecting => AppColors.secondary,
+      VpnStatus.error => backendUnreachable ? AppColors.error : AppColors.warning,
+      VpnStatus.disconnected => AppColors.inkSoft,
     };
   }
 

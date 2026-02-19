@@ -7,7 +7,7 @@ import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
-import 'package:securewave_app/screens/home/widgets/connection_button.dart';
+import 'package:securewave_app/screens/home/widgets/connection_ring.dart';
 
 /// A VpnService that reports a fixed initial status.
 class _FixedStatusVpnService implements VpnService {
@@ -19,11 +19,17 @@ class _FixedStatusVpnService implements VpnService {
   bool get isNativeAvailable => false;
 
   @override
+  String? get availabilityMessage => null;
+
+  @override
+  Future<VpnCapabilities> getCapabilities() async => VpnCapabilities.none;
+
+  @override
   VpnStatus getStatus() => _status;
 
   @override
   Future<VpnStatus> connect(
-      {required VpnProtocol protocol, String? config}) async {
+      {required VpnProtocol protocol, Map<String, dynamic>? profile}) async {
     return _status;
   }
 
@@ -74,34 +80,31 @@ void main() {
     return ProviderScope(
       overrides: [vpnServiceProvider.overrideWithValue(service)],
       child: const MaterialApp(
-        home: Scaffold(body: Center(child: ConnectionButton())),
+        home: Scaffold(body: Center(child: ConnectionRing())),
       ),
     );
   }
 
-  group('ConnectionButton', () {
-    testWidgets('shows "Connect" label when disconnected', (tester) async {
+  group('ConnectionRing', () {
+    testWidgets('shows "Tap to Connect" label when disconnected', (tester) async {
       await tester.pumpWidget(
         buildWithService(_FixedStatusVpnService(VpnStatus.disconnected)),
       );
       await tester.pump();
 
-      expect(find.text('Connect'), findsOneWidget);
+      expect(find.text('Tap to Connect'), findsOneWidget);
       expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
     });
 
-    testWidgets('shows "Disconnect" label when connected', (tester) async {
+    testWidgets('shows "Connected" label when connected', (tester) async {
       await tester.pumpWidget(
         buildWithService(_FixedStatusVpnService(VpnStatus.connected)),
       );
-      // Pump a couple of frames to let the notifier initialize and the
-      // glow animation controller start (periodic timer). Do NOT use
-      // pumpAndSettle which would wait forever on the repeating animation.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      expect(find.text('Disconnect'), findsOneWidget);
-      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.text('Connected'), findsOneWidget);
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
     });
 
     testWidgets('shows "Retry" label on error', (tester) async {
@@ -120,7 +123,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.byType(ConnectionButton), findsOneWidget);
+      expect(find.byType(ConnectionRing), findsOneWidget);
       expect(find.byType(GestureDetector), findsWidgets);
     });
   });

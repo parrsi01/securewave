@@ -3,17 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
-import '../ui/design/app_colors.dart';
 import '../ui/design/app_spacing.dart';
-import '../ui/design/app_animations.dart';
-import '../core/models/vpn_status.dart';
-import '../core/state/vpn_state.dart';
 import 'nav_destinations.dart';
+import 'widgets/desktop_sidebar.dart';
+import 'widgets/status_indicator.dart';
 
-/// Adaptive app shell with bottom navigation (mobile) or rail (desktop).
-///
-/// Displays connection status and provides navigation between 4 main tabs:
-/// Home, Locations, Settings, Account.
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
 
@@ -21,29 +15,80 @@ class AppShell extends ConsumerWidget {
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    final index = NavDestinations.all.indexWhere((d) => location.startsWith(d.path));
+    final index =
+        NavDestinations.all.indexWhere((d) => location.startsWith(d.path));
     return index >= 0 ? index : 0;
+  }
+
+  void _onDestinationSelected(BuildContext context, int index) {
+    context.go(NavDestinations.all[index].path);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = _currentIndex(context);
-    final vpnState = ref.watch(vpnStateProvider);
-    final statusColor = _statusColor(vpnState.status);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= AppSpacing.tabletBreakpoint;
+        final width = constraints.maxWidth;
 
-        if (isDesktop) {
-          // Desktop: NavigationRail
+        // Desktop (>=900dp)
+        if (width >= AppSpacing.tabletBreakpoint) {
           return Scaffold(
             body: SafeArea(
               child: Row(
                 children: [
-                  _DesktopRail(
+                  DesktopSidebar(
                     currentIndex: currentIndex,
-                    statusColor: statusColor,
+                    onDestinationSelected: (i) =>
+                        _onDestinationSelected(context, i),
+                  ),
+                  Expanded(child: child),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Tablet (600-900dp)
+        if (width >= AppSpacing.mobileBreakpoint) {
+          return Scaffold(
+            body: SafeArea(
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 80,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: AppSpacing.space4),
+                        SvgPicture.asset(
+                          'assets/securewave_logo.svg',
+                          width: 32,
+                          height: 32,
+                        ),
+                        const SizedBox(height: AppSpacing.space3),
+                        Expanded(
+                          child: NavigationRail(
+                            selectedIndex: currentIndex,
+                            onDestinationSelected: (i) =>
+                                _onDestinationSelected(context, i),
+                            labelType: NavigationRailLabelType.all,
+                            backgroundColor: Colors.transparent,
+                            destinations: NavDestinations.all
+                                .map((d) => NavigationRailDestination(
+                                      icon: Icon(d.icon),
+                                      selectedIcon: Icon(d.selectedIcon),
+                                      label: Text(d.label),
+                                    ))
+                                .toList(),
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: AppSpacing.space4),
+                          child: StatusIndicator(),
+                        ),
+                      ],
+                    ),
                   ),
                   const VerticalDivider(width: 1),
                   Expanded(child: child),
@@ -53,54 +98,24 @@ class AppShell extends ConsumerWidget {
           );
         }
 
-        // Mobile: Bottom NavigationBar
+        // Mobile (<600dp)
         return Scaffold(
           appBar: AppBar(
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedContainer(
-                  duration: AppAnimations.durationNormal,
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.space2),
-                Text(
-                  'SecureWave',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(width: AppSpacing.space2),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                  ),
-                  child: Text(
-                    'BETA',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.primary,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              ],
+            leading: const Padding(
+              padding: EdgeInsets.only(left: AppSpacing.space4),
+              child: Center(child: StatusIndicator()),
             ),
+            title: Text(
+              'SecureWave',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            centerTitle: true,
           ),
           body: child,
           bottomNavigationBar: NavigationBar(
             selectedIndex: currentIndex,
-            onDestinationSelected: (index) =>
-                context.go(NavDestinations.all[index].path),
+            onDestinationSelected: (i) =>
+                _onDestinationSelected(context, i),
             destinations: NavDestinations.all
                 .map((d) => NavigationDestination(
                       icon: Icon(d.icon),
@@ -111,79 +126,6 @@ class AppShell extends ConsumerWidget {
           ),
         );
       },
-    );
-  }
-
-  Color _statusColor(VpnStatus status) {
-    switch (status) {
-      case VpnStatus.connected:
-        return AppColors.success;
-      case VpnStatus.connecting:
-      case VpnStatus.disconnecting:
-        return AppColors.warning;
-      case VpnStatus.error:
-        return AppColors.error;
-      case VpnStatus.disconnected:
-        return AppColors.inkSoft;
-    }
-  }
-}
-
-/// Desktop navigation rail with logo and status indicator.
-class _DesktopRail extends StatelessWidget {
-  const _DesktopRail({
-    required this.currentIndex,
-    required this.statusColor,
-  });
-
-  final int currentIndex;
-  final Color statusColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 80,
-      child: Column(
-        children: [
-          const SizedBox(height: AppSpacing.space4),
-          // Logo
-          SvgPicture.asset(
-            'assets/securewave_logo.svg',
-            width: 32,
-            height: 32,
-          ),
-          const SizedBox(height: AppSpacing.space2),
-          // Status dot
-          AnimatedContainer(
-            duration: AppAnimations.durationNormal,
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: statusColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.space4),
-          // Navigation items
-          Expanded(
-            child: NavigationRail(
-              selectedIndex: currentIndex,
-              onDestinationSelected: (index) =>
-                  context.go(NavDestinations.all[index].path),
-              labelType: NavigationRailLabelType.all,
-              backgroundColor: Colors.transparent,
-              destinations: NavDestinations.all
-                  .map((d) => NavigationRailDestination(
-                        icon: Icon(d.icon),
-                        selectedIcon: Icon(d.selectedIcon),
-                        label: Text(d.label),
-                      ))
-                  .toList(),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.space4),
-        ],
-      ),
     );
   }
 }

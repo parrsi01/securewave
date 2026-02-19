@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/logging/app_logger.dart';
-import '../../ui/app_ui_v1.dart';
+import '../../ui/design/app_colors.dart';
+import '../../ui/design/app_spacing.dart';
 
 class FallbackErrorScreen extends StatelessWidget {
   const FallbackErrorScreen({super.key, required this.message, this.error, this.stackTrace});
@@ -17,17 +18,17 @@ class FallbackErrorScreen extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(AppUIv1.space5),
+          padding: const EdgeInsets.all(AppSpacing.space5),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Something went wrong', style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: AppUIv1.space2),
+              const SizedBox(height: AppSpacing.space2),
               Text(
                 'Copy the diagnostics below and share with support.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              const SizedBox(height: AppUIv1.space4),
+              const SizedBox(height: AppSpacing.space4),
               Row(
                 children: [
                   FilledButton.icon(
@@ -43,15 +44,15 @@ class FallbackErrorScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: AppUIv1.space4),
+              const SizedBox(height: AppSpacing.space4),
               Expanded(
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(AppUIv1.space3),
+                  padding: const EdgeInsets.all(AppSpacing.space3),
                   decoration: BoxDecoration(
-                    color: AppUIv1.surface,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppUIv1.border),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: SingleChildScrollView(
                     child: SelectableText(details, style: Theme.of(context).textTheme.bodySmall),

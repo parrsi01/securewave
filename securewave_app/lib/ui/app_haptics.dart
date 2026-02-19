@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'app_ui_v1.dart';
+import 'design/app_typography.dart';
 
 /// Centralized haptics so we can keep UX consistent and gate by platform.
 class AppHaptics {
@@ -32,5 +32,5 @@ class AppHaptics {
     await HapticFeedback.heavyImpact();
   }
 
-  static bool get _enabled => !kIsWeb && AppUIv1.isApplePlatform;
+  static bool get _enabled => !kIsWeb && AppTypography.isApplePlatform;
 }

@@ -1,24 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/models/server_region.dart';
+import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
-import '../../services/api_client.dart';
-import '../../ui/design/app_animations.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
-import 'widgets/location_list_item.dart';
-import 'widgets/location_search_bar.dart';
+import 'widgets/server_tile.dart';
 
-/// Filter options for the locations list.
-enum _LocationFilter { all, favorites, recommended }
+enum _Filter { all, favorites, recommended }
 
-/// Phase 3 rebuild of the server-locations screen.
-///
-/// Fetches servers from the API, supports search, filter chips
-/// (All / Favorites / Recommended), pull-to-refresh, and
-/// loading / error / empty states.
 class LocationsScreen extends ConsumerStatefulWidget {
   const LocationsScreen({super.key});
 
@@ -27,360 +21,175 @@ class LocationsScreen extends ConsumerStatefulWidget {
 }
 
 class _LocationsScreenState extends ConsumerState<LocationsScreen> {
-  List<ServerRegion>? _servers;
-  Object? _error;
-  bool _isLoading = true;
+  _Filter _filter = _Filter.all;
+  String _search = '';
+  Timer? _debounce;
 
-  String _searchQuery = '';
-  _LocationFilter _activeFilter = _LocationFilter.all;
-  final Set<String> _favorites = {};
+  void _onSearch(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() => _search = value.toLowerCase());
+    });
+  }
 
   @override
-  void initState() {
-    super.initState();
-    _loadServers();
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
   }
 
-  Future<void> _loadServers() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final api = ref.read(apiClientProvider);
-      final servers = await api.fetchServers(forceRefresh: true);
-      if (!mounted) return;
-      setState(() {
-        _servers = servers;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e;
-        _isLoading = false;
-      });
+  static const _regionMap = <String, List<String>>{
+    'Europe': ['Germany', 'Netherlands', 'United Kingdom', 'France', 'Sweden', 'Switzerland', 'Austria', 'Poland', 'Norway', 'Finland', 'Denmark', 'Belgium', 'Czech Republic', 'Portugal', 'Romania', 'Italy', 'Spain', 'Ireland', 'Ukraine'],
+    'Americas': ['United States', 'Canada', 'Brazil', 'Mexico', 'Argentina', 'Chile'],
+    'Asia-Pacific': ['Japan', 'Singapore', 'Australia', 'South Korea', 'India', 'Hong Kong', 'Taiwan', 'New Zealand'],
+    'Middle East & Africa': ['Israel', 'Turkey', 'South Africa', 'United Arab Emirates'],
+  };
+
+  String _regionOf(String? country) {
+    if (country == null) return 'Other';
+    for (final e in _regionMap.entries) {
+      if (e.value.contains(country)) return e.key;
     }
+    return 'Other';
   }
 
-  void _onSearchChanged(String query) {
-    setState(() => _searchQuery = query.toLowerCase());
-  }
+  List<ServerRegion> _applyFilters(List<ServerRegion> all) {
+    final favorites = ref.read(favoriteServersProvider);
+    var list = all;
 
-  void _onFilterChanged(_LocationFilter filter) {
-    setState(() => _activeFilter = filter);
-  }
-
-  void _toggleFavorite(String serverId) {
-    setState(() {
-      if (_favorites.contains(serverId)) {
-        _favorites.remove(serverId);
-      } else {
-        _favorites.add(serverId);
-      }
-    });
-  }
-
-  void _selectServer(String serverId) {
-    ref.read(vpnStateProvider.notifier).selectServer(serverId);
-    context.go('/home');
-  }
-
-  List<ServerRegion> get _filteredServers {
-    if (_servers == null) return [];
-    var list = _servers!;
-
-    // Apply filter
-    switch (_activeFilter) {
-      case _LocationFilter.favorites:
-        list = list.where((s) => _favorites.contains(s.id)).toList();
-      case _LocationFilter.recommended:
-        // Recommended = latency < 80ms (or unknown latency, show all)
-        list = list
-            .where((s) => s.latencyMs == null || s.latencyMs! < 80)
-            .toList();
-      case _LocationFilter.all:
-        break;
+    if (_filter == _Filter.favorites) {
+      list = list.where((s) => favorites.contains(s.id)).toList();
+    } else if (_filter == _Filter.recommended) {
+      list = list.where((s) => s.latencyMs != null).toList()
+        ..sort((a, b) => (a.latencyMs ?? 999).compareTo(b.latencyMs ?? 999));
+      list = list.take(5).toList();
     }
 
-    // Apply search
-    if (_searchQuery.isNotEmpty) {
-      list = list.where((s) {
-        final name = s.name.toLowerCase();
-        final country = (s.country ?? '').toLowerCase();
-        final city = (s.city ?? '').toLowerCase();
-        return name.contains(_searchQuery) ||
-            country.contains(_searchQuery) ||
-            city.contains(_searchQuery);
-      }).toList();
+    if (_search.isNotEmpty) {
+      list = list.where((s) =>
+          s.name.toLowerCase().contains(_search) ||
+          (s.city?.toLowerCase().contains(_search) ?? false) ||
+          (s.country?.toLowerCase().contains(_search) ?? false)).toList();
     }
 
     return list;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final selectedServerId = ref.watch(
-      vpnStateProvider.select((s) => s.selectedServerId),
-    );
-
-    return SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // -- Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.space5,
-                  AppSpacing.space5,
-                  AppSpacing.space5,
-                  AppSpacing.space3,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Locations',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.space2),
-                    Text(
-                      'Choose a server to route your traffic through.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.inkMuted,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // -- Search bar
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.space5,
-                ),
-                child: LocationSearchBar(onChanged: _onSearchChanged),
-              ),
-              const SizedBox(height: AppSpacing.space3),
-
-              // -- Filter chips
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.space5,
-                ),
-                child: Row(
-                  children: [
-                    _FilterChip(
-                      label: 'All',
-                      isActive: _activeFilter == _LocationFilter.all,
-                      onTap: () => _onFilterChanged(_LocationFilter.all),
-                    ),
-                    const SizedBox(width: AppSpacing.space2),
-                    _FilterChip(
-                      label: 'Favorites',
-                      isActive: _activeFilter == _LocationFilter.favorites,
-                      onTap: () => _onFilterChanged(_LocationFilter.favorites),
-                    ),
-                    const SizedBox(width: AppSpacing.space2),
-                    _FilterChip(
-                      label: 'Recommended',
-                      isActive: _activeFilter == _LocationFilter.recommended,
-                      onTap: () =>
-                          _onFilterChanged(_LocationFilter.recommended),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.space3),
-
-              // -- Content area
-              Expanded(child: _buildContent(selectedServerId)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContent(String? selectedServerId) {
-    // Loading state
-    if (_isLoading) {
-      return _buildSkeletonList();
+  Map<String, List<ServerRegion>> _groupByRegion(List<ServerRegion> servers) {
+    final groups = <String, List<ServerRegion>>{};
+    for (final s in servers) {
+      final region = _regionOf(s.country);
+      (groups[region] ??= []).add(s);
     }
-
-    // Error state
-    if (_error != null) {
-      return _buildErrorState();
-    }
-
-    final filtered = _filteredServers;
-
-    // Empty state
-    if (filtered.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    // Server list
-    return RefreshIndicator(
-      onRefresh: _loadServers,
-      color: AppColors.primary,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
-        itemCount: filtered.length,
-        itemBuilder: (context, index) {
-          final server = filtered[index];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.space2),
-            child: LocationListItem(
-              server: server,
-              isSelected: server.id == selectedServerId,
-              isFavorite: _favorites.contains(server.id),
-              onTap: () => _selectServer(server.id),
-              onToggleFavorite: () => _toggleFavorite(server.id),
-            ),
-          );
-        },
-      ),
-    );
+    return groups;
   }
-
-  Widget _buildSkeletonList() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
-      itemCount: 5,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.space2),
-          child: AnimatedOpacity(
-            opacity: 0.5,
-            duration: AppAnimations.durationSlow,
-            child: Container(
-              height: 72,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.space6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.cloud_off_rounded,
-              size: 48,
-              color: AppColors.inkSoft,
-            ),
-            const SizedBox(height: AppSpacing.space4),
-            Text(
-              'Unable to load locations',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppSpacing.space2),
-            Text(
-              'Check your connection and try again.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.inkMuted,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.space5),
-            FilledButton.icon(
-              onPressed: _loadServers,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    final isFiltered =
-        _searchQuery.isNotEmpty || _activeFilter != _LocationFilter.all;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.space6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isFiltered ? Icons.filter_list_off : Icons.public_off,
-              size: 48,
-              color: AppColors.inkSoft,
-            ),
-            const SizedBox(height: AppSpacing.space4),
-            Text(
-              isFiltered ? 'No matching locations' : 'No locations available',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppSpacing.space2),
-            Text(
-              isFiltered
-                  ? 'Try a different search term or filter.'
-                  : 'Locations will appear once servers come online.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.inkMuted,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A single filter chip used in the filter row.
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: AppAnimations.durationFast,
-        curve: AppAnimations.curveDefault,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space3,
-          vertical: AppSpacing.space2,
-        ),
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.primary : AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-          border: Border.all(
-            color: isActive ? AppColors.primary : AppColors.border,
+    final serversAsync = ref.watch(serversProvider);
+    final selectedId = ref.watch(vpnStateProvider.select((s) => s.selectedServerId));
+    final favorites = ref.watch(favoriteServersProvider);
+
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.space4, AppSpacing.space4, AppSpacing.space4, AppSpacing.space2),
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Search servers...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _search.isNotEmpty
+                  ? IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: () => setState(() => _search = ''))
+                  : null,
+              isDense: true,
+            ),
+            onChanged: _onSearch,
           ),
         ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: isActive ? Colors.white : AppColors.inkMuted,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-              ),
+        // Filter chips
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+          child: Row(
+            children: _Filter.values.map((f) {
+              final label = switch (f) { _Filter.all => 'All', _Filter.favorites => 'Favorites', _Filter.recommended => 'Recommended' };
+              return Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.space2),
+                child: ChoiceChip(
+                  label: Text(label),
+                  selected: _filter == f,
+                  onSelected: (_) => setState(() => _filter = f),
+                ),
+              );
+            }).toList(),
+          ),
         ),
-      ),
+        const SizedBox(height: AppSpacing.space2),
+        // Server list
+        Expanded(
+          child: serversAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.inkSoft),
+                  const SizedBox(height: AppSpacing.space3),
+                  Text('Could not load servers', style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: AppSpacing.space3),
+                  FilledButton(onPressed: () => ref.refresh(serversProvider), child: const Text('Retry')),
+                ],
+              ),
+            ),
+            data: (allServers) {
+              final filtered = _applyFilters(allServers);
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.filter_list_off_rounded, size: 48, color: AppColors.inkSoft),
+                      const SizedBox(height: AppSpacing.space3),
+                      Text('No servers match', style: Theme.of(context).textTheme.bodyMedium),
+                    ],
+                  ),
+                );
+              }
+
+              final groups = _groupByRegion(filtered);
+              final regionOrder = ['Europe', 'Americas', 'Asia-Pacific', 'Middle East & Africa', 'Other'];
+              final orderedKeys = regionOrder.where(groups.containsKey).toList();
+
+              return RefreshIndicator(
+                color: AppColors.primary,
+                onRefresh: () async => ref.refresh(serversProvider),
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.space8),
+                  itemCount: orderedKeys.length,
+                  itemBuilder: (context, i) {
+                    final region = orderedKeys[i];
+                    final servers = groups[region]!;
+                    return ExpansionTile(
+                      title: Text('$region (${servers.length})', style: Theme.of(context).textTheme.titleSmall),
+                      initiallyExpanded: i == 0,
+                      children: servers.map((s) => ServerTile(
+                        server: s,
+                        isSelected: s.id == selectedId,
+                        isFavorite: favorites.contains(s.id),
+                        onTap: () {
+                          ref.read(vpnStateProvider.notifier).selectServer(s.id);
+                          context.go('/home');
+                        },
+                        onToggleFavorite: () => ref.read(favoriteServersProvider.notifier).toggle(s.id),
+                      )).toList(),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

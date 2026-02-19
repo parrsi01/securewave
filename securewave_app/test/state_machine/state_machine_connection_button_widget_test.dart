@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
-import 'package:securewave_app/screens/home/widgets/connection_button.dart';
+import 'package:securewave_app/screens/home/widgets/connection_ring.dart';
 
 import 'state_machine_test_harness.dart';
 
@@ -37,7 +37,7 @@ void main() {
     installSecureStorageMock();
   });
 
-  testWidgets('connection button remains stable under rapid taps',
+  testWidgets('connection ring remains stable under rapid taps',
       (tester) async {
     final config = testAppConfig();
     final service = ControlledVpnService(
@@ -54,19 +54,19 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: const MaterialApp(
-          home: Scaffold(body: Center(child: ConnectionButton())),
+          home: Scaffold(body: Center(child: ConnectionRing())),
         ),
       ),
     );
 
-    final button = find.byType(ConnectionButton);
-    expect(button, findsOneWidget);
+    final ring = find.byType(ConnectionRing);
+    expect(ring, findsOneWidget);
 
-    await tester.tap(button);
+    await tester.tap(ring);
     await tester.pump(const Duration(milliseconds: 5));
-    await tester.tap(button);
+    await tester.tap(ring);
     await tester.pump(const Duration(milliseconds: 5));
-    await tester.tap(button);
+    await tester.tap(ring);
 
     await tester.pump(const Duration(milliseconds: 250));
 

@@ -1,19 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../../ui/design/app_colors.dart';
-import '../../../ui/design/app_spacing.dart';
-import '../../../ui/design/app_animations.dart';
+import '../../ui/design/app_animations.dart';
+import '../../ui/design/app_colors.dart';
+import '../../ui/design/app_spacing.dart';
 
-/// A 3-page onboarding tour shown to first-time users.
-///
-/// Pages:
-/// 1. Secure Your Connection (shield)
-/// 2. Choose Your Location (globe)
-/// 3. You're All Set (checkmark + "Get Started")
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, required this.onComplete});
-
-  /// Called when the user taps "Get Started" or "Skip".
   final VoidCallback onComplete;
 
   @override
@@ -21,146 +13,142 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
+  final _controller = PageController();
+  int _page = 0;
 
-  static const int _pageCount = 3;
+  static const _pages = [
+    _PageData(Icons.shield_rounded, 'Secure Your Connection',
+        'Your traffic is encrypted end-to-end. Browse, stream, and communicate without anyone watching.'),
+    _PageData(Icons.public_rounded, 'Choose Your Location',
+        'Connect to servers in 35+ countries. Pick the fastest or choose by region.'),
+    _PageData(Icons.check_circle_rounded, "You're All Set",
+        'Start browsing securely. You can always change settings later.'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      final p = _controller.page?.round() ?? 0;
+      if (p != _page) setState(() => _page = p);
+    });
+  }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _controller.dispose();
     super.dispose();
-  }
-
-  void _nextPage() {
-    if (_currentPage < _pageCount - 1) {
-      _pageController.animateToPage(
-        _currentPage + 1,
-        duration: AppAnimations.durationSlow,
-        curve: AppAnimations.curveDefault,
-      );
-    } else {
-      widget.onComplete();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isLast = _page == _pages.length - 1;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
-            // ── Skip Button ─────────────────────────────────────────────
+            // Skip button
             Align(
-              alignment: Alignment.topRight,
+              alignment: Alignment.centerRight,
               child: Padding(
-                padding: const EdgeInsets.only(
-                  top: AppSpacing.space3,
-                  right: AppSpacing.space4,
-                ),
+                padding: const EdgeInsets.all(AppSpacing.space4),
                 child: TextButton(
                   onPressed: widget.onComplete,
-                  child: Text(
-                    'Skip',
-                    style: TextStyle(
-                      color: AppColors.inkMuted,
-                      fontSize: 14,
-                    ),
-                  ),
+                  child: const Text('Skip'),
                 ),
               ),
             ),
-
-            // ── Page View ───────────────────────────────────────────────
+            // Pages
             Expanded(
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: (index) => setState(() => _currentPage = index),
-                children: const [
-                  _OnboardingPage(
-                    icon: Icons.shield_outlined,
-                    title: 'Secure Your Connection',
-                    description:
-                        'SecureWave encrypts your internet traffic with '
-                        'military-grade protection, keeping your data safe on '
-                        'any network.',
-                  ),
-                  _OnboardingPage(
-                    icon: Icons.public,
-                    title: 'Choose Your Location',
-                    description:
-                        'Connect through servers across dozens of regions '
-                        'worldwide. Browse as if you were anywhere on the globe.',
-                  ),
-                  _OnboardingPage(
-                    icon: Icons.check_circle_outline,
-                    title: "You're All Set",
-                    description:
-                        'One tap is all it takes to secure your connection. '
-                        'Your privacy journey starts now.',
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Dot Indicators ──────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.space5),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(_pageCount, (index) {
-                  final bool isActive = index == _currentPage;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.space1,
-                    ),
-                    child: AnimatedContainer(
-                      duration: AppAnimations.durationNormal,
-                      curve: AppAnimations.curveDefault,
-                      width: isActive ? 24 : 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: isActive ? AppColors.primary : AppColors.border,
-                        borderRadius: BorderRadius.circular(
-                          AppSpacing.radiusFull,
-                        ),
-                      ),
-                    ),
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: _pages.length,
+                itemBuilder: (context, index) {
+                  final data = _pages[index];
+                  return AnimatedBuilder(
+                    animation: _controller,
+                    builder: (context, child) {
+                      double offset = 0;
+                      if (_controller.position.haveDimensions) {
+                        offset = (_controller.page ?? 0) - index;
+                      }
+                      return Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Transform.translate(
+                            offset: Offset(offset * 30, 0),
+                            child: Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.primaryLight,
+                              ),
+                              child: Icon(data.icon, size: 56, color: AppColors.primary),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.space6),
+                          Transform.translate(
+                            offset: Offset(offset * 15, 0),
+                            child: Text(
+                              data.title,
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.space3),
+                          SizedBox(
+                            width: 280,
+                            child: Text(
+                              data.description,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkMuted),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   );
-                }),
+                },
               ),
             ),
-
-            // ── Bottom Button ───────────────────────────────────────────
+            // Dots
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(_pages.length, (i) {
+                final active = i == _page;
+                return AnimatedContainer(
+                  duration: AppAnimations.durationNormal,
+                  curve: AppAnimations.curveDefault,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: active ? 24 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    color: active ? AppColors.primary : AppColors.inkSoft.withValues(alpha: 0.3),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: AppSpacing.space5),
+            // Button
             Padding(
-              padding: const EdgeInsets.only(
-                left: AppSpacing.space5,
-                right: AppSpacing.space5,
-                bottom: AppSpacing.space6,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
               child: SizedBox(
                 width: double.infinity,
-                height: 52,
                 child: FilledButton(
-                  onPressed: _nextPage,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-                    ),
-                  ),
-                  child: Text(
-                    _currentPage == _pageCount - 1 ? 'Get Started' : 'Next',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  onPressed: isLast
+                      ? widget.onComplete
+                      : () => _controller.nextPage(
+                            duration: AppAnimations.durationNormal,
+                            curve: AppAnimations.curveDefault,
+                          ),
+                  child: Text(isLast ? 'Get Started' : 'Next'),
                 ),
               ),
             ),
+            const SizedBox(height: AppSpacing.space6),
           ],
         ),
       ),
@@ -168,63 +156,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-// ── Individual Onboarding Page ────────────────────────────────────────────────
-
-class _OnboardingPage extends StatelessWidget {
-  const _OnboardingPage({
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
+class _PageData {
+  const _PageData(this.icon, this.title, this.description);
   final IconData icon;
   final String title;
   final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space6),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Icon circle
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 56, color: AppColors.primary),
-          ),
-          const SizedBox(height: AppSpacing.space6),
-
-          // Title
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.ink,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.space3),
-
-          // Description
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              color: AppColors.inkMuted,
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

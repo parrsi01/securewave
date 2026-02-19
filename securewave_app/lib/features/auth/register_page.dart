@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../ui/app_ui_v1.dart';
+import '../../ui/design/app_colors.dart';
+import '../../ui/design/app_spacing.dart';
 import 'auth_controller.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
@@ -35,34 +36,37 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppUIv1.authMaxWidth),
+            constraints: const BoxConstraints(maxWidth: AppSpacing.authMaxWidth),
             child: ListView(
-              padding: const EdgeInsets.all(AppUIv1.space5),
+              padding: const EdgeInsets.all(AppSpacing.space5),
               children: [
-                const SizedBox(height: AppUIv1.space7),
+                const SizedBox(height: AppSpacing.space7),
                 Center(
-                  child: SvgPicture.asset(
-                    'assets/securewave_logo.svg',
-                    width: 56,
-                    height: 56,
+                  child: Hero(
+                    tag: 'securewave_logo',
+                    child: SvgPicture.asset(
+                      'assets/securewave_logo.svg',
+                      width: 56,
+                      height: 56,
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppUIv1.space4),
+                const SizedBox(height: AppSpacing.space4),
                 Text(
                   'Create your account',
                   style: Theme.of(context).textTheme.headlineMedium,
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: AppUIv1.space2),
+                const SizedBox(height: AppSpacing.space2),
                 Text(
                   'SecureWave keeps your connection calm and reliable.',
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: AppUIv1.space6),
+                const SizedBox(height: AppSpacing.space6),
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(AppUIv1.space5),
+                    padding: const EdgeInsets.all(AppSpacing.space5),
                     child: Form(
                       key: _formKey,
                       child: Column(
@@ -70,7 +74,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         children: [
                           Text('Email address',
                               style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: AppUIv1.space2),
+                          const SizedBox(height: AppSpacing.space2),
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
@@ -87,10 +91,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: AppUIv1.space4),
+                          const SizedBox(height: AppSpacing.space4),
                           Text('Password',
                               style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: AppUIv1.space2),
+                          const SizedBox(height: AppSpacing.space2),
                           TextFormField(
                             controller: _passwordController,
                             obscureText: true,
@@ -107,10 +111,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: AppUIv1.space4),
+                          const SizedBox(height: AppSpacing.space4),
                           Text('Confirm password',
                               style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: AppUIv1.space2),
+                          const SizedBox(height: AppSpacing.space2),
                           TextFormField(
                             controller: _confirmController,
                             obscureText: true,
@@ -128,13 +132,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             },
                           ),
                           if (state.errorMessage != null) ...[
-                            const SizedBox(height: AppUIv1.space3),
+                            const SizedBox(height: AppSpacing.space3),
                             Text(
                               state.errorMessage!,
-                              style: const TextStyle(color: AppUIv1.warning),
+                              style: const TextStyle(color: AppColors.warning),
                             ),
                           ],
-                          const SizedBox(height: AppUIv1.space5),
+                          const SizedBox(height: AppSpacing.space5),
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
@@ -175,7 +179,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: AppUIv1.space4),
+                const SizedBox(height: AppSpacing.space4),
                 Center(
                   child: TextButton(
                     onPressed: () {
