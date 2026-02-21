@@ -1,19 +1,26 @@
 """
 Download routes for SecureWave VPN client applications.
 
+Manifest source of truth:
+- static/downloads/version.json
+
 Provides:
-- GET /api/downloads       - Available downloads with platform detection
-- GET /api/downloads/list  - Alias for the above
-- GET /api/downloads/detect - Auto-detect user platform from User-Agent
+- GET /api/downloads          - Manifest-backed downloads with platform detection
+- GET /api/downloads/list     - Alias for /api/downloads
+- GET /api/downloads/detect   - Auto-detect user platform and recommend a live artifact
+- GET /api/downloads/manifest - Return parsed manifest with availability resolution
 - GET /api/downloads/file/{filename} - Serve a specific download file
 """
 
-import os
-import logging
-from pathlib import Path
-from typing import Optional, List
+from __future__ import annotations
 
-from fastapi import APIRouter, Request, HTTPException
+import json
+import logging
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -21,12 +28,25 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/downloads", tags=["downloads"])
 
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
+def _load_version_file() -> str:
+    version_path = Path(__file__).resolve().parent.parent / "VERSION"
+    try:
+        version = version_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "1.0.0"
+    return version or "1.0.0"
+
+
+APP_VERSION = os.getenv("APP_VERSION") or _load_version_file()
 DOWNLOADS_DIR = Path(__file__).resolve().parent.parent / "static" / "downloads"
+MANIFEST_PATH = Path(
+    os.getenv("SECUREWAVE_RELEASE_MANIFEST_PATH") or DOWNLOADS_DIR / "version.json"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -36,17 +56,24 @@ DOWNLOADS_DIR = Path(__file__).resolve().parent.parent / "static" / "downloads"
 class DownloadEntry(BaseModel):
     platform: str
     architecture: str
-    filename: str
-    url: str
+    filename: str = ""
+    url: Optional[str] = None
     version: str
+    format: Optional[str] = None
+    build_date: Optional[str] = None
     size_bytes: Optional[int] = None
     size_display: Optional[str] = None
-    status: str  # "available" | "coming_soon"
+    checksum_sha256: Optional[str] = None
+    signed: Optional[bool] = None
+    signing_notes: Optional[str] = None
+    primary: bool = False
+    status: str  # "available" | "unavailable"
     notes: Optional[str] = None
 
 
 class DownloadListResponse(BaseModel):
     version: str
+    build_date: Optional[str] = None
     detected_platform: Optional[str] = None
     downloads: List[DownloadEntry]
 
@@ -57,11 +84,19 @@ class PlatformDetectResponse(BaseModel):
     recommended_download: Optional[str] = None
 
 
+class ReleaseManifestResponse(BaseModel):
+    version: str
+    build_date: Optional[str] = None
+    generated_at: Optional[str] = None
+    provider: Optional[str] = None
+    artifacts: List[DownloadEntry]
+
+
 # ---------------------------------------------------------------------------
 # Platform detection from User-Agent
 # ---------------------------------------------------------------------------
 
-def detect_platform(user_agent: str) -> dict:
+def detect_platform(user_agent: str) -> Dict[str, str]:
     """Parse User-Agent to determine platform and architecture."""
     ua = user_agent.lower()
 
@@ -90,115 +125,190 @@ def _format_size(size_bytes: int) -> str:
     """Format byte count into human-readable string."""
     if size_bytes < 1024:
         return f"{size_bytes} B"
-    elif size_bytes < 1024 * 1024:
+    if size_bytes < 1024 * 1024:
         return f"{size_bytes / 1024:.1f} KB"
-    elif size_bytes < 1024 * 1024 * 1024:
+    if size_bytes < 1024 * 1024 * 1024:
         return f"{size_bytes / (1024 * 1024):.1f} MB"
-    else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+    return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
 
 
 # ---------------------------------------------------------------------------
-# Download manifest -- canonical list of all platform builds
+# Manifest loading and availability resolution
 # ---------------------------------------------------------------------------
 
-DOWNLOAD_MANIFEST = [
-    # Windows
-    {
-        "platform": "windows",
-        "architecture": "x64",
-        "filename": "securewave-windows-x64-setup.exe",
-        "url": "/downloads/securewave-windows-x64-setup.exe",
-        "notes": "Windows 10+. NSIS installer (may be unsigned in early builds).",
-    },
-    # Linux
-    {
-        "platform": "linux",
-        "architecture": "x64",
-        "filename": "securewave-linux-x64.deb",
-        "url": "/downloads/securewave-linux-x64.deb",
-        "notes": "Debian/Ubuntu package (coming soon).",
-    },
-    {
-        "platform": "linux",
-        "architecture": "x64",
-        "filename": "securewave-linux-x64.AppImage",
-        "url": "/downloads/securewave-linux-x64.AppImage",
-        "notes": "Portable AppImage build (coming soon).",
-    },
-    {
-        "platform": "linux",
-        "architecture": "x64",
-        "filename": "securewave-linux-x64.tar.gz",
-        "url": "/downloads/securewave-linux-x64.tar.gz",
-        "notes": "Portable tarball (x64).",
-    },
-    {
-        "platform": "linux",
-        "architecture": "arm64",
-        "filename": "securewave-app-linux-arm64.zip",
-        "url": "/downloads/securewave-app-linux-arm64.zip",
-        "notes": "Portable zip (ARM64).",
-    },
-    # Apple
-    {
-        "platform": "macos",
-        "architecture": "arm64",
-        "filename": "securewave-macos-arm64.dmg",
-        "url": "#",
-        "notes": "Coming soon. Requires Apple Developer signing and notarization.",
-    },
-    {
-        "platform": "ios",
-        "architecture": "arm64",
-        "filename": "",
-        "url": "#",
-        "notes": "Coming soon. Will be available on the Apple App Store / TestFlight.",
-    },
-    # Android
-    {
-        "platform": "android",
-        "architecture": "universal",
-        "filename": "securewave-android.apk",
-        "url": "/downloads/securewave-android.apk",
-        "notes": "Android 10+. APK link appears here when published.",
-    },
-]
+def _empty_manifest() -> Dict[str, Any]:
+    return {
+        "version": APP_VERSION,
+        "build_date": None,
+        "generated_at": None,
+        "provider": "hetzner",
+        "artifacts": [],
+    }
 
 
-def _build_download_entries() -> List[DownloadEntry]:
-    """Build download list, checking which files actually exist on disk."""
-    entries = []
-    for item in DOWNLOAD_MANIFEST:
-        filename = item["filename"]
+def _load_release_manifest() -> Dict[str, Any]:
+    if not MANIFEST_PATH.exists():
+        logger.warning("release manifest missing: %s", MANIFEST_PATH)
+        return _empty_manifest()
 
-        # Check if the file actually exists on disk
-        file_exists = False
-        size_bytes = None
-        size_display = None
+    try:
+        raw = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("failed to parse release manifest %s: %s", MANIFEST_PATH, exc)
+        return _empty_manifest()
 
-        if filename:
-            file_path = DOWNLOADS_DIR / filename
-            file_exists = file_path.exists()
-            if file_exists:
-                size_bytes = file_path.stat().st_size
-                size_display = _format_size(size_bytes)
+    artifacts = raw.get("artifacts")
+    if not isinstance(artifacts, list):
+        artifacts = []
 
-        status = "available" if file_exists else "coming_soon"
+    provider = str(raw.get("provider") or "hetzner")
+    if provider.lower() != "hetzner":
+        logger.warning("unexpected provider in release manifest: %s", provider)
 
-        entries.append(DownloadEntry(
-            platform=item["platform"],
-            architecture=item["architecture"],
-            filename=filename,
-            url=item["url"] if file_exists or item["url"] == "#" else "#",
-            version=APP_VERSION,
-            size_bytes=size_bytes,
-            size_display=size_display,
-            status=status,
-            notes=item["notes"],
-        ))
+    return {
+        "version": str(raw.get("version") or APP_VERSION),
+        "build_date": raw.get("build_date"),
+        "generated_at": raw.get("generated_at"),
+        "provider": provider,
+        "artifacts": artifacts,
+    }
+
+
+def _artifact_is_local(url: Optional[str]) -> bool:
+    return bool(url and isinstance(url, str) and url.startswith("/downloads/"))
+
+
+def _resolve_availability(item: Dict[str, Any], filename: str, url: Optional[str]) -> Dict[str, Any]:
+    declared_status = str(item.get("status") or "available").strip().lower()
+    declared_available = declared_status == "available"
+    notes = str(item.get("notes") or "").strip() or None
+
+    size_bytes: Optional[int] = item.get("size_bytes")
+
+    if not declared_available:
+        return {
+            "available": False,
+            "size_bytes": size_bytes,
+            "notes": notes,
+        }
+
+    if _artifact_is_local(url):
+        local_name = filename or Path(url).name
+        if not local_name:
+            return {
+                "available": False,
+                "size_bytes": size_bytes,
+                "notes": notes or "Manifest entry has no filename for a local download URL.",
+            }
+
+        file_path = DOWNLOADS_DIR / local_name
+        if not file_path.exists() or not file_path.is_file():
+            return {
+                "available": False,
+                "size_bytes": size_bytes,
+                "notes": notes or "Artifact not present on this host.",
+            }
+
+        resolved_size = file_path.stat().st_size
+        return {
+            "available": True,
+            "size_bytes": resolved_size,
+            "notes": notes,
+        }
+
+    # External URL path (e.g., App Store/TestFlight) may still be available.
+    if isinstance(url, str) and url.startswith(("https://", "http://")):
+        return {
+            "available": True,
+            "size_bytes": size_bytes,
+            "notes": notes,
+        }
+
+    return {
+        "available": False,
+        "size_bytes": size_bytes,
+        "notes": notes or "No download URL published.",
+    }
+
+
+def _build_download_entries(manifest: Dict[str, Any]) -> List[DownloadEntry]:
+    entries: List[DownloadEntry] = []
+
+    for item in manifest.get("artifacts", []):
+        if not isinstance(item, dict):
+            continue
+
+        platform = str(item.get("platform") or "unknown")
+        architecture = str(item.get("architecture") or "unknown")
+        filename = str(item.get("filename") or "")
+        url = item.get("url")
+        url = str(url) if isinstance(url, str) and url.strip() else None
+
+        resolved = _resolve_availability(item, filename, url)
+        available = bool(resolved["available"])
+        size_bytes = resolved["size_bytes"]
+        size_display = _format_size(size_bytes) if isinstance(size_bytes, int) else None
+
+        status = "available" if available else "unavailable"
+        effective_url = url if available else None
+
+        entries.append(
+            DownloadEntry(
+                platform=platform,
+                architecture=architecture,
+                filename=filename,
+                url=effective_url,
+                version=str(item.get("version") or manifest.get("version") or APP_VERSION),
+                format=item.get("format"),
+                build_date=item.get("build_date") or manifest.get("build_date"),
+                size_bytes=size_bytes,
+                size_display=size_display,
+                checksum_sha256=item.get("sha256") or item.get("checksum_sha256"),
+                signed=item.get("signed"),
+                signing_notes=item.get("signing_notes"),
+                primary=bool(item.get("primary", False)),
+                status=status,
+                notes=resolved.get("notes"),
+            )
+        )
 
     return entries
+
+
+def _pick_recommended_download(
+    entries: List[DownloadEntry],
+    detected_platform: str,
+    detected_architecture: str,
+) -> Optional[str]:
+    candidates = [
+        entry
+        for entry in entries
+        if entry.status == "available"
+        and entry.platform == detected_platform
+        and entry.url
+        and entry.architecture in (detected_architecture, "universal")
+    ]
+
+    if not candidates:
+        candidates = [
+            entry
+            for entry in entries
+            if entry.status == "available"
+            and entry.platform == detected_platform
+            and entry.url
+        ]
+
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda entry: (
+            0 if entry.primary else 1,
+            0 if entry.architecture == detected_architecture else 1,
+            entry.architecture,
+        )
+    )
+    return candidates[0].url
 
 
 # ---------------------------------------------------------------------------
@@ -208,32 +318,49 @@ def _build_download_entries() -> List[DownloadEntry]:
 @router.get("", response_model=DownloadListResponse)
 @router.get("/list", response_model=DownloadListResponse)
 async def list_downloads(request: Request):
-    """Return all available downloads with platform auto-detection."""
+    """Return all manifest-backed downloads with platform auto-detection."""
     user_agent = request.headers.get("user-agent", "")
     detected = detect_platform(user_agent)
-    entries = _build_download_entries()
+
+    manifest = _load_release_manifest()
+    entries = _build_download_entries(manifest)
+
     return DownloadListResponse(
-        version=APP_VERSION,
+        version=str(manifest.get("version") or APP_VERSION),
+        build_date=manifest.get("build_date"),
         detected_platform=detected["platform"],
         downloads=entries,
     )
 
 
+@router.get("/manifest", response_model=ReleaseManifestResponse)
+async def get_release_manifest():
+    """Return parsed release manifest with resolved availability status."""
+    manifest = _load_release_manifest()
+    entries = _build_download_entries(manifest)
+
+    return ReleaseManifestResponse(
+        version=str(manifest.get("version") or APP_VERSION),
+        build_date=manifest.get("build_date"),
+        generated_at=manifest.get("generated_at"),
+        provider=manifest.get("provider"),
+        artifacts=entries,
+    )
+
+
 @router.get("/detect", response_model=PlatformDetectResponse)
 async def detect_user_platform(request: Request):
-    """Auto-detect the user platform and recommend the best download."""
+    """Auto-detect the user platform and recommend the best published download."""
     user_agent = request.headers.get("user-agent", "")
     detected = detect_platform(user_agent)
 
-    recommended = None
-    for item in DOWNLOAD_MANIFEST:
-        if item["platform"] == detected["platform"]:
-            if item["architecture"] in (detected["architecture"], "universal"):
-                if item["filename"]:
-                    file_path = DOWNLOADS_DIR / item["filename"]
-                    if file_path.exists():
-                        recommended = item["url"]
-                        break
+    manifest = _load_release_manifest()
+    entries = _build_download_entries(manifest)
+    recommended = _pick_recommended_download(
+        entries,
+        detected_platform=detected["platform"],
+        detected_architecture=detected["architecture"],
+    )
 
     return PlatformDetectResponse(
         platform=detected["platform"],
@@ -249,13 +376,12 @@ async def serve_download(filename: str):
     This is a fallback route; normally /downloads/{filename} is served
     by the StaticFiles mount in main.py.
     """
-    # Sanitize: only allow the basename, reject path traversal
     safe_name = Path(filename).name
     if safe_name != filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     file_path = DOWNLOADS_DIR / safe_name
-    if not file_path.exists():
+    if not file_path.exists() or not file_path.is_file():
         raise HTTPException(
             status_code=404,
             detail=f"Download '{safe_name}' not found. It may not have been built yet.",

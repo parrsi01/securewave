@@ -149,6 +149,7 @@ PROJECT_STATUS_REPORT*.txt
 keys_and_storage_configurations/*.key
 keys_and_storage_configurations/*.env
 keys_and_storage_configurations/.env.*
+securewave_private/
 
 # Terraform
 **/.terraform/
@@ -192,6 +193,12 @@ artifacts/**
 !artifacts/DEPENDENCY_LOCK_SNAPSHOT.json
 !artifacts/PRODUCTION_FREEZE_REPORT.md
 !artifacts/SECRET_SCAN_REPORT.md
+!artifacts/system_recovery_report.md
+!artifacts/multiprotocol_phase4_release_report.md
+!artifacts/releases/
+!artifacts/releases/**/
+!artifacts/releases/**/version.json
+!artifacts/releases/**/checksums.txt
 
 # Python
 __pycache__/
