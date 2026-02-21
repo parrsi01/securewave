@@ -29,6 +29,7 @@ const guint kWgQuickTimeoutMs = 30000;
 typedef struct {
   FlMethodChannel* channel;
   gchar* config_path;
+  gboolean last_connected;
 } VpnChannelState;
 
 static void vpn_channel_state_free(VpnChannelState* state) {
@@ -61,16 +62,39 @@ static gboolean pkexec_available() {
   return pkexec != nullptr;
 }
 
+static gboolean has_desktop_auth_session() {
+  const gchar* display = g_getenv("DISPLAY");
+  if (display && *display != '\0') {
+    return TRUE;
+  }
+  const gchar* wayland_display = g_getenv("WAYLAND_DISPLAY");
+  if (wayland_display && *wayland_display != '\0') {
+    return TRUE;
+  }
+  return FALSE;
+}
+
 static gboolean elevation_available() {
   if (geteuid() == 0) {
     return TRUE;
   }
-  // GUI apps can't reliably prompt for sudo passwords; prefer pkexec.
-  return pkexec_available();
+  // GUI apps can't reliably prompt for sudo passwords; prefer pkexec + a
+  // desktop auth session so users get a permission dialog instead of a silent
+  // shell failure path.
+  return pkexec_available() && has_desktop_auth_session();
 }
 
 static gboolean native_vpn_available() {
   return wg_quick_available() && elevation_available();
+}
+
+static const gchar* wireguard_install_hint_message() {
+  return "Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.";
+}
+
+static const gchar* elevation_hint_message() {
+  return "Administrator privileges are required. Install PolicyKit (pkexec) and "
+         "run a desktop authentication agent, or launch SecureWave as root.";
 }
 
 static gchar* build_config_path() {
@@ -140,12 +164,15 @@ static gboolean looks_like_permission_error(const gchar* stderr_text) {
 typedef struct {
   gint ref_count;
   FlMethodCall* method_call;
+  VpnChannelState* state;
   gchar* error_code;
   GPid pid;
   gint stdout_fd;
   gint stderr_fd;
   guint timeout_id;
   gboolean responded;
+  gboolean update_connected;
+  gboolean connected_value;
 } WgQuickSpawnContext;
 
 static WgQuickSpawnContext* wg_quick_spawn_context_ref(WgQuickSpawnContext* ctx) {
@@ -177,6 +204,9 @@ static void wg_quick_respond_ok_once(WgQuickSpawnContext* ctx) {
   if (ctx->responded) {
     return;
   }
+  if (ctx->update_connected && ctx->state) {
+    ctx->state->last_connected = ctx->connected_value;
+  }
   ctx->responded = TRUE;
   g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
       fl_method_success_response_new(nullptr));
@@ -189,6 +219,9 @@ static void wg_quick_respond_error_once(
     const gchar* message) {
   if (ctx->responded) {
     return;
+  }
+  if (ctx->update_connected && ctx->state && ctx->connected_value) {
+    ctx->state->last_connected = FALSE;
   }
   ctx->responded = TRUE;
   respond_error(ctx->method_call, code ? code : ctx->error_code, message, nullptr);
@@ -244,9 +277,12 @@ static gboolean wg_quick_timeout_cb(gpointer user_data) {
 
 static void spawn_wg_quick_async(
     FlMethodCall* method_call,
+    VpnChannelState* state,
     const gchar* error_code,
     const gchar* action,
-    const gchar* config_path) {
+    const gchar* config_path,
+    gboolean update_connected,
+    gboolean connected_value) {
   g_autoptr(GError) error = nullptr;
 
   g_autofree gchar* wg_quick_path = g_find_program_in_path("wg-quick");
@@ -254,12 +290,21 @@ static void spawn_wg_quick_async(
     respond_error(
         method_call,
         "vpn_unavailable",
-        "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
+        wireguard_install_hint_message(),
         nullptr);
     return;
   }
 
   const bool needs_elevation = geteuid() != 0;
+  if (needs_elevation && !has_desktop_auth_session()) {
+    respond_error(
+        method_call,
+        "vpn_permission_required",
+        "No desktop authentication session detected for privilege escalation. "
+        "Start a polkit agent or run SecureWave as root.",
+        nullptr);
+    return;
+  }
   g_autofree gchar* pkexec_path = nullptr;
   if (needs_elevation) {
     pkexec_path = g_find_program_in_path("pkexec");
@@ -267,8 +312,7 @@ static void spawn_wg_quick_async(
       respond_error(
           method_call,
           "vpn_permission_required",
-          "Administrator privileges required to start the VPN tunnel. "
-          "Install PolicyKit (pkexec) or run the app with sudo.",
+          elevation_hint_message(),
           nullptr);
       return;
     }
@@ -310,11 +354,14 @@ static void spawn_wg_quick_async(
   WgQuickSpawnContext* ctx = g_new0(WgQuickSpawnContext, 1);
   ctx->ref_count = 1;
   ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
+  ctx->state = state;
   ctx->error_code = g_strdup(error_code);
   ctx->pid = pid;
   ctx->stdout_fd = stdout_fd;
   ctx->stderr_fd = stderr_fd;
   ctx->responded = FALSE;
+  ctx->update_connected = update_connected;
+  ctx->connected_value = connected_value;
   g_child_watch_add_full(
       G_PRIORITY_DEFAULT,
       pid,
@@ -342,12 +389,66 @@ static void handle_vpn_call(FlMethodChannel* channel,
     fl_method_call_respond(method_call, response, nullptr);
     return;
   }
+  if (g_strcmp0(method, "getStatus") == 0) {
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(fl_value_new_string(
+            state->last_connected ? "connected" : "disconnected")));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+  if (g_strcmp0(method, "getCapabilities") == 0) {
+    const gboolean wg_installed = wg_quick_available();
+    const gboolean can_elevate = elevation_available();
+    const gboolean has_auth_session = has_desktop_auth_session();
+    g_autoptr(FlValue) map = fl_value_new_map();
+    fl_value_set_string_take(map, "wireguard", fl_value_new_bool(wg_installed && can_elevate));
+    fl_value_set_string_take(map, "openvpn", fl_value_new_bool(FALSE));
+    fl_value_set_string_take(map, "ikev2", fl_value_new_bool(FALSE));
+    fl_value_set_string_take(map, "l2tp", fl_value_new_bool(FALSE));
+    fl_value_set_string_take(map, "shadowsocks", fl_value_new_bool(FALSE));
+    fl_value_set_string_take(map, "tcp_fallback", fl_value_new_bool(FALSE));
+    fl_value_set_string_take(map, "quic", fl_value_new_bool(FALSE));
+    fl_value_set_string_take(map, "windows_thread_safe", fl_value_new_bool(FALSE));
+    fl_value_set_string_take(map, "android_vpnservice_based", fl_value_new_bool(FALSE));
+    fl_value_set_string_take(map, "macos_entitlements_ready", fl_value_new_bool(TRUE));
+    fl_value_set_string_take(map, "linux_wg_installed", fl_value_new_bool(wg_installed));
+    fl_value_set_string_take(map, "linux_elevation_available", fl_value_new_bool(can_elevate));
+    if (!wg_installed || !can_elevate) {
+      const gchar* hint = !wg_installed
+                              ? wireguard_install_hint_message()
+                              : elevation_hint_message();
+      fl_value_set_string_take(
+          map,
+          "wireguard_install_hint",
+          fl_value_new_string(hint));
+    }
+    if (!can_elevate || !has_auth_session) {
+      fl_value_set_string_take(
+          map,
+          "linux_elevation_hint",
+          fl_value_new_string(elevation_hint_message()));
+    }
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(map));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
   if (g_strcmp0(method, "connect") == 0) {
+    FlValue* args = fl_method_call_get_args(method_call);
+    const gchar* protocol = get_string_arg(args, "protocol");
+    if (protocol && g_strcmp0(protocol, "wireguard") != 0 && g_strcmp0(protocol, "wg") != 0) {
+      respond_error(
+          method_call,
+          "protocol_unavailable",
+          "Linux runtime currently supports WireGuard only.",
+          nullptr);
+      return;
+    }
     if (!wg_quick_available()) {
       respond_error(
           method_call,
           "vpn_unavailable",
-          "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
+          wireguard_install_hint_message(),
           fl_value_new_map());
       return;
     }
@@ -355,12 +456,10 @@ static void handle_vpn_call(FlMethodChannel* channel,
       respond_error(
           method_call,
           "vpn_permission_required",
-          "Administrator privileges required to start the VPN tunnel. "
-          "Install PolicyKit (pkexec) or run the app with sudo.",
+          elevation_hint_message(),
           fl_value_new_map());
       return;
     }
-    FlValue* args = fl_method_call_get_args(method_call);
     const gchar* config = get_string_arg(args, "config");
     if (!config || *config == '\0') {
       respond_error(method_call, "invalid_config", "Missing WireGuard configuration.", nullptr);
@@ -378,7 +477,14 @@ static void handle_vpn_call(FlMethodChannel* channel,
       respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
       return;
     }
-    spawn_wg_quick_async(method_call, "vpn_connect_failed", "up", state->config_path);
+    spawn_wg_quick_async(
+        method_call,
+        state,
+        "vpn_connect_failed",
+        "up",
+        state->config_path,
+        TRUE,
+        TRUE);
     return;
   }
   if (g_strcmp0(method, "disconnect") == 0) {
@@ -386,7 +492,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       respond_error(
           method_call,
           "vpn_unavailable",
-          "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
+          wireguard_install_hint_message(),
           fl_value_new_map());
       return;
     }
@@ -394,8 +500,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       respond_error(
           method_call,
           "vpn_permission_required",
-          "Administrator privileges required to stop the VPN tunnel. "
-          "Install PolicyKit (pkexec) or run the app with sudo.",
+          elevation_hint_message(),
           fl_value_new_map());
       return;
     }
@@ -403,7 +508,14 @@ static void handle_vpn_call(FlMethodChannel* channel,
       respond_error(method_call, "vpn_config_missing", "WireGuard config file not found.", nullptr);
       return;
     }
-    spawn_wg_quick_async(method_call, "vpn_disconnect_failed", "down", state->config_path);
+    spawn_wg_quick_async(
+        method_call,
+        state,
+        "vpn_disconnect_failed",
+        "down",
+        state->config_path,
+        TRUE,
+        FALSE);
     return;
   }
   g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
@@ -500,6 +612,7 @@ static void my_application_activate(GApplication* application) {
 
   FlEngine* engine = fl_view_get_engine(view);
   VpnChannelState* vpn_state = g_new0(VpnChannelState, 1);
+  vpn_state->last_connected = FALSE;
   vpn_state->channel = fl_method_channel_new(
       fl_engine_get_binary_messenger(engine),
       kChannelName,

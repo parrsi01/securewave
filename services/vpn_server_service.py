@@ -15,13 +15,19 @@ class VPNServerService:
     """Service for managing VPN server fleet and health monitoring"""
 
     @staticmethod
-    def get_active_servers(db: Session, user_tier: str = "free") -> List[VPNServer]:
+    def get_active_servers(
+        db: Session,
+        user_tier: str = "free",
+        *,
+        protocol: Optional[str] = None,
+    ) -> List[VPNServer]:
         """
         Get available servers for user tier
 
         Args:
             db: Database session
             user_tier: User tier ('free' or 'premium')
+            protocol: Optional protocol filter (wireguard/openvpn/ikev2)
 
         Returns:
             List of available VPN servers
@@ -32,6 +38,15 @@ class VPNServerService:
             VPNServer.status.in_(allowed_statuses),
             VPNServer.health_status.in_(["healthy", "degraded", "unknown"]),
         )
+
+        if protocol:
+            normalized = protocol.strip().lower()
+            if normalized in {"wireguard", "wg", "wire_guard"}:
+                query = query.filter(VPNServer.supports_wireguard.is_(True))
+            elif normalized == "openvpn":
+                query = query.filter(VPNServer.supports_openvpn.is_(True))
+            elif normalized in {"ikev2", "ikev2/ipsec", "ipsec"}:
+                query = query.filter(VPNServer.supports_ikev2.is_(True))
 
         # Free users can only access unrestricted servers
         if user_tier == "free":

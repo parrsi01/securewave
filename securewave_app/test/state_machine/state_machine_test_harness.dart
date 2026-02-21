@@ -18,7 +18,7 @@ import 'package:securewave_app/services/api_client.dart';
 Map<String, String?> installSecureStorageMock({
   Map<String, String?>? initial,
 }) {
-  final store = <String, String?>{...?(initial ?? const <String, String?>{})};
+  final store = <String, String?>{...(initial ?? const <String, String?>{})};
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(
     const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
@@ -122,9 +122,25 @@ class ControlledVpnService implements VpnService {
   bool get isNativeAvailable => nativeAvailable;
 
   @override
+  String? get availabilityMessage => null;
+
+  @override
+  Future<VpnCapabilities> getCapabilities() async {
+    return VpnCapabilities(
+      wireGuard: nativeAvailable,
+      openVpn: false,
+      ikev2: false,
+      windowsThreadSafe: true,
+      androidVpnServiceBased: true,
+      macosEntitlementReady: true,
+      linuxWireGuardInstalled: nativeAvailable,
+    );
+  }
+
+  @override
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
-    String? config,
+    Map<String, dynamic>? profile,
   }) async {
     connectCalls += 1;
     if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {

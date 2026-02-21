@@ -258,8 +258,9 @@ class VPNHealthMonitor:
         """
         Get CPU load from server
 
-        In production, this would query a monitoring agent on the server.
-        For now, returns a simulated value based on connection count.
+        In production, this should query a monitoring agent on the server.
+        Current implementation returns a deterministic estimate based on
+        connection count.
 
         Args:
             server: VPN server object
@@ -267,7 +268,7 @@ class VPNHealthMonitor:
         Returns:
             CPU load (0.0 to 1.0)
         """
-        # Simulate load based on connection count
+        # Estimate load from current connection pressure.
         base_load = 0.15  # Idle load
         connection_load = (server.current_connections / server.max_connections) * 0.6
         return min(0.95, base_load + connection_load)

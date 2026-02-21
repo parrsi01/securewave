@@ -451,6 +451,20 @@ class WireGuardServerManager:
         except Exception as e:
             return False, "", str(e)
 
+    async def run_ssh_command(
+        self,
+        conn: ServerConnection,
+        command: str,
+    ) -> Tuple[bool, str, str]:
+        """
+        Public wrapper for executing a command via SSH.
+
+        This is used by multi-protocol provisioning flows (e.g. OpenVPN/IPsec
+        credential install scripts) while reusing the same SSH configuration
+        and timeouts as the WireGuard manager.
+        """
+        return await self._run_ssh_command(conn, command)
+
     async def _add_peer_via_ssh(
         self,
         conn: ServerConnection,

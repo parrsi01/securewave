@@ -19,10 +19,25 @@ import UIKit
           } else {
             result(true)
           }
+        case "getStatus":
+          result(SecureWaveVPNManager.shared.statusString())
+        case "getCapabilities":
+          result(SecureWaveVPNManager.shared.capabilitiesPayload())
         case "connect":
-          guard let args = call.arguments as? [String: Any],
-                let config = args["config"] as? String,
-                !config.isEmpty else {
+          guard let args = call.arguments as? [String: Any] else {
+            result(FlutterError(code: "invalid_profile", message: "Missing VPN arguments.", details: nil))
+            return
+          }
+          let protocolName = (args["protocol"] as? String ?? "wireguard").lowercased()
+          if protocolName != "wireguard" {
+            result(FlutterError(code: "protocol_unavailable", message: "iOS runtime currently supports WireGuard only.", details: nil))
+            return
+          }
+
+          let profile = args["profile"] as? [String: Any]
+          let configFromProfile = profile?["wireguard_config"] as? String
+          let config = (args["config"] as? String) ?? configFromProfile ?? ""
+          if config.isEmpty {
             result(FlutterError(code: "invalid_config", message: "Missing WireGuard configuration.", details: nil))
             return
           }

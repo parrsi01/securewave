@@ -12,8 +12,9 @@ import os
 import logging
 import json
 import time
+import base64
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List
+from typing import Optional, List, Any, Dict, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from pydantic import BaseModel, Field, field_validator
@@ -39,6 +40,7 @@ from services.subscription_access import require_active_subscription
 from services.vpn_peer_manager import get_peer_manager
 from services.wireguard_service import WireGuardService
 from services.vpn_server_service import VPNServerService
+from services.vpn_credential_service import VpnCredentialService
 from services.runtime_metrics import get_runtime_metrics
 from services.wireguard_tuning import tune_wireguard
 from services.latency_optimizer import get_latency_optimizer
@@ -63,6 +65,72 @@ def rate_limit(rule: str):
     return limiter.limit(rule)
 
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
+AUTO_PROVISION_CREDENTIALS = (
+    os.getenv("VPN_AUTO_PROVISION_CREDENTIALS", "true").strip().lower() == "true"
+    and not IS_TESTING
+)
+
+CANONICAL_PROTOCOLS = ("wireguard", "openvpn", "ikev2", "auto")
+SUPPORTED_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
+
+
+def normalize_vpn_protocol(value: Optional[str]) -> str:
+    raw = (value or "").strip().lower()
+    if not raw or raw == "auto":
+        return "auto"
+    if raw in {"wireguard", "wg", "wire_guard"}:
+        return "wireguard"
+    if raw in {"openvpn", "open_vpn"}:
+        return "openvpn"
+    if raw in {"ikev2", "ikev2/ipsec", "ipsec"}:
+        return "ikev2"
+    raise ApiException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        code="unsupported_protocol",
+        message=f"Unsupported protocol. Supported: {', '.join(CANONICAL_PROTOCOLS)}.",
+        details={"protocol": value},
+    )
+
+
+def _parse_protocol_csv(raw: str) -> set[str]:
+    out: set[str] = set()
+    for item in (raw or "").split(","):
+        text = item.strip().lower()
+        if not text:
+            continue
+        try:
+            normalized = normalize_vpn_protocol(text)
+        except ApiException:
+            continue
+        if normalized == "auto":
+            continue
+        out.add(normalized)
+    return out
+
+
+def _enabled_protocols() -> set[str]:
+    raw = os.getenv("SECUREWAVE_ENABLED_PROTOCOLS", "wireguard,openvpn,ikev2")
+    out = _parse_protocol_csv(raw)
+    return out or {"wireguard"}
+
+
+def _plan_allowed_protocols(user_tier: str) -> set[str]:
+    tier = (user_tier or "free").strip().lower()
+    env_name = {
+        "free": "SECUREWAVE_PLAN_PROTOCOLS_FREE",
+        "basic": "SECUREWAVE_PLAN_PROTOCOLS_BASIC",
+        "premium": "SECUREWAVE_PLAN_PROTOCOLS_PREMIUM",
+        "pro": "SECUREWAVE_PLAN_PROTOCOLS_PRO",
+        "ultra": "SECUREWAVE_PLAN_PROTOCOLS_ULTRA",
+    }.get(tier)
+    if env_name:
+        raw = os.getenv(env_name, "").strip()
+    else:
+        raw = ""
+    if not raw:
+        raw = "wireguard,openvpn,ikev2"
+    out = _parse_protocol_csv(raw)
+    return out or {"wireguard"}
 
 VPN_ERROR_RESPONSES = api_error_responses(
     {
@@ -92,6 +160,7 @@ class ServerInfo(BaseModel):
     load_percent: Optional[float] = None
     status: str
     health_status: str
+    supported_protocols: List[str] = Field(default_factory=list, description="Protocols supported by this server")
 
 
 class AllocateConfigRequest(BaseModel):
@@ -214,6 +283,29 @@ class RecommendedServerResponse(BaseModel):
     rtt_min_samples: int
     candidates: Optional[List[RecommendedServerCandidate]] = None
 
+
+class VpnProtocolRequirement(BaseModel):
+    key: str
+    description: str
+
+
+class VpnProtocolAvailability(BaseModel):
+    protocol: str
+    enabled: bool
+    server_enabled: bool
+    plan_enabled: bool
+    platform_supported: bool
+    transports: Optional[List[str]] = None
+    requirements: List[VpnProtocolRequirement] = Field(default_factory=list)
+    reason: Optional[str] = None
+
+
+class VpnProtocolsResponse(BaseModel):
+    user_tier: str
+    device_type: Optional[str] = None
+    protocols: List[VpnProtocolAvailability]
+
+
 class VpnProfileRequest(BaseModel):
     """Provision an app-consumable VPN tunnel profile (no downloadable files)."""
     device_id: Optional[int] = Field(
@@ -225,7 +317,10 @@ class VpnProfileRequest(BaseModel):
         None,
         description="Client device type (windows, macos, linux, ios, android)",
     )
-    protocol: str = Field("wireguard", description="VPN protocol (wireguard only for now)")
+    protocol: Optional[str] = Field(
+        None,
+        description="Desired VPN protocol (auto/wireguard/openvpn/ikev2). Omit or set 'auto' to let the server decide.",
+    )
     server_id: Optional[str] = Field(None, description="Preferred server ID (null = auto)")
     force_rotate_keys: bool = Field(False, description="Rotate device keys before issuing a profile")
 
@@ -243,6 +338,19 @@ class VpnProfileRequest(BaseModel):
             return None
         return sanitize_identifier(value, field_name="server_id")
 
+    @field_validator("device_type")
+    @classmethod
+    def _validate_device_type(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        allowed = {"windows", "macos", "linux", "ios", "android"}
+        if normalized not in allowed:
+            raise ValueError(
+                f"Unsupported device_type '{value}'. Supported: {', '.join(sorted(allowed))}."
+            )
+        return normalized
+
 
 class VpnProfileDns(BaseModel):
     mode: str = "tunnel"
@@ -257,6 +365,34 @@ class VpnProfileKillSwitch(BaseModel):
     notes: Optional[str] = None
 
 
+class VpnWireGuardProfilePayload(BaseModel):
+    type: Literal["wireguard"] = "wireguard"
+    wireguard_config: str
+
+
+class VpnOpenVpnProfilePayload(BaseModel):
+    type: Literal["openvpn"] = "openvpn"
+    ovpn_config: str
+    username: str
+    password: str
+
+
+class VpnIkev2ProfilePayload(BaseModel):
+    type: Literal["ikev2"] = "ikev2"
+    server: str
+    remote_id: Optional[str] = None
+    username: str
+    password: str
+    ca_cert_pem: Optional[str] = None
+
+
+VpnProtocolProfilePayload = Union[
+    VpnWireGuardProfilePayload,
+    VpnOpenVpnProfilePayload,
+    VpnIkev2ProfilePayload,
+]
+
+
 class VpnProfileResponse(BaseModel):
     device_id: int
     device_name: Optional[str] = None
@@ -267,7 +403,8 @@ class VpnProfileResponse(BaseModel):
     key_version: int
     issued_at: str
     expires_at: str
-    wireguard_config: str
+    wireguard_config: Optional[str] = None
+    profile: Optional[VpnProtocolProfilePayload] = None
     dns: VpnProfileDns
     kill_switch: VpnProfileKillSwitch
     peer_registered: bool = False
@@ -322,6 +459,64 @@ async def register_peer_on_server(
         logger.error(f"Failed to register peer on server {server.server_id}: {e}")
         return False, str(e)
 
+
+def _sh_quote(value: str) -> str:
+    # Minimal POSIX shell escaping for single-quoted arguments.
+    return "'" + value.replace("'", "'\"'\"'") + "'"
+
+
+async def provision_protocol_credentials_on_server(
+    *,
+    server: VPNServer,
+    protocol: str,
+    username: str,
+    password: str,
+) -> tuple[bool, str]:
+    """
+    Best-effort data-plane provisioning for non-WireGuard credentials.
+
+    Requires the VM provisioning script to install the helper scripts:
+    - /usr/local/bin/securewave-openvpn-upsert-user
+    - /usr/local/bin/securewave-ikev2-upsert-user
+    """
+    if not AUTO_PROVISION_CREDENTIALS:
+        return False, "Auto provisioning disabled"
+
+    normalized = normalize_vpn_protocol(protocol)
+    if normalized == "wireguard" or normalized == "auto":
+        return False, "not_applicable"
+
+    script = None
+    if normalized == "openvpn":
+        script = "securewave-openvpn-upsert-user"
+    elif normalized == "ikev2":
+        script = "securewave-ikev2-upsert-user"
+
+    if not script:
+        return False, "unsupported_protocol"
+
+    password_b64 = base64.b64encode(password.encode("utf-8")).decode("ascii")
+
+    cmd = (
+        "sudo "
+        + script
+        + " --username "
+        + _sh_quote(username)
+        + " --password-b64 "
+        + _sh_quote(password_b64)
+    )
+    try:
+        manager = get_wireguard_server_manager()
+        conn = server_connection_from_db(server)
+        success, stdout, stderr = await manager.run_ssh_command(conn, cmd)
+        if success:
+            message = (stdout or "").strip() or "credential_provisioned"
+            return True, message
+        message = (stderr or "").strip() or (stdout or "").strip() or "credential_provision_failed"
+        return False, message
+    except Exception as exc:
+        return False, str(exc)
+
 def _profile_dns_servers() -> list[str]:
     """Always-on secure DNS for tunnel profiles (ads/malware blocking via DNS)."""
     raw = os.getenv("SECUREWAVE_TUNNEL_DNS", "").strip()
@@ -366,6 +561,9 @@ def _resolve_wireguard_tuning(
         forwarded_for=request.headers.get("x-forwarded-for"),
         observed_latency_ms=server.latency_ms,
         device_type=device_type,
+        packet_loss=server.packet_loss,
+        jitter_ms=server.jitter_ms,
+        server_health_status=server.health_status,
     )
     return tuning.mtu, tuning.keepalive_seconds, tuning.nat_detected, tuning.mtu_probe_ms
 
@@ -451,6 +649,139 @@ def _build_wireguard_profile_config(
     return "\n".join(interface_lines + peer_lines) + "\n"
 
 
+def _read_optional_pem_from_env(*, pem_env: str, path_env: str) -> Optional[str]:
+    raw = os.getenv(pem_env, "").strip()
+    if raw:
+        return raw
+    path = os.getenv(path_env, "").strip()
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read().strip()
+    except OSError:
+        return None
+
+
+def _build_openvpn_profile(
+    server: VPNServer,
+    *,
+    username: str,
+    password: str,
+    device_type: Optional[str],
+    dns_servers: Optional[list[str]] = None,
+) -> VpnOpenVpnProfilePayload:
+    transport = (getattr(server, "openvpn_transport", "") or "udp").strip().lower()
+    if transport not in {"udp", "tcp"}:
+        raise ApiException(
+            status_code=500,
+            code="invalid_server_config",
+            message="The selected VPN server has an invalid OpenVPN transport configuration.",
+            details={"server_id": server.server_id, "transport": transport},
+        )
+
+    port = int(getattr(server, "openvpn_port", 1194) or 1194)
+    host = (getattr(server, "openvpn_endpoint", None) or server.public_ip or "").strip()
+    if not host:
+        raise ApiException(
+            status_code=500,
+            code="invalid_server_config",
+            message="The selected VPN server is missing an OpenVPN endpoint.",
+            details={"server_id": server.server_id},
+        )
+
+    # Validate host:port string for basic safety.
+    try:
+        sanitize_endpoint(f"{host}:{port}")
+    except ValueError as exc:
+        raise ApiException(
+            status_code=500,
+            code="invalid_server_config",
+            message="The selected VPN server has an invalid OpenVPN endpoint.",
+            details={"server_id": server.server_id, "reason": str(exc)},
+        )
+
+    ca_cert = (getattr(server, "openvpn_ca_cert_pem", None) or "").strip()
+    if not ca_cert:
+        ca_cert = _read_optional_pem_from_env(
+            pem_env="SECUREWAVE_OPENVPN_CA_CERT_PEM",
+            path_env="SECUREWAVE_OPENVPN_CA_CERT_PATH",
+        ) or ""
+    if not ca_cert:
+        raise ApiException(
+            status_code=500,
+            code="invalid_server_config",
+            message="The selected VPN server is missing an OpenVPN CA certificate.",
+            details={"server_id": server.server_id},
+        )
+
+    proto_line = "proto tcp-client" if transport == "tcp" else "proto udp"
+
+    extra: list[str] = []
+    if (device_type or "").strip().lower() == "windows":
+        # Best-effort DNS leak mitigation on Windows when using OpenVPN.
+        extra.append("setenv opt block-outside-dns")
+
+    ovpn_lines = [
+        "client",
+        "dev tun",
+        proto_line,
+        f"remote {host} {port}",
+        "resolv-retry infinite",
+        "nobind",
+        "persist-key",
+        "persist-tun",
+        "remote-cert-tls server",
+        "auth-user-pass",
+        "auth-nocache",
+        "verb 3",
+        *[f"dhcp-option DNS {dns}" for dns in (dns_servers or []) if dns.strip()],
+        *extra,
+        "<ca>",
+        ca_cert.strip(),
+        "</ca>",
+        "",
+    ]
+
+    return VpnOpenVpnProfilePayload(
+        ovpn_config="\n".join(ovpn_lines),
+        username=username,
+        password=password,
+    )
+
+
+def _build_ikev2_profile(
+    server: VPNServer,
+    *,
+    username: str,
+    password: str,
+) -> VpnIkev2ProfilePayload:
+    ca_cert = (getattr(server, "ikev2_ca_cert_pem", None) or "").strip()
+    if not ca_cert:
+        ca_cert = _read_optional_pem_from_env(
+            pem_env="SECUREWAVE_IKEV2_CA_CERT_PEM",
+            path_env="SECUREWAVE_IKEV2_CA_CERT_PATH",
+        ) or ""
+
+    remote_id = (getattr(server, "ikev2_remote_id", None) or "").strip() or None
+    server_host = remote_id or (server.public_ip or "").strip()
+    if not server_host:
+        raise ApiException(
+            status_code=500,
+            code="invalid_server_config",
+            message="The selected VPN server is missing an IKEv2 endpoint.",
+            details={"server_id": server.server_id},
+        )
+
+    return VpnIkev2ProfilePayload(
+        server=server_host,
+        remote_id=remote_id,
+        username=username,
+        password=password,
+        ca_cert_pem=ca_cert or None,
+    )
+
+
 def _safe_server_peer_values(server: VPNServer) -> tuple[str, str, str]:
     try:
         return (
@@ -467,9 +798,232 @@ def _safe_server_peer_values(server: VPNServer) -> tuple[str, str, str]:
         )
 
 
+def _server_supported_protocols(server: VPNServer) -> list[str]:
+    out: list[str] = []
+    if getattr(server, "supports_wireguard", True):
+        out.append("wireguard")
+    if getattr(server, "supports_openvpn", False):
+        out.append("openvpn")
+    if getattr(server, "supports_ikev2", False):
+        out.append("ikev2")
+    return out
+
+
+def _server_supports_protocol(server: VPNServer, protocol: str) -> bool:
+    normalized = normalize_vpn_protocol(protocol)
+    if normalized == "auto":
+        return True
+    supported = _server_supported_protocols(server)
+    return normalized in supported
+
+
+def _auto_protocol_order() -> list[str]:
+    raw = os.getenv("SECUREWAVE_AUTO_PROTOCOL_ORDER", "").strip()
+    if not raw:
+        raw = "wireguard,openvpn,ikev2"
+    out: list[str] = []
+    for part in raw.split(","):
+        part = part.strip().lower()
+        if not part:
+            continue
+        try:
+            normalized = normalize_vpn_protocol(part)
+        except ApiException:
+            continue
+        if normalized == "auto":
+            continue
+        if normalized not in out:
+            out.append(normalized)
+    if not out:
+        out = ["wireguard", "openvpn", "ikev2"]
+    return out
+
+
+def _platform_supported_protocols(device_type: Optional[str]) -> set[str]:
+    dt = (device_type or "").strip().lower()
+    if dt in {"windows", "linux", "macos"}:
+        return set(SUPPORTED_PROTOCOLS)
+    if dt in {"android", "ios"}:
+        return {"wireguard"}
+    # Default to the safest/common denominator.
+    return {"wireguard"}
+
+
+def _protocol_requirements(protocol: str) -> list[VpnProtocolRequirement]:
+    if protocol == "wireguard":
+        return [
+            VpnProtocolRequirement(
+                key="native_tunnel_runtime",
+                description="WireGuard runtime must be installed and available on the device.",
+            )
+        ]
+    if protocol == "openvpn":
+        return [
+            VpnProtocolRequirement(
+                key="openvpn_client",
+                description="OpenVPN client/runtime must be installed on the device.",
+            ),
+            VpnProtocolRequirement(
+                key="server_ca_certificate",
+                description="Backend/server must provide a valid OpenVPN CA certificate.",
+            ),
+        ]
+    if protocol == "ikev2":
+        return [
+            VpnProtocolRequirement(
+                key="ikev2_runtime",
+                description="OS must support IKEv2/IPsec with username/password credentials.",
+            ),
+            VpnProtocolRequirement(
+                key="server_identity",
+                description="Server endpoint/remote identity and CA trust chain must be valid.",
+            ),
+        ]
+    return []
+
+
+def choose_effective_protocol(
+    *,
+    server: VPNServer,
+    requested_protocol: str,
+    device_type: Optional[str],
+    allowed_protocols: set[str],
+) -> str:
+    requested = normalize_vpn_protocol(requested_protocol)
+    supported_by_platform = _platform_supported_protocols(device_type)
+    if requested != "auto":
+        if requested not in allowed_protocols:
+            raise ApiException(
+                status_code=403,
+                code="protocol_plan_restricted",
+                message="Requested protocol is not enabled for this account plan.",
+                details={"protocol": requested},
+            )
+        if requested not in supported_by_platform:
+            raise ApiException(
+                status_code=400,
+                code="protocol_not_supported_on_platform",
+                message="Requested protocol is not supported on this platform.",
+                details={"protocol": requested, "device_type": device_type},
+            )
+        if not _server_supports_protocol(server, requested):
+            raise ApiException(
+                status_code=409,
+                code="protocol_not_supported_on_server",
+                message="Requested protocol is not enabled on the selected server.",
+                details={"protocol": requested, "server_id": server.server_id},
+            )
+        return requested
+
+    preferred_raw = (getattr(server, "protocol", None) or "").strip()
+    if preferred_raw:
+        try:
+            preferred = normalize_vpn_protocol(preferred_raw)
+        except ApiException:
+            preferred = "auto"
+        if (
+            preferred != "auto"
+            and preferred in supported_by_platform
+            and preferred in allowed_protocols
+            and _server_supports_protocol(server, preferred)
+        ):
+            return preferred
+
+    for candidate in _auto_protocol_order():
+        if (
+            candidate in supported_by_platform
+            and candidate in allowed_protocols
+            and _server_supports_protocol(server, candidate)
+        ):
+            return candidate
+
+    # Defensive fallback to preserve backward compatibility.
+    supported = _server_supported_protocols(server)
+    for candidate in supported:
+        if candidate in supported_by_platform and candidate in allowed_protocols:
+            return candidate
+    raise ApiException(
+        status_code=409,
+        code="no_protocol_available",
+        message="No VPN protocol is available for this platform/account/server combination.",
+        details={"server_id": server.server_id, "device_type": device_type},
+    )
+
+
 # =============================================================================
 # Server Listing Endpoints
 # =============================================================================
+
+@router.get(
+    "/protocols",
+    response_model=VpnProtocolsResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("60/minute")
+async def list_protocols(
+    request: Request,
+    device_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    user_tier = get_user_tier(current_user, db)
+    normalized_device_type = (device_type or "").strip().lower() or None
+    if normalized_device_type and normalized_device_type not in {"windows", "macos", "linux", "ios", "android"}:
+        raise ApiException(
+            status_code=400,
+            code="invalid_device_type",
+            message="Unsupported device_type. Supported: windows, macos, linux, ios, android.",
+            details={"device_type": device_type},
+        )
+
+    enabled_protocols = _enabled_protocols()
+    plan_allowed = _plan_allowed_protocols(user_tier)
+    platform_supported = _platform_supported_protocols(normalized_device_type)
+
+    servers = VPNServerService.get_active_servers(db, user_tier)
+    server_enabled: dict[str, bool] = {
+        protocol: any(protocol in _server_supported_protocols(server) for server in servers)
+        for protocol in SUPPORTED_PROTOCOLS
+    }
+
+    protocol_payload: list[VpnProtocolAvailability] = []
+    for protocol in SUPPORTED_PROTOCOLS:
+        enabled = (
+            protocol in enabled_protocols
+            and protocol in plan_allowed
+            and protocol in platform_supported
+            and server_enabled.get(protocol, False)
+        )
+        reason = None
+        if protocol not in enabled_protocols:
+            reason = "disabled_server_side"
+        elif protocol not in plan_allowed:
+            reason = "restricted_by_plan"
+        elif protocol not in platform_supported:
+            reason = "not_supported_on_platform"
+        elif not server_enabled.get(protocol, False):
+            reason = "no_active_server_support"
+
+        transports = ["udp", "tcp"] if protocol == "openvpn" else None
+        protocol_payload.append(
+            VpnProtocolAvailability(
+                protocol=protocol,
+                enabled=enabled,
+                server_enabled=server_enabled.get(protocol, False),
+                plan_enabled=protocol in plan_allowed and protocol in enabled_protocols,
+                platform_supported=protocol in platform_supported,
+                transports=transports,
+                requirements=_protocol_requirements(protocol),
+                reason=reason,
+            )
+        )
+
+    return VpnProtocolsResponse(
+        user_tier=user_tier,
+        device_type=normalized_device_type,
+        protocols=protocol_payload,
+    )
+
 
 @router.get(
     "/servers",
@@ -527,6 +1081,7 @@ async def list_servers(
             load_percent=round(load_percent, 1),
             status=server.status,
             health_status=server.health_status,
+            supported_protocols=_server_supported_protocols(server),
         )
         server_list.append(server_info)
 
@@ -611,6 +1166,7 @@ async def get_server(
         load_percent=round(load_percent, 1),
         status=server.status,
         health_status=server.health_status,
+        supported_protocols=_server_supported_protocols(server),
     )
 
 
@@ -908,25 +1464,34 @@ async def provision_profile(
     Provision an app-consumable VPN profile.
 
     This endpoint is the primary control-plane API used by native apps:
-    - Registers/looks up a per-device WireGuard peer (keys encrypted at rest)
+    - Registers/looks up a per-device identity (WireGuard keys encrypted at rest)
     - Selects an allowed server by tier (or uses device/server preference)
-    - Returns a WireGuard config blob + metadata (no downloadable files)
+    - Issues a protocol-specific profile payload (WireGuard/OpenVPN/IKEv2)
     """
     started = time.monotonic()
-    issued_successfully = False
-    selected_server_id: Optional[str] = None
-    selected_device_id: Optional[int] = None
     await require_active_subscription(db, current_user)
 
-    protocol = (payload.protocol or "wireguard").lower().strip()
-    if protocol not in ("wireguard", "wg", "wire_guard"):
+    requested_protocol = normalize_vpn_protocol(payload.protocol)
+    user_tier = get_user_tier(current_user, db)
+    enabled_protocols = _enabled_protocols()
+    plan_allowed_protocols = _plan_allowed_protocols(user_tier)
+    requested_explicit = requested_protocol != "auto"
+
+    if requested_explicit and requested_protocol not in enabled_protocols:
         raise ApiException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            code="unsupported_protocol",
-            message="Only WireGuard is available right now.",
+            status_code=403,
+            code="protocol_disabled_server_side",
+            message="Requested protocol is disabled by server policy.",
+            details={"protocol": requested_protocol},
+        )
+    if requested_explicit and requested_protocol not in plan_allowed_protocols:
+        raise ApiException(
+            status_code=403,
+            code="protocol_plan_restricted",
+            message="Requested protocol is not enabled for this account plan.",
+            details={"protocol": requested_protocol, "tier": user_tier},
         )
 
-    user_tier = get_user_tier(current_user, db)
     peer_manager = get_peer_manager(db)
 
     # Resolve device/peer
@@ -975,6 +1540,28 @@ async def provision_profile(
                 device_type=device_type,
             )
 
+    device_type = (payload.device_type or peer.device_type or "").lower().strip() or None
+    platform_supported_protocols = _platform_supported_protocols(device_type)
+
+    if requested_explicit and requested_protocol not in platform_supported_protocols:
+        raise ApiException(
+            status_code=400,
+            code="protocol_not_supported_on_platform",
+            message="Requested protocol is not supported on this platform.",
+            details={"protocol": requested_protocol, "device_type": device_type},
+        )
+
+    allowed_protocols = enabled_protocols.intersection(plan_allowed_protocols)
+    if requested_protocol == "auto":
+        allowed_protocols = allowed_protocols.intersection(platform_supported_protocols)
+        if not allowed_protocols:
+            raise ApiException(
+                status_code=409,
+                code="no_protocol_available",
+                message="No VPN protocol is available for this account/platform combination.",
+                details={"tier": user_tier, "device_type": device_type},
+            )
+
     # Resolve server
     server: Optional[VPNServer] = None
     if payload.server_id:
@@ -992,20 +1579,51 @@ async def provision_profile(
                 message=f"This server requires a {server.tier_restriction} subscription",
                 details={"tier_required": server.tier_restriction},
             )
+        if requested_explicit and not _server_supports_protocol(server, requested_protocol):
+            raise ApiException(
+                status_code=409,
+                code="protocol_not_supported_on_server",
+                message="Requested protocol is not enabled on the selected server.",
+                details={"protocol": requested_protocol, "server_id": server.server_id},
+            )
 
     if server is None and peer.server_id:
         server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
         if server and server.tier_restriction and user_tier == "free":
             server = None
+        if server and requested_explicit and not _server_supports_protocol(server, requested_protocol):
+            server = None
 
-    if server is None:
-        candidates = VPNServerService.get_active_servers(db, user_tier)
-        if not candidates:
-            raise ApiException(
-                status_code=503,
-                code="no_servers_available",
-                message="No VPN servers available. Please try again later.",
+    candidates = VPNServerService.get_active_servers(
+        db,
+        user_tier,
+        protocol=requested_protocol if requested_explicit else None,
+    )
+    if requested_protocol == "auto":
+        candidates = [
+            item
+            for item in candidates
+            if any(
+                proto in allowed_protocols
+                for proto in _server_supported_protocols(item)
             )
+        ]
+
+    if not candidates:
+        if requested_explicit:
+            raise ApiException(
+                status_code=409,
+                code="protocol_temporarily_unavailable",
+                message="Requested protocol is currently unavailable on active servers.",
+                details={"protocol": requested_protocol},
+            )
+        raise ApiException(
+            status_code=503,
+            code="no_servers_available",
+            message="No VPN servers available. Please try again later.",
+        )
+
+    if server is None or all(server.id != item.id for item in candidates):
         latency_optimizer = get_latency_optimizer()
         scored = latency_optimizer.rank_servers(
             candidates,
@@ -1022,10 +1640,15 @@ async def provision_profile(
         server = candidates[0]
 
     assert server is not None
-    selected_server_id = server.server_id
+    effective_protocol = choose_effective_protocol(
+        server=server,
+        requested_protocol=requested_protocol,
+        device_type=device_type,
+        allowed_protocols=allowed_protocols,
+    )
 
     # Optional key rotation
-    if payload.force_rotate_keys:
+    if payload.force_rotate_keys and effective_protocol == "wireguard":
         old_public_key = peer.public_key
         peer = peer_manager.rotate_peer_keys(peer.id)
         if peer.server_id:
@@ -1040,8 +1663,8 @@ async def provision_profile(
 
     # Ensure peer is associated with selected server.
     if peer.server_id != server.id:
-        # Best-effort remove old peer from old server.
-        if peer.server_id:
+        # Best-effort remove old WireGuard peer from old server.
+        if peer.server_id and effective_protocol == "wireguard":
             old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
             if old_server:
                 try:
@@ -1057,37 +1680,96 @@ async def provision_profile(
         db.commit()
         db.refresh(peer)
 
-    # Register peer on the data-plane server (best effort).
     peer_registered = False
     registration_status: Optional[str] = None
-    if AUTO_REGISTER_PEERS:
-        register_start = time.monotonic()
-        success, message = await register_peer_on_server(server, peer.public_key, peer.ipv4_address)
-        registration_latency_ms = (time.monotonic() - register_start) * 1000.0
-        get_runtime_metrics().record_handshake_latency(registration_latency_ms)
-        peer.last_handshake_latency_ms = round(registration_latency_ms, 2)
-        db.add(peer)
-        db.commit()
-        peer_registered = success
-        registration_status = message
-
-    wireguard_config = _build_wireguard_profile_config(
-        request,
-        peer,
-        server,
-        device_type=payload.device_type,
-    )
+    wireguard_config: Optional[str] = None
+    profile_payload: Optional[VpnProtocolProfilePayload] = None
     dns_servers = _profile_dns_servers()
 
-    device_type = (payload.device_type or peer.device_type or "").lower().strip() or None
+    if effective_protocol == "wireguard":
+        # Register WireGuard peer on the data-plane server (best effort).
+        if AUTO_REGISTER_PEERS:
+            register_start = time.monotonic()
+            success, message = await register_peer_on_server(server, peer.public_key, peer.ipv4_address)
+            registration_latency_ms = (time.monotonic() - register_start) * 1000.0
+            get_runtime_metrics().record_handshake_latency(registration_latency_ms)
+            peer.last_handshake_latency_ms = round(registration_latency_ms, 2)
+            db.add(peer)
+            db.commit()
+            peer_registered = success
+            registration_status = message
+
+        wireguard_config = _build_wireguard_profile_config(
+            request,
+            peer,
+            server,
+            device_type=device_type,
+        )
+        profile_payload = VpnWireGuardProfilePayload(wireguard_config=wireguard_config)
+    else:
+        creds_service = VpnCredentialService(db)
+        creds = creds_service.get_or_create(
+            user_id=current_user.id,
+            device_id=peer.id,
+            server_id=server.id,
+            protocol=effective_protocol,
+        )
+
+        if effective_protocol == "openvpn":
+            profile_payload = _build_openvpn_profile(
+                server,
+                username=creds.username,
+                password=creds.password,
+                device_type=device_type,
+                dns_servers=dns_servers,
+            )
+        elif effective_protocol == "ikev2":
+            profile_payload = _build_ikev2_profile(
+                server,
+                username=creds.username,
+                password=creds.password,
+            )
+
+        if profile_payload is None:
+            raise ApiException(
+                status_code=500,
+                code="unsupported_protocol",
+                message="Unsupported protocol for this profile request.",
+                details={"protocol": effective_protocol},
+            )
+
+        provisioned, message = await provision_protocol_credentials_on_server(
+            server=server,
+            protocol=effective_protocol,
+            username=creds.username,
+            password=creds.password,
+        )
+        peer_registered = provisioned
+        registration_status = message
+
+    if effective_protocol == "ikev2":
+        # IKEv2 profile payload does not enforce DNS resolvers cross-platform.
+        dns_servers = []
+
+    dns_enforcement = "config" if dns_servers else "none"
+    dns_mode = "tunnel" if dns_servers else "platform_default"
+    ad_malware_blocking = "on" if dns_servers else "off"
+
+    ks_mode = "disabled"
+    ks_enforcement = "none"
+    ks_notes = (
+        "SecureWave does not enforce a kill switch for this protocol/platform. "
+        "Use OS always-on VPN controls where available."
+    )
+    if effective_protocol == "wireguard" and device_type == "linux":
+        ks_mode = "enabled"
+        ks_enforcement = "wg-quick hooks"
+        ks_notes = "Linux WireGuard profiles include wg-quick iptables hooks for kill-switch behavior."
+
     kill_switch = VpnProfileKillSwitch(
-        mode="enabled",
-        enforcement="wg-quick hooks (best effort)" if device_type == "linux" else "best effort",
-        notes=(
-            "Linux uses wg-quick firewall hooks when iptables is available."
-            if device_type == "linux"
-            else "Enable Always-on VPN / 'block without VPN' where supported for maximum protection."
-        ),
+        mode=ks_mode,
+        enforcement=ks_enforcement,
+        notes=ks_notes,
     )
 
     ttl_seconds = int(os.getenv("SECUREWAVE_PROFILE_TTL_SECONDS", "3600"))
@@ -1096,21 +1778,24 @@ async def provision_profile(
     issued_at = datetime.now(timezone.utc)
     expires_at = issued_at + timedelta(seconds=ttl_seconds)
 
-    selected_device_id = peer.id
-    issued_successfully = True
-
     response_payload = VpnProfileResponse(
         device_id=peer.id,
         device_name=peer.device_name,
         device_type=peer.device_type,
-        protocol="wireguard",
+        protocol=effective_protocol,
         server_id=server.server_id,
         server_location=f"{server.city}, {server.country}",
         key_version=peer.key_version or 1,
         issued_at=_utc_iso(issued_at),
         expires_at=_utc_iso(expires_at),
         wireguard_config=wireguard_config,
-        dns=VpnProfileDns(servers=dns_servers, enforcement="config"),
+        profile=profile_payload,
+        dns=VpnProfileDns(
+            mode=dns_mode,
+            servers=dns_servers,
+            ad_malware_blocking=ad_malware_blocking,
+            enforcement=dns_enforcement,
+        ),
         kill_switch=kill_switch,
         peer_registered=peer_registered,
         registration_status=registration_status,
@@ -1121,6 +1806,7 @@ async def provision_profile(
         server_id=server.server_id,
         device_id=peer.id,
         key_version=peer.key_version,
+        protocol=effective_protocol,
         peer_registered=peer_registered,
     )
     elapsed_ms = (time.monotonic() - started) * 1000.0

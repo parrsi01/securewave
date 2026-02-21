@@ -13,6 +13,7 @@
 #include <sstream>
 #include <thread>
 #include <shlobj.h>
+#include <shellapi.h>
 #include <winsvc.h>
 
 #include "flutter/generated_plugin_registrant.h"
@@ -114,43 +115,68 @@ bool WriteConfigFile(const std::wstring& path, const std::string& config, std::s
 bool RunWireGuardCommand(
     const std::wstring& exe_path,
     const std::wstring& args,
-    std::string* error) {
-  std::wstring command = L"\"" + exe_path + L"\" " + args;
-  STARTUPINFOW startup_info{};
-  startup_info.cb = sizeof(startup_info);
-  PROCESS_INFORMATION process_info{};
-  std::wstring mutable_command = command;
-  if (!CreateProcessW(
-          nullptr, mutable_command.data(), nullptr, nullptr, FALSE, 0, nullptr,
-          nullptr, &startup_info, &process_info)) {
+    std::string* error,
+    bool* permission_required) {
+  if (permission_required) {
+    *permission_required = false;
+  }
+  // WireGuard tunnel service operations require elevation. Launch via ShellExecuteEx
+  // with verb "runas" so the user receives an explicit UAC prompt instead of a
+  // confusing failure.
+  SHELLEXECUTEINFOW sei{};
+  sei.cbSize = sizeof(sei);
+  sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+  sei.hwnd = nullptr;
+  sei.lpVerb = L"runas";
+  sei.lpFile = exe_path.c_str();
+  sei.lpParameters = args.c_str();
+  sei.lpDirectory = nullptr;
+  sei.nShow = SW_HIDE;
+
+  if (!ShellExecuteExW(&sei)) {
+    DWORD last_error = GetLastError();
     if (error) {
-      *error = "Failed to launch WireGuard. Ensure the app has required privileges.";
+      if (last_error == ERROR_CANCELLED) {
+        if (permission_required) {
+          *permission_required = true;
+        }
+        *error = "Administrator permission is required to start/stop the VPN tunnel.";
+      } else {
+        *error = "Failed to launch WireGuard (error " + std::to_string(last_error) +
+                 "). Ensure WireGuard is installed and retry.";
+      }
     }
     return false;
   }
-  DWORD wait_result = WaitForSingleObject(process_info.hProcess, kWireGuardCommandTimeoutMs);
-  if (wait_result == WAIT_TIMEOUT) {
-    TerminateProcess(process_info.hProcess, 1);
-    CloseHandle(process_info.hProcess);
-    CloseHandle(process_info.hThread);
+
+  if (sei.hProcess == nullptr) {
     if (error) {
-      *error = "WireGuard command timed out. Ensure the app has required privileges and retry.";
+      *error = "Failed to launch WireGuard (no process handle).";
+    }
+    return false;
+  }
+
+  DWORD wait_result = WaitForSingleObject(sei.hProcess, kWireGuardCommandTimeoutMs);
+  if (wait_result == WAIT_TIMEOUT) {
+    TerminateProcess(sei.hProcess, 1);
+    CloseHandle(sei.hProcess);
+    if (error) {
+      *error = "WireGuard command timed out. Please retry.";
     }
     return false;
   }
   if (wait_result == WAIT_FAILED) {
     DWORD last_error = GetLastError();
-    CloseHandle(process_info.hProcess);
-    CloseHandle(process_info.hThread);
+    CloseHandle(sei.hProcess);
     if (error) {
       *error = "WireGuard wait failed (error " + std::to_string(last_error) + ").";
     }
     return false;
   }
+
   DWORD exit_code = 0;
-  GetExitCodeProcess(process_info.hProcess, &exit_code);
-  CloseHandle(process_info.hProcess);
-  CloseHandle(process_info.hThread);
+  GetExitCodeProcess(sei.hProcess, &exit_code);
+  CloseHandle(sei.hProcess);
   if (exit_code != 0) {
     if (error) {
       *error = "WireGuard exited with code " + std::to_string(exit_code) + ".";
@@ -385,13 +411,15 @@ struct FlutterWindow::VpnWorker {
       }
 
       std::string err;
+      bool permission_required = false;
       op.ok = RunWireGuardCommand(
           *wireguard_path_,
           L"/installtunnelservice \"" + config_path_ + L"\"",
-          &err);
+          &err,
+          &permission_required);
       if (!op.ok) {
         state_ = TunnelState::kDisconnected;
-        op.error_code = "vpn_connect_failed";
+        op.error_code = permission_required ? "vpn_permission_required" : "vpn_connect_failed";
         op.error_message = err;
         return;
       }
@@ -415,14 +443,16 @@ struct FlutterWindow::VpnWorker {
     state_ = TunnelState::kDisconnecting;
 
     std::string err;
+    bool permission_required = false;
     op.ok = RunWireGuardCommand(
         *wireguard_path_,
         std::wstring(L"/uninstalltunnelservice ") + kTunnelName,
-        &err);
+        &err,
+        &permission_required);
     if (!op.ok) {
       // Keep state unknown; we couldn't deterministically stop it.
       state_ = TunnelState::kUnknown;
-      op.error_code = "vpn_disconnect_failed";
+      op.error_code = permission_required ? "vpn_permission_required" : "vpn_disconnect_failed";
       op.error_message = err;
       return;
     }
@@ -481,6 +511,25 @@ bool FlutterWindow::OnCreate() {
           result->Success(flutter::EncodableValue(available));
           return;
         }
+        if (call.method_name() == "getCapabilities") {
+          flutter::EncodableMap capabilities;
+          capabilities[flutter::EncodableValue("wireguard")] =
+              flutter::EncodableValue(GetWireGuardPath().has_value());
+          capabilities[flutter::EncodableValue("openvpn")] = flutter::EncodableValue(false);
+          capabilities[flutter::EncodableValue("ikev2")] = flutter::EncodableValue(false);
+          capabilities[flutter::EncodableValue("l2tp")] = flutter::EncodableValue(false);
+          capabilities[flutter::EncodableValue("shadowsocks")] = flutter::EncodableValue(false);
+          capabilities[flutter::EncodableValue("tcp_fallback")] = flutter::EncodableValue(false);
+          capabilities[flutter::EncodableValue("quic")] = flutter::EncodableValue(false);
+          capabilities[flutter::EncodableValue("windows_thread_safe")] =
+              flutter::EncodableValue(true);
+          capabilities[flutter::EncodableValue("android_vpnservice_based")] =
+              flutter::EncodableValue(false);
+          capabilities[flutter::EncodableValue("macos_entitlements_ready")] =
+              flutter::EncodableValue(true);
+          result->Success(flutter::EncodableValue(capabilities));
+          return;
+        }
         if (call.method_name() == "getStatus") {
           // Best-effort status for boot-time UI sync.
           const bool connected = TunnelServiceInstalled();
@@ -489,11 +538,25 @@ bool FlutterWindow::OnCreate() {
         }
         if (call.method_name() == "connect") {
           const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
+          std::optional<std::string> protocol;
           std::optional<std::string> config;
           if (args) {
+            const auto protocol_it = args->find(flutter::EncodableValue("protocol"));
+            if (protocol_it != args->end()) {
+              protocol = GetStringArg(&protocol_it->second);
+            }
             const auto config_it = args->find(flutter::EncodableValue("config"));
             if (config_it != args->end()) {
               config = GetStringArg(&config_it->second);
+            }
+          }
+          if (protocol.has_value()) {
+            if (*protocol != "wireguard" && *protocol != "wg") {
+              result->Error(
+                  "protocol_unavailable",
+                  "Windows runtime currently supports WireGuard only.",
+                  nullptr);
+              return;
             }
           }
           if (!config || config->empty()) {

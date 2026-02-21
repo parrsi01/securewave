@@ -9,6 +9,7 @@ class VpnProfile {
     required this.issuedAt,
     required this.expiresAt,
     required this.wireguardConfig,
+    required this.profile,
     required this.dnsServers,
     required this.adMalwareBlocking,
     required this.dnsEnforcement,
@@ -26,7 +27,8 @@ class VpnProfile {
   final String serverLocation;
   final DateTime? issuedAt;
   final DateTime? expiresAt;
-  final String wireguardConfig;
+  final String? wireguardConfig;
+  final Map<String, dynamic>? profile;
 
   final List<String> dnsServers;
   final String adMalwareBlocking;
@@ -42,6 +44,8 @@ class VpnProfile {
     final dns = json['dns'] is Map ? Map<String, dynamic>.from(json['dns'] as Map) : const <String, dynamic>{};
     final killSwitch =
         json['kill_switch'] is Map ? Map<String, dynamic>.from(json['kill_switch'] as Map) : const <String, dynamic>{};
+    final rawProfile = json['profile'];
+    final profile = rawProfile is Map ? Map<String, dynamic>.from(rawProfile) : null;
 
     final dnsServersRaw = dns['servers'];
     final dnsServers = dnsServersRaw is List
@@ -57,7 +61,8 @@ class VpnProfile {
       serverLocation: json['server_location']?.toString() ?? '',
       issuedAt: json['issued_at'] != null ? DateTime.tryParse(json['issued_at'].toString()) : null,
       expiresAt: json['expires_at'] != null ? DateTime.tryParse(json['expires_at'].toString()) : null,
-      wireguardConfig: json['wireguard_config']?.toString() ?? '',
+      wireguardConfig: json['wireguard_config']?.toString(),
+      profile: profile,
       dnsServers: dnsServers,
       adMalwareBlocking: dns['ad_malware_blocking']?.toString() ?? 'on',
       dnsEnforcement: dns['enforcement']?.toString() ?? 'best_effort',
@@ -67,5 +72,16 @@ class VpnProfile {
       registrationStatus: json['registration_status']?.toString(),
     );
   }
-}
 
+  Map<String, dynamic> toNativeProfile() {
+    if (profile != null && profile!.isNotEmpty) return profile!;
+    final wg = (wireguardConfig ?? '').trim();
+    if (wg.isNotEmpty) {
+      return <String, dynamic>{
+        'type': 'wireguard',
+        'wireguard_config': wg,
+      };
+    }
+    return const <String, dynamic>{};
+  }
+}

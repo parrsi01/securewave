@@ -2,11 +2,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
-import 'package:securewave_app/core/services/secure_storage.dart';
-import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
+import 'package:securewave_app/core/services/secure_storage.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
+import 'package:securewave_app/services/api_client.dart';
+
+import 'state_machine/state_machine_test_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +21,9 @@ void main() {
         .setMockMethodCallHandler(
       const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
       (MethodCall methodCall) async {
-        final args = methodCall.arguments is Map ? Map<String, dynamic>.from(methodCall.arguments as Map) : const <String, dynamic>{};
+        final args = methodCall.arguments is Map
+            ? Map<String, dynamic>.from(methodCall.arguments as Map)
+            : const <String, dynamic>{};
         final key = args['key']?.toString();
         switch (methodCall.method) {
           case 'read':
@@ -34,7 +39,9 @@ void main() {
             return null;
           case 'readAll':
             return Map<String, String>.fromEntries(
-              store.entries.where((e) => e.value != null).map((e) => MapEntry(e.key, e.value!)),
+              store.entries
+                  .where((e) => e.value != null)
+                  .map((e) => MapEntry(e.key, e.value!)),
             );
         }
         return null;
@@ -43,9 +50,17 @@ void main() {
   });
 
   test('VpnStateNotifier transitions through connect and disconnect', () async {
-    final service = MockVpnService(connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+    final service = ControlledVpnService(
+      connectDelay: Duration.zero,
+      disconnectDelay: Duration.zero,
+    );
+    final fakeApi = FakeApiClient(config: testAppConfig());
     final container = ProviderContainer(
-      overrides: [vpnServiceProvider.overrideWithValue(service)],
+      overrides: [
+        appConfigProvider.overrideWith((ref) => testAppConfig()),
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(fakeApi),
+      ],
     );
     addTearDown(container.dispose);
 
@@ -60,7 +75,18 @@ void main() {
   });
 
   test('VpnStateNotifier allows auto-select server', () async {
-    final container = ProviderContainer();
+    final service = ControlledVpnService(
+      connectDelay: Duration.zero,
+      disconnectDelay: Duration.zero,
+    );
+    final fakeApi = FakeApiClient(config: testAppConfig());
+    final container = ProviderContainer(
+      overrides: [
+        appConfigProvider.overrideWith((ref) => testAppConfig()),
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(fakeApi),
+      ],
+    );
     addTearDown(container.dispose);
 
     final notifier = container.read(vpnStateProvider.notifier);
@@ -70,10 +96,20 @@ void main() {
     expect(state.status, VpnStatus.connected);
   });
 
-  test('VpnStateNotifier cannot remain connected when kill switch hooks present and network drops', () async {
-    final service = MockVpnService(connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+  test(
+      'VpnStateNotifier cannot remain connected when kill switch hooks present and network drops',
+      () async {
+    final service = ControlledVpnService(
+      connectDelay: Duration.zero,
+      disconnectDelay: Duration.zero,
+    );
+    final fakeApi = FakeApiClient(config: testAppConfig());
     final container = ProviderContainer(
-      overrides: [vpnServiceProvider.overrideWithValue(service)],
+      overrides: [
+        appConfigProvider.overrideWith((ref) => testAppConfig()),
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(fakeApi),
+      ],
     );
     addTearDown(container.dispose);
 

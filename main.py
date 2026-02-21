@@ -26,7 +26,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
-from models import user, subscription, payment_idempotency_key, webhook_event_receipt, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, auth_refresh_token, jwt_blacklist_token  # noqa: F401
+from models import user, subscription, payment_idempotency_key, webhook_event_receipt, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, vpn_credential, auth_refresh_token, jwt_blacklist_token  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
 from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user
 from services.wireguard_service import WireGuardService
@@ -93,7 +93,7 @@ logging.basicConfig(level=LOG_LEVEL, handlers=[handler])
 # NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD
 # base.Base.metadata.create_all(bind=engine)  # Commented out to avoid conflicts with migrations
 
-docs_enabled = os.getenv("ENVIRONMENT", "development").strip().lower() != "production" or os.getenv("DEMO_OK", "false").lower() == "true"
+docs_enabled = os.getenv("ENVIRONMENT", "development").strip().lower() != "production"
 
 
 @asynccontextmanager
@@ -223,6 +223,30 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     return response
+
+
+@app.middleware("http")
+async def enforce_https_forwarded_proto(request: Request, call_next):
+    """
+    Production guardrail: reject non-HTTPS proxy forwarding metadata.
+    """
+    if os.getenv("ENVIRONMENT", "").lower() == "production":
+        forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+        if forwarded_proto:
+            primary_proto = forwarded_proto.split(",")[0].strip().lower()
+            if primary_proto != "https":
+                return api_error(
+                    "https_required",
+                    "HTTPS is required",
+                    status_code=400,
+                )
+        elif request.url.scheme.lower() != "https":
+            return api_error(
+                "https_required",
+                "HTTPS is required",
+                status_code=400,
+            )
+    return await call_next(request)
 
 
 @app.middleware("http")

@@ -43,8 +43,41 @@ class MainActivity : FlutterActivity() {
         "isAvailable" -> {
           result.success(true)
         }
+        "getStatus" -> {
+          result.success(vpn.SecureWaveVpnService.lastKnownState)
+        }
+        "getCapabilities" -> {
+          result.success(
+            mapOf(
+              "wireguard" to true,
+              "openvpn" to false,
+              "ikev2" to false,
+              "l2tp" to false,
+              "shadowsocks" to false,
+              "tcp_fallback" to false,
+              "quic" to false,
+              "android_vpnservice_based" to true,
+              "windows_thread_safe" to false,
+              "macos_entitlements_ready" to true
+            )
+          )
+        }
         "connect" -> {
-          val config = call.argument<String>("config").orEmpty()
+          val args = call.arguments as? Map<*, *>
+          val protocol = (args?.get("protocol") as? String)?.trim()?.lowercase() ?: "wireguard"
+          if (protocol != "wireguard") {
+            result.error(
+              "protocol_unavailable",
+              "Android runtime currently supports WireGuard only.",
+              null
+            )
+            return@setMethodCallHandler
+          }
+          val profile = args?.get("profile") as? Map<*, *>
+          val profileConfig = profile?.get("wireguard_config") as? String
+          val config = call.argument<String>("config").orEmpty().ifBlank {
+            profileConfig.orEmpty()
+          }
           if (config.isEmpty()) {
             result.error("invalid_config", "Missing WireGuard configuration.", null)
             return@setMethodCallHandler

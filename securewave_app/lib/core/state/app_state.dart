@@ -3,11 +3,26 @@ import 'package:platform_info/platform_info.dart';
 
 import '../models/server_region.dart';
 import '../models/user_plan.dart';
+import '../models/vpn_protocol_catalog.dart';
 import '../services/vpn_service.dart';
+import '../vpn/protocol_capabilities.dart';
 import '../../services/api_client.dart';
 
 final vpnServiceProvider = Provider<VpnService>((ref) {
+  // Always use the live native channel bridge. No mock/demo tunnel provider.
   return ChannelVpnService();
+});
+
+final vpnCapabilitiesProvider = FutureProvider<VpnCapabilities>((ref) async {
+  return ref.watch(vpnServiceProvider).getCapabilities();
+});
+
+final vpnProtocolCatalogProvider =
+    FutureProvider<VpnProtocolCatalog>((ref) async {
+  final api = ref.read(apiClientProvider);
+  return api.fetchVpnProtocols(
+    deviceType: ProtocolCapabilityMatrix.currentDeviceType(),
+  );
 });
 
 final deviceInfoProvider = Provider<String>((ref) {
@@ -26,7 +41,8 @@ final userPlanProvider = FutureProvider<UserPlan>((ref) async {
   return api.fetchUserPlan();
 });
 
-final favoriteServersProvider = StateNotifierProvider<FavoriteServersNotifier, Set<String>>((ref) {
+final favoriteServersProvider =
+    StateNotifierProvider<FavoriteServersNotifier, Set<String>>((ref) {
   return FavoriteServersNotifier();
 });
 

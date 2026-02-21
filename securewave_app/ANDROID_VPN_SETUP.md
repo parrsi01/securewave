@@ -53,4 +53,4 @@ Release guardrails in Gradle will fail the build if signing is missing.
    - `adb shell dumpsys vpn`
 
 If the permission prompt is denied, Flutter receives
-`missing_vpn_permission` and no mock tunnel is used.
+`missing_vpn_permission` and the connection is rejected immediately.

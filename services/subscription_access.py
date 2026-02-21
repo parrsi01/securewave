@@ -173,7 +173,7 @@ async def require_active_subscription(db: Session, user: User) -> Optional[Subsc
 
     Free-tier users (no subscription record) are permitted as long as they
     have not exceeded the monthly data cap.  This function returns ``None``
-    for free-tier and demo/admin users -- callers MUST handle that case
+    for free-tier and admin users -- callers MUST handle that case
     gracefully (treat None as "free tier allowed").
 
     Raises ``HTTPException 402`` only when:

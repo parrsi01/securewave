@@ -17,6 +17,40 @@ final class SecureWaveVPNManager {
     return preflightError()
   }
 
+  func statusString() -> String {
+    switch manager.connection.status {
+    case .connected, .reasserting:
+      return "connected"
+    case .connecting:
+      return "connecting"
+    case .disconnecting:
+      return "disconnecting"
+    case .disconnected, .invalid:
+      return "disconnected"
+    @unknown default:
+      return "disconnected"
+    }
+  }
+
+  func capabilitiesPayload() -> [String: Any] {
+    let available = availabilityError() == nil
+    return [
+      "wireguard": available,
+      "openvpn": false,
+      "ikev2": false,
+      "l2tp": false,
+      "shadowsocks": false,
+      "tcp_fallback": false,
+      "quic": false,
+      "android_vpnservice_based": false,
+      "windows_thread_safe": false,
+      "macos_entitlements_ready": available,
+      "macos_entitlement_warning": available
+        ? ""
+        : "Network Extension entitlements are not configured for Runner + PacketTunnel.",
+    ]
+  }
+
   func connect(config: String, completion: @escaping (Error?) -> Void) {
     if let error = preflightError() {
       log.error("preflight failed: \(error.localizedDescription, privacy: .public)")

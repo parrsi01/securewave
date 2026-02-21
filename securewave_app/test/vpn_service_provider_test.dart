@@ -8,7 +8,7 @@ import 'package:securewave_app/core/state/app_state.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('vpnServiceProvider uses ChannelVpnService', () {
+  test('vpnServiceProvider always uses ChannelVpnService', () {
     final container = ProviderContainer(overrides: [
       appConfigProvider.overrideWith(
         (ref) => AppConfig(

@@ -8,6 +8,7 @@ import '../core/models/user_plan.dart';
 import '../core/services/auth_session.dart';
 import '../core/models/vpn_profile.dart';
 import '../core/models/vpn_protocol.dart';
+import '../core/models/vpn_protocol_catalog.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final config = ref.watch(appConfigProvider);
@@ -157,7 +158,7 @@ class ApiClient {
           if (deviceId != null && deviceId > 0) 'device_id': deviceId,
           'device_name': deviceName,
           'device_type': deviceType,
-          'protocol': vpnProtocolStorageValue(protocol),
+          if (protocol != VpnProtocol.auto) 'protocol': vpnProtocolStorageValue(protocol),
           if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
           if (forceRotateKeys) 'force_rotate_keys': true,
         },
@@ -167,6 +168,28 @@ class ApiClient {
       return VpnProfile.fromJson(data);
     } catch (error, stackTrace) {
       AppLogger.error('VPN profile fetch failed',
+          error: error, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  Future<VpnProtocolCatalog> fetchVpnProtocols({
+    required String deviceType,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/vpn/protocols',
+        queryParameters: {
+          if (deviceType.isNotEmpty && deviceType != 'unknown')
+            'device_type': deviceType,
+        },
+        cancelToken: cancelToken,
+      );
+      final data = response.data ?? const <String, dynamic>{};
+      return VpnProtocolCatalog.fromJson(data);
+    } catch (error, stackTrace) {
+      AppLogger.error('VPN protocols fetch failed',
           error: error, stackTrace: stackTrace);
       rethrow;
     }

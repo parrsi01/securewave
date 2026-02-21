@@ -3679,6 +3679,141 @@
         }
       }
     },
+    "/api/vpn/protocols": {
+      "get": {
+        "tags": [
+          "vpn",
+          "vpn"
+        ],
+        "summary": "List Protocols",
+        "operationId": "list_protocols_api_vpn_protocols_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VpnProtocolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request forbidden for current subscription/device state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Requested resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No VPN nodes available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vpn/servers": {
       "get": {
         "tags": [
@@ -4341,7 +4476,7 @@
           "vpn"
         ],
         "summary": "Provision Profile",
-        "description": "Provision an app-consumable VPN profile.\n\nThis endpoint is the primary control-plane API used by native apps:\n- Registers/looks up a per-device WireGuard peer (keys encrypted at rest)\n- Selects an allowed server by tier (or uses device/server preference)\n- Returns a WireGuard config blob + metadata (no downloadable files)",
+        "description": "Provision an app-consumable VPN profile.\n\nThis endpoint is the primary control-plane API used by native apps:\n- Registers/looks up a per-device identity (WireGuard keys encrypted at rest)\n- Selects an allowed server by tier (or uses device/server preference)\n- Issues a protocol-specific profile payload (WireGuard/OpenVPN/IKEv2)",
         "operationId": "provision_profile_api_vpn_profile_post",
         "requestBody": {
           "content": {
@@ -4841,7 +4976,7 @@
           "vpn"
         ],
         "summary": "Connect Vpn",
-        "description": "Compatibility endpoint for demo flows and tests.\n\n- In demo/mock mode: uses the demo VPN session logic.\n- In live mode: allocates a config and marks a connection as active.",
+        "description": "Allocate a config (if needed) and mark a connection as active.\n\nNote: This does not establish a tunnel on the client device. The WireGuard\nclient in the SecureWave app performs the actual connect/disconnect.",
         "operationId": "connect_vpn_api_vpn_connect_post",
         "requestBody": {
           "content": {
@@ -5083,7 +5218,7 @@
           "vpn"
         ],
         "summary": "Get Vpn Config",
-        "description": "Compatibility endpoint for demo flows and tests.\nReturns the latest allocated WireGuard config.",
+        "description": "Returns the latest allocated WireGuard config.",
         "operationId": "get_vpn_config_api_vpn_config_get",
         "responses": {
           "200": {
@@ -16428,6 +16563,14 @@
           "health_status": {
             "type": "string",
             "title": "Health Status"
+          },
+          "supported_protocols": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Protocols",
+            "description": "Protocols supported by this server"
           }
         },
         "type": "object",
@@ -17364,6 +17507,86 @@
         ],
         "title": "VerifyEmailRequest"
       },
+      "VpnIkev2ProfilePayload": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "ikev2",
+            "title": "Type",
+            "default": "ikev2"
+          },
+          "server": {
+            "type": "string",
+            "title": "Server"
+          },
+          "remote_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remote Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "ca_cert_pem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ca Cert Pem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "server",
+          "username",
+          "password"
+        ],
+        "title": "VpnIkev2ProfilePayload"
+      },
+      "VpnOpenVpnProfilePayload": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "openvpn",
+            "title": "Type",
+            "default": "openvpn"
+          },
+          "ovpn_config": {
+            "type": "string",
+            "title": "Ovpn Config"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ovpn_config",
+          "username",
+          "password"
+        ],
+        "title": "VpnOpenVpnProfilePayload"
+      },
       "VpnProfileDns": {
         "properties": {
           "mode": {
@@ -17464,10 +17687,16 @@
             "description": "Client device type (windows, macos, linux, ios, android)"
           },
           "protocol": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Protocol",
-            "description": "VPN protocol (wireguard only for now)",
-            "default": "wireguard"
+            "description": "Desired VPN protocol (auto/wireguard/openvpn/ikev2). Omit or set 'auto' to let the server decide."
           },
           "server_id": {
             "anyOf": [
@@ -17545,8 +17774,32 @@
             "title": "Expires At"
           },
           "wireguard_config": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Wireguard Config"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VpnWireGuardProfilePayload"
+              },
+              {
+                "$ref": "#/components/schemas/VpnOpenVpnProfilePayload"
+              },
+              {
+                "$ref": "#/components/schemas/VpnIkev2ProfilePayload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
           },
           "dns": {
             "$ref": "#/components/schemas/VpnProfileDns"
@@ -17580,11 +17833,144 @@
           "key_version",
           "issued_at",
           "expires_at",
-          "wireguard_config",
           "dns",
           "kill_switch"
         ],
         "title": "VpnProfileResponse"
+      },
+      "VpnProtocolAvailability": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "title": "Protocol"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "server_enabled": {
+            "type": "boolean",
+            "title": "Server Enabled"
+          },
+          "plan_enabled": {
+            "type": "boolean",
+            "title": "Plan Enabled"
+          },
+          "platform_supported": {
+            "type": "boolean",
+            "title": "Platform Supported"
+          },
+          "transports": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transports"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/VpnProtocolRequirement"
+            },
+            "type": "array",
+            "title": "Requirements"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "protocol",
+          "enabled",
+          "server_enabled",
+          "plan_enabled",
+          "platform_supported"
+        ],
+        "title": "VpnProtocolAvailability"
+      },
+      "VpnProtocolRequirement": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "description"
+        ],
+        "title": "VpnProtocolRequirement"
+      },
+      "VpnProtocolsResponse": {
+        "properties": {
+          "user_tier": {
+            "type": "string",
+            "title": "User Tier"
+          },
+          "device_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Type"
+          },
+          "protocols": {
+            "items": {
+              "$ref": "#/components/schemas/VpnProtocolAvailability"
+            },
+            "type": "array",
+            "title": "Protocols"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_tier",
+          "protocols"
+        ],
+        "title": "VpnProtocolsResponse"
+      },
+      "VpnWireGuardProfilePayload": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "wireguard",
+            "title": "Type",
+            "default": "wireguard"
+          },
+          "wireguard_config": {
+            "type": "string",
+            "title": "Wireguard Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wireguard_config"
+        ],
+        "title": "VpnWireGuardProfilePayload"
       }
     },
     "securitySchemes": {

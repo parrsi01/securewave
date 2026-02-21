@@ -1,5 +1,7 @@
 # VPN Profile Schema (`POST /api/vpn/profile`)
 
+Also see: `GET /api/vpn/protocols` for server + plan enabled protocol discovery.
+
 ## Request
 ```json
 {
@@ -25,6 +27,10 @@
   "issued_at": "2026-02-12T01:00:00+00:00",
   "expires_at": "2026-02-12T02:00:00+00:00",
   "wireguard_config": "[Interface]...",
+  "profile": {
+    "type": "wireguard",
+    "wireguard_config": "[Interface]..."
+  },
   "dns": {
     "mode": "tunnel",
     "servers": ["94.140.14.14", "94.140.15.15"],
@@ -32,9 +38,9 @@
     "enforcement": "config"
   },
   "kill_switch": {
-    "mode": "enabled",
-    "enforcement": "best effort",
-    "notes": "Enable Always-on VPN / block-without-VPN where supported."
+    "mode": "disabled",
+    "enforcement": "none",
+    "notes": "Kill switch is protocol/platform dependent. Use OS always-on controls when required."
   },
   "peer_registered": true,
   "registration_status": "Peer registered"
