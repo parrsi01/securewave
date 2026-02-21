@@ -1,0 +1,39 @@
+name: Live Validation Multi-Protocol
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+      - release/**
+
+jobs:
+  non-invasive-validation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run non-invasive multi-protocol validation suite
+        env:
+          LIVE_MULTI_PROTOCOL_ENABLE_LIVE: "false"
+          LIVE_MULTI_PROTOCOL_STRICT: "false"
+        run: |
+          bash sandbox/live_validation_multi_protocol/run_suite.sh
+
+      - name: Upload multi-protocol validation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-validation-multi-protocol
+          path: artifacts/live_validation_multi_protocol
+          if-no-files-found: warn
+          retention-days: 14

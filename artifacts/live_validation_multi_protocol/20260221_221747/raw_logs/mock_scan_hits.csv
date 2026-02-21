@@ -1,0 +1,5 @@
+scope,status,path,line,match,detail
+workflow,hit,.github/workflows/flutter-release.yml,29,"DEMO_MODE: ""false""",
+workflow,hit,.github/workflows/flutter-release.yml,30,"WG_MOCK_MODE: ""false""",
+workflow,hit,.github/workflows/test.yml,18,"DEMO_MODE: ""true""",
+workflow,hit,.github/workflows/test.yml,19,"WG_MOCK_MODE: ""true""",

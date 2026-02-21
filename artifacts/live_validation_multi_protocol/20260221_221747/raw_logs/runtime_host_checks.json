@@ -1,0 +1,17 @@
+{
+  "wireguard": {
+    "ready": true,
+    "reason": "runtime_ready",
+    "evidence": "bash -lc 'command -v wg-quick >/dev/null 2>&1'"
+  },
+  "openvpn": {
+    "ready": true,
+    "reason": "runtime_ready",
+    "evidence": "bash -lc 'command -v openvpn >/dev/null 2>&1'"
+  },
+  "ikev2": {
+    "ready": false,
+    "reason": "strongSwan tooling missing (swanctl/ipsec)",
+    "evidence": "bash -lc 'command -v swanctl >/dev/null 2>&1 || command -v ipsec >/dev/null 2>&1'"
+  }
+}

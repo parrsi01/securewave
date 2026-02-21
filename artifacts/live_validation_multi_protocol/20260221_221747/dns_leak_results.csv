@@ -1,0 +1,4 @@
+timestamp,protocol,platform,validation_mode,result,expected_dns,observed_dns,leak_detected,reason,evidence
+2026-02-21T22:17:47.148551+00:00,wireguard,linux,profile_claim,manual_required,,,,Live API mode disabled or auth failed,
+2026-02-21T22:17:47.148556+00:00,openvpn,linux,profile_claim,manual_required,,,,Live API mode disabled or auth failed,
+2026-02-21T22:17:47.148559+00:00,ikev2,linux,profile_claim,manual_required,,,,Live API mode disabled or auth failed,

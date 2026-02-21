@@ -1,0 +1,6 @@
+timestamp,region,platform,protocol,metric_source,latency_ms,status,reason,evidence
+2026-02-21T22:17:47.148554+00:00,unknown,linux,wireguard,profile_request,,manual_required,Live API mode disabled or auth failed,
+2026-02-21T22:17:47.148558+00:00,unknown,linux,openvpn,profile_request,,manual_required,Live API mode disabled or auth failed,
+2026-02-21T22:17:47.148560+00:00,unknown,linux,ikev2,profile_request,,manual_required,Live API mode disabled or auth failed,
+2026-02-21T22:17:47.160206+00:00,barbados,linux,baseline,icmp_rtt,,manual_required,no ping samples collected,1.1.1.1;8.8.8.8
+2026-02-21T22:17:47.169600+00:00,europe,linux,baseline,icmp_rtt,,manual_required,no ping samples collected,1.1.1.1;9.9.9.9
