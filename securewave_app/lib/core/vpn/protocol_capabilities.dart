@@ -197,6 +197,14 @@ class ProtocolCapabilityMatrix {
         nativeCapabilities.wireGuardInstallHint != null) {
       return nativeCapabilities.wireGuardInstallHint!;
     }
+    if (protocol == VpnProtocol.openVpn &&
+        nativeCapabilities.openVpnInstallHint != null) {
+      return nativeCapabilities.openVpnInstallHint!;
+    }
+    if (protocol == VpnProtocol.ikev2 &&
+        nativeCapabilities.ikev2InstallHint != null) {
+      return nativeCapabilities.ikev2InstallHint!;
+    }
     if (platform == VpnClientPlatform.macos) {
       return nativeCapabilities.macosEntitlementWarning ??
           'macOS VPN runtime is not configured for this build.';

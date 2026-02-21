@@ -1,21 +1,23 @@
-# macOS VPN Setup (Channel Prep Only)
+# macOS VPN Setup (Not Available In Unsigned Builds)
 
-SecureWave exposes the `securewave/vpn` MethodChannel on macOS but does not
-attempt to create a tunnel. Native availability returns `false` until a signed
-Network Extension or WireGuardKit integration is added.
+SecureWave exposes the `securewave/vpn` MethodChannel on macOS with explicit
+"not available" responses for OpenVPN and IKEv2 when required entitlements are
+missing.
 
 ## Current repo status (macOS)
 
 - Workspace: `securewave_app/macos/Runner.xcworkspace`
 - Workspace-only entry point is enforced by: `securewave_app/macos/scripts/ensure_workspace.sh` (scheme pre-action **Workspace Guard**)
 - There is no macOS Packet Tunnel extension target under `securewave_app/macos` in this repo.
-- Production VPN on macOS is blocked until a Network Extension target is added and signed.
+- Production OpenVPN/IKEv2 on macOS is blocked until a Network Extension target is added and signed.
 
 ## Integration Summary
 
-- MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`)
-- Current behavior: returns `vpn_not_configured` for connect/disconnect
-- No signing or entitlements are added in this repo
+- MethodChannel: `securewave/vpn` (`isAvailable`, `getCapabilities`, `getStatus`, `connect`, `disconnect`)
+- `isAvailable`: `false`
+- `getCapabilities`: all protocols `false`, with explicit `macos_entitlement_warning`
+- `connect`: returns `protocol_unavailable` with protocol-specific reason
+- No signing or Network Extension entitlements are added in this repo
 
 ## Next Steps (when ready)
 
@@ -25,12 +27,13 @@ Network Extension or WireGuardKit integration is added.
 2. Add required entitlements:
    - Network Extensions
    - Personal VPN
-3. Codesign the app with a valid Apple Developer certificate.
+3. Add a Packet Tunnel extension target and embed it in `Runner`.
+4. Codesign Runner + extension with a valid Apple Developer certificate and matching provisioning profiles.
 
 ## Verification (current state)
 
 - `isAvailable` returns `false` on macOS.
-- Connect attempts return `vpn_not_configured` until entitlements exist.
+- OpenVPN/IKEv2 connect attempts return `protocol_unavailable` with actionable details.
 
 Build (no codesign):
 ```bash

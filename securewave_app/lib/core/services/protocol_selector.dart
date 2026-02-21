@@ -74,6 +74,14 @@ class ProtocolSelector {
       return capabilities.wireGuardInstallHint ??
           'WireGuard runtime is not available on this device.';
     }
+    if (protocol == VpnProtocol.openVpn) {
+      return capabilities.openVpnInstallHint ??
+          'OpenVPN runtime is not available on this device.';
+    }
+    if (protocol == VpnProtocol.ikev2) {
+      return capabilities.ikev2InstallHint ??
+          'IKEv2/IPsec runtime is not available on this device.';
+    }
     return '${vpnProtocolLabel(protocol)} is not available on this build. '
         'Select a different protocol or switch to Automatic.';
   }

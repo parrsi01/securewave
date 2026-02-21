@@ -1,54 +1,70 @@
-# Windows VPN Setup (WireGuard)
+# Windows VPN Setup (WireGuard / OpenVPN / IKEv2)
 
-SecureWave uses the official WireGuard for Windows tooling (`wireguard.exe`)
-to install and start a tunnel service from a WireGuard config string.
+SecureWave Windows desktop supports:
+- WireGuard via `wireguard.exe` tunnel service
+- OpenVPN via elevated `openvpn.exe`
+- IKEv2 via built-in Windows VPN (`Add-VpnConnection` + `rasdial`)
 
 ## Integration Summary
 
-- MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`)
-- Backend: `wireguard.exe /installtunnelservice` and `/uninstalltunnelservice`
-- Config file: `%APPDATA%\SecureWave\SecureWave.conf`
-- Optional override: `SECUREWAVE_WIREGUARD_PATH` (full path to `wireguard.exe`)
+- MethodChannel: `securewave/vpn` (`isAvailable`, `getCapabilities`, `connect`, `disconnect`)
+- WireGuard:
+  - `%APPDATA%\SecureWave\SecureWave.conf`
+  - `wireguard.exe /installtunnelservice` + `/uninstalltunnelservice`
+- OpenVPN:
+  - `%APPDATA%\SecureWave\SecureWave-openvpn.ovpn`
+  - `%APPDATA%\SecureWave\SecureWave-openvpn.auth`
+  - `%APPDATA%\SecureWave\SecureWave-openvpn.log`
+  - elevated `openvpn.exe --config ...`
+- IKEv2:
+  - Connection profile name: `SecureWave-IKEv2`
+  - Provisioned with PowerShell `Add-VpnConnection`
+  - Connected/disconnected with `rasdial`
 
 ## Requirements
 
-- WireGuard for Windows installed
-- App running with privileges to install the tunnel service
-- Tunnel profile from backend `POST /api/vpn/profile` (JSON; the app fetches this automatically after sign-in)
+- WireGuard protocol: WireGuard for Windows installed
+- OpenVPN protocol: OpenVPN for Windows installed
+- IKEv2 protocol: Windows built-in VPN runtime (PowerShell + rasdial present)
+- UAC approval for elevated protocol operations
+- Tunnel profile from backend `POST /api/vpn/profile`
 
-## WireGuard Detection Logic
+## Runtime Detection Logic
 
-SecureWave resolves `wireguard.exe` in this order:
+WireGuard path resolution:
 
 1. `SECUREWAVE_WIREGUARD_PATH` override (full path to `wireguard.exe`)
 2. `C:\Program Files\WireGuard\wireguard.exe`
 3. `C:\Program Files (x86)\WireGuard\wireguard.exe`
 
-Verify detection on a target machine:
+OpenVPN path resolution:
 
-```powershell
-where.exe wireguard.exe
-```
+1. `SECUREWAVE_OPENVPN_PATH` override (full path to `openvpn.exe`)
+2. `C:\Program Files\OpenVPN\bin\openvpn.exe`
+3. `C:\Program Files (x86)\OpenVPN\bin\openvpn.exe`
 
-If the path is not on `PATH`, set `SECUREWAVE_WIREGUARD_PATH` explicitly.
+## IKEv2 Auth Mode
 
-## Installer Scaffolding (NSIS)
+Current Windows automation path is `EAP-MSCHAPv2` for IKEv2 profiles.
+If backend returns `auth_method=eap-tls`, client setup is intentionally blocked with an actionable error.
 
-Installer scaffolding lives in `securewave_app/windows/installer/securewave_installer.nsi`.
+## Installer (Inno Setup)
+
+Production installer lives in `windows_installer/securewave_installer.iss` (Inno Setup 6).
 Build on Windows with:
 
 ```powershell
-cd securewave_app
-./scripts/build_windows_installer.ps1 -Version 4.0.0
+./windows_installer/build_windows_installer.ps1 -ApiBaseUrl "https://<your-domain>/api"
 ```
 
 ## Verification
 
-1. Install WireGuard for Windows.
+1. Install WireGuard and OpenVPN for Windows.
 2. `flutter run -d windows` (or run the packaged build).
-3. Tap Connect.
-4. Verify the service:
-   - PowerShell: `Get-Service -Name "WireGuardTunnel$SecureWave"`
-   - Or check the WireGuard UI for the SecureWave tunnel.
+3. Select protocol in Settings and tap Connect.
+4. Verify:
+   - WireGuard: `Get-Service -Name "WireGuardTunnel$SecureWave"`
+   - OpenVPN: `Get-Process openvpn -ErrorAction SilentlyContinue`
+   - IKEv2: `Get-VpnConnection -Name "SecureWave-IKEv2"`
 
-If `wireguard.exe` is missing, Flutter receives `vpn_unavailable` and the app will not connect until WireGuard is installed.
+If a protocol runtime is missing, SecureWave surfaces protocol-specific setup guidance and does not fake success.

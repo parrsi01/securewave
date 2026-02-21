@@ -20,7 +20,7 @@ void main() {
     expect(resolution.isConnectable, isFalse);
     expect(resolution.effective, VpnProtocol.openVpn);
     expect(resolution.warning, isNull);
-    expect(resolution.error, contains('OpenVPN is not available'));
+    expect(resolution.error, contains('OpenVPN runtime is not available'));
   });
 
   test('auto selects first available protocol without implicit fallback', () {

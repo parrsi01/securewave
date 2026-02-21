@@ -23,12 +23,20 @@ static inline gboolean g_spawn_check_wait_status(gint wait_status,
 
 namespace {
 const char* kChannelName = "securewave/vpn";
-const char* kConfigFileName = "securewave.conf";
+const char* kWireGuardConfigFileName = "securewave-wireguard.conf";
+const char* kOpenVpnConfigFileName = "securewave-openvpn.ovpn";
+const char* kOpenVpnAuthFileName = "securewave-openvpn.auth";
+const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
+const char* kIkev2ConnectionName = "SecureWave-IKEv2";
 const guint kWgQuickTimeoutMs = 30000;
 
 typedef struct {
   FlMethodChannel* channel;
-  gchar* config_path;
+  gchar* wg_config_path;
+  gchar* openvpn_config_path;
+  gchar* openvpn_auth_path;
+  gchar* openvpn_pid_path;
+  gchar* active_protocol;
   gboolean last_connected;
 } VpnChannelState;
 
@@ -37,7 +45,11 @@ static void vpn_channel_state_free(VpnChannelState* state) {
     return;
   }
   g_clear_object(&state->channel);
-  g_clear_pointer(&state->config_path, g_free);
+  g_clear_pointer(&state->wg_config_path, g_free);
+  g_clear_pointer(&state->openvpn_config_path, g_free);
+  g_clear_pointer(&state->openvpn_auth_path, g_free);
+  g_clear_pointer(&state->openvpn_pid_path, g_free);
+  g_clear_pointer(&state->active_protocol, g_free);
   g_free(state);
 }
 
@@ -52,9 +64,46 @@ static const gchar* get_string_arg(FlValue* args, const gchar* key) {
   return fl_value_get_string(value);
 }
 
+static FlValue* get_map_arg(FlValue* args, const gchar* key) {
+  if (!args || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return nullptr;
+  }
+  FlValue* value = fl_value_lookup_string(args, key);
+  if (!value || fl_value_get_type(value) != FL_VALUE_TYPE_MAP) {
+    return nullptr;
+  }
+  return value;
+}
+
+static const gchar* get_string_from_map(FlValue* map, const gchar* key) {
+  if (!map || fl_value_get_type(map) != FL_VALUE_TYPE_MAP) {
+    return nullptr;
+  }
+  FlValue* value = fl_value_lookup_string(map, key);
+  if (!value || fl_value_get_type(value) != FL_VALUE_TYPE_STRING) {
+    return nullptr;
+  }
+  return fl_value_get_string(value);
+}
+
 static gboolean wg_quick_available() {
   g_autofree gchar* wg_quick = g_find_program_in_path("wg-quick");
   return wg_quick != nullptr;
+}
+
+static gboolean openvpn_available() {
+  g_autofree gchar* openvpn = g_find_program_in_path("openvpn");
+  return openvpn != nullptr;
+}
+
+static gboolean nmcli_available() {
+  g_autofree gchar* nmcli = g_find_program_in_path("nmcli");
+  return nmcli != nullptr;
+}
+
+static gboolean ipsec_available() {
+  g_autofree gchar* ipsec = g_find_program_in_path("ipsec");
+  return ipsec != nullptr;
 }
 
 static gboolean pkexec_available() {
@@ -85,11 +134,25 @@ static gboolean elevation_available() {
 }
 
 static gboolean native_vpn_available() {
-  return wg_quick_available() && elevation_available();
+  const gboolean can_elevate = elevation_available();
+  if (!can_elevate) {
+    return FALSE;
+  }
+  return wg_quick_available() || openvpn_available() ||
+         (nmcli_available() && ipsec_available());
 }
 
 static const gchar* wireguard_install_hint_message() {
   return "Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.";
+}
+
+static const gchar* openvpn_install_hint_message() {
+  return "Install OpenVPN (e.g. sudo apt-get install openvpn) and retry.";
+}
+
+static const gchar* ikev2_install_hint_message() {
+  return "IKEv2 on Linux requires system components. Install NetworkManager, "
+         "network-manager-strongswan, and strongSwan (ipsec), then retry.";
 }
 
 static const gchar* elevation_hint_message() {
@@ -97,12 +160,15 @@ static const gchar* elevation_hint_message() {
          "run a desktop authentication agent, or launch SecureWave as root.";
 }
 
-static gchar* build_config_path() {
+static gchar* build_runtime_path(const gchar* file_name) {
+  if (!file_name || *file_name == '\0') {
+    return nullptr;
+  }
   g_autofree gchar* config_dir = g_build_filename(g_get_user_config_dir(), "securewave", nullptr);
   if (g_mkdir_with_parents(config_dir, 0700) != 0) {
     return nullptr;
   }
-  return g_build_filename(config_dir, kConfigFileName, nullptr);
+  return g_build_filename(config_dir, file_name, nullptr);
 }
 
 static void respond_error(
@@ -161,11 +227,74 @@ static gboolean looks_like_permission_error(const gchar* stderr_text) {
          g_strrstr(lower, "no authentication agent") != nullptr;
 }
 
+static void set_active_protocol(VpnChannelState* state, const gchar* protocol) {
+  if (!state) {
+    return;
+  }
+  g_free(state->active_protocol);
+  state->active_protocol = protocol ? g_strdup(protocol) : nullptr;
+}
+
+static gboolean run_command_step(
+    gchar** argv,
+    const gchar* error_code,
+    const gchar* fallback_message,
+    gchar** out_code,
+    gchar** out_message) {
+  g_autoptr(GError) spawn_error = nullptr;
+  g_autofree gchar* stdout_text = nullptr;
+  g_autofree gchar* stderr_text = nullptr;
+  gint wait_status = 0;
+
+  if (!g_spawn_sync(
+          nullptr,
+          argv,
+          nullptr,
+          static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH),
+          nullptr,
+          nullptr,
+          &stdout_text,
+          &stderr_text,
+          &wait_status,
+          &spawn_error)) {
+    const gchar* message =
+        (spawn_error && spawn_error->message && *spawn_error->message != '\0')
+            ? spawn_error->message
+            : fallback_message;
+    *out_code = g_strdup(
+        looks_like_permission_error(message)
+            ? "vpn_permission_required"
+            : error_code);
+    *out_message = g_strdup(message);
+    return FALSE;
+  }
+
+  g_autoptr(GError) wait_error = nullptr;
+  if (!g_spawn_check_wait_status(wait_status, &wait_error)) {
+    const gchar* code = error_code;
+    const gchar* base =
+        (wait_error && wait_error->message && *wait_error->message != '\0')
+            ? wait_error->message
+            : fallback_message;
+    g_autofree gchar* stderr_line = last_non_empty_line(stderr_text);
+    if (looks_like_permission_error(stderr_text) || looks_like_permission_error(base)) {
+      code = "vpn_permission_required";
+    }
+    *out_code = g_strdup(code);
+    *out_message =
+        stderr_line ? g_strdup_printf("%s: %s", base, stderr_line) : g_strdup(base);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
 typedef struct {
   gint ref_count;
   FlMethodCall* method_call;
   VpnChannelState* state;
   gchar* error_code;
+  gchar* success_protocol;
   GPid pid;
   gint stdout_fd;
   gint stderr_fd;
@@ -189,6 +318,7 @@ static void wg_quick_spawn_context_unref(WgQuickSpawnContext* ctx) {
   }
   g_clear_object(&ctx->method_call);
   g_clear_pointer(&ctx->error_code, g_free);
+  g_clear_pointer(&ctx->success_protocol, g_free);
   if (ctx->stdout_fd >= 0) {
     close(ctx->stdout_fd);
     ctx->stdout_fd = -1;
@@ -206,6 +336,11 @@ static void wg_quick_respond_ok_once(WgQuickSpawnContext* ctx) {
   }
   if (ctx->update_connected && ctx->state) {
     ctx->state->last_connected = ctx->connected_value;
+    if (ctx->connected_value) {
+      set_active_protocol(ctx->state, ctx->success_protocol);
+    } else {
+      set_active_protocol(ctx->state, nullptr);
+    }
   }
   ctx->responded = TRUE;
   g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
@@ -222,6 +357,7 @@ static void wg_quick_respond_error_once(
   }
   if (ctx->update_connected && ctx->state && ctx->connected_value) {
     ctx->state->last_connected = FALSE;
+    set_active_protocol(ctx->state, nullptr);
   }
   ctx->responded = TRUE;
   respond_error(ctx->method_call, code ? code : ctx->error_code, message, nullptr);
@@ -279,6 +415,7 @@ static void spawn_wg_quick_async(
     FlMethodCall* method_call,
     VpnChannelState* state,
     const gchar* error_code,
+    const gchar* success_protocol,
     const gchar* action,
     const gchar* config_path,
     gboolean update_connected,
@@ -356,6 +493,7 @@ static void spawn_wg_quick_async(
   ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
   ctx->state = state;
   ctx->error_code = g_strdup(error_code);
+  ctx->success_protocol = g_strdup(success_protocol);
   ctx->pid = pid;
   ctx->stdout_fd = stdout_fd;
   ctx->stderr_fd = stderr_fd;
@@ -375,6 +513,55 @@ static void spawn_wg_quick_async(
       wg_quick_spawn_context_ref(ctx),
       reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
   wg_quick_spawn_context_unref(ctx);
+}
+
+static gboolean read_pid_file(const gchar* path, gint* out_pid) {
+  if (!path || !out_pid || !g_file_test(path, G_FILE_TEST_EXISTS)) {
+    return FALSE;
+  }
+  g_autofree gchar* contents = nullptr;
+  gsize length = 0;
+  g_autoptr(GError) error = nullptr;
+  if (!g_file_get_contents(path, &contents, &length, &error)) {
+    return FALSE;
+  }
+  if (!contents || length == 0) {
+    return FALSE;
+  }
+  g_strstrip(contents);
+  if (*contents == '\0') {
+    return FALSE;
+  }
+  gchar* end = nullptr;
+  const glong value = g_ascii_strtoll(contents, &end, 10);
+  if (end == contents || value <= 1 || value > G_MAXINT) {
+    return FALSE;
+  }
+  *out_pid = static_cast<gint>(value);
+  return TRUE;
+}
+
+static gboolean run_command_or_error(
+    FlMethodCall* method_call,
+    gchar** argv,
+    const gchar* error_code,
+    const gchar* fallback_message,
+    const gchar* success_protocol,
+    VpnChannelState* state) {
+  g_autofree gchar* code = nullptr;
+  g_autofree gchar* message = nullptr;
+  if (!run_command_step(argv, error_code, fallback_message, &code, &message)) {
+    respond_error(method_call, code, message, nullptr);
+    return FALSE;
+  }
+  if (state) {
+    state->last_connected = success_protocol != nullptr;
+    set_active_protocol(state, success_protocol);
+  }
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(nullptr));
+  fl_method_call_respond(method_call, response, nullptr);
+  return TRUE;
 }
 
 static void handle_vpn_call(FlMethodChannel* channel,
@@ -398,16 +585,18 @@ static void handle_vpn_call(FlMethodChannel* channel,
   }
   if (g_strcmp0(method, "getCapabilities") == 0) {
     const gboolean wg_installed = wg_quick_available();
+    const gboolean ovpn_installed = openvpn_available();
+    const gboolean nmcli_installed = nmcli_available();
+    const gboolean ipsec_installed = ipsec_available();
     const gboolean can_elevate = elevation_available();
     const gboolean has_auth_session = has_desktop_auth_session();
     g_autoptr(FlValue) map = fl_value_new_map();
     fl_value_set_string_take(map, "wireguard", fl_value_new_bool(wg_installed && can_elevate));
-    fl_value_set_string_take(map, "openvpn", fl_value_new_bool(FALSE));
-    fl_value_set_string_take(map, "ikev2", fl_value_new_bool(FALSE));
-    fl_value_set_string_take(map, "l2tp", fl_value_new_bool(FALSE));
-    fl_value_set_string_take(map, "shadowsocks", fl_value_new_bool(FALSE));
-    fl_value_set_string_take(map, "tcp_fallback", fl_value_new_bool(FALSE));
-    fl_value_set_string_take(map, "quic", fl_value_new_bool(FALSE));
+    fl_value_set_string_take(map, "openvpn", fl_value_new_bool(ovpn_installed && can_elevate));
+    fl_value_set_string_take(
+        map,
+        "ikev2",
+        fl_value_new_bool(nmcli_installed && ipsec_installed && can_elevate));
     fl_value_set_string_take(map, "windows_thread_safe", fl_value_new_bool(FALSE));
     fl_value_set_string_take(map, "android_vpnservice_based", fl_value_new_bool(FALSE));
     fl_value_set_string_take(map, "macos_entitlements_ready", fl_value_new_bool(TRUE));
@@ -421,6 +610,29 @@ static void handle_vpn_call(FlMethodChannel* channel,
           map,
           "wireguard_install_hint",
           fl_value_new_string(hint));
+    }
+    if (!ovpn_installed || !can_elevate) {
+      const gchar* hint = !ovpn_installed
+                              ? openvpn_install_hint_message()
+                              : elevation_hint_message();
+      fl_value_set_string_take(
+          map,
+          "openvpn_install_hint",
+          fl_value_new_string(hint));
+    }
+    if (!nmcli_installed || !ipsec_installed || !can_elevate) {
+      const gchar* hint = nullptr;
+      if (!can_elevate) {
+        hint = elevation_hint_message();
+      } else if (!nmcli_installed || !ipsec_installed) {
+        hint = ikev2_install_hint_message();
+      }
+      if (hint) {
+        fl_value_set_string_take(
+            map,
+            "ikev2_install_hint",
+            fl_value_new_string(hint));
+      }
     }
     if (!can_elevate || !has_auth_session) {
       fl_value_set_string_take(
@@ -436,64 +648,456 @@ static void handle_vpn_call(FlMethodChannel* channel,
   if (g_strcmp0(method, "connect") == 0) {
     FlValue* args = fl_method_call_get_args(method_call);
     const gchar* protocol = get_string_arg(args, "protocol");
-    if (protocol && g_strcmp0(protocol, "wireguard") != 0 && g_strcmp0(protocol, "wg") != 0) {
-      respond_error(
+    const gchar* normalized = protocol ? protocol : "wireguard";
+    if (g_strcmp0(normalized, "auto") == 0) {
+      normalized = "wireguard";
+    }
+
+    if (g_strcmp0(normalized, "wireguard") == 0 || g_strcmp0(normalized, "wg") == 0) {
+      if (!wg_quick_available()) {
+        respond_error(
+            method_call,
+            "vpn_unavailable",
+            wireguard_install_hint_message(),
+            fl_value_new_map());
+        return;
+      }
+      if (!elevation_available()) {
+        respond_error(
+            method_call,
+            "vpn_permission_required",
+            elevation_hint_message(),
+            fl_value_new_map());
+        return;
+      }
+      const gchar* config = get_string_arg(args, "config");
+      if (!config || *config == '\0') {
+        FlValue* profile = get_map_arg(args, "profile");
+        config = get_string_from_map(profile, "wireguard_config");
+      }
+      if (!config || *config == '\0') {
+        respond_error(method_call, "invalid_config", "Missing WireGuard configuration.", nullptr);
+        return;
+      }
+      if (state->wg_config_path == nullptr) {
+        state->wg_config_path = build_runtime_path(kWireGuardConfigFileName);
+      }
+      if (state->wg_config_path == nullptr) {
+        respond_error(method_call, "vpn_config_write_failed", "Unable to write config file.", nullptr);
+        return;
+      }
+      g_autoptr(GError) error = nullptr;
+      if (!g_file_set_contents(state->wg_config_path, config, -1, &error)) {
+        respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
+        return;
+      }
+      spawn_wg_quick_async(
           method_call,
-          "protocol_unavailable",
-          "Linux runtime currently supports WireGuard only.",
-          nullptr);
+          state,
+          "vpn_connect_failed",
+          "wireguard",
+          "up",
+          state->wg_config_path,
+          TRUE,
+          TRUE);
       return;
     }
-    if (!wg_quick_available()) {
-      respond_error(
+
+    if (g_strcmp0(normalized, "openvpn") == 0) {
+      if (!openvpn_available()) {
+        respond_error(
+            method_call,
+            "vpn_unavailable",
+            openvpn_install_hint_message(),
+            nullptr);
+        return;
+      }
+      if (!elevation_available()) {
+        respond_error(
+            method_call,
+            "vpn_permission_required",
+            elevation_hint_message(),
+            nullptr);
+        return;
+      }
+      FlValue* profile = get_map_arg(args, "profile");
+      const gchar* ovpn_config = get_string_from_map(profile, "ovpn_config");
+      const gchar* username = get_string_from_map(profile, "username");
+      const gchar* password = get_string_from_map(profile, "password");
+      if (!ovpn_config || *ovpn_config == '\0') {
+        respond_error(
+            method_call,
+            "invalid_profile",
+            "OpenVPN profile is missing ovpn_config.",
+            nullptr);
+        return;
+      }
+      if ((username && *username != '\0') != (password && *password != '\0')) {
+        respond_error(
+            method_call,
+            "invalid_profile",
+            "OpenVPN profile must include both username and password, or neither.",
+            nullptr);
+        return;
+      }
+      if (state->openvpn_config_path == nullptr) {
+        state->openvpn_config_path = build_runtime_path(kOpenVpnConfigFileName);
+      }
+      if (state->openvpn_auth_path == nullptr) {
+        state->openvpn_auth_path = build_runtime_path(kOpenVpnAuthFileName);
+      }
+      if (state->openvpn_pid_path == nullptr) {
+        state->openvpn_pid_path = build_runtime_path(kOpenVpnPidFileName);
+      }
+      if (!state->openvpn_config_path || !state->openvpn_auth_path ||
+          !state->openvpn_pid_path) {
+        respond_error(
+            method_call,
+            "vpn_config_write_failed",
+            "Unable to prepare OpenVPN runtime files.",
+            nullptr);
+        return;
+      }
+      g_autoptr(GError) error = nullptr;
+      if (!g_file_set_contents(state->openvpn_config_path, ovpn_config, -1, &error)) {
+        respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
+        return;
+      }
+      if (username && *username != '\0' && password && *password != '\0') {
+        g_autofree gchar* auth_contents = g_strdup_printf("%s\n%s\n", username, password);
+        if (!g_file_set_contents(state->openvpn_auth_path, auth_contents, -1, &error)) {
+          respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
+          return;
+        }
+      }
+
+      const gboolean needs_elevation = geteuid() != 0;
+      g_autofree gchar* openvpn_path = g_find_program_in_path("openvpn");
+      g_autofree gchar* pkexec_path = nullptr;
+      if (needs_elevation) {
+        pkexec_path = g_find_program_in_path("pkexec");
+        if (!pkexec_path) {
+          respond_error(
+              method_call,
+              "vpn_permission_required",
+              elevation_hint_message(),
+              nullptr);
+          return;
+        }
+      }
+
+      gchar* argv[16] = {nullptr};
+      int idx = 0;
+      if (needs_elevation) {
+        argv[idx++] = pkexec_path;
+      }
+      argv[idx++] = openvpn_path;
+      argv[idx++] = const_cast<gchar*>("--config");
+      argv[idx++] = state->openvpn_config_path;
+      argv[idx++] = const_cast<gchar*>("--writepid");
+      argv[idx++] = state->openvpn_pid_path;
+      if (username && *username != '\0') {
+        argv[idx++] = const_cast<gchar*>("--auth-user-pass");
+        argv[idx++] = state->openvpn_auth_path;
+      }
+      argv[idx++] = const_cast<gchar*>("--daemon");
+      argv[idx] = nullptr;
+
+      run_command_or_error(
           method_call,
-          "vpn_unavailable",
-          wireguard_install_hint_message(),
-          fl_value_new_map());
+          argv,
+          "vpn_connect_failed",
+          "Failed to start OpenVPN.",
+          "openvpn",
+          state);
       return;
     }
-    if (!elevation_available()) {
-      respond_error(
+
+    if (g_strcmp0(normalized, "ikev2") == 0 || g_strcmp0(normalized, "ipsec") == 0) {
+      if (!nmcli_available() || !ipsec_available()) {
+        respond_error(
+            method_call,
+            "protocol_unavailable",
+            ikev2_install_hint_message(),
+            nullptr);
+        return;
+      }
+      if (!elevation_available()) {
+        respond_error(
+            method_call,
+            "vpn_permission_required",
+            elevation_hint_message(),
+            nullptr);
+        return;
+      }
+
+      FlValue* profile = get_map_arg(args, "profile");
+      const gchar* auth_method = get_string_from_map(profile, "auth_method");
+      if (!auth_method || *auth_method == '\0') {
+        auth_method = "eap-mschapv2";
+      }
+      if (g_strcmp0(auth_method, "eap-mschapv2") != 0) {
+        respond_error(
+            method_call,
+            "protocol_unavailable",
+            "Linux IKEv2 automation currently supports EAP-MSCHAPv2. "
+            "Use Setup help for EAP-TLS manual import requirements.",
+            nullptr);
+        return;
+      }
+
+      const gchar* server = get_string_from_map(profile, "server");
+      const gchar* username = get_string_from_map(profile, "username");
+      const gchar* password = get_string_from_map(profile, "password");
+      const gchar* remote_id = get_string_from_map(profile, "remote_id");
+
+      if (!server || *server == '\0' || !username || *username == '\0' ||
+          !password || *password == '\0') {
+        respond_error(
+            method_call,
+            "invalid_profile",
+            "IKEv2 profile requires server, username, and password.",
+            nullptr);
+        return;
+      }
+
+      g_autofree gchar* vpn_data = nullptr;
+      if (remote_id && *remote_id != '\0') {
+        vpn_data = g_strdup_printf(
+            "address=%s,user=%s,method=eap,virtual=yes,encap=no,ipcomp=no,remote-identity=%s",
+            server,
+            username,
+            remote_id);
+      } else {
+        vpn_data = g_strdup_printf(
+            "address=%s,user=%s,method=eap,virtual=yes,encap=no,ipcomp=no",
+            server,
+            username);
+      }
+      g_autofree gchar* vpn_secrets = g_strdup_printf("password=%s", password);
+
+      const gboolean needs_elevation = geteuid() != 0;
+      g_autofree gchar* pkexec_path = nullptr;
+      if (needs_elevation) {
+        pkexec_path = g_find_program_in_path("pkexec");
+        if (!pkexec_path) {
+          respond_error(
+              method_call,
+              "vpn_permission_required",
+              elevation_hint_message(),
+              nullptr);
+          return;
+        }
+      }
+
+      gchar* delete_argv[8] = {nullptr};
+      int didx = 0;
+      if (needs_elevation) {
+        delete_argv[didx++] = pkexec_path;
+      }
+      delete_argv[didx++] = const_cast<gchar*>("nmcli");
+      delete_argv[didx++] = const_cast<gchar*>("connection");
+      delete_argv[didx++] = const_cast<gchar*>("delete");
+      delete_argv[didx++] = const_cast<gchar*>("id");
+      delete_argv[didx++] = const_cast<gchar*>(kIkev2ConnectionName);
+      delete_argv[didx] = nullptr;
+      g_autofree gchar* ignored_code = nullptr;
+      g_autofree gchar* ignored_message = nullptr;
+      run_command_step(
+          delete_argv,
+          "vpn_setup_failed",
+          "Unable to clean up existing IKEv2 profile.",
+          &ignored_code,
+          &ignored_message);
+
+      gchar* add_argv[20] = {nullptr};
+      int aidx = 0;
+      if (needs_elevation) {
+        add_argv[aidx++] = pkexec_path;
+      }
+      add_argv[aidx++] = const_cast<gchar*>("nmcli");
+      add_argv[aidx++] = const_cast<gchar*>("connection");
+      add_argv[aidx++] = const_cast<gchar*>("add");
+      add_argv[aidx++] = const_cast<gchar*>("type");
+      add_argv[aidx++] = const_cast<gchar*>("vpn");
+      add_argv[aidx++] = const_cast<gchar*>("ifname");
+      add_argv[aidx++] = const_cast<gchar*>("*");
+      add_argv[aidx++] = const_cast<gchar*>("con-name");
+      add_argv[aidx++] = const_cast<gchar*>(kIkev2ConnectionName);
+      add_argv[aidx++] = const_cast<gchar*>("vpn-type");
+      add_argv[aidx++] = const_cast<gchar*>("strongswan");
+      add_argv[aidx++] = const_cast<gchar*>("vpn.data");
+      add_argv[aidx++] = vpn_data;
+      add_argv[aidx++] = const_cast<gchar*>("vpn.secrets");
+      add_argv[aidx++] = vpn_secrets;
+      add_argv[aidx] = nullptr;
+
+      g_autofree gchar* add_code = nullptr;
+      g_autofree gchar* add_message = nullptr;
+      if (!run_command_step(
+              add_argv,
+              "vpn_setup_failed",
+              "Failed to configure IKEv2 connection profile.",
+              &add_code,
+              &add_message)) {
+        respond_error(method_call, add_code, add_message, nullptr);
+        return;
+      }
+
+      gchar* up_argv[10] = {nullptr};
+      int uidx = 0;
+      if (needs_elevation) {
+        up_argv[uidx++] = pkexec_path;
+      }
+      up_argv[uidx++] = const_cast<gchar*>("nmcli");
+      up_argv[uidx++] = const_cast<gchar*>("connection");
+      up_argv[uidx++] = const_cast<gchar*>("up");
+      up_argv[uidx++] = const_cast<gchar*>("id");
+      up_argv[uidx++] = const_cast<gchar*>(kIkev2ConnectionName);
+      up_argv[uidx] = nullptr;
+
+      run_command_or_error(
           method_call,
-          "vpn_permission_required",
-          elevation_hint_message(),
-          fl_value_new_map());
+          up_argv,
+          "vpn_connect_failed",
+          "Failed to establish IKEv2 connection.",
+          "ikev2",
+          state);
       return;
     }
-    const gchar* config = get_string_arg(args, "config");
-    if (!config || *config == '\0') {
-      respond_error(method_call, "invalid_config", "Missing WireGuard configuration.", nullptr);
-      return;
-    }
-    if (state->config_path == nullptr) {
-      state->config_path = build_config_path();
-    }
-    if (state->config_path == nullptr) {
-      respond_error(method_call, "vpn_config_write_failed", "Unable to write config file.", nullptr);
-      return;
-    }
-    g_autoptr(GError) error = nullptr;
-    if (!g_file_set_contents(state->config_path, config, -1, &error)) {
-      respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
-      return;
-    }
-    spawn_wg_quick_async(
+
+    respond_error(
         method_call,
-        state,
-        "vpn_connect_failed",
-        "up",
-        state->config_path,
-        TRUE,
-        TRUE);
+        "protocol_unavailable",
+        "Requested VPN protocol is unavailable on this Linux build.",
+        nullptr);
     return;
   }
   if (g_strcmp0(method, "disconnect") == 0) {
-    if (!wg_quick_available()) {
-      respond_error(
+    const gchar* active = state->active_protocol;
+    if (active && g_strcmp0(active, "openvpn") == 0) {
+      if (!elevation_available()) {
+        respond_error(
+            method_call,
+            "vpn_permission_required",
+            elevation_hint_message(),
+            nullptr);
+        return;
+      }
+      gint openvpn_pid = 0;
+      if (!read_pid_file(state->openvpn_pid_path, &openvpn_pid)) {
+        state->last_connected = FALSE;
+        set_active_protocol(state, nullptr);
+        g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+            fl_method_success_response_new(nullptr));
+        fl_method_call_respond(method_call, response, nullptr);
+        return;
+      }
+      const gboolean needs_elevation = geteuid() != 0;
+      g_autofree gchar* pkexec_path = nullptr;
+      if (needs_elevation) {
+        pkexec_path = g_find_program_in_path("pkexec");
+        if (!pkexec_path) {
+          respond_error(
+              method_call,
+              "vpn_permission_required",
+              elevation_hint_message(),
+              nullptr);
+          return;
+        }
+      }
+      gchar pid_arg[32];
+      g_snprintf(pid_arg, sizeof(pid_arg), "%d", openvpn_pid);
+      gchar* argv[8] = {nullptr};
+      int idx = 0;
+      if (needs_elevation) {
+        argv[idx++] = pkexec_path;
+      }
+      argv[idx++] = const_cast<gchar*>("kill");
+      argv[idx++] = const_cast<gchar*>("-TERM");
+      argv[idx++] = pid_arg;
+      argv[idx] = nullptr;
+      run_command_or_error(
           method_call,
-          "vpn_unavailable",
-          wireguard_install_hint_message(),
-          fl_value_new_map());
+          argv,
+          "vpn_disconnect_failed",
+          "Failed to stop OpenVPN tunnel.",
+          nullptr,
+          state);
+      return;
+    }
+
+    if (active && g_strcmp0(active, "ikev2") == 0) {
+      if (!nmcli_available()) {
+        respond_error(
+            method_call,
+            "vpn_unavailable",
+            ikev2_install_hint_message(),
+            nullptr);
+        return;
+      }
+      if (!elevation_available()) {
+        respond_error(
+            method_call,
+            "vpn_permission_required",
+            elevation_hint_message(),
+            nullptr);
+        return;
+      }
+      const gboolean needs_elevation = geteuid() != 0;
+      g_autofree gchar* pkexec_path = nullptr;
+      if (needs_elevation) {
+        pkexec_path = g_find_program_in_path("pkexec");
+        if (!pkexec_path) {
+          respond_error(
+              method_call,
+              "vpn_permission_required",
+              elevation_hint_message(),
+              nullptr);
+          return;
+        }
+      }
+      gchar* argv[10] = {nullptr};
+      int idx = 0;
+      if (needs_elevation) {
+        argv[idx++] = pkexec_path;
+      }
+      argv[idx++] = const_cast<gchar*>("nmcli");
+      argv[idx++] = const_cast<gchar*>("connection");
+      argv[idx++] = const_cast<gchar*>("down");
+      argv[idx++] = const_cast<gchar*>("id");
+      argv[idx++] = const_cast<gchar*>(kIkev2ConnectionName);
+      argv[idx] = nullptr;
+
+      g_autofree gchar* code = nullptr;
+      g_autofree gchar* message = nullptr;
+      if (!run_command_step(
+              argv,
+              "vpn_disconnect_failed",
+              "Failed to disconnect IKEv2 tunnel.",
+              &code,
+              &message)) {
+        g_autofree gchar* lower = g_ascii_strdown(message, -1);
+        if (!lower || (g_strrstr(lower, "not active") == nullptr &&
+                       g_strrstr(lower, "unknown connection") == nullptr)) {
+          respond_error(method_call, code, message, nullptr);
+          return;
+        }
+      }
+      state->last_connected = FALSE;
+      set_active_protocol(state, nullptr);
+      g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+          fl_method_success_response_new(nullptr));
+      fl_method_call_respond(method_call, response, nullptr);
+      return;
+    }
+
+    if (!wg_quick_available()) {
+      state->last_connected = FALSE;
+      set_active_protocol(state, nullptr);
+      g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+          fl_method_success_response_new(nullptr));
+      fl_method_call_respond(method_call, response, nullptr);
       return;
     }
     if (!elevation_available()) {
@@ -504,16 +1108,21 @@ static void handle_vpn_call(FlMethodChannel* channel,
           fl_value_new_map());
       return;
     }
-    if (!state->config_path || !g_file_test(state->config_path, G_FILE_TEST_EXISTS)) {
-      respond_error(method_call, "vpn_config_missing", "WireGuard config file not found.", nullptr);
+    if (!state->wg_config_path || !g_file_test(state->wg_config_path, G_FILE_TEST_EXISTS)) {
+      state->last_connected = FALSE;
+      set_active_protocol(state, nullptr);
+      g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+          fl_method_success_response_new(nullptr));
+      fl_method_call_respond(method_call, response, nullptr);
       return;
     }
     spawn_wg_quick_async(
         method_call,
         state,
         "vpn_disconnect_failed",
+        nullptr,
         "down",
-        state->config_path,
+        state->wg_config_path,
         TRUE,
         FALSE);
     return;

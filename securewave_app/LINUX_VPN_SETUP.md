@@ -1,28 +1,39 @@
-# Linux VPN Setup (wg-quick)
+# Linux VPN Setup (WireGuard / OpenVPN / IKEv2)
 
-SecureWave uses `wg-quick` to bring up a WireGuard tunnel on Linux. The Flutter
-MethodChannel writes the config to disk and executes `wg-quick up/down`.
+SecureWave Linux desktop uses live native runtimes only:
+- WireGuard via `wg-quick`
+- OpenVPN via `openvpn`
+- IKEv2 via NetworkManager + strongSwan (`nmcli` + `vpn-type strongswan`)
 
 ## Integration Summary
 
-- MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`)
-- Backend: `wg-quick`
-- Config file: `~/.config/securewave/securewave.conf`
+- MethodChannel: `securewave/vpn` (`isAvailable`, `getCapabilities`, `connect`, `disconnect`)
+- Runtime files:
+  - WireGuard: `~/.config/securewave/securewave-wireguard.conf`
+  - OpenVPN: `~/.config/securewave/securewave-openvpn.ovpn`
+  - OpenVPN auth file: `~/.config/securewave/securewave-openvpn.auth`
+  - OpenVPN pid file: `~/.config/securewave/securewave-openvpn.pid`
+- IKEv2 profile name: `SecureWave-IKEv2` (NetworkManager connection)
 
 ## Requirements
 
-- WireGuard tools installed (`wg-quick` on PATH)
-- Permission to run `wg-quick` (via PolicyKit/pkexec prompt)
-- Tunnel profile from backend `POST /api/vpn/profile` (JSON; the app fetches this automatically after sign-in)
+- `pkexec` + running PolicyKit desktop auth agent (or run app as root)
+- WireGuard protocol: `wireguard-tools` (`wg-quick`)
+- OpenVPN protocol: `openvpn`
+- IKEv2 protocol: `network-manager`, `network-manager-strongswan`, `strongswan` (`ipsec`)
+- Tunnel profile from backend `POST /api/vpn/profile`
 
 ## Verification
 
-1. Install WireGuard tools:
-   - Ubuntu/Debian: `sudo apt-get install wireguard`
+1. Install protocol runtimes:
+   - Ubuntu/Debian:
+     - `sudo apt-get install wireguard-tools openvpn network-manager-strongswan strongswan`
 2. `flutter run -d linux`
-3. Tap Connect (approve the PolicyKit/pkexec elevation prompt).
-4. Verify the interface:
-   - `sudo wg show securewave`
-   - `ip addr show securewave`
+3. Select protocol in Settings.
+4. Tap Connect and approve the `pkexec` prompt.
+5. Verify:
+   - WireGuard: `sudo wg show`
+   - OpenVPN: `ps -ef | grep openvpn`
+   - IKEv2: `nmcli connection show --active | grep SecureWave-IKEv2`
 
-If `wg-quick` is not found, Flutter receives `vpn_unavailable` and the app will not connect until the tools are installed.
+If a runtime is missing, the app surfaces protocol-specific setup guidance and keeps the connection in terminal failure state.

@@ -40,6 +40,8 @@ class VpnCapabilities {
     this.linuxWireGuardInstalled = true,
     this.linuxElevationAvailable = true,
     this.wireGuardInstallHint,
+    this.openVpnInstallHint,
+    this.ikev2InstallHint,
     this.linuxElevationHint,
     this.macosEntitlementWarning,
   });
@@ -55,6 +57,8 @@ class VpnCapabilities {
   final bool linuxElevationAvailable;
 
   final String? wireGuardInstallHint;
+  final String? openVpnInstallHint;
+  final String? ikev2InstallHint;
   final String? linuxElevationHint;
   final String? macosEntitlementWarning;
 
@@ -260,6 +264,8 @@ class ChannelVpnService implements VpnService {
           linuxElevationAvailable:
               os != 'linux' || b('linux_elevation_available'),
           wireGuardInstallHint: s('wireguard_install_hint'),
+          openVpnInstallHint: s('openvpn_install_hint'),
+          ikev2InstallHint: s('ikev2_install_hint'),
           linuxElevationHint: s('linux_elevation_hint'),
           macosEntitlementWarning: s('macos_entitlement_warning'),
         );
@@ -288,6 +294,8 @@ class ChannelVpnService implements VpnService {
       linuxWireGuardInstalled: os != 'linux' || wgAvailable,
       linuxElevationAvailable: os != 'linux' || wgAvailable,
       wireGuardInstallHint: linuxInstallHint,
+      openVpnInstallHint: null,
+      ikev2InstallHint: null,
       linuxElevationHint:
           os == 'linux' && !wgAvailable ? _linuxElevationGuide() : null,
       macosEntitlementWarning: macosWarning,
@@ -390,7 +398,7 @@ class ChannelVpnService implements VpnService {
       case 'linux':
         return _linuxInstallGuide();
       case 'windows':
-        return 'WireGuard for Windows not found. Install WireGuard and retry.';
+        return 'No supported VPN runtime is currently available on this build.';
       case 'macos':
         return _macosEntitlementWarning();
       case 'android':
@@ -425,6 +433,14 @@ class ChannelVpnService implements VpnService {
     if (protocol == VpnProtocol.wireGuard) {
       return capabilities.wireGuardInstallHint ??
           'WireGuard runtime is not available on this device.';
+    }
+    if (protocol == VpnProtocol.openVpn) {
+      return capabilities.openVpnInstallHint ??
+          'OpenVPN runtime is not available on this device.';
+    }
+    if (protocol == VpnProtocol.ikev2) {
+      return capabilities.ikev2InstallHint ??
+          'IKEv2/IPsec runtime is not available on this device.';
     }
     return '${vpnProtocolLabel(protocol)} is not available on this build. '
         'Select a different protocol or switch to Automatic.';

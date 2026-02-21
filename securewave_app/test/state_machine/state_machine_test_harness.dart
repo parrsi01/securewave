@@ -98,6 +98,7 @@ ProviderContainer buildVpnContainer({
 class ControlledVpnService implements VpnService {
   ControlledVpnService({
     this.nativeAvailable = true,
+    this.capabilities,
     this.connectDelay = Duration.zero,
     this.disconnectDelay = Duration.zero,
     this.connectError,
@@ -107,6 +108,7 @@ class ControlledVpnService implements VpnService {
   });
 
   final bool nativeAvailable;
+  final VpnCapabilities? capabilities;
   final Duration connectDelay;
   final Duration disconnectDelay;
   final Object? connectError;
@@ -117,6 +119,8 @@ class ControlledVpnService implements VpnService {
   VpnStatus _status = VpnStatus.disconnected;
   int connectCalls = 0;
   int disconnectCalls = 0;
+  VpnProtocol? lastConnectProtocol;
+  Map<String, dynamic>? lastProfile;
 
   @override
   bool get isNativeAvailable => nativeAvailable;
@@ -126,15 +130,16 @@ class ControlledVpnService implements VpnService {
 
   @override
   Future<VpnCapabilities> getCapabilities() async {
-    return VpnCapabilities(
-      wireGuard: nativeAvailable,
-      openVpn: false,
-      ikev2: false,
-      windowsThreadSafe: true,
-      androidVpnServiceBased: true,
-      macosEntitlementReady: true,
-      linuxWireGuardInstalled: nativeAvailable,
-    );
+    return capabilities ??
+        VpnCapabilities(
+          wireGuard: nativeAvailable,
+          openVpn: false,
+          ikev2: false,
+          windowsThreadSafe: true,
+          androidVpnServiceBased: true,
+          macosEntitlementReady: true,
+          linuxWireGuardInstalled: nativeAvailable,
+        );
   }
 
   @override
@@ -143,6 +148,8 @@ class ControlledVpnService implements VpnService {
     Map<String, dynamic>? profile,
   }) async {
     connectCalls += 1;
+    lastConnectProtocol = protocol;
+    lastProfile = profile;
     if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
       return _status;
     }
@@ -245,7 +252,7 @@ class FakeApiClient extends ApiClient {
         error: 'connection_error',
       );
     }
-    final cfg = profileConfig ??
+    final wgCfg = profileConfig ??
         '''
 [Interface]
 PrivateKey = TEST_PRIVATE_KEY
@@ -258,6 +265,33 @@ AllowedIPs = 0.0.0.0/0
 Endpoint = 198.51.100.10:51820
 ''';
 
+    Map<String, dynamic>? protocolProfile;
+    String? wireguardConfig;
+    if (protocol == VpnProtocol.openVpn) {
+      protocolProfile = <String, dynamic>{
+        'type': 'openvpn',
+        'ovpn_config': '''
+client
+dev tun
+proto udp
+remote 198.51.100.10 1194
+auth-user-pass
+''',
+        'username': 'test-openvpn-user',
+        'password': 'test-openvpn-pass',
+      };
+    } else if (protocol == VpnProtocol.ikev2) {
+      protocolProfile = <String, dynamic>{
+        'type': 'ikev2',
+        'auth_method': 'eap-mschapv2',
+        'server': '198.51.100.10',
+        'username': 'test-ikev2-user',
+        'password': 'test-ikev2-pass',
+      };
+    } else {
+      wireguardConfig = wgCfg;
+    }
+
     return VpnProfile.fromJson({
       'device_id': (deviceId ?? 0) > 0 ? deviceId : 123,
       'device_name': deviceName,
@@ -265,7 +299,8 @@ Endpoint = 198.51.100.10:51820
       'protocol': vpnProtocolStorageValue(protocol),
       'server_id': serverId ?? 'us-chi',
       'server_location': 'Chicago',
-      'wireguard_config': cfg,
+      if (wireguardConfig != null) 'wireguard_config': wireguardConfig,
+      if (protocolProfile != null) 'profile': protocolProfile,
       'peer_registered': true,
       'registration_status': 'ok',
       'dns': {
