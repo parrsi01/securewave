@@ -24,6 +24,7 @@ from sqlalchemy import func
 from database.session import get_db
 from models.user import User
 from models.wireguard_peer import WireGuardPeer
+from models.vpn_credential import VPNCredential
 from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
 from services.jwt_service import get_current_user
@@ -306,6 +307,83 @@ class VpnProtocolsResponse(BaseModel):
     protocols: List[VpnProtocolAvailability]
 
 
+class VpnCredentialProvisionRequest(BaseModel):
+    protocol: str = Field(..., description="Protocol to provision (openvpn or ikev2)")
+    device_id: Optional[int] = Field(None, description="Existing device ID")
+    device_name: Optional[str] = Field(None, max_length=64, description="Device name when creating/finding a device")
+    device_type: Optional[str] = Field(None, description="windows, macos, linux, ios, android")
+    server_id: Optional[str] = Field(None, description="Preferred server ID")
+    rotate_if_exists: bool = Field(False, description="Rotate active credential before issuing a new one")
+
+    @field_validator("protocol")
+    @classmethod
+    def _validate_protocol(cls, value: str) -> str:
+        normalized = normalize_vpn_protocol(value)
+        if normalized not in {"openvpn", "ikev2"}:
+            raise ValueError("Provisioning supports openvpn and ikev2 only.")
+        return normalized
+
+    @field_validator("device_name")
+    @classmethod
+    def _validate_device_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_device_name(value)
+
+    @field_validator("server_id")
+    @classmethod
+    def _validate_server_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_identifier(value, field_name="server_id")
+
+    @field_validator("device_type")
+    @classmethod
+    def _validate_device_type(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        allowed = {"windows", "macos", "linux", "ios", "android"}
+        if normalized not in allowed:
+            raise ValueError(
+                f"Unsupported device_type '{value}'. Supported: {', '.join(sorted(allowed))}."
+            )
+        return normalized
+
+
+class VpnCredentialSummary(BaseModel):
+    id: int
+    protocol: str
+    credential_type: str
+    device_id: int
+    server_id: int
+    username: str
+    cert_serial: Optional[str] = None
+    cert_fingerprint_sha256: Optional[str] = None
+    profile_expires_at: Optional[str] = None
+    revoked_at: Optional[str] = None
+    revoke_reason: Optional[str] = None
+    revision: int
+    last_provisioned_at: Optional[str] = None
+    last_rotated_at: Optional[str] = None
+
+
+class VpnCredentialProvisionResponse(BaseModel):
+    status: str
+    credential: VpnCredentialSummary
+    profile: Optional[Dict[str, Any]] = None
+
+
+class VpnCredentialListResponse(BaseModel):
+    credentials: List[VpnCredentialSummary]
+    total: int
+
+
+class VpnCredentialLifecycleResponse(BaseModel):
+    status: str
+    credential: VpnCredentialSummary
+
+
 class VpnProfileRequest(BaseModel):
     """Provision an app-consumable VPN tunnel profile (no downloadable files)."""
     device_id: Optional[int] = Field(
@@ -373,17 +451,25 @@ class VpnWireGuardProfilePayload(BaseModel):
 class VpnOpenVpnProfilePayload(BaseModel):
     type: Literal["openvpn"] = "openvpn"
     ovpn_config: str
-    username: str
-    password: str
+    auth_method: Literal["mtls", "userpass"] = "userpass"
+    username: Optional[str] = None
+    password: Optional[str] = None
+    cert_serial: Optional[str] = None
+    cert_fingerprint_sha256: Optional[str] = None
 
 
 class VpnIkev2ProfilePayload(BaseModel):
     type: Literal["ikev2"] = "ikev2"
+    auth_method: Literal["eap-tls", "eap-mschapv2"] = "eap-mschapv2"
     server: str
     remote_id: Optional[str] = None
-    username: str
-    password: str
+    username: Optional[str] = None
+    password: Optional[str] = None
     ca_cert_pem: Optional[str] = None
+    client_pkcs12_base64: Optional[str] = None
+    client_pkcs12_password: Optional[str] = None
+    cert_serial: Optional[str] = None
+    cert_fingerprint_sha256: Optional[str] = None
 
 
 VpnProtocolProfilePayload = Union[
@@ -573,6 +659,8 @@ def _log_vpn_event(event: str, **fields) -> None:
 
 
 def _utc_iso(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat()
 
 
@@ -745,6 +833,7 @@ def _build_openvpn_profile(
 
     return VpnOpenVpnProfilePayload(
         ovpn_config="\n".join(ovpn_lines),
+        auth_method="userpass",
         username=username,
         password=password,
     )
@@ -774,6 +863,7 @@ def _build_ikev2_profile(
         )
 
     return VpnIkev2ProfilePayload(
+        auth_method="eap-mschapv2",
         server=server_host,
         remote_id=remote_id,
         username=username,
@@ -947,6 +1037,153 @@ def choose_effective_protocol(
         code="no_protocol_available",
         message="No VPN protocol is available for this platform/account/server combination.",
         details={"server_id": server.server_id, "device_type": device_type},
+    )
+
+
+def _openvpn_auth_mode() -> str:
+    raw = os.getenv("SECUREWAVE_OPENVPN_AUTH_MODE", "mtls").strip().lower()
+    if raw in {"mtls", "tls", "cert"}:
+        return "mtls"
+    return "userpass"
+
+
+def _ikev2_auth_mode() -> str:
+    raw = os.getenv("SECUREWAVE_IKEV2_AUTH_MODE", "eap-tls").strip().lower()
+    if raw in {"eap-mschapv2", "mschapv2", "userpass"}:
+        return "eap-mschapv2"
+    return "eap-tls"
+
+
+def _credential_summary(record: VPNCredential) -> VpnCredentialSummary:
+    return VpnCredentialSummary(
+        id=record.id,
+        protocol=record.protocol,
+        credential_type=record.credential_type or "username_password",
+        device_id=record.device_id,
+        server_id=record.server_id,
+        username=record.username,
+        cert_serial=record.cert_serial,
+        cert_fingerprint_sha256=record.cert_fingerprint_sha256,
+        profile_expires_at=_utc_iso(record.profile_expires_at) if record.profile_expires_at else None,
+        revoked_at=_utc_iso(record.revoked_at) if record.revoked_at else None,
+        revoke_reason=record.revoke_reason,
+        revision=int(record.revision or 1),
+        last_provisioned_at=_utc_iso(record.last_provisioned_at) if record.last_provisioned_at else None,
+        last_rotated_at=_utc_iso(record.last_rotated_at) if record.last_rotated_at else None,
+    )
+
+
+def _select_server_for_protocol(
+    *,
+    db: Session,
+    user_tier: str,
+    protocol: str,
+    preferred_server_id: Optional[str],
+    region_hint: Optional[str] = None,
+) -> VPNServer:
+    server: Optional[VPNServer] = None
+    if preferred_server_id:
+        server = VPNServerService.get_server_by_id(db, preferred_server_id)
+        if not server:
+            raise ApiException(
+                status_code=404,
+                code="server_not_found",
+                message="Server not found",
+            )
+        if server.tier_restriction and user_tier == "free":
+            raise ApiException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                code="server_tier_restricted",
+                message=f"This server requires a {server.tier_restriction} subscription",
+                details={"tier_required": server.tier_restriction},
+            )
+        if not _server_supports_protocol(server, protocol):
+            raise ApiException(
+                status_code=409,
+                code="protocol_not_supported_on_server",
+                message="Requested protocol is not enabled on the selected server.",
+                details={"protocol": protocol, "server_id": server.server_id},
+            )
+        return server
+
+    candidates = VPNServerService.get_active_servers(db, user_tier, protocol=protocol)
+    if not candidates:
+        raise ApiException(
+            status_code=409,
+            code="protocol_temporarily_unavailable",
+            message="Requested protocol is currently unavailable on active servers.",
+            details={"protocol": protocol},
+        )
+
+    latency_optimizer = get_latency_optimizer()
+    scored = latency_optimizer.rank_servers(
+        candidates,
+        user_region_hint=region_hint,
+    )
+    score_map = {item.server_id: item.score for item in scored}
+    candidates.sort(
+        key=lambda s: (
+            1 if s.health_status == "healthy" else 0,
+            score_map.get(s.server_id, float("-inf")),
+        ),
+        reverse=True,
+    )
+    return candidates[0]
+
+
+def _resolve_or_create_peer(
+    *,
+    db: Session,
+    current_user: User,
+    peer_manager,
+    device_id: Optional[int],
+    device_name: Optional[str],
+    device_type: Optional[str],
+) -> WireGuardPeer:
+    peer: Optional[WireGuardPeer] = None
+    if device_id:
+        peer = db.query(WireGuardPeer).filter(
+            WireGuardPeer.id == device_id,
+            WireGuardPeer.user_id == current_user.id,
+            WireGuardPeer.is_revoked == False,
+        ).first()
+        if not peer:
+            raise ApiException(
+                status_code=404,
+                code="device_not_found",
+                message="Device not found or revoked",
+            )
+        return peer
+
+    resolved_name = (device_name or "This device").strip()[:64]
+    peer = db.query(WireGuardPeer).filter(
+        WireGuardPeer.user_id == current_user.id,
+        WireGuardPeer.device_name == resolved_name,
+        WireGuardPeer.is_revoked == False,
+    ).first()
+    if peer:
+        return peer
+
+    from services.subscription_access import get_effective_device_limit
+    limit = get_effective_device_limit(db, current_user)
+    active_count = db.query(WireGuardPeer).filter(
+        WireGuardPeer.user_id == current_user.id,
+        WireGuardPeer.is_revoked == False,
+        WireGuardPeer.is_active == True,
+    ).count()
+    if active_count >= limit:
+        raise ApiException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="device_limit_reached",
+            message=f"Device limit reached ({limit}). Upgrade your plan or revoke an existing device.",
+            details={"limit": limit, "active_devices": active_count},
+        )
+
+    return peer_manager.create_peer(
+        user=current_user,
+        server=None,
+        device_name=resolved_name,
+        device_type=device_type,
     )
 
 
@@ -1708,27 +1945,102 @@ async def provision_profile(
         profile_payload = VpnWireGuardProfilePayload(wireguard_config=wireguard_config)
     else:
         creds_service = VpnCredentialService(db)
-        creds = creds_service.get_or_create(
-            user_id=current_user.id,
-            device_id=peer.id,
-            server_id=server.id,
-            protocol=effective_protocol,
-        )
-
         if effective_protocol == "openvpn":
-            profile_payload = _build_openvpn_profile(
-                server,
-                username=creds.username,
-                password=creds.password,
-                device_type=device_type,
-                dns_servers=dns_servers,
-            )
+            openvpn_mode = _openvpn_auth_mode()
+            if openvpn_mode == "mtls":
+                try:
+                    issued = await creds_service.issue_openvpn_certificate_profile(
+                        user_id=current_user.id,
+                        device_id=peer.id,
+                        server=server,
+                    )
+                except Exception as exc:
+                    raise ApiException(
+                        status_code=502,
+                        code="credential_provision_failed",
+                        message="Failed to provision OpenVPN certificate profile.",
+                        details={"protocol": "openvpn", "reason": str(exc)},
+                    )
+                profile_payload = VpnOpenVpnProfilePayload(
+                    ovpn_config=issued.ovpn_config,
+                    auth_method="mtls",
+                    username=issued.common_name,
+                    cert_serial=issued.cert_serial,
+                    cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+                )
+                peer_registered = issued.provisioned_on_server
+                registration_status = issued.status_message
+            else:
+                creds = creds_service.get_or_create(
+                    user_id=current_user.id,
+                    device_id=peer.id,
+                    server_id=server.id,
+                    protocol=effective_protocol,
+                )
+                profile_payload = _build_openvpn_profile(
+                    server,
+                    username=creds.username,
+                    password=creds.password,
+                    device_type=device_type,
+                    dns_servers=dns_servers,
+                )
+                provisioned, message = await provision_protocol_credentials_on_server(
+                    server=server,
+                    protocol=effective_protocol,
+                    username=creds.username,
+                    password=creds.password,
+                )
+                peer_registered = provisioned
+                registration_status = message
         elif effective_protocol == "ikev2":
-            profile_payload = _build_ikev2_profile(
-                server,
-                username=creds.username,
-                password=creds.password,
-            )
+            ikev2_mode = _ikev2_auth_mode()
+            if ikev2_mode == "eap-tls":
+                try:
+                    issued = await creds_service.issue_ikev2_certificate_profile(
+                        user_id=current_user.id,
+                        device_id=peer.id,
+                        server=server,
+                    )
+                except Exception as exc:
+                    raise ApiException(
+                        status_code=502,
+                        code="credential_provision_failed",
+                        message="Failed to provision IKEv2 certificate profile.",
+                        details={"protocol": "ikev2", "reason": str(exc)},
+                    )
+                profile_payload = VpnIkev2ProfilePayload(
+                    auth_method="eap-tls",
+                    server=issued.server,
+                    remote_id=issued.remote_id,
+                    ca_cert_pem=issued.ca_cert_pem,
+                    client_pkcs12_base64=issued.client_pkcs12_base64,
+                    client_pkcs12_password=issued.client_pkcs12_password,
+                    cert_serial=issued.cert_serial,
+                    cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+                    username=issued.common_name,
+                )
+                peer_registered = issued.provisioned_on_server
+                registration_status = issued.status_message
+            else:
+                creds = creds_service.get_or_create(
+                    user_id=current_user.id,
+                    device_id=peer.id,
+                    server_id=server.id,
+                    protocol=effective_protocol,
+                )
+                profile_payload = _build_ikev2_profile(
+                    server,
+                    username=creds.username,
+                    password=creds.password,
+                )
+                provisioned, message = await provision_protocol_credentials_on_server(
+                    server=server,
+                    protocol=effective_protocol,
+                    username=creds.username,
+                    password=creds.password,
+                )
+                peer_registered = provisioned
+                registration_status = message
 
         if profile_payload is None:
             raise ApiException(
@@ -1737,15 +2049,6 @@ async def provision_profile(
                 message="Unsupported protocol for this profile request.",
                 details={"protocol": effective_protocol},
             )
-
-        provisioned, message = await provision_protocol_credentials_on_server(
-            server=server,
-            protocol=effective_protocol,
-            username=creds.username,
-            password=creds.password,
-        )
-        peer_registered = provisioned
-        registration_status = message
 
     if effective_protocol == "ikev2":
         # IKEv2 profile payload does not enforce DNS resolvers cross-platform.
@@ -1812,6 +2115,471 @@ async def provision_profile(
     elapsed_ms = (time.monotonic() - started) * 1000.0
     get_runtime_metrics().record_profile_issue(latency_ms=elapsed_ms, success=True)
     return response_payload
+
+
+@router.post(
+    "/credentials/provision",
+    response_model=VpnCredentialProvisionResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("20/minute")
+async def provision_vpn_credential(
+    request: Request,
+    payload: VpnCredentialProvisionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    await require_active_subscription(db, current_user)
+    protocol = normalize_vpn_protocol(payload.protocol)
+    if protocol not in {"openvpn", "ikev2"}:
+        raise ApiException(
+            status_code=400,
+            code="unsupported_protocol",
+            message="Credential provisioning supports openvpn and ikev2 only.",
+            details={"protocol": payload.protocol},
+        )
+
+    user_tier = get_user_tier(current_user, db)
+    enabled = _enabled_protocols()
+    allowed_by_plan = _plan_allowed_protocols(user_tier)
+    if protocol not in enabled:
+        raise ApiException(
+            status_code=403,
+            code="protocol_disabled_server_side",
+            message="Requested protocol is disabled by server policy.",
+            details={"protocol": protocol},
+        )
+    if protocol not in allowed_by_plan:
+        raise ApiException(
+            status_code=403,
+            code="protocol_plan_restricted",
+            message="Requested protocol is not enabled for this account plan.",
+            details={"protocol": protocol, "tier": user_tier},
+        )
+
+    peer_manager = get_peer_manager(db)
+    peer = _resolve_or_create_peer(
+        db=db,
+        current_user=current_user,
+        peer_manager=peer_manager,
+        device_id=payload.device_id,
+        device_name=payload.device_name,
+        device_type=(payload.device_type or "").strip().lower() or None,
+    )
+    device_type = (payload.device_type or peer.device_type or "").strip().lower() or None
+    if protocol not in _platform_supported_protocols(device_type):
+        raise ApiException(
+            status_code=400,
+            code="protocol_not_supported_on_platform",
+            message="Requested protocol is not supported on this platform.",
+            details={"protocol": protocol, "device_type": device_type},
+        )
+
+    server = _select_server_for_protocol(
+        db=db,
+        user_tier=user_tier,
+        protocol=protocol,
+        preferred_server_id=payload.server_id,
+        region_hint=request.headers.get("X-Geo-Region"),
+    )
+    if peer.server_id != server.id:
+        peer.server_id = server.id
+        peer.is_active = True
+        db.add(peer)
+        db.commit()
+        db.refresh(peer)
+
+    creds_service = VpnCredentialService(db)
+
+    if payload.rotate_if_exists:
+        existing_active = [
+            item
+            for item in creds_service.list_user_credentials(
+                user_id=current_user.id,
+                device_id=peer.id,
+                protocol=protocol,
+            )
+            if item.server_id == server.id and item.revoked_at is None
+        ]
+        for item in existing_active:
+            ok, message = await creds_service.revoke_certificate(
+                credential=item,
+                server=server,
+                reason="rotated_before_reissue",
+            )
+            if not ok:
+                raise ApiException(
+                    status_code=409,
+                    code="credential_revoke_failed",
+                    message="Failed to rotate existing credential before reissue.",
+                    details={"credential_id": item.id, "reason": message},
+                )
+
+    issued_profile: Optional[Dict[str, Any]] = None
+    status_message = "provisioned"
+    if protocol == "openvpn":
+        if _openvpn_auth_mode() == "mtls":
+            try:
+                issued = await creds_service.issue_openvpn_certificate_profile(
+                    user_id=current_user.id,
+                    device_id=peer.id,
+                    server=server,
+                )
+            except Exception as exc:
+                raise ApiException(
+                    status_code=502,
+                    code="credential_provision_failed",
+                    message="Failed to provision OpenVPN certificate profile.",
+                    details={"protocol": "openvpn", "reason": str(exc)},
+                )
+            issued_profile = VpnOpenVpnProfilePayload(
+                ovpn_config=issued.ovpn_config,
+                auth_method="mtls",
+                username=issued.common_name,
+                cert_serial=issued.cert_serial,
+                cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+            ).model_dump()
+            status_message = issued.status_message
+        else:
+            creds = creds_service.get_or_create(
+                user_id=current_user.id,
+                device_id=peer.id,
+                server_id=server.id,
+                protocol="openvpn",
+            )
+            issued_profile = _build_openvpn_profile(
+                server,
+                username=creds.username,
+                password=creds.password,
+                device_type=device_type,
+                dns_servers=_profile_dns_servers(),
+            ).model_dump()
+            await provision_protocol_credentials_on_server(
+                server=server,
+                protocol="openvpn",
+                username=creds.username,
+                password=creds.password,
+            )
+            status_message = "credential_provisioned"
+    else:
+        if _ikev2_auth_mode() == "eap-tls":
+            try:
+                issued = await creds_service.issue_ikev2_certificate_profile(
+                    user_id=current_user.id,
+                    device_id=peer.id,
+                    server=server,
+                )
+            except Exception as exc:
+                raise ApiException(
+                    status_code=502,
+                    code="credential_provision_failed",
+                    message="Failed to provision IKEv2 certificate profile.",
+                    details={"protocol": "ikev2", "reason": str(exc)},
+                )
+            issued_profile = VpnIkev2ProfilePayload(
+                auth_method="eap-tls",
+                server=issued.server,
+                remote_id=issued.remote_id,
+                ca_cert_pem=issued.ca_cert_pem,
+                client_pkcs12_base64=issued.client_pkcs12_base64,
+                client_pkcs12_password=issued.client_pkcs12_password,
+                cert_serial=issued.cert_serial,
+                cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+                username=issued.common_name,
+            ).model_dump()
+            status_message = issued.status_message
+        else:
+            creds = creds_service.get_or_create(
+                user_id=current_user.id,
+                device_id=peer.id,
+                server_id=server.id,
+                protocol="ikev2",
+            )
+            issued_profile = _build_ikev2_profile(
+                server,
+                username=creds.username,
+                password=creds.password,
+            ).model_dump()
+            await provision_protocol_credentials_on_server(
+                server=server,
+                protocol="ikev2",
+                username=creds.username,
+                password=creds.password,
+            )
+            status_message = "credential_provisioned"
+
+    record = (
+        db.query(VPNCredential)
+        .filter(
+            VPNCredential.user_id == current_user.id,
+            VPNCredential.device_id == peer.id,
+            VPNCredential.server_id == server.id,
+            VPNCredential.protocol == protocol,
+        )
+        .order_by(VPNCredential.revision.desc(), VPNCredential.updated_at.desc())
+        .first()
+    )
+    if not record:
+        raise ApiException(
+            status_code=500,
+            code="credential_persistence_failed",
+            message="Provisioned credential metadata could not be loaded.",
+            details={"protocol": protocol, "server_id": server.server_id},
+        )
+
+    return VpnCredentialProvisionResponse(
+        status=status_message,
+        credential=_credential_summary(record),
+        profile=issued_profile,
+    )
+
+
+@router.get(
+    "/credentials",
+    response_model=VpnCredentialListResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("30/minute")
+async def list_vpn_credentials(
+    request: Request,
+    protocol: Optional[str] = None,
+    device_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    normalized_protocol: Optional[str] = None
+    if protocol:
+        normalized_protocol = normalize_vpn_protocol(protocol)
+        if normalized_protocol == "auto":
+            raise ApiException(
+                status_code=400,
+                code="unsupported_protocol",
+                message="Protocol filter must be openvpn or ikev2.",
+                details={"protocol": protocol},
+            )
+
+    service = VpnCredentialService(db)
+    rows = service.list_user_credentials(
+        user_id=current_user.id,
+        device_id=device_id,
+        protocol=normalized_protocol,
+    )
+    summaries = [_credential_summary(item) for item in rows]
+    return VpnCredentialListResponse(credentials=summaries, total=len(summaries))
+
+
+@router.post(
+    "/credentials/{credential_id}/revoke",
+    response_model=VpnCredentialLifecycleResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("20/minute")
+async def revoke_vpn_credential(
+    request: Request,
+    credential_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = VpnCredentialService(db)
+    credential = service.get_user_credential(user_id=current_user.id, credential_id=credential_id)
+    if not credential:
+        raise ApiException(
+            status_code=404,
+            code="credential_not_found",
+            message="Credential not found",
+            details={"credential_id": credential_id},
+        )
+    server = db.query(VPNServer).filter(VPNServer.id == credential.server_id).first()
+    if not server:
+        raise ApiException(
+            status_code=404,
+            code="server_not_found",
+            message="Server for credential not found",
+            details={"credential_id": credential_id},
+        )
+
+    ok, message = await service.revoke_certificate(
+        credential=credential,
+        server=server,
+        reason="manual_revoke",
+    )
+    if not ok:
+        raise ApiException(
+            status_code=409,
+            code="credential_revoke_failed",
+            message="Credential revoke failed.",
+            details={"credential_id": credential_id, "reason": message},
+        )
+    return VpnCredentialLifecycleResponse(
+        status=message,
+        credential=_credential_summary(credential),
+    )
+
+
+@router.post(
+    "/credentials/{credential_id}/rotate",
+    response_model=VpnCredentialProvisionResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("20/minute")
+async def rotate_vpn_credential(
+    request: Request,
+    credential_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    await require_active_subscription(db, current_user)
+    service = VpnCredentialService(db)
+    credential = service.get_user_credential(user_id=current_user.id, credential_id=credential_id)
+    if not credential:
+        raise ApiException(
+            status_code=404,
+            code="credential_not_found",
+            message="Credential not found",
+            details={"credential_id": credential_id},
+        )
+    if credential.protocol not in {"openvpn", "ikev2"}:
+        raise ApiException(
+            status_code=400,
+            code="unsupported_protocol",
+            message="Credential rotation supports openvpn and ikev2 only.",
+            details={"credential_id": credential_id, "protocol": credential.protocol},
+        )
+
+    server = db.query(VPNServer).filter(VPNServer.id == credential.server_id).first()
+    if not server:
+        raise ApiException(
+            status_code=404,
+            code="server_not_found",
+            message="Server for credential not found",
+            details={"credential_id": credential_id},
+        )
+
+    user_tier = get_user_tier(current_user, db)
+    enabled = _enabled_protocols()
+    allowed_by_plan = _plan_allowed_protocols(user_tier)
+    if credential.protocol not in enabled or credential.protocol not in allowed_by_plan:
+        raise ApiException(
+            status_code=403,
+            code="protocol_plan_restricted",
+            message="Credential protocol is not currently allowed for this account.",
+            details={"protocol": credential.protocol, "tier": user_tier},
+        )
+
+    ok, message = await service.rotate_certificate(
+        credential=credential,
+        server=server,
+    )
+    if not ok:
+        raise ApiException(
+            status_code=409,
+            code="credential_rotate_failed",
+            message="Credential rotation failed.",
+            details={"credential_id": credential_id, "reason": message},
+        )
+
+    issued_profile: Optional[Dict[str, Any]] = None
+    if credential.protocol == "openvpn":
+        if _openvpn_auth_mode() == "mtls":
+            try:
+                issued = await service.issue_openvpn_certificate_profile(
+                    user_id=current_user.id,
+                    device_id=credential.device_id,
+                    server=server,
+                )
+            except Exception as exc:
+                raise ApiException(
+                    status_code=502,
+                    code="credential_provision_failed",
+                    message="Failed to provision rotated OpenVPN certificate.",
+                    details={"credential_id": credential_id, "reason": str(exc)},
+                )
+            issued_profile = VpnOpenVpnProfilePayload(
+                ovpn_config=issued.ovpn_config,
+                auth_method="mtls",
+                username=issued.common_name,
+                cert_serial=issued.cert_serial,
+                cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+            ).model_dump()
+        else:
+            creds = service.get_or_create(
+                user_id=current_user.id,
+                device_id=credential.device_id,
+                server_id=credential.server_id,
+                protocol="openvpn",
+            )
+            issued_profile = _build_openvpn_profile(
+                server,
+                username=creds.username,
+                password=creds.password,
+                device_type=None,
+                dns_servers=_profile_dns_servers(),
+            ).model_dump()
+            await provision_protocol_credentials_on_server(
+                server=server,
+                protocol="openvpn",
+                username=creds.username,
+                password=creds.password,
+            )
+    else:
+        if _ikev2_auth_mode() == "eap-tls":
+            try:
+                issued = await service.issue_ikev2_certificate_profile(
+                    user_id=current_user.id,
+                    device_id=credential.device_id,
+                    server=server,
+                )
+            except Exception as exc:
+                raise ApiException(
+                    status_code=502,
+                    code="credential_provision_failed",
+                    message="Failed to provision rotated IKEv2 certificate.",
+                    details={"credential_id": credential_id, "reason": str(exc)},
+                )
+            issued_profile = VpnIkev2ProfilePayload(
+                auth_method="eap-tls",
+                server=issued.server,
+                remote_id=issued.remote_id,
+                ca_cert_pem=issued.ca_cert_pem,
+                client_pkcs12_base64=issued.client_pkcs12_base64,
+                client_pkcs12_password=issued.client_pkcs12_password,
+                cert_serial=issued.cert_serial,
+                cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+                username=issued.common_name,
+            ).model_dump()
+        else:
+            creds = service.get_or_create(
+                user_id=current_user.id,
+                device_id=credential.device_id,
+                server_id=credential.server_id,
+                protocol="ikev2",
+            )
+            issued_profile = _build_ikev2_profile(
+                server,
+                username=creds.username,
+                password=creds.password,
+            ).model_dump()
+            await provision_protocol_credentials_on_server(
+                server=server,
+                protocol="ikev2",
+                username=creds.username,
+                password=creds.password,
+            )
+
+    record = (
+        db.query(VPNCredential)
+        .filter(
+            VPNCredential.user_id == current_user.id,
+            VPNCredential.id == credential.id,
+        )
+        .first()
+    )
+    assert record is not None
+    return VpnCredentialProvisionResponse(
+        status="rotated",
+        credential=_credential_summary(record),
+        profile=issued_profile,
+    )
 
 
 @router.get("/config/download/{server_id}")

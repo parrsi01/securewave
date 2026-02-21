@@ -235,7 +235,7 @@ class TestVpnProfileProvisioning:
         assert second.status_code == 200, second.text
         assert second.json().get("server_id") == free.server_id
 
-    def test_openvpn_profile_returns_ovpn_and_credentials(self, client, auth_headers, db):
+    def test_openvpn_profile_returns_ovpn_and_certificate_metadata(self, client, auth_headers, db):
         _create_free_server(db)
         openvpn = _create_openvpn_server(db)
 
@@ -250,9 +250,11 @@ class TestVpnProfileProvisioning:
         assert data.get("server_id") == openvpn.server_id
         profile = data.get("profile") or {}
         assert profile.get("type") == "openvpn"
+        assert profile.get("auth_method") == "mtls"
         assert "client" in (profile.get("ovpn_config") or "")
         assert profile.get("username")
-        assert profile.get("password")
+        assert profile.get("cert_serial")
+        assert profile.get("cert_fingerprint_sha256")
 
     def test_openvpn_request_returns_typed_error_when_unavailable(self, client, auth_headers, db):
         _create_free_server(db)
@@ -294,9 +296,11 @@ class TestVpnProfileProvisioning:
         assert data.get("protocol") == "ikev2"
         profile = data.get("profile") or {}
         assert profile.get("type") == "ikev2"
+        assert profile.get("auth_method") == "eap-tls"
         assert profile.get("server")
         assert profile.get("username")
-        assert profile.get("password")
+        assert profile.get("client_pkcs12_base64")
+        assert profile.get("client_pkcs12_password")
 
     def test_explicit_protocol_rejected_for_unsupported_platform(self, client, auth_headers, db):
         _create_openvpn_server(db)

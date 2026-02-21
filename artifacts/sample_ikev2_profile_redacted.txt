@@ -1,0 +1,10 @@
+SecureWave IKEv2 EAP-TLS Profile (Redacted)
+
+server: vpn.example.securewave
+remote_id: vpn.example.securewave
+auth_method: eap-tls
+ca_cert_pem: [REDACTED_CA_CERT_PEM]
+client_pkcs12_base64: [REDACTED_PKCS12_BLOB]
+client_pkcs12_password: [REDACTED_PKCS12_PASSWORD]
+cert_serial: [REDACTED_SERIAL]
+cert_fingerprint_sha256: [REDACTED_FINGERPRINT]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship
 
 from database.base import Base
@@ -34,8 +34,19 @@ class VPNCredential(Base):
     server_id = Column(Integer, ForeignKey("vpn_servers.id"), nullable=False, index=True)
 
     protocol = Column(String(length=16), nullable=False, index=True)  # openvpn|ikev2
+    credential_type = Column(String(length=32), nullable=False, default="username_password")
     username = Column(String(length=64), nullable=False)
     password_encrypted = Column(String, nullable=False)
+    cert_serial = Column(String(length=128), nullable=True, index=True)
+    cert_fingerprint_sha256 = Column(String(length=128), nullable=True)
+    profile_expires_at = Column(DateTime, nullable=True)
+    last_provisioned_at = Column(DateTime, nullable=True)
+    last_rotated_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True, index=True)
+    revoke_reason = Column(String(length=128), nullable=True)
+    revision = Column(Integer, nullable=False, default=1)
+    provisioning_token_hash = Column(String(length=128), nullable=True)
+    metadata_json = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
@@ -48,5 +59,6 @@ class VPNCredential(Base):
     def __repr__(self) -> str:
         return (
             f"<VPNCredential(user_id={self.user_id}, device_id={self.device_id}, "
-            f"server_id={self.server_id}, protocol={self.protocol})>"
+            f"server_id={self.server_id}, protocol={self.protocol}, "
+            f"revision={self.revision}, revoked_at={self.revoked_at})>"
         )
