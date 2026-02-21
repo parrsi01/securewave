@@ -3,12 +3,12 @@
 
 import NetworkExtension
 
-// Creates mock tunnels for the iOS Simulator.
+// Simulator tunnel fixtures for the iOS sample app.
 
 #if targetEnvironment(simulator)
 class MockTunnels {
     static let tunnelNames = [
-        "demo",
+        "sample",
         "edgesecurity",
         "home",
         "office",
@@ -20,7 +20,7 @@ class MockTunnels {
     ]
     static let address = "192.168.%d.%d/32"
     static let dnsServers = ["8.8.8.8", "8.8.4.4"]
-    static let endpoint = "demo.wireguard.com:51820"
+    static let endpoint = "sample.wireguard.invalid:51820"
     static let allowedIPs = "0.0.0.0/0"
 
     static func createMockTunnels() -> [NETunnelProviderManager] {

@@ -34,9 +34,6 @@ class TunnelsManager {
     }
 
     static func create(completionHandler: @escaping (Result<TunnelsManager, TunnelsManagerError>) -> Void) {
-        #if targetEnvironment(simulator)
-        completionHandler(.success(TunnelsManager(tunnelProviders: MockTunnels.createMockTunnels())))
-        #else
         NETunnelProviderManager.loadAllFromPreferences { managers, error in
             if let error = error {
                 wg_log(.error, message: "Failed to load tunnel provider managers: \(error)")
@@ -81,7 +78,6 @@ class TunnelsManager {
             #endif
             completionHandler(.success(TunnelsManager(tunnelProviders: tunnelManagers)))
         }
-        #endif
     }
 
     func reload() {
