@@ -1,6 +1,10 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../logging/app_logger.dart';
 import 'secure_storage.dart';
 
 final authSessionProvider = ChangeNotifierProvider<AuthSession>((ref) {
@@ -8,11 +12,20 @@ final authSessionProvider = ChangeNotifierProvider<AuthSession>((ref) {
 });
 
 class AuthSession extends ChangeNotifier {
-  AuthSession() {
-    _initializeSession();
+  AuthSession({
+    SecureStorage? storage,
+    DateTime Function()? clock,
+    Duration storageTimeout = const Duration(seconds: 2),
+  })  : _storage = storage ?? SecureStorage(),
+        _clock = clock ?? DateTime.now,
+        _storageTimeout = storageTimeout {
+    _initializationFuture = _initializeSession();
   }
 
-  final _storage = SecureStorage();
+  final SecureStorage _storage;
+  final DateTime Function() _clock;
+  final Duration _storageTimeout;
+  late final Future<void> _initializationFuture;
 
   bool _isAuthenticated = false;
   String? _accessToken;
@@ -22,20 +35,60 @@ class AuthSession extends ChangeNotifier {
   String? get accessToken => _accessToken;
   String? get email => _email;
 
+  @visibleForTesting
+  Future<void> get initializationComplete => _initializationFuture;
+
   Future<void> _initializeSession() async {
-    final token = await _storage.getAccessToken();
-    if (token != null && token.isNotEmpty) {
+    try {
+      final token = await _storage.getAccessToken().timeout(_storageTimeout);
+      if (token == null || token.trim().isEmpty) {
+        notifyListeners();
+        return;
+      }
+
+      final validation = _validateAccessToken(token);
+      if (validation != null) {
+        AppLogger.warning(
+          'Auth session restore rejected token: $validation',
+        );
+        await _clearPersistedSessionArtifacts();
+        notifyListeners();
+        return;
+      }
+
       _accessToken = token;
       _isAuthenticated = true;
+    } on TimeoutException catch (error, stackTrace) {
+      AppLogger.error(
+        'Auth session restore timed out',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Auth session restore failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
     notifyListeners();
   }
 
-  Future<void> setSession({required String accessToken, String? refreshToken, String? email}) async {
+  Future<void> setSession(
+      {required String accessToken,
+      String? refreshToken,
+      String? email}) async {
+    final validation =
+        _looksLikeJwt(accessToken) ? _validateAccessToken(accessToken) : null;
+    if (validation != null) {
+      throw StateError('Cannot persist invalid access token: $validation');
+    }
     _accessToken = accessToken;
     _email = email;
     _isAuthenticated = true;
-    await _storage.saveTokens(accessToken: accessToken, refreshToken: refreshToken);
+    await _storage
+        .saveTokens(accessToken: accessToken, refreshToken: refreshToken)
+        .timeout(_storageTimeout);
     notifyListeners();
   }
 
@@ -43,7 +96,64 @@ class AuthSession extends ChangeNotifier {
     _accessToken = null;
     _email = null;
     _isAuthenticated = false;
-    await _storage.clearTokens();
+    await _clearPersistedSessionArtifacts();
     notifyListeners();
+  }
+
+  Future<void> _clearPersistedSessionArtifacts() async {
+    await Future.wait<void>([
+      _storage.clearTokens(),
+      _storage.delete(SecureStorage.vpnProfileConfigKey),
+      _storage.delete(SecureStorage.vpnProfileExpiresAtKey),
+      _storage.delete(SecureStorage.vpnDeviceIdKey),
+    ]).timeout(_storageTimeout);
+  }
+
+  String? _validateAccessToken(String token) {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) return 'empty_token';
+
+    final expiry = _jwtExpiry(trimmed);
+    if (expiry == null) return 'invalid_jwt_or_missing_exp';
+
+    // Small skew protects against near-expiry race conditions during startup.
+    final nowWithSkew = _clock().toUtc().add(const Duration(seconds: 30));
+    if (!expiry.isAfter(nowWithSkew)) {
+      return 'expired_jwt';
+    }
+    return null;
+  }
+
+  bool _looksLikeJwt(String token) => token.split('.').length == 3;
+
+  DateTime? _jwtExpiry(String jwt) {
+    final parts = jwt.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final payload =
+          utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map<String, dynamic>) return null;
+      final rawExp = decoded['exp'];
+      final expSeconds = switch (rawExp) {
+        int value => value,
+        num value => value.toInt(),
+        String value => int.tryParse(value),
+        _ => null,
+      };
+      if (expSeconds == null || expSeconds <= 0) return null;
+      return DateTime.fromMillisecondsSinceEpoch(
+        expSeconds * 1000,
+        isUtc: true,
+      );
+    } catch (error, stackTrace) {
+      AppLogger.warning('Auth token parse failed');
+      AppLogger.error(
+        'Auth token parse failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
   }
 }

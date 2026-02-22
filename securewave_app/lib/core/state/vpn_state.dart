@@ -177,9 +177,18 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   Future<void> _loadProtocol() async {
     final stored = await _storage.getString(SecureStorage.vpnProtocolKey);
+    final loadedProtocol = vpnProtocolFromStorage(stored);
     if (!mounted) return;
+    final currentProtocol = state.protocol;
+    if (currentProtocol != VpnProtocol.auto &&
+        loadedProtocol != currentProtocol) {
+      AppLogger.info(
+        '[VPN_SM] {"event":"protocol_load_skipped","stored":"${loadedProtocol.name}","current":"${currentProtocol.name}","reason":"user_override_or_newer_state"}',
+      );
+      return;
+    }
     state = state.copyWith(
-      protocol: vpnProtocolFromStorage(stored),
+      protocol: loadedProtocol,
       clearEffectiveProtocol: true,
       clearProtocolMessage: true,
     );
@@ -202,8 +211,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (next == VpnStatus.connected) {
         _startRateSimulation();
       }
-    } catch (_) {
-      // Best-effort only.
+    } catch (error, stackTrace) {
+      AppLogger.warning('[VPN_SM] {"event":"native_status_sync_failed"}');
+      AppLogger.error(
+        'Native VPN status sync failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -359,7 +373,15 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         final config =
             await _storage.getString(SecureStorage.vpnProfileConfigKey) ?? '';
         if (!_hasKillSwitchHooks(config)) return;
-      } catch (_) {
+      } catch (error, stackTrace) {
+        AppLogger.warning(
+          '[VPN_SM] {"event":"kill_switch_config_read_failed"}',
+        );
+        AppLogger.error(
+          'Kill-switch connectivity check failed to read cached config',
+          error: error,
+          stackTrace: stackTrace,
+        );
         return;
       }
 
@@ -885,7 +907,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       }
 
       return nativeProfile;
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (error is _VpnOperationCancelled ||
           (error is DioException && CancelToken.isCancel(error))) {
         rethrow;
@@ -897,19 +919,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         );
       }
 
-      if (effectiveProtocol != VpnProtocol.wireGuard) {
-        rethrow;
-      }
-      final cached =
-          await _storage.getString(SecureStorage.vpnProfileConfigKey) ?? '';
-      if (cached.trim().isNotEmpty) {
-        AppLogger.warning('Using cached VPN profile (profile fetch failed).');
-        await _validateWireGuardConfig(cached);
-        return <String, dynamic>{
-          'type': 'wireguard',
-          'wireguard_config': cached,
-        };
-      }
+      AppLogger.warning(
+        '[VPN_SM] {"event":"profile_fetch_failed","protocol":"${effectiveProtocol.name}","fallback":"disabled"}',
+      );
+      AppLogger.error(
+        'VPN profile fetch failed (no local fallback allowed)',
+        error: error,
+        stackTrace: stackTrace,
+      );
       rethrow;
     }
   }
@@ -940,8 +957,15 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     try {
       final api = _ref.read(apiClientProvider);
       await api.notifyVpnDisconnected();
-    } catch (_) {
-      AppLogger.info('Backend disconnect notification skipped.');
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        '[VPN_SM] {"event":"backend_disconnect_notify_failed"}',
+      );
+      AppLogger.error(
+        'Backend disconnect notification failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -949,8 +973,15 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     try {
       final api = _ref.read(apiClientProvider);
       await api.notifyVpnConnected(region: state.selectedServerId);
-    } catch (_) {
-      AppLogger.info('Backend connect notification skipped.');
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        '[VPN_SM] {"event":"backend_connect_notify_failed"}',
+      );
+      AppLogger.error(
+        'Backend connect notification failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -989,8 +1020,15 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   Future<void> _disconnectAfterStaleConnect(VpnService service) async {
     try {
       await service.disconnect().timeout(_config.disconnectTimeout);
-    } catch (_) {
-      // Best-effort cleanup only.
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        '[VPN_SM] {"event":"stale_connect_cleanup_failed"}',
+      );
+      AppLogger.error(
+        'Stale connect cleanup disconnect failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 

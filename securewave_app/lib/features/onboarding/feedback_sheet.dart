@@ -91,7 +91,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                 const SizedBox(height: AppSpacing.space5),
 
                 // ── Title ───────────────────────────────────────────────
-                Text(
+                const Text(
                   'Send Feedback',
                   style: TextStyle(
                     fontSize: 20,
@@ -139,20 +139,20 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     hintText: 'Describe your feedback...',
-                    hintStyle: TextStyle(color: AppColors.inkSoft),
+                    hintStyle: const TextStyle(color: AppColors.inkSoft),
                     filled: true,
                     fillColor: AppColors.surfaceMuted,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-                      borderSide: BorderSide(color: AppColors.border),
+                      borderSide: const BorderSide(color: AppColors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-                      borderSide: BorderSide(color: AppColors.border),
+                      borderSide: const BorderSide(color: AppColors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-                      borderSide: BorderSide(
+                      borderSide: const BorderSide(
                         color: AppColors.primary,
                         width: 1.5,
                       ),

@@ -26,15 +26,35 @@ class ProtocolSelector {
     required VpnProtocol selected,
     required VpnCapabilities capabilities,
   }) {
-    final requested =
-        selected == VpnProtocol.auto ? _autoPreferred(capabilities) : selected;
-    if (requested == null) {
-      return ProtocolResolution(
-        selected: selected,
-        effective: VpnProtocol.auto,
-        backendProtocol: VpnProtocol.auto,
-        error: 'No supported VPN runtime is available on this device.',
-      );
+    final availableProtocols = <VpnProtocol>[
+      if (capabilities.wireGuard) VpnProtocol.wireGuard,
+      if (capabilities.openVpn) VpnProtocol.openVpn,
+      if (capabilities.ikev2) VpnProtocol.ikev2,
+    ];
+
+    VpnProtocol? requested;
+    if (selected == VpnProtocol.auto) {
+      if (availableProtocols.isEmpty) {
+        return ProtocolResolution(
+          selected: selected,
+          effective: VpnProtocol.auto,
+          backendProtocol: VpnProtocol.auto,
+          error: 'No supported VPN runtime is available on this device.',
+        );
+      }
+      if (availableProtocols.length > 1) {
+        return ProtocolResolution(
+          selected: selected,
+          effective: VpnProtocol.auto,
+          backendProtocol: VpnProtocol.auto,
+          error: 'Automatic protocol selection is disabled. '
+              'Multiple VPN runtimes are available. Select WireGuard, '
+              'OpenVPN, or IKEv2/IPSec explicitly.',
+        );
+      }
+      requested = availableProtocols.first;
+    } else {
+      requested = selected;
     }
 
     if (!_supportsProtocol(requested, capabilities)) {
@@ -84,12 +104,5 @@ class ProtocolSelector {
     }
     return '${vpnProtocolLabel(protocol)} is not available on this build. '
         'Select a different protocol or switch to Automatic.';
-  }
-
-  VpnProtocol? _autoPreferred(VpnCapabilities capabilities) {
-    if (capabilities.wireGuard) return VpnProtocol.wireGuard;
-    if (capabilities.openVpn) return VpnProtocol.openVpn;
-    if (capabilities.ikev2) return VpnProtocol.ikev2;
-    return null;
   }
 }

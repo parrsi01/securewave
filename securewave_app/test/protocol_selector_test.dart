@@ -23,7 +23,28 @@ void main() {
     expect(resolution.error, contains('OpenVPN runtime is not available'));
   });
 
-  test('auto selects first available protocol without implicit fallback', () {
+  test(
+      'auto returns explicit error and does not choose WireGuard by default when multiple runtimes exist',
+      () {
+    const caps = VpnCapabilities(
+      wireGuard: true,
+      openVpn: true,
+      ikev2: true,
+    );
+
+    final resolution =
+        selector.resolve(selected: VpnProtocol.auto, capabilities: caps);
+
+    expect(resolution.isConnectable, isFalse);
+    expect(resolution.effective, VpnProtocol.auto);
+    expect(resolution.backendProtocol, VpnProtocol.auto);
+    expect(
+      resolution.error,
+      contains('Automatic protocol selection is disabled'),
+    );
+  });
+
+  test('auto can resolve when exactly one runtime is available', () {
     const caps = VpnCapabilities(
       wireGuard: false,
       openVpn: true,

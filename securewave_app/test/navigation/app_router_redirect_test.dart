@@ -27,7 +27,8 @@ void main() {
       );
     });
 
-    test('leaves boot page to login when boot complete and unauthenticated', () {
+    test('leaves boot page to login when boot complete and unauthenticated',
+        () {
       expect(
         resolveAppRedirect(
           bootStatus: BootStatus.ready,
@@ -69,6 +70,22 @@ void main() {
         ),
         isNull,
       );
+    });
+
+    test('converges in one redirect step without looping', () {
+      final first = resolveAppRedirect(
+        bootStatus: BootStatus.ready,
+        isAuthenticated: true,
+        matchedLocation: '/boot',
+      );
+      expect(first, '/home');
+
+      final second = resolveAppRedirect(
+        bootStatus: BootStatus.ready,
+        isAuthenticated: true,
+        matchedLocation: first!,
+      );
+      expect(second, isNull);
     });
   });
 }

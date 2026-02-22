@@ -147,8 +147,13 @@ class ChannelVpnService implements VpnService {
       // No native implementation for this platform/build.
     } on PlatformException catch (error) {
       AppLogger.warning('Native VPN status check failed: ${error.code}');
-    } catch (_) {
-      // Best-effort: never fail app startup due to status sync.
+    } catch (error, stackTrace) {
+      AppLogger.warning('Native VPN status check failed unexpectedly');
+      AppLogger.error(
+        'Native VPN status check failed unexpectedly',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
     return _status;
   }

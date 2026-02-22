@@ -58,7 +58,7 @@ class BootController extends ChangeNotifier {
   BootState get state => _state;
 
   Future<void> _initialize() async {
-    AppLogger.info('Boot: start');
+    AppLogger.info('[BOOT] {"event":"start"}');
     try {
       _setStep(
         'Preparing startup',
@@ -71,7 +71,7 @@ class BootController extends ChangeNotifier {
         stepLabel: 'Startup complete',
         stepDetail: 'Opening the app…',
       );
-      AppLogger.info('Boot: complete');
+      AppLogger.info('[BOOT] {"event":"complete","mode":"normal"}');
     } catch (error, stackTrace) {
       AppLogger.error('Boot failed', error: error, stackTrace: stackTrace);
       // Safe mode: mark as ready but with error message
@@ -82,7 +82,7 @@ class BootController extends ChangeNotifier {
         stepLabel: 'Startup recovered in safe mode',
         stepDetail: 'Some features may require a retry after the app opens.',
       );
-      AppLogger.warning('Boot: entering safe mode');
+      AppLogger.warning('[BOOT] {"event":"complete","mode":"safe"}');
     }
     notifyListeners();
   }
@@ -91,7 +91,8 @@ class BootController extends ChangeNotifier {
     await Future.any([
       _doInitialize(),
       Future.delayed(const Duration(seconds: 10), () {
-        throw TimeoutException('Boot initialization timed out after 10 seconds');
+        throw TimeoutException(
+            'Boot initialization timed out after 10 seconds');
       }),
     ]);
   }
@@ -108,7 +109,7 @@ class BootController extends ChangeNotifier {
       AppConfig.load,
     );
     _ref.read(appConfigProvider.notifier).state = config;
-    AppLogger.info('Boot: config loaded');
+    AppLogger.info('[BOOT] {"event":"config_loaded"}');
     final storage = SecureStorage();
 
     _setStep(
@@ -137,7 +138,7 @@ class BootController extends ChangeNotifier {
           const Duration(seconds: 2),
           () => storage.saveBool(SecureStorage.resetSessionDoneKey, true),
         );
-        AppLogger.info('Boot: session reset');
+        AppLogger.info('[BOOT] {"event":"session_reset"}');
       }
     }
 
@@ -154,10 +155,17 @@ class BootController extends ChangeNotifier {
       );
       if (selectedServer != null) {
         _ref.read(vpnStateProvider.notifier).selectServer(selectedServer);
-        AppLogger.info('Boot: restored server $selectedServer');
+        AppLogger.info(
+          '[BOOT] {"event":"server_restored","server_id":"$selectedServer"}',
+        );
       }
-    } catch (error) {
-      AppLogger.warning('Boot: could not restore server selection');
+    } catch (error, stackTrace) {
+      AppLogger.warning('[BOOT] {"event":"server_restore_failed"}');
+      AppLogger.error(
+        'Boot could not restore server selection',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
 
     // Step 3: (reserved for future security posture initialization)
@@ -173,8 +181,12 @@ class BootController extends ChangeNotifier {
       stepDetail: detail,
     );
     notifyListeners();
+    final escapedLabel = label.replaceAll('"', r'\"');
+    final escapedDetail = detail?.replaceAll('"', r'\"');
     AppLogger.info(
-      'Boot: step="$label"${detail == null ? "" : " detail=\"$detail\""}',
+      '[BOOT] {"event":"step","label":"$escapedLabel"'
+      '${escapedDetail == null ? '' : ',"detail":"$escapedDetail"'}'
+      '}',
     );
   }
 
