@@ -32,29 +32,29 @@ class PlatformNotice extends ConsumerWidget {
     } else if (defaultTargetPlatform == TargetPlatform.linux) {
       if (!caps.linuxWireGuardInstalled) {
         notices.add(caps.wireGuardInstallHint ??
-            'Install wireguard-tools to enable VPN tunneling:\n'
+            'WireGuard: install wireguard-tools to enable VPN tunneling:\n'
                 '  Ubuntu/Debian: sudo apt-get install wireguard-tools');
       }
       if (!caps.openVpn) {
         notices.add(caps.openVpnInstallHint ??
-            'OpenVPN runtime unavailable. Install OpenVPN and retry.');
+            'OpenVPN: requires OS helper (OpenVPN client binary). Install OpenVPN and retry.');
       }
       if (!caps.ikev2) {
         notices.add(caps.ikev2InstallHint ??
-            'IKEv2 requires NetworkManager + strongSwan components.');
+            'IKEv2/IPsec: requires OS helper (NetworkManager + strongSwan components).');
       }
       if (!caps.linuxElevationAvailable) {
         notices.add(caps.linuxElevationHint ??
-            'Administrator elevation is unavailable. '
+            'Administrator prompt helper is unavailable. '
                 'Install PolicyKit (pkexec) and ensure a polkit authentication '
                 'agent is running, or launch SecureWave as root.');
       }
     } else if (defaultTargetPlatform == TargetPlatform.windows) {
       if (!caps.openVpn && caps.openVpnInstallHint != null) {
-        notices.add(caps.openVpnInstallHint!);
+        notices.add('OpenVPN: ${caps.openVpnInstallHint!}');
       }
       if (!caps.ikev2 && caps.ikev2InstallHint != null) {
-        notices.add(caps.ikev2InstallHint!);
+        notices.add('IKEv2/IPsec: ${caps.ikev2InstallHint!}');
       }
     } else {
       if (!caps.wireGuard) {
@@ -64,38 +64,79 @@ class PlatformNotice extends ConsumerWidget {
 
     if (notices.isEmpty) return const SizedBox.shrink();
 
-    final message = notices.join('\n\n');
-
-    return Card(
-      elevation: 0,
-      color: AppColors.secondary.withValues(alpha: 0.12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.space3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: Icon(
-                Icons.info_outline,
-                size: 20,
-                color: AppColors.inkMuted,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.space3),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  fontSize: 13,
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label:
+          'Platform setup notice. ${notices.join('. ')}',
+      child: Card(
+        elevation: 0,
+        color: AppColors.secondary.withValues(alpha: 0.12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.space3),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(
+                  Icons.info_outline,
+                  size: 20,
                   color: AppColors.inkMuted,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: AppSpacing.space3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Platform requirements',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.space1),
+                    ...notices.map(
+                      (notice) => Padding(
+                        padding:
+                            const EdgeInsets.only(bottom: AppSpacing.space1),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Icon(
+                                Icons.fiber_manual_record,
+                                size: 8,
+                                color: AppColors.inkMuted,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.space2),
+                            Expanded(
+                              child: Text(
+                                notice,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.inkMuted,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

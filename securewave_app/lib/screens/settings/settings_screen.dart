@@ -398,6 +398,43 @@ class _ProtocolSelector extends StatelessWidget {
   final bool isDark;
   final void Function(VpnProtocol) onSelect;
 
+  String? _protocolSubtitle(BuildContext context, VpnProtocol protocol) {
+    final platform = Theme.of(context).platform;
+    if (protocol == VpnProtocol.auto) {
+      return 'Automatically chooses the first live protocol runtime.';
+    }
+    return switch (platform) {
+      TargetPlatform.linux => switch (protocol) {
+          VpnProtocol.wireGuard => 'Native WireGuard runtime (requires admin prompt).',
+          VpnProtocol.openVpn => 'Requires local OpenVPN client + elevation.',
+          VpnProtocol.ikev2 =>
+            'Requires OS helper (NetworkManager/strongSwan).',
+          VpnProtocol.auto => null,
+        },
+      TargetPlatform.windows => switch (protocol) {
+          VpnProtocol.wireGuard => 'Uses installed WireGuard for Windows runtime.',
+          VpnProtocol.openVpn => 'Uses OpenVPN for Windows (UAC prompt may appear).',
+          VpnProtocol.ikev2 => 'Uses built-in Windows VPN (RAS/VPN API path).',
+          VpnProtocol.auto => null,
+        },
+      TargetPlatform.macOS => switch (protocol) {
+          VpnProtocol.wireGuard =>
+            'Shown only when this build includes signed Network Extension support.',
+          VpnProtocol.openVpn =>
+            'Requires signed Packet Tunnel / Network Extension support.',
+          VpnProtocol.ikev2 =>
+            'Requires NEVPNManager entitlements and signing.',
+          VpnProtocol.auto => null,
+        },
+      _ => switch (protocol) {
+          VpnProtocol.wireGuard => 'Uses the native VPN runtime on this device.',
+          VpnProtocol.openVpn => 'Uses the native OpenVPN runtime on this device.',
+          VpnProtocol.ikev2 => 'Uses OS-provided IKEv2/IPsec support.',
+          VpnProtocol.auto => null,
+        },
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -437,84 +474,117 @@ class _ProtocolSelector extends StatelessWidget {
           children: selectable.map((p) {
             final isSelected = selected == p;
 
+            final subtitle = _protocolSubtitle(context, p);
+            final semanticHint = subtitle == null
+                ? 'Double tap to select ${vpnProtocolLabel(p)}.'
+                : '$subtitle Double tap to select.';
+
             return SizedBox(
               width: cols == 2
                   ? (constraints.maxWidth - AppSpacing.space2) / 2
                   : double.infinity,
-              child: GestureDetector(
-                onTap: () => onSelect(p),
-                child: AnimatedContainer(
-                  duration: AppAnimations.durationFast,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.space4,
-                    vertical: AppSpacing.space3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? (isDark
-                            ? AppColors.primaryBright.withValues(alpha: 0.12)
-                            : AppColors.primaryLight)
-                        : (isDark ? AppColors.darkSurface : AppColors.surface),
+              child: Semantics(
+                button: true,
+                selected: isSelected,
+                label: 'VPN protocol ${vpnProtocolLabel(p)}',
+                hint: semanticHint,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
-                    border: Border.all(
-                      color: isSelected
-                          ? (isDark
-                              ? AppColors.primaryBright
-                              : AppColors.primary)
-                          : (isDark ? AppColors.darkBorder : AppColors.border),
-                      width: isSelected ? 1.5 : 0.5,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      AnimatedContainer(
-                        duration: AppAnimations.durationFast,
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                    onTap: () => onSelect(p),
+                    child: AnimatedContainer(
+                      duration: AppAnimations.durationFast,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.space4,
+                        vertical: AppSpacing.space3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? (isDark
+                                ? AppColors.primaryBright
+                                    .withValues(alpha: 0.12)
+                                : AppColors.primaryLight)
+                            : (isDark ? AppColors.darkSurface : AppColors.surface),
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+                        border: Border.all(
                           color: isSelected
                               ? (isDark
                                   ? AppColors.primaryBright
                                   : AppColors.primary)
-                              : Colors.transparent,
-                          border: Border.all(
-                            color: isSelected
-                                ? (isDark
-                                    ? AppColors.primaryBright
-                                    : AppColors.primary)
-                                : (isDark
-                                    ? AppColors.darkInkSoft
-                                    : AppColors.inkSoft),
-                            width: 2,
-                          ),
+                              : (isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.border),
+                          width: isSelected ? 1.5 : 0.5,
                         ),
-                        child: isSelected
-                            ? const Icon(Icons.check,
-                                size: 10, color: Colors.white)
-                            : null,
                       ),
-                      const SizedBox(width: AppSpacing.space3),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              vpnProtocolLabel(p),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                  ),
+                      child: Row(
+                        children: [
+                          AnimatedContainer(
+                            duration: AppAnimations.durationFast,
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSelected
+                                  ? (isDark
+                                      ? AppColors.primaryBright
+                                      : AppColors.primary)
+                                  : Colors.transparent,
+                              border: Border.all(
+                                color: isSelected
+                                    ? (isDark
+                                        ? AppColors.primaryBright
+                                        : AppColors.primary)
+                                    : (isDark
+                                        ? AppColors.darkInkSoft
+                                        : AppColors.inkSoft),
+                                width: 2,
+                              ),
                             ),
-                          ],
-                        ),
+                            child: isSelected
+                                ? const Icon(Icons.check,
+                                    size: 10, color: Colors.white)
+                                : null,
+                          ),
+                          const SizedBox(width: AppSpacing.space3),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  vpnProtocolLabel(p),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                      ),
+                                ),
+                                if (subtitle != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    subtitle,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: isDark
+                                              ? AppColors.darkInkSoft
+                                              : AppColors.inkMuted,
+                                          height: 1.2,
+                                        ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
