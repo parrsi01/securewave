@@ -169,7 +169,7 @@ class TestFullVPNFlow:
 
 
 # ---------------------------------------------------------------------------
-# Demo VPN Connect / Disconnect Flow
+# VPN Connect / Disconnect Flow (test environment)
 # ---------------------------------------------------------------------------
 
 class TestVPNConnectionEndpoints:

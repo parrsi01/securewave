@@ -46,6 +46,11 @@ RUNTIME_SCAN_PATHS = [
     "securewave_app/lib",
 ]
 WORKFLOW_SCAN_PATHS = [".github/workflows", ".env.example.backend"]
+MOCK_SCAN_EXCLUDE_GLOBS = [
+    "!sandbox/live_validation_multi_protocol/run_validation.py",
+    "!scripts/ci_multiprotocol_release_guardrails.sh",
+    "!scripts/ci_multiprotocol_safety_check.sh",
+]
 MOCK_PATTERNS = [
     r"\bDEMO_MODE\b",
     r"\bWG_MOCK_MODE\b",
@@ -207,6 +212,7 @@ def run_mock_scan(ctx: RunContext, paths: list[str], scope: str) -> list[dict[st
         "-i",
         "--no-heading",
         pattern,
+        *[f"--glob={glob}" for glob in MOCK_SCAN_EXCLUDE_GLOBS],
         *paths,
     ]
     result = run_logged_command(ctx, name=f"mock_scan_{scope}", command=command, timeout_seconds=20)

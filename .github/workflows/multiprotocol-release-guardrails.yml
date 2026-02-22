@@ -1,0 +1,121 @@
+name: Multiprotocol Release Guardrails
+
+on:
+  workflow_dispatch:
+    inputs:
+      enable_live:
+        description: "Enable live API/data-plane validation checks"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      strict_live:
+        description: "Fail on partial/skipped live validation rows"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+  pull_request:
+  push:
+    branches:
+      - main
+      - release/**
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Multiprotocol release guardrail lint
+        run: bash scripts/ci_multiprotocol_release_guardrails.sh lint
+
+  tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Backend multiprotocol CI tests
+        env:
+          PYTEST_ARGS: >-
+            tests/unit/test_download_manifest.py
+            tests/unit/test_live_validation_multi_protocol.py
+            tests/security/test_multiprotocol_ci_safety.py
+            -q
+        run: bash scripts/run_backend_tests.sh
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter multiprotocol tests
+        working-directory: securewave_app
+        run: |
+          flutter test \
+            test/protocol_capability_matrix_test.dart \
+            test/protocol_selector_test.dart \
+            test/state_machine/protocol_transition_test.dart
+
+  artifact-checksum-validation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs:
+      - lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate release manifest and checksums
+        run: bash scripts/ci_multiprotocol_release_guardrails.sh artifact
+
+  multiprotocol-live-validation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs:
+      - lint
+      - tests
+    env:
+      LIVE_MULTI_PROTOCOL_ENABLE_LIVE: ${{ github.event.inputs.enable_live || vars.LIVE_MULTI_PROTOCOL_ENABLE_LIVE || 'false' }}
+      LIVE_MULTI_PROTOCOL_STRICT: ${{ github.event.inputs.strict_live || vars.LIVE_MULTI_PROTOCOL_STRICT || 'false' }}
+      LIVE_MULTI_PROTOCOL_API_BASE_URL: ${{ vars.LIVE_MULTI_PROTOCOL_API_BASE_URL || '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run multiprotocol live validation suite
+        run: |
+          echo "LIVE_MULTI_PROTOCOL_ENABLE_LIVE=${LIVE_MULTI_PROTOCOL_ENABLE_LIVE}"
+          echo "LIVE_MULTI_PROTOCOL_STRICT=${LIVE_MULTI_PROTOCOL_STRICT}"
+          bash sandbox/live_validation_multi_protocol/run_suite.sh
+
+      - name: Upload multiprotocol validation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: multiprotocol-live-validation
+          path: artifacts/live_validation_multi_protocol
+          if-no-files-found: warn
+          retention-days: 14
