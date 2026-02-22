@@ -1,13 +1,34 @@
 <svg width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
   <title>SecureWave</title>
   <defs>
-    <linearGradient id="sw-shield" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1B6B68"/>
-      <stop offset="1" stop-color="#0F4F4C"/>
+    <linearGradient id="sw-shield-fill" x1="26" y1="22" x2="114" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1A7A7A"/>
+      <stop offset="0.55" stop-color="#126567"/>
+      <stop offset="1" stop-color="#0A2E3B"/>
     </linearGradient>
+    <linearGradient id="sw-wave-1" x1="44" y1="63" x2="98" y2="77" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D8FFF7"/>
+      <stop offset="1" stop-color="#6EE7D8"/>
+    </linearGradient>
+    <linearGradient id="sw-wave-2" x1="44" y1="75" x2="98" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C7FFF3"/>
+      <stop offset="1" stop-color="#4CD1C6"/>
+    </linearGradient>
+    <radialGradient id="sw-core" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(70 66) rotate(90) scale(30)">
+      <stop offset="0" stop-color="#F3FBFF"/>
+      <stop offset="1" stop-color="#D7EEF6"/>
+    </radialGradient>
   </defs>
-  <path d="M70 10C46 24 28 28 28 28v34c0 33.5 22 58 42 68 20-10 42-34.5 42-68V28s-18-4-42-18z" fill="url(#sw-shield)"/>
-  <circle cx="70" cy="66" r="28" fill="#F5F7FB"/>
-  <path d="M42 72c10-10 24-14 38-12 8 1 16 4 24 9" stroke="#1B6B68" stroke-width="6" stroke-linecap="round"/>
-  <path d="M48 86c8-8 20-11 32-9 6 1 12 3 18 6" stroke="#0F4F4C" stroke-width="6" stroke-linecap="round"/>
+
+  <path d="M70 12C57 21 42 28 28 31v33c0 18 6 34 16 47 7 9 16 16 26 22 10-6 19-13 26-22 10-13 16-29 16-47V31c-14-3-29-10-42-19z" fill="url(#sw-shield-fill)"/>
+  <path d="M70 18C58 26 45 31 34 34v30c0 16 5 30 14 42 6 7 13 13 22 19 9-6 16-12 22-19 9-12 14-26 14-42V34c-11-3-24-8-36-16z" fill="none" stroke="#8DE7D8" stroke-opacity="0.35" stroke-width="1.5"/>
+
+  <circle cx="70" cy="67" r="28" fill="url(#sw-core)"/>
+  <circle cx="70" cy="67" r="28" fill="none" stroke="#0F4D5C" stroke-opacity="0.18" stroke-width="1"/>
+
+  <path d="M44 69c8-7 17-10 28-9 10 1 18 4 26 9" stroke="url(#sw-wave-1)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M46 81c7-6 15-8 24-7 8 1 15 3 22 7" stroke="url(#sw-wave-2)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M51 91c5-3 11-5 18-4 6 0 11 2 16 4" stroke="#2AA8A5" stroke-width="3" stroke-linecap="round" opacity="0.95"/>
+
+  <path d="M48 50c7-8 14-12 22-14" stroke="#D8FFF7" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
 </svg>

@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -61,6 +60,41 @@ Page<T> _buildPage<T>({
 }
 
 /// Main app router provider.
+String? resolveAppRedirect({
+  required BootStatus bootStatus,
+  required bool isAuthenticated,
+  required String matchedLocation,
+}) {
+  final booting = bootStatus == BootStatus.initializing;
+  final authed = isAuthenticated;
+  final onBootPage = matchedLocation == '/boot';
+  final onAuthPage =
+      matchedLocation == '/login' || matchedLocation == '/register';
+
+  // Show boot screen while bootstrapping
+  if (booting && !onBootPage) {
+    return '/boot';
+  }
+
+  // Always leave the boot screen once initialization completes.
+  // Without this, authenticated users can remain on /boot indefinitely.
+  if (!booting && onBootPage) {
+    return authed ? '/home' : '/login';
+  }
+
+  // After boot: redirect to login if not authenticated
+  if (!booting && !authed && !onAuthPage) {
+    return '/login';
+  }
+
+  // After boot: redirect to home if authenticated and on auth page
+  if (!booting && authed && onAuthPage) {
+    return '/home';
+  }
+
+  return null;
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authSession = ref.watch(authSessionProvider);
   final boot = ref.watch(bootControllerProvider);
@@ -70,27 +104,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/boot',
     refreshListenable: refreshListenable,
     redirect: (context, state) {
-      final booting = boot.state.status == BootStatus.initializing;
-      final authed = authSession.isAuthenticated;
-      final onAuthPage =
-          state.matchedLocation == '/login' || state.matchedLocation == '/register';
-
-      // Show boot screen while bootstrapping
-      if (booting && state.matchedLocation != '/boot') {
-        return '/boot';
-      }
-
-      // After boot: redirect to login if not authenticated
-      if (!booting && !authed && !onAuthPage) {
-        return '/login';
-      }
-
-      // After boot: redirect to home if authenticated and on auth page
-      if (!booting && authed && onAuthPage) {
-        return '/home';
-      }
-
-      return null; // No redirect
+      return resolveAppRedirect(
+        bootStatus: boot.state.status,
+        isAuthenticated: authSession.isAuthenticated,
+        matchedLocation: state.matchedLocation,
+      );
     },
     routes: [
       // Boot screen
