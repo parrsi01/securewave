@@ -88,7 +88,13 @@ class VpnCapabilities {
 }
 
 class ChannelVpnService implements VpnService {
-  ChannelVpnService() {
+  ChannelVpnService({
+    Duration capabilitiesCacheTtl = const Duration(seconds: 3),
+    Duration availabilityCacheTtl = const Duration(seconds: 2),
+    DateTime Function()? clock,
+  })  : _capabilitiesCacheTtl = capabilitiesCacheTtl,
+        _availabilityCacheTtl = availabilityCacheTtl,
+        _clock = clock ?? DateTime.now {
     _nativeAvailable = false;
     unawaited(
       _refreshNativeAvailability().catchError((Object error, StackTrace stack) {
@@ -104,9 +110,15 @@ class ChannelVpnService implements VpnService {
   }
 
   final MethodChannel _channel = const MethodChannel('securewave/vpn');
+  final Duration _capabilitiesCacheTtl;
+  final Duration _availabilityCacheTtl;
+  final DateTime Function() _clock;
   VpnStatus _status = VpnStatus.disconnected;
   bool _nativeAvailable = false;
   String? _lastNativeAvailabilityMessage;
+  VpnCapabilities? _cachedCapabilities;
+  DateTime? _capabilitiesCachedAt;
+  DateTime? _nativeAvailabilityCheckedAt;
 
   @override
   bool get isNativeAvailable => _nativeAvailable;
@@ -200,6 +212,8 @@ class ChannelVpnService implements VpnService {
     } on PlatformException catch (error) {
       if (_isNativeUnavailableError(error)) {
         _nativeAvailable = false;
+        _nativeAvailabilityCheckedAt = _clock();
+        _invalidateCapabilitiesCache();
         _status = VpnStatus.disconnected;
         throw VpnServiceException(
           error.code,
@@ -218,6 +232,8 @@ class ChannelVpnService implements VpnService {
       }
     } on MissingPluginException {
       _nativeAvailable = false;
+      _nativeAvailabilityCheckedAt = _clock();
+      _invalidateCapabilitiesCache();
       _status = VpnStatus.disconnected;
       throw VpnServiceException(
         'vpn_unavailable',
@@ -230,6 +246,11 @@ class ChannelVpnService implements VpnService {
 
   @override
   Future<VpnCapabilities> getCapabilities() async {
+    final cached = _cachedCapabilities;
+    if (cached != null &&
+        _isCacheFresh(_capabilitiesCachedAt, _capabilitiesCacheTtl)) {
+      return cached;
+    }
     if (!_supportsNativeChannel()) return VpnCapabilities.none;
     final os = platform.operatingSystem.name.toLowerCase();
     try {
@@ -253,7 +274,7 @@ class ChannelVpnService implements VpnService {
           return text.trim();
         }
 
-        return VpnCapabilities(
+        final capabilities = VpnCapabilities(
           wireGuard: b('wireguard'),
           openVpn: b('openvpn'),
           ikev2: b('ikev2'),
@@ -269,6 +290,8 @@ class ChannelVpnService implements VpnService {
           linuxElevationHint: s('linux_elevation_hint'),
           macosEntitlementWarning: s('macos_entitlement_warning'),
         );
+        _cacheCapabilities(capabilities);
+        return capabilities;
       }
     } on TimeoutException {
       // Fall back below.
@@ -284,7 +307,7 @@ class ChannelVpnService implements VpnService {
     final macosWarning =
         os == 'macos' && !wgAvailable ? _macosEntitlementWarning() : null;
 
-    return VpnCapabilities(
+    final fallbackCapabilities = VpnCapabilities(
       wireGuard: wgAvailable,
       openVpn: false,
       ikev2: false,
@@ -300,6 +323,8 @@ class ChannelVpnService implements VpnService {
           os == 'linux' && !wgAvailable ? _linuxElevationGuide() : null,
       macosEntitlementWarning: macosWarning,
     );
+    _cacheCapabilities(fallbackCapabilities);
+    return fallbackCapabilities;
   }
 
   @override
@@ -327,6 +352,8 @@ class ChannelVpnService implements VpnService {
     } on PlatformException catch (error) {
       if (_isNativeUnavailableError(error)) {
         _nativeAvailable = false;
+        _nativeAvailabilityCheckedAt = _clock();
+        _invalidateCapabilitiesCache();
         _status = VpnStatus.disconnected;
       } else {
         throw VpnServiceException(
@@ -337,6 +364,8 @@ class ChannelVpnService implements VpnService {
       }
     } on MissingPluginException {
       _nativeAvailable = false;
+      _nativeAvailabilityCheckedAt = _clock();
+      _invalidateCapabilitiesCache();
       _status = VpnStatus.disconnected;
     }
     return _status;
@@ -355,11 +384,16 @@ class ChannelVpnService implements VpnService {
         os == 'linux';
   }
 
-  Future<bool> _refreshNativeAvailability() async {
+  Future<bool> _refreshNativeAvailability({bool forceRefresh = false}) async {
+    if (!forceRefresh &&
+        _isCacheFresh(_nativeAvailabilityCheckedAt, _availabilityCacheTtl)) {
+      return _nativeAvailable;
+    }
     if (!_supportsNativeChannel()) {
       _nativeAvailable = false;
       _lastNativeAvailabilityMessage =
           'VPN is unavailable in this environment.';
+      _nativeAvailabilityCheckedAt = _clock();
       return _nativeAvailable;
     }
     final os = platform.operatingSystem.name.toLowerCase();
@@ -377,20 +411,40 @@ class ChannelVpnService implements VpnService {
       } else {
         _lastNativeAvailabilityMessage = _defaultUnavailableMessage(os);
       }
+      _nativeAvailabilityCheckedAt = _clock();
     } on TimeoutException {
       _nativeAvailable = false;
       _lastNativeAvailabilityMessage =
           'VPN availability check timed out. Retry in a moment.';
+      _nativeAvailabilityCheckedAt = _clock();
     } on MissingPluginException {
       _nativeAvailable = false;
       _lastNativeAvailabilityMessage =
           'Native VPN plugin missing for this platform/build.';
+      _nativeAvailabilityCheckedAt = _clock();
     } on PlatformException catch (error) {
       _lastNativeAvailabilityMessage =
           error.message ?? _defaultUnavailableMessage(os);
       _nativeAvailable = false;
+      _nativeAvailabilityCheckedAt = _clock();
     }
     return _nativeAvailable;
+  }
+
+  bool _isCacheFresh(DateTime? cachedAt, Duration ttl) {
+    if (cachedAt == null) return false;
+    final age = _clock().difference(cachedAt);
+    return age >= Duration.zero && age <= ttl;
+  }
+
+  void _cacheCapabilities(VpnCapabilities capabilities) {
+    _cachedCapabilities = capabilities;
+    _capabilitiesCachedAt = _clock();
+  }
+
+  void _invalidateCapabilitiesCache() {
+    _cachedCapabilities = null;
+    _capabilitiesCachedAt = null;
   }
 
   String _defaultUnavailableMessage(String os) {

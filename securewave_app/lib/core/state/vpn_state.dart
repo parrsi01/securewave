@@ -147,6 +147,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   final Ref _ref;
   final VpnStateMachineConfig _config;
   final _predictor = const MarLXGBPredictor();
+  final SecureStorage _storage = SecureStorage();
   final List<VpnTransitionRecord> _transitionHistory = <VpnTransitionRecord>[];
 
   Timer? _rateTimer;
@@ -159,6 +160,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   bool _reconcileRunning = false;
   bool _reconcileRequested = false;
   bool _disposed = false;
+  Future<DeviceIdentity>? _deviceIdentityFuture;
+  bool _metricsSnapshotInFlight = false;
+  DateTime? _lastMetricsSnapshotAt;
+  static const Duration _metricsSnapshotThrottle = Duration(seconds: 3);
 
   @visibleForTesting
   bool get debugHasRateTimer => _rateTimer?.isActive ?? false;
@@ -171,8 +176,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       List.unmodifiable(_transitionHistory);
 
   Future<void> _loadProtocol() async {
-    final stored =
-        await SecureStorage().getString(SecureStorage.vpnProtocolKey);
+    final stored = await _storage.getString(SecureStorage.vpnProtocolKey);
     if (!mounted) return;
     state = state.copyWith(
       protocol: vpnProtocolFromStorage(stored),
@@ -223,13 +227,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   void selectServer(String? serverId) {
     state = state.copyWith(selectedServerId: serverId);
-    final storage = SecureStorage();
     _safeFireAndForget(
       () async {
         if (serverId != null) {
-          await storage.saveString(SecureStorage.selectedServerKey, serverId);
+          await _storage.saveString(SecureStorage.selectedServerKey, serverId);
         } else {
-          await storage.delete(SecureStorage.selectedServerKey);
+          await _storage.delete(SecureStorage.selectedServerKey);
         }
       }(),
       context: 'persist_server_selection',
@@ -267,7 +270,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       clearEffectiveProtocol: true,
       clearProtocolMessage: true,
     );
-    await SecureStorage().saveString(
+    await _storage.saveString(
       SecureStorage.vpnProtocolKey,
       vpnProtocolStorageValue(protocol),
     );
@@ -353,9 +356,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (state.status != VpnStatus.connected) return;
 
       try {
-        final storage = SecureStorage();
         final config =
-            await storage.getString(SecureStorage.vpnProfileConfigKey) ?? '';
+            await _storage.getString(SecureStorage.vpnProfileConfigKey) ?? '';
         if (!_hasKillSwitchHooks(config)) return;
       } catch (_) {
         return;
@@ -826,11 +828,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }) async {
     _throwIfCancelled(op);
     final api = _ref.read(apiClientProvider);
-    final storage = SecureStorage();
-
-    final identity = await DeviceIdentity.load();
+    final identity = await _loadDeviceIdentity();
     _throwIfCancelled(op);
-    final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
+    final deviceId = await _storage.getInt(SecureStorage.vpnDeviceIdKey);
     _throwIfCancelled(op);
 
     try {
@@ -855,10 +855,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       );
 
       if (profile.deviceId > 0) {
-        await storage.saveInt(SecureStorage.vpnDeviceIdKey, profile.deviceId);
+        await _storage.saveInt(SecureStorage.vpnDeviceIdKey, profile.deviceId);
       }
       if (profile.expiresAt != null) {
-        await storage.saveString(
+        await _storage.saveString(
           SecureStorage.vpnProfileExpiresAtKey,
           profile.expiresAt!.toIso8601String(),
         );
@@ -880,7 +880,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         await _validateWireGuardConfig(configText);
         _throwIfCancelled(op);
         nativeProfile['wireguard_config'] = configText;
-        await storage.saveString(SecureStorage.vpnProfileConfigKey, configText);
+        await _storage.saveString(
+            SecureStorage.vpnProfileConfigKey, configText);
       }
 
       return nativeProfile;
@@ -900,7 +901,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         rethrow;
       }
       final cached =
-          await storage.getString(SecureStorage.vpnProfileConfigKey) ?? '';
+          await _storage.getString(SecureStorage.vpnProfileConfigKey) ?? '';
       if (cached.trim().isNotEmpty) {
         AppLogger.warning('Using cached VPN profile (profile fetch failed).');
         await _validateWireGuardConfig(cached);
@@ -927,6 +928,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
+  Future<DeviceIdentity> _loadDeviceIdentity() {
+    final cached = _deviceIdentityFuture;
+    if (cached != null) return cached;
+    final future = DeviceIdentity.load();
+    _deviceIdentityFuture = future;
+    return future;
+  }
+
   Future<void> _notifyBackendDisconnected() async {
     try {
       final api = _ref.read(apiClientProvider);
@@ -949,15 +958,32 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     required String event,
     required int operationId,
   }) async {
-    final snapshot =
-        await _ref.read(apiClientProvider).fetchVpnMetricsSnapshot();
-    if (snapshot == null || snapshot.isEmpty) return;
-    final payload = <String, Object?>{
-      'event': event,
-      'operation_id': operationId,
-      'snapshot': snapshot,
-    };
-    AppLogger.info('[VPN_SM] ${payload.toString()}');
+    final now = DateTime.now();
+    if (_metricsSnapshotInFlight) {
+      AppLogger.info('[VPN_SM] metrics snapshot skipped (in-flight).');
+      return;
+    }
+    if (_lastMetricsSnapshotAt != null &&
+        now.difference(_lastMetricsSnapshotAt!) < _metricsSnapshotThrottle) {
+      AppLogger.info('[VPN_SM] metrics snapshot skipped (throttled).');
+      return;
+    }
+
+    _metricsSnapshotInFlight = true;
+    try {
+      final snapshot =
+          await _ref.read(apiClientProvider).fetchVpnMetricsSnapshot();
+      _lastMetricsSnapshotAt = DateTime.now();
+      if (snapshot == null || snapshot.isEmpty) return;
+      final payload = <String, Object?>{
+        'event': event,
+        'operation_id': operationId,
+        'snapshot': snapshot,
+      };
+      AppLogger.info('[VPN_SM] ${payload.toString()}');
+    } finally {
+      _metricsSnapshotInFlight = false;
+    }
   }
 
   Future<void> _disconnectAfterStaleConnect(VpnService service) async {

@@ -24,22 +24,30 @@ class StatusDisplay extends ConsumerStatefulWidget {
 
 class _StatusDisplayState extends ConsumerState<StatusDisplay> {
   Timer? _timer;
+  Duration? _timerCadence;
   DateTime? _connectedSince;
   Duration _elapsed = Duration.zero;
   DateTime _tickNow = DateTime.now();
 
   void _syncTimer(VpnStatus status) {
-    final shouldTick = status == VpnStatus.connected ||
-        status == VpnStatus.connecting ||
-        status == VpnStatus.disconnecting;
+    final isConnected = status == VpnStatus.connected;
+    final isConnecting = status == VpnStatus.connecting;
+    final shouldTick = isConnected || isConnecting;
+    final cadence =
+        isConnected ? const Duration(seconds: 1) : const Duration(seconds: 2);
     if (shouldTick) {
-      if (status == VpnStatus.connected) {
+      if (isConnected) {
         _connectedSince ??= DateTime.now();
       } else {
         _connectedSince = null;
         _elapsed = Duration.zero;
       }
-      _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_timer != null && _timerCadence != cadence) {
+        _timer?.cancel();
+        _timer = null;
+      }
+      _timerCadence = cadence;
+      _timer ??= Timer.periodic(cadence, (_) {
         if (!mounted) return;
         setState(() {
           _tickNow = DateTime.now();
@@ -52,6 +60,7 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
     } else {
       _timer?.cancel();
       _timer = null;
+      _timerCadence = null;
       _connectedSince = null;
       _elapsed = Duration.zero;
     }
@@ -60,6 +69,7 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
   @override
   void dispose() {
     _timer?.cancel();
+    _timerCadence = null;
     super.dispose();
   }
 
@@ -150,7 +160,8 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
     }
     if (protocol == VpnProtocol.ikev2) {
       return switch (platform) {
-        TargetPlatform.linux => 'Requires OS helper (NetworkManager/strongSwan)',
+        TargetPlatform.linux =>
+          'Requires OS helper (NetworkManager/strongSwan)',
         TargetPlatform.windows => 'Uses built-in Windows VPN',
         TargetPlatform.macOS => 'NEVPNManager entitlements required',
         _ => 'Uses OS IKEv2/IPsec support',
@@ -206,7 +217,8 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
     }
     return (
       title: 'Preparing VPN profile',
-      detail: 'Requesting $protocolName configuration and validating runtime requirements.',
+      detail:
+          'Requesting $protocolName configuration and validating runtime requirements.',
       progress: 0.15,
     );
   }
@@ -417,11 +429,9 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
                           '${connectElapsed.inSeconds}s',
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.inkMuted,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures()
-                                    ],
-                                  ),
+                            color: AppColors.inkMuted,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
                         ),
                     ],
                   ),
@@ -429,8 +439,7 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
                   LinearProgressIndicator(
                     minHeight: 6,
                     value: connectProgress.progress.clamp(0.0, 0.95),
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.radiusXL),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
                     backgroundColor:
                         AppColors.secondary.withValues(alpha: 0.12),
                   ),
