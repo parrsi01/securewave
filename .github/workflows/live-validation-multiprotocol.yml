@@ -2,6 +2,23 @@ name: Live Validation Multi-Protocol
 
 on:
   workflow_dispatch:
+    inputs:
+      enable_live:
+        description: "Enable live API/data-plane checks (requires configured env/secrets)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      strict:
+        description: "Fail on partial/skipped validations"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
   pull_request:
   push:
     branches:
@@ -24,9 +41,12 @@ jobs:
 
       - name: Run non-invasive multi-protocol validation suite
         env:
-          LIVE_MULTI_PROTOCOL_ENABLE_LIVE: "false"
-          LIVE_MULTI_PROTOCOL_STRICT: "false"
+          LIVE_MULTI_PROTOCOL_ENABLE_LIVE: ${{ github.event.inputs.enable_live || vars.LIVE_MULTI_PROTOCOL_ENABLE_LIVE || 'false' }}
+          LIVE_MULTI_PROTOCOL_STRICT: ${{ github.event.inputs.strict || vars.LIVE_MULTI_PROTOCOL_STRICT || 'false' }}
+          LIVE_MULTI_PROTOCOL_API_BASE_URL: ${{ vars.LIVE_MULTI_PROTOCOL_API_BASE_URL || '' }}
         run: |
+          echo "LIVE_MULTI_PROTOCOL_ENABLE_LIVE=${LIVE_MULTI_PROTOCOL_ENABLE_LIVE}"
+          echo "LIVE_MULTI_PROTOCOL_STRICT=${LIVE_MULTI_PROTOCOL_STRICT}"
           bash sandbox/live_validation_multi_protocol/run_suite.sh
 
       - name: Upload multi-protocol validation artifacts

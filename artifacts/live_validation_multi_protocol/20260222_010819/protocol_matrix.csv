@@ -1,0 +1,16 @@
+timestamp,platform,protocol,support_status,reason,ui_declared,backend_enabled,runtime_ready_on_host,evidence_level
+2026-02-22T01:08:19.281322+00:00,linux,wireguard,supported,Declared by UI; backend check unavailable in this environment,True,,True,claim_only
+2026-02-22T01:08:19.281327+00:00,linux,openvpn,supported,Declared by UI; backend check unavailable in this environment,True,,True,claim_only
+2026-02-22T01:08:19.281330+00:00,linux,ikev2,unsupported,Native runtime missing on host: strongSwan tooling missing (swanctl/ipsec),True,,False,runtime_verified
+2026-02-22T01:08:19.281332+00:00,windows,wireguard,supported,Declared by UI; backend check unavailable in this environment,True,,,claim_only
+2026-02-22T01:08:19.281333+00:00,windows,openvpn,supported,Declared by UI; backend check unavailable in this environment,True,,,claim_only
+2026-02-22T01:08:19.281335+00:00,windows,ikev2,supported,Declared by UI; backend check unavailable in this environment,True,,,claim_only
+2026-02-22T01:08:19.281336+00:00,macos,wireguard,supported,Declared by UI; backend check unavailable in this environment,True,,,claim_only
+2026-02-22T01:08:19.281338+00:00,macos,openvpn,supported,Declared by UI; backend check unavailable in this environment,True,,,claim_only
+2026-02-22T01:08:19.281339+00:00,macos,ikev2,supported,Declared by UI; backend check unavailable in this environment,True,,,claim_only
+2026-02-22T01:08:19.281340+00:00,android,wireguard,supported,Declared by UI; backend check unavailable in this environment,True,,,claim_only
+2026-02-22T01:08:19.281342+00:00,android,openvpn,unsupported,Not declared by protocol capability matrix for this platform,False,,,source_of_truth
+2026-02-22T01:08:19.281343+00:00,android,ikev2,unsupported,Not declared by protocol capability matrix for this platform,False,,,source_of_truth
+2026-02-22T01:08:19.281346+00:00,ios,wireguard,supported,Declared by UI; backend check unavailable in this environment,True,,,claim_only
+2026-02-22T01:08:19.281347+00:00,ios,openvpn,unsupported,Not declared by protocol capability matrix for this platform,False,,,source_of_truth
+2026-02-22T01:08:19.281349+00:00,ios,ikev2,unsupported,Not declared by protocol capability matrix for this platform,False,,,source_of_truth

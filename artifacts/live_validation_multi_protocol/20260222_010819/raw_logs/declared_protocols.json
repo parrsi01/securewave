@@ -1,0 +1,23 @@
+{
+  "linux": [
+    "ikev2",
+    "openvpn",
+    "wireguard"
+  ],
+  "windows": [
+    "ikev2",
+    "openvpn",
+    "wireguard"
+  ],
+  "macos": [
+    "ikev2",
+    "openvpn",
+    "wireguard"
+  ],
+  "android": [
+    "wireguard"
+  ],
+  "ios": [
+    "wireguard"
+  ]
+}

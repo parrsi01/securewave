@@ -1,0 +1,4 @@
+timestamp,protocol,platform,validation_mode,result,mode,enforcement,reason,evidence
+2026-02-22T01:08:19.281474+00:00,wireguard,linux,profile_claim,manual_required,,,Live API mode disabled or auth failed,
+2026-02-22T01:08:19.281478+00:00,openvpn,linux,profile_claim,manual_required,,,Live API mode disabled or auth failed,
+2026-02-22T01:08:19.281481+00:00,ikev2,linux,profile_claim,manual_required,,,Live API mode disabled or auth failed,

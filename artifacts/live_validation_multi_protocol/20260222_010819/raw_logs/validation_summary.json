@@ -1,0 +1,11 @@
+{
+  "generated_at": "2026-02-22T01:08:19.312712+00:00",
+  "output_dir": "/home/sp/cyber-course/projects/securewave/artifacts/live_validation_multi_protocol/20260222_010819",
+  "host_platform": "linux",
+  "live_api_enabled": false,
+  "runtime_mock_hits": 0,
+  "workflow_mock_hits": 0,
+  "dns_failures": 0,
+  "kill_switch_failures": 0,
+  "error_ux_failures": 0
+}

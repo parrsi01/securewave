@@ -1,0 +1,3 @@
+timestamp,region,platform,protocol,url,throughput_mbps,status,reason,evidence
+2026-02-22T01:08:19.291490+00:00,barbados,linux,baseline,,,manual_required,throughput_url_not_configured,
+2026-02-22T01:08:19.312302+00:00,europe,linux,baseline,https://speed.hetzner.de/10MB.bin,,manual_required,curl_failed_exit_6,curl -sS -o /dev/null --connect-timeout 6 --max-time 30 --range 0-5242879 -w '%{http_code} %{speed_download} %{time_total}' https://speed.hetzner.de/10MB.bin

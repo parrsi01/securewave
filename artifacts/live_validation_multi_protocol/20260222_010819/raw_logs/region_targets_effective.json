@@ -1,0 +1,21 @@
+{
+  "path": "/home/sp/cyber-course/projects/securewave/sandbox/live_validation_multi_protocol/region_targets.json",
+  "regions": [
+    {
+      "name": "barbados",
+      "ping_targets": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ],
+      "throughput_url": ""
+    },
+    {
+      "name": "europe",
+      "ping_targets": [
+        "1.1.1.1",
+        "9.9.9.9"
+      ],
+      "throughput_url": "https://speed.hetzner.de/10MB.bin"
+    }
+  ]
+}
