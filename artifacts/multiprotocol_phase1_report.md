@@ -152,3 +152,8 @@ Removed/disabled in runtime paths:
 - Legacy DB columns for non-phase protocols (e.g., L2TP fields) and broader non-VPN product surfaces.
 4. Risks introduced:
 - More strict explicit protocol validation can surface errors where old behavior silently fell back; clients must handle typed errors correctly.
+
+## Cleanup Update (2026-02-22)
+- Removed remaining CI workflow environment references to `DEMO_MODE` and `WG_MOCK_MODE`.
+- Renamed demo-labeled integration test file to `tests/integration/test_vpn_session_endpoints.py`.
+- Reworded test comments/messages that previously referred to demo/mock behavior; tests now describe test-environment behavior honestly.

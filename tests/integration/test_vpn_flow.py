@@ -310,13 +310,13 @@ class TestServerSelection:
 
 
 # ---------------------------------------------------------------------------
-# Mock Mode Returns Valid Configs
+# Test-Mode Session Endpoint Stability
 # ---------------------------------------------------------------------------
 
-class TestMockMode:
-    """In test mode the VPN flow must be stable."""
+class TestSessionEndpoints:
+    """In test mode the VPN session endpoints must be stable."""
 
-    def test_connect_disconnect_cycle_in_mock(self, client, auth_headers, test_vpn_server):
+    def test_connect_disconnect_cycle(self, client, auth_headers, test_vpn_server):
         """Full connect -> status -> disconnect cycle must not error."""
         conn = client.post("/api/vpn/connect", json={"region": "us-east"}, headers=auth_headers)
         assert conn.status_code == 200

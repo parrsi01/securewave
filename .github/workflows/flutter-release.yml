@@ -24,8 +24,6 @@ jobs:
           FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
           AUTH_ENCRYPTION_KEY: ${{ secrets.AUTH_ENCRYPTION_KEY }}
           WG_ENCRYPTION_KEY: ${{ secrets.WG_ENCRYPTION_KEY }}
-          DEMO_MODE: "false"
-          WG_MOCK_MODE: "false"
         run: bash scripts/release_preflight.sh
 
   package-linux:

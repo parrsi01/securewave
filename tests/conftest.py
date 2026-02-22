@@ -221,7 +221,7 @@ def refresh_token(test_user):
 
 @pytest.fixture
 def test_vpn_server(db):
-    """Seed a single demo VPN server."""
+    """Seed a single test VPN server."""
     from models.vpn_server import VPNServer
 
     server = VPNServer(

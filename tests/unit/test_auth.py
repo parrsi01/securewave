@@ -27,13 +27,13 @@ class TestRegisterSuccess:
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
         assert "access_token" in data or "message" in data
-        # In demo mode, tokens are returned directly
+        # In this test environment, tokens may be returned directly.
         if "access_token" in data:
             assert data["token_type"] == "bearer"
             assert len(data["access_token"]) > 0
 
-    def test_register_returns_csrf_token_in_demo(self, client):
-        """In demo mode, registration returns a CSRF token for cookie auth."""
+    def test_register_returns_csrf_token(self, client):
+        """Registration returns a CSRF token for cookie auth flows."""
         response = client.post("/api/auth/register", json={
             "email": "csrftest@example.com",
             "password": "SecurePass123",
@@ -41,7 +41,7 @@ class TestRegisterSuccess:
         })
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
-        # Demo mode returns csrf_token
+        # Cookie-auth flows return csrf_token.
         assert "csrf_token" in data
 
 

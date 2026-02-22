@@ -5,7 +5,7 @@ Exercises the complete user journey:
 1. Register a new user
 2. Log in
 3. Get dashboard info
-4. Allocate VPN config (or use demo connect)
+4. Allocate VPN config (or use test-environment connect endpoint)
 5. Report connection quality
 6. Check optimizer stats
 7. Log out
@@ -139,7 +139,7 @@ class TestFullPaymentJourney:
         })
         assert reg.status_code == 201
         token = reg.json().get("access_token")
-        assert token, "Registration should return access_token in demo mode"
+        assert token, "Registration should return access_token in test environment"
         headers = {"Authorization": f"Bearer {token}"}
 
         # Verify no subscription
