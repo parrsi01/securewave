@@ -99,3 +99,20 @@ This phase removes desktop protocol placeholders and wires protocol-specific nat
 - `securewave_app/test/state_machine/protocol_transition_test.dart`
 - `securewave_app/test/state_machine/state_machine_test_harness.dart`
 - `securewave_app/test/protocol_selector_test.dart`
+
+## Verification Refresh (2026-02-22)
+This branch already contained the Phase 3 desktop client implementation. This run revalidated the desktop protocol runtime wiring and recorded current Flutter/build evidence.
+
+Commands executed:
+- `cd securewave_app && flutter analyze`
+- `cd securewave_app && flutter test`
+- `cd securewave_app && flutter build linux`
+- `cd securewave_app && flutter build windows`
+- `cd securewave_app && flutter build macos`
+
+Results:
+- `flutter analyze`: completed with lint/info-only findings in unrelated UI/test files (no new compile errors).
+- `flutter test`: passed (`All tests passed`).
+- `flutter build linux`: passed (`build/linux/arm64/release/bundle/securewave_app`).
+- `flutter build windows`: not runnable on this host (`"build windows" only supported on Windows hosts.`).
+- `flutter build macos`: not runnable from this Linux toolchain (`Could not find a subcommand named "macos" for "flutter build".`).
