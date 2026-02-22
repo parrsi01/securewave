@@ -80,3 +80,16 @@ Server-side helper compatibility:
 1. TCP 443 for OpenVPN is intentionally disabled by default to avoid HTTPS conflict; script only enables if port 443 is free.
 2. IKEv2 revocation depends on on-host CA DB/CRL state continuity; manual tampering with CA index files can break revoke workflow.
 3. Full live validation of `nginx -t` and `ufw status` could not run inside this sandbox due missing binary / root requirement.
+
+## Verification Refresh (2026-02-22)
+This branch already contained the Phase 2 implementation. This run revalidated the existing OpenVPN/IKEv2 backend/profile generation paths and OpenAPI contract coverage.
+
+Commands executed:
+- `SKIP_INSTALL=true PYTEST_ARGS='tests/integration/test_vpn_profile.py tests/integration/test_vpn_credentials.py tests/integration/test_vpn_profile_generation.py tests/integration/test_vpn_protocols_endpoint.py -q' bash scripts/run_backend_tests.sh`
+- `./.venv/bin/python scripts/generate_openapi.py`
+
+Results:
+- Backend tests passed: `17 passed`
+- OpenAPI generation succeeded: `docs/openapi/securewave-openapi.json`
+- Schema spot-check confirmed `/api/vpn/profile` and `/api/vpn/protocols` are present in generated OpenAPI.
+- `/api/vpn/profile` `400` response continues to reference `#/components/schemas/ApiErrorResponse`
