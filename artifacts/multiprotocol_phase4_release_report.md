@@ -48,3 +48,20 @@ Branch: `release/multiprotocol-live-only`
 - `.deb` is checksum-verified but not package-signed; add repository signing in a future hardening phase if required.
 - Website depends on manifest freshness; release process must run before each public version change.
 
+## Verification Refresh (2026-02-22)
+
+This branch already contained the Phase 4 release pipeline and website manifest integration. This run revalidated the build script and website wiring with the current version (`4.0.0+1`).
+
+Commands executed:
+- `./scripts/build_release_all.sh`
+- `./scripts/verify_website.sh`
+
+Results:
+- Release build script passed and rebuilt/published:
+  - `artifacts/releases/4.0.0+1/version.json`
+  - `artifacts/releases/4.0.0+1/checksums.txt`
+  - `static/downloads/version.json`
+  - `static/downloads/checksums-4.0.0-1.txt`
+  - `static/downloads/securewave-linux-arm64-4.0.0-1.deb`
+- Linux package build succeeded (`securewave_app/build/packaging/securewave-vpn_4.0.0+1_arm64.deb`).
+- Website verification passed with warnings only (`Errors: 0`, `Warnings: 725`), consistent with the existing broad static-link checks.
