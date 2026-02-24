@@ -35,7 +35,11 @@ class AuthSession extends ChangeNotifier {
   String? get accessToken => _accessToken;
   String? get email => _email;
 
-  @visibleForTesting
+  /// Completes when the session has been initialized from secure storage.
+  ///
+  /// Awaited by [BootController] to ensure auth state is stable before the
+  /// router evaluates redirect guards. Exposed publicly (not just for tests)
+  /// because the boot sequence is production code that must await it.
   Future<void> get initializationComplete => _initializationFuture;
 
   Future<void> _initializeSession() async {
@@ -86,9 +90,29 @@ class AuthSession extends ChangeNotifier {
     _accessToken = accessToken;
     _email = email;
     _isAuthenticated = true;
-    await _storage
-        .saveTokens(accessToken: accessToken, refreshToken: refreshToken)
-        .timeout(_storageTimeout);
+    try {
+      await _storage
+          .saveTokens(accessToken: accessToken, refreshToken: refreshToken)
+          .timeout(_storageTimeout);
+    } on TimeoutException catch (error, stackTrace) {
+      AppLogger.warning(
+        'Auth token persistence timed out; continuing with in-memory session.',
+      );
+      AppLogger.error(
+        'Auth token persistence timed out',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Auth token persistence failed; continuing with in-memory session.',
+      );
+      AppLogger.error(
+        'Auth token persistence failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
     notifyListeners();
   }
 

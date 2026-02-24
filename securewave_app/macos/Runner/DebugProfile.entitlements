@@ -6,6 +6,10 @@
 	<true/>
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
+	<!-- Outgoing network connections required for API calls and VPN server communication -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Server socket binding (for local dev/debug only) -->
 	<key>com.apple.security.network.server</key>
 	<true/>
 </dict>

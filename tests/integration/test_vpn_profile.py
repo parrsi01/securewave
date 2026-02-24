@@ -155,7 +155,15 @@ class TestVpnProfileProvisioning:
         assert ks.get("mode") == "disabled"
         assert ks.get("enforcement") == "none"
 
-    def test_linux_profile_includes_wg_quick_kill_switch_hooks(self, client, auth_headers, db):
+    def test_linux_profile_includes_wg_quick_routing_hooks(self, client, auth_headers, db):
+        """
+        Linux profiles must include Table=off and policy-routing PostUp/PostDown hooks.
+
+        The iptables kill-switch was replaced with policy-routing (ip rule / ip route)
+        to avoid disrupting NetworkManager when the VPN connects or disconnects.
+        Table=off prevents wg-quick from touching the main routing table, which was
+        the root cause of WiFi toggling on VPN connect/disconnect.
+        """
         _create_free_server(db)
 
         resp = client.post(
@@ -165,8 +173,16 @@ class TestVpnProfileProvisioning:
         )
         assert resp.status_code == 200, resp.text
         config = resp.json().get("wireguard_config", "")
+        # Must opt out of wg-quick routing management to protect NetworkManager state.
+        assert "Table = off" in config
+        # Must include PostUp/PostDown hooks for policy-based routing.
         assert "PostUp" in config
-        assert "iptables" in config
+        assert "PostDown" in config
+        # Must use ip rule for policy routing, not iptables REJECT (which broke WiFi).
+        assert "ip rule" in config
+        assert "ip route" in config
+        # Must NOT use iptables REJECT rules (they toggle WiFi).
+        assert "iptables" not in config
 
     def test_mobile_profile_does_not_include_wg_quick_hooks(self, client, auth_headers, db):
         _create_free_server(db)

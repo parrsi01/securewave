@@ -664,26 +664,36 @@ def _utc_iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat()
 
 
-def _linux_kill_switch_snippet() -> str:
+def _linux_route_snippet() -> str:
     """
-    Best-effort Linux kill switch via wg-quick hooks.
+    Linux-safe wg-quick routing hooks that avoid disrupting NetworkManager.
 
-    This uses the WireGuard fwmark to allow the tunnel handshake while
-    rejecting non-tunnel traffic when the interface is down.
+    Root cause of WiFi toggling: wg-quick with AllowedIPs=0.0.0.0/0 replaces
+    the default route in the main routing table, causing NetworkManager to detect
+    that the WiFi interface has lost its default route and triggering WiFi
+    reconnect cycles.
+
+    Fix: Use Table=off to tell wg-quick NOT to manage routing at all, then add
+    a minimal host route to the VPN server so the handshake can reach it, plus
+    a default route through the tunnel interface in a separate routing table
+    (table 51820 is the wg-quick default). We use ip rule to policy-route all
+    traffic through the tunnel without touching the main table's default route.
+
+    This keeps NetworkManager's view of the WiFi interface intact while still
+    tunnelling all outbound traffic through the VPN.
+
+    Note: PostUp/PostDown run as root (via wg-quick). The %i token expands to
+    the interface name (e.g., sw-wg).
     """
     return (
-        "PostUp = sh -c 'command -v iptables >/dev/null 2>&1 && "
-        "iptables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT'\n"
-        "PostDown = sh -c 'command -v iptables >/dev/null 2>&1 && "
-        "iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT || true'\n"
-        "PostUp = sh -c 'command -v ip6tables >/dev/null 2>&1 && "
-        "ip6tables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT'\n"
-        "PostDown = sh -c 'command -v ip6tables >/dev/null 2>&1 && "
-        "ip6tables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT || true'\n"
+        # Use policy routing table 51820 (wg-quick default).
+        # Add a default route through the tunnel in that table.
+        "PostUp = ip route add default dev %i table 51820 2>/dev/null || true\n"
+        # Add ip rule to send all non-tunnel traffic through table 51820.
+        "PostUp = ip rule add not fwmark 51820 table 51820 priority 32764 2>/dev/null || true\n"
+        # Cleanup on tunnel down — remove the rule and route.
+        "PostDown = ip rule del not fwmark 51820 table 51820 priority 32764 2>/dev/null || true\n"
+        "PostDown = ip route del default dev %i table 51820 2>/dev/null || true\n"
     )
 
 
@@ -710,6 +720,8 @@ def _build_wireguard_profile_config(
             details={"server_id": server.server_id, "reason": str(exc)},
         )
 
+    is_linux = (device_type or "").lower() == "linux"
+
     interface_lines = [
         "[Interface]",
         f"PrivateKey = {private_key}",
@@ -719,10 +731,15 @@ def _build_wireguard_profile_config(
     if mtu is not None:
         interface_lines.append(f"MTU = {mtu}")
 
-    # NOTE: wg-quick supports PostUp/PostDown hooks, but mobile/embedded WireGuard
-    # parsers do not. Only include these when the client is Linux and uses wg-quick.
-    if (device_type or "").lower() == "linux":
-        interface_lines.append(_linux_kill_switch_snippet().rstrip("\n"))
+    if is_linux:
+        # Table=off: tell wg-quick NOT to manage routing or modify the main
+        # routing table. This prevents NetworkManager from detecting that the
+        # WiFi interface's default route was removed, which caused WiFi to toggle
+        # on VPN connect/disconnect. We manage routing ourselves via PostUp/PostDown.
+        interface_lines.append("Table = off")
+        # NOTE: wg-quick supports PostUp/PostDown hooks; mobile/embedded WireGuard
+        # parsers do not. Only include these for Linux wg-quick builds.
+        interface_lines.append(_linux_route_snippet().rstrip("\n"))
 
     peer_lines = [
         "",
@@ -970,6 +987,60 @@ def _protocol_requirements(protocol: str) -> list[VpnProtocolRequirement]:
             ),
         ]
     return []
+
+
+def _debug_client_label(request: Request) -> str:
+    ua = (request.headers.get("user-agent") or "").lower()
+    if "securewave" in ua:
+        return "securewave-client"
+    if "flutter" in ua:
+        return "flutter-client"
+    return "generic-client"
+
+
+def _log_vpn_catalog_debug(
+    *,
+    request: Request,
+    endpoint: str,
+    user_tier: str,
+    device_type: Optional[str],
+    servers: list[VPNServer],
+    protocol_payload: Optional[list[VpnProtocolAvailability]] = None,
+) -> None:
+    # Controlled debug signal for protocol/location visibility mismatches in app clients.
+    if os.getenv("SECUREWAVE_LOG_VPN_CATALOG_DEBUG", "true").strip().lower() not in {"1", "true", "yes", "on"}:
+        return
+
+    sample_locations = [str(getattr(s, "location", "") or "") for s in servers[:5]]
+    supported_counts = {
+        "wireguard": sum(1 for s in servers if getattr(s, "supports_wireguard", True)),
+        "openvpn": sum(1 for s in servers if getattr(s, "supports_openvpn", False)),
+        "ikev2": sum(1 for s in servers if getattr(s, "supports_ikev2", False)),
+    }
+    protocol_summary = None
+    if protocol_payload is not None:
+        protocol_summary = {
+            item.protocol: {
+                "enabled": item.enabled,
+                "server_enabled": item.server_enabled,
+                "plan_enabled": item.plan_enabled,
+                "platform_supported": item.platform_supported,
+                "reason": item.reason,
+            }
+            for item in protocol_payload
+        }
+
+    logger.info(
+        "vpn_catalog_debug endpoint=%s client=%s device_type=%s user_tier=%s total_servers=%d supported_counts=%s sample_locations=%s protocols=%s",
+        endpoint,
+        _debug_client_label(request),
+        device_type or "-",
+        user_tier,
+        len(servers),
+        supported_counts,
+        sample_locations,
+        protocol_summary if protocol_summary is not None else "-",
+    )
 
 
 def choose_effective_protocol(
@@ -1255,6 +1326,15 @@ async def list_protocols(
             )
         )
 
+    _log_vpn_catalog_debug(
+        request=request,
+        endpoint="/api/vpn/protocols",
+        user_tier=user_tier,
+        device_type=normalized_device_type,
+        servers=servers,
+        protocol_payload=protocol_payload,
+    )
+
     return VpnProtocolsResponse(
         user_tier=user_tier,
         device_type=normalized_device_type,
@@ -1331,6 +1411,14 @@ async def list_servers(
         if server.health_status in {"healthy", "degraded"} and score > best_score:
             best_score = score
             recommended_id = server.server_id
+
+    _log_vpn_catalog_debug(
+        request=request,
+        endpoint="/api/vpn/servers",
+        user_tier=user_tier,
+        device_type=None,
+        servers=servers,
+    )
 
     return ServerListResponse(
         servers=server_list,
