@@ -78,6 +78,31 @@ def run_idempotent(
     bucket = int(now.timestamp() // window_s)
     req_hash = request_hash_from_payload(request_payload)
 
+    # Harden checkout flow against concurrent conflicting requests for the
+    # same user in the same idempotency bucket.
+    if operation == "checkout_session_create":
+        inflight = (
+            db.query(PaymentIdempotencyKey)
+            .filter_by(
+                provider=provider,
+                operation=operation,
+                user_id=user_id,
+                bucket=bucket,
+                status="in_progress",
+            )
+            .order_by(PaymentIdempotencyKey.created_at.desc())
+            .first()
+        )
+        if inflight and inflight.request_hash != req_hash:
+            age_s = (now - (inflight.updated_at or inflight.created_at)).total_seconds()
+            if age_s < stale_after_s:
+                raise ApiException(
+                    status_code=409,
+                    code="checkout_conflict_in_progress",
+                    message="Another checkout request is currently in progress.",
+                    details={"provider": provider, "operation": operation},
+                )
+
     record = PaymentIdempotencyKey(
         provider=provider,
         operation=operation,
@@ -153,4 +178,3 @@ def run_idempotent(
     db.commit()
 
     return IdempotencyOutcome(response=response, replayed=False)
-

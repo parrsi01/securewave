@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 class AppLogEntry {
@@ -22,11 +23,16 @@ class AppErrorEntry {
 }
 
 class AppLogger {
+  static const bool _debugLoggingEnabled = !kReleaseMode;
+  static const bool _retainLogsInMemory = !kReleaseMode;
+
   static final ValueNotifier<List<AppLogEntry>> logStream =
       ValueNotifier<List<AppLogEntry>>(<AppLogEntry>[]);
-  static final ValueNotifier<AppErrorEntry?> errorStream = ValueNotifier<AppErrorEntry?>(null);
+  static final ValueNotifier<AppErrorEntry?> errorStream =
+      ValueNotifier<AppErrorEntry?>(null);
 
   static void info(String message, {String tag = 'SecureWave'}) {
+    if (!_debugLoggingEnabled) return;
     _record(message, level: 500, tag: tag);
   }
 
@@ -40,8 +46,10 @@ class AppLogger {
     StackTrace? stackTrace,
     String tag = 'SecureWave',
   }) {
-    _record(message, level: 1000, tag: tag, error: error, stackTrace: stackTrace);
-    errorStream.value = AppErrorEntry(message: message, error: error, stackTrace: stackTrace);
+    _record(message,
+        level: 1000, tag: tag, error: error, stackTrace: stackTrace);
+    errorStream.value =
+        AppErrorEntry(message: message, error: error, stackTrace: stackTrace);
   }
 
   static void captureFlutterError(FlutterErrorDetails details) {
@@ -65,13 +73,20 @@ class AppLogger {
     Object? error,
     StackTrace? stackTrace,
   }) {
-    final entry = AppLogEntry(message, level: level, timestamp: DateTime.now());
-    final logs = List<AppLogEntry>.from(logStream.value)..add(entry);
-    if (logs.length > 200) {
-      logs.removeRange(0, logs.length - 200);
+    if (_retainLogsInMemory) {
+      final entry =
+          AppLogEntry(message, level: level, timestamp: DateTime.now());
+      final logs = List<AppLogEntry>.from(logStream.value)..add(entry);
+      if (logs.length > 200) {
+        logs.removeRange(0, logs.length - 200);
+      }
+      logStream.value = logs;
     }
-    logStream.value = logs;
-    log(message, name: tag, level: level, error: error, stackTrace: stackTrace);
+
+    if (_debugLoggingEnabled || level >= 900) {
+      log(message,
+          name: tag, level: level, error: error, stackTrace: stackTrace);
+    }
   }
 }
 

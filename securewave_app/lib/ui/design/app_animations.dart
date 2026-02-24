@@ -1,57 +1,45 @@
 import 'package:flutter/animation.dart';
 
-/// SecureWave animation constants and curves.
+/// SecureWave animation constants and curves — v2.
 ///
-/// Provides consistent animation timing and easing throughout the app.
+/// Core timing tokens used throughout the app. For advanced spring configs
+/// and page transition helpers, see app_motion.dart.
 class AppAnimations {
   AppAnimations._();
 
-  // ── Animation Durations ─────────────────────────────────────────────────
+  // ── Durations ────────────────────────────────────────────────────────────
 
-  /// Fast animation (120ms) - Micro-interactions, quick feedback
-  static const Duration durationFast = Duration(milliseconds: 120);
+  static const Duration durationFast    = Duration(milliseconds: 120);
+  static const Duration durationNormal  = Duration(milliseconds: 250);
+  static const Duration durationMedium  = Duration(milliseconds: 350);
+  static const Duration durationSlow    = Duration(milliseconds: 450);
+  static const Duration durationXSlow   = Duration(milliseconds: 600);
 
-  /// Normal animation (250ms) - Standard transitions, state changes
-  static const Duration durationNormal = Duration(milliseconds: 250);
+  // ── Curves ───────────────────────────────────────────────────────────────
 
-  /// Slow animation (400ms) - Complex transitions, page changes
-  static const Duration durationSlow = Duration(milliseconds: 400);
+  static const Curve curveDefault  = Curves.easeOutCubic;
+  static const Curve curveEnter    = Curves.easeOutCubic;
+  static const Curve curveExit     = Curves.easeInCubic;
+  static const Curve curveSpring   = Curves.elasticOut;
+  static const Curve curveBounce   = Curves.bounceOut;
+  static const Curve curveSharp    = Curves.fastOutSlowIn;
 
-  // ── Animation Curves ────────────────────────────────────────────────────
+  // ── Connection Ring ──────────────────────────────────────────────────────
 
-  /// Default curve - Smooth ease-out cubic (most common)
-  static const Curve curveDefault = Curves.easeOutCubic;
+  static const Duration connectionTransition = Duration(milliseconds: 320);
+  static const double   connectionButtonScale = 0.94;
+  static const Duration glowPulseDuration     = Duration(milliseconds: 1800);
+  static const Duration ringRotationDuration  = Duration(milliseconds: 1400);
 
-  /// Enter curve - Ease-out for entering elements
-  static const Curve curveEnter = Curves.easeOut;
+  // ── List & Card ──────────────────────────────────────────────────────────
 
-  /// Exit curve - Ease-in for exiting elements
-  static const Curve curveExit = Curves.easeIn;
-
-  // ── Connection Button Animations ────────────────────────────────────────
-
-  /// Connection button state transition duration (300ms)
-  static const Duration connectionTransition = Duration(milliseconds: 300);
-
-  /// Connection button scale on press (95%)
-  static const double connectionButtonScale = 0.95;
-
-  /// Glow pulse duration for connected state (2 seconds)
-  static const Duration glowPulseDuration = Duration(seconds: 2);
-
-  // ── List & Card Animations ──────────────────────────────────────────────
-
-  /// Stagger delay for list items (50ms)
-  static const Duration listStagger = Duration(milliseconds: 50);
-
-  /// Card ripple duration (300ms)
-  static const Duration cardRipple = Duration(milliseconds: 300);
-
-  // ── Micro-Interactions ──────────────────────────────────────────────────
-
-  /// Favorite star toggle duration (200ms)
+  static const Duration listStagger    = Duration(milliseconds: 40);
+  static const Duration cardRipple     = Duration(milliseconds: 280);
   static const Duration favoriteToggle = Duration(milliseconds: 200);
+  static const Duration checkmarkFade  = Duration(milliseconds: 160);
 
-  /// Checkmark fade-in duration (150ms)
-  static const Duration checkmarkFade = Duration(milliseconds: 150);
+  // ── Page Transitions ─────────────────────────────────────────────────────
+
+  static const Duration pageEnter = Duration(milliseconds: 300);
+  static const Duration pageExit  = Duration(milliseconds: 200);
 }

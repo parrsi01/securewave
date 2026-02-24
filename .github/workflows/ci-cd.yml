@@ -8,6 +8,9 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,7 +48,17 @@ jobs:
         run: bash scripts/check_legal_placeholders.sh
 
       - name: Run tests
-        run: python -m pytest -q
+        run: |
+          mkdir -p artifacts/test-results
+          pytest -q --junitxml=artifacts/test-results/pytest.xml
+
+      - name: Publish pytest report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Pytest
+          path: artifacts/test-results/pytest*.xml
+          reporter: java-junit
 
       - name: Run chaos suite
         run: bash dev_tools/sandbox/chaos_tests/run_chaos_suite.sh --strict
@@ -59,16 +72,25 @@ jobs:
       - name: Generate validation master report
         run: python scripts/generate_validation_master_report.py
 
+      - name: Generate launch orchestrator reports
+        run: python scripts/generate_launch_orchestrator_reports.py
+
       - name: Upload validation artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: validation-artifacts
           path: |
+            artifacts/test-results
             artifacts/chaos_tests
             artifacts/benchmark
             artifacts/leak_tests
             artifacts/validation_master_report.md
+            artifacts/launch_orchestrator_summary.md
+            artifacts/launch_alert_matrix.md
+            artifacts/operator_playbooks_index.md
+            artifacts/canary_report.md
+            monitoring/grafana
 
   flutter-state-machine:
     runs-on: ubuntu-latest
@@ -116,3 +138,59 @@ jobs:
           name: state-stress-artifacts
           path: |
             artifacts/state_stress
+
+  deploy:
+    name: Deploy to Hetzner
+    runs-on: ubuntu-latest
+    needs: [ checks ]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy backend via rsync
+        run: |
+          rsync -azP --delete \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude 'venv/' \
+            --exclude '.venv/' \
+            --exclude 'node_modules/' \
+            --exclude 'securewave_app/' \
+            --exclude 'artifacts/' \
+            --exclude 'dev_tools/' \
+            --exclude '.github/' \
+            --exclude 'keys_and_storage_configurations/' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            ./ "${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }}:/opt/securewave/"
+
+      - name: Install dependencies and restart service
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }}" \
+            'cd /opt/securewave && source venv/bin/activate && pip install -q -r requirements.txt && sudo systemctl restart securewave.service'
+
+      - name: Verify deployment
+        run: |
+          sleep 5
+          STATUS=$(ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }}" \
+            'curl -sf http://127.0.0.1:8080/api/health | python3 -c "import sys,json; print(json.load(sys.stdin).get(\"status\",\"fail\"))"')
+          if [ "$STATUS" != "ok" ]; then
+            echo "Health check failed after deploy: $STATUS"
+            exit 1
+          fi
+          echo "Deployment verified: health=$STATUS"

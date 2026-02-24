@@ -71,3 +71,17 @@ def test_handshake_classification_thresholds():
     assert VPNHealthMonitor.classify_handshake_freshness(10) == "healthy"
     assert VPNHealthMonitor.classify_handshake_freshness(180) == "degraded"
     assert VPNHealthMonitor.classify_handshake_freshness(360) == "unstable"
+    assert VPNHealthMonitor.classify_handshake_freshness(None) == "pending"
+
+
+def test_pending_peers_do_not_degrade_server_health():
+    """Peers that have never connected should not drag server health down."""
+    # All pending -- server is idle, should be healthy
+    assert VPNHealthMonitor.classify_server_health(["pending"]) == "healthy"
+    assert VPNHealthMonitor.classify_server_health(["pending", "pending"]) == "healthy"
+
+    # Mix of pending and healthy -- only healthy peers count
+    assert VPNHealthMonitor.classify_server_health(["pending", "healthy"]) == "healthy"
+
+    # One real unstable peer among pending ones -- unstable ratio = 1/1 = 100%
+    assert VPNHealthMonitor.classify_server_health(["pending", "unstable"]) == "unstable"

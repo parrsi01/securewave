@@ -210,13 +210,13 @@ build/app/outputs/bundle/release/app-release.aab
 where.exe wireguard.exe
 Get-Service -Name "WireGuardManager"
 cd securewave_app
-./scripts/build_windows_installer.ps1 -Version 4.0.0
+./windows_installer/build_windows_installer.ps1 -ApiBaseUrl "https://<your-domain>/api"
 ```
 
 **Expected output:**
 ```
 C:\Program Files\WireGuard\wireguard.exe
-OK: Built securewave_app\\build\\installer\\SecureWaveVPN-4.0.0-setup.exe
+OK: Built artifacts\\windows_release\\securewave-windows-x64-setup.exe
 ```
 
 ---

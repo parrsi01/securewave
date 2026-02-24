@@ -169,6 +169,12 @@ def _upsert_server(
             existing.allowed_ips = allowed_ips
             if existing.wg_private_key_encrypted is None:
                 existing.wg_private_key_encrypted = ""
+            # Multi-protocol defaults: WireGuard is enabled unless operators
+            # explicitly toggle additional protocol support.
+            if getattr(existing, "supports_wireguard", None) is None:
+                existing.supports_wireguard = True
+            if getattr(existing, "protocol", None) is None:
+                existing.protocol = "wireguard"
             existing.status = "active"
             db.commit()
             return f"updated:{existing.server_id}"
@@ -193,6 +199,8 @@ def _upsert_server(
             wg_public_key=wg_public_key,
             wg_private_key_encrypted="",  # Server private key is stored on the server, not in the backend.
             allowed_ips=allowed_ips,
+            protocol="wireguard",
+            supports_wireguard=True,
             status="active",
             health_status="unknown",
             max_connections=1000,

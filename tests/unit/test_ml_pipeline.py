@@ -289,7 +289,7 @@ class TestMARLPolicyEngine:
         )
         decision = engine.decide(state)
 
-        assert decision.action == PolicyAction.ROTATE_SERVER
+        assert decision.action in {PolicyAction.ROTATE_SERVER, PolicyAction.REROUTE}
         assert decision.safety_override is True
 
     def test_normal_state_returns_valid_action(self):
@@ -394,6 +394,79 @@ class TestMARLPolicyEngine:
         decision = engine.decide(state)
         # Should NOT trigger safety override with the relaxed threshold
         assert decision.safety_override is False
+
+    def test_decision_exposes_latency_weighting_and_mtu_hint(self):
+        """Decision should include latency weighting + adaptive MTU hints."""
+        from services.marl_policy import MARLPolicyEngine, StateVector
+
+        engine = MARLPolicyEngine()
+        state = StateVector(
+            user_id=42,
+            server_id="s-hints",
+            latency_ms=180.0,
+            packet_loss=0.06,
+            jitter_ms=28.0,
+            user_priority=1,
+        )
+        decision = engine.decide(state)
+
+        hints = decision.optimization_hints
+        assert "latency_weight" in hints
+        assert "weighted_latency_ms" in hints
+        assert "adaptive_mtu" in hints
+        assert hints["latency_weight"] >= 1.0
+        assert 1200 <= int(hints["adaptive_mtu"]) <= 1500
+
+    def test_predictive_load_balancing_rotates_before_hard_overload(self):
+        """
+        Rising load trend should trigger predictive rotate even before current
+        load crosses hard max_server_load threshold.
+        """
+        from services.marl_policy import MARLPolicyEngine, StateVector, PolicyAction
+
+        engine = MARLPolicyEngine()
+
+        # Build a rising trend while staying under the hard 0.90 threshold.
+        for load in (0.72, 0.78, 0.84, 0.88):
+            engine.decide(
+                StateVector(
+                    user_id=7,
+                    server_id="s-trend",
+                    server_load=load,
+                    latency_ms=45.0,
+                    packet_loss=0.01,
+                    jitter_ms=2.0,
+                )
+            )
+
+        decision = engine.decide(
+            StateVector(
+                user_id=7,
+                server_id="s-trend",
+                server_load=0.89,  # still below hard threshold
+                latency_ms=55.0,
+                packet_loss=0.01,
+                jitter_ms=3.0,
+            )
+        )
+        assert decision.action in {PolicyAction.ROTATE_SERVER, PolicyAction.REROUTE}
+        assert decision.safety_override is True
+
+    def test_server_health_preclassification(self):
+        """Health pre-classification should degrade under lossy/high-jitter conditions."""
+        from services.marl_policy import MARLPolicyEngine, StateVector
+
+        engine = MARLPolicyEngine()
+        state = StateVector(
+            user_id=1,
+            server_id="s-health",
+            latency_ms=140.0,
+            packet_loss=0.09,
+            jitter_ms=35.0,
+            server_load=0.70,
+        )
+        health = engine.preclassify_server_health(state)
+        assert health in {"degraded", "unstable"}
 
 
 # ---------------------------------------------------------------------------

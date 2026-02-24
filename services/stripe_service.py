@@ -6,6 +6,7 @@ Complete Stripe integration for subscription management and payment processing
 import os
 import uuid
 import logging
+import time
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 
@@ -606,6 +607,18 @@ class StripeService:
                 webhook_secret,
                 tolerance=tolerance,
             )
+            # Defense-in-depth: reject stale event objects even if a valid
+            # signature is presented (e.g., replay with leaked secret).
+            max_event_age = int(os.getenv("STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS", "172800"))
+            if max_event_age > 0:
+                created = event.get("created")
+                if created is not None:
+                    try:
+                        age_seconds = abs(int(time.time()) - int(created))
+                    except Exception:
+                        age_seconds = 0
+                    if age_seconds > max_event_age:
+                        raise ValueError(f"Stripe event too old ({age_seconds}s)")
             logger.info("Stripe webhook event verified: %s", event.get("type"))
             return event
         except stripe.error.SignatureVerificationError as e:

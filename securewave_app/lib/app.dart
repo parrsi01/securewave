@@ -60,6 +60,8 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     return MaterialApp.router(
       title: 'SecureWave',
       theme: AppTheme.lightTheme(),
+      darkTheme: AppTheme.darkTheme(),
+      themeMode: ThemeMode.system,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );

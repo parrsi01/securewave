@@ -24,9 +24,9 @@ Reward Function:
   reward = uptime - packet_loss - reconnects + (0.1 * throughput_normalized)
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import time
 
 # Lazy imports for QoS and Risk scorers
@@ -61,6 +61,7 @@ class StateVector:
     connection_duration_minutes: float = 0.0
     user_priority: int = 0  # 0=free, 1=premium
     reconnect_count: int = 0
+    throughput_mbps: float = 100.0
 
 
 @dataclass
@@ -71,6 +72,7 @@ class PolicyDecision:
     reason: str = ""
     confidence: float = 1.0
     safety_override: bool = False
+    optimization_hints: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -124,10 +126,92 @@ class MARLPolicyEngine:
 
         # Available servers (populated from optimizer)
         self.available_servers: List[str] = []
+        # Short rolling load history used for predictive balancing.
+        self._server_load_samples: Dict[str, List[Tuple[float, float]]] = {}
+        self._max_load_samples = 48
 
     def set_available_servers(self, servers: List[str]) -> None:
         """Update list of available servers"""
         self.available_servers = servers
+
+    @staticmethod
+    def _clamp(value: float, low: float, high: float) -> float:
+        return max(low, min(high, value))
+
+    def _latency_weight(self, state: StateVector) -> float:
+        """
+        Dynamic latency weighting:
+        - Premium users are more latency-sensitive.
+        - Loss/jitter amplify effective latency.
+        - Lower QoS score increases weighting.
+        """
+        base = 1.25 if state.user_priority > 0 else 1.0
+        loss_amp = 1.0 + min(0.35, max(0.0, float(state.packet_loss)) * 1.5)
+        jitter_amp = 1.0 + min(0.25, max(0.0, float(state.jitter_ms)) / 200.0)
+        qos_amp = 1.0 + max(0.0, (0.75 - float(state.qos_score))) * 0.6
+        return round(self._clamp(base * loss_amp * jitter_amp * qos_amp, 0.85, 2.2), 4)
+
+    def _weighted_latency_ms(self, state: StateVector) -> float:
+        return float(state.latency_ms) * self._latency_weight(state)
+
+    def _record_server_load_sample(self, state: StateVector) -> None:
+        now = time.time()
+        series = self._server_load_samples.setdefault(state.server_id, [])
+        series.append((now, self._clamp(float(state.server_load), 0.0, 1.5)))
+        if len(series) > self._max_load_samples:
+            del series[: len(series) - self._max_load_samples]
+
+    def _predict_server_load(self, state: StateVector) -> float:
+        """
+        Predict near-future server load from recent trend + connection risk.
+        """
+        series = self._server_load_samples.get(state.server_id, [])
+        current = self._clamp(float(state.server_load), 0.0, 1.5)
+        if len(series) < 2:
+            return current
+
+        recent = series[-8:] if len(series) >= 8 else series
+        start_load = recent[0][1]
+        end_load = recent[-1][1]
+        upward_delta = max(0.0, end_load - start_load)
+
+        projected = end_load + (upward_delta * 0.65)
+        projected += min(0.08, max(0, int(state.reconnect_count)) * 0.01)
+        projected += min(0.06, max(0.0, float(state.packet_loss)) * 0.5)
+        if state.user_priority > 0:
+            projected += 0.02
+
+        return round(self._clamp(projected, 0.0, 1.5), 4)
+
+    def preclassify_server_health(self, state: StateVector, *, predicted_load: Optional[float] = None) -> str:
+        """
+        Fast pre-classification before heavier health pipelines run.
+        """
+        predicted = self._predict_server_load(state) if predicted_load is None else float(predicted_load)
+        weighted_latency = self._weighted_latency_ms(state)
+        packet_loss = max(0.0, float(state.packet_loss))
+        jitter = max(0.0, float(state.jitter_ms))
+
+        if packet_loss >= 0.20 or weighted_latency >= 650.0 or predicted >= 0.97 or jitter >= 120.0:
+            return "unstable"
+        if packet_loss >= 0.08 or weighted_latency >= 320.0 or predicted >= 0.82 or jitter >= 45.0:
+            return "degraded"
+        return "healthy"
+
+    def suggest_adaptive_mtu(self, state: StateVector, *, preclassified_health: Optional[str] = None) -> int:
+        """
+        MTU hint consumed by profile/tunnel orchestration.
+        """
+        health = (preclassified_health or self.preclassify_server_health(state)).strip().lower()
+        if health == "unstable" or state.packet_loss >= 0.12:
+            return 1320
+        if health == "degraded" or state.jitter_ms >= 40.0:
+            return 1360
+        if self._weighted_latency_ms(state) >= 220.0:
+            return 1380
+        if state.user_priority > 0 and state.packet_loss < 0.02 and state.jitter_ms < 8.0:
+            return 1420
+        return 1400
 
     def _hash_state(self, state: StateVector) -> Tuple:
         """Create hashable state representation for Q-table"""
@@ -164,7 +248,14 @@ class MARLPolicyEngine:
         # Clamp to reasonable range
         return max(-1.0, min(1.0, reward))
 
-    def _check_safety_constraints(self, state: StateVector) -> Optional[PolicyDecision]:
+    def _check_safety_constraints(
+        self,
+        state: StateVector,
+        *,
+        weighted_latency_ms: float,
+        predicted_server_load: float,
+        server_health_preclassification: str,
+    ) -> Optional[PolicyDecision]:
         """
         Check hard safety constraints (Day 13).
         Returns immediate decision if constraint violated.
@@ -179,11 +270,23 @@ class MARLPolicyEngine:
             )
 
         # Critical latency -> immediate reroute
-        if state.latency_ms >= self.critical_latency:
+        if weighted_latency_ms >= self.critical_latency:
             return PolicyDecision(
                 action=PolicyAction.REROUTE,
-                reason=f"Critical latency: {state.latency_ms:.0f}ms",
+                reason=(
+                    f"Critical weighted latency: {weighted_latency_ms:.0f}ms "
+                    f"(raw={state.latency_ms:.0f}ms)"
+                ),
                 confidence=1.0,
+                safety_override=True,
+            )
+
+        # Pre-classified instability -> immediate reroute before tunnel degrades further.
+        if server_health_preclassification == "unstable":
+            return PolicyDecision(
+                action=PolicyAction.REROUTE,
+                reason="Server pre-classified as unstable",
+                confidence=0.95,
                 safety_override=True,
             )
 
@@ -197,10 +300,13 @@ class MARLPolicyEngine:
             )
 
         # Server overloaded -> rotate
-        if state.server_load >= self.max_server_load:
+        if predicted_server_load >= self.max_server_load:
             return PolicyDecision(
                 action=PolicyAction.ROTATE_SERVER,
-                reason=f"Server overloaded: {state.server_load*100:.0f}%",
+                reason=(
+                    f"Predicted server overload: {predicted_server_load*100:.0f}% "
+                    f"(current={state.server_load*100:.0f}%)"
+                ),
                 confidence=0.9,
                 safety_override=True,
             )
@@ -260,12 +366,37 @@ class MARLPolicyEngine:
         2. Q-learning exploration/exploitation
         3. XGBoost-informed decisions
         """
+        self._record_server_load_sample(state)
+        weighted_latency_ms = self._weighted_latency_ms(state)
+        predicted_server_load = self._predict_server_load(state)
+        server_health_preclassification = self.preclassify_server_health(
+            state,
+            predicted_load=predicted_server_load,
+        )
+        adaptive_mtu = self.suggest_adaptive_mtu(
+            state,
+            preclassified_health=server_health_preclassification,
+        )
+        hints = {
+            "latency_weight": self._latency_weight(state),
+            "weighted_latency_ms": round(weighted_latency_ms, 2),
+            "predicted_server_load": round(predicted_server_load, 4),
+            "server_health_preclassification": server_health_preclassification,
+            "adaptive_mtu": int(adaptive_mtu),
+        }
+
         # Check safety constraints first
-        safety_decision = self._check_safety_constraints(state)
+        safety_decision = self._check_safety_constraints(
+            state,
+            weighted_latency_ms=weighted_latency_ms,
+            predicted_server_load=predicted_server_load,
+            server_health_preclassification=server_health_preclassification,
+        )
         if safety_decision:
             # Find target server for reroute/rotate actions
             if safety_decision.action in (PolicyAction.REROUTE, PolicyAction.ROTATE_SERVER):
                 safety_decision.target_server = self._select_best_server(state.server_id)
+            safety_decision.optimization_hints = hints
             return safety_decision
 
         state_hash = self._hash_state(state)
@@ -293,18 +424,22 @@ class MARLPolicyEngine:
             action=action,
             confidence=0.8,
             safety_override=False,
+            optimization_hints=hints,
         )
 
         # Set target server if needed
         if action in (PolicyAction.REROUTE, PolicyAction.ROTATE_SERVER):
             decision.target_server = self._select_best_server(state.server_id)
-            decision.reason = f"Q-learning selected {action.value}"
+            decision.reason = (
+                f"Q-learning selected {action.value} "
+                f"(health={server_health_preclassification})"
+            )
         elif action == PolicyAction.THROTTLE:
-            decision.reason = "QoS degradation detected"
+            decision.reason = f"QoS degradation detected ({server_health_preclassification})"
         elif action == PolicyAction.ALERT:
             decision.reason = "Anomaly detected by policy"
         else:
-            decision.reason = "Connection stable"
+            decision.reason = f"Connection stable ({server_health_preclassification})"
 
         return decision
 
@@ -332,6 +467,7 @@ class MARLPolicyEngine:
             "total_decisions": len(self.reward_history),
             "available_servers": len(self.available_servers),
             "exploration_rate": self.exploration_rate,
+            "tracked_servers": len(self._server_load_samples),
         }
 
 
@@ -420,6 +556,7 @@ def evaluate_connection(
         "reason": decision.reason,
         "confidence": decision.confidence,
         "safety_override": decision.safety_override,
+        "optimization_hints": decision.optimization_hints,
         "qos": qos_result,
         "risk": risk_result,
     }

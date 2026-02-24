@@ -208,6 +208,7 @@ class SecurityMonitor:
             "policy_reason": decision.reason,
             "policy_confidence": decision.confidence,
             "policy_safety_override": decision.safety_override,
+            "policy_optimization_hints": dict(decision.optimization_hints or {}),
             "target_server": decision.target_server,
             "threat_level": self._current_threat_level.value,
         }

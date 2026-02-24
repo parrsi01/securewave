@@ -5,6 +5,7 @@ FastAPI endpoints for payment processing and subscription management
 
 import logging
 import os
+import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
@@ -850,7 +851,8 @@ async def stripe_webhook(
 
         # Process event
         webhook_handler = PaymentWebhookHandler(db)
-        result = webhook_handler.handle_stripe_event(event)
+        payload_hash = hashlib.sha256(payload).hexdigest()
+        result = webhook_handler.handle_stripe_event(event, payload_hash=payload_hash)
 
         logger.info("Processed Stripe webhook: %s", event.get("type"))
         return JSONResponse(content={"status": "success", "result": result})

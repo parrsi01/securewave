@@ -15,9 +15,9 @@ void main() {
         ),
       );
 
-      expect(find.text('Secure Your Connection'), findsOneWidget);
+      expect(find.text('Encrypted by default'), findsOneWidget);
       expect(find.byIcon(Icons.shield_rounded), findsOneWidget);
-      expect(find.text('Next'), findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
       expect(find.text('Skip'), findsOneWidget);
       expect(completed, isFalse);
     });
@@ -29,10 +29,10 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Choose Your Location'), findsOneWidget);
+      expect(find.text('Choose your location'), findsOneWidget);
       expect(find.byIcon(Icons.public_rounded), findsOneWidget);
     });
 
@@ -45,14 +45,14 @@ void main() {
       );
 
       // Go to page 2
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
       // Go to page 3
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
-      expect(find.text("You're All Set"), findsOneWidget);
+      expect(find.text("You're all set"), findsOneWidget);
       expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
       expect(find.text('Get Started'), findsOneWidget);
     });
@@ -83,9 +83,9 @@ void main() {
       );
 
       // Navigate to last page
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Get Started'));
@@ -115,18 +115,18 @@ void main() {
       );
 
       // First page shows "Next"
-      expect(find.text('Next'), findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
       expect(find.text('Get Started'), findsNothing);
 
       // Navigate to last page
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
       // Last page shows "Get Started"
       expect(find.text('Get Started'), findsOneWidget);
-      expect(find.text('Next'), findsNothing);
+      expect(find.text('Continue'), findsNothing);
     });
   });
 }

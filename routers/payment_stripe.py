@@ -11,6 +11,7 @@ Provides direct Stripe endpoints under /api/payments/stripe/*:
 
 import logging
 import os
+import hashlib
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -243,9 +244,16 @@ async def stripe_webhook(
     # Process the verified event
     try:
         handler = PaymentWebhookHandler(db)
-        result = handler.handle_stripe_event(event)
+        payload_hash = hashlib.sha256(payload).hexdigest()
+        result = handler.handle_stripe_event(event, payload_hash=payload_hash)
         logger.info("Stripe webhook processed: %s", event.get("type"))
         return JSONResponse(content={"status": "success", "result": result})
+    except ValueError as e:
+        logger.warning("Rejected webhook event %s: %s", event.get("type"), e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid webhook payload replay",
+        )
     except Exception as e:
         logger.error("Failed to process webhook event %s: %s", event.get("type"), e)
         raise HTTPException(

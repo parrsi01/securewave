@@ -2,9 +2,6 @@
 *.zip
 *.log
 deployments/
-azure-logs/
-azure_logs.zip
-azure-logs.zip
 deployment-logs.zip
 deploy.zip
 .git/

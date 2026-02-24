@@ -81,6 +81,14 @@ webapp-logs/
 !static/downloads/
 !static/downloads/*.zip
 
+# Binary release artifacts — too large for git, served from object storage
+static/downloads/releases/**/*.deb
+static/downloads/releases/**/*.rpm
+static/downloads/releases/**/*.AppImage
+static/downloads/releases/**/*.exe
+static/downloads/releases/**/*.msi
+static/downloads/releases/**/*.dmg
+
 # Deployment
 deploy.zip
 build/

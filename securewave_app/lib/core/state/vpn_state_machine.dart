@@ -24,15 +24,23 @@ class VpnStateMachineConfig {
     this.connectTimeout = const Duration(seconds: 25),
     this.disconnectTimeout = const Duration(seconds: 20),
     this.profileFetchTimeout = const Duration(seconds: 15),
+    this.connectOperationGuardTimeout = const Duration(seconds: 45),
+    this.disconnectOperationGuardTimeout = const Duration(seconds: 30),
     this.autoReconnectCooldown = const Duration(seconds: 10),
     this.transitionHistoryLimit = 200,
+    this.maxReconcileIterations = 64,
+    this.autoConnectInitDelay = const Duration(milliseconds: 400),
   });
 
   final Duration connectTimeout;
   final Duration disconnectTimeout;
   final Duration profileFetchTimeout;
+  final Duration connectOperationGuardTimeout;
+  final Duration disconnectOperationGuardTimeout;
   final Duration autoReconnectCooldown;
   final int transitionHistoryLimit;
+  final int maxReconcileIterations;
+  final Duration autoConnectInitDelay;
 }
 
 class VpnTransitionRecord {

@@ -41,6 +41,33 @@ class VPNServer(Base):
     wg_last_rotated_at = Column(DateTime, nullable=True)
     wg_next_rotation_at = Column(DateTime, nullable=True)
 
+    # ---------------------------------------------------------------------
+    # Multi-protocol VPN capability metadata
+    #
+    # IMPORTANT:
+    # - WireGuard remains the default/legacy protocol.
+    # - Other protocols are gated by per-server capability flags + config data.
+    # ---------------------------------------------------------------------
+    protocol = Column(String, nullable=True)  # Preferred protocol for "auto" selection (e.g. wireguard/openvpn/ikev2/l2tp)
+
+    supports_wireguard = Column(Boolean, default=True, nullable=False)
+    supports_openvpn = Column(Boolean, default=False, nullable=False)
+    supports_ikev2 = Column(Boolean, default=False, nullable=False)
+    supports_l2tp = Column(Boolean, default=False, nullable=False)
+
+    # OpenVPN (server-side TLS; clients authenticate with username/password)
+    openvpn_endpoint = Column(String, nullable=True)  # Host/IP without port (defaults to public_ip when NULL)
+    openvpn_port = Column(Integer, nullable=True, default=1194)
+    openvpn_transport = Column(String, nullable=True, default="udp")  # udp|tcp
+    openvpn_ca_cert_pem = Column(String, nullable=True)  # Public CA certificate (PEM)
+
+    # IKEv2/IPsec (EAP user/pass recommended)
+    ikev2_remote_id = Column(String, nullable=True)  # Optional expected server identity (DNS name)
+    ikev2_ca_cert_pem = Column(String, nullable=True)  # Public CA certificate (PEM)
+
+    # L2TP/IPsec (legacy fallback)
+    l2tp_psk_encrypted = Column(String, nullable=True)  # Encrypted PSK (optional; may also be provided via env)
+
     # Capacity and limits
     max_connections = Column(Integer, default=1000)
     tier_restriction = Column(String, nullable=True)  # NULL=all users, 'premium'=premium only
@@ -152,6 +179,11 @@ class VPNServer(Base):
             "uptime_percentage": round(self.uptime_percentage, 2),
             "tier_restriction": self.tier_restriction,
             "last_health_check": self.last_health_check.isoformat() if self.last_health_check else None,
+            "protocol": self.protocol,
+            "supports_wireguard": bool(self.supports_wireguard),
+            "supports_openvpn": bool(self.supports_openvpn),
+            "supports_ikev2": bool(self.supports_ikev2),
+            "supports_l2tp": bool(self.supports_l2tp),
         }
 
         if include_sensitive:
@@ -175,6 +207,13 @@ class VPNServer(Base):
             "wg_key_version": self.wg_key_version,
             "wg_last_rotated_at": self.wg_last_rotated_at.isoformat() if self.wg_last_rotated_at else None,
             "wg_next_rotation_at": self.wg_next_rotation_at.isoformat() if self.wg_next_rotation_at else None,
+            "openvpn_endpoint": self.openvpn_endpoint,
+            "openvpn_port": self.openvpn_port,
+            "openvpn_transport": self.openvpn_transport,
+            "openvpn_ca_cert_pem": self.openvpn_ca_cert_pem,
+            "ikev2_remote_id": self.ikev2_remote_id,
+            "ikev2_ca_cert_pem": self.ikev2_ca_cert_pem,
+            "l2tp_psk_encrypted": self.l2tp_psk_encrypted,
             "hcloud_server_id": self.hcloud_server_id,
             "hcloud_server_type": self.hcloud_server_type,
             "priority": self.priority,

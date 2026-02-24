@@ -6,6 +6,11 @@ import '../../core/state/vpn_state.dart';
 import '../../ui/design/app_animations.dart';
 import '../../ui/design/app_spacing.dart';
 
+/// Status indicator — v2.
+///
+/// Pulsing dot with optional label.
+/// When busy (connecting/disconnecting) the dot scales in/out.
+/// When connected it shows a steady green glow.
 class StatusIndicator extends ConsumerStatefulWidget {
   const StatusIndicator({super.key, this.showLabel = false});
   final bool showLabel;
@@ -16,74 +21,86 @@ class StatusIndicator extends ConsumerStatefulWidget {
 
 class _StatusIndicatorState extends ConsumerState<StatusIndicator>
     with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
+    _pulseCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 700),
+    );
+    _pulseAnim = Tween<double>(begin: 0.7, end: 1.3).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final vpnState = ref.watch(vpnStateProvider);
-    final isBusy = vpnState.status == VpnStatus.connecting ||
-        vpnState.status == VpnStatus.disconnecting;
+    final status    = ref.watch(vpnStateProvider.select((s) => s.status));
+    final color     = ref.watch(vpnStateProvider.select((s) => s.statusColor));
+    final statusText = widget.showLabel
+        ? ref.watch(vpnStateProvider.select((s) => s.statusText()))
+        : null;
+    final isBusy    = status == VpnStatus.connecting ||
+        status == VpnStatus.disconnecting;
 
-    if (isBusy && !_pulseController.isAnimating) {
-      _pulseController.repeat(reverse: true);
-    } else if (!isBusy && _pulseController.isAnimating) {
-      _pulseController.forward().then((_) => _pulseController.reset());
+    if (isBusy && !_pulseCtrl.isAnimating) {
+      _pulseCtrl.repeat(reverse: true);
+    } else if (!isBusy && _pulseCtrl.isAnimating) {
+      _pulseCtrl.stop();
+      _pulseCtrl.reset();
     }
-
-    final color = vpnState.statusColor;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AnimatedBuilder(
-          animation: _pulseController,
-          builder: (context, child) {
-            final scale = isBusy ? 0.8 + 0.4 * _pulseController.value : 1.0;
-            return Transform.scale(
-              scale: scale,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color,
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.4),
-                      blurRadius: 6,
-                      spreadRadius: 1,
-                    ),
-                  ],
+        // ── Status dot ───────────────────────────────────────────────
+        RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _pulseCtrl,
+            builder: (context, _) {
+              final scale = isBusy ? _pulseAnim.value : 1.0;
+              return Transform.scale(
+                scale: scale,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color,
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.45),
+                        blurRadius: 7,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
+
+        // ── Label ────────────────────────────────────────────────────
         if (widget.showLabel) ...[
           const SizedBox(width: AppSpacing.space2),
           AnimatedSwitcher(
             duration: AppAnimations.durationFast,
             child: Text(
-              vpnState.statusText(),
-              key: ValueKey(vpnState.status),
+              statusText ?? '',
+              key: ValueKey(status),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: color,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
             ),
           ),

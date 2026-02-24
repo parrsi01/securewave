@@ -13,81 +13,41 @@ class AppTypography {
   /// Creates a Material 3 TextTheme using Manrope font.
   ///
   /// Falls back to system fonts on Linux to avoid Skia crashes.
-  static TextTheme textTheme(TextTheme base) {
-    // Use Google Fonts on iOS/Android/Windows/macOS/Web
-    // Use system fonts on Linux to avoid Skia rendering crashes
+  static TextTheme textTheme(TextTheme base, {bool isDark = false}) {
+    // Manrope on all platforms except Linux (Skia rendering workaround)
     final TextTheme theme = (!kIsWeb && Platform.isLinux)
         ? base
         : GoogleFonts.manropeTextTheme(base);
 
-    // Apply custom font weights and colors
+    final ink      = isDark ? AppColors.darkInk      : AppColors.ink;
+    final inkMuted = isDark ? AppColors.darkInkMuted  : AppColors.inkMuted;
+    final inkSoft  = isDark ? AppColors.darkInkSoft   : AppColors.inkSoft;
+
     return theme.copyWith(
-      // ── Display Styles ────────────────────────────────────────────────
-      displayLarge: theme.displayLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: AppColors.ink,
-      ),
-      displayMedium: theme.displayMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: AppColors.ink,
-      ),
-      displaySmall: theme.displaySmall?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: AppColors.ink,
-      ),
+      // ── Display ───────────────────────────────────────────────────────
+      displayLarge:  theme.displayLarge?.copyWith(fontWeight: FontWeight.w800, color: ink, letterSpacing: -1.5),
+      displayMedium: theme.displayMedium?.copyWith(fontWeight: FontWeight.w800, color: ink, letterSpacing: -1.0),
+      displaySmall:  theme.displaySmall?.copyWith(fontWeight: FontWeight.w700, color: ink, letterSpacing: -0.5),
 
-      // ── Headline Styles ───────────────────────────────────────────────
-      headlineLarge: theme.headlineLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: AppColors.ink,
-      ),
-      headlineMedium: theme.headlineMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: AppColors.ink,
-      ),
-      headlineSmall: theme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.ink,
-      ),
+      // ── Headline ──────────────────────────────────────────────────────
+      headlineLarge:  theme.headlineLarge?.copyWith(fontWeight: FontWeight.w700, color: ink, letterSpacing: -0.5),
+      headlineMedium: theme.headlineMedium?.copyWith(fontWeight: FontWeight.w700, color: ink, letterSpacing: -0.3),
+      headlineSmall:  theme.headlineSmall?.copyWith(fontWeight: FontWeight.w600, color: ink, letterSpacing: -0.2),
 
-      // ── Title Styles ──────────────────────────────────────────────────
-      titleLarge: theme.titleLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: AppColors.ink,
-      ),
-      titleMedium: theme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.ink,
-      ),
-      titleSmall: theme.titleSmall?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.ink,
-      ),
+      // ── Title ─────────────────────────────────────────────────────────
+      titleLarge:  theme.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: ink, letterSpacing: -0.3),
+      titleMedium: theme.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: ink, letterSpacing: -0.1),
+      titleSmall:  theme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: ink),
 
-      // ── Body Styles ───────────────────────────────────────────────────
-      bodyLarge: theme.bodyLarge?.copyWith(
-        color: AppColors.ink,
-      ),
-      bodyMedium: theme.bodyMedium?.copyWith(
-        color: AppColors.inkMuted,
-      ),
-      bodySmall: theme.bodySmall?.copyWith(
-        color: AppColors.inkSoft,
-      ),
+      // ── Body ──────────────────────────────────────────────────────────
+      bodyLarge:  theme.bodyLarge?.copyWith(color: ink, height: 1.55),
+      bodyMedium: theme.bodyMedium?.copyWith(color: inkMuted, height: 1.5),
+      bodySmall:  theme.bodySmall?.copyWith(color: inkSoft, height: 1.45),
 
-      // ── Label Styles ──────────────────────────────────────────────────
-      labelLarge: theme.labelLarge?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.ink,
-      ),
-      labelMedium: theme.labelMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.inkMuted,
-      ),
-      labelSmall: theme.labelSmall?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.inkSoft,
-      ),
+      // ── Label ─────────────────────────────────────────────────────────
+      labelLarge:  theme.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: ink, letterSpacing: 0.1),
+      labelMedium: theme.labelMedium?.copyWith(fontWeight: FontWeight.w600, color: inkMuted),
+      labelSmall:  theme.labelSmall?.copyWith(fontWeight: FontWeight.w600, color: inkSoft, letterSpacing: 0.3),
     );
   }
 

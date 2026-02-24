@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 import 'auth_controller.dart';
+import 'auth_widgets.dart';
 
+/// Login page — v2.
+///
+/// Split-layout: teal gradient top half with logo + tagline,
+/// form content in the bottom half.
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -15,9 +19,10 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _formKey            = GlobalKey<FormState>();
+  final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -28,147 +33,163 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(authControllerProvider);
+    final state  = ref.watch(authControllerProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppSpacing.authMaxWidth),
-            child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.space5),
-              children: [
-                const SizedBox(height: AppSpacing.space7),
-                Center(
-                  child: Hero(
-                    tag: 'securewave_logo',
-                    child: SvgPicture.asset(
-                      'assets/securewave_logo.svg',
-                      width: 56,
-                      height: 56,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space4),
-                Text(
-                  'Welcome back',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppSpacing.space2),
-                Text(
-                  'Sign in to connect and manage your SecureWave account.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppSpacing.space6),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.space5),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Email address',
-                              style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: AppSpacing.space2),
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            decoration:
-                                const InputDecoration(hintText: 'you@example.com'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Enter your email.';
-                              }
-                              if (!value.contains('@')) {
-                                return 'Enter a valid email.';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: AppSpacing.space4),
-                          Text('Password',
-                              style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: AppSpacing.space2),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: true,
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                                hintText: 'Enter your password'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Enter your password.';
-                              }
-                              if (value.length < 8) {
-                                return 'Use at least 8 characters.';
-                              }
-                              return null;
-                            },
-                          ),
-                          if (state.errorMessage != null) ...[
-                            const SizedBox(height: AppSpacing.space3),
-                            Text(
-                              state.errorMessage!,
-                              style: const TextStyle(color: AppColors.warning),
+        child: Column(
+          children: [
+            // ── Gradient header ────────────────────────────────────────
+            const AuthHeader(
+              headline: 'Welcome back',
+              subline: 'Secure. Private. Always on.',
+            ),
+
+            // ── Form ───────────────────────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                        maxWidth: AppSpacing.authMaxWidth),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.space4,
+                        AppSpacing.space5,
+                        AppSpacing.space4,
+                        AppSpacing.space4,
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const AuthFieldLabel('Email address'),
+                            const SizedBox(height: AppSpacing.space2),
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.email],
+                              decoration: const InputDecoration(
+                                hintText: 'you@example.com',
+                                prefixIcon: Icon(Icons.mail_outline_rounded),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.isEmpty) {
+                                  return 'Enter your email.';
+                                }
+                                if (!v.contains('@')) {
+                                  return 'Enter a valid email.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: AppSpacing.space4),
+                            const AuthFieldLabel('Password'),
+                            const SizedBox(height: AppSpacing.space2),
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              textInputAction: TextInputAction.done,
+                              autofillHints: const [AutofillHints.password],
+                              decoration: InputDecoration(
+                                hintText: 'Enter your password',
+                                prefixIcon:
+                                    const Icon(Icons.lock_outline_rounded),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: AppSpacing.iconS,
+                                  ),
+                                  onPressed: () => setState(() =>
+                                      _obscurePassword = !_obscurePassword),
+                                ),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.isEmpty) {
+                                  return 'Enter your password.';
+                                }
+                                if (v.length < 8) {
+                                  return 'Use at least 8 characters.';
+                                }
+                                return null;
+                              },
+                              onFieldSubmitted: (_) => _submit(),
+                            ),
+
+                            if (state.errorMessage != null) ...[
+                              const SizedBox(height: AppSpacing.space3),
+                              AuthErrorBanner(message: state.errorMessage!),
+                            ],
+
+                            const SizedBox(height: AppSpacing.space5),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed: state.isLoading ? null : _submit,
+                                child: state.isLoading
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text('Sign In'),
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.space4),
+                            Center(
+                              child: TextButton(
+                                onPressed: () => context.push('/register'),
+                                child: RichText(
+                                  text: TextSpan(
+                                    text: "Don't have an account? ",
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                    children: [
+                                      TextSpan(
+                                        text: 'Create one',
+                                        style: TextStyle(
+                                          color: isDark
+                                              ? AppColors.primaryBright
+                                              : AppColors.primary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
-                          const SizedBox(height: AppSpacing.space5),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              onPressed: state.isLoading
-                                  ? null
-                                  : () async {
-                                      if (!_formKey.currentState!.validate()) {
-                                        return;
-                                      }
-                                      await ref
-                                          .read(authControllerProvider.notifier)
-                                          .login(
-                                            email:
-                                                _emailController.text.trim(),
-                                            password:
-                                                _passwordController.text.trim(),
-                                          );
-                                      if (!context.mounted) return;
-                                      if (ref
-                                              .read(authControllerProvider)
-                                              .errorMessage ==
-                                          null) {
-                                        context.go('/home');
-                                      }
-                                    },
-                              child: state.isLoading
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    )
-                                  : const Text('Sign in'),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.space4),
-                Center(
-                  child: TextButton(
-                    onPressed: () => context.push('/register'),
-                    child: const Text('Create an account'),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    await ref.read(authControllerProvider.notifier).login(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
+    if (!mounted) return;
+    if (ref.read(authControllerProvider).errorMessage == null) {
+      context.go('/home');
+    }
   }
 }

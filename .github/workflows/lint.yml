@@ -35,8 +35,8 @@ jobs:
       - name: Run pre-commit
         run: pre-commit run --all-files
 
-      - name: Check Azure references
-        run: bash scripts/check_no_azure_refs.sh
+      - name: Legacy cloud reference guard
+        run: bash scripts/ci_hardening_check.sh
 
       - name: Terraform guardrails
         run: bash infra/hetzner/check_guardrails.sh

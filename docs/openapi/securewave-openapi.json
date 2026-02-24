@@ -14079,7 +14079,7 @@
           "downloads"
         ],
         "summary": "List Downloads",
-        "description": "Return all available downloads with platform auto-detection.",
+        "description": "Return all manifest-backed downloads with platform auto-detection.",
         "operationId": "list_downloads_api_downloads_list_get",
         "responses": {
           "200": {
@@ -14192,7 +14192,7 @@
           "downloads"
         ],
         "summary": "List Downloads",
-        "description": "Return all available downloads with platform auto-detection.",
+        "description": "Return all manifest-backed downloads with platform auto-detection.",
         "operationId": "list_downloads_api_downloads_get",
         "responses": {
           "200": {
@@ -14298,6 +14298,119 @@
         }
       }
     },
+    "/api/downloads/manifest": {
+      "get": {
+        "tags": [
+          "downloads",
+          "downloads"
+        ],
+        "summary": "Get Release Manifest",
+        "description": "Return parsed release manifest with resolved availability status.",
+        "operationId": "get_release_manifest_api_downloads_manifest_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseManifestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/downloads/detect": {
       "get": {
         "tags": [
@@ -14305,7 +14418,7 @@
           "downloads"
         ],
         "summary": "Detect User Platform",
-        "description": "Auto-detect the user platform and recommend the best download.",
+        "description": "Auto-detect the user platform and recommend the best published download.",
         "operationId": "detect_user_platform_api_downloads_detect_get",
         "responses": {
           "200": {
@@ -16574,15 +16687,45 @@
           },
           "filename": {
             "type": "string",
-            "title": "Filename"
+            "title": "Filename",
+            "default": ""
           },
           "url": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Url"
           },
           "version": {
             "type": "string",
             "title": "Version"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "build_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Date"
           },
           "size_bytes": {
             "anyOf": [
@@ -16606,6 +16749,44 @@
             ],
             "title": "Size Display"
           },
+          "checksum_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checksum Sha256"
+          },
+          "signed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed"
+          },
+          "signing_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signing Notes"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary",
+            "default": false
+          },
           "status": {
             "type": "string",
             "title": "Status"
@@ -16626,8 +16807,6 @@
         "required": [
           "platform",
           "architecture",
-          "filename",
-          "url",
           "version",
           "status"
         ],
@@ -16638,6 +16817,17 @@
           "version": {
             "type": "string",
             "title": "Version"
+          },
+          "build_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Date"
           },
           "detected_platform": {
             "anyOf": [
@@ -17034,6 +17224,60 @@
           "password_confirm"
         ],
         "title": "RegisterRequest"
+      },
+      "ReleaseManifestResponse": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "build_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Date"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/DownloadEntry"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "artifacts"
+        ],
+        "title": "ReleaseManifestResponse"
       },
       "ServerInfo": {
         "properties": {

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from models.subscription import Subscription
 from models.invoice import Invoice
 from models.user import User
+from services.subscription_state_machine import transition_subscription_status
 from services.stripe_service import StripeService
 from services.paypal_service import PayPalService
 
@@ -101,7 +102,7 @@ class SubscriptionManager:
                 plan_id=plan_id,
                 plan_name=plan["name"],
                 provider="stripe",
-                status=stripe_sub.status,
+                status="incomplete",
                 stripe_customer_id=stripe_customer_id,
                 stripe_subscription_id=stripe_sub.id,
                 stripe_payment_method_id=payment_method_id,
@@ -113,12 +114,23 @@ class SubscriptionManager:
                 next_billing_date=datetime.fromtimestamp(stripe_sub.current_period_end),
                 auto_renew=True,
             )
+            transition_subscription_status(
+                subscription,
+                stripe_sub.status,
+                source="manager:create_subscription_stripe",
+                force=True,
+            )
 
             # Handle trial period
             if stripe_sub.trial_end:
                 subscription.trial_start = datetime.fromtimestamp(stripe_sub.trial_start)
                 subscription.trial_end = datetime.fromtimestamp(stripe_sub.trial_end)
-                subscription.status = "trialing"
+                transition_subscription_status(
+                    subscription,
+                    "trialing",
+                    source="manager:create_subscription_stripe",
+                    force=True,
+                )
 
             self.db.add(subscription)
             self.db.commit()
@@ -178,12 +190,18 @@ class SubscriptionManager:
                 plan_id=plan_id,
                 plan_name=plan["name"],
                 provider="paypal",
-                status="pending_approval",  # Waiting for user to approve
+                status="incomplete",
                 paypal_subscription_id=paypal_sub["subscription_id"],
                 amount=plan[f"price_{billing_cycle}"],
                 currency="usd",
                 billing_cycle=billing_cycle,
                 auto_renew=True,
+            )
+            transition_subscription_status(
+                subscription,
+                "pending_approval",
+                source="manager:create_subscription_paypal",
+                force=True,
             )
 
             self.db.add(subscription)
@@ -331,8 +349,12 @@ class SubscriptionManager:
 
             # Update database
             if not cancel_at_period_end:
-                subscription.status = "canceled"
-                subscription.canceled_at = datetime.utcnow()
+                transition_subscription_status(
+                    subscription,
+                    "canceled",
+                    source="manager:cancel_subscription",
+                    force=True,
+                )
             else:
                 subscription.cancel_at_period_end = True
 
@@ -368,6 +390,12 @@ class SubscriptionManager:
             # Update database
             subscription.cancel_at_period_end = False
             subscription.cancellation_reason = None
+            transition_subscription_status(
+                subscription,
+                "active",
+                source="manager:reactivate_subscription",
+                force=True,
+            )
 
             self.db.commit()
             self.db.refresh(subscription)
@@ -499,7 +527,12 @@ class SubscriptionManager:
                 return None
 
             # Update database record
-            subscription.status = stripe_sub.status
+            transition_subscription_status(
+                subscription,
+                stripe_sub.status,
+                source="manager:sync_from_stripe",
+                force=True,
+            )
             subscription.current_period_start = datetime.fromtimestamp(stripe_sub.current_period_start)
             subscription.current_period_end = datetime.fromtimestamp(stripe_sub.current_period_end)
             subscription.next_billing_date = datetime.fromtimestamp(stripe_sub.current_period_end)
@@ -557,7 +590,12 @@ class SubscriptionManager:
                 "EXPIRED": "canceled"
             }
 
-            subscription.status = status_map.get(paypal_sub["status"], "incomplete")
+            transition_subscription_status(
+                subscription,
+                status_map.get(paypal_sub["status"], "incomplete"),
+                source="manager:sync_from_paypal",
+                force=True,
+            )
 
             # Update billing dates if available
             if paypal_sub.get("billing_info"):

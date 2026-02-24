@@ -122,9 +122,13 @@ class VPNHealthMonitor:
     def classify_handshake_freshness(age_seconds: float | None) -> str:
         """
         Classify handshake freshness for a peer.
+
+        Returns "pending" for peers that have never completed a handshake
+        (age_seconds is None).  These peers are provisioned but not yet
+        connected and must NOT drag server health toward unstable.
         """
         if age_seconds is None:
-            return "unstable"
+            return "pending"
         if age_seconds > UNSTABLE_HANDSHAKE_SECONDS:
             return "unstable"
         if age_seconds > DEGRADED_HANDSHAKE_SECONDS:
@@ -135,12 +139,21 @@ class VPNHealthMonitor:
     def classify_server_health(peer_statuses: List[str]) -> str:
         """
         Derive server health from peer statuses.
+
+        Peers with status "pending" (never connected) are excluded from
+        the calculation.  Only peers that have completed at least one
+        handshake participate in the health ratio.
         """
-        if not peer_statuses:
-            return "degraded"
-        total = len(peer_statuses)
-        unstable = len([s for s in peer_statuses if s == "unstable"])
-        degraded = len([s for s in peer_statuses if s == "degraded"])
+        # Filter out peers that have never connected.
+        active_statuses = [s for s in peer_statuses if s != "pending"]
+
+        if not active_statuses:
+            # No peers with handshake data -- server is idle, not unhealthy.
+            return "healthy"
+
+        total = len(active_statuses)
+        unstable = len([s for s in active_statuses if s == "unstable"])
+        degraded = len([s for s in active_statuses if s == "degraded"])
 
         unstable_ratio = unstable / total
         degraded_ratio = (unstable + degraded) / total

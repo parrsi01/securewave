@@ -86,34 +86,34 @@ void main() {
   }
 
   group('ConnectionRing', () {
-    testWidgets('shows "Tap to Connect" label when disconnected', (tester) async {
+    testWidgets('shows "Connect" label when disconnected', (tester) async {
       await tester.pumpWidget(
         buildWithService(_FixedStatusVpnService(VpnStatus.disconnected)),
       );
       await tester.pump();
 
-      expect(find.text('Tap to Connect'), findsOneWidget);
+      expect(find.text('Connect'), findsOneWidget);
       expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
     });
 
-    testWidgets('shows "Connected" label when connected', (tester) async {
+    testWidgets('shows "Protected" label when connected', (tester) async {
       await tester.pumpWidget(
         buildWithService(_FixedStatusVpnService(VpnStatus.connected)),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      expect(find.text('Connected'), findsOneWidget);
+      expect(find.text('Protected'), findsOneWidget);
       expect(find.byIcon(Icons.check_rounded), findsOneWidget);
     });
 
-    testWidgets('shows "Retry" label on error', (tester) async {
+    testWidgets('shows "Tap to retry" label on error', (tester) async {
       await tester.pumpWidget(
         buildWithService(_FixedStatusVpnService(VpnStatus.error)),
       );
       await tester.pump();
 
-      expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('Tap to retry'), findsOneWidget);
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
     });
 

@@ -9,6 +9,13 @@ import '../../ui/design/app_spacing.dart';
 import '../nav_destinations.dart';
 import 'status_indicator.dart';
 
+/// Desktop sidebar — v2.
+///
+/// 240dp sidebar with:
+/// - Logo + brand name header
+/// - Live VPN status pill
+/// - Navigation items with animated active indicator
+/// - User avatar + email + sign-out action
 class DesktopSidebar extends ConsumerWidget {
   const DesktopSidebar({
     super.key,
@@ -21,81 +28,107 @@ class DesktopSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authSessionProvider);
-    final email = auth.email ?? 'Not signed in';
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final email   = ref.watch(
+      authSessionProvider.select((a) => a.email ?? 'Not signed in'),
+    );
     final initial = email.isNotEmpty ? email[0].toUpperCase() : '?';
 
+    final bgColor     = isDark ? AppColors.darkBackgroundWarm : AppColors.backgroundWarm;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.border;
+
     return Container(
-      width: 240,
+      width: AppSpacing.sidebarWidth,
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.03),
-        border: Border(
-          right: BorderSide(color: AppColors.border, width: 1),
-        ),
+        color: bgColor,
+        border: Border(right: BorderSide(color: borderColor, width: 0.5)),
       ),
       child: Column(
         children: [
-          // Logo + brand
+          // ── Logo + brand ─────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              AppSpacing.space4, AppSpacing.space5, AppSpacing.space4, AppSpacing.space3,
+              AppSpacing.space4,
+              AppSpacing.space5,
+              AppSpacing.space4,
+              AppSpacing.space3,
             ),
             child: Row(
               children: [
-                SvgPicture.asset('assets/securewave_logo.svg', width: 28, height: 28),
+                SvgPicture.asset(
+                  'assets/securewave_logo.svg',
+                  width: 26,
+                  height: 26,
+                ),
                 const SizedBox(width: AppSpacing.space3),
                 Text(
                   'SecureWave',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.ink,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
                       ),
                 ),
               ],
             ),
           ),
 
-          // Status indicator
+          // ── Status pill ──────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.space4,
               vertical: AppSpacing.space2,
             ),
-            child: const StatusIndicator(showLabel: true),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space3,
+                vertical: AppSpacing.space2,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : AppColors.surface,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                border: Border.all(color: borderColor, width: 0.5),
+              ),
+              child: const StatusIndicator(showLabel: true),
+            ),
           ),
 
-          const Divider(height: 1),
-          const SizedBox(height: AppSpacing.space2),
+          Divider(height: AppSpacing.space4, thickness: 0.5, color: borderColor,
+              indent: AppSpacing.space4, endIndent: AppSpacing.space4),
 
-          // Navigation items
+          // ── Navigation items ─────────────────────────────────────────
           ...List.generate(NavDestinations.all.length, (i) {
-            final dest = NavDestinations.all[i];
+            final dest     = NavDestinations.all[i];
             final selected = i == currentIndex;
             return _NavItem(
               icon: selected ? dest.selectedIcon : dest.icon,
               label: dest.label,
               selected: selected,
+              isDark: isDark,
               onTap: () => onDestinationSelected(i),
             );
           }),
 
           const Spacer(),
-          const Divider(height: 1),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          // User info
+          // ── User row ─────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.all(AppSpacing.space4),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: AppColors.primaryLight,
+                  backgroundColor: isDark
+                      ? AppColors.primaryDeep
+                      : AppColors.primaryLight,
                   child: Text(
                     initial,
                     style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      color: isDark
+                          ? AppColors.primaryBright
+                          : AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -103,14 +136,16 @@ class DesktopSidebar extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     email,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.inkMuted,
-                        ),
+                    style: Theme.of(context).textTheme.bodySmall,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  icon: Icon(
+                    Icons.logout_rounded,
+                    size: AppSpacing.iconS,
+                    color: isDark ? AppColors.darkInkSoft : AppColors.inkSoft,
+                  ),
                   tooltip: 'Sign out',
                   onPressed: () {
                     ref.read(authSessionProvider).clearSession();
@@ -126,53 +161,74 @@ class DesktopSidebar extends ConsumerWidget {
   }
 }
 
+// ── Navigation item ────────────────────────────────────────────────────────
+
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.icon,
     required this.label,
     required this.selected,
+    required this.isDark,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
+  final bool isDark;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = isDark ? AppColors.primaryBright : AppColors.primary;
+    final activeColor  = isDark
+        ? AppColors.primaryBright.withValues(alpha: 0.14)
+        : AppColors.primaryLight;
+    final inkColor     = isDark ? AppColors.darkInk : AppColors.ink;
+    final mutedColor   = isDark ? AppColors.darkInkMuted : AppColors.inkMuted;
+
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space3,
         vertical: 2,
       ),
-      child: Material(
-        color: selected ? AppColors.primary.withValues(alpha: 0.08) : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.space4,
-              vertical: AppSpacing.space3,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  color: selected ? AppColors.primary : AppColors.inkMuted,
-                ),
-                const SizedBox(width: AppSpacing.space3),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: selected ? AppColors.primary : AppColors.ink,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                ),
-              ],
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          color: selected ? activeColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space4,
+                vertical: AppSpacing.space3,
+              ),
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    child: Icon(
+                      icon,
+                      size: AppSpacing.iconM,
+                      color: selected ? primaryColor : mutedColor,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.space3),
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: selected ? primaryColor : inkColor,
+                          fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                        ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

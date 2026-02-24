@@ -118,6 +118,9 @@ def tune_wireguard(
     forwarded_for: Optional[str],
     observed_latency_ms: Optional[float],
     device_type: Optional[str],
+    packet_loss: Optional[float] = None,
+    jitter_ms: Optional[float] = None,
+    server_health_status: Optional[str] = None,
 ) -> WireGuardTuning:
     """
     Compute adaptive MTU and keepalive values.
@@ -142,13 +145,27 @@ def tune_wireguard(
     if mtu is None:
         host = _host_from_endpoint(endpoint)
         probe_enabled = _bool_env("SECUREWAVE_MTU_PROBE", True)
+        loss = max(0.0, float(packet_loss or 0.0))
+        jitter = max(0.0, float(jitter_ms or 0.0))
+        health = (server_health_status or "").strip().lower()
+
         if probe_enabled:
-            candidate_mtu = [1420, 1400, 1380, 1360, 1320, 1280]
+            # In higher-loss/degraded conditions, bias probing toward safer MTU first.
+            if health in {"unstable", "unhealthy", "unreachable"} or loss >= 0.08 or jitter >= 45.0:
+                candidate_mtu = [1360, 1340, 1320, 1280, 1380, 1400]
+            else:
+                candidate_mtu = [1420, 1400, 1380, 1360, 1320, 1280]
             mtu, mtu_probe_ms = _probe_mtu(host, candidate_mtu)
 
         if mtu is None:
             # Heuristic fallback by observed conditions.
-            if _is_ipv6_host(host):
+            if health in {"unstable", "unhealthy", "unreachable"}:
+                mtu = 1320
+            elif loss >= 0.12 or jitter >= 80.0:
+                mtu = 1320
+            elif loss >= 0.08 or jitter >= 45.0:
+                mtu = 1340
+            elif _is_ipv6_host(host):
                 mtu = 1280
             elif observed_latency_ms and observed_latency_ms > 220:
                 mtu = 1360

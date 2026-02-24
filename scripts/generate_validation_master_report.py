@@ -115,9 +115,25 @@ def generate_report(output_path: Path) -> dict[str, Any]:
     benchmark = _suite_from_summary("benchmark", benchmark_summary)
     leak = _suite_from_summary("leak", leak_summary)
 
-    benchmark_thresholds = _load_json(REPO_ROOT / "benchmarks" / "thresholds.json", {})
-    chaos_thresholds = _load_json(REPO_ROOT / "chaos" / "chaos_thresholds.json", {})
-    leak_thresholds = _load_json(REPO_ROOT / "leak" / "leak_thresholds.json", {})
+    # Thresholds were moved under dev_tools/*; keep a fallback for older layouts.
+    benchmark_thresholds = _load_json(
+        (REPO_ROOT / "dev_tools" / "benchmarks" / "thresholds.json")
+        if (REPO_ROOT / "dev_tools" / "benchmarks" / "thresholds.json").exists()
+        else (REPO_ROOT / "benchmarks" / "thresholds.json"),
+        {},
+    )
+    chaos_thresholds = _load_json(
+        (REPO_ROOT / "dev_tools" / "chaos" / "chaos_thresholds.json")
+        if (REPO_ROOT / "dev_tools" / "chaos" / "chaos_thresholds.json").exists()
+        else (REPO_ROOT / "chaos" / "chaos_thresholds.json"),
+        {},
+    )
+    leak_thresholds = _load_json(
+        (REPO_ROOT / "dev_tools" / "leak" / "leak_thresholds.json")
+        if (REPO_ROOT / "dev_tools" / "leak" / "leak_thresholds.json").exists()
+        else (REPO_ROOT / "leak" / "leak_thresholds.json"),
+        {},
+    )
 
     benchmark_gate = _load_json(ARTIFACTS / "benchmark" / "benchmark_violations.json", {})
     chaos_gate = _load_json(ARTIFACTS / "chaos_tests" / "chaos_violations.json", {})

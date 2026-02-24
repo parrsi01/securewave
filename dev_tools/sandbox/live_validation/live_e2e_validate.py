@@ -176,6 +176,186 @@ def _write_secure_config(path: Path, config_text: str) -> None:
         pass
 
 
+def _linux_interface_ipv4(interface: str) -> str | None:
+    """
+    Best-effort IPv4 for a Linux interface (used as a dig source bind for external DNS verification).
+    """
+    result = run_command(["ip", "-4", "addr", "show", "dev", interface], timeout_seconds=5)
+    if result.returncode != 0:
+        return None
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if "inet " not in line:
+            continue
+        parts = line.split()
+        try:
+            idx = parts.index("inet")
+        except ValueError:
+            continue
+        if idx + 1 < len(parts):
+            cidr = parts[idx + 1]
+            ip = cidr.split("/", 1)[0].strip()
+            if ip:
+                return ip
+    return None
+
+
+def _curl_throughput_probe(platform: str, interface: str, *, url: str, bytes_to_fetch: int) -> dict[str, Any]:
+    """
+    Download a bounded byte-range to estimate throughput.
+    """
+    sink = "NUL" if platform == "windows" else "/dev/null"
+    end = max(0, int(bytes_to_fetch) - 1)
+    args: list[str] = [
+        "curl",
+        "-sS",
+        "-o",
+        sink,
+        "--connect-timeout",
+        "6",
+        "--max-time",
+        "25",
+        "--range",
+        f"0-{end}",
+        "-w",
+        "%{http_code} %{speed_download} %{time_total}",
+        url,
+    ]
+    # Bind to tunnel interface when possible (Linux only).
+    if platform == "linux":
+        args.insert(1, "--interface")
+        args.insert(2, interface)
+
+    res = run_command(args, timeout_seconds=30)
+    http_code = ""
+    speed_bps = 0.0
+    time_s = 0.0
+    tail = (res.stdout or "").strip().split()
+    if len(tail) >= 3:
+        http_code = tail[-3]
+        try:
+            speed_bps = float(tail[-2])
+        except Exception:
+            speed_bps = 0.0
+        try:
+            time_s = float(tail[-1])
+        except Exception:
+            time_s = 0.0
+
+    mbps = 0.0
+    try:
+        mbps = round((speed_bps * 8.0) / (1024.0 * 1024.0), 3)
+    except Exception:
+        mbps = 0.0
+
+    ok = res.returncode == 0 and http_code.startswith("2")
+    return {
+        "status": "ok" if ok else "failed",
+        "detail": f"http_status={http_code or 'unknown'}",
+        "url": url,
+        "bytes": int(bytes_to_fetch),
+        "speed_download_bps": round(speed_bps, 3),
+        "throughput_mbps": mbps,
+        "time_total_s": round(time_s, 3),
+        "command": res.command,
+        "stderr": (res.stderr or "")[:400],
+        "duration_ms": res.duration_ms,
+    }
+
+
+def _ping_latency_probe(platform: str, interface: str, host: str) -> dict[str, Any]:
+    ping_cmd: list[str] = ["ping", "-c", "3", "-W", "1", host]
+    if platform == "linux":
+        # Bind ICMP to the tunnel interface for correct path attribution.
+        ping_cmd = ["ping", "-I", interface, "-c", "3", "-W", "1", host]
+    res = run_command(ping_cmd, timeout_seconds=6)
+    avg_ms = None
+    # Linux ping: rtt min/avg/max/mdev = 1.23/4.56/...
+    for line in (res.stdout or "").splitlines():
+        if "min/avg" in line and "=" in line and "/" in line:
+            try:
+                tail = line.split("=", 1)[1].strip().replace(" ms", "")
+                parts = tail.split("/")
+                if len(parts) >= 2:
+                    avg_ms = float(parts[1])
+            except Exception:
+                avg_ms = None
+            break
+    ok = res.returncode == 0 and avg_ms is not None
+    return {
+        "status": "ok" if ok else "failed",
+        "host": host,
+        "avg_ms": round(float(avg_ms), 3) if avg_ms is not None else None,
+        "command": res.command,
+        "stderr": (res.stderr or "")[:200],
+        "duration_ms": res.duration_ms,
+    }
+
+
+def _external_dns_probe(platform: str, interface: str, *, dns_servers: list[str], domain: str) -> dict[str, Any]:
+    """
+    Best-effort external DNS verification:
+    - Linux: uses `dig` (if present) with source bind to the WG interface IPv4.
+    - Other platforms: skipped unless operator provides a custom command via env.
+    """
+    if platform != "linux":
+        # Operator escape hatch for Windows/Android runners where `dig`/interface binding may not exist.
+        # Example:
+        #   LIVE_WINDOWS_EXTERNAL_DNS_CMD='powershell -NoProfile -Command "Resolve-DnsName example.com | Select-Object -First 1"'
+        cmd_env = "LIVE_WINDOWS_EXTERNAL_DNS_CMD" if platform == "windows" else "LIVE_EXTERNAL_DNS_CMD"
+        cmd = (os.getenv(cmd_env) or "").strip()
+        if not cmd:
+            return {"status": "skipped", "detail": f"set {cmd_env} to enable external dns verification"}
+        res = run_command(cmd, timeout_seconds=12, shell=True)
+        ok = res.returncode == 0 and bool((res.stdout or "").strip())
+        return {
+            "status": "ok" if ok else "failed",
+            "detail": f"command_exit={res.returncode}",
+            "command": res.command,
+            "stdout": (res.stdout or "")[:400],
+            "stderr": (res.stderr or "")[:200],
+        }
+
+    if run_command(["bash", "-lc", "command -v dig >/dev/null 2>&1"], timeout_seconds=3).returncode != 0:
+        return {"status": "skipped", "detail": "dig_not_found"}
+
+    source_ip = _linux_interface_ipv4(interface)
+    if not source_ip:
+        return {"status": "skipped", "detail": "unable_to_resolve_interface_ipv4"}
+
+    # Probe a couple resolvers and capture query-time from stdout.
+    probes: list[dict[str, Any]] = []
+    ok_any = False
+    for server in dns_servers[:3]:
+        cmd = ["dig", "+time=2", "+tries=1", f"@{server}", domain, "-b", source_ip]
+        res = run_command(cmd, timeout_seconds=6)
+        qt_ms = None
+        for line in (res.stdout or "").splitlines():
+            if "Query time:" in line and "msec" in line:
+                try:
+                    qt_ms = float(line.split("Query time:", 1)[1].split("msec", 1)[0].strip())
+                except Exception:
+                    qt_ms = None
+                break
+        ok = res.returncode == 0 and qt_ms is not None
+        ok_any = ok_any or ok
+        probes.append(
+            {
+                "dns_server": server,
+                "status": "ok" if ok else "failed",
+                "query_time_ms": qt_ms,
+                "stderr": (res.stderr or "")[:200],
+            }
+        )
+
+    return {
+        "status": "ok" if ok_any else "failed",
+        "detail": f"source_ip={source_ip}",
+        "domain": domain,
+        "probes": probes,
+    }
+
+
 def run_live_validation(
     *,
     output_dir: Path,
@@ -191,6 +371,10 @@ def run_live_validation(
     http_probe_url: str,
     public_ip_endpoint: str,
     server_id: str | None,
+    throughput_url: str,
+    throughput_bytes: int,
+    ping_hosts: list[str],
+    dns_test_domain: str,
 ) -> dict:
     out_dir = ensure_dir(output_dir)
     started_at = utc_now_iso()
@@ -202,6 +386,7 @@ def run_live_validation(
     before_ip = fetch_public_ip(endpoint=public_ip_endpoint)
     handshake_rows: list[dict[str, Any]] = []
     dns_rows: list[dict[str, Any]] = []
+    perf_rows: list[dict[str, Any]] = []
 
     user_results: list[dict[str, Any]] = []
     failures = 0
@@ -338,6 +523,38 @@ def run_live_validation(
                 if strict:
                     strict_failures += 1
 
+            # Performance probes (best-effort, but counted as failures in strict mode).
+            ping_results = [_ping_latency_probe(effective_platform, interface, host) for host in ping_hosts if host.strip()]
+            ping_ok = all(item.get("status") == "ok" for item in ping_results) if ping_results else True
+            if not ping_ok:
+                failures += 1
+                if strict:
+                    strict_failures += 1
+
+            throughput_meta = _curl_throughput_probe(
+                effective_platform,
+                interface,
+                url=throughput_url,
+                bytes_to_fetch=throughput_bytes,
+            )
+            throughput_ok = throughput_meta.get("status") == "ok"
+            if not throughput_ok:
+                failures += 1
+                if strict:
+                    strict_failures += 1
+
+            external_dns = _external_dns_probe(
+                effective_platform,
+                interface,
+                dns_servers=expected_dns,
+                domain=dns_test_domain,
+            )
+            external_dns_ok = external_dns.get("status") in {"ok", "skipped"}
+            if not external_dns_ok:
+                failures += 1
+                if strict:
+                    strict_failures += 1
+
             _run_platform_command(disconnect_cmd, timeout_seconds=timeout_seconds)
 
             if not handshake_success:
@@ -360,7 +577,10 @@ def run_live_validation(
                         "status": dns_status,
                         "leaked": leaked_dns,
                     },
+                    "dns_external": external_dns,
                     "http_probe": http_meta,
+                    "ping": ping_results,
+                    "throughput": throughput_meta,
                 }
             )
 
@@ -389,6 +609,20 @@ def run_live_validation(
                     "observed_dns": ";".join(observed_dns),
                     "status": dns_status,
                     "leaked": ";".join(leaked_dns),
+                }
+            )
+            perf_rows.append(
+                {
+                    "timestamp": utc_now_iso(),
+                    "user": email,
+                    "platform": effective_platform,
+                    "interface": interface,
+                    "handshake_ms": handshake_ms,
+                    "throughput_mbps": throughput_meta.get("throughput_mbps"),
+                    "ping_hosts": ";".join([p.get("host", "") for p in ping_results if isinstance(p, dict)]),
+                    "ping_avg_ms": ";".join([str(p.get("avg_ms", "")) for p in ping_results if isinstance(p, dict)]),
+                    "external_ip_changed": ip_changed,
+                    "dns_external_status": external_dns.get("status"),
                 }
             )
 
@@ -424,6 +658,23 @@ def run_live_validation(
         ],
     )
 
+    write_csv(
+        out_dir / "performance_stats.csv",
+        perf_rows,
+        [
+            "timestamp",
+            "user",
+            "platform",
+            "interface",
+            "handshake_ms",
+            "throughput_mbps",
+            "ping_hosts",
+            "ping_avg_ms",
+            "external_ip_changed",
+            "dns_external_status",
+        ],
+    )
+
     payload = {
         "harness": "live_e2e_validate",
         "generated_at": utc_now_iso(),
@@ -438,6 +689,10 @@ def run_live_validation(
         "api_base_url": api_base_url,
         "http_probe_url": http_probe_url,
         "public_ip_endpoint": public_ip_endpoint,
+        "throughput_url": throughput_url,
+        "throughput_bytes": throughput_bytes,
+        "ping_hosts": ping_hosts,
+        "dns_test_domain": dns_test_domain,
         "results": user_results,
     }
     write_json(out_dir / "live_e2e_result.json", payload)
@@ -466,6 +721,27 @@ def main() -> int:
     parser.add_argument("--http-probe-url", default=os.getenv("LIVE_HTTP_PROBE_URL", "https://api.ipify.org"))
     parser.add_argument("--public-ip-endpoint", default=os.getenv("LIVE_PUBLIC_IP_ENDPOINT", "https://api.ipify.org"))
     parser.add_argument("--server-id", default=os.getenv("LIVE_VALIDATION_SERVER_ID", ""))
+    parser.add_argument(
+        "--throughput-url",
+        default=os.getenv("LIVE_THROUGHPUT_URL", "https://speed.hetzner.de/10MB.bin"),
+        help="URL for bounded throughput probe (download).",
+    )
+    parser.add_argument(
+        "--throughput-bytes",
+        type=int,
+        default=int(os.getenv("LIVE_THROUGHPUT_BYTES", str(5 * 1024 * 1024))),
+        help="Byte-range size to fetch for throughput probe.",
+    )
+    parser.add_argument(
+        "--ping-hosts",
+        default=os.getenv("LIVE_PING_HOSTS", "1.1.1.1,8.8.8.8"),
+        help="Comma-separated list of ping targets for latency probe.",
+    )
+    parser.add_argument(
+        "--dns-test-domain",
+        default=os.getenv("LIVE_DNS_TEST_DOMAIN", "example.com"),
+        help="Domain name used for external DNS probe via dig (Linux best-effort).",
+    )
     args = parser.parse_args()
 
     if not args.api_base_url.strip():
@@ -485,6 +761,10 @@ def main() -> int:
         http_probe_url=args.http_probe_url,
         public_ip_endpoint=args.public_ip_endpoint,
         server_id=args.server_id.strip() or None,
+        throughput_url=str(args.throughput_url),
+        throughput_bytes=max(256 * 1024, int(args.throughput_bytes)),
+        ping_hosts=[item.strip() for item in str(args.ping_hosts).split(",") if item.strip()],
+        dns_test_domain=str(args.dns_test_domain),
     )
 
     print(json.dumps(payload, indent=2))

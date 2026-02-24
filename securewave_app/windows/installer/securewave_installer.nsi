@@ -1,5 +1,11 @@
 ; SecureWave VPN - Windows Installer (NSIS scaffolding)
-; Usage: makensis /DVERSION=4.0.0 /DOUTPUT_FILE=SecureWaveVPN-4.0.0-setup.exe securewave_installer.nsi
+; Usage: makensis /DOUTPUT_FILE=SecureWaveVPN-<version>-setup.exe securewave_installer.nsi
+
+!define VERSION_FILE "..\\..\\VERSION"
+!define VERSION ""
+!if /fileexists "${VERSION_FILE}"
+  !searchparse /file "${VERSION_FILE}" "" VERSION
+!endif
 
 !ifndef VERSION
   !define VERSION "0.0.0"

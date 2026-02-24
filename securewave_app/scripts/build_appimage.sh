@@ -25,6 +25,8 @@ fi
 flutter pub get
 flutter build linux --release
 
+
+
 cp -f assets/icon.png packaging/appimage/securewave.png
 
 appimage-builder --recipe packaging/appimage/appimage-builder.yml --skip-test

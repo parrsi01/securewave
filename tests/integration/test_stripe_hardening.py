@@ -367,3 +367,130 @@ class TestStripeWebhookSecurityAndState:
         sub = db.query(Subscription).filter_by(stripe_subscription_id=sub_id).first()
         assert sub is not None
         assert sub.plan_id == "basic"
+
+    def test_replayed_event_payload_mismatch_is_rejected(self, client, monkeypatch, test_user, db):
+        _configure_stripe_env(monkeypatch)
+        test_user.stripe_customer_id = "cus_test_123"
+        db.add(test_user)
+        db.commit()
+
+        now = int(time.time())
+        base_event = {
+            "id": "evt_payload_mismatch",
+            "type": "customer.subscription.created",
+            "created": now,
+            "data": {
+                "object": {
+                    "id": "sub_payload_mismatch",
+                    "customer": "cus_test_123",
+                    "status": "active",
+                    "current_period_start": now,
+                    "current_period_end": now + 30 * 24 * 3600,
+                    "items": {"data": [{"price": {"id": "price_basic_monthly"}}]},
+                    "metadata": {"securewave_user_id": str(test_user.id), "plan_id": "basic", "billing_cycle": "monthly"},
+                }
+            },
+        }
+        payload_1 = json.dumps(base_event, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        sig_1 = _stripe_signature_header(payload=payload_1, secret="whsec_test_secret")
+        first = client.post("/api/payments/stripe/webhook", data=payload_1, headers={"Stripe-Signature": sig_1})
+        assert first.status_code == 200, first.text
+
+        # Replay same event_id with modified payload should be rejected.
+        tampered_event = dict(base_event)
+        tampered_obj = dict(base_event["data"]["object"])
+        tampered_obj["status"] = "past_due"
+        tampered_event["data"] = {"object": tampered_obj}
+        payload_2 = json.dumps(tampered_event, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        sig_2 = _stripe_signature_header(payload=payload_2, secret="whsec_test_secret")
+        second = client.post("/api/payments/stripe/webhook", data=payload_2, headers={"Stripe-Signature": sig_2})
+        assert second.status_code == 400
+
+    def test_out_of_order_subscription_update_is_ignored(self, client, monkeypatch, test_user, db):
+        _configure_stripe_env(monkeypatch)
+        test_user.stripe_customer_id = "cus_test_123"
+        db.add(test_user)
+        db.commit()
+
+        t1 = int(time.time())
+        t2 = t1 + 100
+        t_stale = t1 + 50
+        sub_id = "sub_ordering_1"
+        base = {
+            "id": sub_id,
+            "customer": "cus_test_123",
+            "status": "active",
+            "current_period_start": t1,
+            "current_period_end": t1 + 30 * 24 * 3600,
+            "items": {"data": [{"price": {"id": "price_basic_monthly"}}]},
+            "metadata": {"securewave_user_id": str(test_user.id), "plan_id": "basic", "billing_cycle": "monthly"},
+        }
+
+        create_evt = {"id": "evt_order_create", "type": "customer.subscription.created", "created": t1, "data": {"object": base}}
+        create_payload = json.dumps(create_evt, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        create_sig = _stripe_signature_header(payload=create_payload, secret="whsec_test_secret")
+        assert client.post("/api/payments/stripe/webhook", data=create_payload, headers={"Stripe-Signature": create_sig}).status_code == 200
+
+        newer = dict(base)
+        newer["status"] = "active"
+        update_new_evt = {"id": "evt_order_new", "type": "customer.subscription.updated", "created": t2, "data": {"object": newer}}
+        update_new_payload = json.dumps(update_new_evt, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        update_new_sig = _stripe_signature_header(payload=update_new_payload, secret="whsec_test_secret")
+        assert client.post("/api/payments/stripe/webhook", data=update_new_payload, headers={"Stripe-Signature": update_new_sig}).status_code == 200
+
+        # Stale event arrives after newer one; should be ignored by state machine.
+        stale = dict(base)
+        stale["status"] = "past_due"
+        update_stale_evt = {"id": "evt_order_stale", "type": "customer.subscription.updated", "created": t_stale, "data": {"object": stale}}
+        update_stale_payload = json.dumps(update_stale_evt, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        update_stale_sig = _stripe_signature_header(payload=update_stale_payload, secret="whsec_test_secret")
+        assert client.post("/api/payments/stripe/webhook", data=update_stale_payload, headers={"Stripe-Signature": update_stale_sig}).status_code == 200
+
+        from models.subscription import Subscription
+        sub = db.query(Subscription).filter_by(stripe_subscription_id=sub_id).first()
+        assert sub is not None
+        assert sub.status == "active"
+
+    def test_payment_intent_expired_card_marks_unpaid(self, client, monkeypatch, test_user, db):
+        _configure_stripe_env(monkeypatch)
+        test_user.stripe_customer_id = "cus_test_123"
+        db.add(test_user)
+        db.commit()
+
+        from models.subscription import Subscription
+
+        sub = Subscription(
+            user_id=test_user.id,
+            plan_id="basic",
+            plan_name="Basic Plan",
+            provider="stripe",
+            status="active",
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_expired_card_1",
+            amount=9.99,
+            currency="USD",
+            billing_cycle="monthly",
+        )
+        db.add(sub)
+        db.commit()
+
+        event = {
+            "id": "evt_pi_expired",
+            "type": "payment_intent.payment_failed",
+            "created": int(time.time()),
+            "data": {
+                "object": {
+                    "id": "pi_expired_1",
+                    "metadata": {"stripe_subscription_id": "sub_expired_card_1"},
+                    "last_payment_error": {"code": "expired_card", "decline_code": "expired_card"},
+                }
+            },
+        }
+        payload = json.dumps(event, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        sig = _stripe_signature_header(payload=payload, secret="whsec_test_secret")
+        resp = client.post("/api/payments/stripe/webhook", data=payload, headers={"Stripe-Signature": sig})
+        assert resp.status_code == 200, resp.text
+
+        db.refresh(sub)
+        assert sub.status == "unpaid"
+        assert sub.last_payment_status == "failed"

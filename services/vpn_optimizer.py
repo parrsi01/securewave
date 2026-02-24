@@ -253,14 +253,80 @@ class OptimizedVPNOptimizer:
             return np.array(features, dtype=np.float32).reshape(1, -1)
         return features
 
+    @staticmethod
+    def _clamp(value: float, low: float, high: float) -> float:
+        return max(low, min(high, value))
+
+    def _latency_weight(self, user_state: ConnectionState, server: ServerMetrics) -> float:
+        """
+        Dynamic latency weighting (premium + unstable links are more sensitive).
+        """
+        base = 1.2 if user_state.priority_level > 0 else 1.0
+        loss_amp = 1.0 + min(0.35, max(0.0, server.packet_loss) * 1.5)
+        jitter_amp = 1.0 + min(0.25, max(0.0, server.jitter_ms) / 180.0)
+        return self._clamp(base * loss_amp * jitter_amp, 0.85, 2.2)
+
+    def _predict_server_load(self, server_id: str) -> float:
+        """
+        Lightweight predictive load balancing using recent telemetry trend.
+        """
+        server = self.servers.get(server_id)
+        if not server:
+            return 0.0
+
+        samples = [item for item in self.metrics_history if item.get("server_id") == server_id]
+        if len(samples) < 2:
+            return self._clamp(server.cpu_load, 0.0, 1.5)
+
+        recent = samples[-8:] if len(samples) >= 8 else samples
+        start = float(recent[0].get("cpu_load", server.cpu_load))
+        end = float(recent[-1].get("cpu_load", server.cpu_load))
+        upward = max(0.0, end - start)
+        predicted = end + (upward * 0.65)
+        # High active-connection pressure amplifies near-term load forecast.
+        if server.active_connections > 0:
+            predicted += min(0.10, server.active_connections / 5000.0)
+        return round(self._clamp(predicted, 0.0, 1.5), 4)
+
+    def _preclassify_server_health(
+        self,
+        server: ServerMetrics,
+        predicted_load: Optional[float] = None,
+        *,
+        user_state: Optional[ConnectionState] = None,
+    ) -> str:
+        predicted = self._predict_server_load(server.server_id) if predicted_load is None else float(predicted_load)
+        state = user_state or ConnectionState(0, None, 0.0, 1.0, None, 0)
+        weighted_latency = server.latency_ms * self._latency_weight(
+            state,
+            server,
+        )
+        if server.packet_loss >= 0.20 or weighted_latency >= 650.0 or predicted >= 0.97 or server.jitter_ms >= 120.0:
+            return "unstable"
+        if server.packet_loss >= 0.08 or weighted_latency >= 320.0 or predicted >= 0.82 or server.jitter_ms >= 45.0:
+            return "degraded"
+        return "healthy"
+
+    def _adaptive_mtu_hint(self, server: ServerMetrics, health_class: str) -> int:
+        health = (health_class or "").strip().lower()
+        if health == "unstable" or server.packet_loss >= 0.12:
+            return 1320
+        if health == "degraded" or server.jitter_ms >= 40.0:
+            return 1360
+        if server.latency_ms >= 220.0:
+            return 1380
+        return 1420
+
     def _calculate_reward(self, server: ServerMetrics, user_state: ConnectionState) -> float:
         """
         Calculate reward for MARL agent (optimized formula)
         """
         # Optimized: Pre-compute constants
-        latency_reward = max(0.0, min(1.0, (200 - server.latency_ms) / 200))
+        weighted_latency = server.latency_ms * self._latency_weight(user_state, server)
+        latency_reward = max(0.0, min(1.0, (200 - weighted_latency) / 200))
         bandwidth_reward = min(1.0, server.bandwidth_mbps / 1000)
-        load_reward = max(0.0, 1.0 - server.cpu_load)
+        predicted_load = self._predict_server_load(server.server_id)
+        load_reward = max(0.0, 1.0 - predicted_load)
         stability_reward = max(0.0, (1.0 - server.packet_loss) * (1.0 - min(1.0, server.jitter_ms / 100)))
         security_reward = server.security_score
 
@@ -286,7 +352,7 @@ class OptimizedVPNOptimizer:
             reward *= 1.1
 
         # Overload penalty
-        if server.active_connections > 100:
+        if predicted_load > 0.90 or server.active_connections > 100:
             reward *= 0.8
 
         return reward
@@ -329,18 +395,19 @@ class OptimizedVPNOptimizer:
 
             # Get Q-value (LRU cache handles memory)
             q_value = self.q_table.get((state_hash, server_id), 0.0)
+            predicted_load = self._predict_server_load(server_id)
 
             # ML enhancement (if available)
             if self.use_ml and self.xgb_model and len(self.metrics_history) > 100:
                 try:
                     features = self._extract_features(server, user_state)
                     predicted_performance = float(self.xgb_model.predict(features)[0])
-                    combined_value = 0.7 * q_value + 0.3 * predicted_performance
+                    combined_value = 0.7 * q_value + 0.3 * predicted_performance - (0.25 * predicted_load)
                 except Exception:
-                    combined_value = q_value
+                    combined_value = q_value - (0.25 * predicted_load)
             else:
                 # Fallback: Use reward function directly
-                combined_value = q_value + 0.3 * self._calculate_reward(server, user_state)
+                combined_value = q_value + 0.3 * self._calculate_reward(server, user_state) - (0.25 * predicted_load)
 
             if combined_value > best_value:
                 best_value = combined_value
@@ -405,9 +472,16 @@ class OptimizedVPNOptimizer:
         # Select server using MARL
         selected_server_id = self._select_server_marl(user_id)
         server = self.servers[selected_server_id]
+        user_state = self.connection_states[user_id]
+        predicted_load = self._predict_server_load(selected_server_id)
+        health_preclassification = self._preclassify_server_health(
+            server,
+            predicted_load,
+            user_state=user_state,
+        )
+        adaptive_mtu = self._adaptive_mtu_hint(server, health_preclassification)
 
         # Calculate confidence
-        user_state = self.connection_states[user_id]
         reward = self._calculate_reward(server, user_state)
         confidence = min(1.0, reward * 1.2)
 
@@ -418,7 +492,10 @@ class OptimizedVPNOptimizer:
             "estimated_bandwidth_mbps": round(server.bandwidth_mbps, 2),
             "confidence_score": round(confidence, 3),
             "server_load": round(server.cpu_load, 2),
+            "predicted_server_load": round(predicted_load, 4),
             "active_connections": server.active_connections,
+            "server_health_preclassification": health_preclassification,
+            "adaptive_mtu_hint": adaptive_mtu,
             "security_score": round(server.security_score, 2),
             "optimization_method": "MARL+XGBoost" if self.use_ml else "MARL-only"
         }

@@ -59,6 +59,7 @@ def _ensure_tables():
         webhook_event_receipt,
         audit_log,
         vpn_server,
+        vpn_credential,
         vpn_server_rtt_sample,
         vpn_connection,
         wireguard_peer,

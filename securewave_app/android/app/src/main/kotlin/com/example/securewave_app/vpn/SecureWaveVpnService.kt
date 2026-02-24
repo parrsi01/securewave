@@ -19,12 +19,16 @@ import java.util.concurrent.Executors
 
 class SecureWaveVpnService : VpnService() {
   private val executor = Executors.newSingleThreadExecutor()
+  private val stateLock = Any()
   private lateinit var backend: GoBackend
   private val tunnel = object : Tunnel {
     override fun getName(): String = "SecureWave"
 
     override fun onStateChange(newState: Tunnel.State) {
-      currentState = newState
+      synchronized(stateLock) {
+        currentState = newState
+      }
+      lastKnownState = if (newState == Tunnel.State.UP) "connected" else "disconnected"
     }
   }
   @Volatile private var currentState = Tunnel.State.DOWN
@@ -32,6 +36,7 @@ class SecureWaveVpnService : VpnService() {
   override fun onCreate() {
     super.onCreate()
     backend = GoBackend(this)
+    lastKnownState = "disconnected"
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -63,7 +68,10 @@ class SecureWaveVpnService : VpnService() {
       try {
         val config = Config.parse(StringReader(configText))
         backend.setState(tunnel, Tunnel.State.UP, config)
-        currentState = Tunnel.State.UP
+        synchronized(stateLock) {
+          currentState = Tunnel.State.UP
+        }
+        lastKnownState = "connected"
         updateNotification("SecureWave VPN", "Connected")
         sendSuccess(receiver)
       } catch (error: Exception) {
@@ -83,7 +91,10 @@ class SecureWaveVpnService : VpnService() {
       try {
         if (currentState != Tunnel.State.DOWN) {
           backend.setState(tunnel, Tunnel.State.DOWN, null)
-          currentState = Tunnel.State.DOWN
+          synchronized(stateLock) {
+            currentState = Tunnel.State.DOWN
+          }
+          lastKnownState = "disconnected"
         }
         sendSuccess(receiver)
       } catch (error: Exception) {
@@ -140,6 +151,7 @@ class SecureWaveVpnService : VpnService() {
     const val ACTION_DISCONNECT = "com.example.securewave_app.vpn.DISCONNECT"
     const val EXTRA_CONFIG = "wireguard_config"
     const val EXTRA_RESULT_RECEIVER = "vpn_result_receiver"
+    @Volatile var lastKnownState: String = "disconnected"
     private const val NOTIFICATION_ID = 4201
     private const val RESULT_SUCCESS = 0
     private const val RESULT_ERROR = 1

@@ -37,7 +37,10 @@ if [[ -z "$bundle_dir" ]]; then
   exit 1
 fi
 
-version="$(awk '/^version:/ {print $2}' pubspec.yaml)"
+version="$(cat "$ROOT_DIR/../VERSION" 2>/dev/null | tr -d '\r' | xargs)"
+if [[ -z "$version" ]]; then
+  version="$(awk '/^version:/ {print $2}' pubspec.yaml)"
+fi
 if [[ -z "$version" ]]; then
   echo "ERROR: Unable to read version from pubspec.yaml." >&2
   exit 1
@@ -64,6 +67,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
+Depends: wireguard-tools, policykit-1
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave VPN desktop client
 CONTROL
@@ -88,6 +92,35 @@ set -euo pipefail
 exec /usr/lib/securewave/securewave_app "$@"
 WRAPPER
 chmod 0755 "$staging_dir/usr/bin/securewave-vpn"
+
+# postinst: install polkit rule so wg-quick runs without a password prompt
+# for members of the sudo group. Takes effect immediately (no restart needed).
+cat <<'POSTINST' > "$staging_dir/DEBIAN/postinst"
+#!/bin/bash
+set -e
+POLKIT_RULES_DIR=/etc/polkit-1/rules.d
+POLKIT_RULE=$POLKIT_RULES_DIR/50-securewave-wg.rules
+mkdir -p "$POLKIT_RULES_DIR"
+cat > "$POLKIT_RULE" <<'RULE'
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.policykit.exec" &&
+        action.lookup("program").indexOf("wg-quick") !== -1 &&
+        subject.isInGroup("sudo")) {
+        return polkit.Result.YES;
+    }
+});
+RULE
+chmod 0644 "$POLKIT_RULE"
+POSTINST
+chmod 0755 "$staging_dir/DEBIAN/postinst"
+
+# postrm: remove the polkit rule on uninstall
+cat <<'POSTRM' > "$staging_dir/DEBIAN/postrm"
+#!/bin/bash
+set -e
+rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
+POSTRM
+chmod 0755 "$staging_dir/DEBIAN/postrm"
 
 mkdir -p "$output_dir"
 output_file="$output_dir/${package_name}_${version}_${arch}.deb"

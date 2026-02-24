@@ -23,6 +23,9 @@ class ApiClient {
           BaseOptions(
             baseUrl: _config.apiBaseUrl,
             headers: {'Content-Type': 'application/json'},
+            connectTimeout: const Duration(seconds: 10),
+            sendTimeout: const Duration(seconds: 10),
+            receiveTimeout: const Duration(seconds: 20),
           ),
         );
     if (session != null) {

@@ -14,6 +14,7 @@ from models.subscription import Subscription
 from models.invoice import Invoice
 from models.user import User
 from models.webhook_event_receipt import WebhookEventReceipt
+from services.subscription_state_machine import transition_subscription_status
 from services.stripe_service import StripeService
 from services.paypal_service import PayPalService
 from services.email_service import EmailService
@@ -40,6 +41,7 @@ class PaymentWebhookHandler:
         self.paypal = PayPalService()
         self.email_service = EmailService()
         self.enhanced_email = get_enhanced_email_service(db)
+        self._active_event_created_ts: Optional[int] = None
 
     def _get_user_for_subscription(self, subscription: Optional[Subscription]) -> Optional[User]:
         if not subscription:
@@ -78,6 +80,7 @@ class PaymentWebhookHandler:
         provider: str,
         event_id: str,
         event_type: str,
+        payload_hash: Optional[str] = None,
     ) -> tuple[WebhookEventReceipt, bool]:
         """
         Return (receipt, is_duplicate).
@@ -86,14 +89,16 @@ class PaymentWebhookHandler:
         should not re-apply it.
         """
         now = datetime.utcnow()
-        payload_hash = hashlib.sha256(f"{event_id}:{event_type}".encode("utf-8")).hexdigest()
+        stable_payload_hash = payload_hash or hashlib.sha256(
+            f"{event_id}:{event_type}".encode("utf-8")
+        ).hexdigest()
         receipt = WebhookEventReceipt(
             provider=provider,
             event_id=event_id,
             event_type=event_type,
             status="received",
             attempt_count=1,
-            payload_hash=payload_hash,
+            payload_hash=stable_payload_hash,
             received_at=now,
         )
         try:
@@ -113,7 +118,13 @@ class PaymentWebhookHandler:
 
             receipt.attempt_count = int(receipt.attempt_count or 0) + 1
             receipt.event_type = receipt.event_type or event_type
-            receipt.payload_hash = receipt.payload_hash or payload_hash
+            if receipt.payload_hash and stable_payload_hash and receipt.payload_hash != stable_payload_hash:
+                receipt.status = "failed"
+                receipt.last_error = "payload_hash_mismatch_for_replayed_event"
+                self.db.add(receipt)
+                self.db.commit()
+                raise ValueError("Webhook replay payload mismatch")
+            receipt.payload_hash = receipt.payload_hash or stable_payload_hash
             receipt.received_at = now
 
             if receipt.status in {"processed", "ignored"}:
@@ -140,6 +151,9 @@ class PaymentWebhookHandler:
         receipt.last_error = (error or None)[:512] if error else None
         self.db.add(receipt)
         self.db.commit()
+
+    def _event_created_ts(self) -> Optional[int]:
+        return self._active_event_created_ts
 
     def _resolve_user_for_stripe_event(
         self,
@@ -182,7 +196,7 @@ class PaymentWebhookHandler:
         self.db.add(user)
         self.db.commit()
 
-    def handle_stripe_event(self, event: Dict) -> Dict:
+    def handle_stripe_event(self, event: Dict, *, payload_hash: Optional[str] = None) -> Dict:
         """
         Process Stripe webhook event
 
@@ -197,13 +211,21 @@ class PaymentWebhookHandler:
         if not event_id or not event_type:
             raise ValueError("Invalid Stripe event (missing id/type)")
 
+        raw_created = event.get("created")
+        try:
+            self._active_event_created_ts = int(raw_created) if raw_created is not None else None
+        except Exception:
+            self._active_event_created_ts = None
+
         receipt, is_duplicate = self._get_or_create_webhook_receipt(
             provider="stripe",
             event_id=str(event_id),
             event_type=str(event_type),
+            payload_hash=payload_hash,
         )
         if is_duplicate:
             logger.info("Duplicate Stripe webhook ignored: %s (%s)", event_id, event_type)
+            self._active_event_created_ts = None
             return {"status": "duplicate", "event_type": event_type, "event_id": event_id}
 
         event_data = (event.get("data") or {}).get("object") or {}
@@ -245,17 +267,21 @@ class PaymentWebhookHandler:
         if not handler:
             logger.info("Unhandled Stripe event type: %s", event_type)
             self._finalize_webhook_receipt(receipt, status="ignored")
+            self._active_event_created_ts = None
             return {"status": "ignored", "event_type": event_type, "event_id": event_id}
 
         try:
-            result = handler(event_data)
-        except Exception as e:
-            logger.error("Stripe event processing failed: %s (%s): %s", event_type, event_id, e)
-            self._finalize_webhook_receipt(receipt, status="failed", error=str(e))
-            raise
+            try:
+                result = handler(event_data)
+            except Exception as e:
+                logger.error("Stripe event processing failed: %s (%s): %s", event_type, event_id, e)
+                self._finalize_webhook_receipt(receipt, status="failed", error=str(e))
+                raise
 
-        self._finalize_webhook_receipt(receipt, status="processed")
-        return {"status": "processed", "event_type": event_type, "event_id": event_id, "result": result}
+            self._finalize_webhook_receipt(receipt, status="processed")
+            return {"status": "processed", "event_type": event_type, "event_id": event_id, "result": result}
+        finally:
+            self._active_event_created_ts = None
 
     def _stripe_checkout_session_completed(self, session_data: Dict) -> Dict:
         """Handle checkout.session.completed for better subscription creation reliability."""
@@ -298,16 +324,24 @@ class PaymentWebhookHandler:
             plan_id=plan_id,
             plan_name=plan_name,
             provider="stripe",
-            status=status,
+            status="incomplete",
             stripe_customer_id=str(customer_id) if customer_id else None,
             stripe_subscription_id=str(stripe_sub_id),
             amount=amount,
             currency="USD",
             billing_cycle=billing_cycle,
-            activated_at=datetime.utcnow(),
             auto_renew=True,
             internal_notes="created from checkout.session.completed (webhook)",
         )
+        transition = transition_subscription_status(
+            subscription,
+            status,
+            source="stripe:checkout.session.completed",
+            event_created=self._event_created_ts(),
+            force=True,
+        )
+        if not transition.applied:
+            subscription.internal_notes = f"{subscription.internal_notes}; transition={transition.reason}"
         self.db.add(subscription)
         self.db.commit()
         self.db.refresh(subscription)
@@ -365,7 +399,7 @@ class PaymentWebhookHandler:
                 plan_id=plan_id,
                 plan_name=plan_name,
                 provider="stripe",
-                status=status,
+                status="incomplete",
                 stripe_customer_id=str(customer_id) if customer_id else None,
                 stripe_subscription_id=str(stripe_sub_id),
                 stripe_price_id=price_id,
@@ -378,7 +412,6 @@ class PaymentWebhookHandler:
             created = True
 
         # Update mutable fields
-        subscription.status = status
         subscription.stripe_customer_id = subscription.stripe_customer_id or (str(customer_id) if customer_id else None)
         subscription.stripe_price_id = price_id or subscription.stripe_price_id
         subscription.plan_id = plan_id
@@ -402,8 +435,18 @@ class PaymentWebhookHandler:
         if subscription_data.get("trial_end"):
             subscription.trial_end = datetime.fromtimestamp(subscription_data["trial_end"])
 
-        if status in {"active", "trialing"} and not subscription.activated_at:
-            subscription.activated_at = datetime.utcnow()
+        transition = transition_subscription_status(
+            subscription,
+            status,
+            source="stripe:customer.subscription",
+            event_created=self._event_created_ts(),
+            force=created,
+        )
+        if not transition.applied:
+            note = f"state_transition_skipped:{transition.reason}"
+            subscription.internal_notes = (
+                f"{subscription.internal_notes}; {note}" if subscription.internal_notes else note
+            )
 
         self.db.add(subscription)
         self.db.commit()
@@ -436,9 +479,13 @@ class PaymentWebhookHandler:
             subscription = self.db.query(Subscription).filter_by(stripe_subscription_id=str(stripe_sub_id)).first()
 
         if subscription:
-            subscription.status = "canceled"
-            subscription.canceled_at = datetime.utcnow()
-            subscription.cancel_at_period_end = False
+            transition_subscription_status(
+                subscription,
+                "canceled",
+                source="stripe:customer.subscription.deleted",
+                event_created=self._event_created_ts(),
+                force=True,
+            )
             self.db.add(subscription)
             self.db.commit()
             user = self._get_user_for_subscription(subscription)
@@ -540,7 +587,13 @@ class PaymentWebhookHandler:
             subscription.last_payment_status = "succeeded"
             subscription.failed_payment_count = 0
             subscription.renewal_count += 1
-            subscription.status = "active"
+            transition_subscription_status(
+                subscription,
+                "active",
+                source="stripe:invoice.paid",
+                event_created=self._event_created_ts(),
+                force=True,
+            )
             user = self._get_user_for_subscription(subscription)
             if user:
                 user.subscription_status = "active"
@@ -565,7 +618,13 @@ class PaymentWebhookHandler:
         if subscription:
             subscription.last_payment_status = "failed"
             subscription.failed_payment_count += 1
-            subscription.status = "past_due"
+            target_status = "unpaid" if subscription.failed_payment_count >= 3 else "past_due"
+            transition_subscription_status(
+                subscription,
+                target_status,
+                source="stripe:invoice.payment_failed",
+                event_created=self._event_created_ts(),
+            )
             user = self._get_user_for_subscription(subscription)
             if user:
                 user.subscription_status = "basic"
@@ -591,7 +650,11 @@ class PaymentWebhookHandler:
             self.db.commit()
 
         logger.warning(f"⚠ Invoice payment failed: {stripe_invoice_id}")
-        return {"invoice_id": stripe_invoice_id, "status": "failed"}
+        return {
+            "invoice_id": stripe_invoice_id,
+            "status": "failed",
+            "subscription_status": target_status if subscription else None,
+        }
 
     def _stripe_invoice_action_required(self, invoice_data: Dict) -> Dict:
         """Handle invoice.payment_action_required (3D Secure)"""
@@ -628,7 +691,48 @@ class PaymentWebhookHandler:
 
     def _stripe_payment_failed(self, payment_intent_data: Dict) -> Dict:
         """Handle payment_intent.payment_failed event"""
-        return {"status": "payment_failed"}
+        error = payment_intent_data.get("last_payment_error") or {}
+        code = str(error.get("code") or "").lower()
+        decline_code = str(error.get("decline_code") or "").lower()
+        message = str(error.get("message") or "").lower()
+        expired_card = code == "expired_card" or decline_code == "expired_card" or "expired card" in message
+
+        metadata = payment_intent_data.get("metadata") or {}
+        stripe_sub_id = metadata.get("stripe_subscription_id") or metadata.get("subscription_id")
+        invoice_ref = payment_intent_data.get("invoice")
+
+        subscription = None
+        if stripe_sub_id:
+            subscription = self.db.query(Subscription).filter_by(stripe_subscription_id=str(stripe_sub_id)).first()
+        if not subscription and invoice_ref:
+            invoice = self.db.query(Invoice).filter_by(stripe_invoice_id=str(invoice_ref)).first()
+            if invoice:
+                subscription = self.db.query(Subscription).filter_by(id=invoice.subscription_id).first()
+
+        if subscription:
+            subscription.last_payment_status = "failed"
+            subscription.failed_payment_count = int(subscription.failed_payment_count or 0) + 1
+            target_status = "unpaid" if expired_card or subscription.failed_payment_count >= 3 else "past_due"
+            transition_subscription_status(
+                subscription,
+                target_status,
+                source="stripe:payment_intent.payment_failed",
+                event_created=self._event_created_ts(),
+            )
+            reason = "expired_card" if expired_card else "payment_failed"
+            note = f"payment_intent_failed:{reason}"
+            subscription.internal_notes = (
+                f"{subscription.internal_notes}; {note}" if subscription.internal_notes else note
+            )
+            user = self._get_user_for_subscription(subscription)
+            if user:
+                user.subscription_status = "basic"
+                self.db.add(user)
+            self.db.add(subscription)
+            self.db.commit()
+            return {"status": "payment_failed", "reason": reason, "subscription_status": subscription.status}
+
+        return {"status": "payment_failed", "reason": "unmapped_payment_intent"}
 
     def _stripe_charge_succeeded(self, charge_data: Dict) -> Dict:
         """Handle charge.succeeded event"""
@@ -654,7 +758,13 @@ class PaymentWebhookHandler:
             subscription = self.db.query(Subscription).filter_by(id=invoice.subscription_id).first()
             if subscription:
                 subscription.last_payment_status = "refunded"
-                subscription.status = "canceled"
+                transition_subscription_status(
+                    subscription,
+                    "canceled",
+                    source="stripe:charge.refunded",
+                    event_created=self._event_created_ts(),
+                    force=True,
+                )
                 self.db.commit()
 
                 user = self._get_user_for_subscription(subscription)

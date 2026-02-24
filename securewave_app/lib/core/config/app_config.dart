@@ -41,19 +41,29 @@ class AppConfig {
     }
 
     final env = dotenv.isInitialized ? dotenv.env : const <String, String>{};
-    final baseUrl = _envOrDefault(
-      env,
-      'SECUREWAVE_API_BASE_URL',
+
+    // Prefer build-time dart-defines for release builds. This avoids shipping a
+    // hardcoded `.env` and makes CI/release pipelines deterministic.
+    const defineBaseUrl =
+        String.fromEnvironment('SECUREWAVE_API_BASE_URL', defaultValue: '');
+    const definePortalUrl =
+        String.fromEnvironment('SECUREWAVE_PORTAL_URL', defaultValue: '');
+    const defineUpgradeUrl =
+        String.fromEnvironment('SECUREWAVE_UPGRADE_URL', defaultValue: '');
+
+    final baseUrl = _firstNonEmpty(
+      defineBaseUrl,
+      env['SECUREWAVE_API_BASE_URL'],
       AppConstants.baseUrlFallback,
     );
-    final portalUrl = _envOrDefault(
-      env,
-      'SECUREWAVE_PORTAL_URL',
+    final portalUrl = _firstNonEmpty(
+      definePortalUrl,
+      env['SECUREWAVE_PORTAL_URL'],
       AppConstants.portalUrlFallback,
     );
-    final upgradeUrl = _envOrDefault(
-      env,
-      'SECUREWAVE_UPGRADE_URL',
+    final upgradeUrl = _firstNonEmpty(
+      defineUpgradeUrl,
+      env['SECUREWAVE_UPGRADE_URL'],
       AppConstants.upgradeUrlFallback,
     );
     final resetSessionOnBoot = _parseBool(
@@ -73,10 +83,11 @@ class AppConfig {
     return _cached!;
   }
 
-  static String _envOrDefault(Map<String, String> env, String key, String fallback) {
-    final value = env[key];
-    if (value == null || value.trim().isEmpty) return fallback;
-    return value;
+  static String _firstNonEmpty(String a, String? b, String c) {
+    if (a.trim().isNotEmpty) return a.trim();
+    final bb = (b ?? '').trim();
+    if (bb.isNotEmpty) return bb;
+    return c;
   }
 
   static bool _parseBool(String value) {

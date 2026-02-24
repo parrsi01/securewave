@@ -1,38 +1,43 @@
 # Secret Scan Report
 
-Generated: `2026-02-13T21:20:34.363163+00:00`
+Generated (UTC): 2026-02-19T14:27:00Z
 
-## Scope
-- Scanned tracked files (`git ls-files`) for common secret patterns (keys/tokens).
-- Excluded vendored iOS code (`securewave_app/ios/ThirdParty/`), local venv (`.venv/`), and generated artifacts (`artifacts/`).
+## Working Tree Findings
 
-## Filename Checks
-- Tracked `.env*` files (templates): **4**
-  - Files: `.env.example.backend`, `.env.example.flutter`, `.env.production.example`, `.env.template`
-- Tracked `.env*` files (actionable): **0**
-- Tracked key/cert material files (`.pem`, `.key`, `.p12`, `.pfx`, `.jks`, `.keystore`): **0**
+Pattern: `sk_test_[0-9A-Za-z]{16,}`
 
-## Content Scan Results (Actionable)
-- High severity pattern hits: **0**
-- Medium severity pattern hits: **0**
+- /home/sp/cyber-course/projects/securewave/tests/security/test_log_redaction.py:23
 
-### High Severity Patterns
-- None detected.
+## Git History Findings
 
-### Medium Severity Patterns
-- None detected.
+Pattern: `sk_test_[0-9A-Za-z]{16,}`
 
-## Content Scan Results (Allowlisted)
-- Allowlisted findings: **2**
-- These are expected synthetic fixtures (for redaction/testing) and do not represent real credentials.
+- 848ce32 (origin/release/stripe-harden-web, release/stripe-harden-web) feat: stripe hardening + web account/billing center
 
-- `stripe_test_secret_key`: 1 file(s)
-  - `tests/security/test_log_redaction.py` (1 match(es))
-- `stripe_webhook_secret`: 1 file(s)
-  - `tests/security/test_log_redaction.py` (1 match(es))
+Pattern: `-----BEGIN PGP PRIVATE KEY BLOCK-----`
 
-## Git Ignore Coverage
-- `.gitignore` excludes local env files (`.env`, `.env.*`), key/cert material, terraform state/vars, and generated artifacts.
+- dd4d397 feat: complete VPN platform implementation + security hardening
 
-## Verdict
-No high/medium severity secret patterns were detected in tracked source/config files (excluding allowlisted test fixtures).
+Pattern: `JWT_SECRET(_KEY)?\s*=\s*["\047]?[A-Za-z0-9_\-]{16,}`
+
+- 8599b42 hetzner: add terraform module, sync tool, and runbook
+- 5a2cd35 chore: remove Azure remnants and purge artifacts
+- 2a46582 Build SecureWave demo single-app experience
+- 68609ab Modernize UI with Bootstrap 5.3 and fresh deployment
+
+Pattern: `SECRET_KEY\s*=\s*["\047]?[A-Za-z0-9_\-]{16,}`
+
+- 1324e76 feat: production reliability engineering (watchdog + geo reco + cost guardrails)
+- 76a1dfd test: add realism simulation suite and reports
+- 8599b42 hetzner: add terraform module, sync tool, and runbook
+- b4a2ef4 security: harden gitignore and add gitleaks scanning
+- 5a2cd35 chore: remove Azure remnants and purge artifacts
+- 2f1c667 (tag: v1.0.0-non-apple) chore(release): freeze + non-Azure simulation hardening
+- 37c592d feat: comprehensive testing, refactoring, and production readiness
+- 3138a63 Update app assets, security, ML, and cleanup
+- 2a46582 Build SecureWave demo single-app experience
+- 68609ab Modernize UI with Bootstrap 5.3 and fresh deployment
+
+## Notes
+- This scan is heuristic and may flag test fixtures or documentation examples.
+- If a real secret is detected, rotate it immediately and rewrite git history.

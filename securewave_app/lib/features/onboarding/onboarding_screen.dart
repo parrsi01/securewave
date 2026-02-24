@@ -4,6 +4,10 @@ import '../../ui/design/app_animations.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 
+/// Onboarding screen — v2.
+///
+/// Full-bleed page views with icon in gradient circle,
+/// parallax text, pill page indicators, and smooth CTA transitions.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, required this.onComplete});
   final VoidCallback onComplete;
@@ -17,12 +21,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _page = 0;
 
   static const _pages = [
-    _PageData(Icons.shield_rounded, 'Secure Your Connection',
-        'Your traffic is encrypted end-to-end. Browse, stream, and communicate without anyone watching.'),
-    _PageData(Icons.public_rounded, 'Choose Your Location',
-        'Connect to servers in 35+ countries. Pick the fastest or choose by region.'),
-    _PageData(Icons.check_circle_rounded, "You're All Set",
-        'Start browsing securely. You can always change settings later.'),
+    _PageData(
+      icon: Icons.shield_rounded,
+      gradient: [Color(0xFF1B6B68), Color(0xFF093837)],
+      title: 'Encrypted by default',
+      description:
+          'Your traffic is end-to-end encrypted. Browse, stream, and communicate without anyone watching.',
+    ),
+    _PageData(
+      icon: Icons.public_rounded,
+      gradient: [Color(0xFF1A5276), Color(0xFF0D2840)],
+      title: 'Choose your location',
+      description:
+          'Connect to 35+ countries. Pick the fastest server automatically or choose by region.',
+    ),
+    _PageData(
+      icon: Icons.check_circle_rounded,
+      gradient: [Color(0xFF1F6B3C), Color(0xFF0B3D1E)],
+      title: "You're all set",
+      description:
+          'Start browsing privately. Your settings can be changed any time from the app.',
+    ),
   ];
 
   @override
@@ -43,23 +62,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final isLast = _page == _pages.length - 1;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            // Skip button
+            // ── Skip ──────────────────────────────────────────────────
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.space4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.space4,
+                  vertical: AppSpacing.space3,
+                ),
                 child: TextButton(
                   onPressed: widget.onComplete,
                   child: const Text('Skip'),
                 ),
               ),
             ),
-            // Pages
+
+            // ── Pages ──────────────────────────────────────────────────
             Expanded(
               child: PageView.builder(
                 controller: _controller,
@@ -73,47 +97,78 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       if (_controller.position.haveDimensions) {
                         offset = (_controller.page ?? 0) - index;
                       }
-                      return Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Transform.translate(
-                            offset: Offset(offset * 30, 0),
-                            child: Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.primaryLight,
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.space5),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Icon in gradient circle
+                            Transform.translate(
+                              offset: Offset(offset * 40, 0),
+                              child: Container(
+                                width: 128,
+                                height: 128,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: data.gradient,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: data.gradient[0]
+                                          .withValues(alpha: 0.35),
+                                      blurRadius: 28,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(data.icon,
+                                    size: 56, color: Colors.white),
                               ),
-                              child: Icon(data.icon, size: 56, color: AppColors.primary),
                             ),
-                          ),
-                          const SizedBox(height: AppSpacing.space6),
-                          Transform.translate(
-                            offset: Offset(offset * 15, 0),
-                            child: Text(
-                              data.title,
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-                              textAlign: TextAlign.center,
+                            const SizedBox(height: AppSpacing.space6),
+
+                            // Title
+                            Transform.translate(
+                              offset: Offset(offset * 20, 0),
+                              child: Text(
+                                data.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                                textAlign: TextAlign.center,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: AppSpacing.space3),
-                          SizedBox(
-                            width: 280,
-                            child: Text(
-                              data.description,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkMuted),
-                              textAlign: TextAlign.center,
+                            const SizedBox(height: AppSpacing.space3),
+
+                            // Description
+                            Transform.translate(
+                              offset: Offset(offset * 10, 0),
+                              child: SizedBox(
+                                width: 300,
+                                child: Text(
+                                  data.description,
+                                  style:
+                                      Theme.of(context).textTheme.bodyMedium,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       );
                     },
                   );
                 },
               ),
             ),
-            // Dots
+
+            // ── Pill indicators ────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(_pages.length, (i) {
@@ -122,32 +177,45 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   duration: AppAnimations.durationNormal,
                   curve: AppAnimations.curveDefault,
                   margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: active ? 24 : 8,
+                  width: active ? 28 : 8,
                   height: 8,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                    color: active ? AppColors.primary : AppColors.inkSoft.withValues(alpha: 0.3),
+                    color: active
+                        ? (isDark ? AppColors.primaryBright : AppColors.primary)
+                        : (isDark
+                            ? AppColors.darkInkSoft
+                            : AppColors.inkSoft)
+                            .withValues(alpha: 0.3),
                   ),
                 );
               }),
             ),
+
             const SizedBox(height: AppSpacing.space5),
-            // Button
+
+            // ── CTA button ─────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.space5),
               child: SizedBox(
                 width: double.infinity,
-                child: FilledButton(
-                  onPressed: isLast
-                      ? widget.onComplete
-                      : () => _controller.nextPage(
-                            duration: AppAnimations.durationNormal,
-                            curve: AppAnimations.curveDefault,
-                          ),
-                  child: Text(isLast ? 'Get Started' : 'Next'),
+                child: AnimatedSwitcher(
+                  duration: AppAnimations.durationFast,
+                  child: FilledButton(
+                    key: ValueKey(isLast),
+                    onPressed: isLast
+                        ? widget.onComplete
+                        : () => _controller.nextPage(
+                              duration: AppAnimations.durationNormal,
+                              curve: AppAnimations.curveDefault,
+                            ),
+                    child: Text(isLast ? 'Get Started' : 'Continue'),
+                  ),
                 ),
               ),
             ),
+
             const SizedBox(height: AppSpacing.space6),
           ],
         ),
@@ -157,8 +225,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 }
 
 class _PageData {
-  const _PageData(this.icon, this.title, this.description);
+  const _PageData({
+    required this.icon,
+    required this.gradient,
+    required this.title,
+    required this.description,
+  });
+
   final IconData icon;
+  final List<Color> gradient;
   final String title;
   final String description;
 }
