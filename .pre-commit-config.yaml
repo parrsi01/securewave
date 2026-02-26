@@ -5,13 +5,6 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: detect-private-key
-        exclude: >-
-          (?x)^(
-            scripts/scan_git_history_for_secrets\.sh|
-            scripts/secret_scan\.sh|
-            scripts/pre-commit-hook\.sh|
-            artifacts/SECRET_SCAN_REPORT\.md
-          )$
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
