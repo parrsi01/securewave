@@ -16,30 +16,6 @@ abstract class VpnService {
   bool get isNativeAvailable;
   String? get availabilityMessage;
   Future<VpnCapabilities> getCapabilities();
-  Future<VpnPrivilegeAutomationStatus> getPrivilegeAutomationStatus();
-  Future<VpnPrivilegeAutomationStatus> enablePrivilegeAutomation(
-      {String mode = 'polkit_rule'});
-  Future<VpnPrivilegeAutomationStatus> disablePrivilegeAutomation(
-      {String mode = 'polkit_rule'});
-  Future<VpnPrivilegeAutomationStatus> verifyPrivilegeAutomation(
-      {String mode = 'polkit_rule'});
-  /// Returns the current cumulative traffic counters from the active tunnel.
-  /// [rxBytes] = received bytes, [txBytes] = sent bytes.
-  /// Returns (0, 0) when not connected or the native layer does not support it.
-  Future<({int rxBytes, int txBytes})> getTrafficStats();
-}
-
-/// Cumulative traffic snapshot with a wall-clock timestamp.
-class VpnTrafficSnapshot {
-  const VpnTrafficSnapshot({
-    required this.rxBytes,
-    required this.txBytes,
-    required this.timestamp,
-  });
-
-  final int rxBytes;
-  final int txBytes;
-  final DateTime timestamp;
 }
 
 class VpnServiceException implements Exception {
@@ -108,40 +84,6 @@ class VpnCapabilities {
     macosEntitlementReady: false,
     linuxWireGuardInstalled: false,
     linuxElevationAvailable: false,
-  );
-}
-
-class VpnPrivilegeAutomationStatus {
-  const VpnPrivilegeAutomationStatus({
-    required this.supported,
-    required this.enabled,
-    this.needsSetup = false,
-    this.canSetup = false,
-    this.backend = 'none',
-    this.message,
-    this.lastError,
-    this.helperInstalled = false,
-    this.ruleInstalled = false,
-    this.pkexecAvailable = false,
-    this.desktopAuthSession = false,
-  });
-
-  final bool supported;
-  final bool enabled;
-  final bool needsSetup;
-  final bool canSetup;
-  final String backend;
-  final String? message;
-  final String? lastError;
-  final bool helperInstalled;
-  final bool ruleInstalled;
-  final bool pkexecAvailable;
-  final bool desktopAuthSession;
-
-  static const unsupported = VpnPrivilegeAutomationStatus(
-    supported: false,
-    enabled: false,
-    backend: 'none',
   );
 }
 
@@ -234,7 +176,7 @@ class ChannelVpnService implements VpnService {
         );
       }
       final capabilities = await getCapabilities();
-      if (!_isProtocolLocallyConnectable(protocol, capabilities)) {
+      if (!capabilities.supportsProtocol(protocol)) {
         _status = VpnStatus.disconnected;
         throw VpnServiceException(
           'protocol_unavailable',
@@ -388,181 +330,6 @@ class ChannelVpnService implements VpnService {
     );
     _cacheCapabilities(fallbackCapabilities);
     return fallbackCapabilities;
-  }
-
-  @override
-  Future<VpnPrivilegeAutomationStatus> getPrivilegeAutomationStatus() async {
-    if (!_supportsNativeChannel())
-      return VpnPrivilegeAutomationStatus.unsupported;
-    final os = platform.operatingSystem.name.toLowerCase();
-    if (os != 'linux') return VpnPrivilegeAutomationStatus.unsupported;
-    try {
-      final raw = await _channel
-          .invokeMethod<dynamic>('getPrivilegeAutomationStatus')
-          .timeout(const Duration(seconds: 2));
-      if (raw is Map) {
-        final data = Map<String, dynamic>.from(raw);
-        bool b(String key) {
-          final value = data[key];
-          if (value is bool) return value;
-          if (value is num) return value != 0;
-          return value?.toString().toLowerCase() == 'true';
-        }
-
-        return VpnPrivilegeAutomationStatus(
-          supported: b('supported'),
-          enabled: b('enabled'),
-          needsSetup: b('needs_setup'),
-          canSetup: b('can_setup'),
-          backend: (data['backend']?.toString() ?? 'none'),
-          message: data['message']?.toString(),
-          lastError: data['last_error']?.toString(),
-          helperInstalled: b('helper_installed'),
-          ruleInstalled: b('rule_installed'),
-          pkexecAvailable: b('pkexec_available'),
-          desktopAuthSession: b('desktop_auth_session'),
-        );
-      }
-    } catch (error, stackTrace) {
-      AppLogger.warning(
-          'Privilege automation status check failed (using fallback)');
-      AppLogger.error(
-        'getPrivilegeAutomationStatus failed',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
-    return const VpnPrivilegeAutomationStatus(
-      supported: true,
-      enabled: false,
-      needsSetup: true,
-      canSetup: false,
-      backend: 'polkit_rule',
-      message: 'Privilege automation setup is not available in this build yet.',
-    );
-  }
-
-  @override
-  Future<VpnPrivilegeAutomationStatus> enablePrivilegeAutomation(
-      {String mode = 'polkit_rule'}) async {
-    if (!_supportsNativeChannel())
-      return VpnPrivilegeAutomationStatus.unsupported;
-    try {
-      final raw = await _channel.invokeMethod<dynamic>(
-        'enablePrivilegeAutomation',
-        <String, dynamic>{'mode': mode},
-      );
-      if (raw is Map) {
-        return VpnPrivilegeAutomationStatus(
-          supported: true,
-          enabled: raw['enabled'] == true,
-          needsSetup: raw['enabled'] != true,
-          canSetup: true,
-          backend: mode,
-          message: raw['message']?.toString(),
-          lastError: raw['error_code']?.toString(),
-        );
-      }
-    } catch (error, stackTrace) {
-      AppLogger.warning('enablePrivilegeAutomation failed (using fallback)');
-      AppLogger.error(
-        'enablePrivilegeAutomation failed',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
-    return const VpnPrivilegeAutomationStatus(
-      supported: true,
-      enabled: false,
-      needsSetup: true,
-      canSetup: false,
-      backend: 'polkit_rule',
-      message: 'One-time privilege automation setup is not implemented yet.',
-    );
-  }
-
-  @override
-  Future<VpnPrivilegeAutomationStatus> disablePrivilegeAutomation(
-      {String mode = 'polkit_rule'}) async {
-    if (!_supportsNativeChannel())
-      return VpnPrivilegeAutomationStatus.unsupported;
-    try {
-      final raw = await _channel.invokeMethod<dynamic>(
-        'disablePrivilegeAutomation',
-        <String, dynamic>{'mode': mode},
-      );
-      if (raw is Map) {
-        return VpnPrivilegeAutomationStatus(
-          supported: true,
-          enabled: raw['enabled'] == true,
-          needsSetup: raw['enabled'] != true,
-          canSetup: true,
-          backend: mode,
-          message: raw['message']?.toString(),
-          lastError: raw['error_code']?.toString(),
-        );
-      }
-    } catch (error, stackTrace) {
-      AppLogger.warning('disablePrivilegeAutomation failed (using fallback)');
-      AppLogger.error(
-        'disablePrivilegeAutomation failed',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
-    return const VpnPrivilegeAutomationStatus(
-      supported: true,
-      enabled: false,
-      needsSetup: true,
-      canSetup: false,
-      backend: 'polkit_rule',
-      message: 'Privilege automation disable is not implemented yet.',
-    );
-  }
-
-  @override
-  Future<VpnPrivilegeAutomationStatus> verifyPrivilegeAutomation(
-      {String mode = 'polkit_rule'}) async {
-    if (!_supportsNativeChannel())
-      return VpnPrivilegeAutomationStatus.unsupported;
-    try {
-      final raw = await _channel.invokeMethod<dynamic>(
-        'verifyPrivilegeAutomation',
-        <String, dynamic>{'mode': mode},
-      );
-      if (raw is Map) {
-        final data = Map<String, dynamic>.from(raw);
-        bool b(String key) {
-          final value = data[key];
-          if (value is bool) return value;
-          if (value is num) return value != 0;
-          return value?.toString().toLowerCase() == 'true';
-        }
-
-        return VpnPrivilegeAutomationStatus(
-          supported: b('supported'),
-          enabled: b('enabled'),
-          needsSetup: b('needs_setup'),
-          canSetup: b('can_setup'),
-          backend: (data['backend']?.toString() ?? mode),
-          message: data['message']?.toString(),
-          lastError: data['last_error']?.toString(),
-          helperInstalled: b('helper_installed'),
-          ruleInstalled: b('rule_installed'),
-          pkexecAvailable: b('pkexec_available'),
-          desktopAuthSession: b('desktop_auth_session'),
-        );
-      }
-    } catch (error, stackTrace) {
-      AppLogger.warning(
-          'verifyPrivilegeAutomation failed (delegating to status check)');
-      AppLogger.error(
-        'verifyPrivilegeAutomation failed',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
-    return getPrivilegeAutomationStatus();
   }
 
   @override
@@ -722,15 +489,6 @@ class ChannelVpnService implements VpnService {
     VpnProtocol protocol,
     VpnCapabilities capabilities,
   ) {
-    final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'linux' &&
-        (protocol == VpnProtocol.wireGuard ||
-            protocol == VpnProtocol.openVpn ||
-            protocol == VpnProtocol.ikev2) &&
-        capabilities.supportsProtocol(protocol) &&
-        !capabilities.linuxElevationAvailable) {
-      return capabilities.linuxElevationHint ?? _linuxElevationGuide();
-    }
     if (protocol == VpnProtocol.wireGuard) {
       return capabilities.wireGuardInstallHint ??
           'WireGuard runtime is not available on this device.';
@@ -757,56 +515,5 @@ class ChannelVpnService implements VpnService {
         error.code == 'vpn_unavailable' ||
         error.code == 'vpn_permission_required' ||
         error.code == 'protocol_unavailable';
-  }
-
-  bool _isProtocolLocallyConnectable(
-    VpnProtocol protocol,
-    VpnCapabilities capabilities,
-  ) {
-    if (!capabilities.supportsProtocol(protocol)) {
-      return false;
-    }
-    final os = platform.operatingSystem.name.toLowerCase();
-    if (os != 'linux') return true;
-    if (protocol == VpnProtocol.auto) return false;
-    return capabilities.linuxElevationAvailable;
-  }
-
-  @override
-  Future<({int rxBytes, int txBytes})> getTrafficStats() async {
-    if (!_supportsNativeChannel() || !_nativeAvailable) {
-      return (rxBytes: 0, txBytes: 0);
-    }
-    try {
-      final raw = await _channel
-          .invokeMethod<dynamic>('getTrafficStats')
-          .timeout(const Duration(seconds: 3));
-      if (raw is Map) {
-        final data = Map<String, dynamic>.from(raw);
-        final rx = data['rx_bytes'];
-        final tx = data['tx_bytes'];
-        return (
-          rxBytes: rx is int ? rx : int.tryParse(rx?.toString() ?? '') ?? 0,
-          txBytes: tx is int ? tx : int.tryParse(tx?.toString() ?? '') ?? 0,
-        );
-      }
-    } on MissingPluginException {
-      // Platform does not implement getTrafficStats — return zeros silently.
-    } on TimeoutException {
-      AppLogger.warning('getTrafficStats native call timed out');
-    } on PlatformException catch (error, stackTrace) {
-      AppLogger.error(
-        'getTrafficStats platform error: ${error.code}',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    } catch (error, stackTrace) {
-      AppLogger.error(
-        'getTrafficStats unexpected error',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
-    return (rxBytes: 0, txBytes: 0);
   }
 }

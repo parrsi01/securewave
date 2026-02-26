@@ -1,5 +1,3 @@
-import 'package:platform_info/platform_info.dart';
-
 import '../models/vpn_protocol.dart';
 import 'vpn_service.dart';
 
@@ -29,11 +27,9 @@ class ProtocolSelector {
     required VpnCapabilities capabilities,
   }) {
     final availableProtocols = <VpnProtocol>[
-      if (_supportsProtocol(VpnProtocol.wireGuard, capabilities))
-        VpnProtocol.wireGuard,
-      if (_supportsProtocol(VpnProtocol.openVpn, capabilities))
-        VpnProtocol.openVpn,
-      if (_supportsProtocol(VpnProtocol.ikev2, capabilities)) VpnProtocol.ikev2,
+      if (capabilities.wireGuard) VpnProtocol.wireGuard,
+      if (capabilities.openVpn) VpnProtocol.openVpn,
+      if (capabilities.ikev2) VpnProtocol.ikev2,
     ];
 
     VpnProtocol? requested;
@@ -46,16 +42,17 @@ class ProtocolSelector {
           error: 'No supported VPN runtime is available on this device.',
         );
       }
-      requested = availableProtocols.first;
       if (availableProtocols.length > 1) {
         return ProtocolResolution(
           selected: selected,
-          effective: requested,
-          backendProtocol: requested,
-          warning:
-              'Automatic selected ${vpnProtocolLabel(requested)} based on local runtime availability.',
+          effective: VpnProtocol.auto,
+          backendProtocol: VpnProtocol.auto,
+          error: 'Automatic protocol selection is disabled. '
+              'Multiple VPN runtimes are available. Select WireGuard, '
+              'OpenVPN, or IKEv2/IPSec explicitly.',
         );
       }
+      requested = availableProtocols.first;
     } else {
       requested = selected;
     }
@@ -77,30 +74,15 @@ class ProtocolSelector {
   }
 
   bool _supportsProtocol(VpnProtocol protocol, VpnCapabilities capabilities) {
-    final runtimeAvailable = switch (protocol) {
-      VpnProtocol.auto => false,
-      VpnProtocol.wireGuard => capabilities.wireGuard,
-      VpnProtocol.openVpn => capabilities.openVpn,
-      VpnProtocol.ikev2 => capabilities.ikev2,
-    };
-    if (!runtimeAvailable) return false;
-    final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'linux' &&
-        (protocol == VpnProtocol.wireGuard ||
-            protocol == VpnProtocol.openVpn ||
-            protocol == VpnProtocol.ikev2) &&
-        !capabilities.linuxElevationAvailable) {
-      return false;
-    }
     switch (protocol) {
       case VpnProtocol.auto:
         return false;
       case VpnProtocol.wireGuard:
-        return true;
+        return capabilities.wireGuard;
       case VpnProtocol.openVpn:
-        return true;
+        return capabilities.openVpn;
       case VpnProtocol.ikev2:
-        return true;
+        return capabilities.ikev2;
     }
   }
 
@@ -109,32 +91,14 @@ class ProtocolSelector {
     VpnCapabilities capabilities,
   ) {
     if (protocol == VpnProtocol.wireGuard) {
-      if (platform.operatingSystem.name.toLowerCase() == 'linux' &&
-          capabilities.wireGuard &&
-          !capabilities.linuxElevationAvailable) {
-        return capabilities.linuxElevationHint ??
-            'WireGuard on Linux requires elevation (pkexec/polkit or root).';
-      }
       return capabilities.wireGuardInstallHint ??
           'WireGuard runtime is not available on this device.';
     }
     if (protocol == VpnProtocol.openVpn) {
-      if (platform.operatingSystem.name.toLowerCase() == 'linux' &&
-          capabilities.openVpn &&
-          !capabilities.linuxElevationAvailable) {
-        return capabilities.linuxElevationHint ??
-            'OpenVPN on Linux requires elevation (pkexec/polkit or root).';
-      }
       return capabilities.openVpnInstallHint ??
           'OpenVPN runtime is not available on this device.';
     }
     if (protocol == VpnProtocol.ikev2) {
-      if (platform.operatingSystem.name.toLowerCase() == 'linux' &&
-          capabilities.ikev2 &&
-          !capabilities.linuxElevationAvailable) {
-        return capabilities.linuxElevationHint ??
-            'IKEv2 on Linux requires elevation (pkexec/polkit or root).';
-      }
       return capabilities.ikev2InstallHint ??
           'IKEv2/IPsec runtime is not available on this device.';
     }

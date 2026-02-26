@@ -32,7 +32,6 @@ def _create_server(
         supports_openvpn=supports_openvpn,
         supports_ikev2=supports_ikev2,
         openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----",
-        ikev2_ca_cert_pem="-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----",
     )
     db.add(server)
     db.commit()
@@ -71,22 +70,3 @@ def test_protocols_endpoint_rejects_invalid_device_type(client, auth_headers):
     assert response.status_code == 400, response.text
     payload = response.json()
     assert payload["error"]["code"] == "invalid_device_type"
-
-
-def test_protocols_endpoint_disables_protocol_when_server_material_incomplete(client, auth_headers, db):
-    broken = _create_server(db, server_id="ovpn-broken-1", supports_openvpn=True)
-    broken.openvpn_ca_cert_pem = None
-    db.add(broken)
-    db.commit()
-
-    response = client.get(
-        "/api/vpn/protocols",
-        params={"device_type": "windows"},
-        headers=auth_headers,
-    )
-    assert response.status_code == 200, response.text
-
-    items = {item["protocol"]: item for item in response.json()["protocols"]}
-    assert items["openvpn"]["server_enabled"] is False
-    assert items["openvpn"]["enabled"] is False
-    assert items["openvpn"]["reason"] == "server_material_incomplete"

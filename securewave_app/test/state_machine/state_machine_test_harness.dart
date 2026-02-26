@@ -186,10 +186,6 @@ class ControlledVpnService implements VpnService {
   }
 
   @override
-  Future<({int rxBytes, int txBytes})> getTrafficStats() async =>
-      (rxBytes: 0, txBytes: 0);
-
-  @override
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     Map<String, dynamic>? profile,

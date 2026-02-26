@@ -120,21 +120,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       preferencesProvider.select((prefs) => prefs.autoConnect),
       (previous, next) {
         if (previous == next || !next) return;
-        if (!_ref.read(preferencesProvider).loaded) return;
         _safeFireAndForget(
           _attemptAutoConnect(reason: 'preference_enabled'),
           context: 'auto_connect_preference_change',
-        );
-      },
-    );
-    _ref.listen<bool>(
-      preferencesProvider.select((prefs) => prefs.loaded),
-      (previous, next) {
-        if (previous == next || !next) return;
-        if (!_ref.read(preferencesProvider).autoConnect) return;
-        _safeFireAndForget(
-          _attemptAutoConnect(reason: 'preferences_loaded'),
-          context: 'auto_connect_preferences_loaded',
         );
       },
     );
@@ -150,20 +138,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
     _safeFireAndForget(_loadProtocol(), context: 'load_protocol');
     _safeFireAndForget(_syncNativeStatus(), context: 'sync_native_status');
-    if (_config.autoConnectInitDelay > Duration.zero) {
-      _initialAutoConnectTimer = Timer(_config.autoConnectInitDelay, () {
-        if (!mounted || _disposed) return;
-        _safeFireAndForget(
-          _attemptAutoConnect(reason: 'startup_initial_check'),
-          context: 'auto_connect_init',
-        );
-      });
-    } else {
-      _safeFireAndForget(
-        _attemptAutoConnect(reason: 'startup_initial_check'),
-        context: 'auto_connect_init',
-      );
-    }
+    _safeFireAndForget(
+      _attemptAutoConnect(reason: 'startup_initial_check'),
+      context: 'auto_connect_init',
+    );
   }
 
   final Ref _ref;
@@ -173,11 +151,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   final List<VpnTransitionRecord> _transitionHistory = <VpnTransitionRecord>[];
 
   Timer? _rateTimer;
-  Timer? _initialAutoConnectTimer;
   int _stabilitySuccesses = 0;
   int _stabilityFailures = 0;
   DateTime? _lastAutoReconnectAt;
-  VpnTrafficSnapshot? _lastTrafficSnapshot;
 
   int _operationCounter = 0;
   _VpnOperation? _activeOperation;
@@ -251,7 +227,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     if (!mounted || _disposed) return;
     final prefs = _ref.read(preferencesProvider);
     final session = _ref.read(authSessionProvider);
-    if (!prefs.loaded || !prefs.autoConnect || !session.isAuthenticated) return;
+    if (!prefs.autoConnect || !session.isAuthenticated) return;
     final isActive = state.desiredOn ||
         state.status == VpnStatus.connected ||
         state.status == VpnStatus.connecting ||
@@ -320,13 +296,6 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       trigger: VpnTransitionTrigger.userConnectRequested,
       clearError: true,
     );
-    if (_activeOperation?.action == _VpnOperationAction.connect &&
-        state.status == VpnStatus.connecting) {
-      AppLogger.info(
-        '[VPN_SM] {"event":"connect_request_ignored","reason":"connect_in_flight","operation_id":${_activeOperation?.id ?? 0}}',
-      );
-      return;
-    }
     try {
       await _requestReconcile().timeout(_config.connectOperationGuardTimeout);
     } on TimeoutException catch (error, stackTrace) {
@@ -1145,60 +1114,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   void _startRateSimulation() {
+    // Live-only mode: do not fabricate throughput metrics client-side.
     _rateTimer?.cancel();
     _rateTimer = null;
-    _lastTrafficSnapshot = null;
     if (!mounted) return;
     state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
-    // Poll native traffic stats every 2 seconds and compute throughput rates.
-    _rateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      _pollTrafficStats();
-    });
   }
 
   void _stopRateSimulation() {
     _rateTimer?.cancel();
     _rateTimer = null;
-    _lastTrafficSnapshot = null;
-  }
-
-  Future<void> _pollTrafficStats() async {
-    if (!mounted || state.status != VpnStatus.connected) return;
-    try {
-      final vpnService = _ref.read(vpnServiceProvider);
-      final stats = await vpnService.getTrafficStats();
-      if (!mounted) return;
-      final now = DateTime.now();
-      final prev = _lastTrafficSnapshot;
-      double downMbps = 0;
-      double upMbps = 0;
-      if (prev != null) {
-        final elapsedSec =
-            now.difference(prev.timestamp).inMilliseconds / 1000.0;
-        if (elapsedSec > 0) {
-          final rxDelta = (stats.rxBytes - prev.rxBytes).clamp(0, 1 << 62);
-          final txDelta = (stats.txBytes - prev.txBytes).clamp(0, 1 << 62);
-          // Convert bytes/sec to Mbps: * 8 / 1,000,000
-          downMbps = (rxDelta / elapsedSec) * 8 / 1000000;
-          upMbps = (txDelta / elapsedSec) * 8 / 1000000;
-        }
-      }
-      _lastTrafficSnapshot = VpnTrafficSnapshot(
-        rxBytes: stats.rxBytes,
-        txBytes: stats.txBytes,
-        timestamp: now,
-      );
-      state = state.copyWith(
-        dataRateDown: downMbps,
-        dataRateUp: upMbps,
-      );
-    } catch (error, stackTrace) {
-      AppLogger.error(
-        'Traffic stats poll failed',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
   }
 
   void _updateStability({required bool success}) {
@@ -1279,17 +1204,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         'protocol_not_supported_on_platform',
         'protocol_not_supported_on_server',
         'protocol_temporarily_unavailable',
-        'openvpn_temporarily_unavailable',
-        'ikev2_temporarily_unavailable',
         'protocol_plan_restricted',
         'protocol_disabled_server_side',
         'no_protocol_available',
-        'openvpn_server_misconfigured',
-        'ikev2_server_misconfigured',
-        'openvpn_healthcheck_fail',
-        'ikev2_healthcheck_fail',
-        'openvpn_unavailable_region',
-        'ikev2_unavailable_region',
       };
       if (protocolCodes.contains(normalizedApiCode)) {
         return (
@@ -1336,36 +1253,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
               : 'Profile fetch failed. The server endpoint was not found.',
         );
       }
-      final apiMessageLower = (apiMessage ?? '').toLowerCase();
-      final detailLower = (detail ?? '').toLowerCase();
-      final looksLikeLegacyProvisioningFailure = status != null &&
-          status >= 500 &&
-          ((apiMessageLower.contains(
-                      'failed to provision openvpn certificate profile') ||
-                  detailLower.contains(
-                      'failed to provision openvpn certificate profile')) ||
-              (apiMessageLower.contains(
-                      'failed to provision ikev2 certificate profile') ||
-                  detailLower.contains(
-                      'failed to provision ikev2 certificate profile')));
-      if (looksLikeLegacyProvisioningFailure) {
-        return (
-          kind: VpnErrorKind.protocolUnavailable,
-          message: (apiMessage != null && apiMessage.isNotEmpty)
-              ? apiMessage
-              : detail != null && detail.isNotEmpty
-                  ? detail
-                  : 'Selected protocol is temporarily unavailable on the server.',
-        );
-      }
       if (status != null && status >= 500) {
         return (
           kind: VpnErrorKind.backendError,
-          message: (apiMessage != null && apiMessage.isNotEmpty)
-              ? apiMessage
-              : detail != null && detail.isNotEmpty
-                  ? 'Backend error: $detail'
-                  : 'Backend server error. Please try again in a few minutes.',
+          message: detail != null && detail.isNotEmpty
+              ? 'Backend error: $detail'
+              : 'Backend server error. Please try again in a few minutes.',
         );
       }
       if (status != null) {
@@ -1440,9 +1333,6 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _activeOperation = null;
     _rateTimer?.cancel();
     _rateTimer = null;
-    _lastTrafficSnapshot = null;
-    _initialAutoConnectTimer?.cancel();
-    _initialAutoConnectTimer = null;
     super.dispose();
   }
 }

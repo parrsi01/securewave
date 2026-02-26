@@ -1,16 +1,11 @@
-import 'dart:async';
-
-import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:securewave_app/core/config/app_config.dart';
-import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
-import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
 import 'package:securewave_app/services/api_client.dart';
 
@@ -128,118 +123,5 @@ void main() {
     );
     await notifier.handleConnectivityChange(hasNetwork: false);
     expect(container.read(vpnStateProvider).status, VpnStatus.error);
-  });
-
-  test('duplicate connect requests remain single-flight', () async {
-    final gate = Completer<void>();
-    final service = ControlledVpnService(
-      connectGate: gate,
-      disconnectDelay: Duration.zero,
-      capabilities: const VpnCapabilities(
-        wireGuard: true,
-        openVpn: false,
-        ikev2: false,
-      ),
-    );
-    final fakeApi = FakeApiClient(config: testAppConfig());
-    final container = ProviderContainer(
-      overrides: [
-        appConfigProvider.overrideWith((ref) => testAppConfig()),
-        vpnServiceProvider.overrideWithValue(service),
-        apiClientProvider.overrideWithValue(fakeApi),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final notifier = container.read(vpnStateProvider.notifier);
-    final f1 = notifier.connect();
-    await waitForCondition(
-      () => container.read(vpnStateProvider).status == VpnStatus.connecting,
-    );
-    final f2 = notifier.connect();
-
-    gate.complete();
-    await Future.wait([f1, f2]);
-
-    expect(service.connectCalls, 1);
-    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
-  });
-
-  test('preserves actionable WireGuard stale-interface error message',
-      () async {
-    final service = ControlledVpnService(
-      connectDelay: Duration.zero,
-      connectError: VpnServiceException(
-        'vpn_connect_failed',
-        'WireGuard interface already exists (stale previous session).',
-      ),
-      capabilities: const VpnCapabilities(
-        wireGuard: true,
-        openVpn: false,
-        ikev2: false,
-      ),
-    );
-    final fakeApi = FakeApiClient(config: testAppConfig());
-    final container = ProviderContainer(
-      overrides: [
-        appConfigProvider.overrideWith((ref) => testAppConfig()),
-        vpnServiceProvider.overrideWithValue(service),
-        apiClientProvider.overrideWithValue(fakeApi),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final notifier = container.read(vpnStateProvider.notifier);
-    await notifier.selectProtocol(VpnProtocol.wireGuard);
-    await notifier.connect();
-
-    final state = container.read(vpnStateProvider);
-    expect(state.status, VpnStatus.error);
-    expect(state.errorMessage, contains('already exists'));
-  });
-
-  test('maps legacy 502 provisioning errors to protocol unavailable', () async {
-    final service = ControlledVpnService(
-      connectDelay: Duration.zero,
-      capabilities: const VpnCapabilities(
-        wireGuard: true,
-        openVpn: true,
-        ikev2: true,
-      ),
-    );
-    final fakeApi = FakeApiClient(
-      config: testAppConfig(),
-      shouldFailProfile: true,
-      profileError: DioException(
-        requestOptions: RequestOptions(path: '/vpn/profile'),
-        response: Response<dynamic>(
-          requestOptions: RequestOptions(path: '/vpn/profile'),
-          statusCode: 502,
-          data: const {
-            'error': {
-              'message': 'Failed to provision IKEv2 certificate profile.',
-            },
-          },
-        ),
-        type: DioExceptionType.badResponse,
-      ),
-    );
-    final container = ProviderContainer(
-      overrides: [
-        appConfigProvider.overrideWith((ref) => testAppConfig()),
-        vpnServiceProvider.overrideWithValue(service),
-        apiClientProvider.overrideWithValue(fakeApi),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final notifier = container.read(vpnStateProvider.notifier);
-    await notifier.selectProtocol(VpnProtocol.ikev2);
-    await notifier.connect();
-
-    final state = container.read(vpnStateProvider);
-    expect(state.status, VpnStatus.error);
-    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
-    expect(state.errorMessage, contains('IKEv2'));
   });
 }

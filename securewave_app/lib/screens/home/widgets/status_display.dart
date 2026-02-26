@@ -144,8 +144,7 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
   String? _platformHelperHint(TargetPlatform platform, VpnProtocol protocol) {
     if (protocol == VpnProtocol.wireGuard) {
       return switch (platform) {
-        TargetPlatform.linux =>
-          'Native runtime + elevation (no prompt if SecureWave helper is installed)',
+        TargetPlatform.linux => 'Native runtime + admin prompt',
         TargetPlatform.windows => 'WireGuard for Windows runtime',
         TargetPlatform.macOS => 'Signed NE build required',
         _ => 'Native runtime',
@@ -153,8 +152,7 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
     }
     if (protocol == VpnProtocol.openVpn) {
       return switch (platform) {
-        TargetPlatform.linux =>
-          'Requires OpenVPN client + elevation + backend profile',
+        TargetPlatform.linux => 'Requires OpenVPN client + elevation',
         TargetPlatform.windows => 'Requires OpenVPN for Windows (UAC)',
         TargetPlatform.macOS => 'Signed Packet Tunnel build required',
         _ => 'Requires OpenVPN runtime',

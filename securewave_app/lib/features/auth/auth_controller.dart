@@ -13,21 +13,15 @@ class AuthState {
   final bool isLoading;
   final String? errorMessage;
 
-  AuthState copyWith({
-    bool? isLoading,
-    String? errorMessage,
-    bool clearErrorMessage = false,
-  }) {
+  AuthState copyWith({bool? isLoading, String? errorMessage}) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
-      errorMessage:
-          clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
+      errorMessage: errorMessage,
     );
   }
 }
 
-final authControllerProvider =
-    StateNotifierProvider<AuthController, AuthState>((ref) {
+final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
   return AuthController(ref);
 });
 
@@ -37,18 +31,15 @@ class AuthController extends StateNotifier<AuthState> {
   final Ref _ref;
 
   Future<void> login({required String email, required String password}) async {
-    state = state.copyWith(isLoading: true, clearErrorMessage: true);
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      await _ref
-          .read(authServiceProvider)
-          .login(email: email, password: password);
+      await _ref.read(authServiceProvider).login(email: email, password: password);
     } catch (error, stackTrace) {
       AppLogger.error('Login failed', error: error, stackTrace: stackTrace);
       state = state.copyWith(
         errorMessage: ApiError.messageFrom(
           error,
-          fallback:
-              'We could not sign you in. Check your details and try again.',
+          fallback: 'We could not sign you in. Check your details and try again.',
         ),
       );
     } finally {
@@ -56,13 +47,10 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> register(
-      {required String email, required String password}) async {
-    state = state.copyWith(isLoading: true, clearErrorMessage: true);
+  Future<void> register({required String email, required String password}) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      await _ref
-          .read(authServiceProvider)
-          .register(email: email, password: password);
+      await _ref.read(authServiceProvider).register(email: email, password: password);
     } catch (error) {
       AppLogger.error('Registration failed', error: error);
       state = state.copyWith(

@@ -153,11 +153,12 @@ class ProtocolCapabilityMatrix {
     for (final protocol in orderedProtocols()) {
       final declaredByPlatform = declared.contains(protocol);
       final backendEnabled = backendEnabledProtocols.contains(protocol);
-      final nativeReady = _nativeReadyForPlatform(
-        platform: platform,
-        protocol: protocol,
-        nativeCapabilities: nativeCapabilities,
-      );
+      final nativeReady = switch (protocol) {
+        VpnProtocol.auto => false,
+        VpnProtocol.wireGuard => nativeCapabilities.wireGuard,
+        VpnProtocol.openVpn => nativeCapabilities.openVpn,
+        VpnProtocol.ikev2 => nativeCapabilities.ikev2,
+      };
 
       String? reason;
       if (!declaredByPlatform) {
@@ -192,17 +193,6 @@ class ProtocolCapabilityMatrix {
     VpnProtocol protocol,
     VpnCapabilities nativeCapabilities,
   ) {
-    final runtimeInstalled = _runtimeInstalledForProtocol(
-      protocol: protocol,
-      nativeCapabilities: nativeCapabilities,
-    );
-    if (platform == VpnClientPlatform.linux &&
-        runtimeInstalled &&
-        _linuxElevationRequired(protocol) &&
-        !nativeCapabilities.linuxElevationAvailable) {
-      return nativeCapabilities.linuxElevationHint ??
-          'Administrator elevation is required for ${vpnProtocolLabel(protocol)} on Linux.';
-    }
     if (protocol == VpnProtocol.wireGuard &&
         nativeCapabilities.wireGuardInstallHint != null) {
       return nativeCapabilities.wireGuardInstallHint!;
@@ -220,42 +210,5 @@ class ProtocolCapabilityMatrix {
           'macOS VPN runtime is not configured for this build.';
     }
     return '${vpnProtocolLabel(protocol)} runtime is unavailable on this device.';
-  }
-
-  static bool _nativeReadyForPlatform({
-    required VpnClientPlatform platform,
-    required VpnProtocol protocol,
-    required VpnCapabilities nativeCapabilities,
-  }) {
-    if (protocol == VpnProtocol.auto) return false;
-    final runtimeInstalled = _runtimeInstalledForProtocol(
-      protocol: protocol,
-      nativeCapabilities: nativeCapabilities,
-    );
-    if (!runtimeInstalled) return false;
-    if (platform == VpnClientPlatform.linux &&
-        _linuxElevationRequired(protocol) &&
-        !nativeCapabilities.linuxElevationAvailable) {
-      return false;
-    }
-    return true;
-  }
-
-  static bool _runtimeInstalledForProtocol({
-    required VpnProtocol protocol,
-    required VpnCapabilities nativeCapabilities,
-  }) {
-    return switch (protocol) {
-      VpnProtocol.auto => false,
-      VpnProtocol.wireGuard => nativeCapabilities.wireGuard,
-      VpnProtocol.openVpn => nativeCapabilities.openVpn,
-      VpnProtocol.ikev2 => nativeCapabilities.ikev2,
-    };
-  }
-
-  static bool _linuxElevationRequired(VpnProtocol protocol) {
-    return protocol == VpnProtocol.wireGuard ||
-        protocol == VpnProtocol.openVpn ||
-        protocol == VpnProtocol.ikev2;
   }
 }

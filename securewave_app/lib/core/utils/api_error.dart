@@ -1,8 +1,7 @@
 import 'package:dio/dio.dart';
 
 class ApiError {
-  static String messageFrom(Object error,
-      {String fallback = 'Something went wrong. Please try again.'}) {
+  static String messageFrom(Object error, {String fallback = 'Something went wrong. Please try again.'}) {
     if (error is DioException) {
       // Network-level failures — classify before inspecting the response body.
       switch (error.type) {
@@ -23,15 +22,6 @@ class ApiError {
       }
       if (data is Map<String, dynamic> && data['message'] is String) {
         return data['message'] as String;
-      }
-      if (data is Map<String, dynamic> && data['error'] is Map) {
-        final nested = Map<String, dynamic>.from(data['error'] as Map);
-        if (nested['message'] is String) {
-          return nested['message'] as String;
-        }
-        if (nested['detail'] is String) {
-          return nested['detail'] as String;
-        }
       }
       if (error.message != null && error.message!.isNotEmpty) {
         return error.message!;

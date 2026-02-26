@@ -11,7 +11,6 @@ class ServerRegion {
     this.healthStatus,
     this.publicIp,
     this.supportedProtocols = const <String>[],
-    this.isPremium = false,
   });
 
   final String id;
@@ -25,8 +24,6 @@ class ServerRegion {
   final String? healthStatus;
   final String? publicIp;
   final List<String> supportedProtocols;
-  /// Whether this server requires a premium subscription.
-  final bool isPremium;
 
   factory ServerRegion.fromJson(Map<String, dynamic> json) {
     String? s(String key) {
@@ -96,9 +93,6 @@ class ServerRegion {
             ? synthesizedName
             : (serverId.isNotEmpty ? serverId : 'Unknown region'));
 
-    final tierRestriction = s('tier_restriction');
-    final isPremium = tierRestriction != null && tierRestriction.isNotEmpty;
-
     return ServerRegion(
       id: serverId.isNotEmpty ? serverId : idFallback,
       name: nameFallback,
@@ -111,7 +105,6 @@ class ServerRegion {
       healthStatus: healthStatus,
       publicIp: publicIp,
       supportedProtocols: supportedProtocols,
-      isPremium: isPremium,
     );
   }
 

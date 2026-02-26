@@ -6,8 +6,6 @@ class SecureStorage {
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
   static const autoConnectKey = 'pref_auto_connect';
-  static const privilegeAutomationRequestedKey =
-      'pref_privilege_automation_requested';
   static const selectedServerKey = 'selected_server_id';
   static const resetSessionDoneKey = 'reset_session_done';
   static const vpnProtocolKey = 'vpn_protocol';
