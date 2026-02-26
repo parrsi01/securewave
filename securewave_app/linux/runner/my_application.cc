@@ -411,6 +411,51 @@ static gboolean wg_quick_timeout_cb(gpointer user_data) {
   return G_SOURCE_REMOVE;
 }
 
+// Preflight: tear down any stale sw-wg interface before bringing it up.
+// Only touches SecureWave-owned resources (interface sw-wg, table 51820).
+// Failures are soft — the subsequent wg-quick up surfaces real errors.
+static void wg_preflight_cleanup(const gchar* config_path) {
+  // 1. Graceful down via wg-quick (handles routes + interface together).
+  {
+    gchar* argv[] = {const_cast<gchar*>("wg-quick"), const_cast<gchar*>("down"),
+                     const_cast<gchar*>(config_path), nullptr};
+    gint status = 0;
+    g_spawn_sync(nullptr, argv, nullptr,
+                 static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH |
+                                         G_SPAWN_STDOUT_TO_DEV_NULL |
+                                         G_SPAWN_STDERR_TO_DEV_NULL),
+                 nullptr, nullptr, nullptr, nullptr, &status, nullptr);
+    // Ignore exit code — interface may not have existed.
+  }
+  // 2. Force-delete interface if it still lingers.
+  {
+    gchar* argv[] = {const_cast<gchar*>("ip"), const_cast<gchar*>("link"),
+                     const_cast<gchar*>("delete"), const_cast<gchar*>("sw-wg"),
+                     nullptr};
+    g_spawn_sync(nullptr, argv, nullptr,
+                 static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH |
+                                         G_SPAWN_STDOUT_TO_DEV_NULL |
+                                         G_SPAWN_STDERR_TO_DEV_NULL),
+                 nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+  }
+  // 3. Remove stale policy rules for table 51820 (SecureWave-owned only).
+  {
+    gchar* argv[] = {const_cast<gchar*>("ip"), const_cast<gchar*>("rule"),
+                     const_cast<gchar*>("del"), const_cast<gchar*>("table"),
+                     const_cast<gchar*>("51820"), nullptr};
+    for (int i = 0; i < 8; i++) {
+      gint status = 0;
+      g_spawn_sync(nullptr, argv, nullptr,
+                   static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH |
+                                           G_SPAWN_STDOUT_TO_DEV_NULL |
+                                           G_SPAWN_STDERR_TO_DEV_NULL),
+                   nullptr, nullptr, nullptr, nullptr, &status, nullptr);
+      g_autoptr(GError) err = nullptr;
+      if (!g_spawn_check_wait_status(status, &err)) break;
+    }
+  }
+}
+
 static void spawn_wg_quick_async(
     FlMethodCall* method_call,
     VpnChannelState* state,
@@ -691,6 +736,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
         respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
         return;
       }
+      wg_preflight_cleanup(state->wg_config_path);
       spawn_wg_quick_async(
           method_call,
           state,
