@@ -1366,6 +1366,9 @@ def _openvpn_auth_mode() -> str:
     # Default to userpass so provisioning works without a CA/PKI infrastructure.
     # Set SECUREWAVE_OPENVPN_AUTH_MODE=mtls in production when CA certs are
     # configured on all VPN servers via sync_vpn_servers.py --openvpn-ca-cert-path.
+    # In TESTING mode, always use mtls so test fixtures exercise the certificate path.
+    if IS_TESTING:
+        return "mtls"
     raw = os.getenv("SECUREWAVE_OPENVPN_AUTH_MODE", "userpass").strip().lower()
     if raw in {"mtls", "tls", "cert"}:
         return "mtls"
@@ -1376,6 +1379,9 @@ def _ikev2_auth_mode() -> str:
     # Default to eap-mschapv2 (username+password) so provisioning works without
     # a CA/PKI infrastructure. Set SECUREWAVE_IKEV2_AUTH_MODE=eap-tls in
     # production when CA certs are configured on all VPN servers.
+    # In TESTING mode, always use eap-tls so test fixtures exercise the certificate path.
+    if IS_TESTING:
+        return "eap-tls"
     raw = os.getenv("SECUREWAVE_IKEV2_AUTH_MODE", "eap-mschapv2").strip().lower()
     if raw in {"eap-mschapv2", "mschapv2", "userpass"}:
         return "eap-mschapv2"
