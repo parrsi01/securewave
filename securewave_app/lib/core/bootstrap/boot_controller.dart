@@ -116,6 +116,16 @@ class BootController extends ChangeNotifier {
       'Checking saved session',
       detail: 'Reading local auth state and secure storage.',
     );
+    // Await session initialization so the router never sees isAuthenticated=false
+    // while a valid persisted token is still being read from secure storage.
+    // Without this await the route redirect fires before storage read completes,
+    // redirecting an already-authenticated user to the login page.
+    await _withStepTimeout(
+      'Awaiting session restore',
+      const Duration(seconds: 4),
+      () => _ref.read(authSessionProvider).initializationComplete,
+    );
+    AppLogger.info('[BOOT] {"event":"session_restore_complete","authenticated":${_ref.read(authSessionProvider).isAuthenticated}}');
     if (config.resetSessionOnBoot) {
       _setStep(
         'Resetting saved session',

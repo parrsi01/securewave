@@ -119,6 +119,7 @@ def _create_ikev2_server(db):
         supports_wireguard=True,
         supports_ikev2=True,
         ikev2_remote_id="vpn.example.test",
+        ikev2_ca_cert_pem="-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----",
     )
     db.add(server)
     db.commit()
@@ -283,7 +284,7 @@ class TestVpnProfileProvisioning:
         assert resp.status_code == 409, resp.text
         body = resp.json()
         err = body.get("error") or {}
-        assert err.get("code") == "protocol_temporarily_unavailable"
+        assert err.get("code") == "openvpn_temporarily_unavailable"
 
     def test_explicit_server_rejects_unsupported_protocol(self, client, auth_headers, db):
         free = _create_free_server(db)
@@ -317,6 +318,27 @@ class TestVpnProfileProvisioning:
         assert profile.get("username")
         assert profile.get("client_pkcs12_base64")
         assert profile.get("client_pkcs12_password")
+
+    def test_openvpn_profile_returns_typed_server_misconfigured_error(self, client, auth_headers, db):
+        openvpn = _create_openvpn_server(db)
+        openvpn.openvpn_ca_cert_pem = None
+        db.add(openvpn)
+        db.commit()
+
+        resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Win Box",
+                "device_type": "windows",
+                "protocol": "openvpn",
+                "server_id": openvpn.server_id,
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 409, resp.text
+        body = resp.json()
+        err = body.get("error") or {}
+        assert err.get("code") == "openvpn_server_misconfigured"
 
     def test_explicit_protocol_rejected_for_unsupported_platform(self, client, auth_headers, db):
         _create_openvpn_server(db)

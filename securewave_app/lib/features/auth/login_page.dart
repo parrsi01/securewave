@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/app_config.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 import 'auth_controller.dart';
@@ -19,10 +20,24 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _formKey            = GlobalKey<FormState>();
-  final _emailController    = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final config = ref.read(appConfigProvider);
+    if (_emailController.text.isEmpty &&
+        (config.devLoginEmail ?? '').trim().isNotEmpty) {
+      _emailController.text = config.devLoginEmail!.trim();
+    }
+    if (_passwordController.text.isEmpty &&
+        (config.devLoginPassword ?? '').isNotEmpty) {
+      _passwordController.text = config.devLoginPassword!;
+    }
+  }
 
   @override
   void dispose() {
@@ -33,7 +48,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final state  = ref.watch(authControllerProvider);
+    final state = ref.watch(authControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -51,8 +66,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               child: SingleChildScrollView(
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                        maxWidth: AppSpacing.authMaxWidth),
+                    constraints:
+                        const BoxConstraints(maxWidth: AppSpacing.authMaxWidth),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(
                         AppSpacing.space4,
@@ -120,12 +135,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               },
                               onFieldSubmitted: (_) => _submit(),
                             ),
-
                             if (state.errorMessage != null) ...[
                               const SizedBox(height: AppSpacing.space3),
                               AuthErrorBanner(message: state.errorMessage!),
                             ],
-
                             const SizedBox(height: AppSpacing.space5),
                             SizedBox(
                               width: double.infinity,

@@ -77,4 +77,29 @@ void main() {
     expect(ikev2.available, isFalse);
     expect(ikev2.unavailableReason, contains('Network Extension'));
   });
+
+  test('matrix marks Linux protocol unavailable when elevation is missing', () {
+    const caps = VpnCapabilities(
+      wireGuard: true,
+      openVpn: true,
+      ikev2: true,
+      linuxElevationAvailable: false,
+      linuxElevationHint: 'pkexec/polkit required',
+    );
+
+    final result = ProtocolCapabilityMatrix.evaluate(
+      nativeCapabilities: caps,
+      backendEnabledProtocols: const <VpnProtocol>{
+        VpnProtocol.wireGuard,
+        VpnProtocol.openVpn,
+        VpnProtocol.ikev2,
+      },
+      platformOverride: VpnClientPlatform.linux,
+    );
+
+    final openvpn =
+        result.firstWhere((item) => item.protocol == VpnProtocol.openVpn);
+    expect(openvpn.available, isFalse);
+    expect(openvpn.unavailableReason, contains('pkexec/polkit'));
+  });
 }

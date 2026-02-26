@@ -95,4 +95,57 @@ void main() {
       'getCapabilities_calls=${calls['getCapabilities'] ?? 0}',
     );
   });
+
+  testWidgets('ChannelVpnService parses Linux privilege automation status payload',
+      (tester) async {
+    Future<Object?> handler(MethodCall call) async {
+      switch (call.method) {
+        case 'isAvailable':
+          return true;
+        case 'getPrivilegeAutomationStatus':
+        case 'verifyPrivilegeAutomation':
+          return <String, Object?>{
+            'supported': true,
+            'enabled': false,
+            'needs_setup': true,
+            'can_setup': true,
+            'backend': 'polkit_rule',
+            'message': 'Needs one-time setup.',
+            'helper_installed': true,
+            'rule_installed': false,
+            'pkexec_available': true,
+            'desktop_auth_session': false,
+          };
+        case 'getCapabilities':
+          return <String, Object?>{
+            'wireguard': true,
+            'openvpn': false,
+            'ikev2': false,
+          };
+      }
+      return null;
+    }
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, handler);
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final service = ChannelVpnService();
+    await tester.pump();
+
+    final status = await service.getPrivilegeAutomationStatus();
+    expect(status.supported, isTrue);
+    expect(status.needsSetup, isTrue);
+    expect(status.helperInstalled, isTrue);
+    expect(status.ruleInstalled, isFalse);
+    expect(status.pkexecAvailable, isTrue);
+    expect(status.desktopAuthSession, isFalse);
+
+    final verified = await service.verifyPrivilegeAutomation();
+    expect(verified.backend, 'polkit_rule');
+    expect(verified.message, contains('Needs one-time setup'));
+  });
 }

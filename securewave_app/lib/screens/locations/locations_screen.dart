@@ -104,6 +104,10 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
     final favorites = ref.watch(favoriteServersProvider);
     final borderColor = isDark ? AppColors.darkBorder : AppColors.border;
 
+    final planAsync = ref.watch(userPlanProvider);
+    // Treat plan as unknown (free) when loading/error to stay conservative.
+    final isPremiumUser = planAsync.valueOrNull?.isPremium ?? false;
+
     return Column(
       children: [
         // ── Search bar ─────────────────────────────────────────────────
@@ -238,6 +242,7 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
                       servers: servers,
                       selectedId: selectedId,
                       favorites: favorites,
+                      isPremiumUser: isPremiumUser,
                       initiallyExpanded: i == 0,
                       onSelect: (serverId) {
                         unawaited(
@@ -250,6 +255,8 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
                       onToggleFavorite: (serverId) => ref
                           .read(favoriteServersProvider.notifier)
                           .toggle(serverId),
+                      onUpgradePrompt: () =>
+                          _showUpgradePrompt(context),
                     );
                   },
                 ),
@@ -308,6 +315,83 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
     );
   }
 
+  void _showUpgradePrompt(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppSpacing.radiusXXL),
+        ),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.space6,
+          AppSpacing.space5,
+          AppSpacing.space6,
+          AppSpacing.space8,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space5),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.secondary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.workspace_premium_rounded,
+                size: 32,
+                color: AppColors.secondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space4),
+            Text(
+              'Unlock Premium Locations',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.space2),
+            Text(
+              'New York and Singapore servers are available on the Premium plan. '
+              'Upgrade for unlimited access to all global locations.',
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.space5),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx),
+              icon: const Icon(Icons.upgrade_rounded, size: 18),
+              label: const Text('Upgrade to Premium'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                backgroundColor: AppColors.secondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space3),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Not now'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmpty(BuildContext context, bool isDark) {
     return Center(
       child: Column(
@@ -342,18 +426,22 @@ class _RegionCard extends StatelessWidget {
     required this.servers,
     required this.selectedId,
     required this.favorites,
+    required this.isPremiumUser,
     required this.initiallyExpanded,
     required this.onSelect,
     required this.onToggleFavorite,
+    required this.onUpgradePrompt,
   });
 
   final String region;
   final List<ServerRegion> servers;
   final String? selectedId;
   final Set<String> favorites;
+  final bool isPremiumUser;
   final bool initiallyExpanded;
   final void Function(String serverId) onSelect;
   final void Function(String serverId) onToggleFavorite;
+  final VoidCallback onUpgradePrompt;
 
   @override
   Widget build(BuildContext context) {
@@ -418,13 +506,19 @@ class _RegionCard extends StatelessWidget {
                   thickness: 0.5,
                   color: isDark ? AppColors.darkBorder : AppColors.border,
                 ),
-                ...servers.map((s) => ServerTile(
-                      server: s,
-                      isSelected: s.id == selectedId,
-                      isFavorite: favorites.contains(s.id),
-                      onTap: () => onSelect(s.id),
-                      onToggleFavorite: () => onToggleFavorite(s.id),
-                    )),
+                ...servers.map((s) {
+                  final locked = s.isPremium && !isPremiumUser;
+                  return ServerTile(
+                    server: s,
+                    isSelected: s.id == selectedId,
+                    isFavorite: favorites.contains(s.id),
+                    isPremiumLocked: locked,
+                    onTap: locked ? onUpgradePrompt : () => onSelect(s.id),
+                    onToggleFavorite: locked
+                        ? onUpgradePrompt
+                        : () => onToggleFavorite(s.id),
+                  );
+                }),
               ],
             ),
           ),

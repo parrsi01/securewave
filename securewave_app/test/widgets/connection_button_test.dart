@@ -35,6 +35,38 @@ class _FixedStatusVpnService implements VpnService {
 
   @override
   Future<VpnStatus> disconnect() async => VpnStatus.disconnected;
+
+  @override
+  Future<VpnPrivilegeAutomationStatus> getPrivilegeAutomationStatus() async =>
+      VpnPrivilegeAutomationStatus.unsupported;
+
+  @override
+  Future<VpnPrivilegeAutomationStatus> enablePrivilegeAutomation(
+          {String mode = 'polkit_rule'}) async =>
+      const VpnPrivilegeAutomationStatus(
+        supported: false,
+        enabled: false,
+      );
+
+  @override
+  Future<VpnPrivilegeAutomationStatus> disablePrivilegeAutomation(
+          {String mode = 'polkit_rule'}) async =>
+      const VpnPrivilegeAutomationStatus(
+        supported: false,
+        enabled: false,
+      );
+
+  @override
+  Future<VpnPrivilegeAutomationStatus> verifyPrivilegeAutomation(
+          {String mode = 'polkit_rule'}) async =>
+      const VpnPrivilegeAutomationStatus(
+        supported: false,
+        enabled: false,
+      );
+
+  @override
+  Future<({int rxBytes, int txBytes})> getTrafficStats() async =>
+      (rxBytes: 0, txBytes: 0);
 }
 
 void main() {

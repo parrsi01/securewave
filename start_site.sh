@@ -44,6 +44,26 @@ export ENVIRONMENT="${ENVIRONMENT:-preview}"
 export EMAIL_PROVIDER="${EMAIL_PROVIDER:-smtp}"
 export APP_URL="${APP_URL:-http://localhost:${PREVIEW_PORT}}"
 export DATABASE_URL="${DATABASE_URL:-sqlite:///${PREVIEW_DIR}/securewave_preview.db}"
+export DB_ECHO="${DB_ECHO:-false}"
+
+# Keep preview DB schema aligned with current code before starting the app.
+ALEMBIC_BIN="${ALEMBIC_BIN:-$ROOT_DIR/.venv/bin/alembic}"
+if [[ -x "$ALEMBIC_BIN" ]]; then
+  if ! (cd "$ROOT_DIR" && "$ALEMBIC_BIN" upgrade head >>"$log_file" 2>&1); then
+    # Preview DBs may predate Alembic stamping and already contain base tables.
+    # In that case, stamp at the last known pre-multi-protocol revision and retry.
+    if grep -q "table users already exists" "$log_file"; then
+      echo "preview DB appears to be a legacy unstamped schema; stamping and retrying migrations"
+      if ! (cd "$ROOT_DIR" && "$ALEMBIC_BIN" stamp 0009 >>"$log_file" 2>&1 && "$ALEMBIC_BIN" upgrade head >>"$log_file" 2>&1); then
+        echo "alembic migration recovery failed for preview DB (see $log_file)"
+        exit 1
+      fi
+    else
+      echo "alembic migration failed for preview DB (see $log_file)"
+      exit 1
+    fi
+  fi
+fi
 
 reload_flag=()
 if [[ "$UVICORN_RELOAD" == "1" || "$UVICORN_RELOAD" == "true" ]]; then

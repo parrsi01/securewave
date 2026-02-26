@@ -23,8 +23,7 @@ void main() {
     expect(resolution.error, contains('OpenVPN runtime is not available'));
   });
 
-  test(
-      'auto returns explicit error and does not choose WireGuard by default when multiple runtimes exist',
+  test('auto deterministically chooses WireGuard when multiple runtimes exist',
       () {
     const caps = VpnCapabilities(
       wireGuard: true,
@@ -35,13 +34,11 @@ void main() {
     final resolution =
         selector.resolve(selected: VpnProtocol.auto, capabilities: caps);
 
-    expect(resolution.isConnectable, isFalse);
-    expect(resolution.effective, VpnProtocol.auto);
-    expect(resolution.backendProtocol, VpnProtocol.auto);
-    expect(
-      resolution.error,
-      contains('Automatic protocol selection is disabled'),
-    );
+    expect(resolution.isConnectable, isTrue);
+    expect(resolution.effective, VpnProtocol.wireGuard);
+    expect(resolution.backendProtocol, VpnProtocol.wireGuard);
+    expect(resolution.error, isNull);
+    expect(resolution.warning, contains('Automatic selected WireGuard'));
   });
 
   test('auto can resolve when exactly one runtime is available', () {
@@ -71,5 +68,21 @@ void main() {
 
     expect(resolution.isConnectable, isFalse);
     expect(resolution.error, contains('No supported VPN runtime'));
+  });
+
+  test('linux preflight rejects runtime when elevation is missing', () {
+    const caps = VpnCapabilities(
+      wireGuard: true,
+      openVpn: true,
+      ikev2: true,
+      linuxElevationAvailable: false,
+      linuxElevationHint: 'PolicyKit/pkexec required',
+    );
+
+    final resolution =
+        selector.resolve(selected: VpnProtocol.openVpn, capabilities: caps);
+
+    expect(resolution.isConnectable, isFalse);
+    expect(resolution.error, contains('PolicyKit/pkexec required'));
   });
 }

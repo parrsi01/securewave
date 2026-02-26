@@ -17,6 +17,11 @@ final vpnCapabilitiesProvider = FutureProvider<VpnCapabilities>((ref) async {
   return ref.watch(vpnServiceProvider).getCapabilities();
 });
 
+final vpnPrivilegeAutomationStatusProvider =
+    FutureProvider<VpnPrivilegeAutomationStatus>((ref) async {
+  return ref.watch(vpnServiceProvider).getPrivilegeAutomationStatus();
+});
+
 final vpnProtocolCatalogProvider =
     FutureProvider<VpnProtocolCatalog>((ref) async {
   final api = ref.read(apiClientProvider);
