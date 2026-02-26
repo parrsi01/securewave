@@ -28,6 +28,7 @@ class ApiClient {
             receiveTimeout: const Duration(seconds: 20),
           ),
         );
+    AppLogger.info('ApiClient: initialized with baseUrl=${_config.apiBaseUrl}');
     if (session != null) {
       _dio.interceptors.add(
         InterceptorsWrapper(
@@ -53,6 +54,23 @@ class ApiClient {
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
 
+  Future<Map<String, dynamic>> fetchHealth({CancelToken? cancelToken}) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/health',
+        cancelToken: cancelToken,
+      );
+      return response.data ?? const <String, dynamic>{};
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Health check error',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
   Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
       final age = DateTime.now().difference(_serversFetchedAt!);
@@ -61,15 +79,33 @@ class ApiClient {
       }
     }
     try {
-      final response = await _dio.get<Map<String, dynamic>>('/vpn/servers');
-      final data = response.data ?? <String, dynamic>{};
-      final rawList =
-          data['servers'] is List ? data['servers'] as List : <dynamic>[];
-      final servers = rawList
-          .whereType<Map>()
-          .map((entry) =>
-              ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
-          .toList();
+      Future<List<ServerRegion>> fetchFrom(String path, String listKey) async {
+        final response = await _dio.get<Map<String, dynamic>>(path);
+        final data = response.data ?? <String, dynamic>{};
+        final rawList =
+            data[listKey] is List ? data[listKey] as List : <dynamic>[];
+        return rawList
+            .whereType<Map>()
+            .map((entry) =>
+                ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
+            .toList();
+      }
+
+      List<ServerRegion> servers;
+      String sourcePath;
+      try {
+        servers = await fetchFrom('/vpn/regions', 'regions');
+        sourcePath = '/vpn/regions';
+      } on DioException catch (error) {
+        final status = error.response?.statusCode;
+        if (status != 404 && status != 405) rethrow;
+        servers = await fetchFrom('/vpn/servers', 'servers');
+        sourcePath = '/vpn/servers';
+      }
+
+      AppLogger.info(
+        'VPN servers fetched: count=${servers.length} source=$sourcePath baseUrl=${_config.apiBaseUrl} sample=${servers.take(5).map((s) => s.name).join(", ")}',
+      );
       _cachedServers = servers;
       _serversFetchedAt = DateTime.now();
       return servers;
@@ -109,6 +145,13 @@ class ApiClient {
         'password': password,
       });
       final data = response.data ?? <String, dynamic>{};
+      final requires2fa = data['requires_2fa'] == true ||
+          data['requires_2fa']?.toString().toLowerCase() == 'true';
+      if (requires2fa) {
+        throw StateError(
+          'This account requires a 2FA code, but this login screen does not yet support TOTP.',
+        );
+      }
       final accessToken = data['access_token']?.toString();
       if (accessToken == null || accessToken.isEmpty) {
         throw StateError('Login response missing access_token');
@@ -161,7 +204,8 @@ class ApiClient {
           if (deviceId != null && deviceId > 0) 'device_id': deviceId,
           'device_name': deviceName,
           'device_type': deviceType,
-          if (protocol != VpnProtocol.auto) 'protocol': vpnProtocolStorageValue(protocol),
+          if (protocol != VpnProtocol.auto)
+            'protocol': vpnProtocolStorageValue(protocol),
           if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
           if (forceRotateKeys) 'force_rotate_keys': true,
         },
@@ -190,7 +234,16 @@ class ApiClient {
         cancelToken: cancelToken,
       );
       final data = response.data ?? const <String, dynamic>{};
-      return VpnProtocolCatalog.fromJson(data);
+      final catalog = VpnProtocolCatalog.fromJson(data);
+      final enabled = catalog
+          .enabledProtocols()
+          .map(vpnProtocolStorageValue)
+          .toList()
+        ..sort();
+      AppLogger.info(
+        'VPN protocols fetched: deviceType=$deviceType enabled=${enabled.join(",")} baseUrl=${_config.apiBaseUrl}',
+      );
+      return catalog;
     } catch (error, stackTrace) {
       AppLogger.error('VPN protocols fetch failed',
           error: error, stackTrace: stackTrace);
@@ -215,11 +268,21 @@ class ApiClient {
   }
 
   /// Notify the backend that the VPN tunnel has been established.
-  Future<void> notifyVpnConnected({String? region}) async {
+  Future<void> notifyVpnConnected({
+    String? region,
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {
     try {
+      final payload = <String, dynamic>{
+        if (region != null && region.isNotEmpty) 'region': region,
+        if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
+        if (protocol != null && protocol != VpnProtocol.auto)
+          'protocol': vpnProtocolStorageValue(protocol),
+      };
       await _dio.post<Map<String, dynamic>>(
         '/vpn/connect',
-        data: region != null ? {'region': region} : {},
+        data: payload,
       );
     } catch (error, stackTrace) {
       AppLogger.warning('Backend VPN connect notification failed (non-fatal).');

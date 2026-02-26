@@ -591,6 +591,21 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         selected: selectedProtocol,
         capabilities: capabilities,
       );
+      debugPrint(
+        '[VPN_DEBUG] protocol selected=${selectedProtocol.name} '
+        'effective=${plan.effective.name} backend=${plan.backendProtocol.name} '
+        'connectable=${plan.isConnectable} '
+        'warning=${plan.warning ?? "-"} error=${plan.error ?? "-"} '
+        'caps(wg=${capabilities.wireGuard},ovpn=${capabilities.openVpn},ikev2=${capabilities.ikev2})',
+      );
+      AppLogger.info(
+        '[VPN_SM] {"event":"protocol_resolved",'
+        '"selected":"${plan.selected.name}",'
+        '"effective":"${plan.effective.name}",'
+        '"connectable":${plan.isConnectable}'
+        '${plan.warning != null ? ',"warning":"${plan.warning}"' : ''}'
+        '${plan.error != null ? ',"error":"${plan.error}"' : ''}}',
+      );
       if (!plan.isConnectable) {
         throw VpnServiceException(
           'protocol_unavailable',
@@ -656,7 +671,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           lastTunnelStartOk: true,
         );
         _safeFireAndForget(
-          _notifyBackendConnected(),
+          _notifyBackendConnected(protocol: plan.effective),
           context: 'notify_backend_connected',
         );
         _updateStability(success: true);
@@ -702,6 +717,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         operationId: op.id,
       );
       final classified = _classifyVpnError(error);
+      debugPrint(
+        '[VPN_DEBUG] connect failure kind=${classified.kind.name} '
+        'message=${classified.message} raw=${error.runtimeType}: $error',
+      );
       state = state.copyWith(
         desiredOn: false,
         errorMessage: classified.message,
@@ -874,6 +893,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       state = state.copyWith(
         lastProfileFetchAt: DateTime.now(),
         lastProfileFetchOk: true,
+        selectedServerId: profile.serverId.trim().isEmpty
+            ? state.selectedServerId
+            : profile.serverId,
       );
 
       if (profile.deviceId > 0) {
@@ -969,10 +991,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
-  Future<void> _notifyBackendConnected() async {
+  Future<void> _notifyBackendConnected({required VpnProtocol protocol}) async {
     try {
       final api = _ref.read(apiClientProvider);
-      await api.notifyVpnConnected(region: state.selectedServerId);
+      await api.notifyVpnConnected(
+        serverId: state.selectedServerId,
+        protocol: protocol,
+      );
     } catch (error, stackTrace) {
       AppLogger.warning(
         '[VPN_SM] {"event":"backend_connect_notify_failed"}',
@@ -1064,6 +1089,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       _startRateSimulation();
     }
     state = state.copyWith(status: next);
+    // ignore: avoid_print — explicit deterministic state trace for diagnostics
+    debugPrint(
+        'STATE TRANSITION: ${current.name} -> ${next.name} [${trigger.name}]');
     AppLogger.info(
       '[VPN_SM] {"event":"transition","from":"${current.name}","to":"${next.name}","trigger":"${trigger.name}","operation_id":${operationId ?? (_activeOperation?.id ?? 0)}}',
     );

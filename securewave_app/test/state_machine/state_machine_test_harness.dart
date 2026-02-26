@@ -143,6 +143,49 @@ class ControlledVpnService implements VpnService {
   }
 
   @override
+  Future<VpnPrivilegeAutomationStatus> getPrivilegeAutomationStatus() async {
+    return const VpnPrivilegeAutomationStatus(
+      supported: false,
+      enabled: false,
+    );
+  }
+
+  @override
+  Future<VpnPrivilegeAutomationStatus> enablePrivilegeAutomation(
+      {String mode = 'polkit_rule'}) async {
+    return VpnPrivilegeAutomationStatus(
+      supported: true,
+      enabled: false,
+      needsSetup: true,
+      canSetup: false,
+      backend: mode,
+      message: 'Not implemented in test harness.',
+    );
+  }
+
+  @override
+  Future<VpnPrivilegeAutomationStatus> disablePrivilegeAutomation(
+      {String mode = 'polkit_rule'}) async {
+    return VpnPrivilegeAutomationStatus(
+      supported: true,
+      enabled: false,
+      needsSetup: true,
+      canSetup: false,
+      backend: mode,
+      message: 'Not implemented in test harness.',
+    );
+  }
+
+  @override
+  Future<VpnPrivilegeAutomationStatus> verifyPrivilegeAutomation(
+      {String mode = 'polkit_rule'}) async {
+    return const VpnPrivilegeAutomationStatus(
+      supported: false,
+      enabled: false,
+    );
+  }
+
+  @override
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     Map<String, dynamic>? profile,
@@ -313,7 +356,11 @@ auth-user-pass
   }
 
   @override
-  Future<void> notifyVpnConnected({String? region}) async {
+  Future<void> notifyVpnConnected({
+    String? region,
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {
     notifyConnectedCalls += 1;
   }
 

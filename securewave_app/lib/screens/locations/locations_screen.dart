@@ -46,31 +46,10 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
     });
   }
 
-  static const _regionMap = <String, List<String>>{
-    'Europe': [
-      'Germany', 'Netherlands', 'United Kingdom', 'France', 'Sweden',
-      'Switzerland', 'Austria', 'Poland', 'Norway', 'Finland', 'Denmark',
-      'Belgium', 'Czech Republic', 'Portugal', 'Romania', 'Italy',
-      'Spain', 'Ireland', 'Ukraine',
-    ],
-    'Americas': [
-      'United States', 'Canada', 'Brazil', 'Mexico', 'Argentina', 'Chile',
-    ],
-    'Asia-Pacific': [
-      'Japan', 'Singapore', 'Australia', 'South Korea', 'India',
-      'Hong Kong', 'Taiwan', 'New Zealand',
-    ],
-    'Middle East & Africa': [
-      'Israel', 'Turkey', 'South Africa', 'United Arab Emirates',
-    ],
-  };
-
-  String _regionOf(String? country) {
-    if (country == null) return 'Other';
-    for (final e in _regionMap.entries) {
-      if (e.value.contains(country)) return e.key;
-    }
-    return 'Other';
+  String _regionOf(ServerRegion server) {
+    final raw = server.region?.trim();
+    if (raw == null || raw.isEmpty) return 'Other';
+    return raw;
   }
 
   List<ServerRegion> _applyFilters(List<ServerRegion> all) {
@@ -100,18 +79,29 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
   Map<String, List<ServerRegion>> _groupByRegion(List<ServerRegion> servers) {
     final groups = <String, List<ServerRegion>>{};
     for (final s in servers) {
-      final region = _regionOf(s.country);
+      final region = _regionOf(s);
       (groups[region] ??= []).add(s);
+    }
+    for (final entry in groups.entries) {
+      entry.value.sort((a, b) {
+        final priorityCmp =
+            (a.latencyPriority ?? 9999).compareTo(b.latencyPriority ?? 9999);
+        if (priorityCmp != 0) return priorityCmp;
+        final latencyCmp = (a.latencyMs ?? 9999).compareTo(b.latencyMs ?? 9999);
+        if (latencyCmp != 0) return latencyCmp;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
     }
     return groups;
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark      = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final serversAsync = ref.watch(serversProvider);
-    final selectedId  = ref.watch(vpnStateProvider.select((s) => s.selectedServerId));
-    final favorites   = ref.watch(favoriteServersProvider);
+    final selectedId =
+        ref.watch(vpnStateProvider.select((s) => s.selectedServerId));
+    final favorites = ref.watch(favoriteServersProvider);
     final borderColor = isDark ? AppColors.darkBorder : AppColors.border;
 
     return Column(
@@ -177,13 +167,17 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
                     showCheckmark: false,
                     side: BorderSide(
                       color: selected
-                          ? (isDark ? AppColors.primaryBright : AppColors.primary)
+                          ? (isDark
+                              ? AppColors.primaryBright
+                              : AppColors.primary)
                           : borderColor,
                     ),
                     labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: selected
-                              ? (isDark ? AppColors.primaryBright : AppColors.primary)
+                              ? (isDark
+                                  ? AppColors.primaryBright
+                                  : AppColors.primary)
                               : null,
                         ),
                   ),
@@ -210,15 +204,20 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
               }
 
               final groups = _groupByRegion(filtered);
-              const regionOrder = [
-                'Europe',
-                'Americas',
-                'Asia-Pacific',
-                'Middle East & Africa',
-                'Other',
-              ];
-              final orderedKeys =
-                  regionOrder.where(groups.containsKey).toList();
+              final orderedKeys = groups.keys.toList()
+                ..sort((a, b) {
+                  final aMin = groups[a]!
+                      .map((s) => s.latencyPriority ?? 9999)
+                      .fold<int>(
+                          9999, (prev, next) => next < prev ? next : prev);
+                  final bMin = groups[b]!
+                      .map((s) => s.latencyPriority ?? 9999)
+                      .fold<int>(
+                          9999, (prev, next) => next < prev ? next : prev);
+                  final priorityCmp = aMin.compareTo(bMin);
+                  if (priorityCmp != 0) return priorityCmp;
+                  return a.toLowerCase().compareTo(b.toLowerCase());
+                });
 
               return RefreshIndicator(
                 color: isDark ? AppColors.primaryBright : AppColors.primary,
@@ -232,7 +231,7 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
                   ),
                   itemCount: orderedKeys.length,
                   itemBuilder: (context, i) {
-                    final region  = orderedKeys[i];
+                    final region = orderedKeys[i];
                     final servers = groups[region]!;
                     return _RegionCard(
                       region: region,
@@ -272,13 +271,17 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              isAuthError ? Icons.lock_outline_rounded : Icons.cloud_off_rounded,
+              isAuthError
+                  ? Icons.lock_outline_rounded
+                  : Icons.cloud_off_rounded,
               size: 56,
               color: isDark ? AppColors.darkInkSoft : AppColors.inkSoft,
             ),
             const SizedBox(height: AppSpacing.space4),
             Text(
-              isAuthError ? 'Sign in to view servers' : 'Could not load servers',
+              isAuthError
+                  ? 'Sign in to view servers'
+                  : 'Could not load servers',
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
@@ -295,7 +298,8 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
               onPressed: () => isAuthError
                   ? context.go('/login')
                   : ref.refresh(serversProvider),
-              icon: Icon(isAuthError ? Icons.login : Icons.refresh, size: AppSpacing.iconXS),
+              icon: Icon(isAuthError ? Icons.login : Icons.refresh,
+                  size: AppSpacing.iconXS),
               label: Text(isAuthError ? 'Sign In' : 'Retry'),
             ),
           ],
@@ -396,7 +400,8 @@ class _RegionCard extends StatelessWidget {
                       color: isDark
                           ? AppColors.darkSurfaceMuted
                           : AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                      borderRadius:
+                          BorderRadius.circular(AppSpacing.radiusFull),
                     ),
                     child: Text(
                       '${servers.length}',

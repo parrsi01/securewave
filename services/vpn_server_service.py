@@ -34,27 +34,47 @@ class VPNServerService:
         """
         allowed_statuses = ["active"]
 
-        query = db.query(VPNServer).filter(
-            VPNServer.status.in_(allowed_statuses),
-            VPNServer.health_status.in_(["healthy", "degraded", "unknown"]),
-        )
-
-        if protocol:
-            normalized = protocol.strip().lower()
-            if normalized in {"wireguard", "wg", "wire_guard"}:
-                query = query.filter(VPNServer.supports_wireguard.is_(True))
-            elif normalized == "openvpn":
-                query = query.filter(VPNServer.supports_openvpn.is_(True))
-            elif normalized in {"ikev2", "ikev2/ipsec", "ipsec"}:
-                query = query.filter(VPNServer.supports_ikev2.is_(True))
-
-        # Free users can only access unrestricted servers
-        if user_tier == "free":
+        def _apply_filters(query, *, include_unstable: bool):
+            health_statuses = ["healthy", "degraded", "unknown"]
+            if include_unstable:
+                health_statuses.append("unstable")
             query = query.filter(
-                (VPNServer.tier_restriction.is_(None)) | (VPNServer.tier_restriction == "")
+                VPNServer.status.in_(allowed_statuses),
+                VPNServer.health_status.in_(health_statuses),
             )
 
-        return query.all()
+            if protocol:
+                normalized = protocol.strip().lower()
+                if normalized in {"wireguard", "wg", "wire_guard"}:
+                    query = query.filter(VPNServer.supports_wireguard.is_(True))
+                elif normalized == "openvpn":
+                    query = query.filter(VPNServer.supports_openvpn.is_(True))
+                elif normalized in {"ikev2", "ikev2/ipsec", "ipsec"}:
+                    query = query.filter(VPNServer.supports_ikev2.is_(True))
+
+            # Free users can only access unrestricted servers
+            if user_tier == "free":
+                query = query.filter(
+                    (VPNServer.tier_restriction.is_(None)) | (VPNServer.tier_restriction == "")
+                )
+            return query
+
+        preferred = _apply_filters(db.query(VPNServer), include_unstable=False).all()
+        if preferred:
+            return preferred
+
+        # Fail open for single-node / degraded fleet scenarios so control-plane APIs
+        # remain usable while surfacing the actual health_status to clients.
+        fallback = _apply_filters(db.query(VPNServer), include_unstable=True).all()
+        if fallback:
+            logger.warning(
+                "No healthy/degraded VPN servers available; falling back to unstable active servers "
+                "(tier=%s protocol=%s count=%s)",
+                user_tier,
+                protocol,
+                len(fallback),
+            )
+        return fallback
 
     @staticmethod
     def get_server_by_id(db: Session, server_id: str) -> Optional[VPNServer]:

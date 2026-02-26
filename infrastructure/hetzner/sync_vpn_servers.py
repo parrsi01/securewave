@@ -40,6 +40,19 @@ from models.vpn_server import VPNServer  # noqa: E402
 HCLOUD_API_BASE = "https://api.hetzner.cloud/v1"
 DEFAULT_WG_PORT = 51820
 _WG_PUB_RE = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
+_COUNTRY_NAMES = {
+    "US": "United States",
+    "DE": "Germany",
+    "FI": "Finland",
+    "SG": "Singapore",
+    "NL": "Netherlands",
+    "GB": "United Kingdom",
+    "FR": "France",
+    "CA": "Canada",
+    "MX": "Mexico",
+    "JP": "Japan",
+    "AU": "Australia",
+}
 
 
 @dataclass(frozen=True)
@@ -116,7 +129,18 @@ def _region_from_country(country_code: str) -> str:
     cc = (country_code or "").upper()
     if cc in ("US", "CA", "MX"):
         return "Americas"
+    if cc in ("SG", "JP", "AU", "NZ", "HK", "TW", "KR", "IN"):
+        return "Asia-Pacific"
+    if cc in ("AE", "IL", "TR", "ZA"):
+        return "Middle East & Africa"
+    if cc in ("ZZ", ""):
+        return "Other"
     return "Europe"
+
+
+def _country_name_from_code(country_code: str) -> str:
+    cc = (country_code or "").strip().upper()
+    return _COUNTRY_NAMES.get(cc, cc or "Unknown")
 
 
 def _upsert_server(
@@ -136,6 +160,13 @@ def _upsert_server(
     wg_public_key: str,
     wg_port: int,
     allowed_ips: str = "0.0.0.0/0, ::/0",
+    supports_openvpn: bool = False,
+    supports_ikev2: bool = False,
+    openvpn_port: int = 1194,
+    openvpn_transport: str = "udp",
+    openvpn_ca_cert_pem: str = "",
+    ikev2_remote_id: str = "",
+    ikev2_ca_cert_pem: str = "",
 ) -> str:
     db = SessionLocal()
     try:
@@ -173,6 +204,17 @@ def _upsert_server(
             # explicitly toggle additional protocol support.
             if getattr(existing, "supports_wireguard", None) is None:
                 existing.supports_wireguard = True
+            existing.supports_openvpn = bool(supports_openvpn)
+            existing.supports_ikev2 = bool(supports_ikev2)
+            existing.openvpn_endpoint = public_ip if supports_openvpn else None
+            existing.openvpn_port = int(openvpn_port) if supports_openvpn else existing.openvpn_port
+            existing.openvpn_transport = openvpn_transport if supports_openvpn else existing.openvpn_transport
+            if supports_openvpn and openvpn_ca_cert_pem.strip():
+                existing.openvpn_ca_cert_pem = openvpn_ca_cert_pem.strip()
+            if supports_ikev2:
+                existing.ikev2_remote_id = ikev2_remote_id.strip() or None
+                if ikev2_ca_cert_pem.strip():
+                    existing.ikev2_ca_cert_pem = ikev2_ca_cert_pem.strip()
             if getattr(existing, "protocol", None) is None:
                 existing.protocol = "wireguard"
             existing.status = "active"
@@ -201,6 +243,14 @@ def _upsert_server(
             allowed_ips=allowed_ips,
             protocol="wireguard",
             supports_wireguard=True,
+            supports_openvpn=bool(supports_openvpn),
+            supports_ikev2=bool(supports_ikev2),
+            openvpn_endpoint=public_ip if supports_openvpn else None,
+            openvpn_port=int(openvpn_port) if supports_openvpn else 1194,
+            openvpn_transport=openvpn_transport if supports_openvpn else "udp",
+            openvpn_ca_cert_pem=openvpn_ca_cert_pem.strip() or None,
+            ikev2_remote_id=ikev2_remote_id.strip() or None,
+            ikev2_ca_cert_pem=ikev2_ca_cert_pem.strip() or None,
             status="active",
             health_status="unknown",
             max_connections=1000,
@@ -248,6 +298,42 @@ def main() -> int:
         default="",
         help="WireGuard server public key (only suitable for single-server setups)",
     )
+    parser.add_argument(
+        "--supports-openvpn",
+        action="store_true",
+        help="Mark synced servers as OpenVPN-capable (requires server-side OpenVPN to actually be configured).",
+    )
+    parser.add_argument(
+        "--supports-ikev2",
+        action="store_true",
+        help="Mark synced servers as IKEv2-capable (requires server-side IKEv2/IPsec to actually be configured).",
+    )
+    parser.add_argument(
+        "--openvpn-port",
+        type=int,
+        default=int(os.getenv("SECUREWAVE_OPENVPN_PORT", "1194")),
+        help="OpenVPN port for synced servers (default: SECUREWAVE_OPENVPN_PORT or 1194).",
+    )
+    parser.add_argument(
+        "--openvpn-transport",
+        default=os.getenv("SECUREWAVE_OPENVPN_TRANSPORT", "udp"),
+        help="OpenVPN transport for synced servers: udp|tcp (default: env or udp).",
+    )
+    parser.add_argument(
+        "--openvpn-ca-cert-path",
+        default=os.getenv("SECUREWAVE_OPENVPN_CA_CERT_PATH", ""),
+        help="Path to OpenVPN CA cert PEM to attach to synced servers.",
+    )
+    parser.add_argument(
+        "--ikev2-remote-id",
+        default=os.getenv("SECUREWAVE_IKEV2_REMOTE_ID", ""),
+        help="IKEv2 remote ID (optional; defaults to server IP if omitted).",
+    )
+    parser.add_argument(
+        "--ikev2-ca-cert-path",
+        default=os.getenv("SECUREWAVE_IKEV2_CA_CERT_PATH", ""),
+        help="Path to IKEv2 CA cert PEM to attach to synced servers.",
+    )
 
     args = parser.parse_args()
 
@@ -265,6 +351,19 @@ def main() -> int:
     if args.fetch_wg_public_key and not ssh_key_path:
         raise SystemExit("--fetch-wg-public-key requires --ssh-key-path (or WG_SSH_KEY_PATH)")
 
+    openvpn_transport = str(args.openvpn_transport).strip().lower() or "udp"
+    if openvpn_transport not in {"udp", "tcp"}:
+        raise SystemExit("--openvpn-transport must be 'udp' or 'tcp'")
+
+    def _read_optional_text(path_arg: str) -> str:
+        p = (path_arg or "").strip()
+        if not p:
+            return ""
+        return Path(p).expanduser().read_text(encoding="utf-8")
+
+    openvpn_ca_cert_pem = _read_optional_text(args.openvpn_ca_cert_path)
+    ikev2_ca_cert_pem = _read_optional_text(args.ikev2_ca_cert_path)
+
     results: list[str] = []
     for hcloud_id, name, ipv4 in zip(outputs.server_ids, outputs.server_names, outputs.server_ipv4):
         api = _hcloud_get(token, f"/servers/{hcloud_id}")
@@ -278,8 +377,7 @@ def main() -> int:
         country_code = (loc.get("country") or "").strip().upper() or "ZZ"
         latitude = loc.get("latitude")
         longitude = loc.get("longitude")
-        # Hetzner does not provide full country names in all API contexts; use the code when unknown.
-        country = country_code
+        country = _country_name_from_code(country_code)
         location = f"{city}, {country_code}"
 
         if server_type and server_type != "cx33":
@@ -313,6 +411,13 @@ def main() -> int:
                 public_ip=str(ipv4),
                 wg_public_key=wg_public_key,
                 wg_port=args.wg_port,
+                supports_openvpn=bool(args.supports_openvpn),
+                supports_ikev2=bool(args.supports_ikev2),
+                openvpn_port=int(args.openvpn_port),
+                openvpn_transport=openvpn_transport,
+                openvpn_ca_cert_pem=openvpn_ca_cert_pem,
+                ikev2_remote_id=str(args.ikev2_remote_id or ""),
+                ikev2_ca_cert_pem=ikev2_ca_cert_pem,
             )
         )
 
