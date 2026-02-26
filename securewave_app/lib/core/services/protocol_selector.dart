@@ -42,17 +42,22 @@ class ProtocolSelector {
           error: 'No supported VPN runtime is available on this device.',
         );
       }
+      if (capabilities.wireGuard) {
+        requested = VpnProtocol.wireGuard;
+      } else if (capabilities.openVpn) {
+        requested = VpnProtocol.openVpn;
+      } else {
+        requested = VpnProtocol.ikev2;
+      }
       if (availableProtocols.length > 1) {
         return ProtocolResolution(
           selected: selected,
-          effective: VpnProtocol.auto,
-          backendProtocol: VpnProtocol.auto,
-          error: 'Automatic protocol selection is disabled. '
-              'Multiple VPN runtimes are available. Select WireGuard, '
-              'OpenVPN, or IKEv2/IPSec explicitly.',
+          effective: requested,
+          backendProtocol: requested,
+          warning: 'Automatic selected ${vpnProtocolLabel(requested)} based on '
+              'local runtime availability.',
         );
       }
-      requested = availableProtocols.first;
     } else {
       requested = selected;
     }
