@@ -2483,6 +2483,15 @@ def _ikev2_allow_userpass_fallback() -> bool:
     }
 
 
+def _effective_ikev2_auth_mode(device_type: Optional[str]) -> str:
+    """Resolve runtime IKEv2 auth mode for a given platform."""
+    mode = _ikev2_auth_mode()
+    dt = (device_type or "").strip().lower()
+    if dt == "linux" and mode == "eap-tls" and _ikev2_allow_userpass_fallback():
+        return "eap-mschapv2"
+    return mode
+
+
 def _credential_summary(record: VPNCredential) -> VpnCredentialSummary:
     return VpnCredentialSummary(
         id=record.id,
@@ -2720,7 +2729,7 @@ async def list_protocols(
             )
         elif protocol == "ikev2" and normalized_device_type == "linux":
             # Linux runner only implements eap-mschapv2; warn if backend is eap-tls.
-            if _ikev2_auth_mode() == "eap-tls":
+            if _effective_ikev2_auth_mode(normalized_device_type) == "eap-tls":
                 reason = "ikev2_auth_mode_mismatch_linux"
         enabled = reason is None
 
@@ -3814,7 +3823,7 @@ async def provision_profile(
                 peer_registered = provisioned
                 registration_status = message
         elif effective_protocol == "ikev2":
-            ikev2_mode = _ikev2_auth_mode()
+            ikev2_mode = _effective_ikev2_auth_mode(device_type)
             if ikev2_mode == "eap-tls":
                 try:
                     issued = await creds_service.issue_ikev2_certificate_profile(
@@ -4171,7 +4180,7 @@ async def provision_vpn_credential(
                 )
             status_message = "credential_provisioned"
     else:
-        if _ikev2_auth_mode() == "eap-tls":
+        if _effective_ikev2_auth_mode(device_type) == "eap-tls":
             try:
                 issued = await creds_service.issue_ikev2_certificate_profile(
                     user_id=current_user.id,
@@ -4479,7 +4488,9 @@ async def rotate_vpn_credential(
                     details={"credential_id": credential_id, "reason": message, "server_id": server.server_id},
                 )
     else:
-        if _ikev2_auth_mode() == "eap-tls":
+        peer = db.query(WireGuardPeer).filter(WireGuardPeer.id == credential.device_id).first()
+        rotate_device_type = (peer.device_type or "").strip().lower() if peer else None
+        if _effective_ikev2_auth_mode(rotate_device_type) == "eap-tls":
             try:
                 issued = await service.issue_ikev2_certificate_profile(
                     user_id=current_user.id,

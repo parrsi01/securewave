@@ -140,6 +140,7 @@ def test_protocols_endpoint_disables_ikev2_linux_when_auth_mode_mismatch(
     monkeypatch,
 ):
     monkeypatch.setenv("SECUREWAVE_IKEV2_AUTH_MODE", "eap-tls")
+    monkeypatch.setenv("SECUREWAVE_IKEV2_EAPTLS_FALLBACK_USERPASS", "false")
     _create_server(
         db,
         server_id="ikev2-eaptls",
