@@ -113,6 +113,23 @@ capture_egress() {
   fi
 }
 
+capture_dns_checks() {
+  local bundle_dir="$1"
+  if have_cmd getent; then
+    run_capture_shell "${bundle_dir}/dns_lookup_example.txt" "getent ahosts example.com | head -n 6 || true"
+  elif have_cmd resolvectl; then
+    run_capture_shell "${bundle_dir}/dns_lookup_example.txt" "resolvectl query example.com || true"
+  else
+    printf -- '[skip] no DNS lookup command available (getent/resolvectl)\n' >"${bundle_dir}/dns_lookup_example.txt"
+  fi
+
+  if have_cmd curl; then
+    run_capture_shell "${bundle_dir}/dns_https_check.txt" "curl -fsS --max-time 8 -o /dev/null -w 'http_code=%{http_code}\\n' https://example.com || true"
+  else
+    printf -- '[skip] curl not installed\n' >"${bundle_dir}/dns_https_check.txt"
+  fi
+}
+
 detect_probe_iface() {
   if ip link show wg0 >/dev/null 2>&1; then
     printf -- 'wg0'
@@ -188,6 +205,7 @@ capture_bundle() {
   fi
 
   capture_egress "${bundle_dir}"
+  capture_dns_checks "${bundle_dir}"
 
   run_capture "${bundle_dir}/ip_route_get_1.1.1.1.txt" ip route get 1.1.1.1
   run_capture "${bundle_dir}/ip_route_get_8.8.8.8.txt" ip route get 8.8.8.8
@@ -230,6 +248,55 @@ extract_resolved_ip() {
   printf -- '%s' "$v" | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1 || true
 }
 
+extract_dns_resolver() {
+  local file="$1"
+  [[ -f "$file" ]] || { printf -- ''; return; }
+  awk '
+    /Current DNS Server:/ {
+      print $4
+      exit
+    }
+    /DNS Servers:/ {
+      for (i = 3; i <= NF; i++) {
+        if ($i != "") {
+          print $i
+          exit
+        }
+      }
+    }
+  ' "$file"
+}
+
+dns_lookup_success() {
+  local file="$1"
+  [[ -f "$file" ]] || { printf -- 'unknown'; return; }
+  if grep -Eq '([0-9]{1,3}\.){3}[0-9]{1,3}' "$file"; then
+    printf -- 'yes'
+    return
+  fi
+  if grep -Eqi 'NXDOMAIN|SERVFAIL|not known|no address|failed' "$file"; then
+    printf -- 'no'
+    return
+  fi
+  printf -- 'unknown'
+}
+
+dns_https_success() {
+  local file="$1"
+  [[ -f "$file" ]] || { printf -- 'unknown'; return; }
+  local code
+  code="$(grep -Eo 'http_code=[0-9]{3}' "$file" | head -1 | cut -d= -f2 || true)"
+  if [[ -z "$code" ]]; then
+    printf -- 'unknown'
+    return
+  fi
+  if [[ "$code" =~ ^[234][0-9][0-9]$ ]]; then
+    printf -- 'yes'
+    return
+  fi
+  printf -- 'no'
+}
+
 generate_report() {
   local report="${OUT_DIR}/REPORT.md"
   local b="${OUT_DIR}/baseline"
@@ -237,12 +304,15 @@ generate_report() {
   local d="${OUT_DIR}/post_disconnect"
 
   local b_default p_default b_ip p_ip b_get1_iface p_get1_iface
+  local b_dns_resolver p_dns_resolver
   b_default="$(extract_ip_route_summary "${b}/ip_route.txt")"
   p_default="$(extract_ip_route_summary "${p}/ip_route.txt")"
   b_ip="$(extract_resolved_ip "${b}/egress_ipify.txt")"
   p_ip="$(extract_resolved_ip "${p}/egress_ipify.txt")"
   b_get1_iface="$(extract_route_get_iface "${b}/ip_route_get_1.1.1.1.txt")"
   p_get1_iface="$(extract_route_get_iface "${p}/ip_route_get_1.1.1.1.txt")"
+  b_dns_resolver="$(extract_dns_resolver "${b}/resolvectl_status.txt")"
+  p_dns_resolver="$(extract_dns_resolver "${p}/resolvectl_status.txt")"
 
   local iface_present="no"
   if grep -Eq 'interface: (wg0|sw-wg|tun0)' "${p}/wg_show.txt" 2>/dev/null ||
@@ -267,6 +337,14 @@ generate_report() {
   if grep -Eq '51820|fwmark' "${p}/ip_rule_show.txt" 2>/dev/null; then
     policy_route_present_post="yes"
   fi
+  local routing_mode="no_tunnel_routing_detected"
+  if [[ "${default_changed}" == "yes" ]]; then
+    routing_mode="full_tunnel_default_route"
+  elif [[ "${policy_route_present_post}" == "yes" && "${route_iface_changed}" == "yes" ]]; then
+    routing_mode="policy_tunnel_rule_table"
+  elif [[ "${route_iface_changed}" == "yes" ]]; then
+    routing_mode="partial_route_override"
+  fi
   local dns_changed="unknown"
   if [[ -f "${b}/resolvectl_status.txt" && -f "${p}/resolvectl_status.txt" ]]; then
     if cmp -s "${b}/resolvectl_status.txt" "${p}/resolvectl_status.txt"; then
@@ -274,6 +352,19 @@ generate_report() {
     else
       dns_changed="yes"
     fi
+  fi
+  local dns_resolver_changed="unknown"
+  if [[ -n "${b_dns_resolver}" && -n "${p_dns_resolver}" ]]; then
+    [[ "${b_dns_resolver}" != "${p_dns_resolver}" ]] && dns_resolver_changed="yes" || dns_resolver_changed="no"
+  fi
+  local dns_lookup_post dns_https_post dns_query_working
+  dns_lookup_post="$(dns_lookup_success "${p}/dns_lookup_example.txt")"
+  dns_https_post="$(dns_https_success "${p}/dns_https_check.txt")"
+  dns_query_working="unknown"
+  if [[ "${dns_lookup_post}" == "yes" || "${dns_https_post}" == "yes" ]]; then
+    dns_query_working="yes"
+  elif [[ "${dns_lookup_post}" == "no" && "${dns_https_post}" == "no" ]]; then
+    dns_query_working="no"
   fi
   local disconnected_iface_gone="unknown"
   if [[ -f "${d}/ip_addr.txt" ]]; then
@@ -294,8 +385,11 @@ generate_report() {
     printf -- '- WireGuard handshake observed (if WireGuard): **%s**\n' "${wg_handshake}"
     printf -- '- Default route changed: **%s**\n' "${default_changed}"
     printf -- '- Policy route/rule present post-connect (table 51820/fwmark): **%s**\n' "${policy_route_present_post}"
+    printf -- '- Routing mode inferred: **%s**\n' "${routing_mode}"
     printf -- '- Egress IP changed: **%s**\n' "${egress_changed}"
     printf -- '- DNS state changed: **%s**\n' "${dns_changed}"
+    printf -- '- DNS resolver changed: **%s**\n' "${dns_resolver_changed}"
+    printf -- '- DNS query validation post-connect: **%s**\n' "${dns_query_working}"
     printf -- '- Route decision (`ip route get 1.1.1.1`) interface changed: **%s**\n' "${route_iface_changed}"
     printf -- '- Post-disconnect tunnel interface removed: **%s**\n' "${disconnected_iface_gone}"
     printf -- '- Leaks: **manual review required** (`egress_cloudflare_trace.txt`, route/firewall excerpts, post_disconnect bundle)\n\n'
@@ -307,13 +401,22 @@ generate_report() {
       printf -- '- Server NAT/forwarding is not configured (`ip_forward=0` or NAT rules missing).\n'
       printf -- '- `AllowedIPs` is not full-tunnel or routing hooks did not run.\n\n'
     fi
+    if [[ "${dns_query_working}" == "no" ]]; then
+      printf -- '### Likely Causes (DNS Lookup Failed Post-connect)\n\n'
+      printf -- '- Tunnel DNS servers were not applied or are unreachable (`post_connect/resolvectl_status.txt`).\n'
+      printf -- '- Policy routing sends DNS traffic outside the tunnel while local resolver blocks plain DNS.\n'
+      printf -- '- Upstream resolver outage or firewall drop for DNS/HTTPS on the tunnel path.\n\n'
+    fi
 
     printf -- '## Baseline vs Post-connect\n\n'
     printf -- '| Signal | Baseline | Post-connect |\n'
     printf -- '|---|---|---|\n'
     printf -- '| Default route | `%s` | `%s` |\n' "${b_default:-n/a}" "${p_default:-n/a}"
+    printf -- '| Routing mode | `n/a` | `%s` |\n' "${routing_mode}"
     printf -- '| `ip route get 1.1.1.1` iface | `%s` | `%s` |\n' "${b_get1_iface:-n/a}" "${p_get1_iface:-n/a}"
     printf -- '| Egress IP (ipify) | `%s` | `%s` |\n' "${b_ip:-n/a}" "${p_ip:-n/a}"
+    printf -- '| DNS resolver (primary) | `%s` | `%s` |\n' "${b_dns_resolver:-n/a}" "${p_dns_resolver:-n/a}"
+    printf -- '| DNS query validation | `%s` | `%s` |\n' "$(dns_lookup_success "${b}/dns_lookup_example.txt")" "${dns_query_working}"
     printf -- '\n'
 
     printf -- '## Post-disconnect Snapshot\n\n'
@@ -326,6 +429,7 @@ generate_report() {
     printf -- '- `baseline/date.txt`\n- `baseline/uname.txt`\n- `baseline/ip_addr.txt`\n- `baseline/ip_route.txt`\n'
     printf -- '- `baseline/resolvectl_status.txt`\n- `baseline/wg_show.txt`\n'
     printf -- '- `baseline/egress_ifconfig_me.txt`\n- `baseline/egress_ipify.txt`\n- `baseline/egress_cloudflare_trace.txt`\n'
+    printf -- '- `baseline/dns_lookup_example.txt`\n- `baseline/dns_https_check.txt`\n'
     printf -- '- `baseline/ip_route_get_1.1.1.1.txt`\n- `baseline/ip_route_get_8.8.8.8.txt`\n- `baseline/ip_rule_show.txt`\n'
     printf -- '- `baseline/firewall_rules_excerpt.txt`\n- `baseline/tcpdump_sample_note.txt`\n\n'
 
@@ -333,6 +437,7 @@ generate_report() {
     printf -- '- `post_connect/date.txt`\n- `post_connect/uname.txt`\n- `post_connect/ip_addr.txt`\n- `post_connect/ip_route.txt`\n'
     printf -- '- `post_connect/resolvectl_status.txt`\n- `post_connect/wg_show.txt`\n'
     printf -- '- `post_connect/egress_ifconfig_me.txt`\n- `post_connect/egress_ipify.txt`\n- `post_connect/egress_cloudflare_trace.txt`\n'
+    printf -- '- `post_connect/dns_lookup_example.txt`\n- `post_connect/dns_https_check.txt`\n'
     printf -- '- `post_connect/ip_route_get_1.1.1.1.txt`\n- `post_connect/ip_route_get_8.8.8.8.txt`\n- `post_connect/ip_rule_show.txt`\n'
     printf -- '- `post_connect/firewall_rules_excerpt.txt`\n- `post_connect/tcpdump_sample_note.txt`\n\n'
 
@@ -340,6 +445,7 @@ generate_report() {
     printf -- '- `post_disconnect/date.txt`\n- `post_disconnect/uname.txt`\n- `post_disconnect/ip_addr.txt`\n- `post_disconnect/ip_route.txt`\n'
     printf -- '- `post_disconnect/resolvectl_status.txt`\n- `post_disconnect/wg_show.txt`\n'
     printf -- '- `post_disconnect/egress_ifconfig_me.txt`\n- `post_disconnect/egress_ipify.txt`\n- `post_disconnect/egress_cloudflare_trace.txt`\n'
+    printf -- '- `post_disconnect/dns_lookup_example.txt`\n- `post_disconnect/dns_https_check.txt`\n'
     printf -- '- `post_disconnect/ip_route_get_1.1.1.1.txt`\n- `post_disconnect/ip_route_get_8.8.8.8.txt`\n- `post_disconnect/ip_rule_show.txt`\n'
     printf -- '- `post_disconnect/firewall_rules_excerpt.txt`\n- `post_disconnect/tcpdump_sample_note.txt`\n\n'
 
