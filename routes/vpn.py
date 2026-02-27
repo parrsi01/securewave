@@ -13,8 +13,15 @@ import logging
 import json
 import time
 import base64
+import subprocess
+import socket
+import errno
+import shutil
+import ipaddress
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Any, Dict, Literal, Union
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from pydantic import BaseModel, Field, field_validator
@@ -73,6 +80,11 @@ AUTO_PROVISION_CREDENTIALS = (
 
 CANONICAL_PROTOCOLS = ("wireguard", "openvpn", "ikev2", "auto")
 SUPPORTED_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
+
+_REGION_HEALTH_CACHE: dict[str, dict[str, Any]] = {}
+_REGION_RESOLUTION_CACHE: dict[str, dict[str, Any]] = {}
+_TEST_REGION_HEALTH_OVERRIDES: dict[str, dict[str, Any]] = {}
+_REGION_PROBE_CIRCUITS: dict[str, dict[str, Any]] = {}
 
 
 def normalize_vpn_protocol(value: Optional[str]) -> str:
@@ -157,10 +169,19 @@ class ServerInfo(BaseModel):
     country_code: str
     city: str
     region: Optional[str] = None
+    region_group: Optional[str] = None
+    is_primary_region: bool = False
+    priority_weight: int = 100
+    latency_score: Optional[float] = None
     latency_ms: Optional[float] = None
     load_percent: Optional[float] = None
     status: str
     health_status: str
+    region_health_status: Literal["up", "down", "unknown"] = "unknown"
+    region_health_last_checked_at: Optional[str] = None
+    region_health_reason_code: Optional[str] = None
+    tier_restriction: Optional[str] = None
+    premium_only: bool = False
     supported_protocols: List[str] = Field(default_factory=list, description="Protocols supported by this server")
 
 
@@ -197,6 +218,8 @@ class VPNConnectRequest(BaseModel):
         None,
         description="Preferred region or server identifier (best effort)."
     )
+    server_id: Optional[str] = Field(None, description="Exact server identifier for connect tracking.")
+    protocol: Optional[str] = Field(None, description="Desired protocol used by the client session.")
 
     @field_validator("region")
     @classmethod
@@ -204,6 +227,20 @@ class VPNConnectRequest(BaseModel):
         if value is None:
             return None
         return sanitize_region(value)
+
+    @field_validator("server_id")
+    @classmethod
+    def _validate_server_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_identifier(value, field_name="server_id")
+
+    @field_validator("protocol")
+    @classmethod
+    def _validate_protocol(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return normalize_vpn_protocol(value)
 
 
 class DeviceCreateRequest(BaseModel):
@@ -263,6 +300,13 @@ class ServerListResponse(BaseModel):
     recommended_server_id: Optional[str] = None
 
 
+class RegionListResponse(BaseModel):
+    """Compatibility list payload for clients expecting `regions`."""
+    regions: List[ServerInfo]
+    total: int
+    recommended_server_id: Optional[str] = None
+
+
 class RecommendedServerCandidate(BaseModel):
     server_id: str
     score: float
@@ -296,6 +340,8 @@ class VpnProtocolAvailability(BaseModel):
     server_enabled: bool
     plan_enabled: bool
     platform_supported: bool
+    health_status: str = "unavailable"
+    health_reason: Optional[str] = None
     transports: Optional[List[str]] = None
     requirements: List[VpnProtocolRequirement] = Field(default_factory=list)
     reason: Optional[str] = None
@@ -305,6 +351,56 @@ class VpnProtocolsResponse(BaseModel):
     user_tier: str
     device_type: Optional[str] = None
     protocols: List[VpnProtocolAvailability]
+
+
+class VpnProtocolRegionHealth(BaseModel):
+    region: str
+    status: str
+    total_servers: int
+    available_servers: int
+    healthy_servers: int
+    degraded_servers: int
+    reason: Optional[str] = None
+
+
+class VpnProtocolHealth(BaseModel):
+    protocol: str
+    status: str
+    total_servers: int
+    available_servers: int
+    healthy_servers: int
+    degraded_servers: int
+    reason: Optional[str] = None
+    regions: List[VpnProtocolRegionHealth] = Field(default_factory=list)
+
+
+class VpnProtocolHealthResponse(BaseModel):
+    generated_at: str
+    user_tier: str
+    protocols: List[VpnProtocolHealth]
+
+
+class DevRegionHealthOverride(BaseModel):
+    server_id: str
+    status: Literal["up", "down", "unknown"]
+    reason_code: Optional[str] = None
+
+
+class DevRegionHealthOverrideRequest(BaseModel):
+    clear: bool = False
+    overrides: List[DevRegionHealthOverride] = Field(default_factory=list)
+
+
+class RegionResolutionResponse(BaseModel):
+    selected_region_id: str
+    reason: str
+    protocol: str
+    device_type: Optional[str] = None
+    preferred_region: Optional[str] = None
+    user_geo_group: Optional[str] = None
+    user_country_code: Optional[str] = None
+    selected_region_group: Optional[str] = None
+    cache_hit: bool = False
 
 
 class VpnCredentialProvisionRequest(BaseModel):
@@ -551,6 +647,23 @@ def _sh_quote(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
+def _parse_script_json_result(text: str) -> Optional[dict[str, Any]]:
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    for candidate in reversed(lines):
+        if not (candidate.startswith("{") and candidate.endswith("}")):
+            continue
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
+
+
 async def provision_protocol_credentials_on_server(
     *,
     server: VPNServer,
@@ -595,9 +708,31 @@ async def provision_protocol_credentials_on_server(
         manager = get_wireguard_server_manager()
         conn = server_connection_from_db(server)
         success, stdout, stderr = await manager.run_ssh_command(conn, cmd)
+        parsed = _parse_script_json_result(stdout or "")
         if success:
+            if parsed and parsed.get("ok") is False:
+                message = (
+                    str(parsed.get("code") or "").strip()
+                    or str(parsed.get("message") or "").strip()
+                    or "credential_provision_failed"
+                )
+                return False, message
+            if parsed:
+                message = (
+                    str(parsed.get("code") or "").strip()
+                    or str(parsed.get("message") or "").strip()
+                    or "credential_provisioned"
+                )
+                return True, message
             message = (stdout or "").strip() or "credential_provisioned"
             return True, message
+        if parsed:
+            message = (
+                str(parsed.get("code") or "").strip()
+                or str(parsed.get("message") or "").strip()
+                or "credential_provision_failed"
+            )
+            return False, message
         message = (stderr or "").strip() or (stdout or "").strip() or "credential_provision_failed"
         return False, message
     except Exception as exc:
@@ -662,6 +797,889 @@ def _utc_iso(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat()
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _region_health_cache_ttl_seconds() -> float:
+    raw = os.getenv("SECUREWAVE_REGION_HEALTH_CACHE_TTL_SECONDS", "10").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 10.0
+    return max(0.0, min(value, 120.0))
+
+
+def _region_health_probe_enabled() -> bool:
+    default_enabled = not IS_TESTING
+    return _bool_env("SECUREWAVE_REGION_HEALTH_ACTIVE_PROBE", default_enabled)
+
+
+def _region_health_probe_timeout_seconds() -> float:
+    raw = os.getenv("SECUREWAVE_REGION_HEALTH_PROBE_TIMEOUT_SECONDS", "0.5").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.5
+    return max(0.1, min(value, 3.0))
+
+
+def _region_probe_failure_threshold() -> int:
+    raw = os.getenv("SECUREWAVE_REGION_PROBE_FAILURE_THRESHOLD", "3").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 3
+    return max(2, min(value, 10))
+
+
+def _region_probe_cooldown_seconds() -> float:
+    raw = os.getenv("SECUREWAVE_REGION_PROBE_COOLDOWN_SECONDS", "45").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 45.0
+    return max(5.0, min(value, 600.0))
+
+
+def _region_probe_circuit_state(server_id: str, *, now: datetime) -> Optional[dict[str, Any]]:
+    state = _REGION_PROBE_CIRCUITS.get(server_id)
+    if not state:
+        return None
+    opened_until = state.get("opened_until")
+    if isinstance(opened_until, datetime) and opened_until > now:
+        return state
+    if isinstance(opened_until, datetime) and opened_until <= now:
+        state["opened_until"] = None
+        _REGION_PROBE_CIRCUITS[server_id] = state
+    return None
+
+
+def _record_region_probe_outcome(
+    server_id: str,
+    *,
+    status: str,
+    reason_code: Optional[str],
+    now: datetime,
+) -> None:
+    threshold = _region_probe_failure_threshold()
+    cooldown_seconds = _region_probe_cooldown_seconds()
+    payload = dict(_REGION_PROBE_CIRCUITS.get(server_id) or {})
+    failures = int(payload.get("failures") or 0)
+
+    if status == "up":
+        payload.update(
+            {
+                "failures": 0,
+                "opened_until": None,
+                "last_reason_code": reason_code,
+                "last_updated_at": now,
+            }
+        )
+        _REGION_PROBE_CIRCUITS[server_id] = payload
+        return
+
+    failures += 1
+    payload["failures"] = failures
+    payload["last_reason_code"] = reason_code
+    payload["last_updated_at"] = now
+    if failures >= threshold:
+        payload["opened_until"] = now + timedelta(seconds=cooldown_seconds)
+        get_runtime_metrics().record_region_circuit_open()
+    _REGION_PROBE_CIRCUITS[server_id] = payload
+
+
+def _server_probe_host(server: VPNServer) -> Optional[str]:
+    public_ip = (getattr(server, "public_ip", None) or "").strip()
+    if public_ip:
+        return public_ip
+    endpoint = (getattr(server, "endpoint", None) or "").strip()
+    if not endpoint:
+        return None
+    try:
+        if endpoint.startswith("[") and "]" in endpoint:
+            return endpoint[1:].split("]", 1)[0].strip() or None
+        return endpoint.rsplit(":", 1)[0].strip() or None
+    except Exception:
+        return None
+
+
+def _wireguard_listener_port(server: VPNServer) -> int:
+    raw_port = getattr(server, "wg_listen_port", None)
+    if isinstance(raw_port, int) and raw_port > 0:
+        return raw_port
+    endpoint = (getattr(server, "endpoint", None) or "").strip()
+    if endpoint:
+        try:
+            return int(endpoint.rsplit(":", 1)[1])
+        except Exception:
+            pass
+    return 51820
+
+
+def _server_listener_targets(server: VPNServer) -> list[tuple[str, int, str]]:
+    targets: list[tuple[str, int, str]] = []
+    host = _server_probe_host(server)
+    if not host:
+        return targets
+
+    # WireGuard is UDP-only.
+    if getattr(server, "supports_wireguard", True):
+        targets.append((host, _wireguard_listener_port(server), "udp"))
+
+    if getattr(server, "supports_openvpn", False):
+        openvpn_port = getattr(server, "openvpn_port", None) or 1194
+        try:
+            ovpn_port = int(openvpn_port)
+        except (TypeError, ValueError):
+            ovpn_port = 1194
+        transport = (getattr(server, "openvpn_transport", None) or "udp").strip().lower()
+        if transport not in {"udp", "tcp"}:
+            transport = "udp"
+        targets.append((host, ovpn_port, transport))
+
+    if getattr(server, "supports_ikev2", False):
+        targets.append((host, 500, "udp"))
+        targets.append((host, 4500, "udp"))
+
+    deduped: list[tuple[str, int, str]] = []
+    seen: set[tuple[str, int, str]] = set()
+    for entry in targets:
+        if entry in seen:
+            continue
+        seen.add(entry)
+        deduped.append(entry)
+    return deduped
+
+
+def _probe_tcp_port(host: str, port: int, timeout_s: float) -> str:
+    sock: Optional[socket.socket] = None
+    try:
+        sock = socket.create_connection((host, int(port)), timeout=timeout_s)
+        return "open"
+    except socket.timeout:
+        return "timeout"
+    except OSError as exc:
+        code = getattr(exc, "errno", None)
+        if code in {errno.ECONNREFUSED}:
+            return "closed"
+        if code in {errno.ETIMEDOUT}:
+            return "timeout"
+        if code in {errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EADDRNOTAVAIL}:
+            return "host_unreachable"
+        return "error"
+    finally:
+        if sock:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+def _probe_udp_listener(host: str, port: int, timeout_s: float) -> str:
+    sock: Optional[socket.socket] = None
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(timeout_s)
+        sock.sendto(b"\x00", (host, int(port)))
+        return "sent"
+    except socket.timeout:
+        return "timeout"
+    except OSError as exc:
+        code = getattr(exc, "errno", None)
+        if code in {errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EADDRNOTAVAIL}:
+            return "host_unreachable"
+        return "error"
+    finally:
+        if sock:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+def _probe_http_health_endpoint(server: VPNServer, timeout_s: float) -> str:
+    template = os.getenv("SECUREWAVE_SERVER_HEALTH_ENDPOINT_TEMPLATE", "").strip()
+    if not template:
+        return "not_configured"
+    host = _server_probe_host(server)
+    if not host:
+        return "missing_host"
+    url = template.format(
+        server_id=server.server_id,
+        host=host,
+        public_ip=(getattr(server, "public_ip", None) or "").strip(),
+    )
+    if not url:
+        return "missing_url"
+    req = urllib_request.Request(url=url, method="GET")
+    try:
+        with urllib_request.urlopen(req, timeout=timeout_s) as resp:
+            status = int(getattr(resp, "status", 0) or 0)
+            if 200 <= status < 300:
+                return "up"
+            return "down"
+    except urllib_error.URLError as exc:
+        reason = str(getattr(exc, "reason", "")).strip().lower()
+        if "timed out" in reason:
+            return "timeout"
+        if "unreachable" in reason or "no route" in reason:
+            return "host_unreachable"
+        return "down"
+    except TimeoutError:
+        return "timeout"
+    except Exception:
+        return "down"
+
+
+def _probe_host_icmp(host: str, timeout_s: float) -> str:
+    if not _bool_env("SECUREWAVE_REGION_HEALTH_ICMP_PROBE", True):
+        return "disabled"
+    ping_path = shutil.which("ping")
+    if not ping_path:
+        return "missing"
+    timeout_sec = str(max(1, int(round(timeout_s))))
+    try:
+        result = subprocess.run(
+            [ping_path, "-c", "1", "-W", timeout_sec, host],
+            capture_output=True,
+            text=True,
+            timeout=max(1.0, timeout_s + 0.5),
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except Exception:
+        return "error"
+    return "up" if result.returncode == 0 else "down"
+
+
+def _stored_region_health(server: VPNServer) -> tuple[str, str]:
+    if (getattr(server, "status", "") or "").strip().lower() != "active":
+        return "down", "listener_down"
+    if (getattr(server, "hcloud_server_state", "") or "").strip().lower() not in {"", "running"}:
+        return "down", "host_unreachable"
+    raw = (getattr(server, "health_status", "") or "").strip().lower()
+    if raw in {"healthy", "degraded"}:
+        return "up", "monitor_healthy"
+    if raw in {"unhealthy", "unreachable", "offline", "unstable"}:
+        return "down", "region_down"
+    return "unknown", "health_unknown"
+
+
+def _probe_region_health(server: VPNServer) -> tuple[str, str]:
+    host = _server_probe_host(server)
+    if not host:
+        return "unknown", "missing_host"
+    timeout_s = _region_health_probe_timeout_seconds()
+
+    endpoint_probe = _probe_http_health_endpoint(server, timeout_s)
+    if endpoint_probe == "up":
+        return "up", "health_endpoint_ok"
+    if endpoint_probe == "timeout":
+        return "down", "timeout"
+    if endpoint_probe == "host_unreachable":
+        return "down", "host_unreachable"
+
+    ssh_probe = _probe_tcp_port(host, 22, timeout_s)
+    if ssh_probe == "open":
+        return "up", "ssh_reachable"
+
+    tcp_results: list[str] = []
+    udp_results: list[str] = []
+    for target_host, target_port, transport in _server_listener_targets(server):
+        if transport == "tcp":
+            tcp_results.append(_probe_tcp_port(target_host, target_port, timeout_s))
+        else:
+            udp_results.append(_probe_udp_listener(target_host, target_port, timeout_s))
+
+    if "open" in tcp_results:
+        return "up", "listener_up"
+    if "host_unreachable" in tcp_results or "host_unreachable" in udp_results:
+        return "down", "host_unreachable"
+    if "timeout" in tcp_results or "timeout" in udp_results:
+        return "down", "timeout"
+
+    icmp_probe = _probe_host_icmp(host, timeout_s)
+    if icmp_probe == "up":
+        return "down", "listener_down"
+    if icmp_probe == "timeout":
+        return "down", "timeout"
+    if icmp_probe == "down":
+        return "down", "host_unreachable"
+
+    if "closed" in tcp_results:
+        return "down", "listener_down"
+    if "sent" in udp_results:
+        return "unknown", "udp_probe_inconclusive"
+
+    return "unknown", "probe_inconclusive"
+
+
+def _region_health_override(server: VPNServer) -> Optional[dict[str, Any]]:
+    payload = _TEST_REGION_HEALTH_OVERRIDES.get(server.server_id)
+    if not payload:
+        return None
+    status = str(payload.get("status") or "unknown").strip().lower()
+    if status not in {"up", "down", "unknown"}:
+        status = "unknown"
+    return {
+        "status": status,
+        "last_checked_at": payload.get("last_checked_at"),
+        "reason_code": payload.get("reason_code"),
+    }
+
+
+def _region_health_for_server(server: VPNServer, *, force_refresh: bool = False) -> dict[str, Any]:
+    override = _region_health_override(server)
+    if override is not None:
+        return {
+            "status": override["status"],
+            "last_checked_at": override.get("last_checked_at") or _utc_iso(datetime.now(timezone.utc)),
+            "reason_code": override.get("reason_code"),
+        }
+
+    now = datetime.now(timezone.utc)
+    cache_key = str(server.server_id)
+    if _region_health_probe_enabled():
+        circuit = _region_probe_circuit_state(cache_key, now=now)
+        if circuit is not None:
+            opened_until = circuit.get("opened_until")
+            opened_until_iso = _utc_iso(opened_until) if isinstance(opened_until, datetime) else _utc_iso(now)
+            payload = {
+                "status": "down",
+                "last_checked_at": opened_until_iso,
+                "reason_code": "circuit_open",
+            }
+            _REGION_HEALTH_CACHE[cache_key] = {"cached_at": now, **payload}
+            return payload
+
+    ttl = _region_health_cache_ttl_seconds()
+    cached = _REGION_HEALTH_CACHE.get(cache_key)
+    if (
+        not force_refresh
+        and cached is not None
+        and ttl > 0
+        and isinstance(cached.get("cached_at"), datetime)
+        and (now - cached["cached_at"]).total_seconds() <= ttl
+    ):
+        return {
+            "status": cached.get("status", "unknown"),
+            "last_checked_at": cached.get("last_checked_at"),
+            "reason_code": cached.get("reason_code"),
+        }
+
+    if _region_health_probe_enabled():
+        status, reason_code = _probe_region_health(server)
+        last_checked_at = _utc_iso(now)
+        _record_region_probe_outcome(
+            cache_key,
+            status=status,
+            reason_code=reason_code,
+            now=now,
+        )
+    else:
+        status, reason_code = _stored_region_health(server)
+        last = getattr(server, "last_health_check", None)
+        last_checked_at = _utc_iso(last) if isinstance(last, datetime) else _utc_iso(now)
+
+    payload = {
+        "status": status,
+        "last_checked_at": last_checked_at,
+        "reason_code": reason_code,
+    }
+    _REGION_HEALTH_CACHE[cache_key] = {"cached_at": now, **payload}
+    return payload
+
+
+def _region_health_map(servers: list[VPNServer], *, force_refresh: bool = False) -> dict[str, dict[str, Any]]:
+    return {server.server_id: _region_health_for_server(server, force_refresh=force_refresh) for server in servers}
+
+
+def _region_health_status(server: VPNServer, *, health_map: Optional[dict[str, dict[str, Any]]] = None) -> str:
+    if health_map and server.server_id in health_map:
+        return str(health_map[server.server_id].get("status") or "unknown")
+    return str(_region_health_for_server(server).get("status") or "unknown")
+
+
+def _effective_protocol_reason(
+    protocol: str,
+    *,
+    servers: list[VPNServer],
+    health_map: dict[str, dict[str, Any]],
+) -> Optional[str]:
+    up_servers = [server for server in servers if _region_health_status(server, health_map=health_map) == "up"]
+    if not up_servers:
+        return "no_servers_available"
+
+    supporting_up = [server for server in up_servers if _server_supports_protocol(server, protocol)]
+    if supporting_up:
+        return None
+
+    supporting_any = [server for server in servers if _server_supports_protocol(server, protocol)]
+    if not supporting_any:
+        return "unavailable_region"
+
+    down_supporting = [
+        server
+        for server in supporting_any
+        if _region_health_status(server, health_map=health_map) == "down"
+    ]
+    if down_supporting:
+        return "region_down"
+    return "unavailable_region"
+
+
+def _resolve_cache_ttl_seconds() -> float:
+    raw = os.getenv("SECUREWAVE_REGION_RESOLUTION_CACHE_TTL_SECONDS", "10").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 10.0
+    return max(5.0, min(value, 15.0))
+
+
+def _normalize_geo_group(raw: Optional[str]) -> Optional[str]:
+    text = (raw or "").strip().lower()
+    if not text:
+        return None
+    aliases = {
+        "caribbean": "caribbean",
+        "north_america": "north_america",
+        "north-america": "north_america",
+        "na": "north_america",
+        "americas": "north_america",
+        "usa": "north_america",
+        "us": "north_america",
+        "europe": "europe",
+        "eu": "europe",
+        "asia": "asia_pacific",
+        "asia_pacific": "asia_pacific",
+        "asia-pacific": "asia_pacific",
+        "apac": "asia_pacific",
+    }
+    return aliases.get(text, text)
+
+
+def _infer_geo_group_from_server(server: VPNServer) -> str:
+    explicit = _normalize_geo_group(getattr(server, "region_group", None))
+    if explicit:
+        return explicit
+    region = (getattr(server, "region", None) or "").strip().lower()
+    if region in {"caribbean"}:
+        return "caribbean"
+    if region in {"americas", "north america", "north_america", "north-america"}:
+        return "north_america"
+    if region in {"europe", "eu"}:
+        return "europe"
+    if region in {"asia", "asia-pacific", "asia_pacific", "apac"}:
+        return "asia_pacific"
+    return "global"
+
+
+def _normalize_country_code(raw: Optional[str]) -> Optional[str]:
+    text = (raw or "").strip().upper()
+    if len(text) != 2 or not text.isalpha():
+        return None
+    return text
+
+
+def _resolve_user_geo_group(request: Request, *, country_code: Optional[str] = None) -> str:
+    header_candidates = (
+        request.headers.get("X-Geo-Group"),
+        request.headers.get("X-Geo-Region"),
+        request.headers.get("X-User-Region"),
+    )
+    for candidate in header_candidates:
+        normalized = _normalize_geo_group(candidate)
+        if normalized:
+            return normalized
+    if country_code:
+        mapped = _country_code_to_geo_group(country_code)
+        if mapped:
+            return mapped
+    env_default = _normalize_geo_group(os.getenv("SECUREWAVE_DEFAULT_GEO_GROUP", "north_america"))
+    return env_default or "north_america"
+
+
+def _lightweight_geoip_cidr_map() -> list[tuple[ipaddress._BaseNetwork, str]]:
+    raw = os.getenv("SECUREWAVE_LIGHT_GEOIP_CIDR_MAP", "").strip()
+    if not raw:
+        return []
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return []
+    if not isinstance(payload, dict):
+        return []
+    out: list[tuple[ipaddress._BaseNetwork, str]] = []
+    for cidr, country in payload.items():
+        cc = _normalize_country_code(str(country))
+        if not cc:
+            continue
+        try:
+            network = ipaddress.ip_network(str(cidr).strip(), strict=False)
+        except Exception:
+            continue
+        out.append((network, cc))
+    return out
+
+
+def _request_client_ip(request: Request) -> Optional[str]:
+    candidates = [
+        request.headers.get("X-Forwarded-For"),
+        request.headers.get("X-Real-IP"),
+        request.client.host if request.client else None,
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        text = str(candidate).split(",")[0].strip()
+        if text:
+            return text
+    return None
+
+
+def _country_code_from_ip(ip_text: Optional[str]) -> Optional[str]:
+    if not ip_text:
+        return None
+    try:
+        ip_obj = ipaddress.ip_address(ip_text)
+    except Exception:
+        return None
+    for network, country_code in _lightweight_geoip_cidr_map():
+        try:
+            if ip_obj in network:
+                return country_code
+        except Exception:
+            continue
+    return None
+
+
+def _country_code_to_geo_group(country_code: str) -> Optional[str]:
+    cc = _normalize_country_code(country_code)
+    if not cc:
+        return None
+    if cc == "BB":
+        return "caribbean"
+    if cc in {"US", "CA", "MX"}:
+        return "north_america"
+    if cc in {"DE", "GB", "FR", "NL", "ES", "IT", "SE", "NO", "FI", "PL", "IE", "PT", "CH", "AT", "BE"}:
+        return "europe"
+    if cc in {"JP", "SG", "KR", "IN", "AU", "NZ"}:
+        return "asia_pacific"
+    return None
+
+
+def _resolve_user_country_code(request: Request, current_user: User) -> Optional[str]:
+    account_candidates = (
+        getattr(current_user, "country_code", None),
+        getattr(current_user, "country", None),
+    )
+    for candidate in account_candidates:
+        cc = _normalize_country_code(candidate)
+        if cc:
+            return cc
+
+    header_candidates = (
+        request.headers.get("CF-IPCountry"),
+        request.headers.get("X-Geo-Country"),
+        request.headers.get("X-Country-Code"),
+        request.headers.get("X-Country"),
+    )
+    for candidate in header_candidates:
+        cc = _normalize_country_code(candidate)
+        if cc:
+            return cc
+
+    return _country_code_from_ip(_request_client_ip(request))
+
+
+def _geo_group_priority_order(
+    *,
+    user_country_code: Optional[str],
+    user_geo_group: str,
+    healthy_groups: list[str],
+) -> list[str]:
+    healthy = [item for item in healthy_groups if item]
+    if not healthy:
+        return []
+
+    ordered: list[str] = []
+
+    def push(group: Optional[str]) -> None:
+        if not group:
+            return
+        normalized = _normalize_geo_group(group)
+        if not normalized:
+            return
+        if normalized in healthy and normalized not in ordered:
+            ordered.append(normalized)
+
+    cc = _normalize_country_code(user_country_code)
+    if cc == "BB":
+        push("north_america")
+        push("europe")
+
+    push(user_geo_group)
+    push(_country_code_to_geo_group(cc or ""))
+    for candidate in ("north_america", "europe", "asia_pacific", "caribbean", "global"):
+        push(candidate)
+    for candidate in sorted(healthy):
+        push(candidate)
+    return ordered
+
+
+def _matches_preferred_region(server: VPNServer, preferred_region: Optional[str]) -> bool:
+    preferred = (preferred_region or "").strip().lower()
+    if not preferred:
+        return False
+    candidates = {
+        str(getattr(server, "server_id", "") or "").strip().lower(),
+        str(getattr(server, "region", "") or "").strip().lower(),
+        str(getattr(server, "location", "") or "").strip().lower(),
+        str(getattr(server, "city", "") or "").strip().lower(),
+    }
+    return preferred in {item for item in candidates if item}
+
+
+def _region_order_key(server: VPNServer) -> tuple[int, float, int, str]:
+    latency_raw = getattr(server, "latency_score", None)
+    if latency_raw is None:
+        latency_raw = getattr(server, "latency_ms", None)
+    latency_value: Optional[float] = None
+    try:
+        if latency_raw is not None:
+            parsed = float(latency_raw)
+            if parsed >= 0:
+                latency_value = parsed
+    except (TypeError, ValueError):
+        latency_value = None
+
+    try:
+        weight = int(getattr(server, "priority_weight", 100) or 100)
+    except (TypeError, ValueError):
+        weight = 100
+    if weight < 0:
+        weight = 0
+    latency_missing = 1 if latency_value is None else 0
+    return (
+        latency_missing,
+        float(latency_value if latency_value is not None else 10_000.0),
+        weight,
+        str(getattr(server, "server_id", "") or "").lower(),
+    )
+
+
+def _resolve_region_cache_key(
+    *,
+    user_id: int,
+    protocol: str,
+    device_type: Optional[str],
+    preferred_region: Optional[str],
+    user_geo_group: str,
+    user_country_code: Optional[str],
+) -> str:
+    return "|".join(
+        [
+            str(user_id),
+            normalize_vpn_protocol(protocol),
+            (device_type or "").strip().lower(),
+            (preferred_region or "").strip().lower(),
+            user_geo_group,
+            (user_country_code or "").strip().upper(),
+        ]
+    )
+
+
+def _select_best_region(
+    *,
+    servers: list[VPNServer],
+    health_map: dict[str, dict[str, Any]],
+    preferred_region: Optional[str],
+    user_geo_group: str,
+    user_country_code: Optional[str],
+) -> tuple[VPNServer, str]:
+    healthy = [
+        server
+        for server in servers
+        if _region_health_status(server, health_map=health_map) == "up"
+    ]
+    if not healthy:
+        raise ApiException(
+            status_code=503,
+            code="no_servers_available",
+            message="No servers available",
+        )
+
+    healthy_sorted = sorted(healthy, key=_region_order_key)
+
+    preferred = [server for server in healthy_sorted if _matches_preferred_region(server, preferred_region)]
+    if preferred:
+        chosen = preferred[0]
+        if bool(getattr(chosen, "is_primary_region", False)):
+            return chosen, "preferred_primary"
+        return chosen, "preferred_region_healthy"
+
+    by_group: dict[str, list[VPNServer]] = {}
+    for server in healthy_sorted:
+        by_group.setdefault(_infer_geo_group_from_server(server), []).append(server)
+
+    ordered_groups = _geo_group_priority_order(
+        user_country_code=user_country_code,
+        user_geo_group=user_geo_group,
+        healthy_groups=list(by_group.keys()),
+    )
+    had_preferred = bool((preferred_region or "").strip())
+
+    for group in ordered_groups:
+        group_servers = by_group.get(group) or []
+        if not group_servers:
+            continue
+        group_primary = [item for item in group_servers if bool(getattr(item, "is_primary_region", False))]
+        chosen = group_primary[0] if group_primary else group_servers[0]
+
+        if _normalize_country_code(user_country_code) == "BB":
+            if group == "north_america":
+                return chosen, "barbados_na_primary"
+            if group == "europe":
+                return chosen, "barbados_eu_fallback"
+            return chosen, "barbados_geo_fallback"
+
+        if group == user_geo_group:
+            if group_primary:
+                return chosen, "failover_primary_down" if had_preferred else "geo_group_primary"
+            return chosen, "geo_group_fallback" if had_preferred else "geo_group_candidate"
+
+        return chosen, "geo_group_fallback"
+
+    return healthy_sorted[0], "priority_weight_fallback"
+
+
+def _resolve_region_with_cache(
+    *,
+    request: Request,
+    current_user: User,
+    db: Session,
+    user_tier: str,
+    protocol: str,
+    device_type: Optional[str],
+    preferred_region: Optional[str],
+) -> tuple[dict[str, Any], bool]:
+    normalized_protocol = normalize_vpn_protocol(protocol)
+    if normalized_protocol == "auto":
+        normalized_protocol = "wireguard"
+    user_country_code = _resolve_user_country_code(request, current_user)
+    user_geo_group = _resolve_user_geo_group(request, country_code=user_country_code)
+    cache_key = _resolve_region_cache_key(
+        user_id=current_user.id,
+        protocol=normalized_protocol,
+        device_type=device_type,
+        preferred_region=preferred_region,
+        user_geo_group=user_geo_group,
+        user_country_code=user_country_code,
+    )
+
+    now = datetime.now(timezone.utc)
+    ttl = _resolve_cache_ttl_seconds()
+    cached = _REGION_RESOLUTION_CACHE.get(cache_key)
+    if cached and isinstance(cached.get("cached_at"), datetime):
+        age = (now - cached["cached_at"]).total_seconds()
+        if 0 <= age <= ttl:
+            payload = dict(cached.get("payload") or {})
+            payload["cache_hit"] = True
+            return payload, True
+
+    protocol_servers = VPNServerService.get_active_servers(db, user_tier, protocol=normalized_protocol)
+    if device_type and normalized_protocol not in _platform_supported_protocols(device_type):
+        raise ApiException(
+            status_code=400,
+            code="protocol_not_supported_on_platform",
+            message="Requested protocol is not supported on this platform.",
+            details={"protocol": normalized_protocol, "device_type": device_type},
+        )
+    health_map = _region_health_map(protocol_servers)
+    selected, reason = _select_best_region(
+        servers=protocol_servers,
+        health_map=health_map,
+        preferred_region=preferred_region,
+        user_geo_group=user_geo_group,
+        user_country_code=user_country_code,
+    )
+    selected_group = _infer_geo_group_from_server(selected)
+    payload = {
+        "selected_region_id": selected.server_id,
+        "reason": reason,
+        "protocol": normalized_protocol,
+        "device_type": device_type,
+        "preferred_region": preferred_region,
+        "user_geo_group": user_geo_group,
+        "user_country_code": user_country_code,
+        "selected_region_group": selected_group,
+        "cache_hit": False,
+    }
+    _log_vpn_event(
+        "region_resolved",
+        failover_reason=reason,
+        region_selected=selected.server_id,
+        previous_region=preferred_region,
+        selected_region_group=selected_group,
+        user_geo_group=user_geo_group,
+        user_country_code=user_country_code,
+    )
+    get_runtime_metrics().record_region_resolution(reason=reason)
+    _REGION_RESOLUTION_CACHE[cache_key] = {"cached_at": now, "payload": payload}
+    return payload, False
+
+
+def run_region_health_watchdog_cycle(db: Session) -> dict[str, int]:
+    """
+    Periodic control-plane watchdog:
+    - force-refreshes regional health probes
+    - marks repeated failures as unreachable
+    - applies cooldown-based circuit guardrails
+    """
+    servers = db.query(VPNServer).filter(VPNServer.status == "active").all()
+    if not servers:
+        return {"checked": 0, "up": 0, "down": 0, "unknown": 0, "marked_down": 0}
+
+    now = datetime.now(timezone.utc)
+    threshold = _region_probe_failure_threshold()
+    counts = {"checked": 0, "up": 0, "down": 0, "unknown": 0, "marked_down": 0}
+
+    for server in servers:
+        counts["checked"] += 1
+        probe = _region_health_for_server(server, force_refresh=True)
+        status = str(probe.get("status") or "unknown").strip().lower()
+        reason_code = str(probe.get("reason_code") or "").strip().lower()
+
+        if status == "up":
+            counts["up"] += 1
+            server.consecutive_health_failures = 0
+            if (server.health_status or "").strip().lower() in {"unreachable", "offline"}:
+                server.health_status = "healthy"
+        elif status == "down":
+            counts["down"] += 1
+            server.consecutive_health_failures = int(server.consecutive_health_failures or 0) + 1
+            if server.consecutive_health_failures >= threshold:
+                server.health_status = "unreachable"
+                counts["marked_down"] += 1
+            elif reason_code in {"listener_down", "timeout", "host_unreachable", "circuit_open"}:
+                server.health_status = "unstable"
+        else:
+            counts["unknown"] += 1
+
+        server.last_health_check = now.replace(tzinfo=None)
+        db.add(server)
+
+    db.commit()
+    _log_vpn_event("region_health_watchdog_cycle", **counts)
+    return counts
 
 
 def _linux_route_snippet() -> str:
@@ -820,6 +1838,13 @@ def _build_openvpn_profile(
             details={"server_id": server.server_id},
         )
 
+    tls_crypt_key = (getattr(server, "openvpn_tls_crypt_key", None) or "").strip()
+    if not tls_crypt_key:
+        tls_crypt_key = _read_optional_pem_from_env(
+            pem_env="SECUREWAVE_OPENVPN_TLS_CRYPT_KEY",
+            path_env="SECUREWAVE_OPENVPN_TLS_CRYPT_KEY_PATH",
+        ) or ""
+
     proto_line = "proto tcp-client" if transport == "tcp" else "proto udp"
 
     extra: list[str] = []
@@ -837,6 +1862,9 @@ def _build_openvpn_profile(
         "persist-key",
         "persist-tun",
         "remote-cert-tls server",
+        "data-ciphers AES-256-GCM:AES-128-GCM",
+        "cipher AES-256-GCM",
+        "auth SHA256",
         "auth-user-pass",
         "auth-nocache",
         "verb 3",
@@ -845,6 +1873,7 @@ def _build_openvpn_profile(
         "<ca>",
         ca_cert.strip(),
         "</ca>",
+        *(["<tls-crypt>", tls_crypt_key, "</tls-crypt>"] if tls_crypt_key else []),
         "",
     ]
 
@@ -912,12 +1941,12 @@ def _server_supported_protocols(server: VPNServer) -> list[str]:
     # OpenVPN requires CA cert material to be provisioned on the server.
     if getattr(server, "supports_openvpn", False) and (
         getattr(server, "openvpn_ca_cert_pem", None) or ""
-    ).strip():
+    ).strip() and _protocol_material_ready("openvpn"):
         out.append("openvpn")
     # IKEv2 requires CA cert + remote_id to be provisioned.
     if getattr(server, "supports_ikev2", False) and (
         getattr(server, "ikev2_ca_cert_pem", None) or ""
-    ).strip() and (getattr(server, "ikev2_remote_id", None) or "").strip():
+    ).strip() and (getattr(server, "ikev2_remote_id", None) or "").strip() and _protocol_material_ready("ikev2"):
         out.append("ikev2")
     return out
 
@@ -928,6 +1957,295 @@ def _server_supports_protocol(server: VPNServer, protocol: str) -> bool:
         return True
     supported = _server_supported_protocols(server)
     return normalized in supported
+
+
+def _server_flag_supports_protocol(server: VPNServer, protocol: str) -> bool:
+    normalized = normalize_vpn_protocol(protocol)
+    if normalized == "wireguard":
+        return bool(getattr(server, "supports_wireguard", True))
+    if normalized == "openvpn":
+        return bool(getattr(server, "supports_openvpn", False))
+    if normalized == "ikev2":
+        return bool(getattr(server, "supports_ikev2", False))
+    return False
+
+
+def _classify_protocol_provision_error(protocol: str, reason: str) -> str:
+    normalized = normalize_vpn_protocol(protocol)
+    text = (reason or "").strip().lower()
+    if not text:
+        return "credential_provision_failed"
+
+    misconfigured_hints = (
+        "missing",
+        "not configured",
+        "invalid",
+        "certificate",
+        "cert",
+        "ca cert",
+        "ca certificate",
+        "ca_cert",
+        "pki",
+        "remote_id",
+        "remote id",
+        "endpoint",
+        "ovpn_config_b64",
+        "client_pkcs12",
+    )
+    if any(hint in text for hint in misconfigured_hints):
+        return f"{normalized}_server_misconfigured"
+
+    health_hints = (
+        "timeout",
+        "timed out",
+        "connection refused",
+        "connection reset",
+        "no route to host",
+        "network is unreachable",
+        "name or service not known",
+        "temporary failure in name resolution",
+        "host unreachable",
+        "healthcheck",
+        "ssh",
+        "permission denied",
+    )
+    if any(hint in text for hint in health_hints):
+        return f"{normalized}_healthcheck_fail"
+
+    if "temporarily unavailable" in text or "no active server" in text:
+        return f"{normalized}_unavailable_region"
+
+    return "credential_provision_failed"
+
+
+def _provisioning_failure_should_block(message: str) -> bool:
+    text = (message or "").strip().lower()
+    if not text:
+        return True
+    # Non-blocking in dev/test flows where credentials are managed out-of-band.
+    if text in {"auto provisioning disabled", "not_applicable"}:
+        return False
+    return True
+
+
+def _protocol_runtime_checks_enabled() -> bool:
+    # Keep deterministic test behavior unless explicitly enabled.
+    if os.getenv("TESTING", "").strip().lower() == "true":
+        return os.getenv("SECUREWAVE_TEST_ENFORCE_RUNTIME_CHECKS", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    return os.getenv("SECUREWAVE_ENFORCE_RUNTIME_CHECKS", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _protocol_required_scripts(protocol: str) -> list[str]:
+    normalized = normalize_vpn_protocol(protocol)
+    if normalized == "openvpn":
+        return [
+            "/usr/local/bin/securewave-openvpn-issue-client",
+            "/usr/local/bin/securewave-openvpn-upsert-user",
+            "/usr/local/bin/securewave-openvpn-revoke-client",
+        ]
+    if normalized == "ikev2":
+        return [
+            "/usr/local/bin/securewave-ikev2-issue-client",
+            "/usr/local/bin/securewave-ikev2-upsert-user",
+            "/usr/local/bin/securewave-ikev2-revoke-client",
+        ]
+    return []
+
+
+def _protocol_service_units(protocol: str) -> list[str]:
+    normalized = normalize_vpn_protocol(protocol)
+    if normalized == "openvpn":
+        raw = os.getenv(
+            "SECUREWAVE_OPENVPN_SERVICE_UNITS",
+            "openvpn-server@server,openvpn-server@securewave,openvpn@server",
+        ).strip()
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    if normalized == "ikev2":
+        raw = os.getenv(
+            "SECUREWAVE_IKEV2_SERVICE_UNITS",
+            "strongswan,strongswan-starter,charon-systemd",
+        ).strip()
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    return []
+
+
+def _service_is_active(unit: str) -> bool:
+    if not unit:
+        return False
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", unit],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except Exception:
+        return False
+    return result.returncode == 0 and (result.stdout or "").strip() == "active"
+
+
+def _protocol_material_ready(protocol: str) -> bool:
+    normalized = normalize_vpn_protocol(protocol)
+    if normalized not in {"openvpn", "ikev2"}:
+        return True
+    if not _protocol_runtime_checks_enabled():
+        return True
+    required_scripts = _protocol_required_scripts(normalized)
+    return all(os.path.exists(path) and os.access(path, os.X_OK) for path in required_scripts)
+
+
+def _protocol_health_ready(protocol: str) -> bool:
+    normalized = normalize_vpn_protocol(protocol)
+    if normalized not in {"openvpn", "ikev2"}:
+        return True
+    if not _protocol_runtime_checks_enabled():
+        return True
+    units = _protocol_service_units(normalized)
+    if not units:
+        return False
+    return any(_service_is_active(unit) for unit in units)
+
+
+def _protocol_temporarily_unavailable_code(protocol: str) -> str:
+    normalized = normalize_vpn_protocol(protocol)
+    if normalized in {"openvpn", "ikev2"}:
+        return f"{normalized}_temporarily_unavailable"
+    return "protocol_temporarily_unavailable"
+
+
+def _normalized_protocol_runtime_health(
+    server: VPNServer,
+    *,
+    health_map: Optional[dict[str, dict[str, Any]]] = None,
+) -> str:
+    return "healthy" if _region_health_status(server, health_map=health_map) == "up" else "unavailable"
+
+
+def _protocol_health_summary(
+    protocol: str,
+    servers: list[VPNServer],
+    *,
+    health_map: Optional[dict[str, dict[str, Any]]] = None,
+) -> dict[str, Any]:
+    normalized = normalize_vpn_protocol(protocol)
+    health_lookup = health_map or _region_health_map(servers)
+    protocol_flags = [server for server in servers if _server_flag_supports_protocol(server, normalized)]
+    eligible_servers = [server for server in protocol_flags if _server_supports_protocol(server, normalized)]
+    healthy_servers = [
+        server for server in eligible_servers if _region_health_status(server, health_map=health_lookup) == "up"
+    ]
+
+    reason = _effective_protocol_reason(
+        normalized,
+        servers=servers,
+        health_map=health_lookup,
+    )
+    status = "healthy" if healthy_servers else "unavailable"
+
+    region_groups: dict[str, list[VPNServer]] = {}
+    for server in servers:
+        region = (
+            (getattr(server, "region", None) or "")
+            or (getattr(server, "country_code", None) or "")
+            or (getattr(server, "country", None) or "")
+            or "global"
+        )
+        key = str(region).strip() or "global"
+        region_groups.setdefault(key, []).append(server)
+
+    region_rows: list[VpnProtocolRegionHealth] = []
+    for region_name in sorted(region_groups.keys()):
+        region_servers = region_groups[region_name]
+        region_flags = [
+            server for server in region_servers if _server_flag_supports_protocol(server, normalized)
+        ]
+        if not region_flags:
+            continue
+        region_eligible = [
+            server for server in region_flags if _server_supports_protocol(server, normalized)
+        ]
+        region_up_count = sum(
+            1
+            for server in region_eligible
+            if _region_health_status(server, health_map=health_lookup) == "up"
+        )
+        region_down_count = sum(
+            1
+            for server in region_flags
+            if _region_health_status(server, health_map=health_lookup) == "down"
+        )
+        region_up_any = any(
+            _region_health_status(server, health_map=health_lookup) == "up"
+            for server in region_flags
+        )
+        region_reason: Optional[str] = None
+        if region_up_count == 0:
+            if not region_up_any and region_down_count > 0:
+                region_reason = "region_down"
+            elif len(region_eligible) == 0:
+                region_reason = "unavailable_region"
+            else:
+                region_reason = "no_servers_available"
+
+        region_rows.append(
+            VpnProtocolRegionHealth(
+                region=region_name,
+                status="healthy" if region_up_count > 0 else "unavailable",
+                total_servers=len(region_flags),
+                available_servers=region_up_count,
+                healthy_servers=region_up_count,
+                degraded_servers=0,
+                reason=region_reason,
+            )
+        )
+
+    return {
+        "protocol": normalized,
+        "status": status,
+        "reason": reason,
+        "total_servers": len(protocol_flags),
+        "available_servers": len(healthy_servers),
+        "healthy_servers": len(healthy_servers),
+        "degraded_servers": 0,
+        "regions": region_rows,
+    }
+
+
+def _protocol_health_matrix(
+    servers: list[VPNServer],
+    *,
+    health_map: Optional[dict[str, dict[str, Any]]] = None,
+) -> dict[str, dict[str, Any]]:
+    lookup = health_map or _region_health_map(servers)
+    return {
+        protocol: _protocol_health_summary(protocol, servers, health_map=lookup)
+        for protocol in SUPPORTED_PROTOCOLS
+    }
+
+
+def _server_is_usable_for_protocol(
+    server: VPNServer,
+    protocol: str,
+    *,
+    health_map: Optional[dict[str, dict[str, Any]]] = None,
+) -> bool:
+    normalized = normalize_vpn_protocol(protocol)
+    if not _server_supports_protocol(server, normalized):
+        return False
+    if normalized in {"openvpn", "ikev2"} and not _protocol_health_ready(normalized):
+        return False
+    return _region_health_status(server, health_map=health_map) == "up"
 
 
 def _auto_protocol_order() -> list[str]:
@@ -1124,11 +2442,29 @@ def _openvpn_auth_mode() -> str:
     return "userpass"
 
 
+def _openvpn_allow_userpass_fallback() -> bool:
+    return os.getenv("SECUREWAVE_OPENVPN_MTLS_FALLBACK_USERPASS", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _ikev2_auth_mode() -> str:
     raw = os.getenv("SECUREWAVE_IKEV2_AUTH_MODE", "eap-tls").strip().lower()
     if raw in {"eap-mschapv2", "mschapv2", "userpass"}:
         return "eap-mschapv2"
     return "eap-tls"
+
+
+def _ikev2_allow_userpass_fallback() -> bool:
+    return os.getenv("SECUREWAVE_IKEV2_EAPTLS_FALLBACK_USERPASS", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def _credential_summary(record: VPNCredential) -> VpnCredentialSummary:
@@ -1158,6 +2494,22 @@ def _select_server_for_protocol(
     preferred_server_id: Optional[str],
     region_hint: Optional[str] = None,
 ) -> VPNServer:
+    if protocol in {"openvpn", "ikev2"}:
+        if not _protocol_material_ready(protocol):
+            raise ApiException(
+                status_code=409,
+                code=f"{protocol}_server_misconfigured",
+                message="Requested protocol server provisioning is incomplete.",
+                details={"protocol": protocol},
+            )
+        if not _protocol_health_ready(protocol):
+            raise ApiException(
+                status_code=409,
+                code=f"{protocol}_healthcheck_fail",
+                message="Requested protocol service is not healthy on the server.",
+                details={"protocol": protocol},
+            )
+
     server: Optional[VPNServer] = None
     if preferred_server_id:
         server = VPNServerService.get_server_by_id(db, preferred_server_id)
@@ -1181,15 +2533,36 @@ def _select_server_for_protocol(
                 message="Requested protocol is not enabled on the selected server.",
                 details={"protocol": protocol, "server_id": server.server_id},
             )
+        selected_health = _region_health_for_server(server)
+        if selected_health.get("status") != "up":
+            raise ApiException(
+                status_code=409,
+                code="region_down",
+                message="Selected region is offline.",
+                details={
+                    "protocol": protocol,
+                    "server_id": server.server_id,
+                    "region_health_status": selected_health.get("status"),
+                    "reason_code": selected_health.get("reason_code"),
+                },
+            )
         return server
 
-    candidates = VPNServerService.get_active_servers(db, user_tier, protocol=protocol)
+    all_servers = VPNServerService.get_active_servers(db, user_tier, protocol=protocol)
+    health_map = _region_health_map(all_servers)
+    candidates = [
+        server
+        for server in all_servers
+        if _server_is_usable_for_protocol(server, protocol, health_map=health_map)
+    ]
     if not candidates:
+        reason = _effective_protocol_reason(protocol, servers=all_servers, health_map=health_map)
+        status_code = 503 if reason == "no_servers_available" else 409
         raise ApiException(
-            status_code=409,
-            code="protocol_temporarily_unavailable",
+            status_code=status_code,
+            code=str(reason or "unavailable_region"),
             message="Requested protocol is currently unavailable on active servers.",
-            details={"protocol": protocol},
+            details={"protocol": protocol, "reason": reason},
         )
 
     latency_optimizer = get_latency_optimizer()
@@ -1200,7 +2573,7 @@ def _select_server_for_protocol(
     score_map = {item.server_id: item.score for item in scored}
     candidates.sort(
         key=lambda s: (
-            1 if s.health_status == "healthy" else 0,
+            1 if _region_health_status(s, health_map=health_map) == "up" else 0,
             score_map.get(s.server_id, float("-inf")),
         ),
         reverse=True,
@@ -1295,19 +2668,27 @@ async def list_protocols(
     platform_supported = _platform_supported_protocols(normalized_device_type)
 
     servers = VPNServerService.get_active_servers(db, user_tier)
-    server_enabled: dict[str, bool] = {
-        protocol: any(protocol in _server_supported_protocols(server) for server in servers)
-        for protocol in SUPPORTED_PROTOCOLS
-    }
+    health_map = _region_health_map(servers)
+    protocol_health = _protocol_health_matrix(servers, health_map=health_map)
+    any_up_servers = any(
+        _region_health_status(server, health_map=health_map) == "up"
+        for server in servers
+    )
 
     protocol_payload: list[VpnProtocolAvailability] = []
     for protocol in SUPPORTED_PROTOCOLS:
-        enabled = (
-            protocol in enabled_protocols
-            and protocol in plan_allowed
-            and protocol in platform_supported
-            and server_enabled.get(protocol, False)
-        )
+        health = protocol_health.get(protocol) or {
+            "status": "unavailable",
+            "reason": "no_active_server_support",
+            "available_servers": 0,
+            "healthy_servers": 0,
+            "degraded_servers": 0,
+            "total_servers": 0,
+        }
+        health_status = str(health.get("status") or "unavailable")
+        health_reason = health.get("reason")
+        server_enabled = int(health.get("available_servers") or 0) > 0
+
         reason = None
         if protocol not in enabled_protocols:
             reason = "disabled_server_side"
@@ -1315,21 +2696,27 @@ async def list_protocols(
             reason = "restricted_by_plan"
         elif protocol not in platform_supported:
             reason = "not_supported_on_platform"
-        elif not server_enabled.get(protocol, False):
-            reason = "no_active_server_support"
+        elif not server_enabled:
+            reason = str(
+                health_reason
+                or ("no_servers_available" if not any_up_servers else "unavailable_region")
+            )
         elif protocol == "ikev2" and normalized_device_type == "linux":
             # Linux runner only implements eap-mschapv2; warn if backend is eap-tls.
             if _ikev2_auth_mode() == "eap-tls":
                 reason = "ikev2_auth_mode_mismatch_linux"
+        enabled = reason is None
 
         transports = ["udp", "tcp"] if protocol == "openvpn" else None
         protocol_payload.append(
             VpnProtocolAvailability(
                 protocol=protocol,
                 enabled=enabled,
-                server_enabled=server_enabled.get(protocol, False),
+                server_enabled=server_enabled,
                 plan_enabled=protocol in plan_allowed and protocol in enabled_protocols,
                 platform_supported=protocol in platform_supported,
+                health_status=health_status,
+                health_reason=health_reason,
                 transports=transports,
                 requirements=_protocol_requirements(protocol),
                 reason=reason,
@@ -1350,6 +2737,97 @@ async def list_protocols(
         device_type=normalized_device_type,
         protocols=protocol_payload,
     )
+
+
+@router.get(
+    "/protocol-capabilities",
+    response_model=VpnProtocolsResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("60/minute")
+async def list_protocol_capabilities(
+    request: Request,
+    device_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compatibility alias of /api/vpn/protocols."""
+    return await list_protocols(
+        request=request,
+        device_type=device_type,
+        current_user=current_user,
+        db=db,
+    )
+
+
+@router.get(
+    "/protocol-health",
+    response_model=VpnProtocolHealthResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("60/minute")
+async def protocol_health(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """DevOps-oriented protocol readiness matrix (global + per-region)."""
+    user_tier = get_user_tier(current_user, db)
+    servers = VPNServerService.get_active_servers(db, user_tier)
+    health_map = _region_health_map(servers)
+    matrix = _protocol_health_matrix(servers, health_map=health_map)
+    payload = [
+        VpnProtocolHealth(
+            protocol=protocol,
+            status=str((matrix.get(protocol) or {}).get("status") or "unavailable"),
+            total_servers=int((matrix.get(protocol) or {}).get("total_servers") or 0),
+            available_servers=int((matrix.get(protocol) or {}).get("available_servers") or 0),
+            healthy_servers=int((matrix.get(protocol) or {}).get("healthy_servers") or 0),
+            degraded_servers=int((matrix.get(protocol) or {}).get("degraded_servers") or 0),
+            reason=(matrix.get(protocol) or {}).get("reason"),
+            regions=list((matrix.get(protocol) or {}).get("regions") or []),
+        )
+        for protocol in SUPPORTED_PROTOCOLS
+    ]
+    return VpnProtocolHealthResponse(
+        generated_at=_utc_iso(datetime.now(timezone.utc)),
+        user_tier=user_tier,
+        protocols=payload,
+    )
+
+
+@router.post(
+    "/dev/region-health",
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("30/minute")
+async def dev_region_health_override(
+    payload: DevRegionHealthOverrideRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Test-only helper to simulate region health outcomes without real probes."""
+    if not IS_TESTING and not _bool_env("SECUREWAVE_ENABLE_DEV_REGION_HEALTH_ENDPOINT", False):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if payload.clear:
+        _TEST_REGION_HEALTH_OVERRIDES.clear()
+
+    now_iso = _utc_iso(datetime.now(timezone.utc))
+    for item in payload.overrides:
+        _TEST_REGION_HEALTH_OVERRIDES[item.server_id] = {
+            "status": item.status,
+            "reason_code": item.reason_code,
+            "last_checked_at": now_iso,
+        }
+    _REGION_HEALTH_CACHE.clear()
+    _REGION_RESOLUTION_CACHE.clear()
+    _REGION_PROBE_CIRCUITS.clear()
+
+    return {
+        "status": "ok",
+        "overrides": _TEST_REGION_HEALTH_OVERRIDES,
+        "updated_by_user_id": current_user.id,
+    }
 
 
 @router.get(
@@ -1380,6 +2858,7 @@ async def list_servers(
 
     # Get active servers for this user's tier
     servers = VPNServerService.get_active_servers(db, user_tier)
+    health_map = _region_health_map(servers)
 
     # Filter by region if specified
     if region:
@@ -1396,6 +2875,7 @@ async def list_servers(
     for server in servers:
         # Calculate load percentage
         load_percent = (server.current_connections / server.max_connections * 100) if server.max_connections > 0 else 0
+        region_health = health_map.get(server.server_id) or _region_health_for_server(server)
 
         server_info = ServerInfo(
             server_id=server.server_id,
@@ -1404,10 +2884,19 @@ async def list_servers(
             country_code=server.country_code,
             city=server.city,
             region=server.region,
+            region_group=getattr(server, "region_group", None),
+            is_primary_region=bool(getattr(server, "is_primary_region", False)),
+            priority_weight=int(getattr(server, "priority_weight", 100) or 100),
+            latency_score=getattr(server, "latency_score", None),
             latency_ms=server.latency_ms,
             load_percent=round(load_percent, 1),
             status=server.status,
             health_status=server.health_status,
+            region_health_status=str(region_health.get("status") or "unknown"),
+            region_health_last_checked_at=region_health.get("last_checked_at"),
+            region_health_reason_code=region_health.get("reason_code"),
+            tier_restriction=server.tier_restriction,
+            premium_only=bool((server.tier_restriction or "").strip().lower() == "premium"),
             supported_protocols=_server_supported_protocols(server),
         )
         server_list.append(server_info)
@@ -1418,7 +2907,7 @@ async def list_servers(
             baselines=baselines,
             user_region_hint=region_hint,
         )
-        if server.health_status in {"healthy", "degraded"} and score > best_score:
+        if str(region_health.get("status") or "unknown") == "up" and score > best_score:
             best_score = score
             recommended_id = server.server_id
 
@@ -1434,6 +2923,82 @@ async def list_servers(
         servers=server_list,
         total=len(server_list),
         recommended_server_id=recommended_id,
+    )
+
+
+@router.get(
+    "/regions",
+    response_model=RegionListResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("60/minute")
+async def list_regions(
+    request: Request,
+    region: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compatibility alias of /api/vpn/servers with `regions` key."""
+    payload = await list_servers(
+        request=request,
+        region=region,
+        current_user=current_user,
+        db=db,
+    )
+    return RegionListResponse(
+        regions=payload.servers,
+        total=payload.total,
+        recommended_server_id=payload.recommended_server_id,
+    )
+
+
+@router.get(
+    "/resolve-region",
+    response_model=RegionResolutionResponse,
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("60/minute")
+async def resolve_region(
+    request: Request,
+    protocol: str = "wireguard",
+    device_type: Optional[str] = None,
+    preferred_region: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Resolve the best healthy region for a protocol/device context."""
+    normalized_protocol = normalize_vpn_protocol(protocol)
+    if normalized_protocol == "auto":
+        normalized_protocol = "wireguard"
+    normalized_device = (device_type or "").strip().lower() or None
+    if normalized_device and normalized_device not in {"windows", "macos", "linux", "ios", "android"}:
+        raise ApiException(
+            status_code=400,
+            code="invalid_device_type",
+            message="Unsupported device_type. Supported: windows, macos, linux, ios, android.",
+            details={"device_type": device_type},
+        )
+    preferred = (preferred_region or "").strip() or None
+    user_tier = get_user_tier(current_user, db)
+    payload, cache_hit = _resolve_region_with_cache(
+        request=request,
+        current_user=current_user,
+        db=db,
+        user_tier=user_tier,
+        protocol=normalized_protocol,
+        device_type=normalized_device,
+        preferred_region=preferred,
+    )
+    return RegionResolutionResponse(
+        selected_region_id=str(payload.get("selected_region_id") or ""),
+        reason=str(payload.get("reason") or "priority_weight_fallback"),
+        protocol=str(payload.get("protocol") or normalized_protocol),
+        device_type=normalized_device,
+        preferred_region=preferred,
+        user_geo_group=payload.get("user_geo_group"),
+        user_country_code=payload.get("user_country_code"),
+        selected_region_group=payload.get("selected_region_group"),
+        cache_hit=bool(payload.get("cache_hit") if payload.get("cache_hit") is not None else cache_hit),
     )
 
 
@@ -1489,6 +3054,7 @@ async def get_server(
         raise HTTPException(status_code=404, detail="Server not found")
 
     load_percent = (server.current_connections / server.max_connections * 100) if server.max_connections > 0 else 0
+    region_health = _region_health_for_server(server, force_refresh=True)
 
     return ServerInfo(
         server_id=server.server_id,
@@ -1497,10 +3063,19 @@ async def get_server(
         country_code=server.country_code,
         city=server.city,
         region=server.region,
+        region_group=getattr(server, "region_group", None),
+        is_primary_region=bool(getattr(server, "is_primary_region", False)),
+        priority_weight=int(getattr(server, "priority_weight", 100) or 100),
+        latency_score=getattr(server, "latency_score", None),
         latency_ms=server.latency_ms,
         load_percent=round(load_percent, 1),
         status=server.status,
         health_status=server.health_status,
+        region_health_status=str(region_health.get("status") or "unknown"),
+        region_health_last_checked_at=region_health.get("last_checked_at"),
+        region_health_reason_code=region_health.get("reason_code"),
+        tier_restriction=server.tier_restriction,
+        premium_only=bool((server.tier_restriction or "").strip().lower() == "premium"),
         supported_protocols=_server_supported_protocols(server),
     )
 
@@ -1886,6 +3461,22 @@ async def provision_profile(
             details={"protocol": requested_protocol, "device_type": device_type},
         )
 
+    if requested_explicit and requested_protocol in {"openvpn", "ikev2"}:
+        if not _protocol_material_ready(requested_protocol):
+            raise ApiException(
+                status_code=409,
+                code=f"{requested_protocol}_server_misconfigured",
+                message="Requested protocol server provisioning is incomplete.",
+                details={"protocol": requested_protocol},
+            )
+        if not _protocol_health_ready(requested_protocol):
+            raise ApiException(
+                status_code=409,
+                code=f"{requested_protocol}_healthcheck_fail",
+                message="Requested protocol service is not healthy on the server.",
+                details={"protocol": requested_protocol},
+            )
+
     allowed_protocols = enabled_protocols.intersection(plan_allowed_protocols)
     if requested_protocol == "auto":
         allowed_protocols = allowed_protocols.intersection(platform_supported_protocols)
@@ -1921,6 +3512,18 @@ async def provision_profile(
                 message="Requested protocol is not enabled on the selected server.",
                 details={"protocol": requested_protocol, "server_id": server.server_id},
             )
+        selected_health = _region_health_for_server(server)
+        if selected_health.get("status") != "up":
+            raise ApiException(
+                status_code=409,
+                code="region_down",
+                message="Selected region is offline.",
+                details={
+                    "server_id": server.server_id,
+                    "region_health_status": selected_health.get("status"),
+                    "reason_code": selected_health.get("reason_code"),
+                },
+            )
 
     if server is None and peer.server_id:
         server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
@@ -1928,34 +3531,71 @@ async def provision_profile(
             server = None
         if server and requested_explicit and not _server_supports_protocol(server, requested_protocol):
             server = None
+        if server and requested_explicit and not _server_is_usable_for_protocol(server, requested_protocol):
+            server = None
 
-    candidates = VPNServerService.get_active_servers(
+    all_servers = VPNServerService.get_active_servers(
         db,
         user_tier,
         protocol=requested_protocol if requested_explicit else None,
     )
+    health_map = _region_health_map(all_servers)
+    candidates = list(all_servers)
+    if requested_explicit:
+        candidates = [
+            item
+            for item in candidates
+            if _server_is_usable_for_protocol(item, requested_protocol, health_map=health_map)
+        ]
     if requested_protocol == "auto":
         candidates = [
             item
             for item in candidates
+            if _region_health_status(item, health_map=health_map) == "up"
             if any(
                 proto in allowed_protocols
                 for proto in _server_supported_protocols(item)
             )
         ]
 
+    if payload.server_id and server is not None and all(server.id != item.id for item in candidates):
+        raise ApiException(
+            status_code=409,
+            code="region_down",
+            message="Selected region is offline.",
+            details={"server_id": server.server_id},
+        )
+
     if not candidates:
+        up_servers = [
+            item
+            for item in all_servers
+            if _region_health_status(item, health_map=health_map) == "up"
+        ]
         if requested_explicit:
+            reason = _effective_protocol_reason(
+                requested_protocol,
+                servers=all_servers,
+                health_map=health_map,
+            )
+            status_code = 503 if reason == "no_servers_available" else 409
             raise ApiException(
-                status_code=409,
-                code="protocol_temporarily_unavailable",
+                status_code=status_code,
+                code=str(reason or "unavailable_region"),
                 message="Requested protocol is currently unavailable on active servers.",
-                details={"protocol": requested_protocol},
+                details={"protocol": requested_protocol, "reason": reason},
+            )
+        if not up_servers:
+            raise ApiException(
+                status_code=503,
+                code="no_servers_available",
+                message="No VPN servers available. Please try again later.",
             )
         raise ApiException(
-            status_code=503,
-            code="no_servers_available",
-            message="No VPN servers available. Please try again later.",
+            status_code=409,
+            code="no_protocol_available",
+            message="No VPN protocol is available for this account/platform combination.",
+            details={"tier": user_tier, "device_type": device_type},
         )
 
     if server is None or all(server.id != item.id for item in candidates):
@@ -1967,12 +3607,19 @@ async def provision_profile(
         score_map = {item.server_id: item.score for item in scored}
         candidates.sort(
             key=lambda s: (
-                1 if s.health_status == "healthy" else 0,
+                1 if _region_health_status(s, health_map=health_map) == "up" else 0,
                 score_map.get(s.server_id, float("-inf")),
             ),
             reverse=True,
         )
         server = candidates[0]
+    elif _region_health_status(server, health_map=health_map) != "up":
+        raise ApiException(
+            status_code=409,
+            code="region_down",
+            message="Selected region is offline.",
+            details={"server_id": server.server_id},
+        )
 
     assert server is not None
     effective_protocol = choose_effective_protocol(
@@ -2054,26 +3701,64 @@ async def provision_profile(
                     )
                 except Exception as exc:
                     reason = str(exc)
-                    code = (
-                        "protocol_provisioning_unavailable"
-                        if "ca" in reason.lower() or "cert" in reason.lower() or "pki" in reason.lower()
-                        else "credential_provision_failed"
+                    if not _openvpn_allow_userpass_fallback():
+                        code = _classify_protocol_provision_error("openvpn", reason)
+                        raise ApiException(
+                            status_code=502,
+                            code=code,
+                            message="Failed to provision OpenVPN certificate profile.",
+                            details={"protocol": "openvpn", "reason": reason},
+                        )
+                    logger.warning(
+                        "OpenVPN mTLS provisioning failed; falling back to userpass for server=%s: %s",
+                        server.server_id,
+                        reason,
                     )
-                    raise ApiException(
-                        status_code=502,
-                        code=code,
-                        message="Failed to provision OpenVPN certificate profile.",
-                        details={"protocol": "openvpn", "reason": reason},
+                    creds = creds_service.get_or_create(
+                        user_id=current_user.id,
+                        device_id=peer.id,
+                        server_id=server.id,
+                        protocol=effective_protocol,
                     )
-                profile_payload = VpnOpenVpnProfilePayload(
-                    ovpn_config=issued.ovpn_config,
-                    auth_method="mtls",
-                    username=issued.common_name,
-                    cert_serial=issued.cert_serial,
-                    cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
-                )
-                peer_registered = issued.provisioned_on_server
-                registration_status = issued.status_message
+                    profile_payload = _build_openvpn_profile(
+                        server,
+                        username=creds.username,
+                        password=creds.password,
+                        device_type=device_type,
+                        dns_servers=dns_servers,
+                    )
+                    provisioned, message = await provision_protocol_credentials_on_server(
+                        server=server,
+                        protocol=effective_protocol,
+                        username=creds.username,
+                        password=creds.password,
+                    )
+                    if not provisioned and _provisioning_failure_should_block(message):
+                        raise ApiException(
+                            status_code=502,
+                            code=_classify_protocol_provision_error("openvpn", message),
+                            message="Failed to provision OpenVPN credential on selected server.",
+                            details={"protocol": "openvpn", "reason": message, "server_id": server.server_id},
+                        )
+                    peer_registered = provisioned
+                    registration_status = (
+                        f"mtls_failed_fallback_userpass: {reason}"
+                        if not provisioned
+                        else f"mtls_failed_fallback_userpass: {message}"
+                    )
+                    issued = None
+                if issued is None:
+                    pass
+                else:
+                    profile_payload = VpnOpenVpnProfilePayload(
+                        ovpn_config=issued.ovpn_config,
+                        auth_method="mtls",
+                        username=issued.common_name,
+                        cert_serial=issued.cert_serial,
+                        cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+                    )
+                    peer_registered = issued.provisioned_on_server
+                    registration_status = issued.status_message
             else:
                 creds = creds_service.get_or_create(
                     user_id=current_user.id,
@@ -2094,6 +3779,13 @@ async def provision_profile(
                     username=creds.username,
                     password=creds.password,
                 )
+                if not provisioned and _provisioning_failure_should_block(message):
+                    raise ApiException(
+                        status_code=502,
+                        code=_classify_protocol_provision_error("openvpn", message),
+                        message="Failed to provision OpenVPN credential on selected server.",
+                        details={"protocol": "openvpn", "reason": message, "server_id": server.server_id},
+                    )
                 peer_registered = provisioned
                 registration_status = message
         elif effective_protocol == "ikev2":
@@ -2107,30 +3799,63 @@ async def provision_profile(
                     )
                 except Exception as exc:
                     reason = str(exc)
-                    code = (
-                        "protocol_provisioning_unavailable"
-                        if "ca" in reason.lower() or "cert" in reason.lower() or "pki" in reason.lower()
-                        else "credential_provision_failed"
+                    if not _ikev2_allow_userpass_fallback():
+                        code = _classify_protocol_provision_error("ikev2", reason)
+                        raise ApiException(
+                            status_code=502,
+                            code=code,
+                            message="Failed to provision IKEv2 certificate profile.",
+                            details={"protocol": "ikev2", "reason": reason},
+                        )
+                    logger.warning(
+                        "IKEv2 EAP-TLS provisioning failed; falling back to EAP-MSCHAPv2 for server=%s: %s",
+                        server.server_id,
+                        reason,
                     )
-                    raise ApiException(
-                        status_code=502,
-                        code=code,
-                        message="Failed to provision IKEv2 certificate profile.",
-                        details={"protocol": "ikev2", "reason": reason},
+                    creds = creds_service.get_or_create(
+                        user_id=current_user.id,
+                        device_id=peer.id,
+                        server_id=server.id,
+                        protocol=effective_protocol,
                     )
-                profile_payload = VpnIkev2ProfilePayload(
-                    auth_method="eap-tls",
-                    server=issued.server,
-                    remote_id=issued.remote_id,
-                    ca_cert_pem=issued.ca_cert_pem,
-                    client_pkcs12_base64=issued.client_pkcs12_base64,
-                    client_pkcs12_password=issued.client_pkcs12_password,
-                    cert_serial=issued.cert_serial,
-                    cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
-                    username=issued.common_name,
-                )
-                peer_registered = issued.provisioned_on_server
-                registration_status = issued.status_message
+                    profile_payload = _build_ikev2_profile(
+                        server,
+                        username=creds.username,
+                        password=creds.password,
+                    )
+                    provisioned, message = await provision_protocol_credentials_on_server(
+                        server=server,
+                        protocol=effective_protocol,
+                        username=creds.username,
+                        password=creds.password,
+                    )
+                    if not provisioned and _provisioning_failure_should_block(message):
+                        raise ApiException(
+                            status_code=502,
+                            code=_classify_protocol_provision_error("ikev2", message),
+                            message="Failed to provision IKEv2 credential on selected server.",
+                            details={"protocol": "ikev2", "reason": message, "server_id": server.server_id},
+                        )
+                    peer_registered = provisioned
+                    registration_status = (
+                        f"eap_tls_failed_fallback_userpass: {reason}"
+                        if not provisioned
+                        else f"eap_tls_failed_fallback_userpass: {message}"
+                    )
+                else:
+                    profile_payload = VpnIkev2ProfilePayload(
+                        auth_method="eap-tls",
+                        server=issued.server,
+                        remote_id=issued.remote_id,
+                        ca_cert_pem=issued.ca_cert_pem,
+                        client_pkcs12_base64=issued.client_pkcs12_base64,
+                        client_pkcs12_password=issued.client_pkcs12_password,
+                        cert_serial=issued.cert_serial,
+                        cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+                        username=issued.common_name,
+                    )
+                    peer_registered = issued.provisioned_on_server
+                    registration_status = issued.status_message
             else:
                 creds = creds_service.get_or_create(
                     user_id=current_user.id,
@@ -2149,6 +3874,13 @@ async def provision_profile(
                     username=creds.username,
                     password=creds.password,
                 )
+                if not provisioned and _provisioning_failure_should_block(message):
+                    raise ApiException(
+                        status_code=502,
+                        code=_classify_protocol_provision_error("ikev2", message),
+                        message="Failed to provision IKEv2 credential on selected server.",
+                        details={"protocol": "ikev2", "reason": message, "server_id": server.server_id},
+                    )
                 peer_registered = provisioned
                 registration_status = message
 
@@ -2336,20 +4068,55 @@ async def provision_vpn_credential(
                     server=server,
                 )
             except Exception as exc:
-                raise ApiException(
-                    status_code=502,
-                    code="credential_provision_failed",
-                    message="Failed to provision OpenVPN certificate profile.",
-                    details={"protocol": "openvpn", "reason": str(exc)},
+                reason = str(exc)
+                if not _openvpn_allow_userpass_fallback():
+                    raise ApiException(
+                        status_code=502,
+                        code=_classify_protocol_provision_error("openvpn", reason),
+                        message="Failed to provision OpenVPN certificate profile.",
+                        details={"protocol": "openvpn", "reason": reason},
+                    )
+                logger.warning(
+                    "OpenVPN mTLS provisioning failed; falling back to userpass for server=%s: %s",
+                    server.server_id,
+                    reason,
                 )
-            issued_profile = VpnOpenVpnProfilePayload(
-                ovpn_config=issued.ovpn_config,
-                auth_method="mtls",
-                username=issued.common_name,
-                cert_serial=issued.cert_serial,
-                cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
-            ).model_dump()
-            status_message = issued.status_message
+                creds = creds_service.get_or_create(
+                    user_id=current_user.id,
+                    device_id=peer.id,
+                    server_id=server.id,
+                    protocol="openvpn",
+                )
+                issued_profile = _build_openvpn_profile(
+                    server,
+                    username=creds.username,
+                    password=creds.password,
+                    device_type=device_type,
+                    dns_servers=_profile_dns_servers(),
+                ).model_dump()
+                provisioned, message = await provision_protocol_credentials_on_server(
+                    server=server,
+                    protocol="openvpn",
+                    username=creds.username,
+                    password=creds.password,
+                )
+                if not provisioned and _provisioning_failure_should_block(message):
+                    raise ApiException(
+                        status_code=502,
+                        code=_classify_protocol_provision_error("openvpn", message),
+                        message="Failed to provision OpenVPN credential on selected server.",
+                        details={"protocol": "openvpn", "reason": message, "server_id": server.server_id},
+                    )
+                status_message = f"mtls_failed_fallback_userpass: {reason}"
+            else:
+                issued_profile = VpnOpenVpnProfilePayload(
+                    ovpn_config=issued.ovpn_config,
+                    auth_method="mtls",
+                    username=issued.common_name,
+                    cert_serial=issued.cert_serial,
+                    cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+                ).model_dump()
+                status_message = issued.status_message
         else:
             creds = creds_service.get_or_create(
                 user_id=current_user.id,
@@ -2364,12 +4131,19 @@ async def provision_vpn_credential(
                 device_type=device_type,
                 dns_servers=_profile_dns_servers(),
             ).model_dump()
-            await provision_protocol_credentials_on_server(
+            provisioned, message = await provision_protocol_credentials_on_server(
                 server=server,
                 protocol="openvpn",
                 username=creds.username,
                 password=creds.password,
             )
+            if not provisioned and _provisioning_failure_should_block(message):
+                raise ApiException(
+                    status_code=502,
+                    code=_classify_protocol_provision_error("openvpn", message),
+                    message="Failed to provision OpenVPN credential on selected server.",
+                    details={"protocol": "openvpn", "reason": message, "server_id": server.server_id},
+                )
             status_message = "credential_provisioned"
     else:
         if _ikev2_auth_mode() == "eap-tls":
@@ -2380,24 +4154,57 @@ async def provision_vpn_credential(
                     server=server,
                 )
             except Exception as exc:
-                raise ApiException(
-                    status_code=502,
-                    code="credential_provision_failed",
-                    message="Failed to provision IKEv2 certificate profile.",
-                    details={"protocol": "ikev2", "reason": str(exc)},
+                reason = str(exc)
+                if not _ikev2_allow_userpass_fallback():
+                    raise ApiException(
+                        status_code=502,
+                        code=_classify_protocol_provision_error("ikev2", reason),
+                        message="Failed to provision IKEv2 certificate profile.",
+                        details={"protocol": "ikev2", "reason": reason},
+                    )
+                logger.warning(
+                    "IKEv2 EAP-TLS provisioning failed; falling back to EAP-MSCHAPv2 for server=%s: %s",
+                    server.server_id,
+                    reason,
                 )
-            issued_profile = VpnIkev2ProfilePayload(
-                auth_method="eap-tls",
-                server=issued.server,
-                remote_id=issued.remote_id,
-                ca_cert_pem=issued.ca_cert_pem,
-                client_pkcs12_base64=issued.client_pkcs12_base64,
-                client_pkcs12_password=issued.client_pkcs12_password,
-                cert_serial=issued.cert_serial,
-                cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
-                username=issued.common_name,
-            ).model_dump()
-            status_message = issued.status_message
+                creds = creds_service.get_or_create(
+                    user_id=current_user.id,
+                    device_id=peer.id,
+                    server_id=server.id,
+                    protocol="ikev2",
+                )
+                issued_profile = _build_ikev2_profile(
+                    server,
+                    username=creds.username,
+                    password=creds.password,
+                ).model_dump()
+                provisioned, message = await provision_protocol_credentials_on_server(
+                    server=server,
+                    protocol="ikev2",
+                    username=creds.username,
+                    password=creds.password,
+                )
+                if not provisioned and _provisioning_failure_should_block(message):
+                    raise ApiException(
+                        status_code=502,
+                        code=_classify_protocol_provision_error("ikev2", message),
+                        message="Failed to provision IKEv2 credential on selected server.",
+                        details={"protocol": "ikev2", "reason": message, "server_id": server.server_id},
+                    )
+                status_message = f"eap_tls_failed_fallback_userpass: {reason}"
+            else:
+                issued_profile = VpnIkev2ProfilePayload(
+                    auth_method="eap-tls",
+                    server=issued.server,
+                    remote_id=issued.remote_id,
+                    ca_cert_pem=issued.ca_cert_pem,
+                    client_pkcs12_base64=issued.client_pkcs12_base64,
+                    client_pkcs12_password=issued.client_pkcs12_password,
+                    cert_serial=issued.cert_serial,
+                    cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+                    username=issued.common_name,
+                ).model_dump()
+                status_message = issued.status_message
         else:
             creds = creds_service.get_or_create(
                 user_id=current_user.id,
@@ -2410,12 +4217,19 @@ async def provision_vpn_credential(
                 username=creds.username,
                 password=creds.password,
             ).model_dump()
-            await provision_protocol_credentials_on_server(
+            provisioned, message = await provision_protocol_credentials_on_server(
                 server=server,
                 protocol="ikev2",
                 username=creds.username,
                 password=creds.password,
             )
+            if not provisioned and _provisioning_failure_should_block(message):
+                raise ApiException(
+                    status_code=502,
+                    code=_classify_protocol_provision_error("ikev2", message),
+                    message="Failed to provision IKEv2 credential on selected server.",
+                    details={"protocol": "ikev2", "reason": message, "server_id": server.server_id},
+                )
             status_message = "credential_provisioned"
 
     record = (
@@ -2598,11 +4412,12 @@ async def rotate_vpn_credential(
                     server=server,
                 )
             except Exception as exc:
+                reason = str(exc)
                 raise ApiException(
                     status_code=502,
-                    code="credential_provision_failed",
+                    code=_classify_protocol_provision_error("openvpn", reason),
                     message="Failed to provision rotated OpenVPN certificate.",
-                    details={"credential_id": credential_id, "reason": str(exc)},
+                    details={"credential_id": credential_id, "reason": reason},
                 )
             issued_profile = VpnOpenVpnProfilePayload(
                 ovpn_config=issued.ovpn_config,
@@ -2625,12 +4440,19 @@ async def rotate_vpn_credential(
                 device_type=None,
                 dns_servers=_profile_dns_servers(),
             ).model_dump()
-            await provision_protocol_credentials_on_server(
+            provisioned, message = await provision_protocol_credentials_on_server(
                 server=server,
                 protocol="openvpn",
                 username=creds.username,
                 password=creds.password,
             )
+            if not provisioned and _provisioning_failure_should_block(message):
+                raise ApiException(
+                    status_code=502,
+                    code=_classify_protocol_provision_error("openvpn", message),
+                    message="Failed to provision rotated OpenVPN credential on selected server.",
+                    details={"credential_id": credential_id, "reason": message, "server_id": server.server_id},
+                )
     else:
         if _ikev2_auth_mode() == "eap-tls":
             try:
@@ -2640,23 +4462,55 @@ async def rotate_vpn_credential(
                     server=server,
                 )
             except Exception as exc:
-                raise ApiException(
-                    status_code=502,
-                    code="credential_provision_failed",
-                    message="Failed to provision rotated IKEv2 certificate.",
-                    details={"credential_id": credential_id, "reason": str(exc)},
+                reason = str(exc)
+                if not _ikev2_allow_userpass_fallback():
+                    raise ApiException(
+                        status_code=502,
+                        code=_classify_protocol_provision_error("ikev2", reason),
+                        message="Failed to provision rotated IKEv2 certificate.",
+                        details={"credential_id": credential_id, "reason": reason},
+                    )
+                logger.warning(
+                    "IKEv2 rotated EAP-TLS provisioning failed; falling back to EAP-MSCHAPv2 for server=%s: %s",
+                    server.server_id,
+                    reason,
                 )
-            issued_profile = VpnIkev2ProfilePayload(
-                auth_method="eap-tls",
-                server=issued.server,
-                remote_id=issued.remote_id,
-                ca_cert_pem=issued.ca_cert_pem,
-                client_pkcs12_base64=issued.client_pkcs12_base64,
-                client_pkcs12_password=issued.client_pkcs12_password,
-                cert_serial=issued.cert_serial,
-                cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
-                username=issued.common_name,
-            ).model_dump()
+                creds = service.get_or_create(
+                    user_id=current_user.id,
+                    device_id=credential.device_id,
+                    server_id=credential.server_id,
+                    protocol="ikev2",
+                )
+                issued_profile = _build_ikev2_profile(
+                    server,
+                    username=creds.username,
+                    password=creds.password,
+                ).model_dump()
+                provisioned, message = await provision_protocol_credentials_on_server(
+                    server=server,
+                    protocol="ikev2",
+                    username=creds.username,
+                    password=creds.password,
+                )
+                if not provisioned and _provisioning_failure_should_block(message):
+                    raise ApiException(
+                        status_code=502,
+                        code=_classify_protocol_provision_error("ikev2", message),
+                        message="Failed to provision rotated IKEv2 credential on selected server.",
+                        details={"credential_id": credential_id, "reason": message, "server_id": server.server_id},
+                    )
+            else:
+                issued_profile = VpnIkev2ProfilePayload(
+                    auth_method="eap-tls",
+                    server=issued.server,
+                    remote_id=issued.remote_id,
+                    ca_cert_pem=issued.ca_cert_pem,
+                    client_pkcs12_base64=issued.client_pkcs12_base64,
+                    client_pkcs12_password=issued.client_pkcs12_password,
+                    cert_serial=issued.cert_serial,
+                    cert_fingerprint_sha256=issued.cert_fingerprint_sha256,
+                    username=issued.common_name,
+                ).model_dump()
         else:
             creds = service.get_or_create(
                 user_id=current_user.id,
@@ -2669,12 +4523,19 @@ async def rotate_vpn_credential(
                 username=creds.username,
                 password=creds.password,
             ).model_dump()
-            await provision_protocol_credentials_on_server(
+            provisioned, message = await provision_protocol_credentials_on_server(
                 server=server,
                 protocol="ikev2",
                 username=creds.username,
                 password=creds.password,
             )
+            if not provisioned and _provisioning_failure_should_block(message):
+                raise ApiException(
+                    status_code=502,
+                    code=_classify_protocol_provision_error("ikev2", message),
+                    message="Failed to provision rotated IKEv2 credential on selected server.",
+                    details={"credential_id": credential_id, "reason": message, "server_id": server.server_id},
+                )
 
     record = (
         db.query(VPNCredential)
@@ -2827,16 +4688,67 @@ async def connect_vpn(
     await require_active_subscription(db, current_user)
     wg_service = WireGuardService()
     user_tier = get_user_tier(current_user, db)
+    requested_protocol = normalize_vpn_protocol(payload.protocol)
+    protocol_filter = requested_protocol if requested_protocol not in {"auto", "wireguard"} else None
+    servers = VPNServerService.get_active_servers(db, user_tier, protocol=protocol_filter)
+    health_map = _region_health_map(servers)
+    up_servers = [
+        item
+        for item in servers
+        if _region_health_status(item, health_map=health_map) == "up"
+    ]
+    if not up_servers:
+        raise ApiException(
+            status_code=503,
+            code="no_servers_available",
+            message="No servers available",
+            details={"reason": "no_servers_available"},
+        )
 
-    server = VPNServerService.allocate_server_for_user(
-        db, current_user, preferred_location=payload.region
-    )
-    if not server:
-        servers = VPNServerService.get_active_servers(db, user_tier)
-        if not servers:
-            raise HTTPException(status_code=503, detail="No VPN servers available. Please try again later.")
-        servers.sort(key=lambda s: (s.performance_score or 0), reverse=True)
-        server = servers[0]
+    server: Optional[VPNServer] = None
+    if payload.server_id:
+        server = VPNServerService.get_server_by_id(db, payload.server_id)
+        if not server:
+            raise ApiException(status_code=404, code="server_not_found", message="Server not found")
+        selected_health = _region_health_for_server(server)
+        if selected_health.get("status") != "up":
+            raise ApiException(
+                status_code=409,
+                code="region_down",
+                message="Selected region is offline.",
+                details={
+                    "server_id": server.server_id,
+                    "reason_code": selected_health.get("reason_code"),
+                },
+            )
+    elif payload.region:
+        region_text = payload.region.strip().lower()
+        for candidate in up_servers:
+            if candidate.server_id.lower() == region_text:
+                server = candidate
+                break
+        if server is None:
+            for candidate in up_servers:
+                values = [
+                    str(candidate.region or "").lower(),
+                    str(candidate.location or "").lower(),
+                    str(candidate.city or "").lower(),
+                ]
+                if region_text and region_text in values:
+                    server = candidate
+                    break
+
+    if server is None:
+        preferred = VPNServerService.allocate_server_for_user(
+            db,
+            current_user,
+            preferred_location=payload.region,
+        )
+        if preferred and _region_health_status(preferred, health_map=health_map) == "up":
+            server = preferred
+        else:
+            up_servers.sort(key=lambda s: (s.performance_score or 0), reverse=True)
+            server = up_servers[0]
 
     # Ensure keys/config exist
     if not current_user.wg_private_key_encrypted or not current_user.wg_public_key:

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from typing import Optional
 
 from services.vpn_health_monitor import get_health_monitor
@@ -15,8 +16,32 @@ class BackgroundTaskManager:
     def __init__(self):
         self.health_monitor_task: Optional[asyncio.Task] = None
         self.watchdog_task: Optional[asyncio.Task] = None
+        self.region_watchdog_task: Optional[asyncio.Task] = None
         self.key_rotation_task: Optional[asyncio.Task] = None
         self.token_purge_task: Optional[asyncio.Task] = None
+
+    async def _region_health_watchdog_loop(self) -> None:
+        interval_raw = os.getenv("SECUREWAVE_REGION_WATCHDOG_INTERVAL_SECONDS", "15").strip()
+        try:
+            interval = int(interval_raw)
+        except ValueError:
+            interval = 15
+        interval = max(5, min(interval, 300))
+
+        while True:
+            db = None
+            try:
+                from routes.vpn import run_region_health_watchdog_cycle
+
+                db = SessionLocal()
+                summary = run_region_health_watchdog_cycle(db)
+                logger.info("Region health watchdog cycle: %s", summary)
+            except Exception as e:
+                logger.warning("Region health watchdog cycle failed: %s", e)
+            finally:
+                if db:
+                    db.close()
+            await asyncio.sleep(interval)
 
     async def _key_rotation_loop(self, interval_seconds: int = 21600):
         """Rotate due WireGuard keys on a fixed interval."""
@@ -69,6 +94,10 @@ class BackgroundTaskManager:
             logger.info("Tunnel Watchdog task created")
         except Exception as e:
             logger.warning(f"Tunnel Watchdog not available: {e}")
+
+        # Start control-plane region health watchdog.
+        self.region_watchdog_task = asyncio.create_task(self._region_health_watchdog_loop())
+        logger.info("Region health watchdog task created")
 
         # Start key rotation loop (Phase 5)
         self.key_rotation_task = asyncio.create_task(self._key_rotation_loop())
@@ -130,6 +159,14 @@ class BackgroundTaskManager:
                     logger.info("Watchdog task cancelled")
             except Exception as e:
                 logger.warning(f"Error stopping watchdog: {e}")
+
+        # Stop region watchdog
+        if self.region_watchdog_task:
+            self.region_watchdog_task.cancel()
+            try:
+                await self.region_watchdog_task
+            except asyncio.CancelledError:
+                logger.info("Region health watchdog task cancelled")
 
         logger.info("All background tasks stopped")
 

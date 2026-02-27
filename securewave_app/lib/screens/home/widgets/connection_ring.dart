@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/vpn_protocol.dart';
 import '../../../core/models/vpn_status.dart';
+import '../../../core/state/app_state.dart';
 import '../../../core/state/vpn_state.dart';
 import '../../../ui/design/app_animations.dart';
 import '../../../ui/design/app_colors.dart';
@@ -96,10 +97,10 @@ class _ConnectionRingState extends ConsumerState<ConnectionRing>
     final backendUnreachable = status == VpnStatus.error &&
         errorKind == VpnErrorKind.backendUnreachable;
     return switch (status) {
-      VpnStatus.connected    => AppColors.success,
-      VpnStatus.connecting   => AppColors.secondary,
+      VpnStatus.connected => AppColors.success,
+      VpnStatus.connecting => AppColors.secondary,
       VpnStatus.disconnecting => AppColors.secondary,
-      VpnStatus.error        =>
+      VpnStatus.error =>
         backendUnreachable ? AppColors.error : AppColors.warning,
       VpnStatus.disconnected => AppColors.inkSoft,
     };
@@ -117,19 +118,46 @@ class _ConnectionRingState extends ConsumerState<ConnectionRing>
 
   @override
   Widget build(BuildContext context) {
-    final status   = ref.watch(vpnStateProvider.select((s) => s.status));
+    final status = ref.watch(vpnStateProvider.select((s) => s.status));
     final errorKind = ref.watch(vpnStateProvider.select((s) => s.errorKind));
-    final selectedProtocol = ref.watch(vpnStateProvider.select((s) => s.protocol));
+    final selectedProtocol =
+        ref.watch(vpnStateProvider.select((s) => s.protocol));
+    final selectedServerId =
+        ref.watch(vpnStateProvider.select((s) => s.selectedServerId));
     final effectiveProtocol =
         ref.watch(vpnStateProvider.select((s) => s.effectiveProtocol));
-    final statusText = ref.watch(vpnStateProvider.select((s) => s.statusText()));
+    final statusText =
+        ref.watch(vpnStateProvider.select((s) => s.statusText()));
+    final servers = ref.watch(serversProvider);
+    final allRegionsDown = servers.maybeWhen(
+      data: (list) =>
+          list.isNotEmpty &&
+          list.every((item) =>
+              (item.regionHealthStatus ?? '').toLowerCase().trim() == 'down'),
+      orElse: () => false,
+    );
+    final selectedRegionDown = servers.maybeWhen(
+      data: (list) {
+        if (selectedServerId == null || selectedServerId.isEmpty) return false;
+        for (final item in list) {
+          if (item.id != selectedServerId) continue;
+          return (item.regionHealthStatus ?? '').toLowerCase().trim() == 'down';
+        }
+        return false;
+      },
+      orElse: () => false,
+    );
     _syncAnimations(status);
 
-    final color   = _statusColor(status, errorKind);
-    final isBusy  = status == VpnStatus.connecting || status == VpnStatus.disconnecting;
+    final color = _statusColor(status, errorKind);
+    final isBusy =
+        status == VpnStatus.connecting || status == VpnStatus.disconnecting;
     final isConnected = status == VpnStatus.connected;
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    const size    = AppSpacing.connectionRingSize;
+    final connectBlocked =
+        (status == VpnStatus.disconnected || status == VpnStatus.error) &&
+            allRegionsDown;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const size = AppSpacing.connectionRingSize;
 
     final protocolLabel = () {
       if (selectedProtocol == VpnProtocol.auto && effectiveProtocol == null) {
@@ -140,21 +168,35 @@ class _ConnectionRingState extends ConsumerState<ConnectionRing>
       }
       return vpnProtocolLabel(effectiveProtocol ?? selectedProtocol);
     }();
-    final actionHint = isBusy
-        ? 'VPN action in progress. Please wait.'
-        : (status == VpnStatus.connected
-            ? 'Double tap to disconnect.'
-            : 'Double tap to connect.');
+    final actionHint = connectBlocked
+        ? (allRegionsDown
+            ? 'No servers available. Connection is disabled.'
+            : 'No healthy servers are currently available.')
+        : selectedRegionDown
+            ? 'Selected region is offline. Connect to fail over to a healthy region automatically.'
+            : isBusy
+                ? 'VPN action in progress. Please wait.'
+                : (status == VpnStatus.connected
+                    ? 'Double tap to disconnect.'
+                    : 'Double tap to connect.');
 
     return Semantics(
       button: true,
-      enabled: !isBusy,
-      label: 'VPN connection button. Status: $statusText. Protocol: $protocolLabel.',
+      enabled: !isBusy && !connectBlocked,
+      label:
+          'VPN connection button. Status: $statusText. Protocol: $protocolLabel.',
       hint: actionHint,
       child: GestureDetector(
-        onTapDown: !isBusy ? (_) => _scaleCtrl.forward() : null,
-        onTapUp: !isBusy ? (_) { _scaleCtrl.reverse(); _onTap(status); } : null,
-        onTapCancel: !isBusy ? () => _scaleCtrl.reverse() : null,
+        onTapDown:
+            !isBusy && !connectBlocked ? (_) => _scaleCtrl.forward() : null,
+        onTapUp: !isBusy && !connectBlocked
+            ? (_) {
+                _scaleCtrl.reverse();
+                _onTap(status);
+              }
+            : null,
+        onTapCancel:
+            !isBusy && !connectBlocked ? () => _scaleCtrl.reverse() : null,
         child: ScaleTransition(
           scale: _scaleAnim,
           child: SizedBox(
@@ -188,9 +230,8 @@ class _ConnectionRingState extends ConsumerState<ConnectionRing>
                         painter: _DualRingPainter(
                           color: color,
                           rotation: _rotationCtrl.value * 2 * math.pi,
-                          glowIntensity: isConnected
-                              ? 0.08 + 0.14 * _glowCtrl.value
-                              : 0.0,
+                          glowIntensity:
+                              isConnected ? 0.08 + 0.14 * _glowCtrl.value : 0.0,
                           isBusy: isBusy,
                           isDark: isDark,
                         ),
@@ -229,40 +270,40 @@ class _ConnectionRingState extends ConsumerState<ConnectionRing>
   Widget _centerContent(BuildContext context, VpnStatus status, Color color) {
     return switch (status) {
       VpnStatus.disconnected => const _RingCenter(
-        key: ValueKey('disconnected'),
-        icon: Icons.shield_outlined,
-        label: 'Connect',
-        color: AppColors.primary,
-        showSpinner: false,
-      ),
+          key: ValueKey('disconnected'),
+          icon: Icons.shield_outlined,
+          label: 'Connect',
+          color: AppColors.primary,
+          showSpinner: false,
+        ),
       VpnStatus.connecting => const _RingCenter(
-        key: ValueKey('connecting'),
-        icon: null,
-        label: 'Connecting',
-        color: AppColors.secondary,
-        showSpinner: true,
-      ),
+          key: ValueKey('connecting'),
+          icon: null,
+          label: 'Connecting',
+          color: AppColors.secondary,
+          showSpinner: true,
+        ),
       VpnStatus.connected => const _RingCenter(
-        key: ValueKey('connected'),
-        icon: Icons.check_rounded,
-        label: 'Protected',
-        color: AppColors.success,
-        showSpinner: false,
-      ),
+          key: ValueKey('connected'),
+          icon: Icons.check_rounded,
+          label: 'Protected',
+          color: AppColors.success,
+          showSpinner: false,
+        ),
       VpnStatus.disconnecting => const _RingCenter(
-        key: ValueKey('disconnecting'),
-        icon: null,
-        label: 'Disconnecting',
-        color: AppColors.secondary,
-        showSpinner: true,
-      ),
+          key: ValueKey('disconnecting'),
+          icon: null,
+          label: 'Disconnecting',
+          color: AppColors.secondary,
+          showSpinner: true,
+        ),
       VpnStatus.error => const _RingCenter(
-        key: ValueKey('error'),
-        icon: Icons.warning_amber_rounded,
-        label: 'Tap to retry',
-        color: AppColors.error,
-        showSpinner: false,
-      ),
+          key: ValueKey('error'),
+          icon: Icons.warning_amber_rounded,
+          label: 'Tap to retry',
+          color: AppColors.error,
+          showSpinner: false,
+        ),
     };
   }
 }
@@ -349,8 +390,7 @@ class _DualRingPainter extends CustomPainter {
               color.withValues(alpha: glowIntensity),
               color.withValues(alpha: 0),
             ],
-          ).createShader(
-              Rect.fromCircle(center: center, radius: outerR + 18)),
+          ).createShader(Rect.fromCircle(center: center, radius: outerR + 18)),
       );
     }
 

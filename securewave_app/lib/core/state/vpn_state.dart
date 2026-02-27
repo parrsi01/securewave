@@ -29,11 +29,15 @@ class VpnState {
     this.isBusy = false,
     this.dataRateDown = 0,
     this.dataRateUp = 0,
+    this.sessionTransferredBytes = 0,
     this.stabilityScore = 1.0,
     this.errorMessage,
     this.errorKind,
     this.effectiveProtocol,
     this.protocolMessage,
+    this.failoverActive = false,
+    this.failoverReason,
+    this.failoverRegionId,
     this.lastProfileFetchAt,
     this.lastProfileFetchOk,
     this.lastTunnelStartAt,
@@ -47,11 +51,15 @@ class VpnState {
   final bool isBusy;
   final double dataRateDown;
   final double dataRateUp;
+  final int sessionTransferredBytes;
   final double stabilityScore;
   final String? errorMessage;
   final VpnErrorKind? errorKind;
   final VpnProtocol? effectiveProtocol;
   final String? protocolMessage;
+  final bool failoverActive;
+  final String? failoverReason;
+  final String? failoverRegionId;
   final DateTime? lastProfileFetchAt;
   final bool? lastProfileFetchOk;
   final DateTime? lastTunnelStartAt;
@@ -65,11 +73,15 @@ class VpnState {
     bool? isBusy,
     double? dataRateDown,
     double? dataRateUp,
+    int? sessionTransferredBytes,
     double? stabilityScore,
     String? errorMessage,
     VpnErrorKind? errorKind,
     VpnProtocol? effectiveProtocol,
     String? protocolMessage,
+    bool? failoverActive,
+    String? failoverReason,
+    String? failoverRegionId,
     DateTime? lastProfileFetchAt,
     bool? lastProfileFetchOk,
     DateTime? lastTunnelStartAt,
@@ -77,6 +89,7 @@ class VpnState {
     bool clearError = false,
     bool clearEffectiveProtocol = false,
     bool clearProtocolMessage = false,
+    bool clearFailover = false,
   }) {
     return VpnState(
       status: status ?? this.status,
@@ -86,6 +99,8 @@ class VpnState {
       isBusy: isBusy ?? this.isBusy,
       dataRateDown: dataRateDown ?? this.dataRateDown,
       dataRateUp: dataRateUp ?? this.dataRateUp,
+      sessionTransferredBytes:
+          sessionTransferredBytes ?? this.sessionTransferredBytes,
       stabilityScore: stabilityScore ?? this.stabilityScore,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       errorKind: clearError ? null : (errorKind ?? this.errorKind),
@@ -95,6 +110,12 @@ class VpnState {
       protocolMessage: clearProtocolMessage
           ? null
           : (protocolMessage ?? this.protocolMessage),
+      failoverActive:
+          clearFailover ? false : (failoverActive ?? this.failoverActive),
+      failoverReason:
+          clearFailover ? null : (failoverReason ?? this.failoverReason),
+      failoverRegionId:
+          clearFailover ? null : (failoverRegionId ?? this.failoverRegionId),
       lastProfileFetchAt: lastProfileFetchAt ?? this.lastProfileFetchAt,
       lastProfileFetchOk: lastProfileFetchOk ?? this.lastProfileFetchOk,
       lastTunnelStartAt: lastTunnelStartAt ?? this.lastTunnelStartAt,
@@ -151,6 +172,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   final List<VpnTransitionRecord> _transitionHistory = <VpnTransitionRecord>[];
 
   Timer? _rateTimer;
+  int? _lastTrafficRxBytes;
+  int? _lastTrafficTxBytes;
+  DateTime? _lastTrafficSampleAt;
+  bool _trafficPollInFlight = false;
   int _stabilitySuccesses = 0;
   int _stabilityFailures = 0;
   DateTime? _lastAutoReconnectAt;
@@ -164,6 +189,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   bool _metricsSnapshotInFlight = false;
   DateTime? _lastMetricsSnapshotAt;
   static const Duration _metricsSnapshotThrottle = Duration(seconds: 3);
+  DateTime? _lastTrafficProgressAt;
+  int _connectedUnresponsiveTicks = 0;
+  bool _dataPlaneFailoverInFlight = false;
+  DateTime? _lastDataPlaneFailoverAt;
+  static const Duration _dataPlaneFailoverCooldown = Duration(minutes: 2);
+  static const int _handshakeTimeoutTicks = 8;
+  static const int _trafficStagnationTicks = 30;
 
   @visibleForTesting
   bool get debugHasRateTimer => _rateTimer?.isActive ?? false;
@@ -249,7 +281,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   void selectServer(String? serverId) {
-    state = state.copyWith(selectedServerId: serverId);
+    state = state.copyWith(selectedServerId: serverId, clearFailover: true);
     _safeFireAndForget(
       () async {
         if (serverId != null) {
@@ -574,6 +606,69 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
+  bool _allRegionsDown(AsyncValue<List<dynamic>> snapshot) {
+    return snapshot.maybeWhen(
+      data: (list) =>
+          list.isNotEmpty &&
+          list.every((item) =>
+              (item.regionHealthStatus ?? '').toLowerCase().trim() == 'down'),
+      orElse: () => false,
+    );
+  }
+
+  bool _isServerDown(
+    AsyncValue<List<dynamic>> snapshot,
+    String? serverId,
+  ) {
+    if (serverId == null || serverId.isEmpty) return false;
+    return snapshot.maybeWhen(
+      data: (list) {
+        for (final item in list) {
+          if (item.id != serverId) continue;
+          return (item.regionHealthStatus ?? '').toLowerCase().trim() == 'down';
+        }
+        return false;
+      },
+      orElse: () => false,
+    );
+  }
+
+  Future<bool> _resolveFailoverRegion({
+    required VpnProtocol backendProtocol,
+    required bool alreadyAttempted,
+  }) async {
+    if (alreadyAttempted) return false;
+    final previous = state.selectedServerId;
+    final identity = await _loadDeviceIdentity();
+    final resolved = await _ref.read(apiClientProvider).resolveRegion(
+          protocol: backendProtocol,
+          deviceType: identity.type,
+          preferredRegion: previous,
+        );
+    final nextServer = resolved.selectedRegionId.trim();
+    if (nextServer.isEmpty || nextServer == previous) {
+      return false;
+    }
+    state = state.copyWith(
+      selectedServerId: nextServer,
+      failoverActive: true,
+      failoverReason: resolved.reason.isEmpty ? null : resolved.reason,
+      failoverRegionId: nextServer,
+      clearError: true,
+    );
+    AppLogger.warning(
+      '[VPN_SM] {"event":"region_failover_resolved",'
+      '"failover_reason":"${resolved.reason}",'
+      '"previous_region":"${previous ?? ""}",'
+      '"region_selected":"$nextServer"}',
+    );
+    _safeFireAndForget(
+      _storage.saveString(SecureStorage.selectedServerKey, nextServer),
+      context: 'persist_failover_selection',
+    );
+    return true;
+  }
+
   Future<void> _runConnectFlow() async {
     final op = _beginOperation(_VpnOperationAction.connect);
     _setBusy(true);
@@ -584,13 +679,25 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
     state = state.copyWith(
       clearError: true,
+      dataRateDown: 0,
+      dataRateUp: 0,
+      sessionTransferredBytes: 0,
       lastTunnelStartAt: DateTime.now(),
       lastTunnelStartOk: null,
     );
 
     try {
+      final serversSnapshot = _ref.read(serversProvider);
+      if (_allRegionsDown(serversSnapshot)) {
+        throw VpnServiceException(
+          'no_servers_available',
+          'No servers available.',
+        );
+      }
+
       final service = _ref.read(vpnServiceProvider);
       final selectedProtocol = state.protocol;
+      var failoverAttempted = false;
       final capabilities = await service
           .getCapabilities()
           .timeout(const Duration(seconds: 3), onTimeout: () {
@@ -628,11 +735,43 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         clearProtocolMessage: plan.warning == null,
       );
 
-      final profile = await _resolveVpnProfile(
-        op: op,
-        protocol: plan.backendProtocol,
-        effectiveProtocol: plan.effective,
-      );
+      if (_isServerDown(serversSnapshot, state.selectedServerId)) {
+        failoverAttempted = await _resolveFailoverRegion(
+          backendProtocol: plan.backendProtocol,
+          alreadyAttempted: failoverAttempted,
+        );
+        if (!failoverAttempted) {
+          throw VpnServiceException(
+            'region_down',
+            'Selected region is offline. Choose another server.',
+          );
+        }
+      }
+
+      late final Map<String, dynamic> profile;
+      try {
+        profile = await _resolveVpnProfile(
+          op: op,
+          protocol: plan.backendProtocol,
+          effectiveProtocol: plan.effective,
+        );
+      } catch (error) {
+        if (!failoverAttempted && _isRegionDownApiError(error)) {
+          final resolved = await _resolveFailoverRegion(
+            backendProtocol: plan.backendProtocol,
+            alreadyAttempted: failoverAttempted,
+          );
+          failoverAttempted = resolved;
+          if (!resolved) rethrow;
+          profile = await _resolveVpnProfile(
+            op: op,
+            protocol: plan.backendProtocol,
+            effectiveProtocol: plan.effective,
+          );
+        } else {
+          rethrow;
+        }
+      }
 
       _throwIfCancelled(op);
       final nextStatus = await service
@@ -678,6 +817,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         state = state.copyWith(
           lastTunnelStartAt: DateTime.now(),
           lastTunnelStartOk: true,
+          clearFailover: !failoverAttempted,
         );
         _safeFireAndForget(
           _notifyBackendConnected(protocol: plan.effective),
@@ -787,6 +927,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       state = state.copyWith(
         dataRateDown: 0,
         dataRateUp: 0,
+        sessionTransferredBytes: 0,
         clearError: true,
       );
       _updateStability(success: true);
@@ -1123,16 +1264,174 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   void _startRateSimulation() {
-    // Live-only mode: do not fabricate throughput metrics client-side.
     _rateTimer?.cancel();
     _rateTimer = null;
-    if (!mounted) return;
+    _lastTrafficRxBytes = null;
+    _lastTrafficTxBytes = null;
+    _lastTrafficSampleAt = null;
+    _lastTrafficProgressAt = DateTime.now();
+    _connectedUnresponsiveTicks = 0;
+    _trafficPollInFlight = false;
+    if (!mounted || _disposed) return;
     state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
+    _safeFireAndForget(
+      _pollTrafficRates(),
+      context: 'traffic_poll_initial',
+    );
+    _rateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _safeFireAndForget(
+        _pollTrafficRates(),
+        context: 'traffic_poll_tick',
+      );
+    });
   }
 
   void _stopRateSimulation() {
     _rateTimer?.cancel();
     _rateTimer = null;
+    _lastTrafficRxBytes = null;
+    _lastTrafficTxBytes = null;
+    _lastTrafficSampleAt = null;
+    _lastTrafficProgressAt = null;
+    _connectedUnresponsiveTicks = 0;
+    _dataPlaneFailoverInFlight = false;
+    _trafficPollInFlight = false;
+  }
+
+  Future<void> _pollTrafficRates() async {
+    if (!mounted || _disposed || _trafficPollInFlight) return;
+    if (state.status != VpnStatus.connected) return;
+    final service = _ref.read(vpnServiceProvider);
+    if (service is! ChannelVpnService) return;
+
+    _trafficPollInFlight = true;
+    try {
+      final sample = await service.fetchTrafficStats();
+      if (!mounted || _disposed || state.status != VpnStatus.connected) return;
+      if (sample == null || !sample.connected) {
+        _connectedUnresponsiveTicks += 1;
+        _lastTrafficRxBytes = null;
+        _lastTrafficTxBytes = null;
+        _lastTrafficSampleAt = null;
+        state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
+        if (_connectedUnresponsiveTicks >= _handshakeTimeoutTicks) {
+          await _maybeTriggerDataPlaneFailover(reason: 'handshake_timeout');
+        }
+        return;
+      }
+      _connectedUnresponsiveTicks = 0;
+
+      final now = DateTime.now();
+      final previousAt = _lastTrafficSampleAt;
+      final previousRx = _lastTrafficRxBytes;
+      final previousTx = _lastTrafficTxBytes;
+
+      _lastTrafficSampleAt = now;
+      _lastTrafficRxBytes = sample.rxBytes;
+      _lastTrafficTxBytes = sample.txBytes;
+
+      if (previousAt == null || previousRx == null || previousTx == null) {
+        _lastTrafficProgressAt ??= now;
+        return;
+      }
+
+      final elapsedSeconds = now.difference(previousAt).inMilliseconds / 1000.0;
+      if (elapsedSeconds <= 0) return;
+
+      final downBytes = _positiveDelta(sample.rxBytes, previousRx);
+      final upBytes = _positiveDelta(sample.txBytes, previousTx);
+      final downMbps = (downBytes * 8.0) / elapsedSeconds / 1000000.0;
+      final upMbps = (upBytes * 8.0) / elapsedSeconds / 1000000.0;
+      final nextSessionBytes =
+          state.sessionTransferredBytes + downBytes + upBytes;
+      if (downBytes > 0 || upBytes > 0) {
+        _lastTrafficProgressAt = now;
+      } else if (nextSessionBytes > 0) {
+        final sinceProgress = now.difference(_lastTrafficProgressAt ?? now);
+        if (sinceProgress.inSeconds >= _trafficStagnationTicks) {
+          await _maybeTriggerDataPlaneFailover(reason: 'traffic_stagnation');
+        }
+      }
+
+      state = state.copyWith(
+        dataRateDown: downMbps.clamp(0, 5000).toDouble(),
+        dataRateUp: upMbps.clamp(0, 5000).toDouble(),
+        sessionTransferredBytes: nextSessionBytes,
+      );
+    } catch (error, stackTrace) {
+      AppLogger.warning('[VPN_SM] traffic stats polling failed');
+      AppLogger.error(
+        'Traffic stats polling failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } finally {
+      _trafficPollInFlight = false;
+    }
+  }
+
+  VpnProtocol _backendProtocolForFailover() {
+    final effective = state.effectiveProtocol ?? state.protocol;
+    if (effective == VpnProtocol.auto) {
+      return VpnProtocol.wireGuard;
+    }
+    return effective;
+  }
+
+  Future<void> _maybeTriggerDataPlaneFailover({
+    required String reason,
+  }) async {
+    if (!mounted || _disposed) return;
+    if (_dataPlaneFailoverInFlight) return;
+    if (!state.desiredOn || state.status != VpnStatus.connected) return;
+    final now = DateTime.now();
+    final last = _lastDataPlaneFailoverAt;
+    if (last != null && now.difference(last) < _dataPlaneFailoverCooldown) {
+      return;
+    }
+    if (_allRegionsDown(_ref.read(serversProvider))) {
+      return;
+    }
+
+    final previousRegion = state.selectedServerId;
+    _dataPlaneFailoverInFlight = true;
+    try {
+      final resolved = await _resolveFailoverRegion(
+        backendProtocol: _backendProtocolForFailover(),
+        alreadyAttempted: false,
+      );
+      if (!resolved) return;
+      final selectedRegion = state.selectedServerId;
+      _lastDataPlaneFailoverAt = now;
+      AppLogger.warning(
+        '[VPN_SM] {"event":"data_plane_failover_triggered",'
+        '"failover_reason":"$reason",'
+        '"previous_region":"${previousRegion ?? ""}",'
+        '"region_selected":"${selectedRegion ?? ""}"}',
+      );
+      await disconnect();
+      if (!mounted || _disposed) return;
+      await connect();
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Data-plane failover handling failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } finally {
+      _dataPlaneFailoverInFlight = false;
+      _connectedUnresponsiveTicks = 0;
+      _lastTrafficProgressAt = DateTime.now();
+    }
+  }
+
+  int _positiveDelta(int current, int previous) {
+    if (current < 0 || previous < 0) return 0;
+    if (current < previous) {
+      // Counter reset or interface recreation.
+      return 0;
+    }
+    return current - previous;
   }
 
   void _updateStability({required bool success}) {
@@ -1163,6 +1462,21 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
   }
 
+  bool _isRegionDownApiError(Object error) {
+    if (error is! DioException) return false;
+    final data = error.response?.data;
+    String? apiCode;
+    if (data is Map && data['error'] is Map) {
+      final payload = Map<String, dynamic>.from(data['error'] as Map);
+      apiCode = payload['code']?.toString().trim().toLowerCase();
+    }
+    if (apiCode == 'region_down' || apiCode == 'no_servers_available') {
+      return true;
+    }
+    final status = error.response?.statusCode;
+    return status == 409 || status == 503;
+  }
+
   ({VpnErrorKind kind, String message}) _classifyVpnError(Object error) {
     if (error is TimeoutException) {
       return (
@@ -1173,6 +1487,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     if (error is VpnServiceException) {
       if (error.code == 'protocol_unavailable') {
+        return (kind: VpnErrorKind.protocolUnavailable, message: error.message);
+      }
+      if (error.code == 'no_servers_available' || error.code == 'region_down') {
         return (kind: VpnErrorKind.protocolUnavailable, message: error.message);
       }
       if (error.code == 'vpn_permission_required') {
@@ -1216,6 +1533,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         'protocol_plan_restricted',
         'protocol_disabled_server_side',
         'no_protocol_available',
+        'openvpn_server_misconfigured',
+        'ikev2_server_misconfigured',
+        'openvpn_healthcheck_fail',
+        'ikev2_healthcheck_fail',
+        'openvpn_unavailable_region',
+        'ikev2_unavailable_region',
+        'no_servers_available',
+        'region_down',
+        'ikev2_auth_mode_mismatch_linux',
+        'credential_provision_failed',
       };
       if (protocolCodes.contains(normalizedApiCode)) {
         return (

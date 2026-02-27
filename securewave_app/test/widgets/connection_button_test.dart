@@ -3,17 +3,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
+import 'package:securewave_app/core/state/vpn_state.dart';
 import 'package:securewave_app/screens/home/widgets/connection_ring.dart';
+import 'package:securewave_app/screens/home/widgets/status_display.dart';
 
 /// A VpnService that reports a fixed initial status.
 class _FixedStatusVpnService implements VpnService {
   _FixedStatusVpnService(this._status);
 
   final VpnStatus _status;
+  int connectCalls = 0;
 
   @override
   bool get isNativeAvailable => false;
@@ -30,11 +34,34 @@ class _FixedStatusVpnService implements VpnService {
   @override
   Future<VpnStatus> connect(
       {required VpnProtocol protocol, Map<String, dynamic>? profile}) async {
+    connectCalls += 1;
     return _status;
   }
 
   @override
   Future<VpnStatus> disconnect() async => VpnStatus.disconnected;
+}
+
+class _BannerVpnStateNotifier extends VpnStateNotifier {
+  _BannerVpnStateNotifier(Ref ref) : super(ref) {
+    state = const VpnState(
+      status: VpnStatus.connected,
+      selectedServerId: 'fallback-1',
+      failoverActive: true,
+      failoverReason: 'failover_primary_down',
+      failoverRegionId: 'fallback-1',
+    );
+  }
+}
+
+class _OptimizedVpnStateNotifier extends VpnStateNotifier {
+  _OptimizedVpnStateNotifier(Ref ref) : super(ref) {
+    state = const VpnState(
+      status: VpnStatus.connected,
+      selectedServerId: 'na-1',
+      failoverActive: false,
+    );
+  }
 }
 
 void main() {
@@ -76,11 +103,41 @@ void main() {
     );
   });
 
-  Widget buildWithService(VpnService service) {
+  List<ServerRegion> _servers({required bool down}) {
+    return <ServerRegion>[
+      ServerRegion(
+        id: 'test-1',
+        name: 'Test Server',
+        regionHealthStatus: down ? 'down' : 'up',
+        regionHealthReasonCode: down ? 'host_unreachable' : null,
+      ),
+    ];
+  }
+
+  Widget buildWithService(
+    VpnService service, {
+    bool allServersDown = false,
+    bool includeStatusDisplay = false,
+  }) {
+    final homeChild = includeStatusDisplay
+        ? const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              ConnectionRing(),
+              SizedBox(height: 16),
+              StatusDisplay(),
+            ],
+          )
+        : const Center(child: ConnectionRing());
+
     return ProviderScope(
-      overrides: [vpnServiceProvider.overrideWithValue(service)],
-      child: const MaterialApp(
-        home: Scaffold(body: Center(child: ConnectionRing())),
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        serversProvider
+            .overrideWith((ref) async => _servers(down: allServersDown)),
+      ],
+      child: MaterialApp(
+        home: Scaffold(body: homeChild),
       ),
     );
   }
@@ -125,6 +182,103 @@ void main() {
 
       expect(find.byType(ConnectionRing), findsOneWidget);
       expect(find.byType(GestureDetector), findsWidgets);
+    });
+
+    testWidgets('does not start connect when no servers are available',
+        (tester) async {
+      final service = _FixedStatusVpnService(VpnStatus.disconnected);
+      await tester.pumpWidget(
+        buildWithService(service, allServersDown: true),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byType(ConnectionRing));
+      await tester.pump();
+
+      expect(service.connectCalls, 0);
+    });
+
+    testWidgets(
+        'renders no servers available reason text when all servers down',
+        (tester) async {
+      await tester.pumpWidget(
+        buildWithService(
+          _FixedStatusVpnService(VpnStatus.disconnected),
+          allServersDown: true,
+          includeStatusDisplay: true,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('No servers available'), findsOneWidget);
+    });
+
+    testWidgets('renders failover banner when connected via fallback region',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            vpnServiceProvider.overrideWithValue(
+                _FixedStatusVpnService(VpnStatus.disconnected)),
+            vpnStateProvider
+                .overrideWith((ref) => _BannerVpnStateNotifier(ref)),
+            serversProvider.overrideWith(
+              (ref) async => const <ServerRegion>[
+                ServerRegion(
+                  id: 'fallback-1',
+                  name: 'Frankfurt, Germany',
+                  regionGroup: 'europe',
+                  regionHealthStatus: 'up',
+                ),
+              ],
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: StatusDisplay()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.text('Primary server unavailable. Connected via fallback region.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Connected region: Frankfurt, Germany'),
+        findsOneWidget,
+      );
+      expect(find.text('Using European fallback'), findsOneWidget);
+    });
+
+    testWidgets('renders Caribbean optimization label for North America route',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            vpnServiceProvider.overrideWithValue(
+                _FixedStatusVpnService(VpnStatus.disconnected)),
+            vpnStateProvider
+                .overrideWith((ref) => _OptimizedVpnStateNotifier(ref)),
+            serversProvider.overrideWith(
+              (ref) async => const <ServerRegion>[
+                ServerRegion(
+                  id: 'na-1',
+                  name: 'Ashburn, United States',
+                  regionGroup: 'north_america',
+                  regionHealthStatus: 'up',
+                ),
+              ],
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: StatusDisplay()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Optimized for Caribbean routing'), findsOneWidget);
     });
   });
 }

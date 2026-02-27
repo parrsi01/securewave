@@ -54,6 +54,34 @@ class ApiClient {
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
 
+  bool _isTransientNetworkError(Object error) {
+    if (error is! DioException) return false;
+    return error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout;
+  }
+
+  Future<T> _withNetworkRetry<T>(
+    Future<T> Function() action, {
+    int maxAttempts = 3,
+  }) async {
+    var attempt = 0;
+    while (true) {
+      attempt += 1;
+      try {
+        return await action();
+      } catch (error) {
+        final shouldRetry =
+            attempt < maxAttempts && _isTransientNetworkError(error);
+        if (!shouldRetry) rethrow;
+        await Future<void>.delayed(
+          Duration(milliseconds: 250 * attempt),
+        );
+      }
+    }
+  }
+
   Future<Map<String, dynamic>> fetchHealth({CancelToken? cancelToken}) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
@@ -140,9 +168,11 @@ class ApiClient {
       {required String email, required String password}) async {
     try {
       final response =
-          await _dio.post<Map<String, dynamic>>('/auth/login', data: {
-        'email': email,
-        'password': password,
+          await _withNetworkRetry<Response<Map<String, dynamic>>>(() {
+        return _dio.post<Map<String, dynamic>>('/auth/login', data: {
+          'email': email,
+          'password': password,
+        });
       });
       final data = response.data ?? <String, dynamic>{};
       final requires2fa = data['requires_2fa'] == true ||
@@ -170,10 +200,12 @@ class ApiClient {
       {required String email, required String password}) async {
     try {
       final response =
-          await _dio.post<Map<String, dynamic>>('/auth/register', data: {
-        'email': email,
-        'password': password,
-        'password_confirm': password,
+          await _withNetworkRetry<Response<Map<String, dynamic>>>(() {
+        return _dio.post<Map<String, dynamic>>('/auth/register', data: {
+          'email': email,
+          'password': password,
+          'password_confirm': password,
+        });
       });
       final data = response.data ?? <String, dynamic>{};
       if (data['access_token'] == null) return null;
@@ -251,6 +283,30 @@ class ApiClient {
     }
   }
 
+  Future<VpnResolvedRegion> resolveRegion({
+    required VpnProtocol protocol,
+    required String deviceType,
+    String? preferredRegion,
+    CancelToken? cancelToken,
+  }) async {
+    final protocolValue = protocol == VpnProtocol.auto
+        ? vpnProtocolStorageValue(VpnProtocol.wireGuard)
+        : vpnProtocolStorageValue(protocol);
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/vpn/resolve-region',
+      queryParameters: <String, dynamic>{
+        'protocol': protocolValue,
+        if (deviceType.trim().isNotEmpty && deviceType != 'unknown')
+          'device_type': deviceType,
+        if (preferredRegion != null && preferredRegion.trim().isNotEmpty)
+          'preferred_region': preferredRegion.trim(),
+      },
+      cancelToken: cancelToken,
+    );
+    final data = response.data ?? const <String, dynamic>{};
+    return VpnResolvedRegion.fromJson(data);
+  }
+
   Future<Map<String, dynamic>?> fetchVpnMetricsSnapshot(
       {CancelToken? cancelToken}) async {
     try {
@@ -309,4 +365,56 @@ class AuthTokens {
 
   final String accessToken;
   final String? refreshToken;
+}
+
+class VpnResolvedRegion {
+  const VpnResolvedRegion({
+    required this.selectedRegionId,
+    required this.reason,
+    this.protocol,
+    this.deviceType,
+    this.preferredRegion,
+    this.userGeoGroup,
+    this.userCountryCode,
+    this.selectedRegionGroup,
+    this.cacheHit = false,
+  });
+
+  final String selectedRegionId;
+  final String reason;
+  final String? protocol;
+  final String? deviceType;
+  final String? preferredRegion;
+  final String? userGeoGroup;
+  final String? userCountryCode;
+  final String? selectedRegionGroup;
+  final bool cacheHit;
+
+  factory VpnResolvedRegion.fromJson(Map<String, dynamic> json) {
+    bool b(String key) {
+      final value = json[key];
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      return value?.toString().toLowerCase() == 'true';
+    }
+
+    String? s(String key) {
+      final raw = json[key]?.toString();
+      if (raw == null) return null;
+      final trimmed = raw.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+
+    return VpnResolvedRegion(
+      selectedRegionId: s('selected_region_id') ?? '',
+      reason: s('reason') ?? '',
+      protocol: s('protocol'),
+      deviceType: s('device_type'),
+      preferredRegion: s('preferred_region'),
+      userGeoGroup: s('user_geo_group'),
+      userCountryCode: s('user_country_code'),
+      selectedRegionGroup: s('selected_region_group'),
+      cacheHit: b('cache_hit'),
+    );
+  }
 }

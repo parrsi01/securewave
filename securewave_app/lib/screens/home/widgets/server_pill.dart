@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/state/app_state.dart';
 import '../../../core/state/vpn_state.dart';
+import '../../../core/models/vpn_status.dart';
 import '../../../ui/design/app_animations.dart';
 import '../../../ui/design/app_colors.dart';
 import '../../../ui/design/app_spacing.dart';
@@ -17,10 +18,16 @@ class ServerPill extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectedId   = ref.watch(vpnStateProvider.select((s) => s.selectedServerId));
-    final statusColor  = ref.watch(vpnStateProvider.select((s) => s.statusColor));
-    final servers      = ref.watch(serversProvider);
-    final isDark       = Theme.of(context).brightness == Brightness.dark;
+    final selectedId =
+        ref.watch(vpnStateProvider.select((s) => s.selectedServerId));
+    final status = ref.watch(vpnStateProvider.select((s) => s.status));
+    final failoverActive =
+        ref.watch(vpnStateProvider.select((s) => s.failoverActive));
+    final statusColor =
+        ref.watch(vpnStateProvider.select((s) => s.statusColor));
+    final servers = ref.watch(serversProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final showFallbackBadge = failoverActive && status == VpnStatus.connected;
 
     String label = 'Auto (Fastest)';
 
@@ -40,7 +47,9 @@ class ServerPill extends ConsumerWidget {
 
     return Semantics(
       button: true,
-      label: 'Selected server: $label. Tap to change.',
+      label: showFallbackBadge
+          ? 'Selected server: $label. Connected via fallback region. Tap to change.'
+          : 'Selected server: $label. Tap to change.',
       child: GestureDetector(
         onTap: () => context.go('/locations'),
         child: AnimatedContainer(
@@ -59,8 +68,18 @@ class ServerPill extends ConsumerWidget {
               width: 1,
             ),
             boxShadow: isDark
-                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 8, offset: const Offset(0, 2))]
-                : [BoxShadow(color: AppColors.ink.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+                ? [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2))
+                  ]
+                : [
+                    BoxShadow(
+                        color: AppColors.ink.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2))
+                  ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -77,6 +96,37 @@ class ServerPill extends ConsumerWidget {
                       fontWeight: FontWeight.w600,
                     ),
               ),
+              if (showFallbackBadge) ...[
+                const SizedBox(width: AppSpacing.space2),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.space2,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.swap_horiz_rounded,
+                        size: 12,
+                        color: AppColors.warning,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Fallback',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppColors.warning,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(width: AppSpacing.space2),
               Icon(
                 Icons.expand_more_rounded,

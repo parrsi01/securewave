@@ -6,10 +6,16 @@ class ServerRegion {
     this.country,
     this.countryCode,
     this.region,
+    this.regionGroup,
     this.latencyMs,
     this.latencyPriority,
     this.healthStatus,
+    this.regionHealthStatus,
+    this.regionHealthLastCheckedAt,
+    this.regionHealthReasonCode,
     this.publicIp,
+    this.tierRestriction,
+    this.premiumOnly = false,
     this.supportedProtocols = const <String>[],
   });
 
@@ -19,10 +25,16 @@ class ServerRegion {
   final String? country;
   final String? countryCode;
   final String? region;
+  final String? regionGroup;
   final int? latencyMs;
   final int? latencyPriority;
   final String? healthStatus;
+  final String? regionHealthStatus;
+  final String? regionHealthLastCheckedAt;
+  final String? regionHealthReasonCode;
   final String? publicIp;
+  final String? tierRestriction;
+  final bool premiumOnly;
   final List<String> supportedProtocols;
 
   factory ServerRegion.fromJson(Map<String, dynamic> json) {
@@ -39,8 +51,22 @@ class ServerRegion {
     final country = _normalizeCountryName(s('country'), countryCode);
     final location = s('display_name') ?? s('location') ?? s('name');
     final region = s('region');
+    final regionGroup = s('region_group');
     final healthStatus = s('health_status');
+    final regionHealthStatus = s('region_health_status') ?? s('region_health');
+    final regionHealthLastCheckedAt =
+        s('region_health_last_checked_at') ?? s('last_checked_at');
+    final regionHealthReasonCode =
+        s('region_health_reason_code') ?? s('reason_code');
     final publicIp = s('public_ip');
+    final tierRestriction = s('tier_restriction');
+    final premiumOnlyRaw = json['premium_only'];
+    final premiumOnly = premiumOnlyRaw is bool
+        ? premiumOnlyRaw
+        : premiumOnlyRaw is num
+            ? premiumOnlyRaw != 0
+            : premiumOnlyRaw?.toString().toLowerCase() == 'true' ||
+                (tierRestriction?.toLowerCase() == 'premium');
     final synthesizedName = [
       if (city != null) city,
       if (country != null) country,
@@ -100,10 +126,16 @@ class ServerRegion {
       country: country,
       countryCode: countryCode,
       region: region,
+      regionGroup: regionGroup,
       latencyMs: latencyMs,
       latencyPriority: latencyPriority,
       healthStatus: healthStatus,
+      regionHealthStatus: regionHealthStatus,
+      regionHealthLastCheckedAt: regionHealthLastCheckedAt,
+      regionHealthReasonCode: regionHealthReasonCode,
       publicIp: publicIp,
+      tierRestriction: tierRestriction,
+      premiumOnly: premiumOnly,
       supportedProtocols: supportedProtocols,
     );
   }

@@ -35,6 +35,9 @@ class RuntimeMetrics:
         self._peer_disconnect_total = 0
         self._auth_failed_total = 0
         self._rate_limited_total = 0
+        self._region_resolution_total = 0
+        self._region_failover_total = 0
+        self._region_circuit_open_total = 0
         self._profile_issue_latencies_ms: Deque[float] = deque(maxlen=10_000)
         self._handshake_latencies_ms: Deque[float] = deque(maxlen=10_000)
         self._extended_system_cache: Dict[str, float] = {}
@@ -69,6 +72,17 @@ class RuntimeMetrics:
             if latency_ms >= 0:
                 self._handshake_latencies_ms.append(float(latency_ms))
 
+    def record_region_resolution(self, *, reason: Optional[str] = None) -> None:
+        normalized = (reason or "").strip().lower()
+        with self._lock:
+            self._region_resolution_total += 1
+            if any(token in normalized for token in ("fallback", "failover", "region_down", "barbados_eu")):
+                self._region_failover_total += 1
+
+    def record_region_circuit_open(self) -> None:
+        with self._lock:
+            self._region_circuit_open_total += 1
+
     def _latency_stats(self, values: Iterable[float]) -> Dict[str, float]:
         data = list(values)
         if not data:
@@ -98,6 +112,9 @@ class RuntimeMetrics:
                 "peer_disconnect_total": self._peer_disconnect_total,
                 "auth_failed_total": self._auth_failed_total,
                 "rate_limited_total": self._rate_limited_total,
+                "region_resolution_total": self._region_resolution_total,
+                "region_failover_total": self._region_failover_total,
+                "region_circuit_open_total": self._region_circuit_open_total,
             }
 
         vm = psutil.virtual_memory()
@@ -199,6 +216,15 @@ class RuntimeMetrics:
             "# HELP securewave_auth_failed_total Total failed authentication attempts.",
             "# TYPE securewave_auth_failed_total counter",
             f"securewave_auth_failed_total {counters['auth_failed_total']}",
+            "# HELP securewave_region_resolution_total Total region resolution decisions.",
+            "# TYPE securewave_region_resolution_total counter",
+            f"securewave_region_resolution_total {counters['region_resolution_total']}",
+            "# HELP securewave_region_failover_total Total region resolutions that used fallback/failover paths.",
+            "# TYPE securewave_region_failover_total counter",
+            f"securewave_region_failover_total {counters['region_failover_total']}",
+            "# HELP securewave_region_circuit_open_total Total times region probe circuits opened.",
+            "# TYPE securewave_region_circuit_open_total counter",
+            f"securewave_region_circuit_open_total {counters['region_circuit_open_total']}",
             "# HELP securewave_profile_issue_latency_p95_ms P95 VPN profile issue latency (ms).",
             "# TYPE securewave_profile_issue_latency_p95_ms gauge",
             f"securewave_profile_issue_latency_p95_ms {profile_latency['p95_ms']}",

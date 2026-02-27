@@ -18,6 +18,10 @@ class VPNServer(Base):
     country_code = Column(String(2), nullable=False)  # US, GB, JP, etc.
     city = Column(String, nullable=False)  # New York, London, Tokyo, etc.
     region = Column(String, nullable=True)  # Americas, Europe, Asia
+    region_group = Column(String, nullable=True)  # caribbean, north_america, europe, etc.
+    is_primary_region = Column(Boolean, default=False, nullable=False)
+    priority_weight = Column(Integer, default=100, nullable=False)  # Lower is preferred for failover selection.
+    latency_score = Column(Float, nullable=True)  # Reserved for future latency-aware region ordering.
     latitude = Column(Float, nullable=True)  # For map display
     longitude = Column(Float, nullable=True)  # For map display
 
@@ -161,6 +165,10 @@ class VPNServer(Base):
             "country_code": self.country_code,
             "city": self.city,
             "region": self.region,
+            "region_group": self.region_group,
+            "is_primary_region": bool(self.is_primary_region),
+            "priority_weight": int(self.priority_weight or 100),
+            "latency_score": self.latency_score,
             "latitude": self.latitude,
             "longitude": self.longitude,
             "endpoint": self.endpoint,
@@ -217,6 +225,10 @@ class VPNServer(Base):
             "hcloud_server_id": self.hcloud_server_id,
             "hcloud_server_type": self.hcloud_server_type,
             "priority": self.priority,
+            "region_group": self.region_group,
+            "is_primary_region": bool(self.is_primary_region),
+            "priority_weight": int(self.priority_weight or 100),
+            "latency_score": self.latency_score,
             "auto_scale_enabled": self.auto_scale_enabled,
             "is_auto_scaled": self.is_auto_scaled,
             "consecutive_health_failures": self.consecutive_health_failures,

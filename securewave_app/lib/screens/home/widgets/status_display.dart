@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/models/vpn_protocol.dart';
 import '../../../core/models/vpn_status.dart';
+import '../../../core/state/app_state.dart';
 import '../../../core/state/vpn_state.dart';
 import '../../../ui/design/app_animations.dart';
 import '../../../ui/design/app_colors.dart';
@@ -88,7 +89,7 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
     if (kind == VpnErrorKind.permissionRequired) {
       return switch (platform) {
         TargetPlatform.linux => 'Administrator permission is required.\n'
-            'Approve the pkexec prompt and ensure a PolicyKit agent is running.',
+            'Install the SecureWave helper/polkit setup to allow non-interactive resets.',
         TargetPlatform.windows => 'Administrator permission is required.\n'
             'Approve the UAC prompt for tunnel setup.',
         TargetPlatform.macOS =>
@@ -144,7 +145,7 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
   String? _platformHelperHint(TargetPlatform platform, VpnProtocol protocol) {
     if (protocol == VpnProtocol.wireGuard) {
       return switch (platform) {
-        TargetPlatform.linux => 'Native runtime + admin prompt',
+        TargetPlatform.linux => 'Native runtime + SecureWave polkit helper',
         TargetPlatform.windows => 'WireGuard for Windows runtime',
         TargetPlatform.macOS => 'Signed NE build required',
         _ => 'Native runtime',
@@ -239,6 +240,12 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
         ref.watch(vpnStateProvider.select((s) => s.statusColor));
     final selectedProtocol =
         ref.watch(vpnStateProvider.select((s) => s.protocol));
+    final selectedServerId =
+        ref.watch(vpnStateProvider.select((s) => s.selectedServerId));
+    final failoverActive =
+        ref.watch(vpnStateProvider.select((s) => s.failoverActive));
+    final failoverRegionId =
+        ref.watch(vpnStateProvider.select((s) => s.failoverRegionId));
     final effectiveProtocol =
         ref.watch(vpnStateProvider.select((s) => s.effectiveProtocol));
     final protocolMessage =
@@ -255,6 +262,71 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
         (s) => s.status == VpnStatus.error ? s.errorMessage : null,
       ),
     );
+    final servers = ref.watch(serversProvider);
+    final allRegionsDown = servers.maybeWhen(
+      data: (list) =>
+          list.isNotEmpty &&
+          list.every((item) =>
+              (item.regionHealthStatus ?? '').toLowerCase().trim() == 'down'),
+      orElse: () => false,
+    );
+    final selectedRegionDown = servers.maybeWhen(
+      data: (list) {
+        if (selectedServerId == null || selectedServerId.isEmpty) return false;
+        for (final item in list) {
+          if (item.id != selectedServerId) continue;
+          return (item.regionHealthStatus ?? '').toLowerCase().trim() == 'down';
+        }
+        return false;
+      },
+      orElse: () => false,
+    );
+    final normalizedSelectedId = (selectedServerId ?? '').trim();
+    final normalizedFailoverId = (failoverRegionId ?? '').trim();
+    final connectedRegionId = status == VpnStatus.connected
+        ? (failoverActive && normalizedFailoverId.isNotEmpty
+            ? normalizedFailoverId
+            : (normalizedSelectedId.isNotEmpty ? normalizedSelectedId : null))
+        : null;
+    final connectedRegionLabel = servers.maybeWhen(
+      data: (list) {
+        if (connectedRegionId == null) return null;
+        for (final item in list) {
+          if (item.id == connectedRegionId) return item.name;
+        }
+        return connectedRegionId;
+      },
+      orElse: () => connectedRegionId,
+    );
+    final connectedRegionGroup = servers.maybeWhen(
+      data: (list) {
+        if (connectedRegionId == null) return null;
+        for (final item in list) {
+          if (item.id != connectedRegionId) continue;
+          final explicit = item.regionGroup?.trim().toLowerCase();
+          if (explicit != null && explicit.isNotEmpty) return explicit;
+          final region = item.region?.trim().toLowerCase();
+          if (region == null || region.isEmpty) return null;
+          if (region.contains('europe') || region == 'eu') return 'europe';
+          if (region.contains('america') || region.contains('americas')) {
+            return 'north_america';
+          }
+          return region;
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
+    final routingStrategyLabel = () {
+      if (status != VpnStatus.connected) return null;
+      if (failoverActive && connectedRegionGroup == 'europe') {
+        return 'Using European fallback';
+      }
+      if (connectedRegionGroup == 'north_america') {
+        return 'Optimized for Caribbean routing';
+      }
+      return null;
+    }();
     _syncTimer(status);
 
     final platform = Theme.of(context).platform;
@@ -283,6 +355,74 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (allRegionsDown)
+          Container(
+            margin: const EdgeInsets.only(bottom: AppSpacing.space3),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space3,
+              vertical: AppSpacing.space2,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+              border:
+                  Border.all(color: AppColors.error.withValues(alpha: 0.35)),
+            ),
+            child: Text(
+              'No servers available',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w700,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          )
+        else if (selectedRegionDown &&
+            status != VpnStatus.connected &&
+            status != VpnStatus.connecting)
+          Container(
+            margin: const EdgeInsets.only(bottom: AppSpacing.space3),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space3,
+              vertical: AppSpacing.space2,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+              border:
+                  Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+            ),
+            child: Text(
+              'Selected region is offline',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.w700,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        if (failoverActive && status == VpnStatus.connected)
+          Container(
+            margin: const EdgeInsets.only(bottom: AppSpacing.space3),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space3,
+              vertical: AppSpacing.space2,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+              border:
+                  Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+            ),
+            child: Text(
+              'Primary server unavailable. Connected via fallback region.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.w700,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ),
         // ── Status label ────────────────────────────────────────────────
         AnimatedSwitcher(
           duration: AppAnimations.durationNormal,
@@ -331,6 +471,64 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
                           ),
                         ),
                     ],
+                  ),
+                ),
+        ),
+
+        AnimatedSize(
+          duration: AppAnimations.durationNormal,
+          curve: AppAnimations.curveDefault,
+          child: (connectedRegionLabel == null &&
+                  !(failoverActive && status == VpnStatus.connected))
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.space2),
+                  child: Wrap(
+                    spacing: AppSpacing.space2,
+                    runSpacing: AppSpacing.space2,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      if (connectedRegionLabel != null)
+                        Semantics(
+                          label: 'Connected region: $connectedRegionLabel',
+                          child: _InfoPill(
+                            icon: Icons.public_rounded,
+                            label: 'Connected region: $connectedRegionLabel',
+                            color: AppColors.success,
+                          ),
+                        ),
+                      if (failoverActive && status == VpnStatus.connected)
+                        Semantics(
+                          label: 'Fallback region in use',
+                          child: _InfoPill(
+                            icon: Icons.swap_horiz_rounded,
+                            label: 'Fallback region',
+                            color: AppColors.warning,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+        ),
+
+        AnimatedSize(
+          duration: AppAnimations.durationNormal,
+          curve: AppAnimations.curveDefault,
+          child: routingStrategyLabel == null
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.space2),
+                  child: Semantics(
+                    label: routingStrategyLabel,
+                    child: _InfoPill(
+                      icon: routingStrategyLabel == 'Using European fallback'
+                          ? Icons.swap_horiz_rounded
+                          : Icons.route_rounded,
+                      label: routingStrategyLabel,
+                      color: routingStrategyLabel == 'Using European fallback'
+                          ? AppColors.warning
+                          : AppColors.secondary,
+                    ),
                   ),
                 ),
         ),
