@@ -1,0 +1,27 @@
+=== ns route get 1.1.1.1 ===
+1.1.1.1 dev wgtest src 10.8.0.250 uid 0 
+    cache 
+=== ns ping 1.1.1.1 ===
+PING 1.1.1.1 (1.1.1.1) 56(84) bytes of data.
+64 bytes from 1.1.1.1: icmp_seq=1 ttl=53 time=9.67 ms
+64 bytes from 1.1.1.1: icmp_seq=2 ttl=53 time=4.83 ms
+
+--- 1.1.1.1 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1002ms
+rtt min/avg/max/mdev = 4.827/7.249/9.672/2.422 ms
+=== ns curl ipify (best effort) ===
+
+=== server wg latest handshakes ===
+piYafZu8wLdWBeZMDdBy/b8MV/fTrW3FhzYcGFBoJB0=	0
+pbbwansdFHsXUy+GR1/jsNqibs7BOiGnVOOL0V/LuV4=	0
+gki61YnoV4/J0ES0crfY+JBD7Xv0bVUVZwIGdSUqFCI=	0
+r91HLSLw3DkEhF37/jbJF9N/2j3V1UarsY7r1uFdfSI=	0
+Qj4sjyNCSLvqqTfD0fkOVpkMNRPssxMrGjxRaodtAho=	1772220208
+=== server wg transfer ===
+piYafZu8wLdWBeZMDdBy/b8MV/fTrW3FhzYcGFBoJB0=	0	0
+pbbwansdFHsXUy+GR1/jsNqibs7BOiGnVOOL0V/LuV4=	0	0
+gki61YnoV4/J0ES0crfY+JBD7Xv0bVUVZwIGdSUqFCI=	2220	1380
+r91HLSLw3DkEhF37/jbJF9N/2j3V1UarsY7r1uFdfSI=	0	0
+Qj4sjyNCSLvqqTfD0fkOVpkMNRPssxMrGjxRaodtAho=	436	348
+=== status ===
+WIREGUARD_SELFTEST=PASS

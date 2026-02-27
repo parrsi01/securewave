@@ -1,0 +1,12 @@
+=== local interfaces ===
+sw-wg
+
+=== policy rules ===
+0:	from all lookup local
+220:	from all lookup 220
+10100:	from all iif wg0 [detached] lookup wireguard
+10200:	from all iif tun0 [detached] lookup openvpn
+10300:	from all iif ipsec0 [detached] lookup ikev2
+32764:	not from all fwmark 0xca6c lookup 51820
+32766:	from all lookup main
+32767:	from all lookup default

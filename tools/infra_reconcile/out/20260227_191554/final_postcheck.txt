@@ -1,0 +1,47 @@
+=== sysctl final ===
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+net.ipv4.conf.all.rp_filter = 2
+net.ipv4.conf.default.rp_filter = 2
+net.ipv4.conf.eth0.rp_filter = 2
+=== ufw final ===
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), deny (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+51820/udp                  ALLOW IN    Anywhere                  
+22/tcp (OpenSSH)           ALLOW IN    Anywhere                  
+80/tcp                     ALLOW IN    Anywhere                  
+443/tcp                    ALLOW IN    Anywhere                  
+1194/udp                   ALLOW IN    Anywhere                  
+500/udp                    ALLOW IN    Anywhere                  
+4500/udp                   ALLOW IN    Anywhere                  
+51820/udp (v6)             ALLOW IN    Anywhere (v6)             
+22/tcp (OpenSSH (v6))      ALLOW IN    Anywhere (v6)             
+80/tcp (v6)                ALLOW IN    Anywhere (v6)             
+443/tcp (v6)               ALLOW IN    Anywhere (v6)             
+1194/udp (v6)              ALLOW IN    Anywhere (v6)             
+500/udp (v6)               ALLOW IN    Anywhere (v6)             
+4500/udp (v6)              ALLOW IN    Anywhere (v6)             
+
+=== listeners final ===
+udp   UNCONN 0      0                   0.0.0.0:500        0.0.0.0:*    users:(("charon",pid=1267966,fd=15))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:1194       0.0.0.0:*    users:(("openvpn",pid=1267953,fd=5))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:51820      0.0.0.0:*                                                                                                                                             
+udp   UNCONN 0      0                   0.0.0.0:4500       0.0.0.0:*    users:(("charon",pid=1267966,fd=16))                                                                                                     
+udp   UNCONN 0      0                         *:500              *:*    users:(("charon",pid=1267966,fd=13))                                                                                                     
+udp   UNCONN 0      0                      [::]:51820         [::]:*                                                                                                                                             
+udp   UNCONN 0      0                         *:4500             *:*    users:(("charon",pid=1267966,fd=14))                                                                                                     
+=== wg peers final ===
+piYafZu8wLdWBeZMDdBy/b8MV/fTrW3FhzYcGFBoJB0=	10.8.0.11/32
+pbbwansdFHsXUy+GR1/jsNqibs7BOiGnVOOL0V/LuV4=	10.8.0.12/32
+gki61YnoV4/J0ES0crfY+JBD7Xv0bVUVZwIGdSUqFCI=	10.8.0.13/32
+r91HLSLw3DkEhF37/jbJF9N/2j3V1UarsY7r1uFdfSI=	10.8.0.19/32
+=== service final ===
+active
+active
+inactive
+active

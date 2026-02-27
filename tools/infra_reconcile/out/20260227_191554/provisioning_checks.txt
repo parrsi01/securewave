@@ -1,0 +1,361 @@
+=== script metadata ===
+-rwx------ 1 root root 4994 Feb 27 14:36 /usr/local/bin/securewave-openvpn-issue-client
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    CN=""
+    TOKEN=""
+    VALID_DAYS="30"
+    OUTPUT="json"
+    
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --common-name) CN="$2"; shift 2 ;;
+        --provisioning-token) TOKEN="$2"; shift 2 ;;
+        --valid-days) VALID_DAYS="$2"; shift 2 ;;
+        --output) OUTPUT="$2"; shift 2 ;;
+        *) echo "unknown_arg:$1" >&2; exit 2 ;;
+      esac
+    done
+    
+    json_fail() {
+      jq -n --arg code "$1" --arg message "$2" '{ok:false,code:$code,message:$message,artifact_path:null}'
+    }
+    
+    if [[ "${OUTPUT}" != "json" ]]; then
+      echo "unsupported_output_format" >&2
+      exit 3
+    fi
+    if [[ -z "${CN}" || -z "${TOKEN}" ]]; then
+      json_fail "openvpn_invalid_input" "common-name and provisioning-token are required"
+      exit 4
+    fi
+    if [[ ! "${CN}" =~ ^[A-Za-z0-9._-]{6,96}$ ]]; then
+      json_fail "openvpn_invalid_common_name" "invalid common-name format"
+      exit 5
+    fi
+    if ! /usr/local/bin/securewave-validate-provisioning-token --token "${TOKEN}" --subject "${CN}" --protocol openvpn >/dev/null 2>&1; then
+      json_fail "openvpn_invalid_token" "invalid or expired provisioning token"
+      exit 7
+    fi
+    
+    LOCK_FILE="/var/lib/securewave/pki/openvpn/.issue.lock"
+    exec 9>"${LOCK_FILE}"
+    flock -w 30 9
+    
+    CA_CERT=""
+    for p in /etc/openvpn/server/ca.crt /etc/openvpn/easy-rsa/ca.crt /etc/securewave/secrets/openvpn/easy-rsa/pki/ca.crt; do
+      if [[ -f "${p}" ]]; then
+        CA_CERT="${p}"
+        break
+      fi
+    done
+    
+    CA_KEY=""
+    for p in /etc/openvpn/easy-rsa/ca.key /etc/openvpn/pki/ca.key /etc/securewave/secrets/openvpn/easy-rsa/pki/private/ca.key; do
+      if [[ -f "${p}" ]]; then
+        CA_KEY="${p}"
+        break
+      fi
+    done
+    
+    TLS_CRYPT=""
+
+-rwx------ 1 root root 1489 Feb 27 03:15 /usr/local/bin/securewave-openvpn-upsert-user
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    USERNAME=""
+    PASSWORD_B64=""
+    OUTPUT="json"
+    
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --username) USERNAME="$2"; shift 2 ;;
+        --password-b64) PASSWORD_B64="$2"; shift 2 ;;
+        --output) OUTPUT="$2"; shift 2 ;;
+        *) echo "unknown_arg:$1" >&2; exit 2 ;;
+      esac
+    done
+    
+    if [[ "${OUTPUT}" != "json" ]]; then
+      echo "unsupported_output_format" >&2
+      exit 3
+    fi
+    if [[ -z "${USERNAME}" || -z "${PASSWORD_B64}" ]]; then
+      jq -n --arg code "openvpn_invalid_input" --arg message "username and password-b64 are required" \
+        '{ok:false,code:$code,message:$message,artifact_path:null}'
+      exit 4
+    fi
+    if [[ ! "${USERNAME}" =~ ^[A-Za-z0-9._@-]{3,96}$ ]]; then
+      jq -n --arg code "openvpn_invalid_username" --arg message "invalid username" \
+        '{ok:false,code:$code,message:$message,artifact_path:null}'
+      exit 5
+    fi
+    
+    DB_FILE="/etc/securewave/openvpn/users.db"
+    LOCK_FILE="/var/lib/securewave/pki/openvpn/.users.lock"
+    install -d -m 700 /var/lib/securewave/pki/openvpn
+    touch "${DB_FILE}"
+    chmod 600 "${DB_FILE}"
+    
+    exec 9>"${LOCK_FILE}"
+    flock -w 20 9
+    
+    tmp="$(mktemp)"
+    if [[ -s "${DB_FILE}" ]]; then
+      grep -v "^${USERNAME}:" "${DB_FILE}" > "${tmp}" || true
+    fi
+    printf "%s:%s\n" "${USERNAME}" "${PASSWORD_B64}" >> "${tmp}"
+    install -m 600 "${tmp}" "${DB_FILE}"
+    rm -f "${tmp}"
+    
+    jq -n --arg code "openvpn_user_upserted" --arg message "user credential record stored" --arg artifact_path "${DB_FILE}" \
+      '{ok:true,code:$code,message:$message,artifact_path:$artifact_path}'
+
+-rwx------ 1 root root 1237 Feb 27 03:15 /usr/local/bin/securewave-openvpn-revoke-client
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    CN=""
+    OUTPUT="json"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --common-name) CN="$2"; shift 2 ;;
+        --output) OUTPUT="$2"; shift 2 ;;
+        *) echo "unknown_arg:$1" >&2; exit 2 ;;
+      esac
+    done
+    
+    if [[ "${OUTPUT}" != "json" ]]; then
+      echo "unsupported_output_format" >&2
+      exit 3
+    fi
+    if [[ -z "${CN}" ]]; then
+      jq -n --arg code "openvpn_invalid_input" --arg message "common-name is required" \
+        '{ok:false,code:$code,message:$message,artifact_path:null}'
+      exit 4
+    fi
+    
+    LOCK_FILE="/var/lib/securewave/pki/openvpn/.issue.lock"
+    exec 9>"${LOCK_FILE}"
+    flock -w 20 9
+    
+    BASE_DIR="/var/lib/securewave/pki/openvpn/${CN}"
+    ARTIFACT_FILE="${BASE_DIR}/payload.json"
+    
+    if [[ -d "${BASE_DIR}" ]]; then
+      rm -f "${BASE_DIR}/client.key" "${BASE_DIR}/client.csr" "${BASE_DIR}/client.crt" "${BASE_DIR}/client.ovpn" "${ARTIFACT_FILE}"
+      rmdir "${BASE_DIR}" 2>/dev/null || true
+      jq -n --arg code "openvpn_client_revoked" --arg message "OpenVPN client material removed" \
+        '{ok:true,code:$code,message:$message,artifact_path:null}'
+      exit 0
+    fi
+    
+    jq -n --arg code "openvpn_client_not_found" --arg message "No OpenVPN client material found for common-name" \
+      '{ok:true,code:$code,message:$message,artifact_path:null}'
+
+-rwx------ 1 root root 4224 Feb 27 03:15 /usr/local/bin/securewave-ikev2-issue-client
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    CN=""
+    TOKEN=""
+    VALID_DAYS="30"
+    SERVER_HOST=""
+    REMOTE_ID=""
+    OUTPUT="json"
+    
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --common-name) CN="$2"; shift 2 ;;
+        --provisioning-token) TOKEN="$2"; shift 2 ;;
+        --valid-days) VALID_DAYS="$2"; shift 2 ;;
+        --server) SERVER_HOST="$2"; shift 2 ;;
+        --remote-id) REMOTE_ID="$2"; shift 2 ;;
+        --output) OUTPUT="$2"; shift 2 ;;
+        *) echo "unknown_arg:$1" >&2; exit 2 ;;
+      esac
+    done
+    
+    json_fail() {
+      jq -n --arg code "$1" --arg message "$2" '{ok:false,code:$code,message:$message,artifact_path:null}'
+    }
+    
+    if [[ "${OUTPUT}" != "json" ]]; then
+      echo "unsupported_output_format" >&2
+      exit 3
+    fi
+    if [[ -z "${CN}" || -z "${TOKEN}" || -z "${SERVER_HOST}" ]]; then
+      json_fail "ikev2_invalid_input" "common-name, provisioning-token and server are required"
+      exit 4
+    fi
+    if [[ ! "${CN}" =~ ^[A-Za-z0-9._-]{6,96}$ ]]; then
+      json_fail "ikev2_invalid_common_name" "invalid common-name format"
+      exit 5
+    fi
+    if ! /usr/local/bin/securewave-validate-provisioning-token --token "${TOKEN}" --subject "${CN}" --protocol ikev2 >/dev/null 2>&1; then
+      json_fail "ikev2_invalid_token" "invalid or expired provisioning token"
+      exit 7
+    fi
+    
+    LOCK_FILE="/var/lib/securewave/pki/ikev2/.issue.lock"
+    exec 9>"${LOCK_FILE}"
+    flock -w 30 9
+    
+    CA_CERT=""
+    for p in /etc/ipsec.d/cacerts/ca-cert.pem /etc/securewave/secrets/ikev2/ca/ca-cert.pem; do
+      if [[ -f "${p}" ]]; then
+        CA_CERT="${p}"
+        break
+      fi
+    done
+    
+    CA_KEY=""
+    for p in /etc/ipsec.d/private/ca-key.pem /etc/securewave/secrets/ikev2/ca/ca-key.pem; do
+      if [[ -f "${p}" ]]; then
+        CA_KEY="${p}"
+        break
+
+-rwx------ 1 root root 1926 Feb 27 03:15 /usr/local/bin/securewave-ikev2-upsert-user
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    USERNAME=""
+    PASSWORD_B64=""
+    OUTPUT="json"
+    
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --username) USERNAME="$2"; shift 2 ;;
+        --password-b64) PASSWORD_B64="$2"; shift 2 ;;
+        --output) OUTPUT="$2"; shift 2 ;;
+        *) echo "unknown_arg:$1" >&2; exit 2 ;;
+      esac
+    done
+    
+    if [[ "${OUTPUT}" != "json" ]]; then
+      echo "unsupported_output_format" >&2
+      exit 3
+    fi
+    if [[ -z "${USERNAME}" || -z "${PASSWORD_B64}" ]]; then
+      jq -n --arg code "ikev2_invalid_input" --arg message "username and password-b64 are required" \
+        '{ok:false,code:$code,message:$message,artifact_path:null}'
+      exit 4
+    fi
+    if [[ ! "${USERNAME}" =~ ^[A-Za-z0-9._@-]{3,96}$ ]]; then
+      jq -n --arg code "ikev2_invalid_username" --arg message "invalid username" \
+        '{ok:false,code:$code,message:$message,artifact_path:null}'
+      exit 5
+    fi
+    
+    PASSWORD="$(python3 - <<PY
+    import base64
+    print(base64.b64decode("${PASSWORD_B64}".encode("ascii")).decode("utf-8"))
+    PY
+    )"
+    
+    SECRETS_FILE="/etc/ipsec.secrets"
+    LOCK_FILE="/var/lib/securewave/pki/ikev2/.users.lock"
+    touch "${SECRETS_FILE}"
+    chmod 600 "${SECRETS_FILE}"
+    
+    exec 9>"${LOCK_FILE}"
+    flock -w 20 9
+    
+    python3 - "${SECRETS_FILE}" "${USERNAME}" "${PASSWORD}" <<'PY'
+    import pathlib
+    import sys
+    
+    path = pathlib.Path(sys.argv[1])
+    username = sys.argv[2]
+    password = sys.argv[3]
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    out = []
+    prefix = f"{username} : EAP "
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(prefix):
+            continue
+        out.append(line)
+
+-rwx------ 1 root root 1517 Feb 27 03:15 /usr/local/bin/securewave-ikev2-revoke-client
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    CN=""
+    OUTPUT="json"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --common-name) CN="$2"; shift 2 ;;
+        --output) OUTPUT="$2"; shift 2 ;;
+        *) echo "unknown_arg:$1" >&2; exit 2 ;;
+      esac
+    done
+    
+    if [[ "${OUTPUT}" != "json" ]]; then
+      echo "unsupported_output_format" >&2
+      exit 3
+    fi
+    if [[ -z "${CN}" ]]; then
+      jq -n --arg code "ikev2_invalid_input" --arg message "common-name is required" \
+        '{ok:false,code:$code,message:$message,artifact_path:null}'
+      exit 4
+    fi
+    
+    LOCK_FILE="/var/lib/securewave/pki/ikev2/.issue.lock"
+    exec 9>"${LOCK_FILE}"
+    flock -w 20 9
+    
+    SECRETS_FILE="/etc/ipsec.secrets"
+    if [[ -f "${SECRETS_FILE}" ]]; then
+      python3 - "${SECRETS_FILE}" "${CN}" <<'PY'
+    import pathlib
+    import sys
+    
+    path = pathlib.Path(sys.argv[1])
+    name = sys.argv[2]
+    prefix = f"{name} : EAP "
+    lines = path.read_text(encoding="utf-8").splitlines()
+    filtered = [line for line in lines if not line.strip().startswith(prefix)]
+    path.write_text("\n".join(filtered).strip() + "\n", encoding="utf-8")
+    PY
+      chmod 600 "${SECRETS_FILE}"
+    fi
+    
+    BASE_DIR="/var/lib/securewave/pki/ikev2/${CN}"
+    if [[ -d "${BASE_DIR}" ]]; then
+      rm -f "${BASE_DIR}/client-key.pem" "${BASE_DIR}/client.csr" "${BASE_DIR}/client-cert.pem" "${BASE_DIR}/client.p12" "${BASE_DIR}/payload.json"
+      rmdir "${BASE_DIR}" 2>/dev/null || true
+    fi
+    
+    ipsec rereadsecrets >/dev/null 2>&1 || true
+    
+    jq -n --arg code "ikev2_client_revoked" --arg message "IKEv2 client material removed" \
+      '{ok:true,code:$code,message:$message,artifact_path:null}'
+
+=== openvpn server files ===
+total 20
+-rw-r--r-- 1 root root 1838 Feb 26 17:40 ca.crt
+-rw------- 1 root root  585 Feb 26 17:40 server.conf
+-rw-r--r-- 1 root root 1879 Feb 26 17:40 server.crt
+-rw------- 1 root root 3268 Feb 26 17:40 server.key
+-rw------- 1 root root  636 Feb 26 17:40 tls-crypt.key
+=== strongswan cert files ===
+/etc/ipsec.d/cacerts:
+total 4
+-rw------- 1 root root 1793 Feb 26 17:52 ca-cert.pem
+
+/etc/ipsec.d/certs:
+total 4
+-rw------- 1 root root 1814 Feb 26 17:52 server-cert.pem
+
+/etc/ipsec.d/private:
+total 12
+-rw------- 1 root root 3247 Feb 26 17:52 ca-key.pem
+-rw------- 1 root root   24 Feb 26 17:52 securewave-eap.password
+-rw------- 1 root root 3243 Feb 26 17:52 server-key.pem
+=== quick dry-run client issue (openvpn) ===
+unknown_arg:--user
+=== quick dry-run client issue (ikev2) ===
+unknown_arg:--user

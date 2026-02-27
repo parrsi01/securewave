@@ -1,0 +1,537 @@
+=== server ===
+securewave-prod
+Fri Feb 27 19:01:26 UTC 2026
+=== sysctl net.ipv4.ip_forward ===
+net.ipv4.ip_forward = 1
+=== iptables -t nat -S ===
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-A POSTROUTING -s 172.30.12.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.9.0.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.10.0.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+=== nft list ruleset ===
+table ip filter {
+	chain ufw-before-logging-input {
+	}
+
+	chain ufw-before-logging-output {
+	}
+
+	chain ufw-before-logging-forward {
+	}
+
+	chain ufw-before-input {
+		iifname "lo" counter packets 5091999 bytes 2096139141 accept
+		ct state related,established counter packets 2310892 bytes 412282589 accept
+		ct state invalid counter packets 4 bytes 287 jump ufw-logging-deny
+		ct state invalid counter packets 4 bytes 287 drop
+		meta l4proto icmp icmp type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type echo-request counter packets 43 bytes 3612 accept
+		meta l4proto udp udp sport 67 udp dport 68 counter packets 0 bytes 0 accept
+		counter packets 564898 bytes 35439633 jump ufw-not-local
+		meta l4proto udp ip daddr 224.0.0.251 udp dport 5353 counter packets 0 bytes 0 accept
+		meta l4proto udp ip daddr 239.255.255.250 udp dport 1900 counter packets 0 bytes 0 accept
+		counter packets 564898 bytes 35439633 jump ufw-user-input
+	}
+
+	chain ufw-before-output {
+		oifname "lo" counter packets 5091999 bytes 2096139141 accept
+		ct state related,established counter packets 2643369 bytes 509628407 accept
+		counter packets 1189 bytes 111767 jump ufw-user-output
+	}
+
+	chain ufw-before-forward {
+		ct state related,established counter packets 32442 bytes 25935695 accept
+		meta l4proto icmp icmp type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type echo-request counter packets 5 bytes 420 accept
+		counter packets 2340 bytes 285338 jump ufw-user-forward
+	}
+
+	chain ufw-after-input {
+		meta l4proto udp udp dport 137 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto udp udp dport 138 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto tcp tcp dport 139 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto tcp tcp dport 445 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto udp udp dport 67 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto udp udp dport 68 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		fib daddr type broadcast counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+	}
+
+	chain ufw-after-output {
+	}
+
+	chain ufw-after-forward {
+	}
+
+	chain ufw-after-logging-input {
+		limit rate 3/minute burst 10 packets counter packets 4318 bytes 254256 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw-after-logging-output {
+	}
+
+	chain ufw-after-logging-forward {
+		limit rate 3/minute burst 10 packets counter packets 186 bytes 12319 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw-reject-input {
+	}
+
+	chain ufw-reject-output {
+	}
+
+	chain ufw-reject-forward {
+	}
+
+	chain ufw-track-input {
+	}
+
+	chain ufw-track-output {
+		meta l4proto tcp ct state new counter packets 19 bytes 1324 accept
+		meta l4proto udp ct state new counter packets 512 bytes 62051 accept
+	}
+
+	chain ufw-track-forward {
+	}
+
+	chain INPUT {
+		type filter hook input priority filter; policy drop;
+		counter packets 7967837 bytes 2543865314 jump ufw-before-logging-input
+		counter packets 7967837 bytes 2543865314 jump ufw-before-input
+		counter packets 52962 bytes 2793369 jump ufw-after-input
+		counter packets 52962 bytes 2793369 jump ufw-after-logging-input
+		counter packets 52962 bytes 2793369 jump ufw-reject-input
+		counter packets 52962 bytes 2793369 jump ufw-track-input
+		meta l4proto udp udp dport 1194 counter packets 271 bytes 22022 accept
+		meta l4proto udp udp dport 500 counter packets 15 bytes 8042 accept
+		meta l4proto udp udp dport 4500 counter packets 26 bytes 17752 accept
+	}
+
+	chain OUTPUT {
+		type filter hook output priority filter; policy accept;
+		counter packets 7736557 bytes 2605879315 jump ufw-before-logging-output
+		counter packets 7736557 bytes 2605879315 jump ufw-before-output
+		counter packets 1189 bytes 111767 jump ufw-after-output
+		counter packets 1189 bytes 111767 jump ufw-after-logging-output
+		counter packets 1189 bytes 111767 jump ufw-reject-output
+		counter packets 1189 bytes 111767 jump ufw-track-output
+	}
+
+	chain FORWARD {
+		type filter hook forward priority filter; policy drop;
+		iifname "eth0" oifname "vsovh" ct state related,established counter packets 0 bytes 0 accept
+		iifname "vsovh" oifname "eth0" counter packets 0 bytes 0 accept
+		counter packets 34787 bytes 26221453 jump ufw-before-logging-forward
+		counter packets 34787 bytes 26221453 jump ufw-before-forward
+		counter packets 2340 bytes 285338 jump ufw-after-forward
+		counter packets 2340 bytes 285338 jump ufw-after-logging-forward
+		counter packets 2340 bytes 285338 jump ufw-reject-forward
+		counter packets 2340 bytes 285338 jump ufw-track-forward
+		iifname "tun0" oifname "eth0" counter packets 1 bytes 60 accept
+		iifname "eth0" oifname "tun0" ct state related,established counter packets 0 bytes 0 accept
+		oifname "eth0" ip saddr 10.10.0.0/24 counter packets 3 bytes 180 accept
+		iifname "eth0" ip daddr 10.10.0.0/24 ct state related,established counter packets 0 bytes 0 accept
+		iifname "wg0" oifname "eth0" counter packets 0 bytes 0 accept
+		iifname "eth0" oifname "wg0" ct state related,established counter packets 0 bytes 0 accept
+	}
+
+	chain ufw-logging-deny {
+		ct state invalid limit rate 3/minute burst 10 packets counter packets 4 bytes 287 return
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw-logging-allow {
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW ALLOW] "
+	}
+
+	chain ufw-skip-to-policy-input {
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw-skip-to-policy-output {
+		counter packets 0 bytes 0 accept
+	}
+
+	chain ufw-skip-to-policy-forward {
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw-not-local {
+		fib daddr type local counter packets 564894 bytes 35439377 return
+		fib daddr type multicast counter packets 4 bytes 256 return
+		fib daddr type broadcast counter packets 0 bytes 0 return
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 jump ufw-logging-deny
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw-user-input {
+		meta l4proto udp udp dport 51820 counter packets 3945 bytes 2312044 accept
+		meta l4proto tcp tcp dport 22  counter packets 130421 bytes 7733514 accept
+		meta l4proto tcp tcp dport 80 counter packets 2033 bytes 107440 accept
+		meta l4proto tcp tcp dport 443 counter packets 325813 bytes 19539836 accept
+	}
+
+	chain ufw-user-output {
+	}
+
+	chain ufw-user-forward {
+	}
+
+	chain ufw-user-logging-input {
+	}
+
+	chain ufw-user-logging-output {
+	}
+
+	chain ufw-user-logging-forward {
+	}
+
+	chain ufw-user-limit {
+		limit rate 3/minute counter packets 0 bytes 0 log prefix "[UFW LIMIT BLOCK] "
+		counter packets 0 bytes 0 reject
+	}
+
+	chain ufw-user-limit-accept {
+		counter packets 0 bytes 0 accept
+	}
+}
+table ip6 filter {
+	chain ufw6-before-logging-input {
+	}
+
+	chain ufw6-before-logging-output {
+	}
+
+	chain ufw6-before-logging-forward {
+	}
+
+	chain ufw6-before-input {
+		iifname "lo" counter packets 554729 bytes 183680548 accept
+		rt type 0 counter packets 0 bytes 0 drop
+		ct state related,established counter packets 32527 bytes 217828739 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-reply counter packets 0 bytes 0 accept
+		ct state invalid counter packets 0 bytes 0 jump ufw6-logging-deny
+		ct state invalid counter packets 0 bytes 0 drop
+		meta l4proto ipv6-icmp icmpv6 type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type packet-too-big counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-request counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-router-solicit ip6 hoplimit 255 counter packets 51 bytes 2856 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-router-advert ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-neighbor-solicit ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-neighbor-advert ip6 hoplimit 255 counter packets 698 bytes 44672 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto udp ip6 saddr fe80::/10 ip6 daddr fe80::/10 udp sport 547 udp dport 546 counter packets 0 bytes 0 accept
+		meta l4proto udp ip6 daddr ff02::fb udp dport 5353 counter packets 0 bytes 0 accept
+		meta l4proto udp ip6 daddr ff02::f udp dport 1900 counter packets 0 bytes 0 accept
+		counter packets 0 bytes 0 jump ufw6-user-input
+	}
+
+	chain ufw6-before-output {
+		oifname "lo" counter packets 554729 bytes 183680548 accept
+		rt type 0 counter packets 0 bytes 0 drop
+		ct state related,established counter packets 24981 bytes 2366158 accept
+		meta l4proto ipv6-icmp icmpv6 type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type packet-too-big counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-request counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-reply counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-router-solicit ip6 hoplimit 255 counter packets 378 bytes 21168 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-neighbor-advert ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-neighbor-solicit ip6 hoplimit 255 counter packets 712 bytes 51264 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-router-advert ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 68 bytes 6288 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		counter packets 1096 bytes 102401 jump ufw6-user-output
+	}
+
+	chain ufw6-before-forward {
+		rt type 0 counter packets 0 bytes 0 drop
+		ct state related,established counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type packet-too-big counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-request counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-reply counter packets 0 bytes 0 accept
+		counter packets 0 bytes 0 jump ufw6-user-forward
+	}
+
+	chain ufw6-after-input {
+		meta l4proto udp udp dport 137 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto udp udp dport 138 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto tcp tcp dport 139 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto tcp tcp dport 445 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto udp udp dport 546 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto udp udp dport 547 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+	}
+
+	chain ufw6-after-output {
+	}
+
+	chain ufw6-after-forward {
+	}
+
+	chain ufw6-after-logging-input {
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw6-after-logging-output {
+	}
+
+	chain ufw6-after-logging-forward {
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw6-reject-input {
+	}
+
+	chain ufw6-reject-output {
+	}
+
+	chain ufw6-reject-forward {
+	}
+
+	chain ufw6-track-input {
+	}
+
+	chain ufw6-track-output {
+		meta l4proto tcp ct state new counter packets 173 bytes 13840 accept
+		meta l4proto udp ct state new counter packets 895 bytes 85873 accept
+	}
+
+	chain ufw6-track-forward {
+	}
+
+	chain INPUT {
+		type filter hook input priority filter; policy drop;
+		counter packets 588005 bytes 401556815 jump ufw6-before-logging-input
+		counter packets 588005 bytes 401556815 jump ufw6-before-input
+		counter packets 0 bytes 0 jump ufw6-after-input
+		counter packets 0 bytes 0 jump ufw6-after-logging-input
+		counter packets 0 bytes 0 jump ufw6-reject-input
+		counter packets 0 bytes 0 jump ufw6-track-input
+	}
+
+	chain OUTPUT {
+		type filter hook output priority filter; policy accept;
+		counter packets 581964 bytes 186227827 jump ufw6-before-logging-output
+		counter packets 581964 bytes 186227827 jump ufw6-before-output
+		counter packets 1096 bytes 102401 jump ufw6-after-output
+		counter packets 1096 bytes 102401 jump ufw6-after-logging-output
+		counter packets 1096 bytes 102401 jump ufw6-reject-output
+		counter packets 1096 bytes 102401 jump ufw6-track-output
+	}
+
+	chain FORWARD {
+		type filter hook forward priority filter; policy drop;
+		counter packets 0 bytes 0 jump ufw6-before-logging-forward
+		counter packets 0 bytes 0 jump ufw6-before-forward
+		counter packets 0 bytes 0 jump ufw6-after-forward
+		counter packets 0 bytes 0 jump ufw6-after-logging-forward
+		counter packets 0 bytes 0 jump ufw6-reject-forward
+		counter packets 0 bytes 0 jump ufw6-track-forward
+	}
+
+	chain ufw6-logging-deny {
+		ct state invalid limit rate 3/minute burst 10 packets counter packets 0 bytes 0 return
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw6-logging-allow {
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW ALLOW] "
+	}
+
+	chain ufw6-skip-to-policy-input {
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw6-skip-to-policy-output {
+		counter packets 0 bytes 0 accept
+	}
+
+	chain ufw6-skip-to-policy-forward {
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw6-user-input {
+		meta l4proto udp udp dport 51820 counter packets 0 bytes 0 accept
+		meta l4proto tcp tcp dport 22  counter packets 0 bytes 0 accept
+		meta l4proto tcp tcp dport 80 counter packets 0 bytes 0 accept
+		meta l4proto tcp tcp dport 443 counter packets 0 bytes 0 accept
+	}
+
+	chain ufw6-user-output {
+	}
+
+	chain ufw6-user-forward {
+	}
+
+	chain ufw6-user-logging-input {
+	}
+
+	chain ufw6-user-logging-output {
+	}
+
+	chain ufw6-user-logging-forward {
+	}
+
+	chain ufw6-user-limit {
+		limit rate 3/minute counter packets 0 bytes 0 log prefix "[UFW LIMIT BLOCK] "
+		counter packets 0 bytes 0 reject
+	}
+
+	chain ufw6-user-limit-accept {
+		counter packets 0 bytes 0 accept
+	}
+}
+table ip nat {
+	chain POSTROUTING {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "eth0" ip saddr 172.30.12.0/24 counter packets 0 bytes 0 masquerade 
+		oifname "eth0" ip saddr 10.9.0.0/24 counter packets 2 bytes 144 masquerade 
+		oifname "eth0" ip saddr 10.10.0.0/24 counter packets 6 bytes 432 masquerade 
+		oifname "eth0" ip saddr 10.8.0.0/24 counter packets 0 bytes 0 masquerade 
+	}
+}
+=== ip route ===
+default via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+10.8.0.0/24 dev wg0 proto kernel scope link src 10.8.0.1 
+10.9.0.0/24 dev tun0 proto kernel scope link src 10.9.0.1 
+10.255.0.0/16 via 10.255.0.1 dev enp7s0 
+10.255.0.1 dev enp7s0 scope link 
+172.30.12.0/24 dev vsovh proto kernel scope link src 172.30.12.1 
+172.31.1.1 dev eth0 proto dhcp scope link src 138.199.204.139 metric 100 
+185.12.64.1 via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+185.12.64.2 via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+=== ss -lntup ===
+Netid State  Recv-Q Send-Q        Local Address:Port  Peer Address:PortProcess                                                                                                                                   
+udp   UNCONN 0      0                   0.0.0.0:500        0.0.0.0:*    users:(("charon",pid=3965239,fd=15))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:1194       0.0.0.0:*    users:(("openvpn",pid=3952231,fd=5))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:51820      0.0.0.0:*                                                                                                                                             
+udp   UNCONN 0      0             127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=645,fd=13))                                                                                                
+udp   UNCONN 0      0      138.199.204.139%eth0:68         0.0.0.0:*    users:(("systemd-network",pid=643,fd=15))                                                                                                
+udp   UNCONN 0      0                   0.0.0.0:68         0.0.0.0:*    users:(("dhclient",pid=210295,fd=9))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:68         0.0.0.0:*    users:(("charon",pid=3965239,fd=22))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:4500       0.0.0.0:*    users:(("charon",pid=3965239,fd=16))                                                                                                     
+udp   UNCONN 0      0                         *:500              *:*    users:(("charon",pid=3965239,fd=13))                                                                                                     
+udp   UNCONN 0      0                      [::]:51820         [::]:*                                                                                                                                             
+udp   UNCONN 0      0                         *:4500             *:*    users:(("charon",pid=3965239,fd=14))                                                                                                     
+tcp   LISTEN 0      2048              127.0.0.1:8080       0.0.0.0:*    users:(("gunicorn",pid=309049,fd=5),("gunicorn",pid=309048,fd=5),("gunicorn",pid=309046,fd=5))                                           
+tcp   LISTEN 0      128                 0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=4251,fd=3))                                                                                                           
+tcp   LISTEN 0      511                 0.0.0.0:80         0.0.0.0:*    users:(("nginx",pid=305988,fd=6),("nginx",pid=305987,fd=6),("nginx",pid=305986,fd=6),("nginx",pid=305985,fd=6),("nginx",pid=123409,fd=6))
+tcp   LISTEN 0      4096          127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=645,fd=14))                                                                                                
+tcp   LISTEN 0      244               127.0.0.1:5432       0.0.0.0:*    users:(("postgres",pid=4086,fd=6))                                                                                                       
+tcp   LISTEN 0      244                   [::1]:5432          [::]:*    users:(("postgres",pid=4086,fd=5))                                                                                                       
+tcp   LISTEN 0      128                    [::]:22            [::]:*    users:(("sshd",pid=4251,fd=4))                                                                                                           
+tcp   LISTEN 0      511                    [::]:80            [::]:*    users:(("nginx",pid=305988,fd=7),("nginx",pid=305987,fd=7),("nginx",pid=305986,fd=7),("nginx",pid=305985,fd=7),("nginx",pid=123409,fd=7))
+=== systemctl wg-quick@wg0 ===
+● wg-quick@wg0.service - WireGuard via wg-quick(8) for wg0
+     Loaded: loaded (/lib/systemd/system/wg-quick@.service; enabled; vendor preset: enabled)
+     Active: active (exited) since Fri 2026-02-27 18:59:55 UTC; 1min 30s ago
+       Docs: man:wg-quick(8)
+             man:wg(8)
+             https://www.wireguard.com/
+             https://www.wireguard.com/quickstart/
+             https://git.zx2c4.com/wireguard-tools/about/src/man/wg-quick.8
+             https://git.zx2c4.com/wireguard-tools/about/src/man/wg.8
+    Process: 1241755 ExecStart=/usr/bin/wg-quick up wg0 (code=exited, status=0/SUCCESS)
+   Main PID: 1241755 (code=exited, status=0/SUCCESS)
+        CPU: 49ms
+
+Feb 27 18:59:55 securewave-prod wg-quick[1241755]: [#] wg setconf wg0 /dev/fd/63
+Feb 27 18:59:55 securewave-prod wg-quick[1241755]: [#] ip -4 address add 10.8.0.1/24 dev wg0
+Feb 27 18:59:55 securewave-prod wg-quick[1241755]: [#] ip link set mtu 1420 up dev wg0
+Feb 27 18:59:55 securewave-prod wg-quick[1241755]: [#] iptables -C FORWARD -i wg0 -o eth0 -j ACCEPT || iptables -A FORWARD -i wg0 -o eth0 -j ACCEPT
+Feb 27 18:59:55 securewave-prod wg-quick[1241800]: iptables: Bad rule (does a matching rule exist in that chain?).
+Feb 27 18:59:55 securewave-prod wg-quick[1241755]: [#] iptables -C FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || iptables -A FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+Feb 27 18:59:55 securewave-prod wg-quick[1241803]: iptables: Bad rule (does a matching rule exist in that chain?).
+Feb 27 18:59:55 securewave-prod wg-quick[1241755]: [#] iptables -t nat -C POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE || iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+Feb 27 18:59:55 securewave-prod wg-quick[1241807]: iptables: Bad rule (does a matching rule exist in that chain?).
+Feb 27 18:59:55 securewave-prod systemd[1]: Finished WireGuard via wg-quick(8) for wg0.
+=== systemctl openvpn@server ===
+○ openvpn@server.service - OpenVPN connection to server
+     Loaded: loaded (/lib/systemd/system/openvpn@.service; disabled; vendor preset: enabled)
+     Active: inactive (dead)
+       Docs: man:openvpn(8)
+             https://community.openvpn.net/openvpn/wiki/Openvpn24ManPage
+             https://community.openvpn.net/openvpn/wiki/HOWTO
+● openvpn-server@server.service - OpenVPN service for server
+     Loaded: loaded (/lib/systemd/system/openvpn-server@.service; enabled; vendor preset: enabled)
+     Active: active (running) since Thu 2026-02-26 17:40:43 UTC; 1 day 1h ago
+       Docs: man:openvpn(8)
+             https://community.openvpn.net/openvpn/wiki/Openvpn24ManPage
+             https://community.openvpn.net/openvpn/wiki/HOWTO
+   Main PID: 3952231 (openvpn)
+     Status: "Initialization Sequence Completed"
+      Tasks: 1 (limit: 9247)
+     Memory: 2.9M
+        CPU: 920ms
+     CGroup: /system.slice/system-openvpn\x2dserver.slice/openvpn-server@server.service
+             └─3952231 /usr/sbin/openvpn --status /run/openvpn-server/status-server.log --status-version 2 --suppress-timestamps --config server.conf
+
+Feb 27 18:55:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 TLS Error: TLS handshake failed
+Feb 27 18:55:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 TLS: Initial packet from [AF_INET]172.30.12.2:44050, sid=c9a2e396 054c05c0
+Feb 27 19:01:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 19:01:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 TLS Error: TLS handshake failed
+Feb 27 19:01:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 SIGUSR1[soft,tls-error] received, client-instance restarting
+=== systemctl strongswan ===
+Unit strongswan.service could not be found.
+● strongswan-starter.service - strongSwan IPsec IKEv1/IKEv2 daemon using ipsec.conf
+     Loaded: loaded (/lib/systemd/system/strongswan-starter.service; enabled; vendor preset: enabled)
+     Active: active (running) since Thu 2026-02-26 17:53:31 UTC; 1 day 1h ago
+   Main PID: 3965232 (starter)
+      Tasks: 18 (limit: 9247)
+     Memory: 5.3M
+        CPU: 39.383s
+     CGroup: /system.slice/strongswan-starter.service
+             ├─3965232 /usr/lib/ipsec/starter --daemon charon --nofork
+             └─3965239 /usr/lib/ipsec/charon
+
+Feb 27 18:58:53 securewave-prod charon[3965239]: 14[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:59:55 securewave-prod charon[3965239]: 07[KNL] interface wg0 deactivated
+Feb 27 18:59:55 securewave-prod charon[3965239]: 02[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:59:55 securewave-prod charon[3965239]: 08[KNL] interface wg0 deleted
+Feb 27 18:59:55 securewave-prod charon[3965239]: 14[NET] using forecast interface eth0
+Feb 27 18:59:55 securewave-prod charon[3965239]: 14[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:59:55 securewave-prod charon[3965239]: 15[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:59:55 securewave-prod charon[3965239]: 16[KNL] interface wg0 activated
+Feb 27 18:59:55 securewave-prod charon[3965239]: 06[NET] using forecast interface eth0
+Feb 27 18:59:55 securewave-prod charon[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250

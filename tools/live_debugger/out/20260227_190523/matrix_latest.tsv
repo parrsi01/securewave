@@ -1,0 +1,8 @@
+section	status	reason
+server_infra	PASS	ok
+backend_health	PASS	ok
+wireguard_e2e	FAIL	public_ip_unchanged;
+openvpn_e2e	FAIL	iface_missing;public_ip_unchanged;
+ikev2_e2e	FAIL	iface_missing;public_ip_unchanged;
+crash_recovery	PASS	app_restart_cycle_ok
+sim_isolation	PASS	no_interface_change_detected

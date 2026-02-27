@@ -1,0 +1,1 @@
+{"regions":[{"server_id":"securewave-prod","location":"Nuremberg, DE","country":"Germany","country_code":"DE","city":"Nuremberg","region":"Europe","latency_ms":50.0,"load_percent":0.0,"status":"active","health_status":"healthy","tier_restriction":null,"premium_only":false,"supported_protocols":["wireguard"]}],"total":1,"recommended_server_id":"securewave-prod"}

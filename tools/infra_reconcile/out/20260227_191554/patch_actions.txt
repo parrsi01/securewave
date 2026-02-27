@@ -1,0 +1,14 @@
+[2026-02-27T19:21:58Z] detected_out_if=eth0
+[2026-02-27T19:21:58Z] apply sysctl runtime
+[2026-02-27T19:21:58Z] persist sysctl
+[2026-02-27T19:21:58Z] ensure ufw udp service ports persist
+[2026-02-27T19:21:58Z] ensure FORWARD/NAT rules
+[2026-02-27T19:21:58Z] cleanup orphan wg peers (no AllowedIPs)
+[2026-02-27T19:21:58Z] remove_runtime_peer=dBF61SMuIQEiK/t99mZWJI8WdiKs32MKdtmzzvJYJy8=
+[2026-02-27T19:21:58Z] restart services
+[2026-02-27T19:22:01Z] post status
+active
+active
+inactive
+active
+[2026-02-27T19:22:01Z] done

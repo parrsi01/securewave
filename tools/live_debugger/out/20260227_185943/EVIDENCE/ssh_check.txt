@@ -1,0 +1,10 @@
+ping
+PING 138.199.204.139 (138.199.204.139) 56(84) bytes of data.
+
+--- 138.199.204.139 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2076ms
+
+ssh
+SSH_OK
+securewave-prod
+Linux securewave-prod 5.15.0-168-generic #178-Ubuntu SMP Fri Jan 9 19:05:03 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux

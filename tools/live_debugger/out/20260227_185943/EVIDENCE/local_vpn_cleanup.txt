@@ -1,0 +1,14 @@
+timestamp_utc=2026-02-27T19:01:07Z
+host=138.199.204.139
+--- before interfaces ---
+sw-wg
+--- cleanup attempts ---
+cleanup sw-wg
+RTNETLINK answers: Operation not permitted
+RTNETLINK answers: Operation not permitted
+sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper
+sudo: a password is required
+sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper
+sudo: a password is required
+--- after interfaces ---
+sw-wg

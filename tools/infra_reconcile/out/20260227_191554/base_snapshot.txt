@@ -1,0 +1,1308 @@
+=== SecureWave Infra Reconcile Base Snapshot ===
+=== TS ===
+Fri Feb 27 19:16:35 UTC 2026
+=== HOST ===
+ Static hostname: securewave-prod
+       Icon name: computer-vm
+         Chassis: vm
+      Machine ID: e20141513b7344298e8557a7985dc72a
+         Boot ID: 395cf1fe57ee4a7686490e5e48ffbaef
+  Virtualization: kvm
+Operating System: Ubuntu 22.04.5 LTS
+          Kernel: Linux 5.15.0-168-generic
+    Architecture: x86-64
+ Hardware Vendor: Hetzner
+  Hardware Model: vServer
+=== ip addr ===
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 92:00:07:33:16:6c brd ff:ff:ff:ff:ff:ff
+    inet 138.199.204.139/32 metric 100 scope global dynamic eth0
+       valid_lft 63854sec preferred_lft 63854sec
+    inet6 2a01:4f8:1c1f:9b0b::1/64 scope global 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::9000:7ff:fe33:166c/64 scope link 
+       valid_lft forever preferred_lft forever
+1289: tun0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 500
+    link/none 
+    inet 10.9.0.1/24 scope global tun0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::bb12:68b:d269:21e9/64 scope link stable-privacy 
+       valid_lft forever preferred_lft forever
+1648: vsovh@if1647: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether 76:aa:fc:dd:68:78 brd ff:ff:ff:ff:ff:ff link-netns sov
+    inet 172.30.12.1/24 scope global vsovh
+       valid_lft forever preferred_lft forever
+    inet6 fe80::74aa:fcff:fedd:6878/64 scope link 
+       valid_lft forever preferred_lft forever
+1410: enp7s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 qdisc fq_codel state UP group default qlen 1000
+    link/ether 86:00:00:75:8c:78 brd ff:ff:ff:ff:ff:ff
+    inet 10.255.1.1/32 brd 10.255.1.1 scope global dynamic enp7s0
+       valid_lft 66130sec preferred_lft 66130sec
+    inet6 fe80::8400:ff:fe75:8c78/64 scope link 
+       valid_lft forever preferred_lft forever
+1763: wg0: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/none 
+    inet 10.8.0.1/24 scope global wg0
+       valid_lft forever preferred_lft forever
+=== ip route ===
+default via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+10.8.0.0/24 dev wg0 proto kernel scope link src 10.8.0.1 
+10.9.0.0/24 dev tun0 proto kernel scope link src 10.9.0.1 
+10.255.0.0/16 via 10.255.0.1 dev enp7s0 
+10.255.0.1 dev enp7s0 scope link 
+172.30.12.0/24 dev vsovh proto kernel scope link src 172.30.12.1 
+172.31.1.1 dev eth0 proto dhcp scope link src 138.199.204.139 metric 100 
+185.12.64.1 via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+185.12.64.2 via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+=== ip rule ===
+0:	from all lookup local
+32766:	from all lookup main
+32767:	from all lookup default
+=== ip route show table all ===
+default via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+10.8.0.0/24 dev wg0 proto kernel scope link src 10.8.0.1 
+10.9.0.0/24 dev tun0 proto kernel scope link src 10.9.0.1 
+10.255.0.0/16 via 10.255.0.1 dev enp7s0 
+10.255.0.1 dev enp7s0 scope link 
+172.30.12.0/24 dev vsovh proto kernel scope link src 172.30.12.1 
+172.31.1.1 dev eth0 proto dhcp scope link src 138.199.204.139 metric 100 
+185.12.64.1 via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+185.12.64.2 via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+local 10.8.0.1 dev wg0 table local proto kernel scope host src 10.8.0.1 
+broadcast 10.8.0.255 dev wg0 table local proto kernel scope link src 10.8.0.1 
+local 10.9.0.1 dev tun0 table local proto kernel scope host src 10.9.0.1 
+broadcast 10.9.0.255 dev tun0 table local proto kernel scope link src 10.9.0.1 
+local 10.255.1.1 dev enp7s0 table local proto kernel scope host src 10.255.1.1 
+broadcast 10.255.1.1 dev enp7s0 table local proto kernel scope link src 10.255.1.1 
+local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 
+local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
+local 138.199.204.139 dev eth0 table local proto kernel scope host src 138.199.204.139 
+local 172.30.12.1 dev vsovh table local proto kernel scope host src 172.30.12.1 
+broadcast 172.30.12.255 dev vsovh table local proto kernel scope link src 172.30.12.1 
+::1 dev lo proto kernel metric 256 pref medium
+2a01:4f8:1c1f:9b0b::/64 dev eth0 proto kernel metric 256 pref medium
+fe80::/64 dev eth0 proto kernel metric 256 pref medium
+fe80::/64 dev tun0 proto kernel metric 256 pref medium
+fe80::/64 dev enp7s0 proto kernel metric 256 pref medium
+fe80::/64 dev vsovh proto kernel metric 256 pref medium
+default via fe80::1 dev eth0 proto static metric 1024 onlink pref medium
+local ::1 dev lo table local proto kernel metric 0 pref medium
+anycast 2a01:4f8:1c1f:9b0b:: dev eth0 table local proto kernel metric 0 pref medium
+local 2a01:4f8:1c1f:9b0b::1 dev eth0 table local proto kernel metric 0 pref medium
+anycast fe80:: dev eth0 table local proto kernel metric 0 pref medium
+anycast fe80:: dev tun0 table local proto kernel metric 0 pref medium
+anycast fe80:: dev enp7s0 table local proto kernel metric 0 pref medium
+anycast fe80:: dev vsovh table local proto kernel metric 0 pref medium
+local fe80::74aa:fcff:fedd:6878 dev vsovh table local proto kernel metric 0 pref medium
+local fe80::8400:ff:fe75:8c78 dev enp7s0 table local proto kernel metric 0 pref medium
+local fe80::9000:7ff:fe33:166c dev eth0 table local proto kernel metric 0 pref medium
+local fe80::bb12:68b:d269:21e9 dev tun0 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev eth0 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev tun0 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev enp7s0 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev vsovh table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev wg0 table local proto kernel metric 256 pref medium
+=== sysctl net.ipv4.ip_forward ===
+net.ipv4.ip_forward = 1
+=== sysctl net.ipv6.conf.all.forwarding ===
+net.ipv6.conf.all.forwarding = 1
+=== iptables -S ===
+-P INPUT DROP
+-P FORWARD DROP
+-P OUTPUT ACCEPT
+-N ufw-after-forward
+-N ufw-after-input
+-N ufw-after-logging-forward
+-N ufw-after-logging-input
+-N ufw-after-logging-output
+-N ufw-after-output
+-N ufw-before-forward
+-N ufw-before-input
+-N ufw-before-logging-forward
+-N ufw-before-logging-input
+-N ufw-before-logging-output
+-N ufw-before-output
+-N ufw-logging-allow
+-N ufw-logging-deny
+-N ufw-not-local
+-N ufw-reject-forward
+-N ufw-reject-input
+-N ufw-reject-output
+-N ufw-skip-to-policy-forward
+-N ufw-skip-to-policy-input
+-N ufw-skip-to-policy-output
+-N ufw-track-forward
+-N ufw-track-input
+-N ufw-track-output
+-N ufw-user-forward
+-N ufw-user-input
+-N ufw-user-limit
+-N ufw-user-limit-accept
+-N ufw-user-logging-forward
+-N ufw-user-logging-input
+-N ufw-user-logging-output
+-N ufw-user-output
+-A INPUT -j ufw-before-logging-input
+-A INPUT -j ufw-before-input
+-A INPUT -j ufw-after-input
+-A INPUT -j ufw-after-logging-input
+-A INPUT -j ufw-reject-input
+-A INPUT -j ufw-track-input
+-A INPUT -p udp -m udp --dport 1194 -j ACCEPT
+-A INPUT -p udp -m udp --dport 500 -j ACCEPT
+-A INPUT -p udp -m udp --dport 4500 -j ACCEPT
+-A FORWARD -i eth0 -o vsovh -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -i vsovh -o eth0 -j ACCEPT
+-A FORWARD -j ufw-before-logging-forward
+-A FORWARD -j ufw-before-forward
+-A FORWARD -j ufw-after-forward
+-A FORWARD -j ufw-after-logging-forward
+-A FORWARD -j ufw-reject-forward
+-A FORWARD -j ufw-track-forward
+-A FORWARD -i tun0 -o eth0 -j ACCEPT
+-A FORWARD -i eth0 -o tun0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -s 10.10.0.0/24 -o eth0 -j ACCEPT
+-A FORWARD -d 10.10.0.0/24 -i eth0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -i wg0 -o eth0 -j ACCEPT
+-A FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A OUTPUT -j ufw-before-logging-output
+-A OUTPUT -j ufw-before-output
+-A OUTPUT -j ufw-after-output
+-A OUTPUT -j ufw-after-logging-output
+-A OUTPUT -j ufw-reject-output
+-A OUTPUT -j ufw-track-output
+-A ufw-after-input -p udp -m udp --dport 137 -j ufw-skip-to-policy-input
+-A ufw-after-input -p udp -m udp --dport 138 -j ufw-skip-to-policy-input
+-A ufw-after-input -p tcp -m tcp --dport 139 -j ufw-skip-to-policy-input
+-A ufw-after-input -p tcp -m tcp --dport 445 -j ufw-skip-to-policy-input
+-A ufw-after-input -p udp -m udp --dport 67 -j ufw-skip-to-policy-input
+-A ufw-after-input -p udp -m udp --dport 68 -j ufw-skip-to-policy-input
+-A ufw-after-input -m addrtype --dst-type BROADCAST -j ufw-skip-to-policy-input
+-A ufw-after-logging-forward -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+-A ufw-after-logging-input -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+-A ufw-before-forward -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 3 -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 11 -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 12 -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 8 -j ACCEPT
+-A ufw-before-forward -j ufw-user-forward
+-A ufw-before-input -i lo -j ACCEPT
+-A ufw-before-input -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-input -m conntrack --ctstate INVALID -j ufw-logging-deny
+-A ufw-before-input -m conntrack --ctstate INVALID -j DROP
+-A ufw-before-input -p icmp -m icmp --icmp-type 3 -j ACCEPT
+-A ufw-before-input -p icmp -m icmp --icmp-type 11 -j ACCEPT
+-A ufw-before-input -p icmp -m icmp --icmp-type 12 -j ACCEPT
+-A ufw-before-input -p icmp -m icmp --icmp-type 8 -j ACCEPT
+-A ufw-before-input -p udp -m udp --sport 67 --dport 68 -j ACCEPT
+-A ufw-before-input -j ufw-not-local
+-A ufw-before-input -d 224.0.0.251/32 -p udp -m udp --dport 5353 -j ACCEPT
+-A ufw-before-input -d 239.255.255.250/32 -p udp -m udp --dport 1900 -j ACCEPT
+-A ufw-before-input -j ufw-user-input
+-A ufw-before-output -o lo -j ACCEPT
+-A ufw-before-output -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-output -j ufw-user-output
+-A ufw-logging-allow -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW ALLOW] "
+-A ufw-logging-deny -m conntrack --ctstate INVALID -m limit --limit 3/min --limit-burst 10 -j RETURN
+-A ufw-logging-deny -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+-A ufw-not-local -m addrtype --dst-type LOCAL -j RETURN
+-A ufw-not-local -m addrtype --dst-type MULTICAST -j RETURN
+-A ufw-not-local -m addrtype --dst-type BROADCAST -j RETURN
+-A ufw-not-local -m limit --limit 3/min --limit-burst 10 -j ufw-logging-deny
+-A ufw-not-local -j DROP
+-A ufw-skip-to-policy-forward -j DROP
+-A ufw-skip-to-policy-input -j DROP
+-A ufw-skip-to-policy-output -j ACCEPT
+-A ufw-track-output -p tcp -m conntrack --ctstate NEW -j ACCEPT
+-A ufw-track-output -p udp -m conntrack --ctstate NEW -j ACCEPT
+-A ufw-user-input -p udp -m udp --dport 51820 -j ACCEPT
+-A ufw-user-input -p tcp -m tcp --dport 22 -m comment --comment "\'dapp_OpenSSH\'" -j ACCEPT
+-A ufw-user-input -p tcp -m tcp --dport 80 -j ACCEPT
+-A ufw-user-input -p tcp -m tcp --dport 443 -j ACCEPT
+-A ufw-user-limit -m limit --limit 3/min -j LOG --log-prefix "[UFW LIMIT BLOCK] "
+-A ufw-user-limit -j REJECT --reject-with icmp-port-unreachable
+-A ufw-user-limit-accept -j ACCEPT
+=== iptables -t nat -S ===
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-A POSTROUTING -s 172.30.12.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.9.0.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.10.0.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+=== iptables -t mangle -S ===
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+=== nft list ruleset ===
+table ip filter {
+	chain ufw-before-logging-input {
+	}
+
+	chain ufw-before-logging-output {
+	}
+
+	chain ufw-before-logging-forward {
+	}
+
+	chain ufw-before-input {
+		iifname "lo" counter packets 5105617 bytes 2102807324 accept
+		ct state related,established counter packets 2314485 bytes 412975888 accept
+		ct state invalid counter packets 4 bytes 287 jump ufw-logging-deny
+		ct state invalid counter packets 4 bytes 287 drop
+		meta l4proto icmp icmp type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type echo-request counter packets 43 bytes 3612 accept
+		meta l4proto udp udp sport 67 udp dport 68 counter packets 0 bytes 0 accept
+		counter packets 565090 bytes 35451365 jump ufw-not-local
+		meta l4proto udp ip daddr 224.0.0.251 udp dport 5353 counter packets 0 bytes 0 accept
+		meta l4proto udp ip daddr 239.255.255.250 udp dport 1900 counter packets 0 bytes 0 accept
+		counter packets 565090 bytes 35451365 jump ufw-user-input
+	}
+
+	chain ufw-before-output {
+		oifname "lo" counter packets 5105617 bytes 2102807324 accept
+		ct state related,established counter packets 2646868 bytes 510523789 accept
+		counter packets 1203 bytes 112993 jump ufw-user-output
+	}
+
+	chain ufw-before-forward {
+		ct state related,established counter packets 32442 bytes 25935695 accept
+		meta l4proto icmp icmp type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto icmp icmp type echo-request counter packets 5 bytes 420 accept
+		counter packets 2340 bytes 285338 jump ufw-user-forward
+	}
+
+	chain ufw-after-input {
+		meta l4proto udp udp dport 137 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto udp udp dport 138 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto tcp tcp dport 139 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto tcp tcp dport 445 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto udp udp dport 67 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		meta l4proto udp udp dport 68 counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+		fib daddr type broadcast counter packets 0 bytes 0 jump ufw-skip-to-policy-input
+	}
+
+	chain ufw-after-output {
+	}
+
+	chain ufw-after-forward {
+	}
+
+	chain ufw-after-logging-input {
+		limit rate 3/minute burst 10 packets counter packets 4328 bytes 255076 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw-after-logging-output {
+	}
+
+	chain ufw-after-logging-forward {
+		limit rate 3/minute burst 10 packets counter packets 186 bytes 12319 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw-reject-input {
+	}
+
+	chain ufw-reject-output {
+	}
+
+	chain ufw-reject-forward {
+	}
+
+	chain ufw-track-input {
+	}
+
+	chain ufw-track-output {
+		meta l4proto tcp ct state new counter packets 19 bytes 1324 accept
+		meta l4proto udp ct state new counter packets 525 bytes 63225 accept
+	}
+
+	chain ufw-track-forward {
+	}
+
+	chain INPUT {
+		type filter hook input priority filter; policy drop;
+		counter packets 7985240 bytes 2551238528 jump ufw-before-logging-input
+		counter packets 7985240 bytes 2551238528 jump ufw-before-input
+		counter packets 52972 bytes 2794189 jump ufw-after-input
+		counter packets 52972 bytes 2794189 jump ufw-after-logging-input
+		counter packets 52972 bytes 2794189 jump ufw-reject-input
+		counter packets 52972 bytes 2794189 jump ufw-track-input
+		meta l4proto udp udp dport 1194 counter packets 281 bytes 22842 accept
+		meta l4proto udp udp dport 500 counter packets 15 bytes 8042 accept
+		meta l4proto udp udp dport 4500 counter packets 26 bytes 17752 accept
+	}
+
+	chain OUTPUT {
+		type filter hook output priority filter; policy accept;
+		counter packets 7753688 bytes 2613444106 jump ufw-before-logging-output
+		counter packets 7753688 bytes 2613444106 jump ufw-before-output
+		counter packets 1203 bytes 112993 jump ufw-after-output
+		counter packets 1203 bytes 112993 jump ufw-after-logging-output
+		counter packets 1203 bytes 112993 jump ufw-reject-output
+		counter packets 1203 bytes 112993 jump ufw-track-output
+	}
+
+	chain FORWARD {
+		type filter hook forward priority filter; policy drop;
+		iifname "eth0" oifname "vsovh" ct state related,established counter packets 0 bytes 0 accept
+		iifname "vsovh" oifname "eth0" counter packets 0 bytes 0 accept
+		counter packets 34787 bytes 26221453 jump ufw-before-logging-forward
+		counter packets 34787 bytes 26221453 jump ufw-before-forward
+		counter packets 2340 bytes 285338 jump ufw-after-forward
+		counter packets 2340 bytes 285338 jump ufw-after-logging-forward
+		counter packets 2340 bytes 285338 jump ufw-reject-forward
+		counter packets 2340 bytes 285338 jump ufw-track-forward
+		iifname "tun0" oifname "eth0" counter packets 1 bytes 60 accept
+		iifname "eth0" oifname "tun0" ct state related,established counter packets 0 bytes 0 accept
+		oifname "eth0" ip saddr 10.10.0.0/24 counter packets 3 bytes 180 accept
+		iifname "eth0" ip daddr 10.10.0.0/24 ct state related,established counter packets 0 bytes 0 accept
+		iifname "wg0" oifname "eth0" counter packets 0 bytes 0 accept
+		iifname "eth0" oifname "wg0" ct state related,established counter packets 0 bytes 0 accept
+	}
+
+	chain ufw-logging-deny {
+		ct state invalid limit rate 3/minute burst 10 packets counter packets 4 bytes 287 return
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw-logging-allow {
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW ALLOW] "
+	}
+
+	chain ufw-skip-to-policy-input {
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw-skip-to-policy-output {
+		counter packets 0 bytes 0 accept
+	}
+
+	chain ufw-skip-to-policy-forward {
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw-not-local {
+		fib daddr type local counter packets 565086 bytes 35451109 return
+		fib daddr type multicast counter packets 4 bytes 256 return
+		fib daddr type broadcast counter packets 0 bytes 0 return
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 jump ufw-logging-deny
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw-user-input {
+		meta l4proto udp udp dport 51820 counter packets 3945 bytes 2312044 accept
+		meta l4proto tcp tcp dport 22  counter packets 130602 bytes 7744366 accept
+		meta l4proto tcp tcp dport 80 counter packets 2033 bytes 107440 accept
+		meta l4proto tcp tcp dport 443 counter packets 325814 bytes 19539896 accept
+	}
+
+	chain ufw-user-output {
+	}
+
+	chain ufw-user-forward {
+	}
+
+	chain ufw-user-logging-input {
+	}
+
+	chain ufw-user-logging-output {
+	}
+
+	chain ufw-user-logging-forward {
+	}
+
+	chain ufw-user-limit {
+		limit rate 3/minute counter packets 0 bytes 0 log prefix "[UFW LIMIT BLOCK] "
+		counter packets 0 bytes 0 reject
+	}
+
+	chain ufw-user-limit-accept {
+		counter packets 0 bytes 0 accept
+	}
+}
+table ip6 filter {
+	chain ufw6-before-logging-input {
+	}
+
+	chain ufw6-before-logging-output {
+	}
+
+	chain ufw6-before-logging-forward {
+	}
+
+	chain ufw6-before-input {
+		iifname "lo" counter packets 555932 bytes 184084252 accept
+		rt type 0 counter packets 0 bytes 0 drop
+		ct state related,established counter packets 32527 bytes 217828739 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-reply counter packets 0 bytes 0 accept
+		ct state invalid counter packets 0 bytes 0 jump ufw6-logging-deny
+		ct state invalid counter packets 0 bytes 0 drop
+		meta l4proto ipv6-icmp icmpv6 type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type packet-too-big counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-request counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-router-solicit ip6 hoplimit 255 counter packets 51 bytes 2856 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-router-advert ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-neighbor-solicit ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-neighbor-advert ip6 hoplimit 255 counter packets 698 bytes 44672 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto udp ip6 saddr fe80::/10 ip6 daddr fe80::/10 udp sport 547 udp dport 546 counter packets 0 bytes 0 accept
+		meta l4proto udp ip6 daddr ff02::fb udp dport 5353 counter packets 0 bytes 0 accept
+		meta l4proto udp ip6 daddr ff02::f udp dport 1900 counter packets 0 bytes 0 accept
+		counter packets 0 bytes 0 jump ufw6-user-input
+	}
+
+	chain ufw6-before-output {
+		oifname "lo" counter packets 555932 bytes 184084252 accept
+		rt type 0 counter packets 0 bytes 0 drop
+		ct state related,established counter packets 24981 bytes 2366158 accept
+		meta l4proto ipv6-icmp icmpv6 type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type packet-too-big counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-request counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-reply counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-router-solicit ip6 hoplimit 255 counter packets 378 bytes 21168 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-neighbor-advert ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-neighbor-solicit ip6 hoplimit 255 counter packets 712 bytes 51264 accept
+		meta l4proto ipv6-icmp icmpv6 type nd-router-advert ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  counter packets 68 bytes 6288 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type  ip6 hoplimit 255 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 icmpv6 type  ip6 hoplimit 1 counter packets 0 bytes 0 accept
+		counter packets 1096 bytes 102401 jump ufw6-user-output
+	}
+
+	chain ufw6-before-forward {
+		rt type 0 counter packets 0 bytes 0 drop
+		ct state related,established counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type destination-unreachable counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type packet-too-big counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type time-exceeded counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type parameter-problem counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-request counter packets 0 bytes 0 accept
+		meta l4proto ipv6-icmp icmpv6 type echo-reply counter packets 0 bytes 0 accept
+		counter packets 0 bytes 0 jump ufw6-user-forward
+	}
+
+	chain ufw6-after-input {
+		meta l4proto udp udp dport 137 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto udp udp dport 138 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto tcp tcp dport 139 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto tcp tcp dport 445 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto udp udp dport 546 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+		meta l4proto udp udp dport 547 counter packets 0 bytes 0 jump ufw6-skip-to-policy-input
+	}
+
+	chain ufw6-after-output {
+	}
+
+	chain ufw6-after-forward {
+	}
+
+	chain ufw6-after-logging-input {
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw6-after-logging-output {
+	}
+
+	chain ufw6-after-logging-forward {
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw6-reject-input {
+	}
+
+	chain ufw6-reject-output {
+	}
+
+	chain ufw6-reject-forward {
+	}
+
+	chain ufw6-track-input {
+	}
+
+	chain ufw6-track-output {
+		meta l4proto tcp ct state new counter packets 173 bytes 13840 accept
+		meta l4proto udp ct state new counter packets 895 bytes 85873 accept
+	}
+
+	chain ufw6-track-forward {
+	}
+
+	chain INPUT {
+		type filter hook input priority filter; policy drop;
+		counter packets 589208 bytes 401960519 jump ufw6-before-logging-input
+		counter packets 589208 bytes 401960519 jump ufw6-before-input
+		counter packets 0 bytes 0 jump ufw6-after-input
+		counter packets 0 bytes 0 jump ufw6-after-logging-input
+		counter packets 0 bytes 0 jump ufw6-reject-input
+		counter packets 0 bytes 0 jump ufw6-track-input
+	}
+
+	chain OUTPUT {
+		type filter hook output priority filter; policy accept;
+		counter packets 583167 bytes 186631531 jump ufw6-before-logging-output
+		counter packets 583167 bytes 186631531 jump ufw6-before-output
+		counter packets 1096 bytes 102401 jump ufw6-after-output
+		counter packets 1096 bytes 102401 jump ufw6-after-logging-output
+		counter packets 1096 bytes 102401 jump ufw6-reject-output
+		counter packets 1096 bytes 102401 jump ufw6-track-output
+	}
+
+	chain FORWARD {
+		type filter hook forward priority filter; policy drop;
+		counter packets 0 bytes 0 jump ufw6-before-logging-forward
+		counter packets 0 bytes 0 jump ufw6-before-forward
+		counter packets 0 bytes 0 jump ufw6-after-forward
+		counter packets 0 bytes 0 jump ufw6-after-logging-forward
+		counter packets 0 bytes 0 jump ufw6-reject-forward
+		counter packets 0 bytes 0 jump ufw6-track-forward
+	}
+
+	chain ufw6-logging-deny {
+		ct state invalid limit rate 3/minute burst 10 packets counter packets 0 bytes 0 return
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW BLOCK] "
+	}
+
+	chain ufw6-logging-allow {
+		limit rate 3/minute burst 10 packets counter packets 0 bytes 0 log prefix "[UFW ALLOW] "
+	}
+
+	chain ufw6-skip-to-policy-input {
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw6-skip-to-policy-output {
+		counter packets 0 bytes 0 accept
+	}
+
+	chain ufw6-skip-to-policy-forward {
+		counter packets 0 bytes 0 drop
+	}
+
+	chain ufw6-user-input {
+		meta l4proto udp udp dport 51820 counter packets 0 bytes 0 accept
+		meta l4proto tcp tcp dport 22  counter packets 0 bytes 0 accept
+		meta l4proto tcp tcp dport 80 counter packets 0 bytes 0 accept
+		meta l4proto tcp tcp dport 443 counter packets 0 bytes 0 accept
+	}
+
+	chain ufw6-user-output {
+	}
+
+	chain ufw6-user-forward {
+	}
+
+	chain ufw6-user-logging-input {
+	}
+
+	chain ufw6-user-logging-output {
+	}
+
+	chain ufw6-user-logging-forward {
+	}
+
+	chain ufw6-user-limit {
+		limit rate 3/minute counter packets 0 bytes 0 log prefix "[UFW LIMIT BLOCK] "
+		counter packets 0 bytes 0 reject
+	}
+
+	chain ufw6-user-limit-accept {
+		counter packets 0 bytes 0 accept
+	}
+}
+table ip nat {
+	chain POSTROUTING {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "eth0" ip saddr 172.30.12.0/24 counter packets 0 bytes 0 masquerade 
+		oifname "eth0" ip saddr 10.9.0.0/24 counter packets 2 bytes 144 masquerade 
+		oifname "eth0" ip saddr 10.10.0.0/24 counter packets 6 bytes 432 masquerade 
+		oifname "eth0" ip saddr 10.8.0.0/24 counter packets 0 bytes 0 masquerade 
+	}
+}
+=== ss -lntup ===
+Netid State  Recv-Q Send-Q        Local Address:Port  Peer Address:PortProcess                                                                                                                                   
+udp   UNCONN 0      0                   0.0.0.0:500        0.0.0.0:*    users:(("charon",pid=3965239,fd=15))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:1194       0.0.0.0:*    users:(("openvpn",pid=3952231,fd=5))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:51820      0.0.0.0:*                                                                                                                                             
+udp   UNCONN 0      0             127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=645,fd=13))                                                                                                
+udp   UNCONN 0      0      138.199.204.139%eth0:68         0.0.0.0:*    users:(("systemd-network",pid=643,fd=15))                                                                                                
+udp   UNCONN 0      0                   0.0.0.0:68         0.0.0.0:*    users:(("dhclient",pid=210295,fd=9))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:68         0.0.0.0:*    users:(("charon",pid=3965239,fd=22))                                                                                                     
+udp   UNCONN 0      0                   0.0.0.0:4500       0.0.0.0:*    users:(("charon",pid=3965239,fd=16))                                                                                                     
+udp   UNCONN 0      0                         *:500              *:*    users:(("charon",pid=3965239,fd=13))                                                                                                     
+udp   UNCONN 0      0                      [::]:51820         [::]:*                                                                                                                                             
+udp   UNCONN 0      0                         *:4500             *:*    users:(("charon",pid=3965239,fd=14))                                                                                                     
+tcp   LISTEN 0      2048              127.0.0.1:8080       0.0.0.0:*    users:(("gunicorn",pid=309049,fd=5),("gunicorn",pid=309048,fd=5),("gunicorn",pid=309046,fd=5))                                           
+tcp   LISTEN 0      128                 0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=4251,fd=3))                                                                                                           
+tcp   LISTEN 0      511                 0.0.0.0:80         0.0.0.0:*    users:(("nginx",pid=305988,fd=6),("nginx",pid=305987,fd=6),("nginx",pid=305986,fd=6),("nginx",pid=305985,fd=6),("nginx",pid=123409,fd=6))
+tcp   LISTEN 0      4096          127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=645,fd=14))                                                                                                
+tcp   LISTEN 0      244               127.0.0.1:5432       0.0.0.0:*    users:(("postgres",pid=4086,fd=6))                                                                                                       
+tcp   LISTEN 0      244                   [::1]:5432          [::]:*    users:(("postgres",pid=4086,fd=5))                                                                                                       
+tcp   LISTEN 0      128                    [::]:22            [::]:*    users:(("sshd",pid=4251,fd=4))                                                                                                           
+tcp   LISTEN 0      511                    [::]:80            [::]:*    users:(("nginx",pid=305988,fd=7),("nginx",pid=305987,fd=7),("nginx",pid=305986,fd=7),("nginx",pid=305985,fd=7),("nginx",pid=123409,fd=7))
+=== systemctl status wg-quick@wg0 ===
+● wg-quick@wg0.service - WireGuard via wg-quick(8) for wg0
+     Loaded: loaded (/lib/systemd/system/wg-quick@.service; enabled; vendor preset: enabled)
+     Active: active (exited) since Fri 2026-02-27 19:09:56 UTC; 6min ago
+       Docs: man:wg-quick(8)
+             man:wg(8)
+             https://www.wireguard.com/
+             https://www.wireguard.com/quickstart/
+             https://git.zx2c4.com/wireguard-tools/about/src/man/wg-quick.8
+             https://git.zx2c4.com/wireguard-tools/about/src/man/wg.8
+    Process: 1254105 ExecStart=/usr/bin/wg-quick up wg0 (code=exited, status=0/SUCCESS)
+   Main PID: 1254105 (code=exited, status=0/SUCCESS)
+        CPU: 80ms
+
+Feb 27 19:09:56 securewave-prod wg-quick[1254105]: [#] wg setconf wg0 /dev/fd/63
+Feb 27 19:09:56 securewave-prod wg-quick[1254105]: [#] ip -4 address add 10.8.0.1/24 dev wg0
+Feb 27 19:09:56 securewave-prod wg-quick[1254105]: [#] ip link set mtu 1420 up dev wg0
+Feb 27 19:09:56 securewave-prod wg-quick[1254105]: [#] iptables -C FORWARD -i wg0 -o eth0 -j ACCEPT || iptables -A FORWARD -i wg0 -o eth0 -j ACCEPT
+Feb 27 19:09:56 securewave-prod wg-quick[1254150]: iptables: Bad rule (does a matching rule exist in that chain?).
+Feb 27 19:09:56 securewave-prod wg-quick[1254105]: [#] iptables -C FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || iptables -A FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+Feb 27 19:09:56 securewave-prod wg-quick[1254153]: iptables: Bad rule (does a matching rule exist in that chain?).
+Feb 27 19:09:56 securewave-prod wg-quick[1254105]: [#] iptables -t nat -C POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE || iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+Feb 27 19:09:56 securewave-prod wg-quick[1254156]: iptables: Bad rule (does a matching rule exist in that chain?).
+Feb 27 19:09:56 securewave-prod systemd[1]: Finished WireGuard via wg-quick(8) for wg0.
+=== systemctl status openvpn@server ===
+○ openvpn@server.service - OpenVPN connection to server
+     Loaded: loaded (/lib/systemd/system/openvpn@.service; disabled; vendor preset: enabled)
+     Active: inactive (dead)
+       Docs: man:openvpn(8)
+             https://community.openvpn.net/openvpn/wiki/Openvpn24ManPage
+             https://community.openvpn.net/openvpn/wiki/HOWTO
+=== systemctl status openvpn-server@server ===
+● openvpn-server@server.service - OpenVPN service for server
+     Loaded: loaded (/lib/systemd/system/openvpn-server@.service; enabled; vendor preset: enabled)
+     Active: active (running) since Thu 2026-02-26 17:40:43 UTC; 1 day 1h ago
+       Docs: man:openvpn(8)
+             https://community.openvpn.net/openvpn/wiki/Openvpn24ManPage
+             https://community.openvpn.net/openvpn/wiki/HOWTO
+   Main PID: 3952231 (openvpn)
+     Status: "Initialization Sequence Completed"
+      Tasks: 1 (limit: 9247)
+     Memory: 2.9M
+        CPU: 934ms
+     CGroup: /system.slice/system-openvpn\x2dserver.slice/openvpn-server@server.service
+             └─3952231 /usr/sbin/openvpn --status /run/openvpn-server/status-server.log --status-version 2 --suppress-timestamps --config server.conf
+
+Feb 27 19:07:03 securewave-prod openvpn[3952231]: 172.30.12.2:36234 TLS Error: TLS handshake failed
+Feb 27 19:07:03 securewave-prod openvpn[3952231]: 172.30.12.2:36234 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 TLS: Initial packet from [AF_INET]172.30.12.2:40913, sid=4213eaf9 d297f5f6
+Feb 27 19:13:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 19:13:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 TLS Error: TLS handshake failed
+Feb 27 19:13:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 SIGUSR1[soft,tls-error] received, client-instance restarting
+=== systemctl status strongswan ===
+=== systemctl status strongswan-starter ===
+● strongswan-starter.service - strongSwan IPsec IKEv1/IKEv2 daemon using ipsec.conf
+     Loaded: loaded (/lib/systemd/system/strongswan-starter.service; enabled; vendor preset: enabled)
+     Active: active (running) since Thu 2026-02-26 17:53:31 UTC; 1 day 1h ago
+   Main PID: 3965232 (starter)
+      Tasks: 18 (limit: 9247)
+     Memory: 5.9M
+        CPU: 39.959s
+     CGroup: /system.slice/strongswan-starter.service
+             ├─3965232 /usr/lib/ipsec/starter --daemon charon --nofork
+             └─3965239 /usr/lib/ipsec/charon
+
+Feb 27 19:08:54 securewave-prod charon[3965239]: 09[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:09:56 securewave-prod charon[3965239]: 10[KNL] interface wg0 deactivated
+Feb 27 19:09:56 securewave-prod charon[3965239]: 16[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 19:09:56 securewave-prod charon[3965239]: 06[KNL] interface wg0 deleted
+Feb 27 19:09:56 securewave-prod charon[3965239]: 07[NET] using forecast interface eth0
+Feb 27 19:09:56 securewave-prod charon[3965239]: 07[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:09:56 securewave-prod charon[3965239]: 08[KNL] 10.8.0.1 appeared on wg0
+Feb 27 19:09:56 securewave-prod charon[3965239]: 14[KNL] interface wg0 activated
+Feb 27 19:09:56 securewave-prod charon[3965239]: 06[NET] using forecast interface eth0
+Feb 27 19:09:56 securewave-prod charon[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+=== wg show ===
+interface: wg0
+  public key: w1bQ0wAmvob32mgEBQvVkTTAu10bSmyK7bGkC/06pGA=
+  private key: (hidden)
+  listening port: 51820
+
+peer: piYafZu8wLdWBeZMDdBy/b8MV/fTrW3FhzYcGFBoJB0=
+  allowed ips: 10.8.0.11/32
+
+peer: pbbwansdFHsXUy+GR1/jsNqibs7BOiGnVOOL0V/LuV4=
+  endpoint: 92.105.134.148:48761
+  allowed ips: 10.8.0.12/32
+
+peer: dBF61SMuIQEiK/t99mZWJI8WdiKs32MKdtmzzvJYJy8=
+  allowed ips: (none)
+
+peer: gki61YnoV4/J0ES0crfY+JBD7Xv0bVUVZwIGdSUqFCI=
+  endpoint: 185.100.234.112:14268
+  allowed ips: 10.8.0.13/32
+  transfer: 9.68 KiB received, 6.02 KiB sent
+
+peer: r91HLSLw3DkEhF37/jbJF9N/2j3V1UarsY7r1uFdfSI=
+  allowed ips: 10.8.0.19/32
+=== wg show wg0 latest-handshakes ===
+piYafZu8wLdWBeZMDdBy/b8MV/fTrW3FhzYcGFBoJB0=	0
+pbbwansdFHsXUy+GR1/jsNqibs7BOiGnVOOL0V/LuV4=	0
+dBF61SMuIQEiK/t99mZWJI8WdiKs32MKdtmzzvJYJy8=	0
+gki61YnoV4/J0ES0crfY+JBD7Xv0bVUVZwIGdSUqFCI=	0
+r91HLSLw3DkEhF37/jbJF9N/2j3V1UarsY7r1uFdfSI=	0
+=== wg show wg0 transfer ===
+piYafZu8wLdWBeZMDdBy/b8MV/fTrW3FhzYcGFBoJB0=	0	0
+pbbwansdFHsXUy+GR1/jsNqibs7BOiGnVOOL0V/LuV4=	0	0
+dBF61SMuIQEiK/t99mZWJI8WdiKs32MKdtmzzvJYJy8=	0	0
+gki61YnoV4/J0ES0crfY+JBD7Xv0bVUVZwIGdSUqFCI=	9916	6164
+r91HLSLw3DkEhF37/jbJF9N/2j3V1UarsY7r1uFdfSI=	0	0
+=== journalctl -u openvpn@server -n 200 ===
+-- No entries --
+=== journalctl -u openvpn-server@server -n 200 ===
+Feb 27 16:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:56988 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 16:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:56988 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 16:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:56988 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 16:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:56988 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 16:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:56988 TLS: Initial packet from [AF_INET]172.30.12.2:56988, sid=ff32f793 66e908a3
+Feb 27 16:49:00 securewave-prod openvpn[3952231]: 172.30.12.2:56988 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 16:49:00 securewave-prod openvpn[3952231]: 172.30.12.2:56988 TLS Error: TLS handshake failed
+Feb 27 16:49:00 securewave-prod openvpn[3952231]: 172.30.12.2:56988 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 16:54:00 securewave-prod openvpn[3952231]: 172.30.12.2:33298 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 16:54:00 securewave-prod openvpn[3952231]: 172.30.12.2:33298 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 16:54:00 securewave-prod openvpn[3952231]: 172.30.12.2:33298 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 16:54:00 securewave-prod openvpn[3952231]: 172.30.12.2:33298 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 16:54:00 securewave-prod openvpn[3952231]: 172.30.12.2:33298 TLS: Initial packet from [AF_INET]172.30.12.2:33298, sid=11837e5d 0046b7a5
+Feb 27 16:55:00 securewave-prod openvpn[3952231]: 172.30.12.2:33298 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 16:55:00 securewave-prod openvpn[3952231]: 172.30.12.2:33298 TLS Error: TLS handshake failed
+Feb 27 16:55:00 securewave-prod openvpn[3952231]: 172.30.12.2:33298 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:00:00 securewave-prod openvpn[3952231]: 172.30.12.2:44628 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:00:00 securewave-prod openvpn[3952231]: 172.30.12.2:44628 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:00:00 securewave-prod openvpn[3952231]: 172.30.12.2:44628 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:00:00 securewave-prod openvpn[3952231]: 172.30.12.2:44628 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:00:00 securewave-prod openvpn[3952231]: 172.30.12.2:44628 TLS: Initial packet from [AF_INET]172.30.12.2:44628, sid=e0c1ec20 7de1b9c2
+Feb 27 17:01:00 securewave-prod openvpn[3952231]: 172.30.12.2:44628 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:01:00 securewave-prod openvpn[3952231]: 172.30.12.2:44628 TLS Error: TLS handshake failed
+Feb 27 17:01:00 securewave-prod openvpn[3952231]: 172.30.12.2:44628 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:06:00 securewave-prod openvpn[3952231]: 172.30.12.2:33830 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:06:00 securewave-prod openvpn[3952231]: 172.30.12.2:33830 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:06:00 securewave-prod openvpn[3952231]: 172.30.12.2:33830 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:06:00 securewave-prod openvpn[3952231]: 172.30.12.2:33830 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:06:00 securewave-prod openvpn[3952231]: 172.30.12.2:33830 TLS: Initial packet from [AF_INET]172.30.12.2:33830, sid=96436873 e2918955
+Feb 27 17:07:00 securewave-prod openvpn[3952231]: 172.30.12.2:33830 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:07:00 securewave-prod openvpn[3952231]: 172.30.12.2:33830 TLS Error: TLS handshake failed
+Feb 27 17:07:00 securewave-prod openvpn[3952231]: 172.30.12.2:33830 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:12:00 securewave-prod openvpn[3952231]: 172.30.12.2:35739 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:12:00 securewave-prod openvpn[3952231]: 172.30.12.2:35739 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:12:00 securewave-prod openvpn[3952231]: 172.30.12.2:35739 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:12:00 securewave-prod openvpn[3952231]: 172.30.12.2:35739 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:12:00 securewave-prod openvpn[3952231]: 172.30.12.2:35739 TLS: Initial packet from [AF_INET]172.30.12.2:35739, sid=5862cc91 1872393e
+Feb 27 17:13:00 securewave-prod openvpn[3952231]: 172.30.12.2:35739 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:13:00 securewave-prod openvpn[3952231]: 172.30.12.2:35739 TLS Error: TLS handshake failed
+Feb 27 17:13:00 securewave-prod openvpn[3952231]: 172.30.12.2:35739 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:18:00 securewave-prod openvpn[3952231]: 172.30.12.2:53009 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:18:00 securewave-prod openvpn[3952231]: 172.30.12.2:53009 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:18:00 securewave-prod openvpn[3952231]: 172.30.12.2:53009 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:18:00 securewave-prod openvpn[3952231]: 172.30.12.2:53009 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:18:00 securewave-prod openvpn[3952231]: 172.30.12.2:53009 TLS: Initial packet from [AF_INET]172.30.12.2:53009, sid=46a5f3e2 4c885a19
+Feb 27 17:19:00 securewave-prod openvpn[3952231]: 172.30.12.2:53009 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:19:00 securewave-prod openvpn[3952231]: 172.30.12.2:53009 TLS Error: TLS handshake failed
+Feb 27 17:19:00 securewave-prod openvpn[3952231]: 172.30.12.2:53009 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:24:00 securewave-prod openvpn[3952231]: 172.30.12.2:38257 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:24:00 securewave-prod openvpn[3952231]: 172.30.12.2:38257 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:24:00 securewave-prod openvpn[3952231]: 172.30.12.2:38257 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:24:00 securewave-prod openvpn[3952231]: 172.30.12.2:38257 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:24:00 securewave-prod openvpn[3952231]: 172.30.12.2:38257 TLS: Initial packet from [AF_INET]172.30.12.2:38257, sid=6fcad631 950e8e82
+Feb 27 17:25:00 securewave-prod openvpn[3952231]: 172.30.12.2:38257 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:25:00 securewave-prod openvpn[3952231]: 172.30.12.2:38257 TLS Error: TLS handshake failed
+Feb 27 17:25:00 securewave-prod openvpn[3952231]: 172.30.12.2:38257 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:30:00 securewave-prod openvpn[3952231]: 172.30.12.2:32950 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:30:00 securewave-prod openvpn[3952231]: 172.30.12.2:32950 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:30:00 securewave-prod openvpn[3952231]: 172.30.12.2:32950 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:30:00 securewave-prod openvpn[3952231]: 172.30.12.2:32950 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:30:00 securewave-prod openvpn[3952231]: 172.30.12.2:32950 TLS: Initial packet from [AF_INET]172.30.12.2:32950, sid=d91695e3 a272d992
+Feb 27 17:31:01 securewave-prod openvpn[3952231]: 172.30.12.2:32950 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:31:01 securewave-prod openvpn[3952231]: 172.30.12.2:32950 TLS Error: TLS handshake failed
+Feb 27 17:31:01 securewave-prod openvpn[3952231]: 172.30.12.2:32950 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:36:00 securewave-prod openvpn[3952231]: 172.30.12.2:58843 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:36:00 securewave-prod openvpn[3952231]: 172.30.12.2:58843 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:36:00 securewave-prod openvpn[3952231]: 172.30.12.2:58843 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:36:00 securewave-prod openvpn[3952231]: 172.30.12.2:58843 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:36:00 securewave-prod openvpn[3952231]: 172.30.12.2:58843 TLS: Initial packet from [AF_INET]172.30.12.2:58843, sid=5c75ef82 e2b7fdcc
+Feb 27 17:37:00 securewave-prod openvpn[3952231]: 172.30.12.2:58843 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:37:00 securewave-prod openvpn[3952231]: 172.30.12.2:58843 TLS Error: TLS handshake failed
+Feb 27 17:37:00 securewave-prod openvpn[3952231]: 172.30.12.2:58843 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:42:00 securewave-prod openvpn[3952231]: 172.30.12.2:58587 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:42:00 securewave-prod openvpn[3952231]: 172.30.12.2:58587 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:42:00 securewave-prod openvpn[3952231]: 172.30.12.2:58587 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:42:00 securewave-prod openvpn[3952231]: 172.30.12.2:58587 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:42:00 securewave-prod openvpn[3952231]: 172.30.12.2:58587 TLS: Initial packet from [AF_INET]172.30.12.2:58587, sid=3422f9a3 900c15e0
+Feb 27 17:43:00 securewave-prod openvpn[3952231]: 172.30.12.2:58587 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:43:00 securewave-prod openvpn[3952231]: 172.30.12.2:58587 TLS Error: TLS handshake failed
+Feb 27 17:43:00 securewave-prod openvpn[3952231]: 172.30.12.2:58587 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:48636 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:48636 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:48636 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:48636 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:48:00 securewave-prod openvpn[3952231]: 172.30.12.2:48636 TLS: Initial packet from [AF_INET]172.30.12.2:48636, sid=2987dfb2 a34696dc
+Feb 27 17:49:00 securewave-prod openvpn[3952231]: 172.30.12.2:48636 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:49:00 securewave-prod openvpn[3952231]: 172.30.12.2:48636 TLS Error: TLS handshake failed
+Feb 27 17:49:00 securewave-prod openvpn[3952231]: 172.30.12.2:48636 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 17:54:01 securewave-prod openvpn[3952231]: 172.30.12.2:46716 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:54:01 securewave-prod openvpn[3952231]: 172.30.12.2:46716 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:54:01 securewave-prod openvpn[3952231]: 172.30.12.2:46716 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 17:54:01 securewave-prod openvpn[3952231]: 172.30.12.2:46716 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 17:54:01 securewave-prod openvpn[3952231]: 172.30.12.2:46716 TLS: Initial packet from [AF_INET]172.30.12.2:46716, sid=e3ecd3b1 f11b44f0
+Feb 27 17:55:02 securewave-prod openvpn[3952231]: 172.30.12.2:46716 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 17:55:02 securewave-prod openvpn[3952231]: 172.30.12.2:46716 TLS Error: TLS handshake failed
+Feb 27 17:55:02 securewave-prod openvpn[3952231]: 172.30.12.2:46716 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:00:01 securewave-prod openvpn[3952231]: 172.30.12.2:57620 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:00:01 securewave-prod openvpn[3952231]: 172.30.12.2:57620 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:00:01 securewave-prod openvpn[3952231]: 172.30.12.2:57620 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:00:01 securewave-prod openvpn[3952231]: 172.30.12.2:57620 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:00:01 securewave-prod openvpn[3952231]: 172.30.12.2:57620 TLS: Initial packet from [AF_INET]172.30.12.2:57620, sid=fed0d3e1 26130736
+Feb 27 18:01:01 securewave-prod openvpn[3952231]: 172.30.12.2:57620 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:01:01 securewave-prod openvpn[3952231]: 172.30.12.2:57620 TLS Error: TLS handshake failed
+Feb 27 18:01:01 securewave-prod openvpn[3952231]: 172.30.12.2:57620 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:06:01 securewave-prod openvpn[3952231]: 172.30.12.2:58409 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:06:01 securewave-prod openvpn[3952231]: 172.30.12.2:58409 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:06:01 securewave-prod openvpn[3952231]: 172.30.12.2:58409 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:06:01 securewave-prod openvpn[3952231]: 172.30.12.2:58409 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:06:01 securewave-prod openvpn[3952231]: 172.30.12.2:58409 TLS: Initial packet from [AF_INET]172.30.12.2:58409, sid=b9d3b0ff 39d5c3b7
+Feb 27 18:07:02 securewave-prod openvpn[3952231]: 172.30.12.2:58409 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:07:02 securewave-prod openvpn[3952231]: 172.30.12.2:58409 TLS Error: TLS handshake failed
+Feb 27 18:07:02 securewave-prod openvpn[3952231]: 172.30.12.2:58409 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:12:01 securewave-prod openvpn[3952231]: 172.30.12.2:52492 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:12:01 securewave-prod openvpn[3952231]: 172.30.12.2:52492 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:12:01 securewave-prod openvpn[3952231]: 172.30.12.2:52492 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:12:01 securewave-prod openvpn[3952231]: 172.30.12.2:52492 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:12:01 securewave-prod openvpn[3952231]: 172.30.12.2:52492 TLS: Initial packet from [AF_INET]172.30.12.2:52492, sid=a6863117 e7d53169
+Feb 27 18:13:01 securewave-prod openvpn[3952231]: 172.30.12.2:52492 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:13:01 securewave-prod openvpn[3952231]: 172.30.12.2:52492 TLS Error: TLS handshake failed
+Feb 27 18:13:01 securewave-prod openvpn[3952231]: 172.30.12.2:52492 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:18:01 securewave-prod openvpn[3952231]: 172.30.12.2:54719 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:18:01 securewave-prod openvpn[3952231]: 172.30.12.2:54719 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:18:01 securewave-prod openvpn[3952231]: 172.30.12.2:54719 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:18:01 securewave-prod openvpn[3952231]: 172.30.12.2:54719 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:18:01 securewave-prod openvpn[3952231]: 172.30.12.2:54719 TLS: Initial packet from [AF_INET]172.30.12.2:54719, sid=b3d0b0b0 f0d21aaa
+Feb 27 18:19:01 securewave-prod openvpn[3952231]: 172.30.12.2:54719 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:19:01 securewave-prod openvpn[3952231]: 172.30.12.2:54719 TLS Error: TLS handshake failed
+Feb 27 18:19:01 securewave-prod openvpn[3952231]: 172.30.12.2:54719 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:24:02 securewave-prod openvpn[3952231]: 172.30.12.2:43140 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:24:02 securewave-prod openvpn[3952231]: 172.30.12.2:43140 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:24:02 securewave-prod openvpn[3952231]: 172.30.12.2:43140 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:24:02 securewave-prod openvpn[3952231]: 172.30.12.2:43140 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:24:02 securewave-prod openvpn[3952231]: 172.30.12.2:43140 TLS: Initial packet from [AF_INET]172.30.12.2:43140, sid=063cdbc7 3c1d69cf
+Feb 27 18:25:02 securewave-prod openvpn[3952231]: 172.30.12.2:43140 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:25:02 securewave-prod openvpn[3952231]: 172.30.12.2:43140 TLS Error: TLS handshake failed
+Feb 27 18:25:02 securewave-prod openvpn[3952231]: 172.30.12.2:43140 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:30:02 securewave-prod openvpn[3952231]: 172.30.12.2:44991 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:30:02 securewave-prod openvpn[3952231]: 172.30.12.2:44991 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:30:02 securewave-prod openvpn[3952231]: 172.30.12.2:44991 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:30:02 securewave-prod openvpn[3952231]: 172.30.12.2:44991 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:30:02 securewave-prod openvpn[3952231]: 172.30.12.2:44991 TLS: Initial packet from [AF_INET]172.30.12.2:44991, sid=d0049977 abe02ca8
+Feb 27 18:31:02 securewave-prod openvpn[3952231]: 172.30.12.2:44991 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:31:02 securewave-prod openvpn[3952231]: 172.30.12.2:44991 TLS Error: TLS handshake failed
+Feb 27 18:31:02 securewave-prod openvpn[3952231]: 172.30.12.2:44991 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:36:02 securewave-prod openvpn[3952231]: 172.30.12.2:47958 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:36:02 securewave-prod openvpn[3952231]: 172.30.12.2:47958 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:36:02 securewave-prod openvpn[3952231]: 172.30.12.2:47958 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:36:02 securewave-prod openvpn[3952231]: 172.30.12.2:47958 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:36:02 securewave-prod openvpn[3952231]: 172.30.12.2:47958 TLS: Initial packet from [AF_INET]172.30.12.2:47958, sid=a12080d2 5d8914f4
+Feb 27 18:37:03 securewave-prod openvpn[3952231]: 172.30.12.2:47958 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:37:03 securewave-prod openvpn[3952231]: 172.30.12.2:47958 TLS Error: TLS handshake failed
+Feb 27 18:37:03 securewave-prod openvpn[3952231]: 172.30.12.2:47958 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:42:02 securewave-prod openvpn[3952231]: 172.30.12.2:51044 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:42:02 securewave-prod openvpn[3952231]: 172.30.12.2:51044 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:42:02 securewave-prod openvpn[3952231]: 172.30.12.2:51044 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:42:02 securewave-prod openvpn[3952231]: 172.30.12.2:51044 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:42:02 securewave-prod openvpn[3952231]: 172.30.12.2:51044 TLS: Initial packet from [AF_INET]172.30.12.2:51044, sid=e8c73285 12994c3f
+Feb 27 18:43:02 securewave-prod openvpn[3952231]: 172.30.12.2:51044 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:43:02 securewave-prod openvpn[3952231]: 172.30.12.2:51044 TLS Error: TLS handshake failed
+Feb 27 18:43:02 securewave-prod openvpn[3952231]: 172.30.12.2:51044 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:48:02 securewave-prod openvpn[3952231]: 172.30.12.2:49957 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:48:02 securewave-prod openvpn[3952231]: 172.30.12.2:49957 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:48:02 securewave-prod openvpn[3952231]: 172.30.12.2:49957 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:48:02 securewave-prod openvpn[3952231]: 172.30.12.2:49957 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:48:02 securewave-prod openvpn[3952231]: 172.30.12.2:49957 TLS: Initial packet from [AF_INET]172.30.12.2:49957, sid=26387c45 ef9a502c
+Feb 27 18:49:02 securewave-prod openvpn[3952231]: 172.30.12.2:49957 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:49:02 securewave-prod openvpn[3952231]: 172.30.12.2:49957 TLS Error: TLS handshake failed
+Feb 27 18:49:02 securewave-prod openvpn[3952231]: 172.30.12.2:49957 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 18:54:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:54:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:54:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 18:54:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 18:54:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 TLS: Initial packet from [AF_INET]172.30.12.2:39472, sid=1e2e90e4 86e1b332
+Feb 27 18:55:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 18:55:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 TLS Error: TLS handshake failed
+Feb 27 18:55:02 securewave-prod openvpn[3952231]: 172.30.12.2:39472 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:00:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 TLS: Initial packet from [AF_INET]172.30.12.2:44050, sid=c9a2e396 054c05c0
+Feb 27 19:01:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 19:01:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 TLS Error: TLS handshake failed
+Feb 27 19:01:02 securewave-prod openvpn[3952231]: 172.30.12.2:44050 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 19:06:02 securewave-prod openvpn[3952231]: 172.30.12.2:36234 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:06:02 securewave-prod openvpn[3952231]: 172.30.12.2:36234 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:06:02 securewave-prod openvpn[3952231]: 172.30.12.2:36234 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:06:02 securewave-prod openvpn[3952231]: 172.30.12.2:36234 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:06:02 securewave-prod openvpn[3952231]: 172.30.12.2:36234 TLS: Initial packet from [AF_INET]172.30.12.2:36234, sid=eb19f342 eec1bfb5
+Feb 27 19:07:03 securewave-prod openvpn[3952231]: 172.30.12.2:36234 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 19:07:03 securewave-prod openvpn[3952231]: 172.30.12.2:36234 TLS Error: TLS handshake failed
+Feb 27 19:07:03 securewave-prod openvpn[3952231]: 172.30.12.2:36234 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 19:12:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 TLS: Initial packet from [AF_INET]172.30.12.2:40913, sid=4213eaf9 d297f5f6
+Feb 27 19:13:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 19:13:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 TLS Error: TLS handshake failed
+Feb 27 19:13:02 securewave-prod openvpn[3952231]: 172.30.12.2:40913 SIGUSR1[soft,tls-error] received, client-instance restarting
+=== journalctl -u strongswan -n 200 ===
+-- No entries --
+=== journalctl -u strongswan-starter -n 200 ===
+Feb 27 18:29:51 securewave-prod charon[3965239]: 16[NET] using forecast interface eth0
+Feb 27 18:29:51 securewave-prod charon[3965239]: 16[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:37:47 securewave-prod charon[3965239]: 14[KNL] interface wg0 deactivated
+Feb 27 18:37:47 securewave-prod charon[3965239]: 06[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:37:47 securewave-prod charon[3965239]: 11[KNL] interface wg0 deleted
+Feb 27 18:37:47 securewave-prod charon[3965239]: 13[NET] using forecast interface eth0
+Feb 27 18:37:47 securewave-prod charon[3965239]: 13[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:37:47 securewave-prod charon[3965239]: 16[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:37:47 securewave-prod charon[3965239]: 02[KNL] interface wg0 activated
+Feb 27 18:37:47 securewave-prod charon[3965239]: 06[NET] using forecast interface eth0
+Feb 27 18:37:47 securewave-prod charon[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:38:49 securewave-prod charon[3965239]: 14[KNL] interface wg0 deactivated
+Feb 27 18:38:49 securewave-prod charon[3965239]: 15[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:38:49 securewave-prod charon[3965239]: 06[KNL] interface wg0 deleted
+Feb 27 18:38:49 securewave-prod charon[3965239]: 10[NET] using forecast interface eth0
+Feb 27 18:38:49 securewave-prod charon[3965239]: 10[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:38:50 securewave-prod charon[3965239]: 16[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:38:50 securewave-prod charon[3965239]: 02[KNL] interface wg0 activated
+Feb 27 18:38:50 securewave-prod charon[3965239]: 15[NET] using forecast interface eth0
+Feb 27 18:38:50 securewave-prod charon[3965239]: 15[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:39:52 securewave-prod charon[3965239]: 07[KNL] interface wg0 deactivated
+Feb 27 18:39:52 securewave-prod charon[3965239]: 05[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:39:52 securewave-prod charon[3965239]: 08[KNL] interface wg0 deleted
+Feb 27 18:39:52 securewave-prod charon[3965239]: 11[NET] using forecast interface eth0
+Feb 27 18:39:52 securewave-prod charon[3965239]: 11[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:39:52 securewave-prod charon[3965239]: 13[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:39:52 securewave-prod charon[3965239]: 09[KNL] interface wg0 activated
+Feb 27 18:39:52 securewave-prod charon[3965239]: 14[NET] using forecast interface eth0
+Feb 27 18:39:52 securewave-prod charon[3965239]: 14[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:47:48 securewave-prod charon[3965239]: 09[KNL] interface wg0 deactivated
+Feb 27 18:47:48 securewave-prod charon[3965239]: 07[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:47:48 securewave-prod charon[3965239]: 05[KNL] interface wg0 deleted
+Feb 27 18:47:48 securewave-prod charon[3965239]: 08[NET] using forecast interface eth0
+Feb 27 18:47:48 securewave-prod charon[3965239]: 08[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:47:49 securewave-prod charon[3965239]: 11[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:47:49 securewave-prod charon[3965239]: 13[KNL] interface wg0 activated
+Feb 27 18:47:49 securewave-prod charon[3965239]: 02[NET] using forecast interface eth0
+Feb 27 18:47:49 securewave-prod charon[3965239]: 02[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:48:51 securewave-prod charon[3965239]: 06[KNL] interface wg0 deactivated
+Feb 27 18:48:51 securewave-prod charon[3965239]: 15[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:48:51 securewave-prod charon[3965239]: 10[KNL] interface wg0 deleted
+Feb 27 18:48:51 securewave-prod charon[3965239]: 09[NET] using forecast interface eth0
+Feb 27 18:48:51 securewave-prod charon[3965239]: 09[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:48:51 securewave-prod charon[3965239]: 07[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:48:51 securewave-prod charon[3965239]: 14[KNL] interface wg0 activated
+Feb 27 18:48:51 securewave-prod charon[3965239]: 13[NET] using forecast interface eth0
+Feb 27 18:48:51 securewave-prod charon[3965239]: 13[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:49:54 securewave-prod charon[3965239]: 02[KNL] interface wg0 deactivated
+Feb 27 18:49:54 securewave-prod charon[3965239]: 08[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:49:54 securewave-prod charon[3965239]: 11[KNL] interface wg0 deleted
+Feb 27 18:49:54 securewave-prod charon[3965239]: 15[NET] using forecast interface eth0
+Feb 27 18:49:54 securewave-prod charon[3965239]: 15[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:49:54 securewave-prod charon[3965239]: 16[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:49:54 securewave-prod charon[3965239]: 05[KNL] interface wg0 activated
+Feb 27 18:49:54 securewave-prod charon[3965239]: 06[NET] using forecast interface eth0
+Feb 27 18:49:54 securewave-prod charon[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod charon[3965239]: 10[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod charon[3965239]: 13[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod charon[3965239]: 09[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod charon[3965239]: 05[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod charon[3965239]: 05[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 10[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 07[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 05[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 09[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 09[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 02[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 08[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 14[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 15[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 15[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 13[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 16[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 08[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 08[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 11[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 09[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 10[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 02[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 02[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 14[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 06[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 16[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 16[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 14[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 06[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 11[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 13[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 13[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 16[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 02[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 06[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 14[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 15[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 06[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 10[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 10[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 16[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 02[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 15[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 15[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 07[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 05[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 08[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 11[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 11[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 13[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 09[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 14[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 14[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 09[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 07[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 05[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 08[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 08[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 11[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 13[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 02[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 02[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 06[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 15[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 10[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 09[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 09[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 07[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 14[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 13[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 13[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 02[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 08[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 11[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 15[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 15[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 16[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 05[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 06[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 10[KNL] interface wg0 deactivated
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 13[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 09[KNL] interface wg0 deleted
+Feb 27 18:57:50 securewave-prod ipsec[3965239]: 05[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod charon[3965239]: 14[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:57:50 securewave-prod charon[3965239]: 08[KNL] interface wg0 activated
+Feb 27 18:57:50 securewave-prod charon[3965239]: 13[NET] using forecast interface eth0
+Feb 27 18:57:50 securewave-prod charon[3965239]: 13[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:58:52 securewave-prod charon[3965239]: 05[KNL] interface wg0 deactivated
+Feb 27 18:58:52 securewave-prod charon[3965239]: 14[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:58:52 securewave-prod charon[3965239]: 08[KNL] interface wg0 deleted
+Feb 27 18:58:52 securewave-prod charon[3965239]: 06[NET] using forecast interface eth0
+Feb 27 18:58:52 securewave-prod charon[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:58:52 securewave-prod charon[3965239]: 09[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:58:52 securewave-prod charon[3965239]: 13[KNL] interface wg0 activated
+Feb 27 18:58:53 securewave-prod charon[3965239]: 14[NET] using forecast interface eth0
+Feb 27 18:58:53 securewave-prod charon[3965239]: 14[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:59:55 securewave-prod charon[3965239]: 07[KNL] interface wg0 deactivated
+Feb 27 18:59:55 securewave-prod charon[3965239]: 02[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 18:59:55 securewave-prod charon[3965239]: 08[KNL] interface wg0 deleted
+Feb 27 18:59:55 securewave-prod charon[3965239]: 14[NET] using forecast interface eth0
+Feb 27 18:59:55 securewave-prod charon[3965239]: 14[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 18:59:55 securewave-prod charon[3965239]: 15[KNL] 10.8.0.1 appeared on wg0
+Feb 27 18:59:55 securewave-prod charon[3965239]: 16[KNL] interface wg0 activated
+Feb 27 18:59:55 securewave-prod charon[3965239]: 06[NET] using forecast interface eth0
+Feb 27 18:59:55 securewave-prod charon[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:07:51 securewave-prod charon[3965239]: 09[KNL] interface wg0 deactivated
+Feb 27 19:07:51 securewave-prod charon[3965239]: 07[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 19:07:51 securewave-prod charon[3965239]: 02[KNL] interface wg0 deleted
+Feb 27 19:07:51 securewave-prod charon[3965239]: 11[NET] using forecast interface eth0
+Feb 27 19:07:51 securewave-prod charon[3965239]: 11[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:07:51 securewave-prod charon[3965239]: 10[KNL] 10.8.0.1 appeared on wg0
+Feb 27 19:07:51 securewave-prod charon[3965239]: 06[KNL] interface wg0 activated
+Feb 27 19:07:51 securewave-prod charon[3965239]: 08[KNL] interface wg0 deactivated
+Feb 27 19:07:51 securewave-prod charon[3965239]: 14[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 19:07:51 securewave-prod charon[3965239]: 15[KNL] interface wg0 deleted
+Feb 27 19:07:51 securewave-prod charon[3965239]: 05[NET] using forecast interface eth0
+Feb 27 19:07:51 securewave-prod charon[3965239]: 05[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:07:51 securewave-prod charon[3965239]: 06[NET] using forecast interface eth0
+Feb 27 19:07:51 securewave-prod charon[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:07:52 securewave-prod charon[3965239]: 13[KNL] 10.8.0.1 appeared on wg0
+Feb 27 19:07:52 securewave-prod charon[3965239]: 02[KNL] interface wg0 activated
+Feb 27 19:07:52 securewave-prod charon[3965239]: 15[NET] using forecast interface eth0
+Feb 27 19:07:52 securewave-prod charon[3965239]: 15[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:08:53 securewave-prod charon[3965239]: 05[KNL] interface wg0 deactivated
+Feb 27 19:08:53 securewave-prod charon[3965239]: 15[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 19:08:53 securewave-prod charon[3965239]: 09[KNL] interface wg0 deleted
+Feb 27 19:08:53 securewave-prod charon[3965239]: 13[NET] using forecast interface eth0
+Feb 27 19:08:53 securewave-prod charon[3965239]: 13[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:08:54 securewave-prod charon[3965239]: 08[KNL] 10.8.0.1 appeared on wg0
+Feb 27 19:08:54 securewave-prod charon[3965239]: 14[KNL] interface wg0 activated
+Feb 27 19:08:54 securewave-prod charon[3965239]: 09[NET] using forecast interface eth0
+Feb 27 19:08:54 securewave-prod charon[3965239]: 09[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:09:56 securewave-prod charon[3965239]: 10[KNL] interface wg0 deactivated
+Feb 27 19:09:56 securewave-prod charon[3965239]: 16[KNL] 10.8.0.1 disappeared from wg0
+Feb 27 19:09:56 securewave-prod charon[3965239]: 06[KNL] interface wg0 deleted
+Feb 27 19:09:56 securewave-prod charon[3965239]: 07[NET] using forecast interface eth0
+Feb 27 19:09:56 securewave-prod charon[3965239]: 07[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 27 19:09:56 securewave-prod charon[3965239]: 08[KNL] 10.8.0.1 appeared on wg0
+Feb 27 19:09:56 securewave-prod charon[3965239]: 14[KNL] interface wg0 activated
+Feb 27 19:09:56 securewave-prod charon[3965239]: 06[NET] using forecast interface eth0
+Feb 27 19:09:56 securewave-prod charon[3965239]: 06[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+=== openvpn server config ===
+port 1194
+proto udp
+dev tun
+topology subnet
+server 10.9.0.0 255.255.255.0
+
+user nobody
+group nogroup
+persist-key
+persist-tun
+keepalive 10 60
+explicit-exit-notify 1
+
+ca /etc/openvpn/server/ca.crt
+cert /etc/openvpn/server/server.crt
+key /etc/openvpn/server/server.key
+dh none
+ecdh-curve prime256v1
+tls-crypt /etc/openvpn/server/tls-crypt.key
+
+tls-server
+cipher AES-256-GCM
+data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
+auth SHA256
+
+push "redirect-gateway def1 bypass-dhcp"
+push "dhcp-option DNS 1.1.1.1"
+push "dhcp-option DNS 1.0.0.1"
+
+status /var/log/openvpn/status.log
+verb 3
+=== ipsec.conf ===
+config setup
+  uniqueids=no
+
+conn securewave-ikev2-eap
+  auto=add
+  type=tunnel
+  keyexchange=ikev2
+  fragmentation=yes
+  forceencaps=yes
+  dpdaction=clear
+  dpddelay=300s
+  rekey=no
+
+  left=%any
+  leftid=138.199.204.139
+  leftcert=server-cert.pem
+  leftsendcert=always
+  leftsubnet=0.0.0.0/0
+
+  right=%any
+  rightid=%any
+  rightauth=eap-mschapv2
+  rightsourceip=10.10.0.10-10.10.0.250
+  rightdns=1.1.1.1,1.0.0.1
+  rightsendcert=never
+  eap_identity=%identity
+
+  ike=aes256gcm16-prfsha256-ecp256,aes128gcm16-prfsha256-ecp256,aes256-sha256-modp2048!
+  esp=aes256gcm16-ecp256,aes128gcm16-ecp256,aes256-sha256!
+=== ipsec.secrets (first token only) ===
+1::
+2:securewave
+3:sw_probe_user
+4:sw_f2f4d4b213c9d600216c
+5:sw_10d210b68549b32afd8a
+=== wg0.conf ===
+[Interface]
+Address = 10.8.0.1/24
+PostUp = iptables -C FORWARD -i wg0 -o eth0 -j ACCEPT || iptables -A FORWARD -i wg0 -o eth0 -j ACCEPT
+PostUp = iptables -C FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || iptables -A FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+PostUp = iptables -t nat -C POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE || iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -o eth0 -j ACCEPT || true
+PostDown = iptables -D FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || true
+PostDown = iptables -t nat -D POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE || true
+ListenPort = 51820
+PrivateKey = 2Kddw6dZeoDhbatc+DS5utku1WvJfoMFCkleSw2mznY=
+
+[Peer]
+PublicKey = piYafZu8wLdWBeZMDdBy/b8MV/fTrW3FhzYcGFBoJB0=
+AllowedIPs = 10.8.0.11/32
+
+[Peer]
+PublicKey = pbbwansdFHsXUy+GR1/jsNqibs7BOiGnVOOL0V/LuV4=
+AllowedIPs = 10.8.0.12/32
+Endpoint = 92.105.134.148:48761
+
+[Peer]
+PublicKey = dBF61SMuIQEiK/t99mZWJI8WdiKs32MKdtmzzvJYJy8=
+
+[Peer]
+PublicKey = gki61YnoV4/J0ES0crfY+JBD7Xv0bVUVZwIGdSUqFCI=
+AllowedIPs = 10.8.0.13/32
+Endpoint = 92.105.134.148:45395
+
+[Peer]
+PublicKey = r91HLSLw3DkEhF37/jbJF9N/2j3V1UarsY7r1uFdfSI=
+AllowedIPs = 10.8.0.19/32
+=== provisioning scripts exists ===
+OK /usr/local/bin/securewave-openvpn-issue-client
+OK /usr/local/bin/securewave-openvpn-upsert-user
+OK /usr/local/bin/securewave-openvpn-revoke-client
+OK /usr/local/bin/securewave-ikev2-issue-client
+OK /usr/local/bin/securewave-ikev2-upsert-user
+OK /usr/local/bin/securewave-ikev2-revoke-client
