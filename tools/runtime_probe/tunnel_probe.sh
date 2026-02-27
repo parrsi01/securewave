@@ -5,6 +5,8 @@ CONNECT_CMD=""
 DISCONNECT_CMD=""
 SKIP_INTERACTIVE=0
 STOP_AFTER_BASELINE=0
+CONNECT_CMD_STATUS=0
+DISCONNECT_CMD_STATUS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -302,6 +304,9 @@ generate_report() {
   local b="${OUT_DIR}/baseline"
   local p="${OUT_DIR}/post_connect"
   local d="${OUT_DIR}/post_disconnect"
+  local connect_cmd_status disconnect_cmd_status
+  connect_cmd_status="$(tr -d '\r\n' <"${OUT_DIR}/connect_cmd_exit_status.txt" 2>/dev/null || printf -- 'n/a')"
+  disconnect_cmd_status="$(tr -d '\r\n' <"${OUT_DIR}/disconnect_cmd_exit_status.txt" 2>/dev/null || printf -- 'n/a')"
 
   local b_default p_default b_ip p_ip b_get1_iface p_get1_iface
   local b_dns_resolver p_dns_resolver
@@ -381,6 +386,8 @@ generate_report() {
     printf -- '- Output dir: `%s`\n\n' "${OUT_DIR}"
 
     printf -- '## Summary Verdicts\n\n'
+    printf -- '- Connect command exit status: **%s**\n' "${connect_cmd_status}"
+    printf -- '- Disconnect command exit status: **%s**\n' "${disconnect_cmd_status}"
     printf -- '- Tunnel up (wg/tun interface visible post-connect): **%s**\n' "${iface_present}"
     printf -- '- WireGuard handshake observed (if WireGuard): **%s**\n' "${wg_handshake}"
     printf -- '- Default route changed: **%s**\n' "${default_changed}"
@@ -451,6 +458,8 @@ generate_report() {
 
     printf -- '### PCAPs (`pcap/`)\n\n'
     printf -- '- Optional interface captures if sudo+tcpdump were available.\n'
+    printf -- '- `connect_cmd_exit_status.txt`\n'
+    printf -- '- `disconnect_cmd_exit_status.txt`\n'
   } >"${report}"
 }
 
@@ -485,7 +494,13 @@ fi
 
 if [[ -n "${CONNECT_CMD}" ]]; then
   log "running connect command"
-  bash -lc "${CONNECT_CMD}" || warn "connect command exited non-zero"
+  set +e
+  bash -lc "${CONNECT_CMD}"
+  CONNECT_CMD_STATUS=$?
+  set -e
+  if [[ "${CONNECT_CMD_STATUS}" -ne 0 ]]; then
+    warn "connect command exited non-zero (${CONNECT_CMD_STATUS})"
+  fi
 else
   manual_pause "[manual action] In the SecureWave app, click Connect (WireGuard preferred), wait until the app shows connected/protected."
 fi
@@ -494,12 +509,20 @@ capture_bundle "post_connect"
 
 if [[ -n "${DISCONNECT_CMD}" ]]; then
   log "running disconnect command"
-  bash -lc "${DISCONNECT_CMD}" || warn "disconnect command exited non-zero"
+  set +e
+  bash -lc "${DISCONNECT_CMD}"
+  DISCONNECT_CMD_STATUS=$?
+  set -e
+  if [[ "${DISCONNECT_CMD_STATUS}" -ne 0 ]]; then
+    warn "disconnect command exited non-zero (${DISCONNECT_CMD_STATUS})"
+  fi
 else
   manual_pause "[manual action] In the SecureWave app, click Disconnect after reviewing the app state."
 fi
 
 capture_bundle "post_disconnect"
+printf -- '%s\n' "${CONNECT_CMD_STATUS}" >"${OUT_DIR}/connect_cmd_exit_status.txt"
+printf -- '%s\n' "${DISCONNECT_CMD_STATUS}" >"${OUT_DIR}/disconnect_cmd_exit_status.txt"
 generate_report
 
 cat <<EOF

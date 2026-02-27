@@ -51,6 +51,8 @@ p_route_get="${latest_dir}/post_connect/ip_route_get_1.1.1.1.txt"
 p_rule_file="${latest_dir}/post_connect/ip_rule_show.txt"
 p_dns_lookup_file="${latest_dir}/post_connect/dns_lookup_example.txt"
 p_dns_http_file="${latest_dir}/post_connect/dns_https_check.txt"
+connect_cmd_status_file="${latest_dir}/connect_cmd_exit_status.txt"
+disconnect_cmd_status_file="${latest_dir}/disconnect_cmd_exit_status.txt"
 
 extract_default() {
   awk '/^\$ /{next} /^default /{print; exit}' "$1" 2>/dev/null || true
@@ -112,8 +114,23 @@ elif [[ -n "${b_iface}" && -n "${p_iface}" && "${b_iface}" != "${p_iface}" ]]; t
 fi
 
 dns_ok="$(dns_query_success "${p_dns_lookup_file}" "${p_dns_http_file}")"
+connect_cmd_status="$(tr -d '\r\n' <"${connect_cmd_status_file}" 2>/dev/null || echo "0")"
+disconnect_cmd_status="$(tr -d '\r\n' <"${disconnect_cmd_status_file}" 2>/dev/null || echo "0")"
 
 status=0
+if [[ "${connect_cmd_status}" != "0" ]]; then
+  echo "[run_probe][fail] connect command exited non-zero (${connect_cmd_status})" >&2
+  status=1
+fi
+if [[ "${disconnect_cmd_status}" != "0" ]]; then
+  echo "[run_probe][fail] disconnect command exited non-zero (${disconnect_cmd_status})" >&2
+  status=1
+fi
+
+if [[ "${iface_exists_post}" -eq 0 ]]; then
+  echo "[run_probe][fail] no tunnel interface (wg0/sw-wg/tun0) detected post-connect" >&2
+  status=1
+fi
 if [[ "${iface_exists_post}" -eq 1 && -n "${b_ip}" && -n "${p_ip}" && "${b_ip}" == "${p_ip}" ]]; then
   echo "[run_probe][fail] tunnel interface present but egress IP did not change (${b_ip})" >&2
   status=1
