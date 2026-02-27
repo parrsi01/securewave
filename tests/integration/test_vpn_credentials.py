@@ -56,6 +56,7 @@ def _create_ikev2_server(db) -> VPNServer:
         supports_wireguard=True,
         supports_ikev2=True,
         ikev2_remote_id="vpn.securewave.test",
+        ikev2_ca_cert_pem="-----BEGIN CERTIFICATE-----\nTEST_IKEV2_CA_CERT_PLACEHOLDER\n-----END CERTIFICATE-----\n",
     )
     db.add(server)
     db.commit()

@@ -909,9 +909,15 @@ def _server_supported_protocols(server: VPNServer) -> list[str]:
     out: list[str] = []
     if getattr(server, "supports_wireguard", True):
         out.append("wireguard")
-    if getattr(server, "supports_openvpn", False):
+    # OpenVPN requires CA cert material to be provisioned on the server.
+    if getattr(server, "supports_openvpn", False) and (
+        getattr(server, "openvpn_ca_cert_pem", None) or ""
+    ).strip():
         out.append("openvpn")
-    if getattr(server, "supports_ikev2", False):
+    # IKEv2 requires CA cert + remote_id to be provisioned.
+    if getattr(server, "supports_ikev2", False) and (
+        getattr(server, "ikev2_ca_cert_pem", None) or ""
+    ).strip() and (getattr(server, "ikev2_remote_id", None) or "").strip():
         out.append("ikev2")
     return out
 
@@ -1311,6 +1317,10 @@ async def list_protocols(
             reason = "not_supported_on_platform"
         elif not server_enabled.get(protocol, False):
             reason = "no_active_server_support"
+        elif protocol == "ikev2" and normalized_device_type == "linux":
+            # Linux runner only implements eap-mschapv2; warn if backend is eap-tls.
+            if _ikev2_auth_mode() == "eap-tls":
+                reason = "ikev2_auth_mode_mismatch_linux"
 
         transports = ["udp", "tcp"] if protocol == "openvpn" else None
         protocol_payload.append(
@@ -2043,11 +2053,17 @@ async def provision_profile(
                         server=server,
                     )
                 except Exception as exc:
+                    reason = str(exc)
+                    code = (
+                        "protocol_provisioning_unavailable"
+                        if "ca" in reason.lower() or "cert" in reason.lower() or "pki" in reason.lower()
+                        else "credential_provision_failed"
+                    )
                     raise ApiException(
                         status_code=502,
-                        code="credential_provision_failed",
+                        code=code,
                         message="Failed to provision OpenVPN certificate profile.",
-                        details={"protocol": "openvpn", "reason": str(exc)},
+                        details={"protocol": "openvpn", "reason": reason},
                     )
                 profile_payload = VpnOpenVpnProfilePayload(
                     ovpn_config=issued.ovpn_config,
@@ -2090,11 +2106,17 @@ async def provision_profile(
                         server=server,
                     )
                 except Exception as exc:
+                    reason = str(exc)
+                    code = (
+                        "protocol_provisioning_unavailable"
+                        if "ca" in reason.lower() or "cert" in reason.lower() or "pki" in reason.lower()
+                        else "credential_provision_failed"
+                    )
                     raise ApiException(
                         status_code=502,
-                        code="credential_provision_failed",
+                        code=code,
                         message="Failed to provision IKEv2 certificate profile.",
-                        details={"protocol": "ikev2", "reason": str(exc)},
+                        details={"protocol": "ikev2", "reason": reason},
                     )
                 profile_payload = VpnIkev2ProfilePayload(
                     auth_method="eap-tls",

@@ -32,6 +32,8 @@ def _create_server(
         supports_openvpn=supports_openvpn,
         supports_ikev2=supports_ikev2,
         openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----",
+        ikev2_ca_cert_pem="-----BEGIN CERTIFICATE-----\nTEST_IKEV2\n-----END CERTIFICATE-----",
+        ikev2_remote_id="vpn.test.example",
     )
     db.add(server)
     db.commit()
