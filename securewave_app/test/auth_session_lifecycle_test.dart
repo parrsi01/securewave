@@ -72,6 +72,39 @@ void main() {
     expect(store['refresh_token'], isNull);
   });
 
+  test('access token freshness gate blocks near-expiry JWT for auto-connect',
+      () async {
+    installSecureStorageMock();
+    final now = DateTime.utc(2026, 2, 22, 12);
+    final nearExpiryToken = jwtWithExp(
+      now.add(const Duration(seconds: 45)).millisecondsSinceEpoch ~/ 1000,
+    );
+    final session = AuthSession(clock: () => now);
+    await session.initializationComplete;
+    await session.setSession(accessToken: nearExpiryToken);
+
+    expect(
+      session.hasFreshAccessToken(minValidity: const Duration(seconds: 60)),
+      isFalse,
+    );
+    expect(
+      session.accessTokenFreshnessIssue(
+        minValidity: const Duration(seconds: 60),
+      ),
+      'expiring_or_expired_jwt',
+    );
+  });
+
+  test('opaque access token is treated as fresh by client-side gate', () async {
+    installSecureStorageMock();
+    final session = AuthSession(clock: () => DateTime.utc(2026, 2, 22, 12));
+    await session.initializationComplete;
+    await session.setSession(accessToken: 'opaque-token');
+
+    expect(session.hasFreshAccessToken(), isTrue);
+    expect(session.accessTokenFreshnessIssue(), isNull);
+  });
+
   test('clearSession removes persisted tokens and vpn session artifacts',
       () async {
     final now = DateTime.utc(2026, 2, 22, 12);

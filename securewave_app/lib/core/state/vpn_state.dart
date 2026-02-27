@@ -228,6 +228,15 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final prefs = _ref.read(preferencesProvider);
     final session = _ref.read(authSessionProvider);
     if (!prefs.autoConnect || !session.isAuthenticated) return;
+    final tokenIssue = session.accessTokenFreshnessIssue(
+      minValidity: const Duration(seconds: 60),
+    );
+    if (tokenIssue != null) {
+      AppLogger.warning(
+        '[VPN_SM] {"event":"auto_connect_skipped","reason":"auth_token_not_fresh","detail":"$tokenIssue"}',
+      );
+      return;
+    }
     final isActive = state.desiredOn ||
         state.status == VpnStatus.connected ||
         state.status == VpnStatus.connecting ||

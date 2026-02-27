@@ -405,15 +405,18 @@ class _ProtocolSelector extends StatelessWidget {
     }
     return switch (platform) {
       TargetPlatform.linux => switch (protocol) {
-          VpnProtocol.wireGuard => 'Native WireGuard runtime (requires admin prompt).',
+          VpnProtocol.wireGuard =>
+            'Native WireGuard runtime (requires admin prompt).',
           VpnProtocol.openVpn => 'Requires local OpenVPN client + elevation.',
           VpnProtocol.ikev2 =>
             'Requires OS helper (NetworkManager/strongSwan).',
           VpnProtocol.auto => null,
         },
       TargetPlatform.windows => switch (protocol) {
-          VpnProtocol.wireGuard => 'Uses installed WireGuard for Windows runtime.',
-          VpnProtocol.openVpn => 'Uses OpenVPN for Windows (UAC prompt may appear).',
+          VpnProtocol.wireGuard =>
+            'Uses installed WireGuard for Windows runtime.',
+          VpnProtocol.openVpn =>
+            'Uses OpenVPN for Windows (UAC prompt may appear).',
           VpnProtocol.ikev2 => 'Uses built-in Windows VPN (RAS/VPN API path).',
           VpnProtocol.auto => null,
         },
@@ -427,12 +430,55 @@ class _ProtocolSelector extends StatelessWidget {
           VpnProtocol.auto => null,
         },
       _ => switch (protocol) {
-          VpnProtocol.wireGuard => 'Uses the native VPN runtime on this device.',
-          VpnProtocol.openVpn => 'Uses the native OpenVPN runtime on this device.',
+          VpnProtocol.wireGuard =>
+            'Uses the native VPN runtime on this device.',
+          VpnProtocol.openVpn =>
+            'Uses the native OpenVPN runtime on this device.',
           VpnProtocol.ikev2 => 'Uses OS-provided IKEv2/IPsec support.',
           VpnProtocol.auto => null,
         },
     };
+  }
+
+  String? _catalogUnavailableReason(
+    VpnProtocol protocol,
+    VpnProtocolCatalogEntry? entry,
+  ) {
+    final reason = entry?.reason;
+    if (reason == null || reason.trim().isEmpty) return null;
+    return switch (reason) {
+      'disabled_server_side' =>
+        '${vpnProtocolLabel(protocol)} is temporarily disabled on the backend.',
+      'restricted_by_plan' => 'Not included in your current subscription plan.',
+      'not_supported_on_platform' => 'Not supported on this platform.',
+      'no_active_server_support' =>
+        'No active server currently supports ${vpnProtocolLabel(protocol)}.',
+      'protocol_temporarily_unavailable' =>
+        '${vpnProtocolLabel(protocol)} is temporarily unavailable.',
+      _ => reason,
+    };
+  }
+
+  String? _unavailableReason({
+    required VpnProtocol protocol,
+    required bool capabilitiesReady,
+    required bool catalogReady,
+    required VpnProtocolAvailability? availability,
+    required VpnProtocolCatalogEntry? catalogEntry,
+  }) {
+    if (!capabilitiesReady) {
+      return 'Checking local runtime availability...';
+    }
+    if (!catalogReady) {
+      return 'Checking backend availability...';
+    }
+    final catalogReason = _catalogUnavailableReason(protocol, catalogEntry);
+    if (catalogReason != null) return catalogReason;
+    if (availability?.unavailableReason != null &&
+        availability!.unavailableReason!.trim().isNotEmpty) {
+      return availability.unavailableReason;
+    }
+    return '${vpnProtocolLabel(protocol)} is currently unavailable.';
   }
 
   @override
@@ -441,155 +487,224 @@ class _ProtocolSelector extends StatelessWidget {
       builder: (context, constraints) {
         final cols = constraints.maxWidth > 480 ? 2 : 1;
         final capsData = caps.valueOrNull;
-        final backendEnabled = catalog.valueOrNull?.enabledProtocols() ??
+        final catalogData = catalog.valueOrNull;
+        final capabilitiesReady = capsData != null;
+        final catalogReady = catalogData != null;
+        final backendEnabled = catalogData?.enabledProtocols() ??
             <VpnProtocol>{VpnProtocol.wireGuard};
-        final availableProtocols = capsData == null
-            ? <VpnProtocol>{}
-            : ProtocolCapabilityMatrix.evaluate(
-                nativeCapabilities: capsData,
-                backendEnabledProtocols: backendEnabled,
-              )
-                .where((item) => item.available)
-                .map((item) => item.protocol)
-                .toSet();
+        final availabilityByProtocol = capsData == null
+            ? <VpnProtocol, VpnProtocolAvailability>{}
+            : <VpnProtocol, VpnProtocolAvailability>{
+                for (final item in ProtocolCapabilityMatrix.evaluate(
+                  nativeCapabilities: capsData,
+                  backendEnabledProtocols: backendEnabled,
+                ))
+                  item.protocol: item,
+              };
+        final catalogByProtocol = <VpnProtocol, VpnProtocolCatalogEntry>{
+          for (final entry
+              in catalogData?.protocols ?? const <VpnProtocolCatalogEntry>[])
+            entry.protocol: entry,
+        };
+        final hasAvailableProtocol =
+            availabilityByProtocol.values.any((item) => item.available);
         final selectable = <VpnProtocol>[
           VpnProtocol.auto,
-          ...ProtocolCapabilityMatrix.orderedProtocols()
-              .where((protocol) => availableProtocols.contains(protocol)),
+          ...ProtocolCapabilityMatrix.orderedProtocols(),
         ];
 
-        if (selectable.length == 1) {
-          return Text(
-            'No live protocol runtime is currently available on this device.',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppColors.error),
-          );
-        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (capabilitiesReady && !hasAvailableProtocol)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.space2),
+                child: Text(
+                  'No live protocol runtime is currently available on this device.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.error),
+                ),
+              ),
+            Wrap(
+              spacing: AppSpacing.space2,
+              runSpacing: AppSpacing.space2,
+              children: selectable.map((p) {
+                final availability = availabilityByProtocol[p];
+                final isAuto = p == VpnProtocol.auto;
+                final isSelectable = isAuto
+                    ? (!capabilitiesReady || hasAvailableProtocol)
+                    : (availability?.available ?? false);
+                final isSelected = selected == p;
+                final unavailableReason = isAuto
+                    ? (isSelectable
+                        ? null
+                        : 'No protocol is currently connectable.')
+                    : (isSelectable
+                        ? null
+                        : _unavailableReason(
+                            protocol: p,
+                            capabilitiesReady: capabilitiesReady,
+                            catalogReady: catalogReady,
+                            availability: availability,
+                            catalogEntry: catalogByProtocol[p],
+                          ));
+                final subtitle = _protocolSubtitle(context, p);
+                final semanticHint = isSelectable
+                    ? (subtitle == null
+                        ? 'Double tap to select ${vpnProtocolLabel(p)}.'
+                        : '$subtitle Double tap to select.')
+                    : (unavailableReason == null
+                        ? '${vpnProtocolLabel(p)} is unavailable.'
+                        : '${vpnProtocolLabel(p)} unavailable: $unavailableReason');
+                final isDisabled = !isSelectable;
 
-        return Wrap(
-          spacing: AppSpacing.space2,
-          runSpacing: AppSpacing.space2,
-          children: selectable.map((p) {
-            final isSelected = selected == p;
-
-            final subtitle = _protocolSubtitle(context, p);
-            final semanticHint = subtitle == null
-                ? 'Double tap to select ${vpnProtocolLabel(p)}.'
-                : '$subtitle Double tap to select.';
-
-            return SizedBox(
-              width: cols == 2
-                  ? (constraints.maxWidth - AppSpacing.space2) / 2
-                  : double.infinity,
-              child: Semantics(
-                button: true,
-                selected: isSelected,
-                label: 'VPN protocol ${vpnProtocolLabel(p)}',
-                hint: semanticHint,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
-                    onTap: () => onSelect(p),
-                    child: AnimatedContainer(
-                      duration: AppAnimations.durationFast,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.space4,
-                        vertical: AppSpacing.space3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? (isDark
-                                ? AppColors.primaryBright
-                                    .withValues(alpha: 0.12)
-                                : AppColors.primaryLight)
-                            : (isDark ? AppColors.darkSurface : AppColors.surface),
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
-                        border: Border.all(
-                          color: isSelected
-                              ? (isDark
-                                  ? AppColors.primaryBright
-                                  : AppColors.primary)
-                              : (isDark
-                                  ? AppColors.darkBorder
-                                  : AppColors.border),
-                          width: isSelected ? 1.5 : 0.5,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          AnimatedContainer(
-                            duration: AppAnimations.durationFast,
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
+                return SizedBox(
+                  width: cols == 2
+                      ? (constraints.maxWidth - AppSpacing.space2) / 2
+                      : double.infinity,
+                  child: Semantics(
+                    button: true,
+                    enabled: isSelectable,
+                    selected: isSelected,
+                    label: 'VPN protocol ${vpnProtocolLabel(p)}',
+                    hint: semanticHint,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusXL),
+                        onTap: isSelectable ? () => onSelect(p) : null,
+                        child: AnimatedContainer(
+                          duration: AppAnimations.durationFast,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.space4,
+                            vertical: AppSpacing.space3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? (isDark
+                                    ? AppColors.primaryBright
+                                        .withValues(alpha: 0.12)
+                                    : AppColors.primaryLight)
+                                : (isDisabled
+                                    ? (isDark
+                                        ? AppColors.darkSurfaceMuted
+                                            .withValues(alpha: 0.75)
+                                        : AppColors.surfaceMuted)
+                                    : (isDark
+                                        ? AppColors.darkSurface
+                                        : AppColors.surface)),
+                            borderRadius:
+                                BorderRadius.circular(AppSpacing.radiusXL),
+                            border: Border.all(
                               color: isSelected
                                   ? (isDark
                                       ? AppColors.primaryBright
                                       : AppColors.primary)
-                                  : Colors.transparent,
-                              border: Border.all(
-                                color: isSelected
-                                    ? (isDark
-                                        ? AppColors.primaryBright
-                                        : AppColors.primary)
-                                    : (isDark
-                                        ? AppColors.darkInkSoft
-                                        : AppColors.inkSoft),
-                                width: 2,
-                              ),
+                                  : (isDark
+                                      ? AppColors.darkBorder
+                                      : AppColors.border),
+                              width: isSelected ? 1.5 : 0.5,
                             ),
-                            child: isSelected
-                                ? const Icon(Icons.check,
-                                    size: 10, color: Colors.white)
-                                : null,
                           ),
-                          const SizedBox(width: AppSpacing.space3),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  vpnProtocolLabel(p),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        fontWeight: isSelected
-                                            ? FontWeight.w700
-                                            : FontWeight.w500,
-                                      ),
-                                ),
-                                if (subtitle != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    subtitle,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                          color: isDark
-                                              ? AppColors.darkInkSoft
-                                              : AppColors.inkMuted,
-                                          height: 1.2,
-                                        ),
+                          child: Row(
+                            children: [
+                              AnimatedContainer(
+                                duration: AppAnimations.durationFast,
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isSelected
+                                      ? (isDark
+                                          ? AppColors.primaryBright
+                                          : AppColors.primary)
+                                      : Colors.transparent,
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? (isDark
+                                            ? AppColors.primaryBright
+                                            : AppColors.primary)
+                                        : (isDisabled
+                                            ? (isDark
+                                                ? AppColors.darkInkSoft
+                                                : AppColors.inkMuted)
+                                            : (isDark
+                                                ? AppColors.darkInkSoft
+                                                : AppColors.inkSoft)),
+                                    width: 2,
                                   ),
-                                ],
-                              ],
-                            ),
+                                ),
+                                child: isSelected
+                                    ? const Icon(Icons.check,
+                                        size: 10, color: Colors.white)
+                                    : null,
+                              ),
+                              const SizedBox(width: AppSpacing.space3),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      vpnProtocolLabel(p),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: isDisabled
+                                                ? (isDark
+                                                    ? AppColors.darkInkSoft
+                                                    : AppColors.inkMuted)
+                                                : null,
+                                            fontWeight: isSelected
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                          ),
+                                    ),
+                                    if (subtitle != null) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        subtitle,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: isDark
+                                                  ? AppColors.darkInkSoft
+                                                  : AppColors.inkMuted,
+                                              height: 1.2,
+                                            ),
+                                      ),
+                                    ],
+                                    if (unavailableReason != null) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        unavailableReason,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: AppColors.error,
+                                              height: 1.2,
+                                            ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            );
-          }).toList(),
+                );
+              }).toList(),
+            ),
+          ],
         );
       },
     );

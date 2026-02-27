@@ -35,6 +35,39 @@ class AuthSession extends ChangeNotifier {
   String? get accessToken => _accessToken;
   String? get email => _email;
 
+  /// Returns true when an access token is present and is not near expiry.
+  ///
+  /// Opaque/non-JWT tokens are treated as fresh because expiry cannot be
+  /// verified client-side.
+  bool hasFreshAccessToken({
+    Duration minValidity = const Duration(seconds: 60),
+  }) {
+    return accessTokenFreshnessIssue(minValidity: minValidity) == null;
+  }
+
+  /// Returns a machine-readable reason when the token should not be used for
+  /// auto-connect/authenticated control-plane calls.
+  String? accessTokenFreshnessIssue({
+    Duration minValidity = const Duration(seconds: 60),
+  }) {
+    final token = _accessToken?.trim();
+    if (token == null || token.isEmpty) {
+      return 'missing_access_token';
+    }
+    if (!_looksLikeJwt(token)) {
+      return null;
+    }
+    final expiry = _jwtExpiry(token);
+    if (expiry == null) {
+      return 'invalid_jwt_or_missing_exp';
+    }
+    final cutoff = _clock().toUtc().add(minValidity);
+    if (!expiry.isAfter(cutoff)) {
+      return 'expiring_or_expired_jwt';
+    }
+    return null;
+  }
+
   /// Completes when the session has been initialized from secure storage.
   ///
   /// Awaited by [BootController] to ensure auth state is stable before the
