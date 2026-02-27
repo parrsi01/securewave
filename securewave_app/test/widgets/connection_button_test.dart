@@ -64,6 +64,15 @@ class _OptimizedVpnStateNotifier extends VpnStateNotifier {
   }
 }
 
+class _SelectedDownVpnStateNotifier extends VpnStateNotifier {
+  _SelectedDownVpnStateNotifier(Ref ref) : super(ref) {
+    state = const VpnState(
+      status: VpnStatus.disconnected,
+      selectedServerId: 'down-selected',
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -196,6 +205,54 @@ void main() {
       await tester.pump();
 
       expect(service.connectCalls, 0);
+    });
+
+    testWidgets(
+        'does not start connect when selected region is down even if other regions are healthy',
+        (tester) async {
+      final service = _FixedStatusVpnService(VpnStatus.disconnected);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            vpnServiceProvider.overrideWithValue(service),
+            vpnStateProvider
+                .overrideWith((ref) => _SelectedDownVpnStateNotifier(ref)),
+            serversProvider.overrideWith(
+              (ref) async => const <ServerRegion>[
+                ServerRegion(
+                  id: 'down-selected',
+                  name: 'Selected Down',
+                  regionHealthStatus: 'down',
+                ),
+                ServerRegion(
+                  id: 'healthy-other',
+                  name: 'Healthy Other',
+                  regionHealthStatus: 'up',
+                ),
+              ],
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  ConnectionRing(),
+                  SizedBox(height: 16),
+                  StatusDisplay(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byType(ConnectionRing));
+      await tester.pump();
+
+      expect(service.connectCalls, 0);
+      expect(find.text('Selected region is offline'), findsOneWidget);
     });
 
     testWidgets(

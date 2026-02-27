@@ -1,0 +1,4 @@
+$ ip addr
+Cannot open netlink socket: Operation not permitted
+
+[exit=1]

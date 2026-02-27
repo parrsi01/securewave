@@ -284,7 +284,51 @@ class TestVpnProfileProvisioning:
         assert resp.status_code == 409, resp.text
         body = resp.json()
         err = body.get("error") or {}
-        assert err.get("code") == "protocol_temporarily_unavailable"
+        assert err.get("code") == "openvpn_temporarily_unavailable"
+
+    def test_openvpn_request_returns_typed_error_when_runtime_health_fails(
+        self, client, auth_headers, db, monkeypatch
+    ):
+        openvpn = _create_openvpn_server(db)
+        monkeypatch.setenv("SECUREWAVE_TEST_ENFORCE_RUNTIME_CHECKS", "true")
+        monkeypatch.setattr("routes.vpn._protocol_material_ready", lambda protocol: True)
+        monkeypatch.setattr("routes.vpn._protocol_health_ready", lambda protocol: protocol == "wireguard")
+
+        resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Win Box",
+                "device_type": "windows",
+                "protocol": "openvpn",
+                "server_id": openvpn.server_id,
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 409, resp.text
+        err = (resp.json().get("error") or {})
+        assert err.get("code") == "openvpn_healthcheck_fail"
+
+    def test_ikev2_request_returns_typed_error_when_runtime_material_missing(
+        self, client, auth_headers, db, monkeypatch
+    ):
+        ikev2 = _create_ikev2_server(db)
+        monkeypatch.setenv("SECUREWAVE_TEST_ENFORCE_RUNTIME_CHECKS", "true")
+        monkeypatch.setattr("routes.vpn._protocol_material_ready", lambda protocol: protocol == "wireguard")
+        monkeypatch.setattr("routes.vpn._protocol_health_ready", lambda protocol: True)
+
+        resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Win Box",
+                "device_type": "windows",
+                "protocol": "ikev2",
+                "server_id": ikev2.server_id,
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 409, resp.text
+        err = (resp.json().get("error") or {})
+        assert err.get("code") == "ikev2_server_misconfigured"
 
     def test_explicit_server_rejects_unsupported_protocol(self, client, auth_headers, db):
         free = _create_free_server(db)

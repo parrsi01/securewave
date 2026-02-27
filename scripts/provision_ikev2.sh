@@ -240,25 +240,23 @@ cat > /etc/ipsec.secrets <<CONF
 CONF
 chmod 600 /etc/ipsec.secrets
 
-cat > /etc/sysctl.d/99-securewave-ikev2.conf <<SYSCTL
-net.ipv4.ip_forward=1
-net.ipv6.conf.all.forwarding=1
-SYSCTL
-sysctl --system >/dev/null
-
-if ! grep -q "# SECUREWAVE-IKEV2-NAT-START" /etc/ufw/before.rules; then
-  cp /etc/ufw/before.rules /etc/ufw/before.rules.securewave_ikev2.bak
-  awk -v cidr="${IKEV2_POOL_CIDR}" -v iface="${IKEV2_INTERFACE}" '
-    NR==1 {
-      print "# SECUREWAVE-IKEV2-NAT-START"
-      print "*nat"
-      print ":POSTROUTING ACCEPT [0:0]"
-      print "-A POSTROUTING -s " cidr " -o " iface " -j MASQUERADE"
-      print "COMMIT"
-      print "# SECUREWAVE-IKEV2-NAT-END"
-    }
-    {print}
-  ' /etc/ufw/before.rules.securewave_ikev2.bak > /etc/ufw/before.rules
+# ip_forward and routing isolation are managed by securewave-vpn-routing.
+# Table 300 + IKEV2_NAT chain; does not write bare MASQUERADE to UFW before.rules.
+# Teardown removes only IKEv2 state and never affects WireGuard or OpenVPN.
+if [[ -x /usr/local/bin/securewave-vpn-routing ]]; then
+  EGRESS_IFACE="${IKEV2_INTERFACE}" \
+  IKEV2_CIDR="${IKEV2_POOL_CIDR}" \
+    /usr/local/bin/securewave-vpn-routing setup ikev2
+else
+  SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ -f "${SELF_DIR}/setup_vpn_routing.sh" ]]; then
+    install -m 755 "${SELF_DIR}/setup_vpn_routing.sh" /usr/local/bin/securewave-vpn-routing
+    EGRESS_IFACE="${IKEV2_INTERFACE}" \
+    IKEV2_CIDR="${IKEV2_POOL_CIDR}" \
+      /usr/local/bin/securewave-vpn-routing setup ikev2
+  else
+    echo "[warn] securewave-vpn-routing not found; NAT not configured" >&2
+  fi
 fi
 
 sed -i 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw

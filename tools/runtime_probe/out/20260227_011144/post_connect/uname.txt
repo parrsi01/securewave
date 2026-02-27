@@ -1,0 +1,2 @@
+$ uname -a
+Linux ubuntu-server 6.8.0-101-generic #101-Ubuntu SMP PREEMPT_DYNAMIC Fri Feb  6 20:07:40 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux

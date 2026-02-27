@@ -1,0 +1,2 @@
+$ bash -lc ip\ addr
+Cannot open netlink socket: Operation not permitted

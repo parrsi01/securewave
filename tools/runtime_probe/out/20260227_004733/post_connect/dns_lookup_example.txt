@@ -1,0 +1,7 @@
+$ getent ahosts example.com | head -n 6 || true
+104.18.26.120   STREAM example.com
+104.18.26.120   DGRAM  
+104.18.26.120   RAW    
+104.18.27.120   STREAM 
+104.18.27.120   DGRAM  
+104.18.27.120   RAW    

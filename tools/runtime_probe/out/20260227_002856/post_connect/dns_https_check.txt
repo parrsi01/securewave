@@ -1,0 +1,2 @@
+$ curl -fsS --max-time 8 -o /dev/null -w 'http_code=%{http_code}\n' https://example.com || true
+http_code=200

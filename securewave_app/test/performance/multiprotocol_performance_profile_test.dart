@@ -39,6 +39,7 @@ void main() {
       portalUrl: 'https://portal.example.invalid',
       upgradeUrl: 'https://upgrade.example.invalid',
       resetSessionOnBoot: false,
+      devLoginAccounts: const <DevLoginAccount>[],
     );
     final apiClient = FakeApiClient(config: appConfig);
 
@@ -90,6 +91,7 @@ void main() {
       portalUrl: 'https://portal.example.invalid',
       upgradeUrl: 'https://upgrade.example.invalid',
       resetSessionOnBoot: false,
+      devLoginAccounts: const <DevLoginAccount>[],
     );
 
     for (final protocol in protocols) {

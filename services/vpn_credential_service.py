@@ -227,6 +227,51 @@ class VpnCredentialService:
             raise ValueError("Provisioning response must be a JSON object")
         return parsed
 
+    @staticmethod
+    def _payload_failure_message(payload: dict[str, Any], fallback: str) -> str:
+        return (
+            str(payload.get("code") or "").strip()
+            or str(payload.get("message") or "").strip()
+            or fallback
+        )
+
+    async def _resolve_script_payload(
+        self,
+        *,
+        server: Any,
+        payload: dict[str, Any],
+        required_keys: list[str],
+    ) -> dict[str, Any]:
+        if payload.get("ok") is False:
+            raise RuntimeError(self._payload_failure_message(payload, "provisioning failed"))
+
+        if all(str(payload.get(key) or "").strip() for key in required_keys):
+            return payload
+
+        artifact_path = str(payload.get("artifact_path") or "").strip()
+        if not artifact_path:
+            return payload
+        if not artifact_path.startswith("/var/lib/securewave/pki/"):
+            raise RuntimeError("Unsafe provisioning artifact path")
+
+        cmd = " ".join(
+            [
+                "sudo",
+                "cat",
+                shlex.quote(artifact_path),
+            ]
+        )
+        ok, stdout, stderr = await self._run_remote_script(server=server, command=cmd)
+        if not ok:
+            raise RuntimeError((stderr or stdout or "provisioning artifact retrieval failed").strip())
+        artifact_payload = self._parse_json_from_stdout(stdout)
+        if artifact_payload.get("ok") is False:
+            raise RuntimeError(self._payload_failure_message(artifact_payload, "provisioning failed"))
+
+        merged = dict(payload)
+        merged.update(artifact_payload)
+        return merged
+
     def _common_name(self, *, protocol: str, user_id: int, device_id: int, revision: int) -> str:
         return f"sw-{protocol}-u{user_id}-d{device_id}-r{revision}"
 
@@ -477,9 +522,13 @@ class VpnCredentialService:
             ok, stdout, stderr = await self._run_remote_script(server=server, command=issue_cmd)
             if not ok:
                 raise RuntimeError((stderr or stdout or "openvpn provisioning failed").strip())
-            data = self._parse_json_from_stdout(stdout)
+            data = await self._resolve_script_payload(
+                server=server,
+                payload=self._parse_json_from_stdout(stdout),
+                required_keys=["ovpn_config_b64"],
+            )
             provisioned = True
-            status_message = "credential_provisioned"
+            status_message = self._payload_failure_message(data, "credential_provisioned")
 
         ovpn_b64 = (data.get("ovpn_config_b64") or "").strip()
         if not ovpn_b64:
@@ -583,9 +632,13 @@ class VpnCredentialService:
             ok, stdout, stderr = await self._run_remote_script(server=server, command=issue_cmd)
             if not ok:
                 raise RuntimeError((stderr or stdout or "ikev2 provisioning failed").strip())
-            data = self._parse_json_from_stdout(stdout)
+            data = await self._resolve_script_payload(
+                server=server,
+                payload=self._parse_json_from_stdout(stdout),
+                required_keys=["client_pkcs12_b64", "client_pkcs12_password"],
+            )
             provisioned = True
-            status_message = "credential_provisioned"
+            status_message = self._payload_failure_message(data, "credential_provisioned")
 
         pkcs12_b64 = (data.get("client_pkcs12_b64") or "").strip()
         if not pkcs12_b64:

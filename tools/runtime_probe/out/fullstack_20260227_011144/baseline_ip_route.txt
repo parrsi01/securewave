@@ -1,0 +1,2 @@
+$ bash -lc ip\ route
+Cannot open netlink socket: Operation not permitted

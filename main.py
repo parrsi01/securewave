@@ -32,6 +32,7 @@ from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, serve
 from services.wireguard_service import WireGuardService
 from services.email_service import EmailService
 from services.runtime_metrics import get_runtime_metrics
+from services.tunnel_runtime import ensure_tunnel_mode_allowed
 from services.jwt_service import get_current_user
 from services.vpn_peer_manager import get_peer_manager
 from models.user import User
@@ -113,6 +114,7 @@ async def lifespan(app: FastAPI):
 
     require_encryption_keys(logger)
     require_production_config(logger)
+    ensure_tunnel_mode_allowed()
 
     # Schedule background initialization to run after startup completes
     if os.getenv("TESTING", "").lower() != "true":
@@ -525,6 +527,7 @@ app.include_router(diagnostics.router, tags=["diagnostics"])
 app.include_router(downloads.router, tags=["downloads"])
 app.include_router(tools.router, tags=["tools"])
 app.include_router(user.router, tags=["user"])
+app.include_router(user.account_router, tags=["account"])
 
 
 HTTP_STATUS_TO_CODE = {

@@ -77,6 +77,7 @@ AppConfig testAppConfig() {
     portalUrl: 'https://portal.example.invalid',
     upgradeUrl: 'https://upgrade.example.invalid',
     resetSessionOnBoot: false,
+    devLoginAccounts: const <DevLoginAccount>[],
   );
 }
 

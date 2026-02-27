@@ -1,0 +1,1 @@
+[skip] sudo unavailable or requires password; tcpdump capture skipped on sw-wg

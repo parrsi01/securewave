@@ -1,0 +1,64 @@
+=== SNAPSHOT: connect_wireguard ===
+timestamp=2026-02-27T17:43:15Z
+
+--- ip rule ---
+0:	from all lookup local
+200:	from all fwmark 0x64 lookup wireguard
+200:	from all fwmark 0xc8 lookup openvpn
+200:	from all fwmark 0x12c lookup ikev2
+220:	from all lookup 220
+10100:	from all iif wg0 [detached] lookup wireguard
+10101:	from all fwmark 0x64 lookup wireguard
+10200:	from all iif tun0 [detached] lookup openvpn
+10201:	from all fwmark 0xc8 lookup openvpn
+10300:	from all iif ipsec0 [detached] lookup ikev2
+10301:	from all fwmark 0x12c lookup ikev2
+32764:	not from all fwmark 0xca6c lookup 51820
+32766:	from all lookup main
+32767:	from all lookup default
+
+--- ip route table 100 ---
+default via 192.168.64.1 dev enp0s1 
+
+--- ip route table 200 ---
+default dev enp0s1 scope link 
+
+--- ip route table 300 ---
+default dev enp0s1 scope link 
+
+--- iptables -t nat -S ---
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-N DOCKER
+-N IKEV2_NAT
+-N OVPN_NAT
+-N WG_NAT
+-A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
+-A OUTPUT ! -d 127.0.0.0/8 -m addrtype --dst-type LOCAL -j DOCKER
+-A POSTROUTING -m comment --comment "sw:ikev2:hook" -j IKEV2_NAT
+-A POSTROUTING -m comment --comment "sw:openvpn:hook" -j OVPN_NAT
+-A POSTROUTING -m comment --comment "sw:wireguard:hook" -j WG_NAT
+-A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
+-A POSTROUTING -j WG_NAT
+-A POSTROUTING -j OVPN_NAT
+-A POSTROUTING -j IKEV2_NAT
+-A DOCKER ! -i docker0 -p tcp -m tcp --dport 9443 -j DNAT --to-destination 172.17.0.2:9443
+-A IKEV2_NAT -s 10.45.0.0/24 -o enp0s1 -j MASQUERADE
+-A IKEV2_NAT -s 10.45.0.0/24 -o enp0s1 -m comment --comment "sw:ikev2:masq" -j MASQUERADE
+-A OVPN_NAT -s 10.44.0.0/24 -o enp0s1 -j MASQUERADE
+-A OVPN_NAT -s 10.44.0.0/24 -o enp0s1 -m comment --comment "sw:openvpn:masq" -j MASQUERADE
+-A WG_NAT -s 10.8.0.0/24 -o enp0s1 -j MASQUERADE
+-A WG_NAT -s 10.8.0.0/24 -o enp0s1 -m comment --comment "sw:wireguard:masq" -j MASQUERADE
+
+--- tc qdisc show ---
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc fq_codel 0: dev enp0s1 root refcnt 2 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
+qdisc noqueue 0: dev docker0 root refcnt 2 
+qdisc noqueue 0: dev vethd1cdc47 root refcnt 2 
+qdisc noqueue 0: dev vethe07dd7e root refcnt 2 
+qdisc noqueue 0: dev veth7cb0fc2 root refcnt 2 
+qdisc noqueue 0: dev veth318ff7a root refcnt 2 
+qdisc noqueue 0: dev sw-wg root refcnt 2 
+

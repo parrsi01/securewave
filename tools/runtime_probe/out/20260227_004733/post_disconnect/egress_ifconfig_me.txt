@@ -1,0 +1,2 @@
+$ curl -fsS --max-time 8 https://ifconfig.me || true
+92.105.134.148

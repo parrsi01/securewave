@@ -93,18 +93,60 @@ exec /usr/lib/securewave/securewave_app "$@"
 WRAPPER
 chmod 0755 "$staging_dir/usr/bin/securewave-vpn"
 
-# postinst: install polkit rule so wg-quick runs without a password prompt
-# for members of the sudo group. Takes effect immediately (no restart needed).
+# postinst: install a scoped WireGuard helper + polkit rule so SecureWave
+# reconnect/reset operations do not require repetitive password prompts.
 cat <<'POSTINST' > "$staging_dir/DEBIAN/postinst"
 #!/bin/bash
 set -e
+HELPER_DIR=/usr/local/libexec
+HELPER=$HELPER_DIR/securewave-wg-quick
+install -d -m 0755 "$HELPER_DIR"
+cat > "$HELPER" <<'HELPER_SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 2 ]]; then
+  echo "Usage: securewave-wg-quick <up|down> <config-path>" >&2
+  exit 64
+fi
+
+action="$1"
+config="$2"
+case "$action" in
+  up|down) ;;
+  *)
+    echo "securewave-wg-quick: invalid action '$action'" >&2
+    exit 64
+    ;;
+esac
+
+case "$config" in
+  /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf) ;;
+  *)
+    echo "securewave-wg-quick: refusing unsafe config path '$config'" >&2
+    exit 64
+    ;;
+esac
+
+if [[ "$action" == "up" ]]; then
+  wg-quick down "$config" >/dev/null 2>&1 || true
+  ip link delete sw-wg >/dev/null 2>&1 || true
+  for _ in 1 2 3 4 5 6 7 8; do
+    ip rule del table 51820 >/dev/null 2>&1 || break
+  done
+fi
+
+exec wg-quick "$action" "$config"
+HELPER_SCRIPT
+chmod 0755 "$HELPER"
+
 POLKIT_RULES_DIR=/etc/polkit-1/rules.d
 POLKIT_RULE=$POLKIT_RULES_DIR/50-securewave-wg.rules
 mkdir -p "$POLKIT_RULES_DIR"
 cat > "$POLKIT_RULE" <<'RULE'
 polkit.addRule(function(action, subject) {
     if (action.id == "org.freedesktop.policykit.exec" &&
-        action.lookup("program").indexOf("wg-quick") !== -1 &&
+        action.lookup("program") == "/usr/local/libexec/securewave-wg-quick" &&
         subject.isInGroup("sudo")) {
         return polkit.Result.YES;
     }
@@ -119,6 +161,7 @@ cat <<'POSTRM' > "$staging_dir/DEBIAN/postrm"
 #!/bin/bash
 set -e
 rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
+rm -f /usr/local/libexec/securewave-wg-quick
 POSTRM
 chmod 0755 "$staging_dir/DEBIAN/postrm"
 

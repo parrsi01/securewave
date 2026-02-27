@@ -1,0 +1,77 @@
+from __future__ import annotations
+
+import os
+import subprocess
+
+from backend.services import routing_manager
+from backend.services.firewall_manager import FirewallManager
+from backend.services.traffic_manager import get_traffic_manager
+from backend.services.traffic_shaper import get_traffic_shaper
+
+
+class OpenVPNService:
+    def __init__(self, firewall: FirewallManager | None = None) -> None:
+        self.firewall = firewall or FirewallManager()
+        self.source_cidr = os.getenv("OVPN_CIDR", "10.44.0.0/24")
+        self.egress_iface = os.getenv("OVPN_EGRESS_IFACE", "").strip() or self._detect_egress_iface()
+        self.tunnel_iface = os.getenv("OVPN_TUNNEL_IFACE", "tun0").strip() or "tun0"
+        self._meter_session_id: str | None = None
+
+    @staticmethod
+    def _run(*args: str) -> None:
+        subprocess.run(list(args), capture_output=True, text=True, timeout=10, check=False)  # nosec B603
+
+    @staticmethod
+    def _detect_egress_iface() -> str:
+        proc = subprocess.run(  # nosec B603
+            ["ip", "-4", "route", "show", "default"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        parts = (proc.stdout or "").split()
+        if "dev" in parts:
+            idx = parts.index("dev")
+            if idx + 1 < len(parts):
+                return parts[idx + 1]
+        return "eth0"
+
+    def setup_network_state(self) -> None:
+        with routing_manager.network_lock():
+            routing_manager.setup_protocol("openvpn", self.source_cidr, self.tunnel_iface)
+            self.firewall.setup_protocol_nat("openvpn", self.source_cidr, self.egress_iface)
+
+    def teardown_network_state(self) -> None:
+        with routing_manager.network_lock():
+            self.firewall.teardown_protocol_nat("openvpn", self.source_cidr, self.egress_iface)
+            routing_manager.teardown_protocol("openvpn", self.tunnel_iface)
+            self._run("ip", "link", "set", "dev", self.tunnel_iface, "down")
+
+    def setup_nat_isolation(self) -> None:
+        self.setup_network_state()
+
+    def teardown_nat_isolation(self) -> None:
+        self.teardown_network_state()
+
+    def start_meter(self, user_id: int, session_id: str | None = None) -> dict:
+        started = get_traffic_manager().start_meter(
+            user_id=user_id, protocol="openvpn", session_id=session_id, iface_hint=self.tunnel_iface
+        )
+        self._meter_session_id = started["session_id"]
+        return started
+
+    def stop_meter(self, session_id: str | None = None) -> dict:
+        sid = session_id or self._meter_session_id
+        if not sid:
+            return {"stopped": False, "session_id": None}
+        stopped = get_traffic_manager().stop_meter(sid)
+        if stopped.get("stopped"):
+            self._meter_session_id = None
+        return stopped
+
+    def apply_shaping(self, user_id: int, tier: str, session_id: str) -> dict:
+        return get_traffic_shaper().apply_for_session(user_id, "openvpn", tier, session_id, self.tunnel_iface)
+
+    def remove_shaping(self, session_id: str) -> dict:
+        return get_traffic_shaper().remove_for_session(session_id)

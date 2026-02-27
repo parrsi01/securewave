@@ -1,0 +1,1 @@
+[skip] sudo unavailable or requires password for: nft list ruleset | head -120

@@ -139,6 +139,18 @@ case "$ACTION" in
         --wg-port "${WG_PORT:-51820}" \
         ${WG_SYNC_EXTRA_ARGS:-}
     fi
+    if [[ "${VALIDATE_VPN_BASELINE:-false}" == "true" ]]; then
+      bash "$ROOT_DIR/scripts/ops/validate_vpn_node_baseline.sh" \
+        --name-prefix "${VPN_BASELINE_NAME_PREFIX:-}" \
+        --wg-port "${WG_PORT:-51820}" \
+        --openvpn-port "${OPENVPN_PORT:-1194}" \
+        --ssh-user "${WG_SSH_USER:-root}" \
+        ${WG_SSH_KEY_PATH:+--ssh-key-path "${WG_SSH_KEY_PATH}"} \
+        --ssh-port "${WG_SSH_PORT:-22}" \
+        --ssh-timeout "${WG_SSH_TIMEOUT:-12}" \
+        --require-openvpn "${REQUIRE_OPENVPN_BASELINE:-true}" \
+        --require-ikev2 "${REQUIRE_IKEV2_BASELINE:-true}"
+    fi
     ;;
   destroy)
     [[ "${ALLOW_DESTROY:-false}" == "true" ]] || fail "Refusing destroy without ALLOW_DESTROY=true"

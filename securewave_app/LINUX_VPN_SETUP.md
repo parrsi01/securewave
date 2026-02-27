@@ -17,11 +17,20 @@ SecureWave Linux desktop uses live native runtimes only:
 
 ## Requirements
 
-- `pkexec` + running PolicyKit desktop auth agent (or run app as root)
+- `pkexec` + PolicyKit (`policykit-1`)
 - WireGuard protocol: `wireguard-tools` (`wg-quick`)
 - OpenVPN protocol: `openvpn`
 - IKEv2 protocol: `network-manager`, `network-manager-strongswan`, `strongswan` (`ipsec`)
 - Tunnel profile from backend `POST /api/vpn/profile`
+
+## Recommended elevation path (user-friendly)
+
+Install the SecureWave `.deb` package so post-install hooks place:
+- Scoped helper: `/usr/local/libexec/securewave-wg-quick`
+- Polkit rule: `/etc/polkit-1/rules.d/50-securewave-wg.rules`
+
+With this path, WireGuard connect/reset uses OS authorization without repeated
+password prompts for users in the `sudo` group.
 
 ## Verification
 
@@ -30,7 +39,9 @@ SecureWave Linux desktop uses live native runtimes only:
      - `sudo apt-get install wireguard-tools openvpn network-manager-strongswan strongswan`
 2. `flutter run -d linux`
 3. Select protocol in Settings.
-4. Tap Connect and approve the `pkexec` prompt.
+4. Tap Connect.
+   - If helper+polkit are installed, connect/reset should be non-interactive.
+   - Otherwise approve the `pkexec` prompt.
 5. Verify:
    - WireGuard: `sudo wg show`
    - OpenVPN: `ps -ef | grep openvpn`

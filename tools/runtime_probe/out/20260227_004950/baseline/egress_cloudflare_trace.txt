@@ -1,0 +1,17 @@
+$ curl -fsS --max-time 8 https://1.1.1.1/cdn-cgi/trace || true
+fl=920f51
+h=1.1.1.1
+ip=92.105.134.148
+ts=1772153390.79
+visit_scheme=https
+uag=curl/8.5.0
+colo=ZRH
+sliver=none
+http=http/2
+loc=CH
+tls=TLSv1.3
+sni=off
+warp=off
+gateway=off
+rbi=off
+kex=X25519

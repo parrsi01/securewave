@@ -87,7 +87,31 @@ class VpnCapabilities {
   );
 }
 
+class VpnTrafficStats {
+  const VpnTrafficStats({
+    required this.connected,
+    required this.rxBytes,
+    required this.txBytes,
+    this.interfaceName,
+    this.protocol,
+    this.timestampMs,
+  });
+
+  final bool connected;
+  final int rxBytes;
+  final int txBytes;
+  final String? interfaceName;
+  final String? protocol;
+  final int? timestampMs;
+}
+
 class ChannelVpnService implements VpnService {
+  static final bool _simulationEnabled = const String.fromEnvironment(
+        'SECUREWAVE_SIM_MODE',
+        defaultValue: 'false',
+      ).toLowerCase() ==
+      'true';
+
   ChannelVpnService({
     Duration capabilitiesCacheTtl = const Duration(seconds: 3),
     Duration availabilityCacheTtl = const Duration(seconds: 2),
@@ -119,12 +143,81 @@ class ChannelVpnService implements VpnService {
   VpnCapabilities? _cachedCapabilities;
   DateTime? _capabilitiesCachedAt;
   DateTime? _nativeAvailabilityCheckedAt;
+  int _simRxBytes = 0;
+  int _simTxBytes = 0;
+  DateTime? _simLastTick;
+  VpnProtocol? _simProtocol;
 
   @override
   bool get isNativeAvailable => _nativeAvailable;
 
   @override
   String? get availabilityMessage => _lastNativeAvailabilityMessage;
+
+  Future<VpnTrafficStats?> fetchTrafficStats() async {
+    if (_simulationEnabled) {
+      _advanceSimTraffic();
+      return VpnTrafficStats(
+        connected: _status == VpnStatus.connected,
+        rxBytes: _simRxBytes,
+        txBytes: _simTxBytes,
+        interfaceName: 'sim0',
+        protocol: _simProtocol == null
+            ? null
+            : vpnProtocolStorageValue(_simProtocol!),
+        timestampMs: DateTime.now().millisecondsSinceEpoch,
+      );
+    }
+    if (!_supportsNativeChannel()) return null;
+    try {
+      final raw = await _channel
+          .invokeMethod<dynamic>('getTrafficStats')
+          .timeout(const Duration(seconds: 2));
+      if (raw is! Map) return null;
+      final data = Map<String, dynamic>.from(raw);
+      bool b(String key) {
+        final value = data[key];
+        if (value is bool) return value;
+        if (value is num) return value != 0;
+        return value?.toString().toLowerCase() == 'true';
+      }
+
+      int i(String key) {
+        final value = data[key];
+        if (value is int) return value;
+        if (value is num) return value.toInt();
+        return int.tryParse(value?.toString() ?? '') ?? 0;
+      }
+
+      String? s(String key) {
+        final text = data[key]?.toString().trim();
+        if (text == null || text.isEmpty) return null;
+        return text;
+      }
+
+      final timestamp = data['timestamp_ms'];
+      final timestampMs = switch (timestamp) {
+        int value => value,
+        num value => value.toInt(),
+        String value => int.tryParse(value),
+        _ => null,
+      };
+      return VpnTrafficStats(
+        connected: b('connected'),
+        rxBytes: i('rx_bytes'),
+        txBytes: i('tx_bytes'),
+        interfaceName: s('interface'),
+        protocol: s('protocol'),
+        timestampMs: timestampMs,
+      );
+    } on TimeoutException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
 
   /// Best-effort sync of tunnel status from the native layer.
   ///
@@ -175,6 +268,13 @@ class ChannelVpnService implements VpnService {
           'VPN protocol was not resolved. Select a concrete protocol and retry.',
         );
       }
+      if (!_simulationEnabled && _supportsNativeChannel()) {
+        final synced = await refreshStatus();
+        if (synced == VpnStatus.connected) {
+          return _status;
+        }
+        _status = VpnStatus.connecting;
+      }
       final capabilities = await getCapabilities();
       if (!capabilities.supportsProtocol(protocol)) {
         _status = VpnStatus.disconnected;
@@ -200,6 +300,14 @@ class ChannelVpnService implements VpnService {
           'Missing VPN profile. Please refresh and try again.',
         );
       }
+      if (_simulationEnabled) {
+        _simProtocol = protocol;
+        _simRxBytes = 0;
+        _simTxBytes = 0;
+        _simLastTick = _clock();
+        _status = VpnStatus.connected;
+        return _status;
+      }
       await _channel.invokeMethod('connect', {
         'protocol': vpnProtocolStorageValue(protocol),
         'profile': payload,
@@ -207,6 +315,18 @@ class ChannelVpnService implements VpnService {
             (payload['wireguard_config']?.toString() ?? '').trim().isNotEmpty)
           'config': payload['wireguard_config']?.toString(),
       }).timeout(const Duration(seconds: 30));
+      if (platform.operatingSystem.name.toLowerCase() == 'linux') {
+        final nativeStatus = await _channel
+            .invokeMethod<String>('getStatus')
+            .timeout(const Duration(seconds: 3));
+        if ((nativeStatus ?? '').toLowerCase().trim() != 'connected') {
+          _status = VpnStatus.disconnected;
+          throw VpnServiceException(
+            'vpn_connect_failed',
+            'Native VPN runtime did not report an active tunnel after connect.',
+          );
+        }
+      }
       _status = VpnStatus.connected;
     } on TimeoutException {
       _status = VpnStatus.disconnected;
@@ -251,6 +371,20 @@ class ChannelVpnService implements VpnService {
 
   @override
   Future<VpnCapabilities> getCapabilities() async {
+    if (_simulationEnabled) {
+      const simulated = VpnCapabilities(
+        wireGuard: true,
+        openVpn: true,
+        ikev2: true,
+        windowsThreadSafe: true,
+        androidVpnServiceBased: true,
+        macosEntitlementReady: true,
+        linuxWireGuardInstalled: true,
+        linuxElevationAvailable: true,
+      );
+      _cacheCapabilities(simulated);
+      return simulated;
+    }
     final cached = _cachedCapabilities;
     if (cached != null &&
         _isCacheFresh(_capabilitiesCachedAt, _capabilitiesCacheTtl)) {
@@ -339,6 +473,11 @@ class ChannelVpnService implements VpnService {
     }
     _status = VpnStatus.disconnecting;
     try {
+      if (_simulationEnabled) {
+        _advanceSimTraffic();
+        _status = VpnStatus.disconnected;
+        return _status;
+      }
       final available = await _refreshNativeAvailability();
       if (!available) {
         _status = VpnStatus.disconnected;
@@ -390,6 +529,12 @@ class ChannelVpnService implements VpnService {
   }
 
   Future<bool> _refreshNativeAvailability({bool forceRefresh = false}) async {
+    if (_simulationEnabled) {
+      _nativeAvailable = true;
+      _lastNativeAvailabilityMessage = null;
+      _nativeAvailabilityCheckedAt = _clock();
+      return true;
+    }
     if (!forceRefresh &&
         _isCacheFresh(_nativeAvailabilityCheckedAt, _availabilityCacheTtl)) {
       return _nativeAvailable;
@@ -481,8 +626,8 @@ class ChannelVpnService implements VpnService {
 
   String _linuxElevationGuide() {
     return 'Administrator elevation is unavailable on Linux. '
-        'Install PolicyKit (pkexec) and ensure a polkit authentication agent '
-        'is running, or launch SecureWave as root.';
+        'Install SecureWave helper/polkit setup (or PolicyKit pkexec with a '
+        'desktop agent) to allow non-interactive tunnel resets.';
   }
 
   String _protocolUnavailableMessage(
@@ -515,5 +660,24 @@ class ChannelVpnService implements VpnService {
         error.code == 'vpn_unavailable' ||
         error.code == 'vpn_permission_required' ||
         error.code == 'protocol_unavailable';
+  }
+
+  void _advanceSimTraffic() {
+    if (_status != VpnStatus.connected) {
+      _simLastTick = _clock();
+      return;
+    }
+    final now = _clock();
+    final last = _simLastTick ?? now;
+    final elapsedMs = now.difference(last).inMilliseconds;
+    if (elapsedMs <= 0) {
+      _simLastTick = now;
+      return;
+    }
+    _simLastTick = now;
+    const rxRateBytesPerSec = 128 * 1024;
+    const txRateBytesPerSec = 64 * 1024;
+    _simRxBytes += ((rxRateBytesPerSec * elapsedMs) / 1000).round();
+    _simTxBytes += ((txRateBytesPerSec * elapsedMs) / 1000).round();
   }
 }

@@ -172,25 +172,24 @@ explicit-exit-notify 1
 verb 3
 CONF
 
-cat > /etc/sysctl.d/99-securewave-vpn.conf <<SYSCTL
-net.ipv4.ip_forward=1
-net.ipv6.conf.all.forwarding=1
-SYSCTL
-sysctl --system >/dev/null
-
-if ! grep -q "# SECUREWAVE-OPENVPN-NAT-START" /etc/ufw/before.rules; then
-  cp /etc/ufw/before.rules /etc/ufw/before.rules.securewave.bak
-  awk -v cidr="${OPENVPN_NETWORK_CIDR}" -v iface="${OPENVPN_INTERFACE}" '
-    NR==1 {
-      print "# SECUREWAVE-OPENVPN-NAT-START"
-      print "*nat"
-      print ":POSTROUTING ACCEPT [0:0]"
-      print "-A POSTROUTING -s " cidr " -o " iface " -j MASQUERADE"
-      print "COMMIT"
-      print "# SECUREWAVE-OPENVPN-NAT-END"
-    }
-    {print}
-  ' /etc/ufw/before.rules.securewave.bak > /etc/ufw/before.rules
+# ip_forward and routing isolation are managed by securewave-vpn-routing.
+# Table 200 + OVPN_NAT chain; does not write bare MASQUERADE to UFW before.rules.
+# Teardown removes only OpenVPN state and never affects WireGuard or IKEv2.
+if [[ -x /usr/local/bin/securewave-vpn-routing ]]; then
+  EGRESS_IFACE="${OPENVPN_INTERFACE}" \
+  OVPN_CIDR="${OPENVPN_NETWORK_CIDR}" \
+    /usr/local/bin/securewave-vpn-routing setup openvpn
+else
+  # Fallback: routing script not installed — install it now if present.
+  SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ -f "${SELF_DIR}/setup_vpn_routing.sh" ]]; then
+    install -m 755 "${SELF_DIR}/setup_vpn_routing.sh" /usr/local/bin/securewave-vpn-routing
+    EGRESS_IFACE="${OPENVPN_INTERFACE}" \
+    OVPN_CIDR="${OPENVPN_NETWORK_CIDR}" \
+      /usr/local/bin/securewave-vpn-routing setup openvpn
+  else
+    echo "[warn] securewave-vpn-routing not found; NAT not configured" >&2
+  fi
 fi
 
 sed -i 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
@@ -283,6 +282,15 @@ PY
 )"
 
 REMOTE_HOST="${OPENVPN_SERVER_PUBLIC_HOST:-}"
+if [[ -z "${REMOTE_HOST}" ]]; then
+  REMOTE_HOST="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '/src/ {for (i=1; i<=NF; i++) if ($i=="src") {print $(i+1); exit}}')"
+fi
+if [[ -z "${REMOTE_HOST}" ]]; then
+  REMOTE_HOST="$(curl -4fsS --max-time 3 https://api.ipify.org 2>/dev/null || true)"
+fi
+if [[ -z "${REMOTE_HOST}" ]]; then
+  REMOTE_HOST="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
 if [[ -z "${REMOTE_HOST}" ]]; then
   REMOTE_HOST="$(hostname -f 2>/dev/null || hostname)"
 fi

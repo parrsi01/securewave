@@ -1,0 +1,4 @@
+$ resolvectl status
+sd_bus_open_system: Operation not permitted
+
+[exit=1]

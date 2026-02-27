@@ -1,0 +1,4 @@
+$ wg show
+Unable to access interface sw-wg: Operation not permitted
+
+[exit=1]

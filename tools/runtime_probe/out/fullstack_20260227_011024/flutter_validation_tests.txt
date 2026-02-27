@@ -1,0 +1,2 @@
+$ bash -lc cd\ \'/home/sp/cyber-course/projects/securewave/securewave_app\'\ \&\&\ flutter\ test\ test/preferences_state_test.dart\ test/protocol_selector_test.dart\ test/protocol_capability_matrix_test.dart\ test/state_machine/auto_connect_listener_test.dart\ test/state_machine/multiple_concurrent_connect_requests_test.dart\ test/vpn_state_test.dart
+/home/sp/flutter/bin/internal/update_engine_version.sh: line 64: /home/sp/flutter/bin/cache/engine.stamp: Permission denied

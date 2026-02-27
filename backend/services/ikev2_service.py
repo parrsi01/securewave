@@ -1,0 +1,123 @@
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+
+from backend.services import routing_manager
+from backend.services.firewall_manager import FirewallManager
+from backend.services.traffic_manager import get_traffic_manager
+from backend.services.traffic_shaper import get_traffic_shaper
+
+
+class IKEv2Service:
+    def __init__(self, firewall: FirewallManager | None = None) -> None:
+        self.firewall = firewall or FirewallManager()
+        self.source_cidr = os.getenv("IKEV2_CIDR", "10.45.0.0/24")
+        self.egress_iface = os.getenv("IKEV2_EGRESS_IFACE", "").strip() or self._detect_egress_iface()
+        self.tunnel_iface = os.getenv("IKEV2_TUNNEL_IFACE", "ipsec0").strip() or "ipsec0"
+        self.fwmark = os.getenv("IKEV2_FWMARK", "0x12c").strip() or "0x12c"
+
+    @staticmethod
+    def _run(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(  # nosec B603
+            list(args),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+    @staticmethod
+    def _detect_egress_iface() -> str:
+        proc = IKEv2Service._run("ip", "-4", "route", "show", "default")
+        parts = (proc.stdout or "").split()
+        if "dev" in parts:
+            idx = parts.index("dev")
+            if idx + 1 < len(parts):
+                return parts[idx + 1]
+        return "eth0"
+
+    def _mark_token(self) -> str:
+        mark = self.fwmark.lower()
+        return mark if mark.startswith("0x") else f"0x{mark}"
+
+    def _iface_exists(self) -> bool:
+        return self._run("ip", "link", "show", "dev", self.tunnel_iface).returncode == 0
+
+    def _cleanup_xfrm_states(self) -> None:
+        dump = self._run("ip", "xfrm", "state", "list")
+        if dump.returncode != 0:
+            return
+        mark_token = f"mark {self._mark_token()}"
+        for block in [b for b in (dump.stdout or "").split("\n\n") if b.strip()]:
+            normalized = block.lower()
+            if mark_token not in normalized:
+                continue
+            src_dst = re.search(r"\bsrc\s+([0-9a-fA-F:.]+)\s+dst\s+([0-9a-fA-F:.]+)\b", block)
+            proto_spi = re.search(r"\bproto\s+([a-z0-9_]+)\s+spi\s+(0x[0-9a-fA-F]+)\b", block)
+            if not src_dst or not proto_spi:
+                continue
+            self._run(
+                "ip",
+                "xfrm",
+                "state",
+                "delete",
+                "src",
+                src_dst.group(1),
+                "dst",
+                src_dst.group(2),
+                "proto",
+                proto_spi.group(1),
+                "spi",
+                proto_spi.group(2),
+            )
+
+    def _cleanup_xfrm_policies(self) -> None:
+        dump = self._run("ip", "xfrm", "policy", "list")
+        if dump.returncode != 0:
+            return
+        mark_token = f"mark {self._mark_token()}"
+        for block in [b for b in (dump.stdout or "").split("\n\n") if b.strip()]:
+            normalized = block.lower()
+            if mark_token not in normalized:
+                continue
+            idx = re.search(r"\bindex\s+(\d+)\b", block)
+            direction = re.search(r"\bdir\s+(in|out|fwd)\b", block)
+            if not idx or not direction:
+                continue
+            self._run("ip", "xfrm", "policy", "delete", "index", idx.group(1), "dir", direction.group(1))
+
+    def setup_network_state(self) -> None:
+        with routing_manager.network_lock():
+            routing_manager.setup_protocol("ikev2", self.source_cidr, self.tunnel_iface)
+            self.firewall.setup_protocol_nat("ikev2", self.source_cidr, self.egress_iface)
+
+    def teardown_network_state(self) -> None:
+        with routing_manager.network_lock():
+            self.firewall.teardown_protocol_nat("ikev2", self.source_cidr, self.egress_iface)
+            routing_manager.teardown_protocol("ikev2", self.tunnel_iface)
+            self._cleanup_xfrm_states()
+            self._cleanup_xfrm_policies()
+            if self._iface_exists():
+                self._run("ip", "link", "set", "dev", self.tunnel_iface, "down")
+
+    def setup_nat_isolation(self) -> None:
+        self.setup_network_state()
+
+    def teardown_nat_isolation(self) -> None:
+        self.teardown_network_state()
+
+    def start_meter(self, user_id: int, session_id: str | None = None) -> dict:
+        return get_traffic_manager().start_meter(
+            user_id=user_id, protocol="ikev2", session_id=session_id, iface_hint=self.tunnel_iface
+        )
+
+    def stop_meter(self, session_id: str) -> dict:
+        return get_traffic_manager().stop_meter(session_id)
+
+    def apply_shaping(self, user_id: int, tier: str, session_id: str) -> dict:
+        return get_traffic_shaper().apply_for_session(user_id, "ikev2", tier, session_id, self.tunnel_iface)
+
+    def remove_shaping(self, session_id: str) -> dict:
+        return get_traffic_shaper().remove_for_session(session_id)

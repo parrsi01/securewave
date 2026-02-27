@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 from utils.env_validation import validate_fernet_key, is_production
 
 from models.user import User
+from services.wireguard_tuning import tune_wireguard
 
 # Load environment variables
 load_dotenv()
@@ -157,16 +158,26 @@ class WireGuardService:
         client_ip = self.allocate_ip(user.id)
         server_public_key = self.server_public_override or self.server_public_path.read_text().strip()
 
+        tuning = tune_wireguard(
+            endpoint=self.endpoint,
+            client_ip=None,
+            forwarded_for=None,
+            observed_latency_ms=None,
+            device_type=None,
+        )
+        mtu_line = f"MTU = {tuning.mtu}\n" if tuning.mtu else ""
         config_content = (
             "[Interface]\n"
             f"PrivateKey = {private_key}\n"
             f"Address = {client_ip}\n"
-            f"DNS = {self.dns}\n\n"
+            f"DNS = {self.dns}\n"
+            f"{mtu_line}"
+            "\n"
             "[Peer]\n"
             f"PublicKey = {server_public_key}\n"
             f"Endpoint = {self.endpoint}\n"
             "AllowedIPs = 0.0.0.0/0, ::/0\n"
-            "PersistentKeepalive = 25\n"
+            f"PersistentKeepalive = {tuning.keepalive_seconds}\n"
         )
 
         config_path = self.users_dir / f"{user.id}.conf"
@@ -216,17 +227,27 @@ class WireGuardService:
 
         client_ip = self.allocate_ip(user.id)
 
-        # Use server-specific endpoint and public key
+        # Use server-specific endpoint and public key; apply adaptive tuning.
+        tuning = tune_wireguard(
+            endpoint=server.endpoint,
+            client_ip=None,
+            forwarded_for=None,
+            observed_latency_ms=None,
+            device_type=None,
+        )
+        mtu_line = f"MTU = {tuning.mtu}\n" if tuning.mtu else ""
         config_content = (
             "[Interface]\n"
             f"PrivateKey = {private_key}\n"
             f"Address = {client_ip}\n"
-            f"DNS = {self.dns}\n\n"
+            f"DNS = {self.dns}\n"
+            f"{mtu_line}"
+            "\n"
             "[Peer]\n"
             f"PublicKey = {server.wg_public_key}\n"
             f"Endpoint = {server.endpoint}\n"
             "AllowedIPs = 0.0.0.0/0, ::/0\n"
-            "PersistentKeepalive = 25\n"
+            f"PersistentKeepalive = {tuning.keepalive_seconds}\n"
         )
 
         # Save config with server_id in filename

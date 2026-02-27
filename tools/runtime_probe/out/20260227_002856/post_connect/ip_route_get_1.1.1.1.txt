@@ -1,0 +1,3 @@
+$ ip route get 1.1.1.1
+1.1.1.1 dev sw-wg table 51820 src 10.8.0.12 uid 1000 
+    cache 

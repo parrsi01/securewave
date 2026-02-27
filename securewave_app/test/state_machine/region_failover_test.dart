@@ -110,7 +110,7 @@ void main() {
     installSecureStorageMock();
   });
 
-  test('auto-failover resolves a healthy region when selected region is down',
+  test('selected offline region fails hard and requires manual reselect',
       () async {
     final config = testAppConfig();
     final service = ControlledVpnService(nativeAvailable: true);
@@ -143,17 +143,18 @@ void main() {
     await settleStateMachine(turns: 30);
 
     final state = container.read(vpnStateProvider);
-    expect(state.status, VpnStatus.connected);
-    expect(state.selectedServerId, 'up-region');
-    expect(state.failoverActive, isTrue);
-    expect(state.failoverRegionId, 'up-region');
-    expect(service.connectCalls, 1);
-    expect(api.resolveCalls, 1);
-    expect(api.profileFetchCalls, 1);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
+    expect(state.errorMessage, contains('Selected region is offline'));
+    expect(state.selectedServerId, 'down-region');
+    expect(state.failoverActive, isFalse);
+    expect(service.connectCalls, 0);
+    expect(api.resolveCalls, 0);
+    expect(api.profileFetchCalls, 0);
   });
 
   test(
-      'region_down profile error retries once via failover without duplicate runtime connect attempts',
+      'region_down profile error with manual region selection does not auto-failover',
       () async {
     final config = testAppConfig();
     final service = ControlledVpnService(nativeAvailable: true);
@@ -187,18 +188,56 @@ void main() {
     await settleStateMachine(turns: 40);
 
     final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
+    expect(state.errorMessage, contains('Selected region is offline'));
+    expect(state.selectedServerId, 'primary-up');
+    expect(state.failoverActive, isFalse);
+    expect(api.resolveCalls, 0);
+    expect(api.attemptedProfileFetchCalls, 1);
+    expect(api.requestedServerIds, <String?>['primary-up']);
+    expect(service.connectCalls, 0);
+  });
+
+  test('auto-failover can resolve when region is not manually pinned', () async {
+    final config = testAppConfig();
+    final service = ControlledVpnService(nativeAvailable: true);
+    final api = _FailoverApiClient(
+      config: config,
+      resolvedRegionId: 'fallback-up',
+      failFirstProfileAsRegionDown: true,
+    );
+    final container = _buildContainer(
+      service: service,
+      apiClient: api,
+      servers: const <ServerRegion>[
+        ServerRegion(
+          id: 'primary-up',
+          name: 'Primary Region',
+          regionHealthStatus: 'up',
+        ),
+        ServerRegion(
+          id: 'fallback-up',
+          name: 'Fallback Region',
+          regionHealthStatus: 'up',
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(serversProvider.future);
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.connect();
+    await settleStateMachine(turns: 40);
+
+    final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.connected);
     expect(state.selectedServerId, 'fallback-up');
     expect(state.failoverActive, isTrue);
     expect(api.resolveCalls, 1);
     expect(api.attemptedProfileFetchCalls, 2);
-    expect(api.requestedServerIds, <String?>['primary-up', 'fallback-up']);
+    expect(api.requestedServerIds, <String?>[null, 'fallback-up']);
     expect(service.connectCalls, 1);
-    expect(
-      notifier.debugTransitionHistory
-          .any((entry) => entry.to == VpnStatus.error),
-      isFalse,
-    );
   });
 
   test('fails hard and does not connect when all regions are down', () async {

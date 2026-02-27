@@ -117,14 +117,26 @@ Address = ${WG_ADDRESS}
 ListenPort = ${WG_PORT}
 SaveConfig = false
 
-# NAT and forwarding rules
-PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o ${PRIMARY_INTERFACE} -j MASQUERADE
-PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${PRIMARY_INTERFACE} -j MASQUERADE
+# Routing isolation managed by securewave-vpn-routing (table 100, WG_NAT chain).
+# PostUp/PostDown delegate to the routing script to avoid double-NAT and ensure
+# isolated teardown that does not affect OpenVPN or IKEv2 state.
+PostUp = EGRESS_IFACE=${PRIMARY_INTERFACE} /usr/local/bin/securewave-vpn-routing setup wireguard 2>/dev/null || true
+PostDown = EGRESS_IFACE=${PRIMARY_INTERFACE} /usr/local/bin/securewave-vpn-routing teardown wireguard 2>/dev/null || true
 
 # Peers will be added dynamically via the management API
 EOF
 
 chmod 600 /etc/wireguard/${WG_INTERFACE}.conf
+
+# Install routing manager script (idempotent).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -f "${SCRIPT_DIR}/../scripts/setup_vpn_routing.sh" ]]; then
+  install -m 755 "${SCRIPT_DIR}/../scripts/setup_vpn_routing.sh" \
+    /usr/local/bin/securewave-vpn-routing
+  echo "[info] securewave-vpn-routing installed"
+else
+  echo "[warn] setup_vpn_routing.sh not found; PostUp/PostDown will no-op until installed" >&2
+fi
 
 # =============================================================================
 # 6. Configure Firewall (UFW)

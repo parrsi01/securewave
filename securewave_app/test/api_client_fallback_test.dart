@@ -23,12 +23,15 @@ void main() {
     return dio;
   }
 
-  test('ApiClient does not fall back to mock data when the backend is unreachable', () async {
+  test(
+      'ApiClient does not fall back to mock data when the backend is unreachable',
+      () async {
     final config = AppConfig(
       apiBaseUrl: 'https://example.invalid',
       portalUrl: 'https://example.invalid',
       upgradeUrl: 'https://example.invalid',
       resetSessionOnBoot: false,
+      devLoginAccounts: const <DevLoginAccount>[],
     );
     final client = ApiClient(config, dio: failingDio(config.apiBaseUrl));
 

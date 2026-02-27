@@ -9,6 +9,7 @@ required_scripts=(
   "scripts/provision_ikev2.sh"
   "scripts/rotate_openvpn_ca.sh"
   "scripts/rotate_ikev2_certs.sh"
+  "scripts/ops/validate_vpn_node_baseline.sh"
 )
 
 for script in "${required_scripts[@]}"; do

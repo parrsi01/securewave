@@ -1,0 +1,2 @@
+$ bash -lc resolvectl\ status
+sd_bus_open_system: Operation not permitted

@@ -1,0 +1,22 @@
+$ /home/sp/cyber-course/projects/securewave/tools/runtime_probe/run_probe.sh --connect-cmd pkexec\ /usr/local/libexec/securewave-wg-quick\ up\ /home/sp/.config/securewave/securewave-wireguard.conf --disconnect-cmd pkexec\ /usr/local/libexec/securewave-wg-quick\ down\ /home/sp/.config/securewave/securewave-wireguard.conf --expect-full-tunnel unknown
+[probe] capturing bundle: baseline
+[probe] running connect command
+pkexec must be setuid root
+[probe][warn] connect command exited non-zero (127)
+[probe] capturing bundle: post_connect
+[probe] running disconnect command
+pkexec must be setuid root
+[probe][warn] disconnect command exited non-zero (127)
+[probe] capturing bundle: post_disconnect
+
+[probe] Completed.
+[probe] Output directory: /home/sp/cyber-course/projects/securewave/tools/runtime_probe/out/20260227_011024
+[probe] Report: /home/sp/cyber-course/projects/securewave/tools/runtime_probe/out/20260227_011024/REPORT.md
+
+[run_probe][fail] connect command exited non-zero (127)
+[run_probe][fail] disconnect command exited non-zero (127)
+[run_probe][fail] no tunnel interface (wg0/sw-wg/tun0) detected post-connect
+[run_probe] inferred routing mode: no_tunnel_routing_detected
+[run_probe] dns validation post-connect: no
+[run_probe] latest output: /home/sp/cyber-course/projects/securewave/tools/runtime_probe/out/20260227_011024
+[run_probe] report: /home/sp/cyber-course/projects/securewave/tools/runtime_probe/out/20260227_011024/REPORT.md

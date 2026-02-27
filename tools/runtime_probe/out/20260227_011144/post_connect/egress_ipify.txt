@@ -1,0 +1,2 @@
+$ curl -fsS --max-time 8 https://api.ipify.org || true
+curl: (6) Could not resolve host: api.ipify.org

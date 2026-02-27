@@ -1,0 +1,2 @@
+$ bash -lc wg\ show
+Unable to list interfaces: Operation not permitted

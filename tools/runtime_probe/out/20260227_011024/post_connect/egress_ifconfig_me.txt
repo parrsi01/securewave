@@ -1,0 +1,2 @@
+$ curl -fsS --max-time 8 https://ifconfig.me || true
+curl: (6) Could not resolve host: ifconfig.me

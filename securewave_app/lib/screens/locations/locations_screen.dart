@@ -99,6 +99,8 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final serversAsync = ref.watch(serversProvider);
+    final planAsync = ref.watch(userPlanProvider);
+    final canUsePremium = planAsync.valueOrNull?.isPremium ?? false;
     final selectedId =
         ref.watch(vpnStateProvider.select((s) => s.selectedServerId));
     final favorites = ref.watch(favoriteServersProvider);
@@ -239,6 +241,7 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
                       selectedId: selectedId,
                       favorites: favorites,
                       initiallyExpanded: i == 0,
+                      canUsePremium: canUsePremium,
                       onSelect: (serverId) {
                         unawaited(
                           ref
@@ -343,6 +346,7 @@ class _RegionCard extends StatelessWidget {
     required this.selectedId,
     required this.favorites,
     required this.initiallyExpanded,
+    required this.canUsePremium,
     required this.onSelect,
     required this.onToggleFavorite,
   });
@@ -352,6 +356,7 @@ class _RegionCard extends StatelessWidget {
   final String? selectedId;
   final Set<String> favorites;
   final bool initiallyExpanded;
+  final bool canUsePremium;
   final void Function(String serverId) onSelect;
   final void Function(String serverId) onToggleFavorite;
 
@@ -418,13 +423,20 @@ class _RegionCard extends StatelessWidget {
                   thickness: 0.5,
                   color: isDark ? AppColors.darkBorder : AppColors.border,
                 ),
-                ...servers.map((s) => ServerTile(
-                      server: s,
-                      isSelected: s.id == selectedId,
-                      isFavorite: favorites.contains(s.id),
-                      onTap: () => onSelect(s.id),
-                      onToggleFavorite: () => onToggleFavorite(s.id),
-                    )),
+                ...servers.map((s) {
+                  final selectable = s.selectableForPlan(
+                    canUsePremium ? 'premium' : 'free',
+                  );
+                  return ServerTile(
+                    server: s,
+                    isSelected: s.id == selectedId,
+                    isFavorite: favorites.contains(s.id),
+                    enabled: selectable,
+                    disabledReason: selectable ? null : 'Premium required',
+                    onTap: selectable ? () => onSelect(s.id) : () {},
+                    onToggleFavorite: () => onToggleFavorite(s.id),
+                  );
+                }),
               ],
             ),
           ),

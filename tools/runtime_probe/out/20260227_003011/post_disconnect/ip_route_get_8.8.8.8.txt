@@ -1,0 +1,4 @@
+$ ip route get 8.8.8.8
+Cannot open netlink socket: Operation not permitted
+
+[exit=1]

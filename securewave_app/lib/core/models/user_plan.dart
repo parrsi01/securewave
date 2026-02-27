@@ -4,6 +4,8 @@ class UserPlan {
     required this.isPremium,
     required this.dataCapGb,
     required this.usedGb,
+    required this.speedDownMbps,
+    required this.speedUpMbps,
     this.renewalDate,
   });
 
@@ -11,6 +13,8 @@ class UserPlan {
   final bool isPremium;
   final double dataCapGb;
   final double usedGb;
+  final double speedDownMbps;
+  final double speedUpMbps;
   final DateTime? renewalDate;
 
   bool get isUnlimited => isPremium && dataCapGb == 0;
@@ -27,6 +31,14 @@ class UserPlan {
       isPremium: json['plan_tier']?.toString().toLowerCase() == 'premium',
       dataCapGb: (json['data_cap_gb'] as num?)?.toDouble() ?? 5,
       usedGb: (json['used_gb'] as num?)?.toDouble() ?? 0,
+      speedDownMbps: (json['speed_limit_mbps_down'] as num?)?.toDouble() ??
+          ((json['plan_tier']?.toString().toLowerCase() == 'premium')
+              ? 250
+              : 25),
+      speedUpMbps: (json['speed_limit_mbps_up'] as num?)?.toDouble() ??
+          ((json['plan_tier']?.toString().toLowerCase() == 'premium')
+              ? 100
+              : 10),
       renewalDate: json['renewal_date'] != null
           ? DateTime.tryParse(json['renewal_date'].toString())
           : null,

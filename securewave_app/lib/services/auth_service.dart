@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/logging/app_logger.dart';
 import '../core/services/auth_session.dart';
+import '../core/services/secure_storage.dart';
 import 'api_client.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
@@ -11,10 +12,15 @@ final authServiceProvider = Provider<AuthService>((ref) {
 });
 
 class AuthService {
-  AuthService(this._api, this._session);
+  AuthService(
+    this._api,
+    this._session, {
+    SecureStorage? storage,
+  }) : _storage = storage ?? SecureStorage();
 
   final ApiClient _api;
   final AuthSession _session;
+  final SecureStorage _storage;
 
   Future<void> login({required String email, required String password}) async {
     final tokens = await _api.login(email: email, password: password);
@@ -23,9 +29,11 @@ class AuthService {
       refreshToken: tokens.refreshToken,
       email: email,
     );
+    await _storage.saveRecentLoginEmail(email);
   }
 
-  Future<void> register({required String email, required String password}) async {
+  Future<void> register(
+      {required String email, required String password}) async {
     final tokens = await _api.register(email: email, password: password);
     if (tokens == null) {
       AppLogger.warning('Registration completed without token payload.');
@@ -36,5 +44,6 @@ class AuthService {
       refreshToken: tokens.refreshToken,
       email: email,
     );
+    await _storage.saveRecentLoginEmail(email);
   }
 }

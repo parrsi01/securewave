@@ -656,12 +656,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       failoverRegionId: nextServer,
       clearError: true,
     );
-    AppLogger.warning(
-      '[VPN_SM] {"event":"region_failover_resolved",'
-      '"failover_reason":"${resolved.reason}",'
-      '"previous_region":"${previous ?? ""}",'
-      '"region_selected":"$nextServer"}',
-    );
+    if (kReleaseMode) {
+      AppLogger.warning('[VPN_SM] {"event":"region_failover_resolved"}');
+    } else {
+      AppLogger.warning(
+        '[VPN_SM] {"event":"region_failover_resolved",'
+        '"failover_reason":"${resolved.reason}",'
+        '"previous_region":"${previous ?? ""}",'
+        '"region_selected":"$nextServer"}',
+      );
+    }
     _safeFireAndForget(
       _storage.saveString(SecureStorage.selectedServerKey, nextServer),
       context: 'persist_failover_selection',
@@ -736,16 +740,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       );
 
       if (_isServerDown(serversSnapshot, state.selectedServerId)) {
-        failoverAttempted = await _resolveFailoverRegion(
-          backendProtocol: plan.backendProtocol,
-          alreadyAttempted: failoverAttempted,
+        throw VpnServiceException(
+          'region_down',
+          'Selected region is offline. Choose another server.',
         );
-        if (!failoverAttempted) {
-          throw VpnServiceException(
-            'region_down',
-            'Selected region is offline. Choose another server.',
-          );
-        }
       }
 
       late final Map<String, dynamic> profile;
@@ -756,7 +754,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           effectiveProtocol: plan.effective,
         );
       } catch (error) {
-        if (!failoverAttempted && _isRegionDownApiError(error)) {
+        final selectedRegionPinned =
+            (state.selectedServerId ?? '').trim().isNotEmpty;
+        if (!selectedRegionPinned &&
+            !failoverAttempted &&
+            _isRegionDownApiError(error)) {
           final resolved = await _resolveFailoverRegion(
             backendProtocol: plan.backendProtocol,
             alreadyAttempted: failoverAttempted,
@@ -1403,12 +1405,18 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (!resolved) return;
       final selectedRegion = state.selectedServerId;
       _lastDataPlaneFailoverAt = now;
-      AppLogger.warning(
-        '[VPN_SM] {"event":"data_plane_failover_triggered",'
-        '"failover_reason":"$reason",'
-        '"previous_region":"${previousRegion ?? ""}",'
-        '"region_selected":"${selectedRegion ?? ""}"}',
-      );
+      if (kReleaseMode) {
+        AppLogger.warning(
+          '[VPN_SM] {"event":"data_plane_failover_triggered"}',
+        );
+      } else {
+        AppLogger.warning(
+          '[VPN_SM] {"event":"data_plane_failover_triggered",'
+          '"failover_reason":"$reason",'
+          '"previous_region":"${previousRegion ?? ""}",'
+          '"region_selected":"${selectedRegion ?? ""}"}',
+        );
+      }
       await disconnect();
       if (!mounted || _disposed) return;
       await connect();
@@ -1478,6 +1486,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   ({VpnErrorKind kind, String message}) _classifyVpnError(Object error) {
+    final includeInternalDetails = !kReleaseMode;
     if (error is TimeoutException) {
       return (
         kind: VpnErrorKind.backendError,
@@ -1502,10 +1511,20 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           error.code == 'vpn_not_configured') {
         return (kind: VpnErrorKind.nativeUnavailable, message: error.message);
       }
-      return (kind: VpnErrorKind.unknown, message: error.message);
+      return (
+        kind: VpnErrorKind.unknown,
+        message: includeInternalDetails
+            ? error.message
+            : 'Unable to complete the VPN request right now. Please retry.',
+      );
     }
     if (error is StateError) {
-      return (kind: VpnErrorKind.unknown, message: error.message);
+      return (
+        kind: VpnErrorKind.unknown,
+        message: includeInternalDetails
+            ? error.message
+            : 'Unable to complete the VPN request right now. Please retry.',
+      );
     }
     if (error is DioException) {
       String? detail;
@@ -1547,11 +1566,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (protocolCodes.contains(normalizedApiCode)) {
         return (
           kind: VpnErrorKind.protocolUnavailable,
-          message: (apiMessage != null && apiMessage.trim().isNotEmpty)
+          message: includeInternalDetails &&
+                  (apiMessage != null && apiMessage.trim().isNotEmpty)
               ? apiMessage
-              : (detail != null && detail.isNotEmpty)
-                  ? detail
-                  : 'Selected protocol is unavailable on this device/account/server.',
+              : 'Selected protocol is unavailable on this device/account/server.',
         );
       }
 
@@ -1574,9 +1592,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (status == 401 || status == 403) {
         return (
           kind: VpnErrorKind.auth,
-          message: (apiMessage != null && apiMessage.isNotEmpty)
+          message: includeInternalDetails &&
+                  (apiMessage != null && apiMessage.isNotEmpty)
               ? apiMessage
-              : detail != null && detail.isNotEmpty
+              : includeInternalDetails &&
+                      detail != null &&
+                      detail.isNotEmpty
                   ? 'Authentication failed: $detail'
                   : 'Authentication failed. Please sign in again.',
         );
@@ -1584,7 +1605,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (status == 404) {
         return (
           kind: VpnErrorKind.profileNotFound,
-          message: detail != null && detail.isNotEmpty
+          message: includeInternalDetails && detail != null && detail.isNotEmpty
               ? 'Profile fetch failed: $detail'
               : 'Profile fetch failed. The server endpoint was not found.',
         );
@@ -1592,7 +1613,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (status != null && status >= 500) {
         return (
           kind: VpnErrorKind.backendError,
-          message: detail != null && detail.isNotEmpty
+          message: includeInternalDetails && detail != null && detail.isNotEmpty
               ? 'Backend error: $detail'
               : 'Backend server error. Please try again in a few minutes.',
         );
@@ -1600,7 +1621,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (status != null) {
         return (
           kind: VpnErrorKind.unknown,
-          message: detail != null && detail.isNotEmpty
+          message: includeInternalDetails && detail != null && detail.isNotEmpty
               ? 'Request failed (HTTP $status): $detail'
               : 'Request failed (HTTP $status).',
         );

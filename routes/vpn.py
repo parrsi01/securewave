@@ -34,6 +34,7 @@ from models.wireguard_peer import WireGuardPeer
 from models.vpn_credential import VPNCredential
 from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
+from models.usage_analytics import UserUsageStats
 from services.jwt_service import get_current_user
 from utils.api_errors import ApiException, api_error_responses
 from utils.input_sanitizer import (
@@ -50,6 +51,11 @@ from services.wireguard_service import WireGuardService
 from services.vpn_server_service import VPNServerService
 from services.vpn_credential_service import VpnCredentialService
 from services.runtime_metrics import get_runtime_metrics
+from services.tunnel_runtime import (
+    SimulatedTunnelRuntime,
+    get_tunnel_runtime,
+    is_simulated_tunnel_mode,
+)
 from services.wireguard_tuning import tune_wireguard
 from services.latency_optimizer import get_latency_optimizer
 from services.wireguard_server_manager import (
@@ -58,6 +64,7 @@ from services.wireguard_server_manager import (
 )
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from utils.time_utils import utcnow
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn", tags=["vpn"])
@@ -389,6 +396,20 @@ class DevRegionHealthOverride(BaseModel):
 class DevRegionHealthOverrideRequest(BaseModel):
     clear: bool = False
     overrides: List[DevRegionHealthOverride] = Field(default_factory=list)
+
+
+class SimulatedTrafficRequest(BaseModel):
+    session_id: Optional[str] = None
+    rx_bytes: int = Field(0, ge=0)
+    tx_bytes: int = Field(0, ge=0)
+    rx_rate_bytes_per_sec: Optional[int] = Field(None, ge=0)
+    tx_rate_bytes_per_sec: Optional[int] = Field(None, ge=0)
+
+
+class SimulatedFailureRequest(BaseModel):
+    auth_failure: Optional[bool] = None
+    blocked_protocols: Optional[List[str]] = None
+    blocked_regions: Optional[List[str]] = None
 
 
 class RegionResolutionResponse(BaseModel):
@@ -804,6 +825,76 @@ def _bool_env(name: str, default: bool) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _sync_simulated_usage_for_user(db: Session, user_id: int) -> None:
+    if not is_simulated_tunnel_mode():
+        return
+    runtime = get_tunnel_runtime()
+    session_id = runtime.active_session_for_user(user_id)
+    if not session_id:
+        return
+    delta = runtime.pop_traffic_delta(session_id)
+    rx_delta = int(delta.rx_delta_bytes or 0)
+    tx_delta = int(delta.tx_delta_bytes or 0)
+    if rx_delta <= 0 and tx_delta <= 0:
+        return
+
+    usage = (
+        db.query(UserUsageStats)
+        .filter(UserUsageStats.user_id == user_id)
+        .first()
+    )
+    if usage is None:
+        usage = UserUsageStats(
+            user_id=user_id,
+            total_connections=0,
+            active_connections=0,
+            total_bytes_uploaded=0,
+            total_bytes_downloaded=0,
+            total_data_gb=0.0,
+            current_month_data_gb=0.0,
+            first_seen_at=utcnow(),
+            last_activity_at=utcnow(),
+        )
+    usage.total_bytes_downloaded = int(usage.total_bytes_downloaded or 0) + rx_delta
+    usage.total_bytes_uploaded = int(usage.total_bytes_uploaded or 0) + tx_delta
+    total_bytes = int(usage.total_bytes_downloaded or 0) + int(usage.total_bytes_uploaded or 0)
+    usage.total_data_gb = float(total_bytes) / (1024 * 1024 * 1024)
+    usage.current_month_data_gb = usage.total_data_gb
+    usage.last_activity_at = utcnow()
+    usage.updated_at = utcnow()
+    db.add(usage)
+
+    active_connection = (
+        db.query(VPNConnection)
+        .filter(
+            VPNConnection.user_id == user_id,
+            VPNConnection.disconnected_at.is_(None),
+        )
+        .order_by(VPNConnection.connected_at.desc())
+        .first()
+    )
+    if active_connection:
+        active_connection.total_bytes_received = int(active_connection.total_bytes_received or 0) + rx_delta
+        active_connection.total_bytes_sent = int(active_connection.total_bytes_sent or 0) + tx_delta
+        db.add(active_connection)
+
+    peers = (
+        db.query(WireGuardPeer)
+        .filter(
+            WireGuardPeer.user_id == user_id,
+            WireGuardPeer.is_revoked == False,
+        )
+        .all()
+    )
+    if peers:
+        target = peers[0]
+        target.total_data_received = int(target.total_data_received or 0) + rx_delta
+        target.total_data_sent = int(target.total_data_sent or 0) + tx_delta
+        db.add(target)
+
+    db.commit()
 
 
 def _region_health_cache_ttl_seconds() -> float:
@@ -2857,6 +2948,123 @@ async def dev_region_health_override(
     }
 
 
+@router.post(
+    "/simulate/traffic",
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("60/minute")
+async def simulate_traffic(
+    request: Request,
+    payload: SimulatedTrafficRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Test-only helper to inject deterministic traffic in simulated tunnel mode.
+    """
+    if not IS_TESTING and not _bool_env("SECUREWAVE_ENABLE_SIM_TUNNEL_ENDPOINTS", False):
+        raise HTTPException(status_code=404, detail="Not found")
+    if not is_simulated_tunnel_mode():
+        raise ApiException(
+            status_code=409,
+            code="simulation_mode_disabled",
+            message="Tunnel simulation mode is not enabled.",
+        )
+
+    runtime = get_tunnel_runtime()
+    if not isinstance(runtime, SimulatedTunnelRuntime):
+        raise ApiException(
+            status_code=409,
+            code="simulation_runtime_unavailable",
+            message="Simulated runtime is unavailable.",
+        )
+
+    session_id = payload.session_id or runtime.active_session_for_user(current_user.id)
+    if not session_id:
+        raise ApiException(
+            status_code=409,
+            code="no_active_session",
+            message="No active simulated session for user.",
+        )
+
+    if payload.rx_rate_bytes_per_sec is not None or payload.tx_rate_bytes_per_sec is not None:
+        ok = runtime.set_traffic_rate(
+            session_id,
+            rx_rate=payload.rx_rate_bytes_per_sec,
+            tx_rate=payload.tx_rate_bytes_per_sec,
+        )
+        if not ok:
+            raise ApiException(
+                status_code=404,
+                code="session_not_found",
+                message="Simulated session not found.",
+            )
+
+    if payload.rx_bytes > 0 or payload.tx_bytes > 0:
+        ok = runtime.inject_traffic(
+            session_id,
+            rx_bytes=payload.rx_bytes,
+            tx_bytes=payload.tx_bytes,
+        )
+        if not ok:
+            raise ApiException(
+                status_code=404,
+                code="session_not_found",
+                message="Simulated session not found.",
+            )
+
+    _sync_simulated_usage_for_user(db, current_user.id)
+    traffic = runtime.get_traffic(session_id)
+    return {
+        "mode": "simulated",
+        "session_id": session_id,
+        "rx_bytes": traffic.rx_bytes,
+        "tx_bytes": traffic.tx_bytes,
+        "connected": traffic.connected,
+        "timestamp_ms": traffic.timestamp_ms,
+    }
+
+
+@router.post(
+    "/simulate/failures",
+    responses=VPN_ERROR_RESPONSES,
+)
+@rate_limit("30/minute")
+async def simulate_failures(
+    request: Request,
+    payload: SimulatedFailureRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Test-only failure injection knobs for simulated runtime.
+    """
+    if not IS_TESTING and not _bool_env("SECUREWAVE_ENABLE_SIM_TUNNEL_ENDPOINTS", False):
+        raise HTTPException(status_code=404, detail="Not found")
+    if not is_simulated_tunnel_mode():
+        raise ApiException(
+            status_code=409,
+            code="simulation_mode_disabled",
+            message="Tunnel simulation mode is not enabled.",
+        )
+    runtime = get_tunnel_runtime()
+    if not isinstance(runtime, SimulatedTunnelRuntime):
+        raise ApiException(
+            status_code=409,
+            code="simulation_runtime_unavailable",
+            message="Simulated runtime is unavailable.",
+        )
+    runtime.set_failure_modes(
+        auth_failure=payload.auth_failure,
+        blocked_regions=payload.blocked_regions,
+        blocked_protocols=payload.blocked_protocols,
+    )
+    return {
+        "mode": "simulated",
+        "status": "ok",
+        "runtime": runtime.health(),
+    }
+
+
 @router.get(
     "/servers",
     response_model=ServerListResponse,
@@ -4686,6 +4894,36 @@ async def get_connection_status(
     Note: This checks if the user has an active configuration allocated.
     Actual tunnel status is managed by the WireGuard client on the user's device.
     """
+    if is_simulated_tunnel_mode():
+        runtime = get_tunnel_runtime()
+        session_id = runtime.active_session_for_user(current_user.id)
+        if not session_id:
+            return ConnectionStatusResponse(status="DISCONNECTED", connected=False)
+        _sync_simulated_usage_for_user(db, current_user.id)
+        traffic = runtime.get_traffic(session_id)
+        active_connection = (
+            db.query(VPNConnection)
+            .filter(
+                VPNConnection.user_id == current_user.id,
+                VPNConnection.disconnected_at.is_(None),
+            )
+            .order_by(VPNConnection.connected_at.desc())
+            .first()
+        )
+        server = None
+        if active_connection:
+            server = db.query(VPNServer).filter(VPNServer.id == active_connection.server_id).first()
+        return ConnectionStatusResponse(
+            status="CONNECTED" if traffic.connected else "DISCONNECTED",
+            connected=traffic.connected,
+            server_id=server.server_id if server else None,
+            server_location=f"{server.city}, {server.country}" if server else None,
+            client_ip=active_connection.client_ip if active_connection else "10.250.0.2",
+            connected_since=active_connection.connected_at.isoformat() if active_connection and active_connection.connected_at else None,
+            bytes_sent=traffic.tx_bytes,
+            bytes_received=traffic.rx_bytes,
+        )
+
     # Check for active VPN connections (if tracking)
     active_connection = db.query(VPNConnection).filter(
         VPNConnection.user_id == current_user.id,
@@ -4722,9 +4960,9 @@ async def connect_vpn(
     client in the SecureWave app performs the actual connect/disconnect.
     """
     await require_active_subscription(db, current_user)
-    wg_service = WireGuardService()
     user_tier = get_user_tier(current_user, db)
     requested_protocol = normalize_vpn_protocol(payload.protocol)
+    effective_protocol = requested_protocol if requested_protocol != "auto" else "wireguard"
     protocol_filter = requested_protocol if requested_protocol not in {"auto", "wireguard"} else None
     servers = VPNServerService.get_active_servers(db, user_tier, protocol=protocol_filter)
     health_map = _region_health_map(servers)
@@ -4733,7 +4971,7 @@ async def connect_vpn(
         for item in servers
         if _region_health_status(item, health_map=health_map) == "up"
     ]
-    if not up_servers:
+    if not up_servers and not payload.server_id:
         raise ApiException(
             status_code=503,
             code="no_servers_available",
@@ -4746,6 +4984,16 @@ async def connect_vpn(
         server = VPNServerService.get_server_by_id(db, payload.server_id)
         if not server:
             raise ApiException(status_code=404, code="server_not_found", message="Server not found")
+        if server.tier_restriction and user_tier == "free":
+            raise ApiException(
+                status_code=403,
+                code="region_premium_required",
+                message=f"Selected region requires a {server.tier_restriction} subscription.",
+                details={
+                    "server_id": server.server_id,
+                    "tier_required": server.tier_restriction,
+                },
+            )
         selected_health = _region_health_for_server(server)
         if selected_health.get("status") != "up":
             raise ApiException(
@@ -4785,6 +5033,81 @@ async def connect_vpn(
         else:
             up_servers.sort(key=lambda s: (s.performance_score or 0), reverse=True)
             server = up_servers[0]
+
+    runtime = get_tunnel_runtime()
+    if is_simulated_tunnel_mode():
+        existing_session_id = runtime.active_session_for_user(current_user.id)
+        if existing_session_id:
+            _sync_simulated_usage_for_user(db, current_user.id)
+            runtime.disconnect(existing_session_id)
+        connect_result = runtime.connect(
+            protocol=effective_protocol,
+            region_id=server.server_id,
+            user_id=current_user.id,
+            device_id=None,
+        )
+        if not connect_result.ok:
+            code = connect_result.error_code or "connect_failed"
+            status_code = 409
+            if code == "authentication_failed":
+                status_code = 401
+            elif code == "region_down":
+                status_code = 409
+            elif code == "protocol_unavailable":
+                status_code = 409
+            raise ApiException(
+                status_code=status_code,
+                code=code,
+                message="Failed to establish simulated tunnel session.",
+                details={
+                    "protocol": effective_protocol,
+                    "region_id": server.server_id,
+                    "reason": connect_result.reason,
+                },
+            )
+
+        active_connection = db.query(VPNConnection).filter(
+            VPNConnection.user_id == current_user.id,
+            VPNConnection.disconnected_at.is_(None)
+        ).first()
+        if not active_connection:
+            active_connection = VPNConnection(
+                user_id=current_user.id,
+                server_id=server.id,
+                client_ip="10.250.0.2",
+                connected_at=datetime.utcnow(),
+                total_bytes_sent=0,
+                total_bytes_received=0,
+            )
+        else:
+            active_connection.server_id = server.id
+            active_connection.client_ip = active_connection.client_ip or "10.250.0.2"
+            active_connection.connected_at = active_connection.connected_at or datetime.utcnow()
+            active_connection.disconnected_at = None
+        db.add(active_connection)
+        db.commit()
+
+        get_runtime_metrics().record_peer_connect()
+        _log_vpn_event(
+            "vpn_peer_connect",
+            mode="simulated",
+            user_id=current_user.id,
+            server_id=server.server_id,
+            session_id=connect_result.session_id,
+            protocol=effective_protocol,
+        )
+
+        return {
+            "mode": "simulated",
+            "status": "CONNECTED",
+            "region": server.region or server.location,
+            "server_id": server.server_id,
+            "client_ip": "10.250.0.2",
+            "session_id": connect_result.session_id,
+            "protocol": effective_protocol,
+        }
+
+    wg_service = WireGuardService()
 
     # Ensure keys/config exist
     if not current_user.wg_private_key_encrypted or not current_user.wg_public_key:
@@ -4877,6 +5200,34 @@ async def disconnect_vpn(
 
     Note: This does not terminate a WireGuard tunnel on the client device.
     """
+    if is_simulated_tunnel_mode():
+        runtime = get_tunnel_runtime()
+        session_id = runtime.active_session_for_user(current_user.id)
+        if session_id:
+            _sync_simulated_usage_for_user(db, current_user.id)
+            runtime.disconnect(session_id)
+        active_connection = db.query(VPNConnection).filter(
+            VPNConnection.user_id == current_user.id,
+            VPNConnection.disconnected_at.is_(None)
+        ).first()
+        if active_connection:
+            active_connection.disconnected_at = datetime.utcnow()
+            db.add(active_connection)
+            db.commit()
+            get_runtime_metrics().record_peer_disconnect()
+            _log_vpn_event(
+                "vpn_peer_disconnect",
+                mode="simulated",
+                user_id=current_user.id,
+                server_id=active_connection.server_id,
+                session_id=session_id,
+            )
+        return {
+            "mode": "simulated",
+            "status": "DISCONNECTED",
+            "disconnected_at": datetime.utcnow().isoformat(),
+        }
+
     active_connection = db.query(VPNConnection).filter(
         VPNConnection.user_id == current_user.id,
         VPNConnection.disconnected_at.is_(None)

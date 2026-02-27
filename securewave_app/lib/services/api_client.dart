@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/config/app_config.dart';
@@ -53,6 +54,129 @@ class ApiClient {
 
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
+  static const bool _strictContractValidation = !kReleaseMode;
+
+  Never _contractViolation(String endpoint, String detail) {
+    throw StateError('API contract violation at $endpoint: $detail');
+  }
+
+  bool _isBoolLike(Object? value) {
+    if (value is bool) return true;
+    if (value is num) return true;
+    if (value == null) return false;
+    final text = value.toString().trim().toLowerCase();
+    return text == 'true' || text == 'false' || text == '1' || text == '0';
+  }
+
+  bool _isNumLike(Object? value) {
+    if (value is num) return true;
+    if (value == null) return false;
+    return num.tryParse(value.toString()) != null;
+  }
+
+  void _validateUsageContract(Map<String, dynamic> usage) {
+    const endpoint = '/account/usage';
+    final required = <String, String>{
+      'quota_bytes': 'number',
+      'used_bytes': 'number',
+      'used_percent': 'number',
+      'plan_tier': 'string',
+      'devices_count': 'number',
+      'username': 'string',
+      'display_name': 'string',
+    };
+    for (final entry in required.entries) {
+      if (!usage.containsKey(entry.key)) {
+        _contractViolation(endpoint, 'missing key `${entry.key}`');
+      }
+    }
+    if (!_isNumLike(usage['quota_bytes'])) {
+      _contractViolation(endpoint, '`quota_bytes` must be numeric');
+    }
+    if (!_isNumLike(usage['used_bytes'])) {
+      _contractViolation(endpoint, '`used_bytes` must be numeric');
+    }
+    if (!_isNumLike(usage['used_percent'])) {
+      _contractViolation(endpoint, '`used_percent` must be numeric');
+    }
+    if (usage['plan_tier'] == null || usage['plan_tier'].toString().isEmpty) {
+      _contractViolation(endpoint, '`plan_tier` must be non-empty string');
+    }
+    if (!_isNumLike(usage['devices_count'])) {
+      _contractViolation(endpoint, '`devices_count` must be numeric');
+    }
+  }
+
+  void _validateRegionsContract(
+    Map<String, dynamic> payload,
+    List<dynamic> rawList,
+  ) {
+    const endpoint = '/vpn/regions';
+    if (!payload.containsKey('regions') || payload['regions'] is! List) {
+      _contractViolation(endpoint, '`regions` list is required');
+    }
+    for (var index = 0; index < rawList.length; index++) {
+      final raw = rawList[index];
+      if (raw is! Map) {
+        _contractViolation(endpoint, 'region[$index] must be object');
+      }
+      final item = Map<String, dynamic>.from(raw);
+      const requiredKeys = <String>[
+        'server_id',
+        'region_health_status',
+        'region_health_last_checked_at',
+        'region_health_reason_code',
+      ];
+      for (final key in requiredKeys) {
+        if (!item.containsKey(key)) {
+          _contractViolation(endpoint, 'region[$index] missing `$key`');
+        }
+      }
+      final health = item['region_health_status']?.toString().toLowerCase();
+      if (health != 'up' && health != 'down' && health != 'unknown') {
+        _contractViolation(
+          endpoint,
+          'region[$index] `region_health_status` invalid: $health',
+        );
+      }
+    }
+  }
+
+  void _validateProtocolsContract(Map<String, dynamic> payload) {
+    const endpoint = '/vpn/protocols';
+    final protocols = payload['protocols'];
+    if (protocols is! List) {
+      _contractViolation(endpoint, '`protocols` list is required');
+    }
+    for (var index = 0; index < protocols.length; index++) {
+      final raw = protocols[index];
+      if (raw is! Map) {
+        _contractViolation(endpoint, 'protocol[$index] must be object');
+      }
+      final item = Map<String, dynamic>.from(raw);
+      const requiredKeys = <String>[
+        'protocol',
+        'enabled',
+        'server_enabled',
+        'plan_enabled',
+        'platform_supported',
+      ];
+      for (final key in requiredKeys) {
+        if (!item.containsKey(key)) {
+          _contractViolation(endpoint, 'protocol[$index] missing `$key`');
+        }
+      }
+      if (!_isBoolLike(item['enabled']) ||
+          !_isBoolLike(item['server_enabled']) ||
+          !_isBoolLike(item['plan_enabled']) ||
+          !_isBoolLike(item['platform_supported'])) {
+        _contractViolation(
+          endpoint,
+          'protocol[$index] availability flags must be bool-like',
+        );
+      }
+    }
+  }
 
   bool _isTransientNetworkError(Object error) {
     if (error is! DioException) return false;
@@ -107,27 +231,38 @@ class ApiClient {
       }
     }
     try {
-      Future<List<ServerRegion>> fetchFrom(String path, String listKey) async {
+      Future<
+          ({
+            List<ServerRegion> servers,
+            Map<String, dynamic> data,
+            List<dynamic> rawList,
+          })> fetchFrom(String path, String listKey) async {
         final response = await _dio.get<Map<String, dynamic>>(path);
         final data = response.data ?? <String, dynamic>{};
         final rawList =
             data[listKey] is List ? data[listKey] as List : <dynamic>[];
-        return rawList
+        final servers = rawList
             .whereType<Map>()
             .map((entry) =>
                 ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
             .toList();
+        return (servers: servers, data: data, rawList: rawList);
       }
 
       List<ServerRegion> servers;
       String sourcePath;
       try {
-        servers = await fetchFrom('/vpn/regions', 'regions');
+        final result = await fetchFrom('/vpn/regions', 'regions');
+        servers = result.servers;
         sourcePath = '/vpn/regions';
+        if (_strictContractValidation) {
+          _validateRegionsContract(result.data, result.rawList);
+        }
       } on DioException catch (error) {
         final status = error.response?.statusCode;
         if (status != 404 && status != 405) rethrow;
-        servers = await fetchFrom('/vpn/servers', 'servers');
+        final result = await fetchFrom('/vpn/servers', 'servers');
+        servers = result.servers;
         sourcePath = '/vpn/servers';
       }
 
@@ -152,8 +287,29 @@ class ApiClient {
       }
     }
     try {
-      final response = await _dio.get<Map<String, dynamic>>('/user/plan');
-      final data = response.data ?? <String, dynamic>{};
+      Map<String, dynamic> data;
+      try {
+        final usageResp =
+            await _dio.get<Map<String, dynamic>>('/account/usage');
+        final usage = usageResp.data ?? <String, dynamic>{};
+        if (_strictContractValidation) {
+          _validateUsageContract(usage);
+        }
+        final quotaBytes = (usage['quota_bytes'] as num?)?.toDouble() ?? 0;
+        final usedBytes = (usage['used_bytes'] as num?)?.toDouble() ?? 0;
+        final tier = usage['plan_tier']?.toString().toLowerCase() ?? 'free';
+        data = <String, dynamic>{
+          'plan_name': tier == 'premium' ? 'Premium' : 'Free',
+          'plan_tier': tier,
+          'data_cap_gb': quotaBytes > 0 ? quotaBytes / 1024 / 1024 / 1024 : 0,
+          'used_gb': usedBytes / 1024 / 1024 / 1024,
+        };
+      } on DioException catch (error) {
+        final status = error.response?.statusCode;
+        if (status != 404 && status != 405) rethrow;
+        final response = await _dio.get<Map<String, dynamic>>('/user/plan');
+        data = response.data ?? <String, dynamic>{};
+      }
       final plan = UserPlan.fromJson(data);
       _cachedPlan = plan;
       _planFetchedAt = DateTime.now();
@@ -266,6 +422,9 @@ class ApiClient {
         cancelToken: cancelToken,
       );
       final data = response.data ?? const <String, dynamic>{};
+      if (_strictContractValidation) {
+        _validateProtocolsContract(data);
+      }
       final catalog = VpnProtocolCatalog.fromJson(data);
       final enabled = catalog
           .enabledProtocols()

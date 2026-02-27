@@ -20,8 +20,13 @@ class MetricsDisplay extends ConsumerWidget {
       vpnStateProvider.select((s) => s.status == VpnStatus.connected),
     );
     final rates = ref.watch(
-      vpnStateProvider.select((s) => (down: s.dataRateDown, up: s.dataRateUp)),
+      vpnStateProvider.select((s) => (
+            down: s.dataRateDown,
+            up: s.dataRateUp,
+            sessionBytes: s.sessionTransferredBytes,
+          )),
     );
+    final sessionMb = rates.sessionBytes / 1024 / 1024;
 
     return AnimatedSize(
       duration: AppAnimations.durationMedium,
@@ -31,8 +36,8 @@ class MetricsDisplay extends ConsumerWidget {
         duration: AppAnimations.durationNormal,
         child: show
             ? Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.space5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -57,6 +62,18 @@ class MetricsDisplay extends ConsumerWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: AppSpacing.space3),
+                    Expanded(
+                      child: RepaintBoundary(
+                        child: _MetricCard(
+                          icon: Icons.data_usage_rounded,
+                          iconColor: AppColors.secondary,
+                          value: sessionMb,
+                          label: 'Session',
+                          unit: 'MB',
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               )
@@ -72,12 +89,14 @@ class _MetricCard extends StatelessWidget {
     required this.iconColor,
     required this.value,
     required this.label,
+    this.unit = 'Mbps',
   });
 
   final IconData icon;
   final Color iconColor;
   final double value;
   final String label;
+  final String unit;
 
   @override
   Widget build(BuildContext context) {
@@ -98,8 +117,18 @@ class _MetricCard extends StatelessWidget {
           width: 0.5,
         ),
         boxShadow: isDark
-            ? [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4))]
-            : [BoxShadow(color: AppColors.ink.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+            ? [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4))
+              ]
+            : [
+                BoxShadow(
+                    color: AppColors.ink.withValues(alpha: 0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4))
+              ],
       ),
       child: Row(
         children: [
@@ -123,7 +152,7 @@ class _MetricCard extends StatelessWidget {
                   duration: AppAnimations.durationNormal,
                   curve: AppAnimations.curveDefault,
                   builder: (_, v, __) => Text(
-                    '${v.toStringAsFixed(1)} Mbps',
+                    '${v.toStringAsFixed(1)} $unit',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       fontFeatures: const [FontFeature.tabularFigures()],

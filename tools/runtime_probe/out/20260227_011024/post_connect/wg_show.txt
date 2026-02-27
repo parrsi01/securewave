@@ -1,0 +1,4 @@
+$ wg show
+Unable to list interfaces: Operation not permitted
+
+[exit=1]

@@ -37,6 +37,12 @@ class ServerRegion {
   final bool premiumOnly;
   final List<String> supportedProtocols;
 
+  bool selectableForPlan(String? planTier) {
+    if (!premiumOnly) return true;
+    final tier = (planTier ?? '').trim().toLowerCase();
+    return tier == 'premium' || tier == 'pro' || tier == 'ultra';
+  }
+
   factory ServerRegion.fromJson(Map<String, dynamic> json) {
     String? s(String key) {
       final value = json[key]?.toString();

@@ -12,6 +12,8 @@ Provides:
 import os
 import secrets
 
+pytest_plugins = ["tests.fixtures.users"]
+
 # ---------------------------------------------------------------------------
 # Environment overrides -- MUST happen before any app imports
 # ---------------------------------------------------------------------------

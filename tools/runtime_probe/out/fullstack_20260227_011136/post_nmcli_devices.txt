@@ -1,0 +1,2 @@
+$ bash -lc nmcli\ -t\ -f\ DEVICE\,TYPE\,STATE\,CONNECTION\ device\ status
+Error: Could not create NMClient object: Could not connect: Operation not permitted.

@@ -1,0 +1,2 @@
+$ curl -fsS --max-time 8 https://api.ipify.org || true
+138.199.204.139
