@@ -1235,6 +1235,22 @@ def _effective_protocol_reason(
     return "unavailable_region"
 
 
+def _protocol_unavailable_status_code(protocol: str, reason: Optional[str]) -> int:
+    normalized = normalize_vpn_protocol(protocol)
+    text = (reason or "").strip().lower()
+    if text == "no_servers_available" and normalized in {"openvpn", "ikev2"}:
+        return 409
+    return 503 if text == "no_servers_available" else 409
+
+
+def _protocol_unavailable_error_code(protocol: str, reason: Optional[str]) -> str:
+    normalized = normalize_vpn_protocol(protocol)
+    text = (reason or "").strip().lower()
+    if text == "no_servers_available" and normalized in {"openvpn", "ikev2"}:
+        return f"{normalized}_temporarily_unavailable"
+    return text or "unavailable_region"
+
+
 def _resolve_cache_ttl_seconds() -> float:
     raw = os.getenv("SECUREWAVE_REGION_RESOLUTION_CACHE_TTL_SECONDS", "10").strip()
     try:
@@ -2557,10 +2573,11 @@ def _select_server_for_protocol(
     ]
     if not candidates:
         reason = _effective_protocol_reason(protocol, servers=all_servers, health_map=health_map)
-        status_code = 503 if reason == "no_servers_available" else 409
+        status_code = _protocol_unavailable_status_code(protocol, reason)
+        error_code = _protocol_unavailable_error_code(protocol, reason)
         raise ApiException(
             status_code=status_code,
-            code=str(reason or "unavailable_region"),
+            code=error_code,
             message="Requested protocol is currently unavailable on active servers.",
             details={"protocol": protocol, "reason": reason},
         )
@@ -3578,10 +3595,17 @@ async def provision_profile(
                 servers=all_servers,
                 health_map=health_map,
             )
-            status_code = 503 if reason == "no_servers_available" else 409
+            status_code = _protocol_unavailable_status_code(
+                requested_protocol,
+                reason,
+            )
+            error_code = _protocol_unavailable_error_code(
+                requested_protocol,
+                reason,
+            )
             raise ApiException(
                 status_code=status_code,
-                code=str(reason or "unavailable_region"),
+                code=error_code,
                 message="Requested protocol is currently unavailable on active servers.",
                 details={"protocol": requested_protocol, "reason": reason},
             )
