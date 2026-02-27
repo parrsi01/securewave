@@ -2819,6 +2819,7 @@ async def protocol_health(
 )
 @rate_limit("30/minute")
 async def dev_region_health_override(
+    request: Request,
     payload: DevRegionHealthOverrideRequest,
     current_user: User = Depends(get_current_user),
 ):
