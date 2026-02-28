@@ -19,4 +19,6 @@ Steps:
 3. Bootstrap the host with `scripts/hetzner_bootstrap.sh`.
 4. Deploy the app (Docker or systemd).
 
+Operational secret material must stay out of git and live under `/etc/securewave/secrets` on the target host.
+
 See `docs/HETZNER_RUNBOOK.md` for copy-paste steps.

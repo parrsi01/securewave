@@ -10,6 +10,12 @@ TIMESTAMP_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 mkdir -p "$REPORT_DIR"
 
+PEM_BEGIN_PREFIX='-----BEGIN '
+PEM_PRIVATE_SUFFIX='PRIVATE KEY-----'
+PGP_PRIVATE_BLOCK_SUFFIX='PGP PRIVATE KEY BLOCK-----'
+PRIVATE_KEY_BLOCK_REGEX="${PEM_BEGIN_PREFIX}(RSA |EC |DSA |OPENSSH )?${PEM_PRIVATE_SUFFIX}"
+PGP_PRIVATE_KEY_BLOCK_REGEX="${PEM_BEGIN_PREFIX}${PGP_PRIVATE_BLOCK_SUFFIX}"
+
 # Secret patterns (regex). Keep tight to avoid obvious false positives.
 PATTERNS=(
   'AKIA[0-9A-Z]{16}'
@@ -19,8 +25,8 @@ PATTERNS=(
   'pk_test_[0-9A-Za-z]{16,}'
   'SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}'
   'xox[baprs]-[0-9A-Za-z-]{10,}'
-  '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'
-  '-----BEGIN PGP PRIVATE KEY BLOCK-----'
+  "$PRIVATE_KEY_BLOCK_REGEX"
+  "$PGP_PRIVATE_KEY_BLOCK_REGEX"
   'HETZNER_API_TOKEN\s*=\s*[A-Za-z0-9_-]{24,}'
   'HCLOUD_TOKEN\s*=\s*[A-Za-z0-9_-]{24,}'
   'JWT_SECRET(_KEY)?\s*=\s*["\047]?[A-Za-z0-9_\-]{16,}'

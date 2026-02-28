@@ -9,6 +9,12 @@ TIMESTAMP_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 mkdir -p "$(dirname "$OUT_FILE")"
 
+PEM_BEGIN_PREFIX='-----BEGIN '
+PEM_PRIVATE_SUFFIX='PRIVATE KEY-----'
+PGP_PRIVATE_BLOCK_SUFFIX='PGP PRIVATE KEY BLOCK-----'
+PRIVATE_KEY_BLOCK_REGEX="${PEM_BEGIN_PREFIX}(RSA |EC |DSA |OPENSSH )?${PEM_PRIVATE_SUFFIX}"
+PGP_PRIVATE_KEY_BLOCK_REGEX="${PEM_BEGIN_PREFIX}${PGP_PRIVATE_BLOCK_SUFFIX}"
+
 declare -a finding_rows=()
 declare -a rotation_steps=()
 
@@ -61,8 +67,8 @@ Stripe Test Secret|low|sk_test_[0-9A-Za-z]{16,}|Confirm test-only fixture use; r
 Stripe Live Publishable|medium|pk_live_[0-9A-Za-z]{16,}|Verify publishable key ownership and regenerate if uncertain.|yes
 SendGrid API Key|critical|SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}|Rotate SendGrid API key and revoke old key IDs.|yes
 Slack Token|high|xox[baprs]-[0-9A-Za-z-]{10,}|Revoke Slack tokens and reissue with least privilege scopes.|yes
-Private Key Block|critical|-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----|Rotate corresponding private/public keypairs immediately.|yes
-PGP Private Key Block|critical|-----BEGIN PGP PRIVATE KEY BLOCK-----|Revoke impacted PGP key material and issue replacement keys.|yes
+Private Key Block|critical|__PRIVATE_KEY_BLOCK_REGEX__|Rotate corresponding private/public keypairs immediately.|yes
+PGP Private Key Block|critical|__PGP_PRIVATE_KEY_BLOCK_REGEX__|Revoke impacted PGP key material and issue replacement keys.|yes
 Hetzner Token|critical|HETZNER_API_TOKEN[[:space:]]*=[[:space:]]*[A-Za-z0-9_-]{24,}|Rotate Hetzner token and re-scope API permissions.|yes
 Hetzner Cloud Token|critical|HCLOUD_TOKEN[[:space:]]*=[[:space:]]*[A-Za-z0-9_-]{24,}|Rotate HCLOUD token and validate audit logs.|yes
 JWT Secret Assignment|high|JWT_SECRET(_KEY)?[[:space:]]*=[[:space:]]*["\047]?[A-Za-z0-9_-]{16,}|Rotate JWT signing secrets and invalidate sessions.|no
@@ -78,6 +84,11 @@ critical_head_hits=false
 
 for row in "${PATTERNS[@]}"; do
   IFS='|' read -r name severity regex rotation collect_paths <<<"$row"
+  if [[ "$regex" == "__PRIVATE_KEY_BLOCK_REGEX__" ]]; then
+    regex="$PRIVATE_KEY_BLOCK_REGEX"
+  elif [[ "$regex" == "__PGP_PRIVATE_KEY_BLOCK_REGEX__" ]]; then
+    regex="$PGP_PRIVATE_KEY_BLOCK_REGEX"
+  fi
 
   head_hits="$(scan_head "$regex")"
   history_hits="$(scan_history "$regex")"
