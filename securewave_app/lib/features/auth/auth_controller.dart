@@ -46,7 +46,10 @@ class AuthController extends StateNotifier<AuthState> {
       // Clear stale pre-auth caches so providers re-fetch with valid token.
       _ref.invalidate(serversProvider);
       _ref.invalidate(userPlanProvider);
-      debugPrint('[AUTH_VERIFY] login ok — serversProvider+userPlanProvider invalidated');
+      _ref.invalidate(vpnProtocolCatalogProvider);
+      debugPrint(
+        '[AUTH_VERIFY] login ok — serversProvider+userPlanProvider+vpnProtocolCatalogProvider invalidated',
+      );
     } catch (error, stackTrace) {
       debugPrint('[AUTH_VERIFY] login failed: $error');
       AppLogger.error('Login failed', error: error, stackTrace: stackTrace);
@@ -71,7 +74,10 @@ class AuthController extends StateNotifier<AuthState> {
           .register(email: email, password: password);
       _ref.invalidate(serversProvider);
       _ref.invalidate(userPlanProvider);
-      debugPrint('[AUTH_VERIFY] register ok — providers invalidated');
+      _ref.invalidate(vpnProtocolCatalogProvider);
+      debugPrint(
+        '[AUTH_VERIFY] register ok — serversProvider+userPlanProvider+vpnProtocolCatalogProvider invalidated',
+      );
     } catch (error, stackTrace) {
       debugPrint('[AUTH_VERIFY] register failed: $error');
       AppLogger.error('Registration failed', error: error, stackTrace: stackTrace);

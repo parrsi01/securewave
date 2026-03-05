@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../debug/automation_keys.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 import 'auth_controller.dart';
@@ -71,6 +72,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             const AuthFieldLabel('Email address'),
                             const SizedBox(height: AppSpacing.space2),
                             TextFormField(
+                              key: const ValueKey<String>(
+                                AutomationKeys.registerEmailField,
+                              ),
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
@@ -93,6 +97,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             const AuthFieldLabel('Password'),
                             const SizedBox(height: AppSpacing.space2),
                             TextFormField(
+                              key: const ValueKey<String>(
+                                AutomationKeys.registerPasswordField,
+                              ),
                               controller: _passwordController,
                               obscureText: _obscurePassword,
                               textInputAction: TextInputAction.next,
@@ -126,6 +133,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             const AuthFieldLabel('Confirm password'),
                             const SizedBox(height: AppSpacing.space2),
                             TextFormField(
+                              key: const ValueKey<String>(
+                                AutomationKeys.registerConfirmField,
+                              ),
                               controller: _confirmController,
                               obscureText: _obscureConfirm,
                               textInputAction: TextInputAction.done,
@@ -164,6 +174,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton(
+                                key: const ValueKey<String>(
+                                  AutomationKeys.registerSubmitButton,
+                                ),
                                 onPressed: state.isLoading ? null : _submit,
                                 child: state.isLoading
                                     ? const SizedBox(
@@ -180,6 +193,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             const SizedBox(height: AppSpacing.space4),
                             Center(
                               child: TextButton(
+                                key: const ValueKey<String>(
+                                  AutomationKeys.registerBackToLoginButton,
+                                ),
                                 onPressed: () {
                                   if (Navigator.of(context).canPop()) {
                                     context.pop();

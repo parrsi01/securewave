@@ -7,6 +7,7 @@ class SecureStorage {
 
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
+  static const sessionEmailKey = 'session_email';
   static const autoConnectKey = 'pref_auto_connect';
   static const selectedServerKey = 'selected_server_id';
   static const resetSessionDoneKey = 'reset_session_done';
@@ -17,6 +18,8 @@ class SecureStorage {
   static const vpnProfileConfigKey = 'vpn_profile_wireguard_config';
   static const vpnProfileExpiresAtKey = 'vpn_profile_expires_at';
   static const recentLoginEmailsKey = 'recent_login_emails';
+  static const vpnLifetimeUsageKey = 'vpn_lifetime_usage_bytes';
+  static const serversCatalogCacheKey = 'vpn_servers_catalog_cache';
 
   Future<void> saveTokens(
       {required String accessToken, String? refreshToken}) async {
@@ -29,6 +32,11 @@ class SecureStorage {
   Future<String?> getAccessToken() => _storage.read(key: _accessTokenKey);
 
   Future<String?> getRefreshToken() => _storage.read(key: _refreshTokenKey);
+
+  Future<void> saveSessionEmail(String email) =>
+      _storage.write(key: sessionEmailKey, value: email);
+
+  Future<String?> getSessionEmail() => _storage.read(key: sessionEmailKey);
 
   Future<void> clearTokens() async {
     await _storage.delete(key: _accessTokenKey);

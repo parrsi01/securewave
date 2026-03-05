@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/state/app_state.dart';
+import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
 import 'package:securewave_app/services/api_client.dart';
@@ -63,14 +64,23 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    await container
+        .read(authSessionProvider)
+        .setSession(accessToken: 'test-token');
 
     final notifier = container.read(vpnStateProvider.notifier);
     notifier.selectServer('us-chi');
 
     await notifier.connect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.connected,
+    );
     expect(container.read(vpnStateProvider).status, VpnStatus.connected);
 
     await notifier.disconnect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.disconnected,
+    );
     expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
   });
 
@@ -88,9 +98,15 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    await container
+        .read(authSessionProvider)
+        .setSession(accessToken: 'test-token');
 
     final notifier = container.read(vpnStateProvider.notifier);
     await notifier.connect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.connected,
+    );
 
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.connected);
@@ -112,9 +128,15 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    await container
+        .read(authSessionProvider)
+        .setSession(accessToken: 'test-token');
 
     final notifier = container.read(vpnStateProvider.notifier);
     await notifier.connect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.connected,
+    );
     expect(container.read(vpnStateProvider).status, VpnStatus.connected);
 
     await SecureStorage().saveString(
@@ -123,5 +145,49 @@ void main() {
     );
     await notifier.handleConnectivityChange(hasNetwork: false);
     expect(container.read(vpnStateProvider).status, VpnStatus.error);
+  });
+
+  test('VpnStateNotifier disconnect normalizes error state to disconnected',
+      () async {
+    final service = ControlledVpnService(
+      connectDelay: Duration.zero,
+      disconnectDelay: Duration.zero,
+    );
+    final fakeApi = FakeApiClient(config: testAppConfig());
+    final container = ProviderContainer(
+      overrides: [
+        appConfigProvider.overrideWith((ref) => testAppConfig()),
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(fakeApi),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container
+        .read(authSessionProvider)
+        .setSession(accessToken: 'test-token');
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.connect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.connected,
+    );
+
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileConfigKey,
+      'PostUp = sh -c "iptables -I OUTPUT -j REJECT"\n',
+    );
+    await notifier.handleConnectivityChange(hasNetwork: false);
+    expect(container.read(vpnStateProvider).status, VpnStatus.error);
+
+    await notifier.disconnect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.disconnected,
+    );
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.disconnected);
+    expect(state.desiredOn, isFalse);
+    expect(state.errorKind, isNull);
+    expect(state.errorMessage, isNull);
   });
 }

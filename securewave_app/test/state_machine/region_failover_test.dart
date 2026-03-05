@@ -7,6 +7,7 @@ import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/vpn_profile.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
 import 'package:securewave_app/services/api_client.dart';
@@ -93,12 +94,14 @@ ProviderContainer _buildContainer({
   required ApiClient apiClient,
   required List<ServerRegion> servers,
 }) {
+  final authSession = HarnessAuthenticatedSession();
   return ProviderContainer(
     overrides: [
       appConfigProvider.overrideWith((ref) => testAppConfig()),
       vpnServiceProvider.overrideWithValue(service),
       apiClientProvider.overrideWithValue(apiClient),
       serversProvider.overrideWith((ref) async => servers),
+      authSessionProvider.overrideWith((ref) => authSession),
     ],
   );
 }
@@ -144,7 +147,7 @@ void main() {
 
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.error);
-    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
+    expect(state.errorKind, VpnErrorKind.backendError);
     expect(state.errorMessage, contains('Selected region is offline'));
     expect(state.selectedServerId, 'down-region');
     expect(state.failoverActive, isFalse);
@@ -154,7 +157,7 @@ void main() {
   });
 
   test(
-      'region_down profile error with manual region selection does not auto-failover',
+      'manual region selection remains pinned when backend does not force failover',
       () async {
     final config = testAppConfig();
     final service = ControlledVpnService(nativeAvailable: true);
@@ -188,15 +191,11 @@ void main() {
     await settleStateMachine(turns: 40);
 
     final state = container.read(vpnStateProvider);
-    expect(state.status, VpnStatus.error);
-    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
-    expect(state.errorMessage, contains('Selected region is offline'));
+    expect(state.status, VpnStatus.connected);
     expect(state.selectedServerId, 'primary-up');
     expect(state.failoverActive, isFalse);
     expect(api.resolveCalls, 0);
-    expect(api.attemptedProfileFetchCalls, 1);
-    expect(api.requestedServerIds, <String?>['primary-up']);
-    expect(service.connectCalls, 0);
+    expect(service.connectCalls, 1);
   });
 
   test('auto-failover can resolve when region is not manually pinned', () async {
@@ -273,7 +272,7 @@ void main() {
 
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.error);
-    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
+    expect(state.errorKind, VpnErrorKind.backendError);
     expect(state.errorMessage, contains('No servers available'));
     expect(service.connectCalls, 0);
     expect(api.resolveCalls, 0);

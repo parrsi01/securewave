@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.net.TrafficStats
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -37,6 +38,7 @@ class SecureWaveVpnService : VpnService() {
     super.onCreate()
     backend = GoBackend(this)
     lastKnownState = "disconnected"
+    captureTrafficBaseline()
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -72,6 +74,7 @@ class SecureWaveVpnService : VpnService() {
           currentState = Tunnel.State.UP
         }
         lastKnownState = "connected"
+        captureTrafficBaseline()
         updateNotification("SecureWave VPN", "Connected")
         sendSuccess(receiver)
       } catch (error: Exception) {
@@ -96,6 +99,7 @@ class SecureWaveVpnService : VpnService() {
           }
           lastKnownState = "disconnected"
         }
+        captureTrafficBaseline()
         sendSuccess(receiver)
       } catch (error: Exception) {
         sendError(
@@ -152,8 +156,41 @@ class SecureWaveVpnService : VpnService() {
     const val EXTRA_CONFIG = "wireguard_config"
     const val EXTRA_RESULT_RECEIVER = "vpn_result_receiver"
     @Volatile var lastKnownState: String = "disconnected"
+    @Volatile private var baselineRxBytes: Long = 0L
+    @Volatile private var baselineTxBytes: Long = 0L
     private const val NOTIFICATION_ID = 4201
     private const val RESULT_SUCCESS = 0
     private const val RESULT_ERROR = 1
+
+    private fun safeTotalRxBytes(): Long {
+      val value = TrafficStats.getTotalRxBytes()
+      return if (value < 0L) 0L else value
+    }
+
+    private fun safeTotalTxBytes(): Long {
+      val value = TrafficStats.getTotalTxBytes()
+      return if (value < 0L) 0L else value
+    }
+
+    @Synchronized fun captureTrafficBaseline() {
+      baselineRxBytes = safeTotalRxBytes()
+      baselineTxBytes = safeTotalTxBytes()
+    }
+
+    @Synchronized fun currentTrafficStats(): Map<String, Any> {
+      val connected = lastKnownState == "connected"
+      val totalRx = safeTotalRxBytes()
+      val totalTx = safeTotalTxBytes()
+      val rx = (totalRx - baselineRxBytes).coerceAtLeast(0L)
+      val tx = (totalTx - baselineTxBytes).coerceAtLeast(0L)
+      return mapOf(
+        "connected" to connected,
+        "rx_bytes" to rx,
+        "tx_bytes" to tx,
+        "protocol" to "wireguard",
+        "interface" to "",
+        "timestamp_ms" to System.currentTimeMillis(),
+      )
+    }
   }
 }

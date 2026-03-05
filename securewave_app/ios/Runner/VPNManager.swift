@@ -1,6 +1,7 @@
 import Foundation
 import NetworkExtension
 import os
+import Darwin
 
 final class SecureWaveVPNManager {
   static let shared = SecureWaveVPNManager()
@@ -48,6 +49,20 @@ final class SecureWaveVPNManager {
       "macos_entitlement_warning": available
         ? ""
         : "Network Extension entitlements are not configured for Runner + PacketTunnel.",
+    ]
+  }
+
+  func trafficStatsPayload() -> [String: Any] {
+    let status = manager.connection.status
+    let connected = status == .connected || status == .reasserting
+    let stats = readUtunCounters()
+    return [
+      "connected": connected,
+      "rx_bytes": stats.rx,
+      "tx_bytes": stats.tx,
+      "interface": stats.interfaceName,
+      "protocol": "wireguard",
+      "timestamp_ms": Int(Date().timeIntervalSince1970 * 1000),
     ]
   }
 
@@ -167,5 +182,35 @@ final class SecureWaveVPNManager {
         NSUnderlyingErrorKey: nsError,
       ]
     )
+  }
+
+  private func readUtunCounters() -> (rx: UInt64, tx: UInt64, interfaceName: String) {
+    var pointer: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&pointer) == 0, let first = pointer else {
+      return (0, 0, "")
+    }
+    defer { freeifaddrs(pointer) }
+
+    var bestRx: UInt64 = 0
+    var bestTx: UInt64 = 0
+    var bestName = ""
+    var current = first
+    while true {
+      let name = String(cString: current.pointee.ifa_name)
+      if name.hasPrefix("utun"),
+         let data = current.pointee.ifa_data {
+        let stats = data.assumingMemoryBound(to: if_data.self).pointee
+        let rx = UInt64(stats.ifi_ibytes)
+        let tx = UInt64(stats.ifi_obytes)
+        if (rx + tx) >= (bestRx + bestTx) {
+          bestRx = rx
+          bestTx = tx
+          bestName = name
+        }
+      }
+      guard let next = current.pointee.ifa_next else { break }
+      current = next
+    }
+    return (bestRx, bestTx, bestName)
   }
 }

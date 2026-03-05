@@ -4,6 +4,8 @@ class UserPlan {
     required this.isPremium,
     required this.dataCapGb,
     required this.usedGb,
+    required this.dataCapBytes,
+    required this.usedBytes,
     required this.speedDownMbps,
     required this.speedUpMbps,
     this.renewalDate,
@@ -13,6 +15,8 @@ class UserPlan {
   final bool isPremium;
   final double dataCapGb;
   final double usedGb;
+  final int dataCapBytes;
+  final int usedBytes;
   final double speedDownMbps;
   final double speedUpMbps;
   final DateTime? renewalDate;
@@ -28,11 +32,19 @@ class UserPlan {
   factory UserPlan.fromJson(Map<String, dynamic> json) {
     final planTier = json['plan_tier']?.toString().toLowerCase() ?? 'free';
     final isPaidTier = planTier != 'free';
+    final dataCapGb = (json['data_cap_gb'] as num?)?.toDouble() ?? 5;
+    final usedGb = (json['used_gb'] as num?)?.toDouble() ?? 0;
+    final dataCapBytes = (json['quota_bytes'] as num?)?.toInt() ??
+        (dataCapGb * 1024 * 1024 * 1024).round();
+    final usedBytes = (json['used_bytes'] as num?)?.toInt() ??
+        (usedGb * 1024 * 1024 * 1024).round();
     return UserPlan(
       name: json['plan_name']?.toString() ?? 'Free',
       isPremium: isPaidTier,
-      dataCapGb: (json['data_cap_gb'] as num?)?.toDouble() ?? 5,
-      usedGb: (json['used_gb'] as num?)?.toDouble() ?? 0,
+      dataCapGb: dataCapGb,
+      usedGb: usedGb,
+      dataCapBytes: dataCapBytes,
+      usedBytes: usedBytes,
       speedDownMbps: (json['speed_limit_mbps_down'] as num?)?.toDouble() ??
           (isPaidTier ? 250 : 25),
       speedUpMbps: (json['speed_limit_mbps_up'] as num?)?.toDouble() ??

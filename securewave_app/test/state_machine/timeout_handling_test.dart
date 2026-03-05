@@ -33,7 +33,11 @@ void main() {
     addTearDown(container.dispose);
 
     await container.read(vpnStateProvider.notifier).connect();
-    await settleStateMachine(turns: 30);
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.error,
+      timeout: const Duration(seconds: 3),
+    );
+    await settleStateMachine(turns: 20);
 
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.error);

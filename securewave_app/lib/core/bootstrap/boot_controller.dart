@@ -116,6 +116,11 @@ class BootController extends ChangeNotifier {
       'Checking saved session',
       detail: 'Reading local auth state and secure storage.',
     );
+    await _withStepTimeout(
+      'Restoring auth session',
+      const Duration(seconds: 4),
+      () => _ref.read(authSessionProvider).initializationComplete,
+    );
     if (config.resetSessionOnBoot) {
       _setStep(
         'Resetting saved session',

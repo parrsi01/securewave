@@ -4,20 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 
 import '../../core/models/vpn_protocol.dart';
 import '../../core/models/vpn_protocol_catalog.dart';
 import '../../core/models/vpn_status.dart';
 import '../../core/services/auth_session.dart';
+import '../../core/services/device_identity.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/preferences_state.dart';
 import '../../core/services/vpn_service.dart';
 import '../../core/state/vpn_state.dart';
 import '../../core/vpn/protocol_capabilities.dart';
+import '../../debug/automation_keys.dart';
 import '../../features/onboarding/feedback_sheet.dart';
+import '../../services/api_client.dart';
 import '../../ui/design/app_animations.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
+
+String _formatDiagnosticsTimestamp(DateTime value) {
+  final utc = value.toUtc();
+  final h = utc.hour.toString().padLeft(2, '0');
+  final m = utc.minute.toString().padLeft(2, '0');
+  final s = utc.second.toString().padLeft(2, '0');
+  return '$h:$m:$s UTC';
+}
 
 /// Settings screen — v2.
 ///
@@ -48,6 +60,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ref.watch(vpnStateProvider.select((s) => s.protocol));
     final caps = ref.watch(vpnCapabilitiesProvider);
     final catalog = ref.watch(vpnProtocolCatalogProvider);
+    const diagnosticsEnabled = true;
 
     return Center(
       child: ConstrainedBox(
@@ -120,11 +133,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _SectionLabel(label: 'Diagnostics', isDark: isDark),
             _DiagnosticsPanel(
               isDark: isDark,
+              enabled: diagnosticsEnabled,
               expanded: _diagExpanded,
               results: _diagResults,
               onToggle: (expanded) {
                 setState(() => _diagExpanded = expanded);
-                if (expanded) unawaited(_runDiagnostics());
+                if (expanded && diagnosticsEnabled) {
+                  unawaited(_runDiagnostics());
+                }
               },
               onCopy: () => _copyDiagnostics(context),
             ),
@@ -245,7 +261,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _copyDiagnostics(BuildContext context) {
     final text = _diagResults
-            ?.map((r) => '${r.passed ? "PASS" : "FAIL"}: ${r.label}')
+            ?.map((r) =>
+                '${r.loading ? "..." : (r.passed ? "PASS" : "FAIL")}: ${r.label}'
+                '${r.detail == null ? "" : " — ${r.detail}"}'
+                '${r.updatedAt == null ? "" : " @ ${_formatDiagnosticsTimestamp(r.updatedAt!)}"}')
             .join('\n') ??
         '';
     Clipboard.setData(ClipboardData(text: 'SecureWave Diagnostics\n$text'));
@@ -254,38 +273,239 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _runDiagnostics() async {
+    const labels = <String>[
+      '1) Health: GET /api/health',
+      '2) Auth: token persisted and authorized calls',
+      '3) Catalog: servers/regions visible',
+      '4) Profile: /api/vpn/profile for selected server',
+      '5) Tunnel: connect -> connected -> disconnect -> clean',
+      '6) Metrics: traffic changes Mbps/MB counters',
+    ];
+
     setState(() {
-      _diagResults = [
-        _DiagResult('Backend reachable', loading: true),
-        _DiagResult('Authentication valid', loading: true),
-        _DiagResult('VPN service available', loading: true),
-        _DiagResult('Server list loaded', loading: true),
-      ];
+      _diagResults =
+          labels.map((label) => _DiagResult(label, loading: true)).toList();
     });
 
-    await Future.delayed(const Duration(milliseconds: 200));
-    if (!mounted) return;
-    setState(() =>
-        _diagResults![0] = _DiagResult('Backend reachable', passed: true));
+    void setResult(int index, _DiagResult value) {
+      if (!mounted || _diagResults == null || index >= _diagResults!.length) {
+        return;
+      }
+      setState(() => _diagResults![index] = value.stamped());
+    }
 
-    await Future.delayed(const Duration(milliseconds: 200));
-    if (!mounted) return;
-    final authed = ref.read(authSessionProvider).isAuthenticated;
-    setState(() => _diagResults![1] = _DiagResult('Authentication valid',
-        passed: authed, detail: authed ? null : 'Not signed in'));
+    final api = ref.read(apiClientProvider);
+    final auth = ref.read(authSessionProvider);
+    final vpnNotifier = ref.read(vpnStateProvider.notifier);
+    final selectedProtocol = ref.read(vpnStateProvider).effectiveProtocol ??
+        ref.read(vpnStateProvider).protocol;
 
-    await Future.delayed(const Duration(milliseconds: 200));
-    if (!mounted) return;
-    final vpnAvail = ref.read(vpnServiceProvider).isNativeAvailable;
-    setState(() => _diagResults![2] = _DiagResult('VPN service available',
-        passed: vpnAvail,
-        detail: vpnAvail ? null : 'Native bridge unavailable'));
+    final healthOk = await (() async {
+      try {
+        final payload = await api.fetchHealth();
+        setResult(
+          0,
+          _DiagResult(
+            labels[0],
+            passed: true,
+            detail: 'status=${payload['status'] ?? 'ok'}',
+          ),
+        );
+        return true;
+      } catch (error) {
+        setResult(
+          0,
+          _DiagResult(labels[0], passed: false, detail: error.toString()),
+        );
+        return false;
+      }
+    })();
 
-    await Future.delayed(const Duration(milliseconds: 200));
-    if (!mounted) return;
-    final hasServers = ref.read(serversProvider).hasValue;
-    setState(() => _diagResults![3] = _DiagResult('Server list loaded',
-        passed: hasServers, detail: hasServers ? null : 'No servers'));
+    final authOk = await (() async {
+      try {
+        final token = auth.accessToken;
+        final authed =
+            auth.isAuthenticated && token != null && token.isNotEmpty;
+        if (!authed) {
+          setResult(
+            1,
+            _DiagResult(labels[1],
+                passed: false, detail: 'Sign in required before diagnostics.'),
+          );
+          return false;
+        }
+        final profile = await api.fetchProfile();
+        final email = profile['email']?.toString() ?? '';
+        setResult(
+          1,
+          _DiagResult(
+            labels[1],
+            passed: true,
+            detail: email.isEmpty ? 'authorized' : 'authorized as $email',
+          ),
+        );
+        return true;
+      } catch (error) {
+        setResult(
+          1,
+          _DiagResult(labels[1], passed: false, detail: error.toString()),
+        );
+        return false;
+      }
+    })();
+
+    List<dynamic> servers = const <dynamic>[];
+    final catalogOk = await (() async {
+      try {
+        servers = await api.fetchServers(forceRefresh: true);
+        final visible = servers.isNotEmpty;
+        setResult(
+          2,
+          _DiagResult(
+            labels[2],
+            passed: visible,
+            detail: visible
+                ? 'count=${servers.length}'
+                : 'Catalog returned no servers.',
+          ),
+        );
+        return visible;
+      } catch (error) {
+        setResult(
+          2,
+          _DiagResult(labels[2], passed: false, detail: error.toString()),
+        );
+        return false;
+      }
+    })();
+
+    final profileOk = await (() async {
+      if (!healthOk || !authOk) {
+        setResult(
+          3,
+          _DiagResult(labels[3],
+              passed: false, detail: 'Skipped due to prior failures.'),
+        );
+        return false;
+      }
+      try {
+        final identity = await DeviceIdentity.load();
+        final profile = await api.fetchVpnProfile(
+          deviceName: identity.name,
+          deviceType: identity.type,
+          protocol: selectedProtocol == VpnProtocol.auto
+              ? VpnProtocol.wireGuard
+              : selectedProtocol,
+          serverId: ref.read(vpnStateProvider).selectedServerId,
+        );
+        setResult(
+          3,
+          _DiagResult(
+            labels[3],
+            passed: true,
+            detail: 'protocol=${profile.protocol} server=${profile.serverId}',
+          ),
+        );
+        return true;
+      } catch (error) {
+        setResult(
+          3,
+          _DiagResult(labels[3], passed: false, detail: error.toString()),
+        );
+        return false;
+      }
+    })();
+
+    final tunnelOk = await (() async {
+      if (!profileOk) {
+        setResult(
+          4,
+          _DiagResult(labels[4],
+              passed: false, detail: 'Skipped due to profile failure.'),
+        );
+        return false;
+      }
+      try {
+        await vpnNotifier.disconnect();
+        await _waitForStatus(VpnStatus.disconnected,
+            timeout: const Duration(seconds: 25));
+        await vpnNotifier.connect();
+        await _waitForStatus(VpnStatus.connected,
+            timeout: const Duration(seconds: 40));
+        await vpnNotifier.disconnect();
+        await _waitForStatus(VpnStatus.disconnected,
+            timeout: const Duration(seconds: 25));
+        setResult(
+            4,
+            _DiagResult(labels[4],
+                passed: true, detail: 'Tunnel cycle succeeded.'));
+        return true;
+      } catch (error) {
+        setResult(
+            4, _DiagResult(labels[4], passed: false, detail: error.toString()));
+        return false;
+      }
+    })();
+
+    await (() async {
+      if (!tunnelOk || !catalogOk) {
+        setResult(
+          5,
+          _DiagResult(labels[5],
+              passed: false, detail: 'Skipped due to prior failures.'),
+        );
+        return;
+      }
+      try {
+        final before = ref.read(vpnStateProvider).sessionTransferredBytes;
+        await vpnNotifier.connect();
+        await _waitForStatus(VpnStatus.connected,
+            timeout: const Duration(seconds: 40));
+        await http
+            .get(Uri.parse('https://example.com'))
+            .timeout(const Duration(seconds: 10));
+        await Future<void>.delayed(const Duration(seconds: 3));
+        final state = ref.read(vpnStateProvider);
+        final after = state.sessionTransferredBytes;
+        final moved =
+            after > before || state.dataRateDown > 0 || state.dataRateUp > 0;
+        setResult(
+          5,
+          _DiagResult(
+            labels[5],
+            passed: moved,
+            detail:
+                'session_bytes=$before->$after down=${state.dataRateDown.toStringAsFixed(2)} up=${state.dataRateUp.toStringAsFixed(2)}',
+          ),
+        );
+      } catch (error) {
+        setResult(
+            5, _DiagResult(labels[5], passed: false, detail: error.toString()));
+      } finally {
+        unawaited(vpnNotifier.disconnect());
+      }
+    })();
+  }
+
+  Future<void> _waitForStatus(
+    VpnStatus expected, {
+    required Duration timeout,
+  }) async {
+    final endAt = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(endAt)) {
+      if (!mounted) {
+        throw StateError(
+            'Settings screen disposed while waiting for VPN status.');
+      }
+      final status = ref.read(vpnStateProvider).status;
+      if (status == expected) return;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    final last = ref.read(vpnStateProvider).status;
+    throw TimeoutException(
+      'Timed out waiting for $expected (last status: $last).',
+      timeout,
+    );
   }
 }
 
@@ -726,6 +946,7 @@ class _ProtocolSelector extends StatelessWidget {
 class _DiagnosticsPanel extends StatelessWidget {
   const _DiagnosticsPanel({
     required this.isDark,
+    required this.enabled,
     required this.expanded,
     required this.results,
     required this.onToggle,
@@ -733,6 +954,7 @@ class _DiagnosticsPanel extends StatelessWidget {
   });
 
   final bool isDark;
+  final bool enabled;
   final bool expanded;
   final List<_DiagResult>? results;
   final ValueChanged<bool> onToggle;
@@ -752,6 +974,7 @@ class _DiagnosticsPanel extends StatelessWidget {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          key: const ValueKey<String>(AutomationKeys.diagnosticsTile),
           leading: Container(
             width: 36,
             height: 36,
@@ -769,7 +992,7 @@ class _DiagnosticsPanel extends StatelessWidget {
                 ),
           ),
           initiallyExpanded: expanded,
-          onExpansionChanged: onToggle,
+          onExpansionChanged: enabled ? onToggle : null,
           tilePadding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.space4,
             vertical: AppSpacing.space1,
@@ -781,35 +1004,62 @@ class _DiagnosticsPanel extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
           ),
           children: [
+            if (!enabled)
+              ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
+                leading: const Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: AppColors.warning,
+                ),
+                title: Text(
+                  'Diagnostics are temporarily unavailable.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
             if (results != null)
-              ...results!.map((r) => ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.space5),
-                    leading: r.loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : Icon(
-                            r.passed
-                                ? Icons.check_circle_rounded
-                                : Icons.cancel_rounded,
-                            color:
-                                r.passed ? AppColors.success : AppColors.error,
-                            size: 20),
-                    title: Text(r.label,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            )),
-                    subtitle: r.detail != null
-                        ? Text(r.detail!,
-                            style: Theme.of(context).textTheme.bodySmall)
-                        : null,
-                  )),
+              ...results!.asMap().entries.map((entry) {
+                final index = entry.key;
+                final r = entry.value;
+                final status =
+                    r.loading ? 'loading' : (r.passed ? 'pass' : 'fail');
+                return ListTile(
+                  key: ValueKey<String>(
+                    AutomationKeys.diagnosticsResult(index, status),
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
+                  leading: r.loading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(
+                          r.passed
+                              ? Icons.check_circle_rounded
+                              : Icons.cancel_rounded,
+                          color: r.passed ? AppColors.success : AppColors.error,
+                          size: 20),
+                  title: Text(r.label,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          )),
+                  subtitle: r.detail != null
+                      ? Text(
+                          r.updatedAt == null
+                              ? r.detail!
+                              : '${r.detail!} · ${_formatDiagnosticsTimestamp(r.updatedAt!)}',
+                          style: Theme.of(context).textTheme.bodySmall)
+                      : null,
+                );
+              }),
             Padding(
               padding: const EdgeInsets.all(AppSpacing.space3),
               child: TextButton.icon(
-                onPressed: onCopy,
+                onPressed: results == null ? null : onCopy,
                 icon: const Icon(Icons.copy_rounded, size: 14),
                 label: const Text('Copy Report'),
               ),
@@ -988,9 +1238,20 @@ class _AboutCard extends StatelessWidget {
 
 class _DiagResult {
   _DiagResult(this.label,
-      {this.passed = false, this.loading = false, this.detail});
+      {this.passed = false, this.loading = false, this.detail, this.updatedAt});
   final String label;
   final bool passed;
   final bool loading;
   final String? detail;
+  final DateTime? updatedAt;
+
+  _DiagResult stamped() {
+    return _DiagResult(
+      label,
+      passed: passed,
+      loading: loading,
+      detail: detail,
+      updatedAt: DateTime.now(),
+    );
+  }
 }

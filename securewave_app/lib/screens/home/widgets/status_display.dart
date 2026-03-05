@@ -251,6 +251,9 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
     final protocolMessage =
         ref.watch(vpnStateProvider.select((s) => s.protocolMessage));
     final errorKind = ref.watch(vpnStateProvider.select((s) => s.errorKind));
+    final lastErrorCode = ref.watch(
+      vpnStateProvider.select((s) => s.readiness.lastErrorCode),
+    );
     final lastProfileFetchAt =
         ref.watch(vpnStateProvider.select((s) => s.lastProfileFetchAt));
     final lastProfileFetchOk =
@@ -262,6 +265,19 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
         (s) => s.status == VpnStatus.error ? s.errorMessage : null,
       ),
     );
+    final isDeviceLimitIssue = () {
+      final code = (lastErrorCode ?? '').trim().toLowerCase();
+      final message = (errorMessage ?? '').trim().toLowerCase();
+      if (code.contains('device') &&
+          (code.contains('limit') ||
+              code.contains('quota') ||
+              code.contains('max'))) {
+        return true;
+      }
+      return message.contains('device limit') ||
+          message.contains('too many devices') ||
+          message.contains('maximum devices');
+    }();
     final servers = ref.watch(serversProvider);
     final allRegionsDown = servers.maybeWhen(
       data: (list) =>
@@ -683,21 +699,39 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
           ),
           const SizedBox(height: AppSpacing.space2),
           // Device limit: show account management button instead of retry.
-          if (errorMessage.toLowerCase().contains('device limit'))
+          if (isDeviceLimitIssue)
             Wrap(
               spacing: AppSpacing.space2,
               runSpacing: AppSpacing.space2,
               alignment: WrapAlignment.center,
               children: [
                 FilledButton.icon(
-                  onPressed: () => context.go('/account'),
+                  onPressed: () => context.go('/devices'),
                   icon: const Icon(Icons.devices_rounded, size: 18),
                   label: const Text('Manage Devices'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => context.go('/settings'),
-                  icon: const Icon(Icons.settings_outlined, size: 18),
-                  label: const Text('Settings'),
+                  onPressed: () => context.go('/account'),
+                  icon: const Icon(Icons.person_outline_rounded, size: 18),
+                  label: const Text('Account'),
+                ),
+              ],
+            )
+          else if (errorKind == VpnErrorKind.auth)
+            Wrap(
+              spacing: AppSpacing.space2,
+              runSpacing: AppSpacing.space2,
+              alignment: WrapAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => context.go('/login'),
+                  icon: const Icon(Icons.login_rounded, size: 18),
+                  label: const Text('Sign In'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/account'),
+                  icon: const Icon(Icons.person_outline_rounded, size: 18),
+                  label: const Text('Account'),
                 ),
               ],
             )

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
@@ -128,6 +129,9 @@ void main() {
       addTearDown(container.dispose);
 
       final notifier = container.read(vpnStateProvider.notifier);
+      await container
+          .read(authSessionProvider)
+          .setSession(accessToken: 'test-token');
       await notifier.selectProtocol(protocol);
       await settleStateMachine();
 

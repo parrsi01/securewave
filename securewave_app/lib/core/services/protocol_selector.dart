@@ -1,4 +1,5 @@
 import '../models/vpn_protocol.dart';
+import '../models/vpn_protocol_catalog.dart';
 import 'vpn_service.dart';
 
 class ProtocolResolution {
@@ -6,6 +7,8 @@ class ProtocolResolution {
     required this.selected,
     required this.effective,
     required this.backendProtocol,
+    this.runtimeBlocked = false,
+    this.backendBlocked = false,
     this.warning,
     this.error,
   });
@@ -13,6 +16,8 @@ class ProtocolResolution {
   final VpnProtocol selected;
   final VpnProtocol effective;
   final VpnProtocol backendProtocol;
+  final bool runtimeBlocked;
+  final bool backendBlocked;
   final String? warning;
   final String? error;
 
@@ -25,37 +30,56 @@ class ProtocolSelector {
   ProtocolResolution resolve({
     required VpnProtocol selected,
     required VpnCapabilities capabilities,
+    VpnProtocolCatalog? catalog,
   }) {
-    final availableProtocols = <VpnProtocol>[
+    final runtimeAvailableProtocols = <VpnProtocol>[
       if (capabilities.wireGuard) VpnProtocol.wireGuard,
       if (capabilities.openVpn) VpnProtocol.openVpn,
       if (capabilities.ikev2) VpnProtocol.ikev2,
     ];
+    final backendAvailableProtocols =
+        catalog?.enabledProtocols() ?? runtimeAvailableProtocols.toSet();
+    final connectableProtocols = runtimeAvailableProtocols
+        .where(backendAvailableProtocols.contains)
+        .toList(growable: false);
 
     VpnProtocol? requested;
     if (selected == VpnProtocol.auto) {
-      if (availableProtocols.isEmpty) {
+      if (connectableProtocols.isEmpty) {
+        if (runtimeAvailableProtocols.isEmpty) {
+          return ProtocolResolution(
+            selected: selected,
+            effective: VpnProtocol.auto,
+            backendProtocol: VpnProtocol.auto,
+            runtimeBlocked: true,
+            error: 'No supported VPN runtime is available on this device.',
+          );
+        }
         return ProtocolResolution(
           selected: selected,
           effective: VpnProtocol.auto,
           backendProtocol: VpnProtocol.auto,
-          error: 'No supported VPN runtime is available on this device.',
+          backendBlocked: catalog != null,
+          error: catalog == null
+              ? 'No supported VPN runtime is available on this device.'
+              : 'No VPN protocol is currently enabled by the backend for this '
+                  'device, plan, or selected server.',
         );
       }
-      if (capabilities.wireGuard) {
+      if (connectableProtocols.contains(VpnProtocol.wireGuard)) {
         requested = VpnProtocol.wireGuard;
-      } else if (capabilities.openVpn) {
+      } else if (connectableProtocols.contains(VpnProtocol.openVpn)) {
         requested = VpnProtocol.openVpn;
       } else {
         requested = VpnProtocol.ikev2;
       }
-      if (availableProtocols.length > 1) {
+      if (connectableProtocols.length > 1) {
         return ProtocolResolution(
           selected: selected,
           effective: requested,
           backendProtocol: requested,
           warning: 'Automatic selected ${vpnProtocolLabel(requested)} based on '
-              'local runtime availability.',
+              'local runtime and backend availability.',
         );
       }
     } else {
@@ -67,7 +91,17 @@ class ProtocolSelector {
         selected: selected,
         effective: requested,
         backendProtocol: requested,
+        runtimeBlocked: true,
         error: _unsupportedProtocolMessage(requested, capabilities),
+      );
+    }
+    if (catalog != null && !backendAvailableProtocols.contains(requested)) {
+      return ProtocolResolution(
+        selected: selected,
+        effective: requested,
+        backendProtocol: requested,
+        backendBlocked: true,
+        error: _backendUnavailableMessage(requested, catalog.entryFor(requested)),
       );
     }
 
@@ -109,5 +143,30 @@ class ProtocolSelector {
     }
     return '${vpnProtocolLabel(protocol)} is not available on this build. '
         'Select a different protocol or switch to Automatic.';
+  }
+
+  String _backendUnavailableMessage(
+    VpnProtocol protocol,
+    VpnProtocolCatalogEntry? entry,
+  ) {
+    final reason = entry?.reason?.trim().toLowerCase();
+    if (reason == 'disabled_server_side') {
+      return '${vpnProtocolLabel(protocol)} is disabled on the backend.';
+    }
+    if (reason == 'restricted_by_plan') {
+      return '${vpnProtocolLabel(protocol)} is not included in your plan.';
+    }
+    if (reason == 'not_supported_on_platform') {
+      return '${vpnProtocolLabel(protocol)} is not supported for this device.';
+    }
+    if (reason == 'no_active_server_support' ||
+        reason == 'unavailable_region') {
+      return 'No active server currently supports ${vpnProtocolLabel(protocol)}.';
+    }
+    if (reason == 'protocol_temporarily_unavailable') {
+      return '${vpnProtocolLabel(protocol)} is temporarily unavailable.';
+    }
+    return '${vpnProtocolLabel(protocol)} is unavailable on the backend for '
+        'this device, plan, or server.';
   }
 }

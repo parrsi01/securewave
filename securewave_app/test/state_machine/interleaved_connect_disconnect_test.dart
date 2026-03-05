@@ -36,7 +36,11 @@ void main() {
     final secondConnect = notifier.connect();
 
     await Future.wait([firstConnect, disconnect, secondConnect]);
-    await settleStateMachine(turns: 60);
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.connected,
+      timeout: const Duration(seconds: 3),
+    );
+    await settleStateMachine(turns: 20);
 
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.connected);

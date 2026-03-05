@@ -24,6 +24,7 @@ void main() {
         now.add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000);
     installSecureStorageMock(initial: <String, String?>{
       'access_token': futureToken,
+      SecureStorage.sessionEmailKey: 'restore@example.com',
     });
 
     final session = AuthSession(clock: () => now);
@@ -31,6 +32,7 @@ void main() {
 
     expect(session.isAuthenticated, isTrue);
     expect(session.accessToken, futureToken);
+    expect(session.email, 'restore@example.com');
   });
 
   test('expired JWT is purged during session restore', () async {
@@ -103,6 +105,28 @@ void main() {
 
     expect(session.hasFreshAccessToken(), isTrue);
     expect(session.accessTokenFreshnessIssue(), isNull);
+  });
+
+  test('setSession retains existing email during token refresh updates',
+      () async {
+    installSecureStorageMock();
+    final now = DateTime.utc(2026, 2, 22, 12);
+    final firstToken = jwtWithExp(
+      now.add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000,
+    );
+    final refreshedToken = jwtWithExp(
+      now.add(const Duration(hours: 2)).millisecondsSinceEpoch ~/ 1000,
+    );
+    final session = AuthSession(clock: () => now);
+    await session.initializationComplete;
+
+    await session.setSession(
+      accessToken: firstToken,
+      email: 'member@example.com',
+    );
+    await session.setSession(accessToken: refreshedToken, refreshToken: 'next');
+
+    expect(session.email, 'member@example.com');
   });
 
   test('clearSession removes persisted tokens and vpn session artifacts',

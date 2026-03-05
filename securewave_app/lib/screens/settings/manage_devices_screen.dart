@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/device_identity.dart';
 import '../../services/api_client.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
@@ -17,11 +18,13 @@ class ManageDevicesScreen extends ConsumerStatefulWidget {
 class _ManageDevicesScreenState extends ConsumerState<ManageDevicesScreen> {
   late Future<DeviceListResult> _devicesFuture;
   int? _deletingId;
+  String? _currentDeviceName;
 
   @override
   void initState() {
     super.initState();
     _devicesFuture = _loadDevices();
+    _loadCurrentDevice();
   }
 
   Future<DeviceListResult> _loadDevices() {
@@ -32,6 +35,12 @@ class _ManageDevicesScreenState extends ConsumerState<ManageDevicesScreen> {
     setState(() {
       _devicesFuture = _loadDevices();
     });
+  }
+
+  Future<void> _loadCurrentDevice() async {
+    final identity = await DeviceIdentity.load();
+    if (!mounted) return;
+    setState(() => _currentDeviceName = identity.name);
   }
 
   Future<void> _confirmDelete(DeviceInfo device) async {
@@ -110,6 +119,7 @@ class _ManageDevicesScreenState extends ConsumerState<ManageDevicesScreen> {
                 result: result,
                 isDark: isDark,
                 deletingId: _deletingId,
+                currentDeviceName: _currentDeviceName,
                 onDelete: _confirmDelete,
                 onRefresh: _refresh,
               );
@@ -128,6 +138,7 @@ class _DeviceListView extends StatelessWidget {
     required this.result,
     required this.isDark,
     required this.deletingId,
+    required this.currentDeviceName,
     required this.onDelete,
     required this.onRefresh,
   });
@@ -135,6 +146,7 @@ class _DeviceListView extends StatelessWidget {
   final DeviceListResult result;
   final bool isDark;
   final int? deletingId;
+  final String? currentDeviceName;
   final void Function(DeviceInfo) onDelete;
   final VoidCallback onRefresh;
 
@@ -174,6 +186,9 @@ class _DeviceListView extends StatelessWidget {
                     device: device,
                     isDark: isDark,
                     isDeleting: deletingId == device.id,
+                    isCurrentDevice:
+                        (currentDeviceName ?? '').trim().toLowerCase() ==
+                            (device.name ?? '').trim().toLowerCase(),
                     onDelete: () => onDelete(device),
                   ),
                 )),
@@ -238,9 +253,8 @@ class _QuotaBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: ratio,
               minHeight: 6,
-              backgroundColor: isDark
-                  ? AppColors.darkSurfaceMuted
-                  : AppColors.surfaceMuted,
+              backgroundColor:
+                  isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
               color: atLimit ? AppColors.error : AppColors.primary,
             ),
           ),
@@ -257,12 +271,14 @@ class _DeviceCard extends StatelessWidget {
     required this.device,
     required this.isDark,
     required this.isDeleting,
+    required this.isCurrentDevice,
     required this.onDelete,
   });
 
   final DeviceInfo device;
   final bool isDark;
   final bool isDeleting;
+  final bool isCurrentDevice;
   final VoidCallback onDelete;
 
   IconData _platformIcon(String? deviceType) {
@@ -303,11 +319,35 @@ class _DeviceCard extends StatelessWidget {
             color: AppColors.primary,
           ),
         ),
-        title: Text(
-          name,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                name,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
               ),
+            ),
+            if (isCurrentDevice)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.space2,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                ),
+                child: Text(
+                  'This device',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+          ],
         ),
         subtitle: Text(
           [

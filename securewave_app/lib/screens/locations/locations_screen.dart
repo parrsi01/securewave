@@ -48,7 +48,21 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
 
   String _regionOf(ServerRegion server) {
     final raw = server.region?.trim();
-    if (raw == null || raw.isEmpty) return 'Other';
+    if (raw == null || raw.isEmpty) {
+      return server.country?.trim().isNotEmpty == true
+          ? server.country!.trim()
+          : 'Other';
+    }
+    final normalized = raw.toLowerCase();
+    if ((normalized == 'europe' ||
+            normalized == 'north america' ||
+            normalized == 'south america' ||
+            normalized == 'asia' ||
+            normalized == 'africa' ||
+            normalized == 'oceania') &&
+        server.country?.trim().isNotEmpty == true) {
+      return server.country!.trim();
+    }
     return raw;
   }
 
@@ -200,6 +214,8 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
 
               final groups = _groupByRegion(filtered);
               final orderedKeys = groups.keys.toList();
+              final singleGroupExpanded =
+                  orderedKeys.length == 1 && filtered.length > 1;
 
               return RefreshIndicator(
                 color: isDark ? AppColors.primaryBright : AppColors.primary,
@@ -220,7 +236,8 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
                       servers: servers,
                       selectedId: selectedId,
                       favorites: favorites,
-                      initiallyExpanded: i == 0,
+                      initiallyExpanded: singleGroupExpanded || i == 0,
+                      collapsible: !singleGroupExpanded,
                       canUsePremium: canUsePremium,
                       onSelect: (serverId) {
                         unawaited(
@@ -326,6 +343,7 @@ class _RegionCard extends StatelessWidget {
     required this.selectedId,
     required this.favorites,
     required this.initiallyExpanded,
+    required this.collapsible,
     required this.canUsePremium,
     required this.onSelect,
     required this.onToggleFavorite,
@@ -336,6 +354,7 @@ class _RegionCard extends StatelessWidget {
   final String? selectedId;
   final Set<String> favorites;
   final bool initiallyExpanded;
+  final bool collapsible;
   final bool canUsePremium;
   final void Function(String serverId) onSelect;
   final void Function(String serverId) onToggleFavorite;
@@ -361,63 +380,112 @@ class _RegionCard extends StatelessWidget {
             data: Theme.of(context).copyWith(
               dividerColor: Colors.transparent,
             ),
-            child: ExpansionTile(
-              initiallyExpanded: initiallyExpanded,
-              tilePadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.space5,
-                vertical: AppSpacing.space2,
-              ),
-              title: Row(
-                children: [
-                  Text(
-                    region,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+            child: collapsible
+                ? ExpansionTile(
+                    initiallyExpanded: initiallyExpanded,
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.space5,
+                      vertical: AppSpacing.space2,
+                    ),
+                    title: _RegionTitle(
+                      region: region,
+                      count: servers.length,
+                      isDark: isDark,
+                    ),
+                    children: [
+                      Divider(
+                        height: 1,
+                        thickness: 0.5,
+                        color:
+                            isDark ? AppColors.darkBorder : AppColors.border,
+                      ),
+                      ...servers.map(_buildServerTile),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.space5,
+                          vertical: AppSpacing.space3,
                         ),
-                  ),
-                  const SizedBox(width: AppSpacing.space2),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.space2,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.darkSurfaceMuted
-                          : AppColors.surfaceMuted,
-                      borderRadius:
-                          BorderRadius.circular(AppSpacing.radiusFull),
-                    ),
-                    child: Text(
-                      '${servers.length}',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _RegionTitle(
+                            region: region,
+                            count: servers.length,
+                            isDark: isDark,
                           ),
-                    ),
+                        ),
+                      ),
+                      Divider(
+                        height: 1,
+                        thickness: 0.5,
+                        color:
+                            isDark ? AppColors.darkBorder : AppColors.border,
+                      ),
+                      ...servers.map(_buildServerTile),
+                    ],
                   ),
-                ],
-              ),
-              children: [
-                Divider(
-                  height: 1,
-                  thickness: 0.5,
-                  color: isDark ? AppColors.darkBorder : AppColors.border,
-                ),
-                ...servers.map((s) {
-                  return ServerTile(
-                    server: s,
-                    isSelected: s.id == selectedId,
-                    isFavorite: favorites.contains(s.id),
-                    enabled: true,
-                    onTap: () => onSelect(s.id),
-                    onToggleFavorite: () => onToggleFavorite(s.id),
-                  );
-                }),
-              ],
-            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildServerTile(ServerRegion server) {
+    return ServerTile(
+      server: server,
+      isSelected: server.id == selectedId,
+      isFavorite: favorites.contains(server.id),
+      enabled: true,
+      onTap: () => onSelect(server.id),
+      onToggleFavorite: () => onToggleFavorite(server.id),
+    );
+  }
+}
+
+class _RegionTitle extends StatelessWidget {
+  const _RegionTitle({
+    required this.region,
+    required this.count,
+    required this.isDark,
+  });
+
+  final String region;
+  final int count;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          region,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        const SizedBox(width: AppSpacing.space2),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.space2,
+            vertical: 2,
+          ),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.darkSurfaceMuted
+                : AppColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+          ),
+          child: Text(
+            '$count',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+      ],
     );
   }
 }

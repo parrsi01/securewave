@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:securewave_app/core/logging/app_logger.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
 
 import 'state_machine_test_harness.dart';
@@ -24,6 +25,9 @@ void main() {
       final api = FakeApiClient(config: testAppConfig());
       final container = buildVpnContainer(service: service, apiClient: api);
       addTearDown(container.dispose);
+      await container
+          .read(authSessionProvider)
+          .setSession(accessToken: 'test-token');
 
       final notifier = container.read(vpnStateProvider.notifier);
       await settleStateMachine(turns: 8);

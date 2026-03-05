@@ -9,6 +9,7 @@ import '../../../core/models/vpn_protocol.dart';
 import '../../../core/models/vpn_status.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/state/vpn_state.dart';
+import '../../../debug/automation_keys.dart';
 import '../../../ui/design/app_animations.dart';
 import '../../../ui/design/app_colors.dart';
 import '../../../ui/design/app_spacing.dart';
@@ -181,6 +182,7 @@ class _ConnectionRingState extends ConsumerState<ConnectionRing>
                     : 'Double tap to connect.');
 
     return Semantics(
+      key: const ValueKey<String>(AutomationKeys.connectionRingButton),
       button: true,
       enabled: !isBusy && !connectBlocked,
       label:

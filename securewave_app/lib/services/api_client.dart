@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
@@ -10,6 +12,7 @@ import '../core/logging/app_logger.dart';
 import '../core/models/server_region.dart';
 import '../core/models/user_plan.dart';
 import '../core/services/auth_session.dart';
+import '../core/services/secure_storage.dart';
 import '../core/models/vpn_profile.dart';
 import '../core/models/vpn_protocol.dart';
 import '../core/models/vpn_protocol_catalog.dart';
@@ -21,11 +24,20 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 });
 
 class ApiClient {
-  ApiClient(this._config, {AuthSession? session, Dio? dio}) {
+  ApiClient(
+    this._config, {
+    AuthSession? session,
+    Dio? dio,
+    SecureStorage? storage,
+  }) : _storage = storage ?? SecureStorage() {
+    _effectiveApiBaseUrl = _config.httpsPreferred &&
+            _config.apiBaseUrl.toLowerCase().startsWith('http://')
+        ? _config.apiBaseUrl.replaceFirst(RegExp(r'^http://', caseSensitive: false), 'https://')
+        : _config.apiBaseUrl;
     _dio = dio ??
         Dio(
           BaseOptions(
-            baseUrl: _config.apiBaseUrl,
+            baseUrl: _effectiveApiBaseUrl,
             headers: {'Content-Type': 'application/json'},
             connectTimeout: const Duration(seconds: 10),
             sendTimeout: const Duration(seconds: 10),
@@ -51,7 +63,13 @@ class ApiClient {
       };
     }
 
-    AppLogger.info('ApiClient: initialized with baseUrl=${_config.apiBaseUrl}');
+    AppLogger.info('ApiClient: initialized with baseUrl=$_effectiveApiBaseUrl');
+    _debugLog('api_client_init', <String, Object?>{
+      'base_url': _effectiveApiBaseUrl,
+      'portal_url': _config.portalUrl,
+      'upgrade_url': _config.upgradeUrl,
+      'https_preferred': _config.httpsPreferred,
+    });
     if (session != null) {
       _dio.interceptors.add(
         InterceptorsWrapper(
@@ -82,7 +100,7 @@ class ApiClient {
                   '[AUTH_REFRESH] 401 received — attempting token refresh');
               // Use a plain Dio (no interceptors) to avoid re-entry.
               final refreshDio = Dio(BaseOptions(
-                baseUrl: _config.apiBaseUrl,
+                baseUrl: _effectiveApiBaseUrl,
                 headers: {'Content-Type': 'application/json'},
                 connectTimeout: const Duration(seconds: 10),
                 receiveTimeout: const Duration(seconds: 10),
@@ -132,6 +150,8 @@ class ApiClient {
   }
 
   final AppConfig _config;
+  final SecureStorage _storage;
+  late final String _effectiveApiBaseUrl;
   late final Dio _dio;
   List<ServerRegion>? _cachedServers;
   DateTime? _serversFetchedAt;
@@ -141,6 +161,16 @@ class ApiClient {
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
   static const bool _strictContractValidation = !kReleaseMode;
+  static const Duration _networkRetryBaseDelay = Duration(milliseconds: 350);
+
+  void _debugLog(String event, Map<String, Object?> payload) {
+    if (!kDebugMode) return;
+    final data = <String, Object?>{
+      'event': event,
+      ...payload,
+    };
+    debugPrint('[SW_API] ${jsonEncode(data)}');
+  }
 
   Never _contractViolation(String endpoint, String detail) {
     throw StateError('API contract violation at $endpoint: $detail');
@@ -303,6 +333,7 @@ class ApiClient {
   Future<T> _withNetworkRetry<T>(
     Future<T> Function() action, {
     int maxAttempts = 3,
+    Duration baseDelay = _networkRetryBaseDelay,
   }) async {
     var attempt = 0;
     while (true) {
@@ -313,9 +344,9 @@ class ApiClient {
         final shouldRetry =
             attempt < maxAttempts && _isTransientNetworkError(error);
         if (!shouldRetry) rethrow;
-        await Future<void>.delayed(
-          Duration(milliseconds: 250 * attempt),
-        );
+        final factor = 1 << (attempt - 1);
+        final delay = Duration(milliseconds: baseDelay.inMilliseconds * factor);
+        await Future<void>.delayed(delay);
       }
     }
   }
@@ -337,14 +368,67 @@ class ApiClient {
     return payload;
   }
 
+  Future<void> _persistServerCache({
+    required List<dynamic> rawList,
+    required String source,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'saved_at': DateTime.now().toUtc().toIso8601String(),
+        'source': source,
+        'servers': rawList,
+      };
+      await _storage.saveString(
+        SecureStorage.serversCatalogCacheKey,
+        jsonEncode(payload),
+      );
+    } catch (_) {
+      // Cache persistence is best-effort only.
+    }
+  }
+
+  Future<List<ServerRegion>> _loadCachedServers() async {
+    try {
+      final raw = await _storage.getString(SecureStorage.serversCatalogCacheKey);
+      if (raw == null || raw.trim().isEmpty) return const <ServerRegion>[];
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const <ServerRegion>[];
+      final map = Map<String, dynamic>.from(decoded);
+      final list = map['servers'];
+      if (list is! List) return const <ServerRegion>[];
+      final parsed = <ServerRegion>[];
+      for (final item in list) {
+        if (item is! Map) continue;
+        try {
+          parsed.add(ServerRegion.fromJson(Map<String, dynamic>.from(item)));
+        } catch (_) {
+          // Tolerate malformed cached entries.
+        }
+      }
+      return parsed;
+    } catch (_) {
+      return const <ServerRegion>[];
+    }
+  }
+
   Future<Map<String, dynamic>> fetchHealth({CancelToken? cancelToken}) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/health',
         cancelToken: cancelToken,
       );
-      return response.data ?? const <String, dynamic>{};
+      final payload = response.data ?? const <String, dynamic>{};
+      _debugLog('health_ok', <String, Object?>{
+        'base_url': _effectiveApiBaseUrl,
+        'status': response.statusCode ?? 200,
+        'keys': payload.keys.toList(),
+      });
+      return payload;
     } catch (error, stackTrace) {
+      _debugLog('health_fail', <String, Object?>{
+        'base_url': _effectiveApiBaseUrl,
+        'error': error.toString(),
+      });
       AppLogger.error(
         'Health check error',
         error: error,
@@ -368,15 +452,25 @@ class ApiClient {
             Map<String, dynamic> data,
             List<dynamic> rawList,
           })> fetchFrom(String path, String listKey) async {
-        final response = await _dio.get<Map<String, dynamic>>(path);
+        final response =
+            await _withNetworkRetry<Response<Map<String, dynamic>>>(() {
+          return _dio.get<Map<String, dynamic>>(path);
+        }, maxAttempts: 3);
         final data = response.data ?? <String, dynamic>{};
         final rawList =
             data[listKey] is List ? data[listKey] as List : <dynamic>[];
-        final servers = rawList
-            .whereType<Map>()
-            .map((entry) =>
-                ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
-            .toList();
+        final servers = <ServerRegion>[];
+        for (final entry in rawList) {
+          if (entry is! Map) continue;
+          try {
+            servers.add(ServerRegion.fromJson(Map<String, dynamic>.from(entry)));
+          } catch (error) {
+            _debugLog('servers_parse_skip', <String, Object?>{
+              'path': path,
+              'error': error.toString(),
+            });
+          }
+        }
         return (servers: servers, data: data, rawList: rawList);
       }
 
@@ -406,12 +500,79 @@ class ApiClient {
       }
 
       AppLogger.info(
-        'VPN servers fetched: count=${servers.length} source=$sourcePath baseUrl=${_config.apiBaseUrl} sample=${servers.take(5).map((s) => s.name).join(", ")}',
+        'VPN servers fetched: count=${servers.length} source=$sourcePath baseUrl=$_effectiveApiBaseUrl sample=${servers.take(5).map((s) => s.name).join(", ")}',
       );
+      _debugLog('servers_ok', <String, Object?>{
+        'count': servers.length,
+        'source': sourcePath,
+        'base_url': _effectiveApiBaseUrl,
+      });
+      if (servers.isNotEmpty) {
+        final rawPayload = sourcePath == '/vpn/regions'
+            ? servers
+                .map((region) => <String, dynamic>{
+                      'server_id': region.id,
+                      'name': region.name,
+                      'city': region.city,
+                      'country': region.country,
+                      'country_code': region.countryCode,
+                      'region': region.region,
+                      'region_group': region.regionGroup,
+                      'latency_ms': region.latencyMs,
+                      'latency_priority': region.latencyPriority,
+                      'health_status': region.healthStatus,
+                      'region_health_status': region.regionHealthStatus,
+                      'region_health_last_checked_at':
+                          region.regionHealthLastCheckedAt,
+                      'region_health_reason_code': region.regionHealthReasonCode,
+                      'public_ip': region.publicIp,
+                      'tier_restriction': region.tierRestriction,
+                      'premium_only': region.premiumOnly,
+                      'supported_protocols': region.supportedProtocols,
+                    })
+                .toList(growable: false)
+            : servers
+                .map((region) => <String, dynamic>{
+                      'server_id': region.id,
+                      'name': region.name,
+                      'city': region.city,
+                      'country': region.country,
+                      'country_code': region.countryCode,
+                      'region': region.region,
+                      'region_group': region.regionGroup,
+                      'latency_ms': region.latencyMs,
+                      'latency_priority': region.latencyPriority,
+                      'health_status': region.healthStatus,
+                      'region_health_status': region.regionHealthStatus,
+                      'region_health_last_checked_at':
+                          region.regionHealthLastCheckedAt,
+                      'region_health_reason_code': region.regionHealthReasonCode,
+                      'public_ip': region.publicIp,
+                      'tier_restriction': region.tierRestriction,
+                      'premium_only': region.premiumOnly,
+                      'supported_protocols': region.supportedProtocols,
+                    })
+                .toList(growable: false);
+        unawaited(
+          _persistServerCache(rawList: rawPayload, source: sourcePath),
+        );
+      }
       _cachedServers = servers;
       _serversFetchedAt = DateTime.now();
       return servers;
     } catch (error, stackTrace) {
+      _debugLog('servers_fail', <String, Object?>{
+        'error': error.toString(),
+      });
+      final cached = await _loadCachedServers();
+      if (cached.isNotEmpty) {
+        _debugLog('servers_cache_fallback', <String, Object?>{
+          'count': cached.length,
+        });
+        _cachedServers = cached;
+        _serversFetchedAt = DateTime.now();
+        return cached;
+      }
       AppLogger.error('Server list error',
           error: error, stackTrace: stackTrace);
       rethrow;
@@ -461,6 +622,10 @@ class ApiClient {
 
   Future<AuthTokens> login(
       {required String email, required String password}) async {
+    _debugLog('auth_login_start', <String, Object?>{
+      'base_url': _effectiveApiBaseUrl,
+      'email': email,
+    });
     try {
       final response =
           await _withNetworkRetry<Response<Map<String, dynamic>>>(() {
@@ -481,11 +646,18 @@ class ApiClient {
       if (accessToken == null || accessToken.isEmpty) {
         throw StateError('Login response missing access_token');
       }
+      _debugLog('auth_login_ok', <String, Object?>{
+        'status': response.statusCode ?? 200,
+        'has_refresh': (data['refresh_token']?.toString() ?? '').isNotEmpty,
+      });
       return AuthTokens(
         accessToken: accessToken,
         refreshToken: data['refresh_token']?.toString(),
       );
     } catch (error, stackTrace) {
+      _debugLog('auth_login_fail', <String, Object?>{
+        'error': error.toString(),
+      });
       AppLogger.error('Login error', error: error, stackTrace: stackTrace);
       rethrow;
     }
@@ -493,6 +665,10 @@ class ApiClient {
 
   Future<AuthTokens?> register(
       {required String email, required String password}) async {
+    _debugLog('auth_register_start', <String, Object?>{
+      'base_url': _effectiveApiBaseUrl,
+      'email': email,
+    });
     try {
       final response =
           await _withNetworkRetry<Response<Map<String, dynamic>>>(() {
@@ -504,11 +680,18 @@ class ApiClient {
       });
       final data = response.data ?? <String, dynamic>{};
       if (data['access_token'] == null) return null;
+      _debugLog('auth_register_ok', <String, Object?>{
+        'status': response.statusCode ?? 200,
+        'issued_tokens': true,
+      });
       return AuthTokens(
         accessToken: data['access_token']?.toString() ?? '',
         refreshToken: data['refresh_token']?.toString(),
       );
     } catch (error, stackTrace) {
+      _debugLog('auth_register_fail', <String, Object?>{
+        'error': error.toString(),
+      });
       AppLogger.error('Registration error',
           error: error, stackTrace: stackTrace);
       rethrow;
@@ -533,8 +716,14 @@ class ApiClient {
       'server=${requestedServer.isEmpty ? "-" : requestedServer} '
       'deviceId=${deviceId ?? "-"} '
       'deviceType=${deviceType.trim().isEmpty ? "unknown" : deviceType.trim()} '
-      'baseUrl=${_config.apiBaseUrl}',
+      'baseUrl=$_effectiveApiBaseUrl',
     );
+    _debugLog('profile_start', <String, Object?>{
+      'protocol': requestedProtocol,
+      'server_id': requestedServer,
+      'device_id': deviceId,
+      'device_type': deviceType,
+    });
     final requestPayload = <String, dynamic>{
       if (deviceId != null && deviceId > 0) 'device_id': deviceId,
       'device_name': deviceName,
@@ -565,6 +754,12 @@ class ApiClient {
         'protocol=${responseProtocol?.isNotEmpty == true ? responseProtocol : requestedProtocol} '
         'server=${responseServer?.isNotEmpty == true ? responseServer : "-"}',
       );
+      _debugLog('profile_ok', <String, Object?>{
+        'status': response.statusCode ?? 200,
+        'protocol': responseProtocol ?? requestedProtocol,
+        'server_id': responseServer ?? '',
+        'request_id': requestId,
+      });
       return VpnProfile.fromJson(data);
     } on DioException catch (error, stackTrace) {
       final status = error.response?.statusCode;
@@ -581,6 +776,12 @@ class ApiClient {
         'dioType=${error.type.name}'
         '${apiMessage != null ? ' message=$apiMessage' : ''}',
       );
+      _debugLog('profile_fail', <String, Object?>{
+        'status': status,
+        'code': apiCode,
+        'message': apiMessage,
+        'request_id': requestId,
+      });
       AppLogger.error('VPN profile fetch failed',
           error: error, stackTrace: stackTrace);
       rethrow;
@@ -596,14 +797,21 @@ class ApiClient {
     CancelToken? cancelToken,
   }) async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/vpn/protocols',
-        queryParameters: {
-          if (deviceType.isNotEmpty && deviceType != 'unknown')
-            'device_type': deviceType,
-        },
-        cancelToken: cancelToken,
-      );
+      _debugLog('protocols_start', <String, Object?>{
+        'device_type': deviceType,
+        'base_url': _effectiveApiBaseUrl,
+      });
+      final response =
+          await _withNetworkRetry<Response<Map<String, dynamic>>>(() {
+        return _dio.get<Map<String, dynamic>>(
+          '/vpn/protocols',
+          queryParameters: {
+            if (deviceType.isNotEmpty && deviceType != 'unknown')
+              'device_type': deviceType,
+          },
+          cancelToken: cancelToken,
+        );
+      });
       final data = response.data ?? const <String, dynamic>{};
       if (_strictContractValidation) {
         _validateProtocolsContract(data);
@@ -615,10 +823,19 @@ class ApiClient {
           .toList()
         ..sort();
       AppLogger.info(
-        'VPN protocols fetched: deviceType=$deviceType enabled=${enabled.join(",")} baseUrl=${_config.apiBaseUrl}',
+        'VPN protocols fetched: deviceType=$deviceType enabled=${enabled.join(",")} baseUrl=$_effectiveApiBaseUrl',
       );
+      _debugLog('protocols_ok', <String, Object?>{
+        'device_type': deviceType,
+        'enabled': enabled,
+        'count': catalog.protocols.length,
+      });
       return catalog;
     } catch (error, stackTrace) {
+      _debugLog('protocols_fail', <String, Object?>{
+        'device_type': deviceType,
+        'error': error.toString(),
+      });
       AppLogger.error('VPN protocols fetch failed',
           error: error, stackTrace: stackTrace);
       rethrow;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 import '../../ui/widgets/platform_notice.dart';
+import 'widgets/connection_overview_deck.dart';
 import 'widgets/connection_ring.dart';
 import 'widgets/metrics_display.dart';
 import 'widgets/server_pill.dart';
@@ -48,6 +49,8 @@ class HomeScreen extends StatelessWidget {
                 ConnectionRing(),
                 SizedBox(height: AppSpacing.space5),
                 StatusDisplay(),
+                SizedBox(height: AppSpacing.space4),
+                ConnectionOverviewDeck(),
                 SizedBox(height: AppSpacing.space5),
                 MetricsDisplay(),
                 Spacer(flex: 1),

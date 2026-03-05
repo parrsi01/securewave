@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/server_region.dart';
+import '../../../debug/automation_keys.dart';
 import '../../../ui/design/app_animations.dart';
 import '../../../ui/design/app_colors.dart';
 import '../../../ui/design/app_spacing.dart';
@@ -102,6 +103,7 @@ class ServerTile extends StatelessWidget {
               ? primaryColor.withValues(alpha: isDark ? 0.12 : 0.06)
               : Colors.transparent,
           child: ListTile(
+            key: ValueKey<String>(AutomationKeys.serverTile(server.id)),
             leading: Text(
               countryFlag(server.country),
               style: const TextStyle(fontSize: 22),
@@ -133,7 +135,8 @@ class ServerTile extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: AppColors.secondary.withValues(alpha: 0.12),
                             border: Border.all(
-                              color: AppColors.secondary.withValues(alpha: 0.18),
+                              color:
+                                  AppColors.secondary.withValues(alpha: 0.18),
                               width: 0.5,
                             ),
                             borderRadius: BorderRadius.circular(

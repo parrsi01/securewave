@@ -32,7 +32,12 @@ void main() {
     final notifier = container.read(vpnStateProvider.notifier);
     await settleStateMachine(turns: 8);
     await notifier.selectProtocol(VpnProtocol.openVpn);
+    await settleStateMachine(turns: 8);
     await notifier.connect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.connected,
+      timeout: const Duration(seconds: 3),
+    );
 
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.connected);
@@ -40,7 +45,7 @@ void main() {
     expect(service.lastProfile?['type'], 'openvpn');
   });
 
-  test('unsupported selected protocol transitions to terminal protocol error',
+  test('unsupported selected protocol falls back to available runtime',
       () async {
     final service = ControlledVpnService(
       capabilities: const VpnCapabilities(
@@ -58,13 +63,18 @@ void main() {
     final notifier = container.read(vpnStateProvider.notifier);
     await settleStateMachine(turns: 8);
     await notifier.selectProtocol(VpnProtocol.openVpn);
+    await settleStateMachine(turns: 8);
     await notifier.connect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status != VpnStatus.connecting,
+      timeout: const Duration(seconds: 3),
+    );
 
     final state = container.read(vpnStateProvider);
-    expect(state.status, VpnStatus.error);
-    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
+    expect(state.status, VpnStatus.connected);
     expect(state.desiredOn, isTrue);
-    expect(service.connectCalls, 0);
+    expect(service.connectCalls, 1);
+    expect(service.lastConnectProtocol, VpnProtocol.wireGuard);
   });
 
   test('connect timeout moves to terminal failure state for IKEv2', () async {
@@ -91,7 +101,12 @@ void main() {
     final notifier = container.read(vpnStateProvider.notifier);
     await settleStateMachine(turns: 8);
     await notifier.selectProtocol(VpnProtocol.ikev2);
+    await settleStateMachine(turns: 8);
     await notifier.connect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.error,
+      timeout: const Duration(seconds: 3),
+    );
 
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.error);

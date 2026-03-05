@@ -6,9 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:securewave_app/core/config/app_config.dart';
+import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/vpn_profile.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
+import 'package:securewave_app/core/models/vpn_protocol_catalog.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
@@ -84,15 +87,44 @@ ProviderContainer buildVpnContainer({
   required VpnService service,
   required ApiClient apiClient,
   VpnStateMachineConfig config = const VpnStateMachineConfig(),
+  bool authenticated = true,
 }) {
+  final authSession =
+      authenticated ? HarnessAuthenticatedSession() : AuthSession();
   return ProviderContainer(
     overrides: [
       appConfigProvider.overrideWith((ref) => testAppConfig()),
       vpnServiceProvider.overrideWithValue(service),
       apiClientProvider.overrideWithValue(apiClient),
       vpnStateMachineConfigProvider.overrideWithValue(config),
+      authSessionProvider.overrideWith((ref) => authSession),
     ],
   );
+}
+
+class HarnessAuthenticatedSession extends AuthSession {
+  HarnessAuthenticatedSession();
+
+  @override
+  bool get isAuthenticated => true;
+
+  @override
+  String? get accessToken => 'test-token';
+
+  @override
+  Future<void> get initializationComplete => Future<void>.value();
+
+  @override
+  bool hasFreshAccessToken({Duration minValidity = const Duration(seconds: 60)}) {
+    return true;
+  }
+
+  @override
+  String? accessTokenFreshnessIssue({
+    Duration minValidity = const Duration(seconds: 60),
+  }) {
+    return null;
+  }
 }
 
 class ControlledVpnService implements VpnService {
@@ -200,21 +232,100 @@ class FakeApiClient extends ApiClient {
   FakeApiClient({
     required AppConfig config,
     this.shouldFailProfile = false,
+    this.shouldFailHealth = false,
+    this.shouldFailServers = false,
     this.profileDelay = Duration.zero,
     this.profileError,
     this.profileConfig,
     this.metricsSnapshot = const <String, dynamic>{},
+    this.servers,
+    this.protocolCatalog,
   }) : super(config, dio: Dio(BaseOptions(baseUrl: config.apiBaseUrl)));
 
   final bool shouldFailProfile;
+  final bool shouldFailHealth;
+  final bool shouldFailServers;
   final Duration profileDelay;
   final Object? profileError;
   final String? profileConfig;
   final Map<String, dynamic> metricsSnapshot;
+  final List<ServerRegion>? servers;
+  final VpnProtocolCatalog? protocolCatalog;
 
   int profileFetchCalls = 0;
   int notifyConnectedCalls = 0;
   int notifyDisconnectedCalls = 0;
+
+  @override
+  Future<Map<String, dynamic>> fetchHealth({CancelToken? cancelToken}) async {
+    if (shouldFailHealth) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/health'),
+        type: DioExceptionType.connectionError,
+        error: 'connection_error',
+      );
+    }
+    return const <String, dynamic>{'status': 'ok'};
+  }
+
+  @override
+  Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
+    if (shouldFailServers) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/vpn/regions'),
+        type: DioExceptionType.connectionError,
+        error: 'connection_error',
+      );
+    }
+    return servers ??
+        const <ServerRegion>[
+          ServerRegion(
+            id: 'us-chi',
+            name: 'US Chicago',
+            city: 'Chicago',
+            country: 'United States',
+            countryCode: 'US',
+            regionHealthStatus: 'healthy',
+            healthStatus: 'healthy',
+            supportedProtocols: <String>['wireguard'],
+          ),
+        ];
+  }
+
+  @override
+  Future<VpnProtocolCatalog> fetchVpnProtocols({
+    required String deviceType,
+    CancelToken? cancelToken,
+  }) async {
+    return protocolCatalog ??
+        VpnProtocolCatalog.fromJson({
+          'user_tier': 'free',
+          'device_type': deviceType,
+          'protocols': [
+            {
+              'protocol': 'wireguard',
+              'enabled': true,
+              'server_enabled': true,
+              'plan_enabled': true,
+              'platform_supported': true,
+            },
+            {
+              'protocol': 'openvpn',
+              'enabled': true,
+              'server_enabled': true,
+              'plan_enabled': true,
+              'platform_supported': true,
+            },
+            {
+              'protocol': 'ikev2',
+              'enabled': true,
+              'server_enabled': true,
+              'plan_enabled': true,
+              'platform_supported': true,
+            },
+          ],
+        });
+  }
 
   @override
   Future<VpnProfile> fetchVpnProfile({

@@ -13,6 +13,7 @@ void main() {
       (tester) async {
     var now = DateTime.utc(2026, 2, 22, 2, 0, 0);
     final calls = <String, int>{};
+    var activeProtocol = '';
 
     Future<Object?> handler(MethodCall call) async {
       calls.update(call.method, (value) => value + 1, ifAbsent: () => 1);
@@ -29,12 +30,24 @@ void main() {
             'macos_entitlements_ready': false,
           };
         case 'connect':
+          final args = Map<dynamic, dynamic>.from(call.arguments as Map);
+          activeProtocol = args['protocol']?.toString() ?? '';
           return null;
         case 'disconnect':
+          activeProtocol = '';
           return null;
         case 'getStatus':
           // Return 'connected' after connect so ChannelVpnService tunnel check passes.
           return calls.containsKey('connect') ? 'connected' : 'disconnected';
+        case 'getTrafficStats':
+          return <String, Object?>{
+            'connected': activeProtocol.isNotEmpty,
+            'protocol': activeProtocol,
+            'interface': activeProtocol == 'openvpn' ? 'tun0' : 'sw-wg',
+            'rx_bytes': 1024,
+            'tx_bytes': 512,
+            'timestamp_ms': 1,
+          };
       }
       return null;
     }

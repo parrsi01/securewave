@@ -94,6 +94,8 @@ class AuthSession extends ChangeNotifier {
       }
 
       _accessToken = token;
+      final email = await _storage.getSessionEmail().timeout(_storageTimeout);
+      _email = (email == null || email.trim().isEmpty) ? null : email.trim();
       _isAuthenticated = true;
     } on TimeoutException catch (error, stackTrace) {
       AppLogger.error(
@@ -121,12 +123,26 @@ class AuthSession extends ChangeNotifier {
       throw StateError('Cannot persist invalid access token: $validation');
     }
     _accessToken = accessToken;
-    _email = email;
+    final normalizedEmail = email?.trim();
+    if (normalizedEmail != null && normalizedEmail.isNotEmpty) {
+      _email = normalizedEmail;
+    }
     _isAuthenticated = true;
+    if (kDebugMode) {
+      debugPrint(
+        '[AUTH_DIAG] {"event":"session_set_start","email":"${email ?? ""}",'
+        '"has_refresh":${refreshToken != null && refreshToken.isNotEmpty}}',
+      );
+    }
     try {
-      await _storage
-          .saveTokens(accessToken: accessToken, refreshToken: refreshToken)
-          .timeout(_storageTimeout);
+      final writes = <Future<void>>[
+        _storage.saveTokens(
+            accessToken: accessToken, refreshToken: refreshToken),
+      ];
+      if (_email != null && _email!.trim().isNotEmpty) {
+        writes.add(_storage.saveSessionEmail(_email!.trim()));
+      }
+      await Future.wait<void>(writes).timeout(_storageTimeout);
     } on TimeoutException catch (error, stackTrace) {
       AppLogger.warning(
         'Auth token persistence timed out; continuing with in-memory session.',
@@ -146,6 +162,10 @@ class AuthSession extends ChangeNotifier {
         stackTrace: stackTrace,
       );
     }
+    if (kDebugMode) {
+      debugPrint(
+          '[AUTH_DIAG] {"event":"session_set_done","authenticated":true}');
+    }
     notifyListeners();
   }
 
@@ -159,16 +179,23 @@ class AuthSession extends ChangeNotifier {
   }
 
   Future<void> clearSession() async {
+    if (kDebugMode) {
+      debugPrint('[AUTH_DIAG] {"event":"session_clear_start"}');
+    }
     _accessToken = null;
     _email = null;
     _isAuthenticated = false;
     await _clearPersistedSessionArtifacts();
+    if (kDebugMode) {
+      debugPrint('[AUTH_DIAG] {"event":"session_clear_done"}');
+    }
     notifyListeners();
   }
 
   Future<void> _clearPersistedSessionArtifacts() async {
     await Future.wait<void>([
       _storage.clearTokens(),
+      _storage.delete(SecureStorage.sessionEmailKey),
       _storage.delete(SecureStorage.vpnProfileConfigKey),
       _storage.delete(SecureStorage.vpnProfileExpiresAtKey),
       _storage.delete(SecureStorage.vpnDeviceIdKey),

@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/services/auth_session.dart';
+import '../../debug/automation_keys.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 import '../nav_destinations.dart';
@@ -28,13 +29,14 @@ class DesktopSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final email   = ref.watch(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final email = ref.watch(
       authSessionProvider.select((a) => a.email ?? 'Not signed in'),
     );
     final initial = email.isNotEmpty ? email[0].toUpperCase() : '?';
 
-    final bgColor     = isDark ? AppColors.darkBackgroundWarm : AppColors.backgroundWarm;
+    final bgColor =
+        isDark ? AppColors.darkBackgroundWarm : AppColors.backgroundWarm;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.border;
 
     return Container(
@@ -92,14 +94,19 @@ class DesktopSidebar extends ConsumerWidget {
             ),
           ),
 
-          Divider(height: AppSpacing.space4, thickness: 0.5, color: borderColor,
-              indent: AppSpacing.space4, endIndent: AppSpacing.space4),
+          Divider(
+              height: AppSpacing.space4,
+              thickness: 0.5,
+              color: borderColor,
+              indent: AppSpacing.space4,
+              endIndent: AppSpacing.space4),
 
           // ── Navigation items ─────────────────────────────────────────
           ...List.generate(NavDestinations.all.length, (i) {
-            final dest     = NavDestinations.all[i];
+            final dest = NavDestinations.all[i];
             final selected = i == currentIndex;
             return _NavItem(
+              automationKey: AutomationKeys.navDestination(dest.label),
               icon: selected ? dest.selectedIcon : dest.icon,
               label: dest.label,
               selected: selected,
@@ -118,15 +125,13 @@ class DesktopSidebar extends ConsumerWidget {
               children: [
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: isDark
-                      ? AppColors.primaryDeep
-                      : AppColors.primaryLight,
+                  backgroundColor:
+                      isDark ? AppColors.primaryDeep : AppColors.primaryLight,
                   child: Text(
                     initial,
                     style: TextStyle(
-                      color: isDark
-                          ? AppColors.primaryBright
-                          : AppColors.primary,
+                      color:
+                          isDark ? AppColors.primaryBright : AppColors.primary,
                       fontWeight: FontWeight.w800,
                       fontSize: 12,
                     ),
@@ -165,6 +170,7 @@ class DesktopSidebar extends ConsumerWidget {
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
+    required this.automationKey,
     required this.icon,
     required this.label,
     required this.selected,
@@ -172,6 +178,7 @@ class _NavItem extends StatelessWidget {
     required this.onTap,
   });
 
+  final String automationKey;
   final IconData icon;
   final String label;
   final bool selected;
@@ -181,11 +188,11 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primaryColor = isDark ? AppColors.primaryBright : AppColors.primary;
-    final activeColor  = isDark
+    final activeColor = isDark
         ? AppColors.primaryBright.withValues(alpha: 0.14)
         : AppColors.primaryLight;
-    final inkColor     = isDark ? AppColors.darkInk : AppColors.ink;
-    final mutedColor   = isDark ? AppColors.darkInkMuted : AppColors.inkMuted;
+    final inkColor = isDark ? AppColors.darkInk : AppColors.ink;
+    final mutedColor = isDark ? AppColors.darkInkMuted : AppColors.inkMuted;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -202,6 +209,7 @@ class _NavItem extends StatelessWidget {
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(AppSpacing.radiusL),
           child: InkWell(
+            key: ValueKey<String>(automationKey),
             borderRadius: BorderRadius.circular(AppSpacing.radiusL),
             onTap: onTap,
             child: Padding(
@@ -224,7 +232,8 @@ class _NavItem extends StatelessWidget {
                     label,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: selected ? primaryColor : inkColor,
-                          fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                          fontWeight:
+                              selected ? FontWeight.w700 : FontWeight.w400,
                         ),
                   ),
                 ],

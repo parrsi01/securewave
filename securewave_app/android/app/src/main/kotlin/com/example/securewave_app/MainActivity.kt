@@ -62,6 +62,9 @@ class MainActivity : FlutterActivity() {
             )
           )
         }
+        "getTrafficStats" -> {
+          result.success(vpn.SecureWaveVpnService.currentTrafficStats())
+        }
         "connect" -> {
           val args = call.arguments as? Map<*, *>
           val protocol = (args?.get("protocol") as? String)?.trim()?.lowercase() ?: "wireguard"

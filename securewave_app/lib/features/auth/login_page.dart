@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../debug/automation_keys.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 import 'auth_controller.dart';
@@ -19,8 +20,8 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _formKey            = GlobalKey<FormState>();
-  final _emailController    = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
@@ -33,7 +34,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final state  = ref.watch(authControllerProvider);
+    final state = ref.watch(authControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -51,8 +52,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               child: SingleChildScrollView(
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                        maxWidth: AppSpacing.authMaxWidth),
+                    constraints:
+                        const BoxConstraints(maxWidth: AppSpacing.authMaxWidth),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(
                         AppSpacing.space4,
@@ -68,6 +69,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             const AuthFieldLabel('Email address'),
                             const SizedBox(height: AppSpacing.space2),
                             TextFormField(
+                              key: const ValueKey<String>(
+                                AutomationKeys.loginEmailField,
+                              ),
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
@@ -90,6 +94,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             const AuthFieldLabel('Password'),
                             const SizedBox(height: AppSpacing.space2),
                             TextFormField(
+                              key: const ValueKey<String>(
+                                AutomationKeys.loginPasswordField,
+                              ),
                               controller: _passwordController,
                               obscureText: _obscurePassword,
                               textInputAction: TextInputAction.done,
@@ -120,16 +127,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               },
                               onFieldSubmitted: (_) => _submit(),
                             ),
-
                             if (state.errorMessage != null) ...[
                               const SizedBox(height: AppSpacing.space3),
                               AuthErrorBanner(message: state.errorMessage!),
                             ],
-
                             const SizedBox(height: AppSpacing.space5),
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton(
+                                key: const ValueKey<String>(
+                                  AutomationKeys.loginSubmitButton,
+                                ),
                                 onPressed: state.isLoading ? null : _submit,
                                 child: state.isLoading
                                     ? const SizedBox(
@@ -146,6 +154,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             const SizedBox(height: AppSpacing.space4),
                             Center(
                               child: TextButton(
+                                key: const ValueKey<String>(
+                                  AutomationKeys.loginCreateAccountButton,
+                                ),
                                 onPressed: () => context.push('/register'),
                                 child: RichText(
                                   text: TextSpan(

@@ -83,6 +83,29 @@ class MetricsDisplay extends ConsumerWidget {
   }
 }
 
+({double value, String unit}) _formatSpeed(double mbps) {
+  if (mbps <= 0) {
+    return (value: 0, unit: 'Mbps');
+  }
+  if (mbps < 0.1) {
+    return (value: mbps * 1000, unit: 'Kbps');
+  }
+  return (value: mbps, unit: 'Mbps');
+}
+
+({double value, String unit}) _formatSessionAmount(double megabytes) {
+  if (megabytes <= 0) {
+    return (value: 0, unit: 'MB');
+  }
+  if (megabytes < 0.1) {
+    return (value: megabytes * 1024, unit: 'KB');
+  }
+  if (megabytes >= 1024) {
+    return (value: megabytes / 1024, unit: 'GB');
+  }
+  return (value: megabytes, unit: 'MB');
+}
+
 class _MetricCard extends StatelessWidget {
   const _MetricCard({
     required this.icon,
@@ -101,6 +124,18 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final formatted = unit == 'MB'
+        ? _formatSessionAmount(value)
+        : _formatSpeed(value);
+    final displayValue = formatted.value;
+    final displayUnit = formatted.unit;
+    final fractionDigits = displayValue <= 0
+        ? 0
+        : displayValue >= 100
+            ? 0
+            : displayValue >= 10
+                ? 1
+                : 2;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -148,11 +183,11 @@ class _MetricCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TweenAnimationBuilder<double>(
-                  tween: Tween(end: value),
+                  tween: Tween(end: displayValue),
                   duration: AppAnimations.durationNormal,
                   curve: AppAnimations.curveDefault,
                   builder: (_, v, __) => Text(
-                    '${v.toStringAsFixed(1)} $unit',
+                    '${v.toStringAsFixed(fractionDigits)} $displayUnit',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       fontFeatures: const [FontFeature.tabularFigures()],

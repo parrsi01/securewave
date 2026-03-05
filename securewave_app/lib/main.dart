@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/config/app_config.dart';
 import 'core/logging/app_logger.dart';
+import 'debug/api_runtime_test.dart';
 
 void main() {
   // Zone guards async errors; bindings + runApp execute in same zone for determinism
@@ -19,6 +20,9 @@ void main() {
 
       await AppConfig.load();
       AppLogger.info('SecureWave booting');
+      if (kDebugMode) {
+        unawaited(testBackend());
+      }
       runApp(const ProviderScope(child: SecureWaveApp()));
     },
     (error, stackTrace) {

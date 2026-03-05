@@ -31,7 +31,11 @@ void main() {
     await Future.wait(
       List<Future<void>>.generate(20, (_) => notifier.connect()),
     );
-    await settleStateMachine(turns: 40);
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.connected,
+      timeout: const Duration(seconds: 3),
+    );
+    await settleStateMachine(turns: 20);
 
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.connected);

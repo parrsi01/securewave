@@ -13,13 +13,16 @@ class AppConfig {
     required this.portalUrl,
     required this.upgradeUrl,
     required this.resetSessionOnBoot,
+    this.httpsPreferred = false,
   });
 
   final String apiBaseUrl;
   final String portalUrl;
   final String upgradeUrl;
   final bool resetSessionOnBoot;
+  final bool httpsPreferred;
   static AppConfig? _cached;
+  static const String _allowLoopbackKey = 'SECUREWAVE_ALLOW_LOCALHOST_API';
 
   factory AppConfig.defaults() {
     return AppConfig(
@@ -27,6 +30,7 @@ class AppConfig {
       portalUrl: AppConstants.portalUrlFallback,
       upgradeUrl: AppConstants.upgradeUrlFallback,
       resetSessionOnBoot: false,
+      httpsPreferred: false,
     );
   }
 
@@ -68,7 +72,17 @@ class AppConfig {
       env['SECUREWAVE_UPGRADE_URL'],
       AppConstants.upgradeUrlFallback,
     );
-    final baseUrl = _normalizeApiBaseUrl(rawBaseUrl);
+    final allowLoopbackApi = _parseBool(
+      env[_allowLoopbackKey] ??
+          const String.fromEnvironment(
+            _allowLoopbackKey,
+            defaultValue: 'false',
+          ),
+    );
+    final baseUrl = _normalizeApiBaseUrl(
+      rawBaseUrl,
+      allowLoopback: allowLoopbackApi && !kReleaseMode,
+    );
     final portalUrl = _normalizeAbsoluteUrl(
       rawPortalUrl,
       fallback: _deriveFromApiBase(baseUrl, '/account'),
@@ -81,6 +95,13 @@ class AppConfig {
       env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
           const String.fromEnvironment(
             'SECUREWAVE_RESET_SESSION_ON_BOOT',
+            defaultValue: 'false',
+          ),
+    );
+    final httpsPreferred = _parseBool(
+      env['SECUREWAVE_PREFER_HTTPS'] ??
+          const String.fromEnvironment(
+            'SECUREWAVE_PREFER_HTTPS',
             defaultValue: 'false',
           ),
     );
@@ -98,6 +119,7 @@ class AppConfig {
       portalUrl: portalUrl,
       upgradeUrl: upgradeUrl,
       resetSessionOnBoot: resetSessionOnBoot,
+      httpsPreferred: httpsPreferred,
     );
     return _cached!;
   }
@@ -109,8 +131,14 @@ class AppConfig {
     return c;
   }
 
-  static String _normalizeApiBaseUrl(String value) {
-    final parsed = _parseAbsoluteHttpUri(value);
+  static String _normalizeApiBaseUrl(
+    String value, {
+    bool allowLoopback = false,
+  }) {
+    final parsed = _parseAbsoluteHttpUri(
+      value,
+      allowLoopback: allowLoopback,
+    );
     if (parsed == null) {
       return AppConstants.baseUrlFallback;
     }
@@ -136,7 +164,10 @@ class AppConfig {
     return parsed.replace(query: null, fragment: null).toString();
   }
 
-  static Uri? _parseAbsoluteHttpUri(String value) {
+  static Uri? _parseAbsoluteHttpUri(
+    String value, {
+    bool allowLoopback = false,
+  }) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return null;
     final withScheme = trimmed.contains('://') ? trimmed : 'https://$trimmed';
@@ -146,7 +177,22 @@ class AppConfig {
     }
     final scheme = parsed.scheme.toLowerCase();
     if (scheme != 'https' && scheme != 'http') return null;
+    if (!allowLoopback && _isLoopbackHost(parsed.host)) {
+      AppLogger.warning(
+        'Config: rejected loopback API host `${parsed.host}`. '
+        'Use $_allowLoopbackKey=true only for explicit local debug runs.',
+      );
+      return null;
+    }
     return parsed;
+  }
+
+  static bool _isLoopbackHost(String host) {
+    final normalized = host.trim().toLowerCase();
+    return normalized == 'localhost' ||
+        normalized == '127.0.0.1' ||
+        normalized == '::1' ||
+        normalized == '[::1]';
   }
 
   static String _deriveFromApiBase(String apiBaseUrl, String path) {

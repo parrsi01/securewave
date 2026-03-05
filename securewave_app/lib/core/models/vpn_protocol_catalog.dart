@@ -17,6 +17,9 @@ class VpnProtocolCatalogEntry {
   final bool platformSupported;
   final String? reason;
 
+  bool get isAvailable =>
+      enabled && serverEnabled && planEnabled && platformSupported;
+
   factory VpnProtocolCatalogEntry.fromJson(Map<String, dynamic> json) {
     bool b(String key) {
       final value = json[key];
@@ -31,7 +34,8 @@ class VpnProtocolCatalogEntry {
       serverEnabled: b('server_enabled'),
       planEnabled: b('plan_enabled'),
       platformSupported: b('platform_supported'),
-      reason: json['reason']?.toString(),
+      reason:
+          json['reason']?.toString() ?? json['health_reason']?.toString(),
     );
   }
 }
@@ -66,10 +70,17 @@ class VpnProtocolCatalog {
   Set<VpnProtocol> enabledProtocols() {
     final out = <VpnProtocol>{};
     for (final item in protocols) {
-      if (item.enabled && item.protocol != VpnProtocol.auto) {
+      if (item.isAvailable && item.protocol != VpnProtocol.auto) {
         out.add(item.protocol);
       }
     }
     return out;
+  }
+
+  VpnProtocolCatalogEntry? entryFor(VpnProtocol protocol) {
+    for (final item in protocols) {
+      if (item.protocol == protocol) return item;
+    }
+    return null;
   }
 }

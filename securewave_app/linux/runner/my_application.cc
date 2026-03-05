@@ -7,6 +7,7 @@
 #include <gio/gio.h>
 #include <glib/gstdio.h>
 #include <errno.h>
+#include <cstdio>
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -846,6 +847,47 @@ static gboolean read_interface_counter(
   if (!iface || !counter || !out_value || !interface_exists(iface)) {
     return FALSE;
   }
+  // Primary source for live traffic counters: /proc/net/dev.
+  // This avoids occasional stale zeros observed with /sys/class/net on some
+  // kernels when interfaces are rapidly recreated.
+  g_autofree gchar* contents = nullptr;
+  gsize length = 0;
+  g_autoptr(GError) error = nullptr;
+  if (g_file_get_contents("/proc/net/dev", &contents, &length, &error) &&
+      contents && length > 0) {
+    g_auto(GStrv) lines = g_strsplit(contents, "\n", -1);
+    if (lines) {
+      for (gint i = 0; lines[i] != nullptr; i++) {
+        gchar* line = lines[i];
+        if (!line) continue;
+        gchar* colon = g_strstr_len(line, -1, ":");
+        if (!colon) continue;
+        *colon = '\0';
+        g_strstrip(line);
+        if (g_strcmp0(line, iface) != 0) continue;
+
+        unsigned long long rx = 0;
+        unsigned long long tx = 0;
+        const gint scanned = std::sscanf(
+            colon + 1,
+            " %llu %*llu %*llu %*llu %*llu %*llu %*llu %*llu %llu",
+            &rx,
+            &tx);
+        if (scanned == 2) {
+          if (g_strcmp0(counter, "rx_bytes") == 0) {
+            *out_value = static_cast<guint64>(rx);
+            return TRUE;
+          }
+          if (g_strcmp0(counter, "tx_bytes") == 0) {
+            *out_value = static_cast<guint64>(tx);
+            return TRUE;
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback for environments where /proc parsing fails.
   g_autofree gchar* path =
       g_build_filename("/sys/class/net", iface, "statistics", counter, nullptr);
   return read_u64_from_file(path, out_value);

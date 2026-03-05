@@ -23,6 +23,8 @@ import UIKit
           result(SecureWaveVPNManager.shared.statusString())
         case "getCapabilities":
           result(SecureWaveVPNManager.shared.capabilitiesPayload())
+        case "getTrafficStats":
+          result(SecureWaveVPNManager.shared.trafficStatsPayload())
         case "connect":
           guard let args = call.arguments as? [String: Any] else {
             result(FlutterError(code: "invalid_profile", message: "Missing VPN arguments.", details: nil))

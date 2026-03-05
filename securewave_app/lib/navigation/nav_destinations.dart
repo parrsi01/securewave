@@ -52,7 +52,7 @@ class NavDestinations {
   static const all = [
     home,
     locations,
-    settings,
     account,
+    settings,
   ];
 }

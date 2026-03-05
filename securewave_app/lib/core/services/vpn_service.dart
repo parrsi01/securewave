@@ -155,13 +155,12 @@ class ChannelVpnService implements VpnService {
   String? get availabilityMessage => _lastNativeAvailabilityMessage;
 
   /// Whether this platform has a native `getTrafficStats` implementation.
-  /// Only Linux (reads /sys/class/net) and simulation mode provide stats.
-  /// Android/Windows/iOS/macOS native bridges lack this method.
+  /// Linux/Android/iOS provide native stats in this client build.
   bool get hasNativeTrafficStats {
     if (_simulationEnabled) return true;
     if (!_supportsNativeChannel()) return false;
     final os = platform.operatingSystem.name.toLowerCase();
-    return os == 'linux';
+    return os == 'linux' || os == 'android' || os == 'ios';
   }
 
   Future<VpnTrafficStats?> fetchTrafficStats() async {
@@ -229,6 +228,50 @@ class ChannelVpnService implements VpnService {
     }
   }
 
+  bool _interfaceLooksCompatible(String? interfaceName, VpnProtocol protocol) {
+    final iface = interfaceName?.trim().toLowerCase();
+    if (iface == null || iface.isEmpty) return false;
+    switch (protocol) {
+      case VpnProtocol.auto:
+        return false;
+      case VpnProtocol.wireGuard:
+        return iface == 'sw-wg' || iface.startsWith('wg');
+      case VpnProtocol.openVpn:
+        return iface.startsWith('tun');
+      case VpnProtocol.ikev2:
+        return iface.startsWith('ipsec') || iface.startsWith('ppp');
+    }
+  }
+
+  Future<bool> _hasMatchingConnectedTunnel(VpnProtocol protocol) async {
+    if (!hasNativeTrafficStats) return true;
+    final stats = await fetchTrafficStats();
+    if (stats == null || !stats.connected) return false;
+    final reportedProtocol = vpnProtocolFromStorage(stats.protocol);
+    if (reportedProtocol != VpnProtocol.auto) {
+      return reportedProtocol == protocol;
+    }
+    return _interfaceLooksCompatible(stats.interfaceName, protocol);
+  }
+
+  Future<String> _protocolMismatchMessage(VpnProtocol protocol) async {
+    final stats = await fetchTrafficStats();
+    final actualProtocol = stats?.protocol?.trim();
+    final actualInterface = stats?.interfaceName?.trim();
+    final actual = [
+      if (actualProtocol != null && actualProtocol.isNotEmpty) actualProtocol,
+      if (actualInterface != null && actualInterface.isNotEmpty)
+        'interface $actualInterface',
+    ].join(' / ');
+    final requested = vpnProtocolLabel(protocol);
+    if (actual.isEmpty) {
+      return 'A different VPN tunnel is active and did not match the '
+          'requested $requested session. Disconnect the stale tunnel and retry.';
+    }
+    return 'A different VPN tunnel is active ($actual). '
+        'Disconnect it and retry $requested.';
+  }
+
   /// Best-effort sync of tunnel status from the native layer.
   ///
   /// This is primarily used to avoid "stuck disconnected" states after an app
@@ -280,11 +323,13 @@ class ChannelVpnService implements VpnService {
       }
       if (!_simulationEnabled && _supportsNativeChannel()) {
         final synced = await refreshStatus();
-        if (synced == VpnStatus.connected) {
+        if (synced == VpnStatus.connected &&
+            await _hasMatchingConnectedTunnel(protocol)) {
           return _status;
         }
-        _status = VpnStatus.connecting;
+        _status = VpnStatus.disconnected;
       }
+      _status = VpnStatus.connecting;
       final capabilities = await getCapabilities();
       if (!capabilities.supportsProtocol(protocol)) {
         _status = VpnStatus.disconnected;
@@ -334,6 +379,13 @@ class ChannelVpnService implements VpnService {
           throw VpnServiceException(
             'vpn_connect_failed',
             'Native VPN runtime did not report an active tunnel after connect.',
+          );
+        }
+        if (!await _hasMatchingConnectedTunnel(protocol)) {
+          _status = VpnStatus.disconnected;
+          throw VpnServiceException(
+            'vpn_connect_protocol_mismatch',
+            await _protocolMismatchMessage(protocol),
           );
         }
       }
