@@ -13,48 +13,60 @@ class AuthHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(gradient: AppColors.authHeaderGradient),
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.space5,
-        AppSpacing.space6,
-        AppSpacing.space5,
-        AppSpacing.space6,
-      ),
-      child: Column(
-        children: [
-          Hero(
-            tag: 'securewave_logo',
-            child: SvgPicture.asset(
-              'assets/securewave_logo.svg',
-              width: 52,
-              height: 52,
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final logoSize = (width * 0.14).clamp(44.0, 64.0).toDouble();
+        final headlineSize = (width * 0.07).clamp(22.0, 30.0).toDouble();
+        final sublineSize = (width * 0.038).clamp(13.0, 15.0).toDouble();
+
+        return Container(
+          width: double.infinity,
+          decoration:
+              const BoxDecoration(gradient: AppColors.authHeaderGradient),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.space5,
+            AppSpacing.space6,
+            AppSpacing.space5,
+            AppSpacing.space6,
           ),
-          const SizedBox(height: AppSpacing.space4),
-          Text(
-            headline,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-            textAlign: TextAlign.center,
+          child: Column(
+            children: [
+              Hero(
+                tag: 'securewave_logo',
+                child: SvgPicture.asset(
+                  'assets/securewave_logo.svg',
+                  width: logoSize,
+                  height: logoSize,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.space4),
+              Text(
+                headline,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: headlineSize,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.space1),
+              Text(
+                subline,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.75),
+                  fontSize: sublineSize,
+                  fontWeight: FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.space1),
-          Text(
-            subline,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.75),
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

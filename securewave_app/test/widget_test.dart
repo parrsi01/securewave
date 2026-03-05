@@ -15,7 +15,6 @@ void main() {
             portalUrl: 'https://portal.example.com',
             upgradeUrl: 'https://upgrade.example.com',
             resetSessionOnBoot: false,
-            devLoginAccounts: const <DevLoginAccount>[],
           ),
         ),
       ],

@@ -6,8 +6,11 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import shlex
+import subprocess
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -20,6 +23,9 @@ from services.wireguard_server_manager import get_wireguard_server_manager, serv
 from utils.env_validation import validate_fernet_key, is_production
 
 logger = logging.getLogger(__name__)
+
+_REMOTE_EXIT_MARKER = "__SECUREWAVE_REMOTE_EXIT_CODE__="
+_REMOTE_OUTPUT_LIMIT = 8192
 
 
 @dataclass(frozen=True)
@@ -57,6 +63,46 @@ class ProvisionedIkev2Profile:
     expires_at: Optional[datetime]
     provisioned_on_server: bool
     status_message: str
+
+
+@dataclass(frozen=True)
+class RemoteScriptExecution:
+    ok: bool
+    stdout: str
+    stderr: str
+    exit_code: Optional[int]
+    duration_ms: int
+    command_summary: str
+
+
+class RemoteScriptError(RuntimeError):
+    def __init__(
+        self,
+        context: str,
+        *,
+        exit_code: Optional[int],
+        duration_ms: int,
+        command_summary: str,
+        filtered_stderr: str,
+        stdout: str,
+    ):
+        self.exit_code = exit_code
+        self.duration_ms = duration_ms
+        self.command_summary = command_summary
+        self.filtered_stderr = filtered_stderr
+        self.stdout_excerpt = VpnCredentialService._truncate_diagnostic_output(stdout)
+
+        parts = [
+            context,
+            f"exit_code={exit_code if exit_code is not None else 'transport_error'}",
+            f"duration_ms={duration_ms}",
+            f"command={command_summary}",
+        ]
+        if self.filtered_stderr:
+            parts.append(f"stderr={self.filtered_stderr}")
+        if self.stdout_excerpt:
+            parts.append(f"stdout={self.stdout_excerpt}")
+        super().__init__(" | ".join(parts))
 
 
 class VpnCredentialService:
@@ -107,6 +153,62 @@ class VpnCredentialService:
             return value
 
     @staticmethod
+    def _truncate_diagnostic_output(value: str, limit: int = _REMOTE_OUTPUT_LIMIT) -> str:
+        text = (value or "").strip()
+        if len(text) <= limit:
+            return text
+        return text[:limit].rstrip() + "...[truncated]"
+
+    @staticmethod
+    def _filter_known_host_warnings(value: str) -> str:
+        kept: list[str] = []
+        for line in (value or "").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("Warning: Permanently added ") and "to the list of known hosts." in stripped:
+                continue
+            if stripped.startswith("Permanently added '") and "to the list of known hosts." in stripped:
+                continue
+            kept.append(line)
+        return "\n".join(kept).strip()
+
+    @staticmethod
+    def _redact_command_summary(command: str) -> str:
+        redacted = re.sub(
+            r"(--provisioning-token\s+)(?:'[^']*'|\"[^\"]*\"|\S+)",
+            r"\1<redacted>",
+            command,
+        )
+        redacted = re.sub(
+            r"(--password-b64\s+)(?:'[^']*'|\"[^\"]*\"|\S+)",
+            r"\1<redacted>",
+            redacted,
+        )
+        return redacted
+
+    @staticmethod
+    def _wrap_remote_command(command: str) -> str:
+        script = (
+            f"{command}\n"
+            "sw_exit_code=$?\n"
+            f"printf '\\n{_REMOTE_EXIT_MARKER}%s\\n' \"$sw_exit_code\"\n"
+            "exit 0\n"
+        )
+        return "sh -lc " + shlex.quote(script)
+
+    @staticmethod
+    def _extract_remote_exit_code(stdout: str) -> tuple[str, Optional[int]]:
+        exit_code: Optional[int] = None
+        kept: list[str] = []
+        for line in (stdout or "").splitlines():
+            if line.startswith(_REMOTE_EXIT_MARKER):
+                raw = line[len(_REMOTE_EXIT_MARKER):].strip()
+                if raw.isdigit():
+                    exit_code = int(raw)
+                    continue
+            kept.append(line)
+        return "\n".join(kept).strip(), exit_code
+
+    @staticmethod
     def _generate_username() -> str:
         # Keep to safe characters for shell scripts and legacy auth backends.
         return f"sw_{secrets.token_hex(10)}"
@@ -115,6 +217,38 @@ class VpnCredentialService:
     def _generate_password() -> str:
         # URL-safe base64; avoids quotes/whitespace for scripting and config formats.
         return secrets.token_urlsafe(24)
+
+    @staticmethod
+    def _local_host_aliases() -> set[str]:
+        aliases = {"127.0.0.1", "localhost", os.uname().nodename.strip().lower()}
+
+        for cmd in (["hostname", "-f"], ["hostname"], ["hostname", "-I"]):
+            try:
+                raw = subprocess.check_output(cmd, text=True, timeout=2)
+            except Exception:
+                continue
+            for token in raw.split():
+                text = token.strip().lower()
+                if text:
+                    aliases.add(text)
+
+        try:
+            raw = subprocess.check_output(["ip", "-4", "route", "get", "1.1.1.1"], text=True, timeout=2)
+        except Exception:
+            raw = ""
+        parts = raw.split()
+        for index, part in enumerate(parts):
+            if part == "src" and index + 1 < len(parts):
+                aliases.add(parts[index + 1].strip().lower())
+
+        return aliases
+
+    @classmethod
+    def _should_run_local(cls, server: Any) -> bool:
+        server_host = str(getattr(server, "public_ip", None) or "").strip().lower()
+        if not server_host:
+            return False
+        return server_host in cls._local_host_aliases()
 
     @staticmethod
     def _parse_bool_env(name: str, default: bool) -> bool:
@@ -184,6 +318,7 @@ class VpnCredentialService:
         subject: str,
         protocol: str,
         ttl_seconds: int,
+        secret: Optional[str] = None,
     ) -> tuple[str, str, datetime]:
         now = self._utc_now()
         expires = now + timedelta(seconds=max(30, ttl_seconds))
@@ -196,8 +331,9 @@ class VpnCredentialService:
         }
         payload_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         body = self._b64url_encode(payload_bytes)
+        signing_secret = secret or self._provisioning_secret()
         signature = hmac.new(
-            self._provisioning_secret().encode("utf-8"),
+            signing_secret.encode("utf-8"),
             body.encode("ascii"),
             digestmod=hashlib.sha256,
         ).digest()
@@ -314,7 +450,8 @@ class VpnCredentialService:
             self.db.add(record)
             self.db.flush()
         else:
-            record.revision = int(record.revision or 1) + 1
+            current_revision = int(record.revision or 1)
+            record.revision = current_revision + 1 if record.username != common_name else current_revision
 
         record.credential_type = "client_certificate"
         record.username = common_name
@@ -390,18 +527,80 @@ class VpnCredentialService:
         server: Any,
         command: str,
     ) -> tuple[bool, str, str]:
+        result = await self._run_remote_script_detailed(server=server, command=command)
+        return result.ok, result.stdout, result.stderr
+
+    async def _run_remote_script_detailed(
+        self,
+        *,
+        server: Any,
+        command: str,
+    ) -> RemoteScriptExecution:
+        if self._should_run_local(server):
+            started = time.monotonic()
+            wrapped_command = self._wrap_remote_command(command)
+            proc = subprocess.run(
+                wrapped_command,
+                shell=True,
+                text=True,
+                capture_output=True,
+                executable="/bin/bash",
+            )
+            duration_ms = int((time.monotonic() - started) * 1000)
+            clean_stdout, exit_code = self._extract_remote_exit_code(proc.stdout)
+            if exit_code is None:
+                exit_code = proc.returncode
+            return RemoteScriptExecution(
+                ok=exit_code == 0,
+                stdout=clean_stdout,
+                stderr=proc.stderr.strip(),
+                exit_code=exit_code,
+                duration_ms=duration_ms,
+                command_summary=self._redact_command_summary(command),
+            )
+
         manager = get_wireguard_server_manager()
         conn = server_connection_from_db(server)
-        return await manager.run_ssh_command(conn, command)
+        started = time.monotonic()
+        transport_ok, stdout, stderr = await manager.run_ssh_command(
+            conn,
+            self._wrap_remote_command(command),
+        )
+        duration_ms = int((time.monotonic() - started) * 1000)
+        clean_stdout, exit_code = self._extract_remote_exit_code(stdout)
+        filtered_stderr = self._filter_known_host_warnings(stderr)
+        if exit_code is None:
+            exit_code = 0 if transport_ok else None
+        return RemoteScriptExecution(
+            ok=transport_ok and exit_code == 0,
+            stdout=clean_stdout,
+            stderr=filtered_stderr,
+            exit_code=exit_code,
+            duration_ms=duration_ms,
+            command_summary=self._redact_command_summary(command),
+        )
 
-    def _openvpn_testing_payload(self, *, common_name: str, valid_days: int) -> dict[str, Any]:
+    def _openvpn_testing_payload(self, *, server: Any, common_name: str, valid_days: int) -> dict[str, Any]:
         expires = self._utc_now() + timedelta(days=max(1, valid_days))
+        server_host = (
+            (getattr(server, "openvpn_endpoint", None) or "").strip()
+            or (getattr(server, "public_ip", None) or "").strip()
+            or "198.51.100.10"
+        )
+        openvpn_port = getattr(server, "openvpn_port", None) or 1194
+        try:
+            port = int(openvpn_port)
+        except (TypeError, ValueError):
+            port = 1194
+        transport = (getattr(server, "openvpn_transport", None) or "udp").strip().lower()
+        if transport not in {"udp", "tcp"}:
+            transport = "udp"
         ovpn = "\n".join(
             [
                 "client",
                 "dev tun",
-                "proto udp",
-                "remote 198.51.100.10 1194",
+                f"proto {transport}",
+                f"remote {server_host} {port}",
                 "nobind",
                 "persist-key",
                 "persist-tun",
@@ -490,24 +689,30 @@ class VpnCredentialService:
             )
             .first()
         )
-        if existing is not None:
-            revision_seed = int(existing.revision or 1) + 1
+        if existing is not None and existing.revoked_at is None:
+            revision_seed = int(existing.revision or 1)
+            if (existing.credential_type or "").strip() != "client_certificate":
+                revision_seed += 1
 
         common_name = self._common_name(protocol="ovpn", user_id=user_id, device_id=device_id, revision=revision_seed)
+        provisioning_secret = self._provisioning_secret()
         token, token_hash, token_expires = self._mint_provisioning_token(
             subject=common_name,
             protocol="openvpn",
             ttl_seconds=self._parse_valid_days("SECUREWAVE_PROVISIONING_TOKEN_TTL_SECONDS", 300, minimum=30, maximum=3600),
+            secret=provisioning_secret,
         )
 
         if self.testing:
-            data = self._openvpn_testing_payload(common_name=common_name, valid_days=valid_days)
+            data = self._openvpn_testing_payload(server=server, common_name=common_name, valid_days=valid_days)
             provisioned = True
             status_message = "issued_via_testing_payload"
         else:
             issue_cmd = " ".join(
                 [
                     "sudo",
+                    "env",
+                    f"SECUREWAVE_PROVISIONING_TOKEN_SECRET={shlex.quote(provisioning_secret)}",
                     "/usr/local/bin/securewave-openvpn-issue-client",
                     "--common-name",
                     shlex.quote(common_name),
@@ -586,14 +791,18 @@ class VpnCredentialService:
             )
             .first()
         )
-        if existing is not None:
-            revision_seed = int(existing.revision or 1) + 1
+        if existing is not None and existing.revoked_at is None:
+            revision_seed = int(existing.revision or 1)
+            if (existing.credential_type or "").strip() != "client_certificate":
+                revision_seed += 1
 
         common_name = self._common_name(protocol="ikev2", user_id=user_id, device_id=device_id, revision=revision_seed)
+        provisioning_secret = self._provisioning_secret()
         token, token_hash, token_expires = self._mint_provisioning_token(
             subject=common_name,
             protocol="ikev2",
             ttl_seconds=self._parse_valid_days("SECUREWAVE_PROVISIONING_TOKEN_TTL_SECONDS", 300, minimum=30, maximum=3600),
+            secret=provisioning_secret,
         )
 
         remote_id = (getattr(server, "ikev2_remote_id", None) or "").strip() or None
@@ -614,6 +823,8 @@ class VpnCredentialService:
             issue_cmd = " ".join(
                 [
                     "sudo",
+                    "env",
+                    f"SECUREWAVE_PROVISIONING_TOKEN_SECRET={shlex.quote(provisioning_secret)}",
                     "/usr/local/bin/securewave-ikev2-issue-client",
                     "--common-name",
                     shlex.quote(common_name),
@@ -629,9 +840,17 @@ class VpnCredentialService:
                     "json",
                 ]
             )
-            ok, stdout, stderr = await self._run_remote_script(server=server, command=issue_cmd)
-            if not ok:
-                raise RuntimeError((stderr or stdout or "ikev2 provisioning failed").strip())
+            result = await self._run_remote_script_detailed(server=server, command=issue_cmd)
+            stdout = result.stdout
+            if not result.ok:
+                raise RemoteScriptError(
+                    "ikev2 provisioning failed",
+                    exit_code=result.exit_code,
+                    duration_ms=result.duration_ms,
+                    command_summary=result.command_summary,
+                    filtered_stderr=result.stderr,
+                    stdout=stdout,
+                )
             data = await self._resolve_script_payload(
                 server=server,
                 payload=self._parse_json_from_stdout(stdout),

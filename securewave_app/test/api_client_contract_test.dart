@@ -28,7 +28,6 @@ AppConfig testConfig() => AppConfig(
       portalUrl: 'http://localhost:8000',
       upgradeUrl: 'http://localhost:8000',
       resetSessionOnBoot: false,
-      devLoginAccounts: const <DevLoginAccount>[],
     );
 
 void main() {

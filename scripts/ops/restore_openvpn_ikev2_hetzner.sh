@@ -12,7 +12,28 @@ umask 077
 install -d -m 755 /etc/securewave/openvpn /etc/securewave/ikev2
 install -d -m 700 /var/lib/securewave/pki /var/lib/securewave/pki/openvpn /var/lib/securewave/pki/ikev2
 
-apt-get update -y
+sync_clock_if_possible() {
+  timedatectl set-ntp true >/dev/null 2>&1 || true
+  systemctl restart systemd-timesyncd >/dev/null 2>&1 || true
+  sleep 3
+}
+
+apt_update_with_retry() {
+  local attempt=1
+  while [[ "${attempt}" -le 3 ]]; do
+    if apt-get update -y; then
+      return 0
+    fi
+    echo "apt-get update failed (attempt ${attempt}/3); syncing clock and retrying..." >&2
+    sync_clock_if_possible
+    attempt=$((attempt + 1))
+  done
+  echo "apt-get update failed after retries." >&2
+  return 1
+}
+
+sync_clock_if_possible
+apt_update_with_retry
 apt-get install -y openvpn easy-rsa strongswan strongswan-pki jq openssl python3
 
 if [[ ! -x /usr/local/bin/securewave-validate-provisioning-token ]]; then

@@ -317,15 +317,20 @@ class UptimeMonitorService:
             db = next(get_db())
 
             # Get all active VPN servers
-            servers = db.query(VPNServer).filter(VPNServer.is_active == True).all()
+            servers = db.query(VPNServer).filter(VPNServer.status == "active").all()
 
             results = []
             for server in servers:
-                result = self.check_vpn_server(server.ip_address, server.port or 51820)
+                server_ip = getattr(server, "public_ip", None)
+                if not server_ip:
+                    continue
+
+                server_port = self._vpn_server_check_port(server)
+                result = self.check_vpn_server(server_ip, server_port)
                 result["metadata"] = {
-                    "server_id": server.id,
-                    "server_name": server.name,
-                    "location": server.location
+                    "server_id": server.server_id,
+                    "server_name": server.location or server.server_id,
+                    "location": server.location,
                 }
                 results.append(result)
 
@@ -334,6 +339,22 @@ class UptimeMonitorService:
         except Exception as e:
             logger.error(f"Failed to check VPN servers: {e}")
             return []
+
+    def _vpn_server_check_port(self, server) -> int:
+        """Resolve the current VPNServer probe port without changing sweep semantics."""
+        wg_port = getattr(server, "wg_listen_port", None)
+        if wg_port:
+            return int(wg_port)
+
+        openvpn_port = getattr(server, "openvpn_port", None)
+        if openvpn_port:
+            return int(openvpn_port)
+
+        supports_ikev2 = bool(getattr(server, "supports_ikev2", False))
+        if supports_ikev2:
+            return 500
+
+        return 51820
 
     # ===========================
     # TCP PORT CHECKS

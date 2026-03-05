@@ -23,11 +23,13 @@ from typing import Optional, List, Any, Dict, Literal, Union
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+from backend.services.traffic_manager import get_traffic_manager
+from backend.services.traffic_shaper import get_traffic_shaper
 from database.session import get_db
 from models.user import User
 from models.wireguard_peer import WireGuardPeer
@@ -46,6 +48,7 @@ from utils.input_sanitizer import (
     sanitize_wireguard_key,
 )
 from services.subscription_access import require_active_subscription
+from services.tier_service import get_effective_user_tier
 from services.vpn_peer_manager import get_peer_manager
 from services.wireguard_service import WireGuardService
 from services.vpn_server_service import VPNServerService
@@ -64,6 +67,7 @@ from services.wireguard_server_manager import (
 )
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from routes.user import build_account_usage_payload
 from utils.time_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -78,6 +82,24 @@ def rate_limit(rule: str):
             return func
         return decorator
     return limiter.limit(rule)
+
+
+def _dev_diagnostics_enabled() -> bool:
+    if IS_TESTING:
+        return True
+    return os.getenv("SECUREWAVE_DEV_DIAGNOSTICS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _provisioning_mode() -> str:
+    raw = os.getenv("SECUREWAVE_PROVISIONING_MODE", "").strip().lower()
+    if raw in {"local_stub", "ssh_real"}:
+        return raw
+    return "local_stub" if IS_TESTING else "ssh_real"
 
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
 AUTO_PROVISION_CREDENTIALS = (
@@ -179,6 +201,7 @@ class ServerInfo(BaseModel):
     region_group: Optional[str] = None
     is_primary_region: bool = False
     priority_weight: int = 100
+    latency_priority: Optional[int] = None
     latency_score: Optional[float] = None
     latency_ms: Optional[float] = None
     load_percent: Optional[float] = None
@@ -412,6 +435,29 @@ class SimulatedFailureRequest(BaseModel):
     blocked_regions: Optional[List[str]] = None
 
 
+class StartMeterRequest(BaseModel):
+    user_id: int = Field(..., ge=1)
+    protocol: str = Field(..., min_length=3)
+    session_id: Optional[str] = None
+    iface_hint: Optional[str] = None
+
+
+class StopMeterRequest(BaseModel):
+    session_id: str = Field(..., min_length=3)
+
+
+class StartShapingRequest(BaseModel):
+    user_id: int = Field(..., ge=1)
+    protocol: str = Field(..., min_length=3)
+    tier: str = Field("free", min_length=3)
+    session_id: Optional[str] = None
+    iface_hint: Optional[str] = None
+
+
+class StopShapingRequest(BaseModel):
+    session_id: str = Field(..., min_length=3)
+
+
 class RegionResolutionResponse(BaseModel):
     selected_region_id: str
     reason: str
@@ -587,6 +633,8 @@ class VpnIkev2ProfilePayload(BaseModel):
     client_pkcs12_password: Optional[str] = None
     cert_serial: Optional[str] = None
     cert_fingerprint_sha256: Optional[str] = None
+    proposals: Optional[List[str]] = None
+    traffic_selectors: Optional[List[str]] = None
 
 
 VpnProtocolProfilePayload = Union[
@@ -621,20 +669,11 @@ class VpnProfileResponse(BaseModel):
 def get_user_tier(user: User, db: Session) -> str:
     """Get user's subscription tier.
 
-    Returns the plan_id from the active subscription (e.g. 'basic', 'premium',
-    'ultra') or 'free' when the user has no active/trialing subscription.
-    For server tier-restriction checks, any paid plan ('basic', 'premium',
-    'ultra') grants access to servers with tier_restriction='premium'.
+    Centralized wrapper around the canonical tier service.
+    For server tier-restriction checks, any paid plan ('basic', 'premium')
+    grants access to servers with tier_restriction='premium'.
     """
-    from models.subscription import Subscription
-    sub = db.query(Subscription).filter(
-        Subscription.user_id == user.id,
-        Subscription.status.in_(["active", "trialing"])
-    ).first()
-
-    if sub and sub.plan_id:
-        return sub.plan_id  # 'basic', 'premium', 'ultra'
-    return "free"
+    return get_effective_user_tier(user, db)
 
 
 async def register_peer_on_server(
@@ -699,6 +738,9 @@ async def provision_protocol_credentials_on_server(
     - /usr/local/bin/securewave-openvpn-upsert-user
     - /usr/local/bin/securewave-ikev2-upsert-user
     """
+    if _provisioning_mode() == "local_stub":
+        return False, "not_applicable"
+
     if not AUTO_PROVISION_CREDENTIALS:
         return False, "Auto provisioning disabled"
 
@@ -812,6 +854,32 @@ def _resolve_wireguard_tuning(
 
 def _log_vpn_event(event: str, **fields) -> None:
     logger.info(json.dumps({"event": event, **fields}, sort_keys=True))
+
+
+def _resolve_traffic_manager_dependency():
+    try:
+        return get_traffic_manager()
+    except Exception as exc:
+        logger.error("Traffic manager unavailable", exc_info=True)
+        raise ApiException(
+            status_code=503,
+            code="traffic_manager_unavailable",
+            message="Traffic metering is temporarily unavailable.",
+            details={"reason": type(exc).__name__},
+        ) from exc
+
+
+def _resolve_traffic_shaper_dependency():
+    try:
+        return get_traffic_shaper()
+    except Exception as exc:
+        logger.error("Traffic shaper unavailable", exc_info=True)
+        raise ApiException(
+            status_code=503,
+            code="traffic_shaper_unavailable",
+            message="Traffic shaping is temporarily unavailable.",
+            details={"reason": type(exc).__name__},
+        ) from exc
 
 
 def _utc_iso(dt: datetime) -> str:
@@ -1156,9 +1224,9 @@ def _stored_region_health(server: VPNServer) -> tuple[str, str]:
     if (getattr(server, "hcloud_server_state", "") or "").strip().lower() not in {"", "running"}:
         return "down", "host_unreachable"
     raw = (getattr(server, "health_status", "") or "").strip().lower()
-    if raw in {"healthy", "degraded"}:
+    if raw in {"healthy", "degraded", "unstable"}:
         return "up", "monitor_healthy"
-    if raw in {"unhealthy", "unreachable", "offline", "unstable"}:
+    if raw in {"unhealthy", "unreachable", "offline"}:
         return "down", "region_down"
     return "unknown", "health_unknown"
 
@@ -1811,14 +1879,23 @@ def _linux_route_snippet() -> str:
     the interface name (e.g., sw-wg).
     """
     return (
-        # Use policy routing table 51820 (wg-quick default).
-        # Add a default route through the tunnel in that table.
+        # Mark WireGuard's own UDP packets so they bypass the policy rule
+        # and reach the endpoint via the main routing table.  Without this,
+        # Table=off means wg-quick never calls add_default() which is where
+        # fwmark is normally set — causing a routing loop.
+        "PostUp = wg set %i fwmark 51820\n"
+        # Default route through the tunnel in policy table 51820.
         "PostUp = ip route add default dev %i table 51820 2>/dev/null || true\n"
-        # Add ip rule to send all non-tunnel traffic through table 51820.
+        # Send all non-fwmark-51820 traffic through table 51820.
         "PostUp = ip rule add not fwmark 51820 table 51820 priority 32764 2>/dev/null || true\n"
-        # Cleanup on tunnel down — remove the rule and route.
+        # Fallback: consult main table for local/subnet routes but suppress
+        # its default route (prefix length 0) so internet traffic still uses
+        # the tunnel.  This keeps LAN, loopback, and host routes reachable.
+        "PostUp = ip rule add table main suppress_prefixlength 0 priority 32765 2>/dev/null || true\n"
+        # Symmetric cleanup on tunnel down.
         "PostDown = ip rule del not fwmark 51820 table 51820 priority 32764 2>/dev/null || true\n"
-        "PostDown = ip route del default dev %i table 51820 2>/dev/null || true\n"
+        "PostDown = ip rule del table main suppress_prefixlength 0 priority 32765 2>/dev/null || true\n"
+        "PostDown = ip route flush table 51820 2>/dev/null || true\n"
     )
 
 
@@ -1951,6 +2028,15 @@ def _build_openvpn_profile(
             pem_env="SECUREWAVE_OPENVPN_TLS_CRYPT_KEY",
             path_env="SECUREWAVE_OPENVPN_TLS_CRYPT_KEY_PATH",
         ) or ""
+    if not tls_crypt_key:
+        for candidate_path in ("/etc/openvpn/server/tls-crypt.key", "/etc/openvpn/server/ta.key"):
+            try:
+                with open(candidate_path, "r", encoding="utf-8") as handle:
+                    tls_crypt_key = handle.read().strip()
+            except OSError:
+                continue
+            if tls_crypt_key:
+                break
 
     proto_line = "proto tcp-client" if transport == "tcp" else "proto udp"
 
@@ -2022,6 +2108,13 @@ def _build_ikev2_profile(
         username=username,
         password=password,
         ca_cert_pem=ca_cert or None,
+        proposals=[
+            os.getenv(
+                "SECUREWAVE_IKEV2_PROPOSALS",
+                "ike=aes256-sha256-modp2048,esp=aes256-sha256",
+            ).strip()
+        ],
+        traffic_selectors=["0.0.0.0/0"],
     )
 
 
@@ -2206,6 +2299,8 @@ def _protocol_material_ready(protocol: str) -> bool:
     normalized = normalize_vpn_protocol(protocol)
     if normalized not in {"openvpn", "ikev2"}:
         return True
+    if _provisioning_mode() == "local_stub":
+        return True
     if not _protocol_runtime_checks_enabled():
         return True
     required_scripts = _protocol_required_scripts(normalized)
@@ -2215,6 +2310,8 @@ def _protocol_material_ready(protocol: str) -> bool:
 def _protocol_health_ready(protocol: str) -> bool:
     normalized = normalize_vpn_protocol(protocol)
     if normalized not in {"openvpn", "ikev2"}:
+        return True
+    if _provisioning_mode() == "local_stub":
         return True
     if not _protocol_runtime_checks_enabled():
         return True
@@ -2913,6 +3010,61 @@ async def protocol_health(
     )
 
 
+@router.post("/meter/start")
+async def start_meter(request: StartMeterRequest) -> dict:
+    manager = _resolve_traffic_manager_dependency()
+    try:
+        return manager.start_meter(
+            user_id=request.user_id,
+            protocol=request.protocol.lower(),
+            session_id=request.session_id,
+            iface_hint=request.iface_hint,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/meter/stop")
+async def stop_meter(request: StopMeterRequest) -> dict:
+    manager = _resolve_traffic_manager_dependency()
+    stopped = manager.stop_meter(request.session_id)
+    if not stopped.get("stopped"):
+        raise HTTPException(status_code=404, detail="session not found")
+    return stopped
+
+
+@router.get("/meter/usage/{user_id}")
+async def meter_usage(user_id: int, protocol: Optional[str] = Query(default=None)) -> dict:
+    manager = _resolve_traffic_manager_dependency()
+    return {
+        "user_id": user_id,
+        "current_session_usage": manager.current_session_usage(user_id=user_id, protocol=protocol),
+        "last_session_usage": manager.last_session_usage(user_id=user_id),
+    }
+
+
+@router.post("/shaping/start")
+async def start_shaping(request: StartShapingRequest) -> dict:
+    try:
+        return _resolve_traffic_shaper_dependency().apply_for_session(
+            user_id=request.user_id,
+            protocol=request.protocol.lower(),
+            tier=request.tier,
+            session_id=request.session_id or "",
+            iface_hint=request.iface_hint,
+        )
+    except (FileNotFoundError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/shaping/stop")
+async def stop_shaping(request: StopShapingRequest) -> dict:
+    result = _resolve_traffic_shaper_dependency().remove_for_session(request.session_id)
+    if not result.get("removed"):
+        raise HTTPException(status_code=404, detail="session not found")
+    return result
+
+
 @router.post(
     "/dev/region-health",
     responses=VPN_ERROR_RESPONSES,
@@ -3089,15 +3241,24 @@ async def list_servers(
         except ValueError as exc:
             raise ApiException(status_code=400, code="invalid_region", message=str(exc))
 
-    user_tier = get_user_tier(current_user, db)
+    user_tier = get_effective_user_tier(current_user, db)
+    server_scope = "free" if user_tier == "free" else "premium"
 
-    # Get active servers for this user's tier
-    servers = VPNServerService.get_active_servers(db, user_tier)
-    health_map = _region_health_map(servers)
+    # Backend enforces premium gating for the catalog response.
+    servers = VPNServerService.get_active_servers(db, server_scope)
 
     # Filter by region if specified
     if region:
         servers = [s for s in servers if s.region and s.region.lower() == region.lower()]
+
+    servers = sorted(
+        servers,
+        key=lambda server: (
+            int(getattr(server, "priority_weight", 100) or 100),
+            str(getattr(server, "server_id", "") or ""),
+        ),
+    )
+    health_map = _region_health_map(servers)
 
     # Convert to response format
     server_list = []
@@ -3122,6 +3283,7 @@ async def list_servers(
             region_group=getattr(server, "region_group", None),
             is_primary_region=bool(getattr(server, "is_primary_region", False)),
             priority_weight=int(getattr(server, "priority_weight", 100) or 100),
+            latency_priority=int(getattr(server, "priority_weight", 100) or 100),
             latency_score=getattr(server, "latency_score", None),
             latency_ms=server.latency_ms,
             load_percent=round(load_percent, 1),
@@ -3173,7 +3335,7 @@ async def list_regions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Compatibility alias of /api/vpn/servers with `regions` key."""
+    """Compatibility alias of /api/vpn/servers with identical tier-scoped inventory."""
     payload = await list_servers(
         request=request,
         region=region,
@@ -3435,7 +3597,7 @@ async def allocate_config(
             )
 
     # Resolve or create a peer device for this user
-    device_name = payload.device_name or "Primary Device"
+    device_name = (payload.device_name or "This device").strip()[:64]
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.user_id == current_user.id,
         WireGuardPeer.device_name == device_name,
@@ -3864,6 +4026,17 @@ async def provision_profile(
         )
 
     assert server is not None
+    if user_tier == "free":
+        usage = build_account_usage_payload(db, current_user)
+        used_bytes = int(usage["used_bytes"])
+        quota_bytes = int(usage["quota_bytes"])
+        if quota_bytes > 0 and used_bytes >= quota_bytes:
+            raise ApiException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                code="quota_exceeded",
+                message="Free tier data cap exceeded.",
+                details={"used_bytes": used_bytes, "quota_bytes": quota_bytes},
+            )
     effective_protocol = choose_effective_protocol(
         server=server,
         requested_protocol=requested_protocol,
@@ -4032,6 +4205,7 @@ async def provision_profile(
                 registration_status = message
         elif effective_protocol == "ikev2":
             ikev2_mode = _effective_ikev2_auth_mode(device_type)
+            diag_enabled = _dev_diagnostics_enabled()
             if ikev2_mode == "eap-tls":
                 try:
                     issued = await creds_service.issue_ikev2_certificate_profile(
@@ -4041,6 +4215,15 @@ async def provision_profile(
                     )
                 except Exception as exc:
                     reason = str(exc)
+                    if diag_enabled:
+                        logger.warning(
+                            "ikev2_eaptls_diag event=fallback device_type=%s effective_auth_mode=%s "
+                            "fallback_triggered=true exception_type=%s exit_code=%s",
+                            device_type or "unknown",
+                            ikev2_mode,
+                            type(exc).__name__,
+                            getattr(exc, "exit_code", None),
+                        )
                     if not _ikev2_allow_userpass_fallback():
                         code = _classify_protocol_provision_error("ikev2", reason)
                         raise ApiException(
@@ -4085,6 +4268,13 @@ async def provision_profile(
                         else f"eap_tls_failed_fallback_userpass: {message}"
                     )
                 else:
+                    if diag_enabled:
+                        logger.info(
+                            "ikev2_eaptls_diag event=success device_type=%s effective_auth_mode=%s "
+                            "fallback_triggered=false",
+                            device_type or "unknown",
+                            ikev2_mode,
+                        )
                     profile_payload = VpnIkev2ProfilePayload(
                         auth_method="eap-tls",
                         server=issued.server,
@@ -4388,7 +4578,9 @@ async def provision_vpn_credential(
                 )
             status_message = "credential_provisioned"
     else:
-        if _effective_ikev2_auth_mode(device_type) == "eap-tls":
+        ikev2_mode = _effective_ikev2_auth_mode(device_type)
+        diag_enabled = _dev_diagnostics_enabled()
+        if ikev2_mode == "eap-tls":
             try:
                 issued = await creds_service.issue_ikev2_certificate_profile(
                     user_id=current_user.id,
@@ -4397,6 +4589,15 @@ async def provision_vpn_credential(
                 )
             except Exception as exc:
                 reason = str(exc)
+                if diag_enabled:
+                    logger.warning(
+                        "ikev2_eaptls_diag event=fallback device_type=%s effective_auth_mode=%s "
+                        "fallback_triggered=true exception_type=%s exit_code=%s",
+                        device_type or "unknown",
+                        ikev2_mode,
+                        type(exc).__name__,
+                        getattr(exc, "exit_code", None),
+                    )
                 if not _ikev2_allow_userpass_fallback():
                     raise ApiException(
                         status_code=502,
@@ -4435,6 +4636,13 @@ async def provision_vpn_credential(
                     )
                 status_message = f"eap_tls_failed_fallback_userpass: {reason}"
             else:
+                if diag_enabled:
+                    logger.info(
+                        "ikev2_eaptls_diag event=success device_type=%s effective_auth_mode=%s "
+                        "fallback_triggered=false",
+                        device_type or "unknown",
+                        ikev2_mode,
+                    )
                 issued_profile = VpnIkev2ProfilePayload(
                     auth_method="eap-tls",
                     server=issued.server,
@@ -4894,6 +5102,7 @@ async def get_connection_status(
     Note: This checks if the user has an active configuration allocated.
     Actual tunnel status is managed by the WireGuard client on the user's device.
     """
+    _log_vpn_event("status_request", user_id=current_user.id)
     if is_simulated_tunnel_mode():
         runtime = get_tunnel_runtime()
         session_id = runtime.active_session_for_user(current_user.id)
@@ -4963,6 +5172,14 @@ async def connect_vpn(
     user_tier = get_user_tier(current_user, db)
     requested_protocol = normalize_vpn_protocol(payload.protocol)
     effective_protocol = requested_protocol if requested_protocol != "auto" else "wireguard"
+    _log_vpn_event(
+        "connect_request",
+        user_id=current_user.id,
+        requested_protocol=requested_protocol,
+        effective_protocol=effective_protocol,
+        server_id=payload.server_id,
+        region=payload.region,
+    )
     protocol_filter = requested_protocol if requested_protocol not in {"auto", "wireguard"} else None
     servers = VPNServerService.get_active_servers(db, user_tier, protocol=protocol_filter)
     health_map = _region_health_map(servers)
@@ -5200,6 +5417,7 @@ async def disconnect_vpn(
 
     Note: This does not terminate a WireGuard tunnel on the client device.
     """
+    _log_vpn_event("disconnect_request", user_id=current_user.id)
     if is_simulated_tunnel_mode():
         runtime = get_tunnel_runtime()
         session_id = runtime.active_session_for_user(current_user.id)

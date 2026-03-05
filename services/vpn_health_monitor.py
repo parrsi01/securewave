@@ -200,8 +200,16 @@ class VPNHealthMonitor:
                 age_seconds = max(0.0, (now - handshake_at).total_seconds())
                 peer.last_handshake_at = handshake_at
                 peer.last_handshake_latency_ms = round(request_latency_ms, 2)
-                peer.total_data_received = int(remote.get("transfer_rx", peer.total_data_received or 0))
-                peer.total_data_sent = int(remote.get("transfer_tx", peer.total_data_sent or 0))
+                new_rx = int(remote.get("transfer_rx", peer.total_data_received or 0))
+                new_tx = int(remote.get("transfer_tx", peer.total_data_sent or 0))
+                if new_rx != (peer.total_data_received or 0) or new_tx != (peer.total_data_sent or 0):
+                    logger.debug(
+                        '[METRICS] peer=%s rx=%d→%d tx=%d→%d',
+                        peer.public_key[:8], peer.total_data_received or 0, new_rx,
+                        peer.total_data_sent or 0, new_tx,
+                    )
+                peer.total_data_received = new_rx
+                peer.total_data_sent = new_tx
             else:
                 age_seconds = None
                 if peer.last_handshake_at:

@@ -149,6 +149,15 @@ class AuthSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Read the persisted refresh token (for 401 token refresh flow).
+  Future<String?> getRefreshToken() => _storage.getRefreshToken();
+
+  /// Update the cached email (e.g. after a successful email change).
+  void updateEmail(String newEmail) {
+    _email = newEmail;
+    notifyListeners();
+  }
+
   Future<void> clearSession() async {
     _accessToken = null;
     _email = null;

@@ -32,6 +32,7 @@ from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, serve
 from services.wireguard_service import WireGuardService
 from services.email_service import EmailService
 from services.runtime_metrics import get_runtime_metrics
+from services.server_bootstrap import ensure_default_servers
 from services.tunnel_runtime import ensure_tunnel_mode_allowed
 from services.jwt_service import get_current_user
 from services.vpn_peer_manager import get_peer_manager
@@ -115,6 +116,17 @@ async def lifespan(app: FastAPI):
     require_encryption_keys(logger)
     require_production_config(logger)
     ensure_tunnel_mode_allowed()
+
+    if os.getenv("TESTING", "").lower() != "true":
+        db = None
+        try:
+            db = SessionLocal()
+            ensure_default_servers(db)
+        except Exception as e:
+            logger.warning(f"Default VPN server bootstrap skipped: {e}")
+        finally:
+            if db is not None:
+                db.close()
 
     # Schedule background initialization to run after startup completes
     if os.getenv("TESTING", "").lower() != "true":
@@ -423,6 +435,52 @@ def require_production_config(logger: logging.Logger) -> None:
         logger.error(message)
         raise RuntimeError(message)
 
+def _reconcile_wg_pubkeys(logger: logging.Logger) -> None:
+    """Compare running wg0 public key against DB and auto-correct mismatches."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["wg", "show", "wg0", "public-key"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            logger.debug("wg show wg0 public-key failed (wg0 may not exist on this host)")
+            return
+        runtime_key = result.stdout.strip()
+        if not runtime_key:
+            return
+    except FileNotFoundError:
+        logger.debug("wg binary not found — skipping pubkey reconciliation")
+        return
+
+    from database.session import SessionLocal
+    from models.vpn_server import VPNServer
+
+    db = SessionLocal()
+    try:
+        # Find servers on this host whose DB key doesn't match the running key.
+        # All servers sharing the same wg0 interface must share the same pubkey.
+        stale = (
+            db.query(VPNServer)
+            .filter(
+                VPNServer.wg_public_key != runtime_key,
+                VPNServer.supports_wireguard.is_(True),
+            )
+            .all()
+        )
+        for srv in stale:
+            logger.warning(
+                "[WG_KEY_MISMATCH] server=%s db_key=%.12s… runtime_key=%.12s… — auto-correcting",
+                srv.server_id, srv.wg_public_key, runtime_key,
+            )
+            srv.wg_public_key = runtime_key
+        if stale:
+            db.commit()
+            logger.info("Corrected WG public key for %d server(s)", len(stale))
+    finally:
+        db.close()
+
+
 async def initialize_app_background():
     """Background initialization that happens AFTER the app starts responding to health checks"""
     logger = logging.getLogger(__name__)
@@ -482,6 +540,14 @@ async def initialize_app_background():
         db.close()
     except Exception as e:
         logger.warning(f"VPN Optimizer initialization failed: {e}. Continuing without optimizer.")
+
+    # Self-heal stale WireGuard public keys: compare runtime wg0 key
+    # against DB entries for this host.  Prevents handshake failures
+    # caused by key drift (e.g. wg0 regenerated but DB not updated).
+    try:
+        _reconcile_wg_pubkeys(logger)
+    except Exception as e:
+        logger.warning(f"WG pubkey reconciliation failed (non-fatal): {e}")
 
     try:
         validate_production_env(logger)

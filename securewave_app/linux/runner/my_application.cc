@@ -8,6 +8,7 @@
 #include <glib/gstdio.h>
 #include <errno.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "flutter/generated_plugin_registrant.h"
@@ -514,6 +515,22 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
         g_spawn_close_pid(pid);
         return;
       }
+      // Tell NetworkManager not to manage the WireGuard interface.
+      // NM 1.36+ recognises WireGuard interfaces and, without a matching NM
+      // connection profile, marks them "disconnected" and may bring them down
+      // within ~5 seconds of creation.  Marking the device unmanaged prevents
+      // this interference while still allowing ip rule / ip route to work.
+      if (nmcli_available()) {
+        gchar* nmcli_argv[] = {
+            const_cast<gchar*>("nmcli"),
+            const_cast<gchar*>("device"),
+            const_cast<gchar*>("set"),
+            const_cast<gchar*>("sw-wg"),
+            const_cast<gchar*>("managed"),
+            const_cast<gchar*>("no"),
+            nullptr};
+        run_quiet_command(nmcli_argv);
+      }
     }
     wg_quick_respond_ok_once(ctx);
   }
@@ -537,6 +554,67 @@ static gboolean wg_quick_timeout_cb(gpointer user_data) {
 }
 
 // Preflight: tear down any stale sw-wg interface before bringing it up.
+// Ensure NetworkManager will never auto-manage the sw-wg interface.
+// NM 1.36+ auto-detects WireGuard interfaces and attempts activation,
+// which races with wg-quick and produces a spurious "Activation failed"
+// desktop notification.  A persistent [keyfile] unmanaged-devices rule
+// eliminates the race entirely.
+static void ensure_nm_unmanaged_rule() {
+  static gboolean done = FALSE;
+  if (done) return;
+  done = TRUE;
+
+  const gchar* conf_path = "/etc/NetworkManager/conf.d/securewave-unmanaged.conf";
+  const gchar* expected = "[keyfile]\nunmanaged-devices=interface-name:sw-wg\n";
+
+  // Check if rule already exists.
+  g_autofree gchar* contents = nullptr;
+  if (g_file_get_contents(conf_path, &contents, nullptr, nullptr)) {
+    if (contents && g_strstr_len(contents, -1, "sw-wg")) {
+      return;  // Already installed.
+    }
+  }
+
+  // Needs root to write to /etc — use pkexec + tee.
+  if (!pkexec_available()) return;
+  g_autofree gchar* pkexec = g_find_program_in_path("pkexec");
+  if (!pkexec) return;
+  g_autofree gchar* tee = g_find_program_in_path("tee");
+  if (!tee) return;
+
+  // pkexec tee /etc/NetworkManager/conf.d/securewave-unmanaged.conf
+  gint stdin_fd = -1;
+  GPid pid = 0;
+  gchar* argv[] = {pkexec, tee, const_cast<gchar*>(conf_path), nullptr};
+  g_autoptr(GError) error = nullptr;
+  if (!g_spawn_async_with_pipes(
+          nullptr, argv, nullptr,
+          static_cast<GSpawnFlags>(G_SPAWN_DO_NOT_REAP_CHILD),
+          nullptr, nullptr, &pid, &stdin_fd,
+          nullptr, nullptr, &error)) {
+    return;
+  }
+  if (stdin_fd >= 0) {
+    // Write the rule content and close stdin so tee completes.
+    (void)write(stdin_fd, expected, strlen(expected));
+    close(stdin_fd);
+  }
+  gint wait_status = 0;
+  (void)waitpid(pid, &wait_status, 0);
+  g_spawn_close_pid(pid);
+
+  // Reload NM so the new rule takes effect immediately.
+  g_autofree gchar* nmcli = g_find_program_in_path("nmcli");
+  if (nmcli) {
+    gchar* reload_argv[] = {
+        const_cast<gchar*>("nmcli"),
+        const_cast<gchar*>("general"),
+        const_cast<gchar*>("reload"),
+        nullptr};
+    run_quiet_command(reload_argv);
+  }
+}
+
 // Only touches SecureWave-owned resources (interface sw-wg, table 51820).
 // Failures are soft — the subsequent wg-quick up surfaces real errors.
 static void wg_preflight_cleanup(const gchar* config_path) {
@@ -873,12 +951,6 @@ static gboolean route_exists_for_interface(const gchar* iface) {
   return command_output_has_non_empty_line(ipv6_argv);
 }
 
-static gboolean wireguard_policy_rule_exists() {
-  gchar* argv[] = {const_cast<gchar*>("ip"), const_cast<gchar*>("rule"),
-                   const_cast<gchar*>("show"), nullptr};
-  return command_output_contains(argv, "lookup 51820") ||
-         command_output_contains(argv, "table 51820");
-}
 
 static gboolean nmcli_connection_active(const gchar* connection_name) {
   if (!connection_name || *connection_name == '\0' || !nmcli_available()) {
@@ -920,6 +992,28 @@ static gboolean openvpn_process_alive(const gchar* pid_path) {
   return process_is_running(pid);
 }
 
+// Check that the SecureWave policy routing table (51820) has a default route
+// via the active WireGuard interface.  This is the definitive proof that the
+// PostUp hook ("ip route add default dev <iface> table 51820") ran
+// successfully.  Checking only the ip rule is insufficient — the rule can be
+// a stale leftover from a previous session's PostDown cleanup failure.
+static gboolean wireguard_table_route_exists(const gchar* iface) {
+  if (!iface || *iface == '\0') {
+    return FALSE;
+  }
+  // "ip -4 route show table 51820" — look for a default route via our iface.
+  gchar* argv[] = {const_cast<gchar*>("ip"),
+                   const_cast<gchar*>("-4"),
+                   const_cast<gchar*>("route"),
+                   const_cast<gchar*>("show"),
+                   const_cast<gchar*>("table"),
+                   const_cast<gchar*>("51820"),
+                   nullptr};
+  // The output will contain "default dev <iface>" if the PostUp route is set.
+  g_autofree gchar* needle = g_strdup_printf("dev %s", iface);
+  return command_output_contains(argv, needle);
+}
+
 static gboolean verify_wireguard_runtime(gchar** out_error) {
   const guint attempts =
       (kRuntimeSanityTimeoutMs / kRuntimeSanityPollIntervalMs) + 1;
@@ -927,16 +1021,21 @@ static gboolean verify_wireguard_runtime(gchar** out_error) {
     const gboolean has_sw_wg = interface_exists("sw-wg");
     const gboolean has_wg0 = interface_exists("wg0");
     const gchar* iface = has_sw_wg ? "sw-wg" : (has_wg0 ? "wg0" : nullptr);
-    const gboolean has_route = iface ? route_exists_for_interface(iface) : FALSE;
-    const gboolean has_policy_rule = wireguard_policy_rule_exists();
-    if (iface && (has_route || has_policy_rule)) {
+    // Require both the interface AND the policy route in table 51820.
+    // The ip rule alone is not sufficient proof — it may be a stale leftover
+    // from a previous session.  The table route proves PostUp completed.
+    const gboolean has_table_route =
+        iface ? wireguard_table_route_exists(iface) : FALSE;
+    if (iface && has_table_route) {
       return TRUE;
     }
     g_usleep(static_cast<gulong>(kRuntimeSanityPollIntervalMs) * 1000);
   }
   if (out_error) {
     *out_error = g_strdup(
-        "WireGuard sanity check failed: expected sw-wg/wg0 interface and route or policy rule.");
+        "WireGuard sanity check failed: sw-wg/wg0 interface exists but "
+        "no default route in policy routing table 51820. "
+        "Check that PostUp hooks ran as root (requires pkexec or securewave helper).");
   }
   return FALSE;
 }
@@ -994,10 +1093,25 @@ static void refresh_runtime_connection_state(VpnChannelState* state) {
 
   const gchar* active = state->active_protocol;
   if (active) {
-    if ((g_strcmp0(active, "wireguard") == 0 || g_strcmp0(active, "wg") == 0) &&
-        (interface_exists("sw-wg") || interface_exists("wg0"))) {
-      state->last_connected = TRUE;
-      set_active_protocol(state, "wireguard");
+    if (g_strcmp0(active, "wireguard") == 0 || g_strcmp0(active, "wg") == 0) {
+      const gboolean has_sw_wg = interface_exists("sw-wg");
+      const gboolean has_wg0 = interface_exists("wg0");
+      const gchar* iface =
+          has_sw_wg ? "sw-wg" : (has_wg0 ? "wg0" : nullptr);
+      // Require interface AND the policy routing table entry.  Interface alone
+      // is not sufficient: wg-quick down strips the IP and removes the table
+      // route before deleting the interface — so a half-torn-down interface
+      // will have no table route and must be treated as disconnected.
+      const gboolean has_table_route =
+          iface ? wireguard_table_route_exists(iface) : FALSE;
+      if (iface && has_table_route) {
+        state->last_connected = TRUE;
+        set_active_protocol(state, "wireguard");
+        return;
+      }
+      // Interface exists but routing is broken — treat as disconnected.
+      state->last_connected = FALSE;
+      set_active_protocol(state, nullptr);
       return;
     }
     if (g_strcmp0(active, "openvpn") == 0 &&
@@ -1014,10 +1128,15 @@ static void refresh_runtime_connection_state(VpnChannelState* state) {
     }
   }
 
-  if (interface_exists("sw-wg") || interface_exists("wg0")) {
-    state->last_connected = TRUE;
-    set_active_protocol(state, "wireguard");
-    return;
+  {
+    const gboolean has_sw_wg = interface_exists("sw-wg");
+    const gboolean has_wg0 = interface_exists("wg0");
+    const gchar* iface = has_sw_wg ? "sw-wg" : (has_wg0 ? "wg0" : nullptr);
+    if (iface && wireguard_table_route_exists(iface)) {
+      state->last_connected = TRUE;
+      set_active_protocol(state, "wireguard");
+      return;
+    }
   }
   if (nmcli_connection_active(kIkev2ConnectionName) || interface_exists("ipsec0")) {
     state->last_connected = TRUE;
@@ -1226,6 +1345,9 @@ static void handle_vpn_call(FlMethodChannel* channel,
           run_quiet_command(pre_argv);
         }
       }
+      // Prevent NM from auto-managing sw-wg (eliminates "Activation failed"
+      // popup race — see comment on ensure_nm_unmanaged_rule).
+      ensure_nm_unmanaged_rule();
       spawn_wg_quick_async(
           method_call,
           state,

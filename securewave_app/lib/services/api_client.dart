@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,6 +32,25 @@ class ApiClient {
             receiveTimeout: const Duration(seconds: 20),
           ),
         );
+
+    // In non-release builds, allow self-signed certificates so the dev VPS
+    // (which uses a self-signed cert on an IP address) remains reachable.
+    // This path is never compiled into release builds.
+    if (!kReleaseMode && _dio.httpClientAdapter is IOHttpClientAdapter) {
+      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient();
+        client.badCertificateCallback =
+            (X509Certificate cert, String host, int port) {
+          AppLogger.warning(
+            'ApiClient: accepting self-signed cert for $host:$port '
+            '(dev/debug only — never in release)',
+          );
+          return true;
+        };
+        return client;
+      };
+    }
+
     AppLogger.info('ApiClient: initialized with baseUrl=${_config.apiBaseUrl}');
     if (session != null) {
       _dio.interceptors.add(
@@ -39,6 +61,70 @@ class ApiClient {
               options.headers['Authorization'] = 'Bearer $token';
             }
             return handler.next(options);
+          },
+          onError: (error, handler) async {
+            if (error.response?.statusCode != 401) {
+              return handler.next(error);
+            }
+            // Prevent infinite loop: if this is already a retry, give up.
+            if (error.requestOptions.extra['_isRetry'] == true) {
+              return handler.next(error);
+            }
+            try {
+              final refreshToken = await session.getRefreshToken();
+              if (refreshToken == null || refreshToken.isEmpty) {
+                debugPrint(
+                    '[AUTH_REFRESH] no refresh token — clearing session');
+                await session.clearSession();
+                return handler.next(error);
+              }
+              debugPrint(
+                  '[AUTH_REFRESH] 401 received — attempting token refresh');
+              // Use a plain Dio (no interceptors) to avoid re-entry.
+              final refreshDio = Dio(BaseOptions(
+                baseUrl: _config.apiBaseUrl,
+                headers: {'Content-Type': 'application/json'},
+                connectTimeout: const Duration(seconds: 10),
+                receiveTimeout: const Duration(seconds: 10),
+              ));
+              if (!kReleaseMode &&
+                  refreshDio.httpClientAdapter is IOHttpClientAdapter) {
+                (refreshDio.httpClientAdapter as IOHttpClientAdapter)
+                    .createHttpClient = () {
+                  final client = HttpClient();
+                  client.badCertificateCallback = (_, __, ___) => true;
+                  return client;
+                };
+              }
+              final refreshResp = await refreshDio.post<Map<String, dynamic>>(
+                '/auth/refresh',
+                data: {'refresh_token': refreshToken},
+              );
+              final newAccess = refreshResp.data?['access_token']?.toString();
+              final newRefresh = refreshResp.data?['refresh_token']?.toString();
+              if (newAccess == null || newAccess.isEmpty) {
+                debugPrint(
+                    '[AUTH_REFRESH] refresh response missing access_token');
+                await session.clearSession();
+                return handler.next(error);
+              }
+              await session.setSession(
+                accessToken: newAccess,
+                refreshToken: newRefresh,
+              );
+              debugPrint('[AUTH_REFRESH] tokens refreshed — retrying request');
+              // Retry the original request with the new token.
+              final opts = error.requestOptions;
+              opts.headers['Authorization'] = 'Bearer $newAccess';
+              opts.extra['_isRetry'] = true;
+              final retryResp = await _dio.fetch(opts);
+              return handler.resolve(retryResp);
+            } catch (refreshError) {
+              debugPrint(
+                  '[AUTH_REFRESH] refresh failed: $refreshError — clearing session');
+              await session.clearSession();
+              return handler.next(error);
+            }
           },
         ),
       );
@@ -72,6 +158,34 @@ class ApiClient {
     if (value is num) return true;
     if (value == null) return false;
     return num.tryParse(value.toString()) != null;
+  }
+
+  String? _responseHeader(Headers? headers, String name) {
+    if (headers == null) return null;
+    final values = headers.map[name] ??
+        headers.map[name.toLowerCase()] ??
+        headers.map[name.toUpperCase()];
+    if (values == null || values.isEmpty) return null;
+    final value = values.first.trim();
+    return value.isEmpty ? null : value;
+  }
+
+  String? _extractApiErrorCode(Object? data) {
+    if (data is! Map) return null;
+    final payload = data['error'];
+    if (payload is! Map) return null;
+    final code = payload['code']?.toString().trim();
+    if (code == null || code.isEmpty) return null;
+    return code;
+  }
+
+  String? _extractApiErrorMessage(Object? data) {
+    if (data is! Map) return null;
+    final payload = data['error'];
+    if (payload is! Map) return null;
+    final message = payload['message']?.toString().trim();
+    if (message == null || message.isEmpty) return null;
+    return message;
   }
 
   void _validateUsageContract(Map<String, dynamic> usage) {
@@ -206,6 +320,23 @@ class ApiClient {
     }
   }
 
+  Map<String, dynamic> _normalizeVpnProfilePayload(
+    Map<String, dynamic> payload,
+  ) {
+    final wrapped = payload['data'];
+    if (wrapped is Map) {
+      final candidate = Map<String, dynamic>.from(wrapped);
+      final looksLikeProfile = candidate.containsKey('device_id') ||
+          candidate.containsKey('protocol') ||
+          candidate.containsKey('wireguard_config') ||
+          candidate.containsKey('profile');
+      if (looksLikeProfile) {
+        return candidate;
+      }
+    }
+    return payload;
+  }
+
   Future<Map<String, dynamic>> fetchHealth({CancelToken? cancelToken}) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
@@ -253,10 +384,18 @@ class ApiClient {
       String sourcePath;
       try {
         final result = await fetchFrom('/vpn/regions', 'regions');
-        servers = result.servers;
-        sourcePath = '/vpn/regions';
-        if (_strictContractValidation) {
-          _validateRegionsContract(result.data, result.rawList);
+        // Fall back to /vpn/servers if regions returns an empty list —
+        // the backend serves live server data from that endpoint instead.
+        if (result.servers.isNotEmpty) {
+          servers = result.servers;
+          sourcePath = '/vpn/regions';
+          if (_strictContractValidation) {
+            _validateRegionsContract(result.data, result.rawList);
+          }
+        } else {
+          final fallback = await fetchFrom('/vpn/servers', 'servers');
+          servers = fallback.servers;
+          sourcePath = '/vpn/servers';
         }
       } on DioException catch (error) {
         final status = error.response?.statusCode;
@@ -298,12 +437,12 @@ class ApiClient {
         final quotaBytes = (usage['quota_bytes'] as num?)?.toDouble() ?? 0;
         final usedBytes = (usage['used_bytes'] as num?)?.toDouble() ?? 0;
         final tier = usage['plan_tier']?.toString().toLowerCase() ?? 'free';
-        data = <String, dynamic>{
-          'plan_name': tier == 'premium' ? 'Premium' : 'Free',
-          'plan_tier': tier,
-          'data_cap_gb': quotaBytes > 0 ? quotaBytes / 1024 / 1024 / 1024 : 0,
-          'used_gb': usedBytes / 1024 / 1024 / 1024,
-        };
+        // Pass through ALL backend fields; add computed GB values.
+        data = Map<String, dynamic>.from(usage);
+        data['data_cap_gb'] =
+            quotaBytes > 0 ? quotaBytes / 1024 / 1024 / 1024 : 0;
+        data['used_gb'] = usedBytes / 1024 / 1024 / 1024;
+        data['plan_name'] ??= tier == 'premium' ? 'Premium' : 'Free';
       } on DioException catch (error) {
         final status = error.response?.statusCode;
         if (status != 404 && status != 405) rethrow;
@@ -385,22 +524,66 @@ class ApiClient {
     bool forceRotateKeys = false,
     CancelToken? cancelToken,
   }) async {
+    final requestedProtocol = protocol == VpnProtocol.auto
+        ? 'auto'
+        : vpnProtocolStorageValue(protocol);
+    final requestedServer = (serverId ?? '').trim();
+    AppLogger.info(
+      'VPN profile request: protocol=$requestedProtocol '
+      'server=${requestedServer.isEmpty ? "-" : requestedServer} '
+      'deviceId=${deviceId ?? "-"} '
+      'deviceType=${deviceType.trim().isEmpty ? "unknown" : deviceType.trim()} '
+      'baseUrl=${_config.apiBaseUrl}',
+    );
+    final requestPayload = <String, dynamic>{
+      if (deviceId != null && deviceId > 0) 'device_id': deviceId,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      if (protocol != VpnProtocol.auto)
+        'protocol': vpnProtocolStorageValue(protocol),
+      if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
+      if (forceRotateKeys) 'force_rotate_keys': true,
+    };
     try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/vpn/profile',
-        data: {
-          if (deviceId != null && deviceId > 0) 'device_id': deviceId,
-          'device_name': deviceName,
-          'device_type': deviceType,
-          if (protocol != VpnProtocol.auto)
-            'protocol': vpnProtocolStorageValue(protocol),
-          if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
-          if (forceRotateKeys) 'force_rotate_keys': true,
-        },
-        cancelToken: cancelToken,
+      final response =
+          await _withNetworkRetry<Response<Map<String, dynamic>>>(() {
+        return _dio.post<Map<String, dynamic>>(
+          '/vpn/profile',
+          data: requestPayload,
+          cancelToken: cancelToken,
+        );
+      });
+      final data =
+          _normalizeVpnProfilePayload(response.data ?? <String, dynamic>{});
+      final responseProtocol = data['protocol']?.toString().trim();
+      final responseServer = data['server_id']?.toString().trim();
+      final requestId =
+          _responseHeader(response.headers, 'x-request-id') ?? '-';
+      AppLogger.info(
+        'VPN profile response: status=${response.statusCode ?? 200} '
+        'requestId=$requestId '
+        'protocol=${responseProtocol?.isNotEmpty == true ? responseProtocol : requestedProtocol} '
+        'server=${responseServer?.isNotEmpty == true ? responseServer : "-"}',
       );
-      final data = response.data ?? <String, dynamic>{};
       return VpnProfile.fromJson(data);
+    } on DioException catch (error, stackTrace) {
+      final status = error.response?.statusCode;
+      final requestId =
+          _responseHeader(error.response?.headers, 'x-request-id') ?? '-';
+      final apiCode = _extractApiErrorCode(error.response?.data) ?? '-';
+      final apiMessage = _extractApiErrorMessage(error.response?.data);
+      AppLogger.warning(
+        'VPN profile request failed: status=${status ?? -1} '
+        'requestId=$requestId code=$apiCode '
+        'protocol=$requestedProtocol '
+        'server=${requestedServer.isEmpty ? "-" : requestedServer} '
+        'deviceId=${deviceId ?? "-"} '
+        'dioType=${error.type.name}'
+        '${apiMessage != null ? ' message=$apiMessage' : ''}',
+      );
+      AppLogger.error('VPN profile fetch failed',
+          error: error, stackTrace: stackTrace);
+      rethrow;
     } catch (error, stackTrace) {
       AppLogger.error('VPN profile fetch failed',
           error: error, stackTrace: stackTrace);
@@ -479,6 +662,95 @@ class ApiClient {
       AppLogger.error('VPN metrics fetch error',
           error: error, stackTrace: stackTrace);
       return null;
+    }
+  }
+
+  // ── Profile management ───────────────────────────────────────────────
+
+  /// Fetch current user profile from /auth/me.
+  Future<Map<String, dynamic>> fetchProfile() async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>('/auth/me');
+      return response.data ?? <String, dynamic>{};
+    } catch (error, stackTrace) {
+      AppLogger.error('Fetch profile error',
+          error: error, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Update email via POST /auth/update-email.
+  Future<Map<String, dynamic>> updateEmail({
+    required String newEmail,
+    required String password,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/update-email',
+        data: {'new_email': newEmail, 'password': password},
+      );
+      return response.data ?? <String, dynamic>{};
+    } catch (error, stackTrace) {
+      AppLogger.error('Update email error',
+          error: error, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Update password via POST /auth/update-password.
+  Future<Map<String, dynamic>> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/update-password',
+        data: {
+          'current_password': currentPassword,
+          'new_password': newPassword,
+        },
+      );
+      return response.data ?? <String, dynamic>{};
+    } catch (error, stackTrace) {
+      AppLogger.error('Update password error',
+          error: error, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  // ── Device management ────────────────────────────────────────────────
+
+  /// List registered devices for the current user.
+  Future<DeviceListResult> listDevices() async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>('/vpn/devices');
+      final data = response.data ?? <String, dynamic>{};
+      final rawDevices = (data['devices'] as List?) ?? [];
+      final devices = rawDevices
+          .whereType<Map>()
+          .map((d) => DeviceInfo.fromJson(Map<String, dynamic>.from(d)))
+          .toList();
+      return DeviceListResult(
+        devices: devices,
+        total: (data['total'] as int?) ?? devices.length,
+        limit: (data['limit'] as int?) ?? 1,
+        remaining: (data['remaining'] as int?) ?? 0,
+      );
+    } catch (error, stackTrace) {
+      AppLogger.error('List devices error',
+          error: error, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Revoke (delete) a device by its ID.
+  Future<void> deleteDevice(int deviceId) async {
+    try {
+      await _dio.delete<void>('/vpn/devices/$deviceId');
+    } catch (error, stackTrace) {
+      AppLogger.error('Delete device error',
+          error: error, stackTrace: stackTrace);
+      rethrow;
     }
   }
 
@@ -576,4 +848,61 @@ class VpnResolvedRegion {
       cacheHit: b('cache_hit'),
     );
   }
+}
+
+// ── Device models ─────────────────────────────────────────────────────
+
+class DeviceInfo {
+  const DeviceInfo({
+    required this.id,
+    this.name,
+    this.deviceType,
+    required this.ipAddress,
+    this.serverLocation,
+    required this.isActive,
+    required this.createdAt,
+    this.lastHandshake,
+    this.dataSentMb = 0,
+    this.dataReceivedMb = 0,
+  });
+
+  final int id;
+  final String? name;
+  final String? deviceType;
+  final String ipAddress;
+  final String? serverLocation;
+  final bool isActive;
+  final String createdAt;
+  final String? lastHandshake;
+  final double dataSentMb;
+  final double dataReceivedMb;
+
+  factory DeviceInfo.fromJson(Map<String, dynamic> json) {
+    return DeviceInfo(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      name: json['name']?.toString(),
+      deviceType: json['device_type']?.toString(),
+      ipAddress: json['ip_address']?.toString() ?? '',
+      serverLocation: json['server_location']?.toString(),
+      isActive: json['is_active'] == true,
+      createdAt: json['created_at']?.toString() ?? '',
+      lastHandshake: json['last_handshake']?.toString(),
+      dataSentMb: (json['data_sent_mb'] as num?)?.toDouble() ?? 0,
+      dataReceivedMb: (json['data_received_mb'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+class DeviceListResult {
+  const DeviceListResult({
+    required this.devices,
+    required this.total,
+    required this.limit,
+    required this.remaining,
+  });
+
+  final List<DeviceInfo> devices;
+  final int total;
+  final int limit;
+  final int remaining;
 }

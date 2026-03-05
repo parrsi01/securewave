@@ -1,0 +1,12 @@
+/var/log/securewave/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 securewave securewave
+    postrotate
+        systemctl kill -s USR1 securewave-backend.service 2>/dev/null || true
+    endscript
+}

@@ -22,6 +22,12 @@ void main() {
 
   testWidgets('cold-start first interactive frame proxy stays below 1s',
       (tester) async {
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(Duration.zero);
+      await tester.pump(Duration.zero);
+      await tester.pump(const Duration(milliseconds: 100));
+    });
     final service = ControlledVpnService(
       nativeAvailable: true,
       capabilities: const VpnCapabilities(
@@ -39,7 +45,6 @@ void main() {
       portalUrl: 'https://portal.example.invalid',
       upgradeUrl: 'https://upgrade.example.invalid',
       resetSessionOnBoot: false,
-      devLoginAccounts: const <DevLoginAccount>[],
     );
     final apiClient = FakeApiClient(config: appConfig);
 
@@ -75,6 +80,14 @@ void main() {
     // ignore: avoid_print
     print('PERF cold_start_interactive_frame_proxy_ms=$elapsedMs');
     expect(elapsedMs, lessThan(1000.0));
+
+    // Drain pending Dio/reconcile timers from VpnStateNotifier before the
+    // framework's _verifyInvariants runs. pumpWidget replaces the tree
+    // (disposes ProviderScope), subsequent pumps drain cancellation callbacks.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(Duration.zero);
+    await tester.pump(Duration.zero);
+    await tester.pump(const Duration(milliseconds: 100));
   });
 
   test('control-plane connect latency benchmark (per protocol)', () async {
@@ -91,7 +104,6 @@ void main() {
       portalUrl: 'https://portal.example.invalid',
       upgradeUrl: 'https://upgrade.example.invalid',
       resetSessionOnBoot: false,
-      devLoginAccounts: const <DevLoginAccount>[],
     );
 
     for (final protocol in protocols) {

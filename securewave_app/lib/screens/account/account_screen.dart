@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -66,7 +64,20 @@ class AccountScreen extends ConsumerWidget {
                     error: (_, __) => const SizedBox.shrink(),
                   ),
 
-                  const SizedBox(height: AppSpacing.space8),
+                  const SizedBox(height: AppSpacing.space4),
+
+                  // ── Edit Profile ─────────────────────────────────────
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push('/edit-profile'),
+                      icon: const Icon(Icons.edit_outlined,
+                          size: AppSpacing.iconXS),
+                      label: const Text('Edit Profile'),
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.space4),
 
                   // ── Sign out ───────────────────────────────────────────
                   OutlinedButton.icon(
@@ -251,6 +262,7 @@ class _UsageGauge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final progress = plan.usagePercent.clamp(0.0, 1.0).toDouble();
     return Container(
       padding: const EdgeInsets.all(AppSpacing.space5),
       decoration: BoxDecoration(
@@ -262,49 +274,50 @@ class _UsageGauge extends StatelessWidget {
         ),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 160,
-            height: 160,
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: plan.usagePercent),
-              duration: const Duration(milliseconds: 900),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, _) {
-                final gaugeColor = value < 0.8
-                    ? (isDark ? AppColors.primaryBright : AppColors.primary)
-                    : value < 0.95
-                        ? AppColors.warning
-                        : AppColors.error;
-                return CustomPaint(
-                  painter: _GaugePainter(
-                      value: value, color: gaugeColor, isDark: isDark),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${plan.usedGb.toStringAsFixed(1)} GB',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        Text(
-                          'of ${plan.dataCapGb.toStringAsFixed(0)} GB',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
+          Text(
+            '${plan.usedGb.toStringAsFixed(1)} GB used of ${plan.dataCapGb.toStringAsFixed(0)} GB',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.space2),
+          Text(
+            '${(progress * 100).toStringAsFixed(0)}% used',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.space4),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: progress),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              final gaugeColor = value < 0.7
+                  ? (isDark ? AppColors.primaryBright : AppColors.primary)
+                  : value <= 0.9
+                      ? AppColors.warning
+                      : AppColors.error;
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                child: SizedBox(
+                  height: 12,
+                  child: LinearProgressIndicator(
+                    value: value,
+                    backgroundColor:
+                        isDark ? AppColors.darkBorder : AppColors.border,
+                    valueColor: AlwaysStoppedAnimation<Color>(gaugeColor),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: AppSpacing.space3),
           Text(
             '${plan.remainingGb.toStringAsFixed(1)} GB remaining',
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isDark ? AppColors.darkInkMuted : AppColors.inkMuted,
+                ),
           ),
         ],
       ),
@@ -381,54 +394,4 @@ class _ManagePlanButton extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── Gauge painter ───────────────────────────────────────────────────────────
-
-class _GaugePainter extends CustomPainter {
-  _GaugePainter({required this.value, required this.color, required this.isDark});
-  final double value;
-  final Color color;
-  final bool isDark;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 14;
-    const startAngle = 145 * math.pi / 180;
-    const sweepTotal = 250 * math.pi / 180;
-    final rect = Rect.fromCircle(center: center, radius: radius);
-    final trackColor = isDark ? AppColors.darkBorder : AppColors.border;
-
-    // Track
-    canvas.drawArc(
-      rect, startAngle, sweepTotal, false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 12
-        ..strokeCap = StrokeCap.round
-        ..color = trackColor,
-    );
-
-    // Fill arc
-    if (value > 0) {
-      canvas.drawArc(
-        rect, startAngle, sweepTotal * value.clamp(0, 1), false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 12
-          ..strokeCap = StrokeCap.round
-          ..shader = SweepGradient(
-            startAngle: startAngle,
-            endAngle: startAngle + sweepTotal,
-            colors: [color.withValues(alpha: 0.6), color],
-            transform: const GradientRotation(0),
-          ).createShader(rect),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GaugePainter old) =>
-      value != old.value || color != old.color || isDark != old.isDark;
 }

@@ -29,8 +29,12 @@ void main() {
             'macos_entitlements_ready': false,
           };
         case 'connect':
+          return null;
         case 'disconnect':
           return null;
+        case 'getStatus':
+          // Return 'connected' after connect so ChannelVpnService tunnel check passes.
+          return calls.containsKey('connect') ? 'connected' : 'disconnected';
       }
       return null;
     }

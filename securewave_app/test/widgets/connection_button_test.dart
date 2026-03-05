@@ -43,7 +43,7 @@ class _FixedStatusVpnService implements VpnService {
 }
 
 class _BannerVpnStateNotifier extends VpnStateNotifier {
-  _BannerVpnStateNotifier(Ref ref) : super(ref) {
+  _BannerVpnStateNotifier(super.ref) {
     state = const VpnState(
       status: VpnStatus.connected,
       selectedServerId: 'fallback-1',
@@ -55,7 +55,7 @@ class _BannerVpnStateNotifier extends VpnStateNotifier {
 }
 
 class _OptimizedVpnStateNotifier extends VpnStateNotifier {
-  _OptimizedVpnStateNotifier(Ref ref) : super(ref) {
+  _OptimizedVpnStateNotifier(super.ref) {
     state = const VpnState(
       status: VpnStatus.connected,
       selectedServerId: 'na-1',
@@ -65,7 +65,7 @@ class _OptimizedVpnStateNotifier extends VpnStateNotifier {
 }
 
 class _SelectedDownVpnStateNotifier extends VpnStateNotifier {
-  _SelectedDownVpnStateNotifier(Ref ref) : super(ref) {
+  _SelectedDownVpnStateNotifier(super.ref) {
     state = const VpnState(
       status: VpnStatus.disconnected,
       selectedServerId: 'down-selected',
@@ -112,7 +112,7 @@ void main() {
     );
   });
 
-  List<ServerRegion> _servers({required bool down}) {
+  List<ServerRegion> serversFixture({required bool down}) {
     return <ServerRegion>[
       ServerRegion(
         id: 'test-1',
@@ -143,7 +143,7 @@ void main() {
       overrides: [
         vpnServiceProvider.overrideWithValue(service),
         serversProvider
-            .overrideWith((ref) async => _servers(down: allServersDown)),
+            .overrideWith((ref) async => serversFixture(down: allServersDown)),
       ],
       child: MaterialApp(
         home: Scaffold(body: homeChild),
@@ -173,13 +173,13 @@ void main() {
       expect(find.byIcon(Icons.check_rounded), findsOneWidget);
     });
 
-    testWidgets('shows "Tap to retry" label on error', (tester) async {
+    testWidgets('shows "Error" label on error', (tester) async {
       await tester.pumpWidget(
         buildWithService(_FixedStatusVpnService(VpnStatus.error)),
       );
       await tester.pump();
 
-      expect(find.text('Tap to retry'), findsOneWidget);
+      expect(find.text('Error'), findsOneWidget);
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
     });
 
@@ -210,6 +210,10 @@ void main() {
     testWidgets(
         'does not start connect when selected region is down even if other regions are healthy',
         (tester) async {
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 1));
+      });
       final service = _FixedStatusVpnService(VpnStatus.disconnected);
       await tester.pumpWidget(
         ProviderScope(
@@ -253,6 +257,13 @@ void main() {
 
       expect(service.connectCalls, 0);
       expect(find.text('Selected region is offline'), findsOneWidget);
+
+      // The tap triggers an abandoned state machine connect attempt which
+      // fires a zero-duration Dio timer for metrics snapshot. Drain it here
+      // so the framework invariant check doesn't see a pending timer.
+      await tester.pump(Duration.zero);
+      await tester.pump(Duration.zero);
+      await tester.pump(const Duration(milliseconds: 100));
     });
 
     testWidgets(
@@ -272,6 +283,10 @@ void main() {
 
     testWidgets('renders failover banner when connected via fallback region',
         (tester) async {
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 1));
+      });
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -310,6 +325,10 @@ void main() {
 
     testWidgets('renders Caribbean optimization label for North America route',
         (tester) async {
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 1));
+      });
       await tester.pumpWidget(
         ProviderScope(
           overrides: [

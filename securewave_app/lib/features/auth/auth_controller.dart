@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/state/app_state.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/logging/app_logger.dart';
 import '../../services/auth_service.dart';
@@ -41,7 +43,12 @@ class AuthController extends StateNotifier<AuthState> {
       await _ref
           .read(authServiceProvider)
           .login(email: email, password: password);
+      // Clear stale pre-auth caches so providers re-fetch with valid token.
+      _ref.invalidate(serversProvider);
+      _ref.invalidate(userPlanProvider);
+      debugPrint('[AUTH_VERIFY] login ok — serversProvider+userPlanProvider invalidated');
     } catch (error, stackTrace) {
+      debugPrint('[AUTH_VERIFY] login failed: $error');
       AppLogger.error('Login failed', error: error, stackTrace: stackTrace);
       state = state.copyWith(
         errorMessage: ApiError.messageFrom(
@@ -62,8 +69,12 @@ class AuthController extends StateNotifier<AuthState> {
       await _ref
           .read(authServiceProvider)
           .register(email: email, password: password);
-    } catch (error) {
-      AppLogger.error('Registration failed', error: error);
+      _ref.invalidate(serversProvider);
+      _ref.invalidate(userPlanProvider);
+      debugPrint('[AUTH_VERIFY] register ok — providers invalidated');
+    } catch (error, stackTrace) {
+      debugPrint('[AUTH_VERIFY] register failed: $error');
+      AppLogger.error('Registration failed', error: error, stackTrace: stackTrace);
       state = state.copyWith(
         errorMessage: ApiError.messageFrom(
           error,

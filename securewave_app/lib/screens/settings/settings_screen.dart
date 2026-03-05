@@ -91,6 +91,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               isDark: isDark,
             ),
 
+            const SizedBox(height: AppSpacing.space2),
+            _ActionCard(
+              icon: Icons.devices_rounded,
+              iconColor: AppColors.primary,
+              title: 'Manage Devices',
+              subtitle: 'View and remove connected devices',
+              isDark: isDark,
+              onTap: () => context.push('/devices'),
+            ),
+
             const SizedBox(height: AppSpacing.space5),
 
             // ── PROTOCOL ─────────────────────────────────────────────────

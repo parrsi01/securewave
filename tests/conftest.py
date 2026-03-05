@@ -11,6 +11,9 @@ Provides:
 
 import os
 import secrets
+import sys
+import faulthandler
+import signal
 
 pytest_plugins = ["tests.fixtures.users"]
 
@@ -39,6 +42,56 @@ from sqlalchemy.pool import StaticPool
 from database.base import Base
 from database.session import get_db
 from utils.inprocess_testclient import InProcessTestClient
+
+
+def _ts() -> str:
+    return f"{datetime.utcnow().isoformat()}Z"
+
+
+def _is_integration_nodeid(nodeid: str) -> bool:
+    return nodeid.startswith("tests/integration/") or "/integration/" in nodeid
+
+
+def _dump_asyncio_tasks(signum, frame) -> None:  # pragma: no cover - debug helper
+    try:
+        import asyncio
+    except Exception as exc:  # pragma: no cover
+        print(f"[{_ts()}] ASYNCIO_TASK_DUMP unavailable: {exc}", file=sys.stderr)
+        return
+    print(f"[{_ts()}] ASYNCIO_TASK_DUMP begin", file=sys.stderr)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        print(f"[{_ts()}] ASYNCIO_TASK_DUMP no running loop", file=sys.stderr)
+        return
+    try:
+        tasks = asyncio.all_tasks(loop)
+    except Exception as exc:
+        print(f"[{_ts()}] ASYNCIO_TASK_DUMP error={exc}", file=sys.stderr)
+        return
+    for task in tasks:
+        name = task.get_name() if hasattr(task, "get_name") else "task"
+        state = getattr(task, "_state", "unknown")
+        print(f"[{_ts()}] TASK name={name} state={state} coro={task.get_coro()}", file=sys.stderr)
+
+
+def pytest_sessionstart(session):
+    faulthandler.enable()
+    if hasattr(signal, "SIGUSR1"):
+        faulthandler.register(signal.SIGUSR1, all_threads=True)
+    if hasattr(signal, "SIGUSR2"):
+        signal.signal(signal.SIGUSR2, _dump_asyncio_tasks)
+    print(f"[{_ts()}] PYTEST_SESSION_START", file=sys.stderr)
+
+
+def pytest_collection_finish(session):
+    if any(_is_integration_nodeid(item.nodeid) for item in session.items):
+        print(f"[{_ts()}] PYTEST_COLLECTION_FINISH collected={len(session.items)}", file=sys.stderr)
+
+
+def pytest_runtest_logstart(nodeid, location):
+    if _is_integration_nodeid(nodeid):
+        print(f"[{_ts()}] TEST_START {nodeid}", file=sys.stderr)
 
 # ---------------------------------------------------------------------------
 # Test database engine (single shared in-memory SQLite)

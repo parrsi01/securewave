@@ -40,7 +40,7 @@ class ServerRegion {
   bool selectableForPlan(String? planTier) {
     if (!premiumOnly) return true;
     final tier = (planTier ?? '').trim().toLowerCase();
-    return tier == 'premium' || tier == 'pro' || tier == 'ultra';
+    return tier.isNotEmpty && tier != 'free';
   }
 
   factory ServerRegion.fromJson(Map<String, dynamic> json) {

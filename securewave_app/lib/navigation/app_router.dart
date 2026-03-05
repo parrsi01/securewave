@@ -19,6 +19,8 @@ import '../screens/home/home_screen.dart';
 import '../screens/locations/locations_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/account/account_screen.dart';
+import '../screens/account/edit_profile_screen.dart';
+import '../screens/settings/manage_devices_screen.dart';
 
 // Navigation shell
 import 'app_shell.dart';
@@ -155,6 +157,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               // Navigate to home after onboarding
             },
           ),
+        ),
+      ),
+
+      // Manage Devices (sub-screen, no bottom nav)
+      GoRoute(
+        path: '/devices',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const ManageDevicesScreen(),
+        ),
+      ),
+
+      // Edit Profile (sub-screen, no bottom nav)
+      GoRoute(
+        path: '/edit-profile',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const EditProfileScreen(),
         ),
       ),
 

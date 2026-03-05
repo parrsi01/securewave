@@ -1,0 +1,29 @@
+[Unit]
+Description=SecureWave VPN Stack Watchdog (live_loop.sh)
+After=network-online.target securewave-backend.service
+Wants=network-online.target
+BindsTo=securewave-backend.service
+
+[Service]
+Type=simple
+User=securewave
+Group=securewave
+WorkingDirectory=/opt/securewave
+EnvironmentFile=/etc/securewave/env
+
+# Run one full diagnostic pass on each watchdog cycle.
+# MAX_ITERS=1 so it probes once, logs the matrix, then exits.
+# The timer unit re-triggers it every 5 minutes.
+ExecStart=/bin/bash /opt/securewave/tools/live_debugger/live_loop.sh
+Environment=MAX_ITERS=1
+Environment=LIVE_API_BASE_URL=http://127.0.0.1:8080
+Environment=LIVE_VPN_HOST=127.0.0.1
+Environment=OUT_ROOT=/var/log/securewave/watchdog
+
+Restart=no
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=securewave-watchdog
+
+[Install]
+WantedBy=multi-user.target

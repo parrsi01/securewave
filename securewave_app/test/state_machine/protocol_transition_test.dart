@@ -63,7 +63,8 @@ void main() {
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.error);
     expect(state.errorKind, VpnErrorKind.protocolUnavailable);
-    expect(state.desiredOn, isFalse);
+    expect(state.desiredOn, isTrue);
+    expect(service.connectCalls, 0);
   });
 
   test('connect timeout moves to terminal failure state for IKEv2', () async {
@@ -95,6 +96,7 @@ void main() {
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.error);
     expect(state.errorKind, VpnErrorKind.backendError);
-    expect(state.desiredOn, isFalse);
+    expect(state.desiredOn, isTrue);
+    expect(service.connectCalls, 1);
   });
 }

@@ -154,6 +154,16 @@ class ChannelVpnService implements VpnService {
   @override
   String? get availabilityMessage => _lastNativeAvailabilityMessage;
 
+  /// Whether this platform has a native `getTrafficStats` implementation.
+  /// Only Linux (reads /sys/class/net) and simulation mode provide stats.
+  /// Android/Windows/iOS/macOS native bridges lack this method.
+  bool get hasNativeTrafficStats {
+    if (_simulationEnabled) return true;
+    if (!_supportsNativeChannel()) return false;
+    final os = platform.operatingSystem.name.toLowerCase();
+    return os == 'linux';
+  }
+
   Future<VpnTrafficStats?> fetchTrafficStats() async {
     if (_simulationEnabled) {
       _advanceSimTraffic();

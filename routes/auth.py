@@ -234,31 +234,34 @@ async def register(
 
         logger.info(f"✓ New user registered: {user.email}")
 
-        if is_testing:
-            access_token = create_access_token(user)
-            ip_address = request.client.host if request.client else None
-            user_agent = request.headers.get("user-agent")
-            refresh_token = create_refresh_token(
-                user,
-                db,
-                ip_address=ip_address,
-                user_agent=user_agent,
-            )
-            csrf_token = secrets.token_urlsafe(32)
-            _set_auth_cookies(response, access_token, refresh_token, csrf_token)
-            return {
-                "message": "Registration successful.",
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "csrf_token": csrf_token,
-            }
+        # Always issue tokens so clients can proceed without a separate login step.
+        # Email verification state is reflected in the /me endpoint.
+        access_token = create_access_token(user)
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        refresh_token = create_refresh_token(
+            user,
+            db,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        csrf_token = secrets.token_urlsafe(32)
+        _set_auth_cookies(response, access_token, refresh_token, csrf_token)
 
+        message = (
+            "Registration successful."
+            if is_testing
+            else "Registration successful. Please check your email to verify your account."
+        )
         return {
-            "message": "Registration successful. Please check your email to verify your account.",
+            "message": message,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "csrf_token": csrf_token,
             "email": user.email,
             "email_sent": email_sent,
-            "user_id": user.id
+            "user_id": user.id,
         }
 
     except HTTPException:

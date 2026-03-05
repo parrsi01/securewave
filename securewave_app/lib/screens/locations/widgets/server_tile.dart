@@ -127,24 +127,39 @@ class ServerTile extends StatelessWidget {
                         const SizedBox(height: 2),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
+                            horizontal: AppSpacing.space2,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.secondary.withValues(alpha: 0.16),
+                            color: AppColors.secondary.withValues(alpha: 0.12),
+                            border: Border.all(
+                              color: AppColors.secondary.withValues(alpha: 0.18),
+                              width: 0.5,
+                            ),
                             borderRadius: BorderRadius.circular(
                               AppSpacing.radiusFull,
                             ),
                           ),
-                          child: Text(
-                            'Premium',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelSmall
-                                ?.copyWith(
-                                  color: AppColors.secondary,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.workspace_premium_rounded,
+                                size: 11,
+                                color: AppColors.secondary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Premium',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: AppColors.secondary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

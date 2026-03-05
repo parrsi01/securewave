@@ -500,7 +500,7 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
                       if (failoverActive && status == VpnStatus.connected)
                         Semantics(
                           label: 'Fallback region in use',
-                          child: _InfoPill(
+                          child: const _InfoPill(
                             icon: Icons.swap_horiz_rounded,
                             label: 'Fallback region',
                             color: AppColors.warning,
@@ -682,56 +682,76 @@ class _StatusDisplayState extends ConsumerState<StatusDisplay> {
             ),
           ),
           const SizedBox(height: AppSpacing.space2),
-          Wrap(
-            spacing: AppSpacing.space2,
-            runSpacing: AppSpacing.space2,
-            alignment: WrapAlignment.center,
-            children: [
-              FilledButton.icon(
-                onPressed: () => unawaited(
-                  ref.read(vpnStateProvider.notifier).connect(),
+          // Device limit: show account management button instead of retry.
+          if (errorMessage.toLowerCase().contains('device limit'))
+            Wrap(
+              spacing: AppSpacing.space2,
+              runSpacing: AppSpacing.space2,
+              alignment: WrapAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => context.go('/account'),
+                  icon: const Icon(Icons.devices_rounded, size: 18),
+                  label: const Text('Manage Devices'),
                 ),
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Retry'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () {
-                  final protocol = effectiveProtocol ??
-                      (selectedProtocol == VpnProtocol.auto
-                          ? VpnProtocol.wireGuard
-                          : selectedProtocol);
-                  showDialog<void>(
-                    context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      title: const Text('Setup help'),
-                      content: Text(
-                        _setupHelpMessage(
-                          platform: platform,
-                          protocol: protocol,
-                          kind: errorKind,
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/settings'),
+                  icon: const Icon(Icons.settings_outlined, size: 18),
+                  label: const Text('Settings'),
+                ),
+              ],
+            )
+          else
+            Wrap(
+              spacing: AppSpacing.space2,
+              runSpacing: AppSpacing.space2,
+              alignment: WrapAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => unawaited(
+                    ref.read(vpnStateProvider.notifier).connect(),
+                  ),
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Retry'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    final protocol = effectiveProtocol ??
+                        (selectedProtocol == VpnProtocol.auto
+                            ? VpnProtocol.wireGuard
+                            : selectedProtocol);
+                    showDialog<void>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        title: const Text('Setup help'),
+                        content: Text(
+                          _setupHelpMessage(
+                            platform: platform,
+                            protocol: protocol,
+                            kind: errorKind,
+                          ),
                         ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            child: const Text('Close'),
+                          ),
+                          FilledButton(
+                            onPressed: () {
+                              Navigator.of(dialogContext).pop();
+                              context.go('/settings');
+                            },
+                            child: const Text('Open Settings'),
+                          ),
+                        ],
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(dialogContext).pop(),
-                          child: const Text('Close'),
-                        ),
-                        FilledButton(
-                          onPressed: () {
-                            Navigator.of(dialogContext).pop();
-                            context.go('/settings');
-                          },
-                          child: const Text('Open Settings'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.build_outlined, size: 18),
-                label: const Text('Setup help'),
-              ),
-            ],
-          ),
+                    );
+                  },
+                  icon: const Icon(Icons.build_outlined, size: 18),
+                  label: const Text('Setup help'),
+                ),
+              ],
+            ),
         ],
       ],
     );

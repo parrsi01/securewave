@@ -16,6 +16,7 @@ from models.vpn_connection import VPNConnection
 from models.wireguard_peer import WireGuardPeer
 from models.user import User
 from services.jwt_service import get_current_user
+from services.tier_service import get_effective_user_tier
 from services.tunnel_runtime import get_tunnel_runtime, is_simulated_tunnel_mode
 from utils.time_utils import utcnow
 
@@ -133,6 +134,45 @@ def _speed_policy(plan_tier: str) -> tuple[float, float]:
     return down, up
 
 
+def build_account_usage_payload(db: Session, current_user: User) -> dict[str, object]:
+    plan_tier = get_effective_user_tier(current_user, db)
+    sub = _active_subscription(db, current_user.id) if plan_tier != "free" else None
+    free_cap_gb = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
+    quota_bytes = 0 if plan_tier != "free" else int(free_cap_gb * 1024 * 1024 * 1024)
+    used_bytes = int(_bytes_used(db, current_user.id))
+    used_percent = 0.0
+    if quota_bytes > 0:
+        used_percent = min(100.0, round((used_bytes / quota_bytes) * 100.0, 4))
+
+    devices_count = (
+        db.query(WireGuardPeer)
+        .filter(
+            WireGuardPeer.user_id == current_user.id,
+            WireGuardPeer.is_revoked == False,
+        )
+        .count()
+    )
+    username = (current_user.email or "").split("@", 1)[0] if current_user.email else f"user-{current_user.id}"
+    speed_down, speed_up = _speed_policy(plan_tier)
+    renewal = sub.current_period_end.isoformat() if sub and sub.current_period_end else None
+
+    return {
+        "quota_bytes": quota_bytes,
+        "used_bytes": used_bytes,
+        "used_percent": used_percent,
+        "plan_tier": plan_tier,
+        "plan_name": (sub.plan_name or plan_tier.capitalize()) if sub else "Free",
+        "data_cap_gb": 0 if plan_tier != "free" else free_cap_gb,
+        "used_gb": round(used_bytes / (1024 * 1024 * 1024), 3),
+        "speed_limit_mbps_down": speed_down,
+        "speed_limit_mbps_up": speed_up,
+        "renewal_date": renewal,
+        "devices_count": int(devices_count),
+        "username": username,
+        "display_name": username,
+    }
+
+
 @router.get("/plan")
 async def get_user_plan(
     current_user: User = Depends(get_current_user),
@@ -143,11 +183,12 @@ async def get_user_plan(
 
     Response shape matches the Flutter app's `UserPlan.fromJson`.
     """
-    sub = _active_subscription(db, current_user.id)
+    plan_tier = get_effective_user_tier(current_user, db)
+    sub = _active_subscription(db, current_user.id) if plan_tier != "free" else None
     used_gb = _bytes_used(db, current_user.id) / 1024 / 1024 / 1024
 
     free_cap_gb = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
-    if not sub:
+    if plan_tier == "free":
         speed_down, speed_up = _speed_policy("free")
         return {
             "plan_name": "Free",
@@ -159,10 +200,7 @@ async def get_user_plan(
             "renewal_date": None,
         }
 
-    plan_id = (sub.plan_id or "premium").lower()
-    # The app currently treats "premium" as the paid/unlimited tier.
-    plan_tier = "premium"
-    plan_name = sub.plan_name or plan_id.capitalize()
+    plan_name = sub.plan_name or plan_tier.capitalize()
     speed_down, speed_up = _speed_policy(plan_tier)
     premium_cap_gb = float(os.getenv("PREMIUM_TIER_MONTHLY_GB", "0"))
     data_cap_gb = premium_cap_gb if premium_cap_gb > 0 else 0
@@ -187,31 +225,4 @@ async def get_account_usage(
     """
     Canonical usage endpoint for app gauges and simulation harnesses.
     """
-    sub = _active_subscription(db, current_user.id)
-    plan_tier = "premium" if sub else "free"
-    free_cap_gb = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
-    quota_bytes = 0 if plan_tier == "premium" else int(free_cap_gb * 1024 * 1024 * 1024)
-    used_bytes = int(_bytes_used(db, current_user.id))
-    used_percent = 0.0
-    if quota_bytes > 0:
-        used_percent = min(100.0, round((used_bytes / quota_bytes) * 100.0, 4))
-
-    devices_count = (
-        db.query(WireGuardPeer)
-        .filter(
-            WireGuardPeer.user_id == current_user.id,
-            WireGuardPeer.is_revoked == False,
-        )
-        .count()
-    )
-    username = (current_user.email or "").split("@", 1)[0] if current_user.email else f"user-{current_user.id}"
-
-    return {
-        "quota_bytes": quota_bytes,
-        "used_bytes": used_bytes,
-        "used_percent": used_percent,
-        "plan_tier": plan_tier,
-        "devices_count": int(devices_count),
-        "username": username,
-        "display_name": username,
-    }
+    return build_account_usage_payload(db, current_user)

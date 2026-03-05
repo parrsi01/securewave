@@ -28,6 +28,9 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     WidgetsBinding.instance.addObserver(_observer);
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final hasNetwork = !results.contains(ConnectivityResult.none);
+      debugPrint(
+        '[VPN_DIAG] connectivity event: results=$results hasNetwork=$hasNetwork',
+      );
       unawaited(ref
           .read(vpnStateProvider.notifier)
           .handleConnectivityChange(hasNetwork: hasNetwork));
@@ -42,6 +45,7 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
   }
 
   Future<void> _handleLifecycle(AppLifecycleState state) async {
+    debugPrint('[VPN_DIAG] lifecycle event: ${state.name}');
     if (state == AppLifecycleState.resumed) {
       final config = await AppConfig.load();
       if (!mounted) return;

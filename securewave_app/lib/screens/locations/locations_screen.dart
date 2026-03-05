@@ -82,16 +82,6 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
       final region = _regionOf(s);
       (groups[region] ??= []).add(s);
     }
-    for (final entry in groups.entries) {
-      entry.value.sort((a, b) {
-        final priorityCmp =
-            (a.latencyPriority ?? 9999).compareTo(b.latencyPriority ?? 9999);
-        if (priorityCmp != 0) return priorityCmp;
-        final latencyCmp = (a.latencyMs ?? 9999).compareTo(b.latencyMs ?? 9999);
-        if (latencyCmp != 0) return latencyCmp;
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      });
-    }
     return groups;
   }
 
@@ -199,27 +189,17 @@ class _LocationsScreenState extends ConsumerState<LocationsScreen> {
             ),
             error: (e, _) => _buildError(context, e, isDark),
             data: (allServers) {
-              final filtered = _applyFilters(allServers);
+              final visibleServers = canUsePremium
+                  ? allServers
+                  : allServers.where((server) => !server.premiumOnly).toList();
+              final filtered = _applyFilters(visibleServers);
 
               if (filtered.isEmpty) {
                 return _buildEmpty(context, isDark);
               }
 
               final groups = _groupByRegion(filtered);
-              final orderedKeys = groups.keys.toList()
-                ..sort((a, b) {
-                  final aMin = groups[a]!
-                      .map((s) => s.latencyPriority ?? 9999)
-                      .fold<int>(
-                          9999, (prev, next) => next < prev ? next : prev);
-                  final bMin = groups[b]!
-                      .map((s) => s.latencyPriority ?? 9999)
-                      .fold<int>(
-                          9999, (prev, next) => next < prev ? next : prev);
-                  final priorityCmp = aMin.compareTo(bMin);
-                  if (priorityCmp != 0) return priorityCmp;
-                  return a.toLowerCase().compareTo(b.toLowerCase());
-                });
+              final orderedKeys = groups.keys.toList();
 
               return RefreshIndicator(
                 color: isDark ? AppColors.primaryBright : AppColors.primary,
@@ -424,16 +404,12 @@ class _RegionCard extends StatelessWidget {
                   color: isDark ? AppColors.darkBorder : AppColors.border,
                 ),
                 ...servers.map((s) {
-                  final selectable = s.selectableForPlan(
-                    canUsePremium ? 'premium' : 'free',
-                  );
                   return ServerTile(
                     server: s,
                     isSelected: s.id == selectedId,
                     isFavorite: favorites.contains(s.id),
-                    enabled: selectable,
-                    disabledReason: selectable ? null : 'Premium required',
-                    onTap: selectable ? () => onSelect(s.id) : () {},
+                    enabled: true,
+                    onTap: () => onSelect(s.id),
                     onToggleFavorite: () => onToggleFavorite(s.id),
                   );
                 }),

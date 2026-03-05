@@ -1,0 +1,12 @@
+# SecureWave — minimal NOPASSWD sudoers drop-in.
+# Install: sudo visudo -c -f /tmp/10-securewave && sudo cp /tmp/10-securewave /etc/sudoers.d/10-securewave
+#
+# This REPLACES any (ALL : ALL) ALL entry for the securewave user.
+# Only the exact scripts listed here can run as root without a password.
+
+securewave ALL=(root) NOPASSWD: /bin/systemctl restart securewave-backend.service
+securewave ALL=(root) NOPASSWD: /bin/systemctl restart securewave-watchdog.timer
+securewave ALL=(root) NOPASSWD: /bin/systemctl is-active securewave-backend.service
+securewave ALL=(root) NOPASSWD: /opt/securewave/scripts/ops/apply_vpn_qos_policy.sh
+securewave ALL=(root) NOPASSWD: /usr/bin/wg
+securewave ALL=(root) NOPASSWD: /usr/bin/wg-quick

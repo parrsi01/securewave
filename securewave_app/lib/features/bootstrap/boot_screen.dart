@@ -95,37 +95,51 @@ class _BootScreenState extends ConsumerState<BootScreen>
                       const Spacer(flex: 3),
 
                       // Pulsing logo
-                      ScaleTransition(
-                        scale: _scaleAnim,
-                        child: Hero(
-                          tag: 'securewave_logo',
-                          child: Container(
-                            width: 96,
-                            height: 96,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.darkSurface.withValues(alpha: 0.8),
-                              border: Border.all(
-                                color: AppColors.primaryBright.withValues(alpha: 0.3),
-                                width: 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryBright.withValues(alpha: 0.20),
-                                  blurRadius: 32,
-                                  spreadRadius: 4,
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final width = constraints.maxWidth.isFinite
+                              ? constraints.maxWidth
+                              : MediaQuery.sizeOf(context).width;
+                          final shellSize =
+                              (width * 0.26).clamp(80.0, 104.0).toDouble();
+                          final logoSize = shellSize * 0.54;
+
+                          return ScaleTransition(
+                            scale: _scaleAnim,
+                            child: Hero(
+                              tag: 'securewave_logo',
+                              child: Container(
+                                width: shellSize,
+                                height: shellSize,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.darkSurface
+                                      .withValues(alpha: 0.8),
+                                  border: Border.all(
+                                    color: AppColors.primaryBright
+                                        .withValues(alpha: 0.3),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primaryBright
+                                          .withValues(alpha: 0.20),
+                                      blurRadius: 32,
+                                      spreadRadius: 4,
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            child: Center(
-                              child: SvgPicture.asset(
-                                'assets/securewave_logo.svg',
-                                width: 52,
-                                height: 52,
+                                child: Center(
+                                  child: SvgPicture.asset(
+                                    'assets/securewave_logo.svg',
+                                    width: logoSize,
+                                    height: logoSize,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
 
                       const SizedBox(height: AppSpacing.space5),

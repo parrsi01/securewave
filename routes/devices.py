@@ -192,6 +192,10 @@ async def list_devices(
 
     devices = [_device_response(peer) for peer in peers]
 
+    logger.info(
+        '[DEVICES] {"event":"list","user_id":%d,"active":%d,"limit":%d,"remaining":%d}',
+        current_user.id, active_count, device_limit, max(0, device_limit - active_count),
+    )
     return DeviceListResponse(
         devices=devices,
         total=active_count,
@@ -220,7 +224,15 @@ async def add_device(
     active_count = len([p for p in existing_peers if p.is_active and not p.is_revoked])
     device_limit = get_device_limit(current_user, db)
 
+    logger.info(
+        '[DEVICES] {"event":"add_check","user_id":%d,"active":%d,"limit":%d,"name":"%s"}',
+        current_user.id, active_count, device_limit, request.name,
+    )
     if active_count >= device_limit:
+        logger.warning(
+            '[DEVICES] {"event":"add_blocked","user_id":%d,"active":%d,"limit":%d}',
+            current_user.id, active_count, device_limit,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Device limit reached ({device_limit}). Upgrade your plan or revoke an existing device."
@@ -262,6 +274,10 @@ async def add_device(
             device_type=device_type
         )
 
+        logger.info(
+            '[DEVICES] {"event":"add_ok","user_id":%d,"device_id":%d,"name":"%s","type":"%s"}',
+            current_user.id, peer.id, peer.device_name, device_type or "unknown",
+        )
         if server:
             try:
                 manager = get_wireguard_server_manager()
@@ -428,6 +444,10 @@ async def revoke_device(
             detail="Device already revoked"
         )
 
+    logger.info(
+        '[DEVICES] {"event":"revoke","user_id":%d,"device_id":%d,"name":"%s"}',
+        current_user.id, device_id, peer.device_name or "unknown",
+    )
     peer_manager = get_peer_manager(db)
     if peer.server_id:
         server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()

@@ -35,6 +35,8 @@ void main() {
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.error);
     expect(state.errorKind, VpnErrorKind.backendUnreachable);
+    expect(state.desiredOn, isTrue);
     expect(service.connectCalls, 0);
+    expect(api.profileFetchCalls, 1);
   });
 }

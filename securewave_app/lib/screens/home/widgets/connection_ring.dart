@@ -300,7 +300,7 @@ class _ConnectionRingState extends ConsumerState<ConnectionRing>
       VpnStatus.error => const _RingCenter(
           key: ValueKey('error'),
           icon: Icons.warning_amber_rounded,
-          label: 'Tap to retry',
+          label: 'Error',
           color: AppColors.error,
           showSpinner: false,
         ),
