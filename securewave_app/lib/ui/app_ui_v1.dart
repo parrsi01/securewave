@@ -1,112 +1,37 @@
-import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
 
+import 'design_tokens.dart';
+import 'theme/securewave_theme.dart';
+import 'theme/spacing.dart';
+
 class AppUIv1 {
-  static const Color background = Color(0xFF07111F);
-  static const Color backgroundStrong = Color(0xFF0E1B2E);
-  static const Color surface = Color(0xFF111D31);
-  static const Color surfaceMuted = Color(0xFF16253D);
-  static const Color accent = Color(0xFF00BFA5);
-  static const Color accentStrong = Color(0xFF00E5C4);
-  static const Color accentSoft = Color(0x3320E3C4);
-  static const Color accentSun = Color(0xFFF4C95D);
-  static const Color success = Color(0xFF2BD67B);
-  static const Color warning = Color(0xFFFF8C5A);
-  static const Color danger = Color(0xFFFF5D7A);
-  static const Color ink = Color(0xFFF6F9FC);
-  static const Color inkMuted = Color(0xFFB4C0D2);
-  static const Color inkSoft = Color(0xFF7D90AB);
-  static const Color border = Color(0xFF20314C);
+  const AppUIv1._();
 
-  static const double space1 = 4;
-  static const double space2 = 8;
-  static const double space3 = 12;
-  static const double space4 = 16;
-  static const double space5 = 24;
-  static const double space6 = 32;
-  static const double space7 = 48;
+  static const Color background = SecureWaveTokens.background;
+  static const Color backgroundStrong = SecureWaveTokens.backgroundStrong;
+  static const Color surface = SecureWaveTokens.surface;
+  static const Color surfaceMuted = SecureWaveTokens.surfaceMuted;
+  static const Color accent = SecureWaveTokens.accent;
+  static const Color accentStrong = SecureWaveTokens.accentStrong;
+  static const Color accentSoft = SecureWaveTokens.accentSoft;
+  static const Color accentSun = SecureWaveTokens.accentSun;
+  static const Color success = SecureWaveTokens.success;
+  static const Color warning = SecureWaveTokens.warning;
+  static const Color danger = SecureWaveTokens.danger;
+  static const Color ink = SecureWaveTokens.ink;
+  static const Color inkMuted = SecureWaveTokens.inkMuted;
+  static const Color inkSoft = SecureWaveTokens.inkSoft;
+  static const Color border = SecureWaveTokens.border;
 
-  static ThemeData theme() {
-    final base = FlexThemeData.dark(
-      scheme: FlexScheme.deepBlue,
-      surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
-      blendLevel: 18,
-      appBarElevation: 0,
-      scaffoldBackground: background,
-      colors: const FlexSchemeColor(
-        primary: accent,
-        primaryContainer: surfaceMuted,
-        secondary: accentSun,
-        secondaryContainer: Color(0xFF553F0D),
-        tertiary: success,
-        tertiaryContainer: Color(0xFF0F4731),
-        appBarColor: background,
-        error: danger,
-      ),
-      subThemesData: const FlexSubThemesData(
-        interactionEffects: true,
-        blendOnLevel: 16,
-        useMaterial3Typography: true,
-        inputDecoratorIsFilled: true,
-        inputDecoratorBorderType: FlexInputBorderType.outline,
-        inputDecoratorRadius: 18,
-        defaultRadius: 22,
-        elevatedButtonRadius: 999,
-        outlinedButtonRadius: 999,
-        filledButtonRadius: 999,
-        cardRadius: 28,
-        navigationBarIndicatorRadius: 18,
-      ),
-      textTheme: Typography.whiteMountainView,
-    );
+  static const double space1 = SecureWaveSpacing.xxs;
+  static const double space2 = SecureWaveSpacing.xs;
+  static const double space3 = SecureWaveSpacing.sm;
+  static const double space4 = SecureWaveSpacing.md;
+  static const double space5 = SecureWaveSpacing.lg;
+  static const double space6 = SecureWaveSpacing.xl;
+  static const double space7 = SecureWaveSpacing.xxl;
 
-    return base.copyWith(
-      scaffoldBackgroundColor: background,
-      cardTheme: const CardThemeData(
-        color: surface,
-        elevation: 0,
-        margin: EdgeInsets.zero,
-      ),
-      dividerColor: border,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: background,
-        foregroundColor: ink,
-      ),
-      textTheme: base.textTheme.copyWith(
-        headlineLarge: base.textTheme.headlineLarge?.copyWith(
-          color: ink,
-          fontWeight: FontWeight.w700,
-        ),
-        headlineMedium: base.textTheme.headlineMedium?.copyWith(
-          color: ink,
-          fontWeight: FontWeight.w700,
-        ),
-        titleLarge: base.textTheme.titleLarge?.copyWith(
-          color: ink,
-          fontWeight: FontWeight.w700,
-        ),
-        titleMedium: base.textTheme.titleMedium?.copyWith(
-          color: ink,
-          fontWeight: FontWeight.w600,
-        ),
-        bodyLarge: base.textTheme.bodyLarge?.copyWith(color: ink),
-        bodyMedium: base.textTheme.bodyMedium?.copyWith(color: inkMuted),
-        bodySmall: base.textTheme.bodySmall?.copyWith(color: inkSoft),
-      ),
-      inputDecorationTheme: base.inputDecorationTheme.copyWith(
-        filled: true,
-        fillColor: surfaceMuted,
-        hintStyle: const TextStyle(color: inkSoft),
-      ),
-      navigationBarTheme: base.navigationBarTheme.copyWith(
-        backgroundColor: backgroundStrong,
-        indicatorColor: accentSoft,
-        labelTextStyle: WidgetStateProperty.all(
-          base.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-      ),
-    );
-  }
+  static ThemeData theme() => SecureWaveTheme.dark();
 
   static String formatBytes(double bytesPerSecond) {
     if (bytesPerSecond >= 1024 * 1024) {

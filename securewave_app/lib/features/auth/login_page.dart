@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../ui/app_ui_v1.dart';
+import '../../ui/components/dashboard_card.dart';
+import '../../ui/layout/adaptive_shell_scaffold.dart';
+import '../../ui/theme/spacing.dart';
 import 'auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -29,42 +31,39 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(authControllerProvider);
 
-    return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppUIv1.space5),
-          children: [
-            SvgPicture.asset(
-              'assets/securewave_logo.svg',
-              width: 56,
-              height: 56,
-            ),
-            const SizedBox(height: AppUIv1.space4),
-            Text('Welcome back',
-                style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: AppUIv1.space2),
-            Text(
-              'Sign in to connect and manage your SecureWave account.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: AppUIv1.space5),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppUIv1.space4),
+    return AdaptiveShellScaffold(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SvgPicture.asset(
+                'assets/securewave_logo.svg',
+                width: 72,
+                height: 72,
+              ),
+              const SizedBox(height: SecureWaveSpacing.lg),
+              Text('Welcome back',
+                  style: Theme.of(context).textTheme.headlineLarge),
+              const SizedBox(height: SecureWaveSpacing.sm),
+              Text(
+                'Sign in to launch the SecureWave dashboard and reconnect instantly.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: SecureWaveSpacing.xl),
+              DashboardCard(
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Email address',
-                          style: Theme.of(context).textTheme.titleSmall),
-                      const SizedBox(height: AppUIv1.space2),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
                         decoration:
-                            const InputDecoration(hintText: 'you@example.com'),
+                            const InputDecoration(labelText: 'Email address'),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Enter your email.';
@@ -75,16 +74,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: AppUIv1.space4),
-                      Text('Password',
-                          style: Theme.of(context).textTheme.titleSmall),
-                      const SizedBox(height: AppUIv1.space2),
+                      const SizedBox(height: SecureWaveSpacing.md),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: true,
-                        textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                            hintText: 'Enter your password'),
+                        decoration:
+                            const InputDecoration(labelText: 'Password'),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Enter your password.';
@@ -96,13 +91,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         },
                       ),
                       if (state.errorMessage != null) ...[
-                        const SizedBox(height: AppUIv1.space3),
+                        const SizedBox(height: SecureWaveSpacing.md),
                         Text(
                           state.errorMessage!,
-                          style: const TextStyle(color: AppUIv1.warning),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
                         ),
                       ],
-                      const SizedBox(height: AppUIv1.space4),
+                      const SizedBox(height: SecureWaveSpacing.lg),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
@@ -141,15 +139,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: AppUIv1.space4),
-            Center(
-              child: TextButton(
-                onPressed: () => context.push('/register'),
-                child: const Text('Create an account'),
+              const SizedBox(height: SecureWaveSpacing.md),
+              Center(
+                child: TextButton(
+                  onPressed: () => context.push('/register'),
+                  child: const Text('Create an account'),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

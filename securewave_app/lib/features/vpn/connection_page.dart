@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/vpn_protocol.dart';
 import '../../core/models/vpn_status.dart';
 import '../../core/state/vpn_state.dart';
-import '../../ui/app_ui_v1.dart';
-import '../../ui/status_indicator.dart';
+import '../../ui/components/dashboard_card.dart';
+import '../../ui/components/section_container.dart';
+import '../../ui/components/status_indicator.dart';
+import '../../ui/layout/adaptive_shell_scaffold.dart';
+import '../../ui/theme/spacing.dart';
 
 class ConnectionPage extends ConsumerWidget {
   const ConnectionPage({super.key});
@@ -35,92 +38,112 @@ class ConnectionPage extends ConsumerWidget {
       VpnStatus.error => 'Error',
       VpnStatus.disconnected => 'Disconnected',
     };
+
     final protocolLabel = vpnState.protocol == VpnProtocol.auto
         ? 'Auto${vpnState.activeProtocol == null ? '' : ' → ${vpnProtocolLabel(vpnState.activeProtocol!)}'}'
         : vpnProtocolLabel(vpnState.activeProtocol ?? vpnState.protocol);
 
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(AppUIv1.space5),
+    return AdaptiveShellScaffold(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Connection', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppUIv1.space3),
-          StatusIndicator(
-              status: vpnState.status, label: statusLabel, large: true),
-          const SizedBox(height: AppUIv1.space4),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppUIv1.space4),
+          SectionContainer(
+            title: 'Connection details',
+            subtitle: 'A clean tunnel status view with pipeline progress.',
+            trailing:
+                StatusIndicator(status: vpnState.status, label: statusLabel),
+            child: DashboardCard(
               child: Column(
                 children: [
                   _Row(
-                      label: 'Selected server',
-                      value: vpnState.selectedServerId ?? 'None'),
-                  const SizedBox(height: AppUIv1.space3),
+                    label: 'Selected server',
+                    value: vpnState.selectedServerId ?? 'None',
+                  ),
+                  const SizedBox(height: SecureWaveSpacing.md),
                   _Row(label: 'Protocol', value: protocolLabel),
-                  const SizedBox(height: AppUIv1.space3),
+                  const SizedBox(height: SecureWaveSpacing.md),
                   _Row(
-                      label: 'Interface',
-                      value: vpnState.interfaceName ?? 'Not detected'),
-                  const SizedBox(height: AppUIv1.space3),
+                    label: 'Interface',
+                    value: vpnState.interfaceName ?? 'Not detected',
+                  ),
+                  const SizedBox(height: SecureWaveSpacing.md),
                   _Row(
-                      label: 'Duration',
-                      value:
-                          AppUIv1.formatDuration(vpnState.connectionDuration)),
-                  const SizedBox(height: AppUIv1.space3),
+                    label: 'Duration',
+                    value: _formatDuration(vpnState.connectionDuration),
+                  ),
+                  const SizedBox(height: SecureWaveSpacing.md),
                   _Row(
-                      label: 'Routing',
-                      value: vpnState.routingOk ? 'OK' : 'Pending / conflict'),
-                  const SizedBox(height: AppUIv1.space3),
+                    label: 'Routing',
+                    value: vpnState.routingOk ? 'OK' : 'Pending / conflict',
+                  ),
+                  const SizedBox(height: SecureWaveSpacing.md),
                   _Row(
                     label: 'Session usage',
-                    value: AppUIv1.formatDataAmount(
+                    value: _formatDataAmount(
                       vpnState.sessionDownloadBytes +
                           vpnState.sessionUploadBytes,
                     ),
                   ),
-                  const SizedBox(height: AppUIv1.space3),
+                  const SizedBox(height: SecureWaveSpacing.md),
                   _Row(
-                      label: 'Reconnect attempts',
-                      value: '${vpnState.reconnectAttempt}'),
-                  const SizedBox(height: AppUIv1.space3),
-                  _Row(
-                    label: 'Desired protection',
-                    value: vpnState.desiredOn ? 'On' : 'Off',
+                    label: 'Reconnect attempts',
+                    value: '${vpnState.reconnectAttempt}',
                   ),
-                  if (vpnState.networkLockActive) ...[
-                    const SizedBox(height: AppUIv1.space3),
-                    const _Row(
-                      label: 'App network lock',
-                      value: 'Active',
-                    ),
-                  ],
                 ],
               ),
             ),
           ),
-          const SizedBox(height: AppUIv1.space4),
-          Text('Pipeline', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: AppUIv1.space3),
-          ...steps.map(
-            (step) => Padding(
-              padding: const EdgeInsets.only(bottom: AppUIv1.space2),
-              child: Card(
-                child: ListTile(
-                  leading: Icon(
-                    step.value
-                        ? Icons.check_circle
-                        : Icons.radio_button_unchecked,
-                    color: step.value ? AppUIv1.success : AppUIv1.inkSoft,
+          const SizedBox(height: SecureWaveSpacing.xl),
+          SectionContainer(
+            title: 'Pipeline',
+            subtitle:
+                'Connection stages update in order as the tunnel comes up.',
+            child: Column(
+              children: [
+                for (var index = 0; index < steps.length; index++) ...[
+                  DashboardCard(
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        steps[index].value
+                            ? Icons.check_circle_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                      ),
+                      title: Text(steps[index].key),
+                    ),
                   ),
-                  title: Text(step.key),
-                ),
-              ),
+                  if (index != steps.length - 1)
+                    const SizedBox(height: SecureWaveSpacing.md),
+                ],
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours.toString().padLeft(2, '0');
+    final minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$hours:$minutes:$seconds';
+  }
+
+  String _formatDataAmount(int bytes) {
+    final kb = bytes / 1024;
+    final mb = kb / 1024;
+    final gb = mb / 1024;
+    if (gb >= 1) {
+      return '${gb.toStringAsFixed(2)} GB';
+    }
+    if (mb >= 1) {
+      return '${mb.toStringAsFixed(1)} MB';
+    }
+    if (kb >= 1) {
+      return '${kb.toStringAsFixed(1)} KB';
+    }
+    return '$bytes B';
   }
 }
 
@@ -133,14 +156,15 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-        Flexible(
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ),
+        Expanded(
           child: Text(
             value,
-            style: Theme.of(context).textTheme.titleMedium,
             textAlign: TextAlign.right,
+            style: Theme.of(context).textTheme.titleMedium,
           ),
         ),
       ],
