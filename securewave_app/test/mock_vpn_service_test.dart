@@ -6,7 +6,8 @@ import 'package:securewave_app/core/services/vpn_service.dart';
 
 void main() {
   test('MockVpnService connects and disconnects with delays', () async {
-    final service = MockVpnService(connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+    final service = MockVpnService(
+        connectDelay: Duration.zero, disconnectDelay: Duration.zero);
 
     expect(service.getStatus(), VpnStatus.disconnected);
 

@@ -5,7 +5,8 @@ import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/bootstrap/boot_controller.dart';
 
 void main() {
-  testWidgets('SecureWave app config provider initializes', (WidgetTester tester) async {
+  testWidgets('SecureWave app config provider initializes',
+      (WidgetTester tester) async {
     final container = ProviderContainer(
       overrides: [
         appConfigProvider.overrideWith(
@@ -39,7 +40,8 @@ void main() {
     final ready = state.copyWith(status: BootStatus.ready);
     expect(ready.status, BootStatus.ready);
 
-    final failed = state.copyWith(status: BootStatus.failed, errorMessage: 'timeout');
+    final failed =
+        state.copyWith(status: BootStatus.failed, errorMessage: 'timeout');
     expect(failed.status, BootStatus.failed);
     expect(failed.errorMessage, 'timeout');
   });

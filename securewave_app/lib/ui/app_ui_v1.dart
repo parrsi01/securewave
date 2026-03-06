@@ -1,24 +1,22 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppUIv1 {
-  static const Color background = Color(0xFFF5F7FB);
-  static const Color backgroundStrong = Color(0xFFE7EDF3);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceMuted = Color(0xFFF0F4F7);
-  static const Color accent = Color(0xFF1B6B68);
-  static const Color accentStrong = Color(0xFF0F4F4C);
-  static const Color accentSoft = Color(0xFFD5EFEC);
-  static const Color accentSun = Color(0xFFF6C14D);
-  static const Color success = Color(0xFF1F8F5C);
-  static const Color warning = Color(0xFFC26B1F);
-  static const Color ink = Color(0xFF0B1F2A);
-  static const Color inkMuted = Color(0xFF4A5B66);
-  static const Color inkSoft = Color(0xFF72838F);
-  static const Color border = Color(0xFFD7E0E7);
+  static const Color background = Color(0xFF07111F);
+  static const Color backgroundStrong = Color(0xFF0E1B2E);
+  static const Color surface = Color(0xFF111D31);
+  static const Color surfaceMuted = Color(0xFF16253D);
+  static const Color accent = Color(0xFF00BFA5);
+  static const Color accentStrong = Color(0xFF00E5C4);
+  static const Color accentSoft = Color(0x3320E3C4);
+  static const Color accentSun = Color(0xFFF4C95D);
+  static const Color success = Color(0xFF2BD67B);
+  static const Color warning = Color(0xFFFF8C5A);
+  static const Color danger = Color(0xFFFF5D7A);
+  static const Color ink = Color(0xFFF6F9FC);
+  static const Color inkMuted = Color(0xFFB4C0D2);
+  static const Color inkSoft = Color(0xFF7D90AB);
+  static const Color border = Color(0xFF20314C);
 
   static const double space1 = 4;
   static const double space2 = 8;
@@ -29,124 +27,117 @@ class AppUIv1 {
   static const double space7 = 48;
 
   static ThemeData theme() {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: accent,
-      brightness: Brightness.light,
-    ).copyWith(
-      primary: accent,
-      onPrimary: Colors.white,
-      secondary: accentSun,
-      onSecondary: ink,
-      error: warning,
-      onError: Colors.white,
-      surface: surface,
-      onSurface: ink,
+    final base = FlexThemeData.dark(
+      scheme: FlexScheme.deepBlue,
+      surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
+      blendLevel: 18,
+      appBarElevation: 0,
+      scaffoldBackground: background,
+      colors: const FlexSchemeColor(
+        primary: accent,
+        primaryContainer: surfaceMuted,
+        secondary: accentSun,
+        secondaryContainer: Color(0xFF553F0D),
+        tertiary: success,
+        tertiaryContainer: Color(0xFF0F4731),
+        appBarColor: background,
+        error: danger,
+      ),
+      subThemesData: const FlexSubThemesData(
+        interactionEffects: true,
+        blendOnLevel: 16,
+        useMaterial3Typography: true,
+        inputDecoratorIsFilled: true,
+        inputDecoratorBorderType: FlexInputBorderType.outline,
+        inputDecoratorRadius: 18,
+        defaultRadius: 22,
+        elevatedButtonRadius: 999,
+        outlinedButtonRadius: 999,
+        filledButtonRadius: 999,
+        cardRadius: 28,
+        navigationBarIndicatorRadius: 18,
+      ),
+      textTheme: Typography.whiteMountainView,
     );
-
-    final base = ThemeData(
-      useMaterial3: true,
-      colorScheme: scheme,
-    );
-
-    // Use Google Fonts on iOS/Android/Web, but system fonts on Linux
-    // to avoid Skia rendering crashes
-    final textTheme = (!kIsWeb && Platform.isLinux)
-        ? base.textTheme
-        : GoogleFonts.manropeTextTheme(base.textTheme);
 
     return base.copyWith(
       scaffoldBackgroundColor: background,
-      textTheme: textTheme.copyWith(
-        headlineMedium: const TextStyle(fontWeight: FontWeight.w700, color: ink),
-        titleLarge: const TextStyle(fontWeight: FontWeight.w700, color: ink),
-        titleMedium: const TextStyle(fontWeight: FontWeight.w600, color: ink),
-        bodyLarge: const TextStyle(color: ink),
-        bodyMedium: const TextStyle(color: inkMuted),
-        bodySmall: const TextStyle(color: inkSoft),
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: background,
-        elevation: 0,
-        centerTitle: false,
-        foregroundColor: ink,
-      ),
-      cardTheme: CardThemeData(
+      cardTheme: const CardThemeData(
         color: surface,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: border),
-        ),
         margin: EdgeInsets.zero,
       ),
-      inputDecorationTheme: InputDecorationTheme(
+      dividerColor: border,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: background,
+        foregroundColor: ink,
+      ),
+      textTheme: base.textTheme.copyWith(
+        headlineLarge: base.textTheme.headlineLarge?.copyWith(
+          color: ink,
+          fontWeight: FontWeight.w700,
+        ),
+        headlineMedium: base.textTheme.headlineMedium?.copyWith(
+          color: ink,
+          fontWeight: FontWeight.w700,
+        ),
+        titleLarge: base.textTheme.titleLarge?.copyWith(
+          color: ink,
+          fontWeight: FontWeight.w700,
+        ),
+        titleMedium: base.textTheme.titleMedium?.copyWith(
+          color: ink,
+          fontWeight: FontWeight.w600,
+        ),
+        bodyLarge: base.textTheme.bodyLarge?.copyWith(color: ink),
+        bodyMedium: base.textTheme.bodyMedium?.copyWith(color: inkMuted),
+        bodySmall: base.textTheme.bodySmall?.copyWith(color: inkSoft),
+      ),
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
         filled: true,
-        fillColor: surface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: accent),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        fillColor: surfaceMuted,
         hintStyle: const TextStyle(color: inkSoft),
       ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      navigationBarTheme: base.navigationBarTheme.copyWith(
+        backgroundColor: backgroundStrong,
+        indicatorColor: accentSoft,
+        labelTextStyle: WidgetStateProperty.all(
+          base.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-          side: const BorderSide(color: border),
-        ),
-      ),
-      dividerColor: border,
-      listTileTheme: const ListTileThemeData(
-        iconColor: accent,
-        textColor: ink,
-      ),
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: _FadePageTransitionsBuilder(),
-          TargetPlatform.iOS: _FadePageTransitionsBuilder(),
-          TargetPlatform.linux: _FadePageTransitionsBuilder(),
-          TargetPlatform.macOS: _FadePageTransitionsBuilder(),
-          TargetPlatform.windows: _FadePageTransitionsBuilder(),
-          TargetPlatform.fuchsia: _FadePageTransitionsBuilder(),
-        },
       ),
     );
   }
-}
 
-class _FadePageTransitionsBuilder extends PageTransitionsBuilder {
-  const _FadePageTransitionsBuilder();
+  static String formatBytes(double bytesPerSecond) {
+    if (bytesPerSecond >= 1024 * 1024) {
+      return '${(bytesPerSecond / (1024 * 1024)).toStringAsFixed(1)} MB/s';
+    }
+    if (bytesPerSecond >= 1024) {
+      return '${(bytesPerSecond / 1024).toStringAsFixed(1)} KB/s';
+    }
+    return '${bytesPerSecond.toStringAsFixed(0)} B/s';
+  }
 
-  @override
-  Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    if (route.isFirst) return child;
-    final curved = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOut,
-      reverseCurve: Curves.easeIn,
-    );
-    return FadeTransition(opacity: curved, child: child);
+  static String formatDataAmount(int bytes) {
+    final kb = bytes / 1024;
+    final mb = kb / 1024;
+    final gb = mb / 1024;
+    if (gb >= 1) {
+      return '${gb.toStringAsFixed(2)} GB';
+    }
+    if (mb >= 1) {
+      return '${mb.toStringAsFixed(1)} MB';
+    }
+    if (kb >= 1) {
+      return '${kb.toStringAsFixed(1)} KB';
+    }
+    return '$bytes B';
+  }
+
+  static String formatDuration(Duration duration) {
+    final hours = duration.inHours.toString().padLeft(2, '0');
+    final minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$hours:$minutes:$seconds';
   }
 }

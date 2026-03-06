@@ -41,7 +41,8 @@ class ChannelVpnService implements VpnService {
   bool get isNativeAvailable => _nativeAvailable;
 
   @override
-  Future<VpnStatus> connect({required VpnProtocol protocol, String? config}) async {
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
     if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
       return _status;
     }
@@ -161,7 +162,8 @@ class ChannelVpnService implements VpnService {
   }
 
   bool _isNativeUnavailableError(PlatformException error) {
-    return error.code == 'vpn_not_configured' || error.code == 'vpn_unavailable';
+    return error.code == 'vpn_not_configured' ||
+        error.code == 'vpn_unavailable';
   }
 
   void _logMockUse(String message) {
@@ -186,7 +188,8 @@ class MockVpnService implements VpnService {
   bool get isNativeAvailable => false;
 
   @override
-  Future<VpnStatus> connect({required VpnProtocol protocol, String? config}) async {
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
     if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
       return _status;
     }

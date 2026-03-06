@@ -42,13 +42,15 @@ class AdblockState {
   }
 }
 
-final adblockStateProvider = StateNotifierProvider<AdblockController, AdblockState>((ref) {
+final adblockStateProvider =
+    StateNotifierProvider<AdblockController, AdblockState>((ref) {
   return AdblockController(ref);
 });
 
 class AdblockController extends StateNotifier<AdblockState> {
   AdblockController(this._ref)
-      : _engine = AdblockEngine(fallbackAssetPath: 'assets/adblock_fallback.txt'),
+      : _engine =
+            AdblockEngine(fallbackAssetPath: 'assets/adblock_fallback.txt'),
         _bridge = AdblockBridge(),
         super(const AdblockState(
           blockAds: true,
@@ -66,10 +68,14 @@ class AdblockController extends StateNotifier<AdblockState> {
   Future<void> load() async {
     final storage = SecureStorage();
     final blockAds = await storage.getBool(SecureStorage.adblockAdsKey) ?? true;
-    final blockMalware = await storage.getBool(SecureStorage.adblockMalwareKey) ?? true;
-    final strictMode = await storage.getBool(SecureStorage.adblockStrictKey) ?? false;
-    final lastUpdatedRaw = await storage.getString(SecureStorage.adblockUpdatedKey);
-    final lastUpdated = lastUpdatedRaw == null ? null : DateTime.tryParse(lastUpdatedRaw);
+    final blockMalware =
+        await storage.getBool(SecureStorage.adblockMalwareKey) ?? true;
+    final strictMode =
+        await storage.getBool(SecureStorage.adblockStrictKey) ?? false;
+    final lastUpdatedRaw =
+        await storage.getString(SecureStorage.adblockUpdatedKey);
+    final lastUpdated =
+        lastUpdatedRaw == null ? null : DateTime.tryParse(lastUpdatedRaw);
     final totalRules = await storage.getInt(SecureStorage.adblockRulesKey) ?? 0;
 
     state = state.copyWith(
@@ -109,7 +115,8 @@ class AdblockController extends StateNotifier<AdblockState> {
       AppLogger.info('Adblock updated: $count rules');
     } catch (error, stackTrace) {
       AppLogger.warning('Adblock update failed, using fallback.');
-      AppLogger.error('Adblock update error', error: error, stackTrace: stackTrace);
+      AppLogger.error('Adblock update error',
+          error: error, stackTrace: stackTrace);
       await _loadFallback();
     } finally {
       state = state.copyWith(isUpdating: false);
@@ -124,7 +131,8 @@ class AdblockController extends StateNotifier<AdblockState> {
   Future<void> _persistRules(int count) async {
     final storage = SecureStorage();
     final now = DateTime.now();
-    await storage.saveString(SecureStorage.adblockUpdatedKey, now.toIso8601String());
+    await storage.saveString(
+        SecureStorage.adblockUpdatedKey, now.toIso8601String());
     await storage.saveInt(SecureStorage.adblockRulesKey, count);
     state = state.copyWith(lastUpdated: now, totalRules: count);
   }

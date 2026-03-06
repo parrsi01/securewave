@@ -40,7 +40,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               height: 56,
             ),
             const SizedBox(height: AppUIv1.space4),
-            Text('Welcome back', style: Theme.of(context).textTheme.headlineMedium),
+            Text('Welcome back',
+                style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: AppUIv1.space2),
             Text(
               'Sign in to connect and manage your SecureWave account.',
@@ -55,30 +56,42 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Email address', style: Theme.of(context).textTheme.titleSmall),
+                      Text('Email address',
+                          style: Theme.of(context).textTheme.titleSmall),
                       const SizedBox(height: AppUIv1.space2),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(hintText: 'you@example.com'),
+                        decoration:
+                            const InputDecoration(hintText: 'you@example.com'),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Enter your email.';
-                          if (!value.contains('@')) return 'Enter a valid email.';
+                          if (value == null || value.isEmpty) {
+                            return 'Enter your email.';
+                          }
+                          if (!value.contains('@')) {
+                            return 'Enter a valid email.';
+                          }
                           return null;
                         },
                       ),
                       const SizedBox(height: AppUIv1.space4),
-                      Text('Password', style: Theme.of(context).textTheme.titleSmall),
+                      Text('Password',
+                          style: Theme.of(context).textTheme.titleSmall),
                       const SizedBox(height: AppUIv1.space2),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: true,
                         textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(hintText: 'Enter your password'),
+                        decoration: const InputDecoration(
+                            hintText: 'Enter your password'),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Enter your password.';
-                          if (value.length < 8) return 'Use at least 8 characters.';
+                          if (value == null || value.isEmpty) {
+                            return 'Enter your password.';
+                          }
+                          if (value.length < 8) {
+                            return 'Use at least 8 characters.';
+                          }
                           return null;
                         },
                       ),
@@ -96,13 +109,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           onPressed: state.isLoading
                               ? null
                               : () async {
-                                  if (!_formKey.currentState!.validate()) return;
-                                  await ref.read(authControllerProvider.notifier).login(
+                                  if (!_formKey.currentState!.validate()) {
+                                    return;
+                                  }
+                                  await ref
+                                      .read(authControllerProvider.notifier)
+                                      .login(
                                         email: _emailController.text.trim(),
-                                        password: _passwordController.text.trim(),
+                                        password:
+                                            _passwordController.text.trim(),
                                       );
                                   if (!context.mounted) return;
-                                  if (ref.read(authControllerProvider).errorMessage == null) {
+                                  if (ref
+                                          .read(authControllerProvider)
+                                          .errorMessage ==
+                                      null) {
                                     context.go('/vpn');
                                   }
                                 },
@@ -110,7 +131,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Text('Sign in'),
                         ),

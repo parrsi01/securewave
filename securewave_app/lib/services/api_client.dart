@@ -1,51 +1,82 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../core/config/app_config.dart';
 import '../core/logging/app_logger.dart';
 import '../core/models/server_region.dart';
 import '../core/models/user_plan.dart';
 import '../core/services/auth_session.dart';
+import '../core/services/vm_environment.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final config = ref.watch(appConfigProvider);
   final session = ref.watch(authSessionProvider);
-  return ApiClient(config, session: session);
+  final vmEnvironment = ref.watch(vmEnvironmentProvider);
+  return ApiClient(config, session: session, vmEnvironment: vmEnvironment);
 });
 
 class ApiClient {
-  ApiClient(this._config, {AuthSession? session}) {
+  ApiClient(
+    this._config, {
+    AuthSession? session,
+    VmEnvironment? vmEnvironment,
+  })  : _session = session,
+        _vmEnvironment = vmEnvironment ??
+            const VmEnvironment(
+              isVirtualMachine: false,
+              safeModeEnabled: false,
+              reason: null,
+            ) {
     _dio = Dio(
       BaseOptions(
         baseUrl: _config.apiBaseUrl,
-        headers: {'Content-Type': 'application/json'},
+        connectTimeout: _vmEnvironment.safeModeEnabled
+            ? const Duration(seconds: 12)
+            : const Duration(seconds: 6),
+        receiveTimeout: _vmEnvironment.safeModeEnabled
+            ? const Duration(seconds: 20)
+            : const Duration(seconds: 10),
+        headers: const {'Content-Type': 'application/json'},
       ),
     );
-    if (session != null) {
-      _dio.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) {
-            final token = session.accessToken;
-            if (token != null && token.isNotEmpty) {
-              options.headers['Authorization'] = 'Bearer $token';
-            }
-            return handler.next(options);
-          },
-        ),
-      );
-    }
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final token = _session?.accessToken;
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          handler.next(options);
+        },
+      ),
+    );
   }
 
   final AppConfig _config;
+  final AuthSession? _session;
+  final VmEnvironment _vmEnvironment;
   late final Dio _dio;
   List<ServerRegion>? _cachedServers;
   DateTime? _serversFetchedAt;
   UserPlan? _cachedPlan;
   DateTime? _planFetchedAt;
-  bool _mockNoticeLogged = false;
 
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
+
+  Future<void> healthCheck() async {
+    if (_config.useMockApi) {
+      return;
+    }
+    await _withRetry<void>(() async {
+      await _dio.get<Map<String, dynamic>>('/api/health');
+    });
+  }
 
   Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
@@ -54,30 +85,53 @@ class ApiClient {
         return _cachedServers!;
       }
     }
+
     if (_config.useMockApi) {
-      _logMockApi();
       final data = _mockServers();
       _cachedServers = data;
       _serversFetchedAt = DateTime.now();
       return data;
     }
+
     try {
-      final response = await _dio.get<List<dynamic>>('/vpn/servers');
+      final response = await _withRetry<Response<List<dynamic>>>(() {
+        return _dio.get<List<dynamic>>('/vpn/servers');
+      });
       final data = response.data ?? <dynamic>[];
       final servers = data
           .whereType<Map>()
-          .map((entry) => ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
+          .map((entry) =>
+              ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
+          .where((server) => server.id.isNotEmpty)
           .toList();
+      if (servers.isEmpty) {
+        throw const ApiClientException(
+          'servers_empty',
+          'Server discovery returned an empty list.',
+        );
+      }
       _cachedServers = servers;
       _serversFetchedAt = DateTime.now();
+      await _saveServersCache(servers);
       return servers;
-    } catch (error, stackTrace) {
-      AppLogger.warning('Server list unavailable, using mock regions.');
-      AppLogger.error('Server list error', error: error, stackTrace: stackTrace);
-      final data = _mockServers();
-      _cachedServers = data;
-      _serversFetchedAt = DateTime.now();
-      return data;
+    } on ApiClientException catch (error, stackTrace) {
+      AppLogger.error(
+        'Server list fetch failed',
+        error: error,
+        stackTrace: stackTrace,
+        category: AppLogCategory.server,
+      );
+      final cached = await _loadCachedServers();
+      if (cached.isNotEmpty) {
+        AppLogger.server(
+          'Using cached server catalog',
+          fields: <String, Object?>{'count': cached.length},
+        );
+        _cachedServers = cached;
+        _serversFetchedAt = DateTime.now();
+        return cached;
+      }
+      rethrow;
     }
   }
 
@@ -88,89 +142,243 @@ class ApiClient {
         return _cachedPlan!;
       }
     }
+
     if (_config.useMockApi) {
-      _logMockApi();
       final plan = _mockPlan();
       _cachedPlan = plan;
       _planFetchedAt = DateTime.now();
       return plan;
     }
-    try {
-      final response = await _dio.get<Map<String, dynamic>>('/user/plan');
-      final data = response.data ?? <String, dynamic>{};
-      final plan = UserPlan.fromJson(data);
-      _cachedPlan = plan;
-      _planFetchedAt = DateTime.now();
-      return plan;
-    } catch (error, stackTrace) {
-      AppLogger.warning('Plan lookup failed, using mock plan.');
-      AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
-      final plan = _mockPlan();
-      _cachedPlan = plan;
-      _planFetchedAt = DateTime.now();
-      return plan;
-    }
+
+    final response = await _withRetry<Response<Map<String, dynamic>>>(() {
+      return _dio.get<Map<String, dynamic>>('/user/plan');
+    });
+    final plan = UserPlan.fromJson(response.data ?? <String, dynamic>{});
+    _cachedPlan = plan;
+    _planFetchedAt = DateTime.now();
+    return plan;
   }
 
-  Future<AuthTokens> login({required String email, required String password}) async {
+  Future<AuthTokens> login(
+      {required String email, required String password}) async {
     if (_config.useMockApi) {
-      _logMockApi();
       return _mockTokens(email);
     }
-    try {
-      final response = await _dio.post<Map<String, dynamic>>('/auth/login', data: {
-        'email': email,
-        'password': password,
-      });
-      final data = response.data ?? <String, dynamic>{};
-      return AuthTokens(
-        accessToken: data['access_token']?.toString() ?? 'mock-access-token',
-        refreshToken: data['refresh_token']?.toString(),
+
+    final response = await _withRetry<Response<Map<String, dynamic>>>(() {
+      return _dio.post<Map<String, dynamic>>(
+        '/auth/login',
+        data: {'email': email, 'password': password},
       );
-    } catch (error, stackTrace) {
-      AppLogger.warning('Login failed, returning mock token.');
-      AppLogger.error('Login error', error: error, stackTrace: stackTrace);
-      return _mockTokens(email);
-    }
+    });
+    return _parseTokens(response.data,
+        fallbackMessage: 'Login did not return an access token.');
   }
 
-  Future<AuthTokens?> register({required String email, required String password}) async {
+  Future<AuthTokens?> register(
+      {required String email, required String password}) async {
     if (_config.useMockApi) {
-      _logMockApi();
       return _mockTokens(email);
     }
-    try {
-      final response = await _dio.post<Map<String, dynamic>>('/auth/register', data: {
-        'email': email,
-        'password': password,
-        'password_confirm': password,
-      });
-      final data = response.data ?? <String, dynamic>{};
-      if (data['access_token'] == null) return null;
-      return AuthTokens(
-        accessToken: data['access_token']?.toString() ?? 'mock-access-token',
-        refreshToken: data['refresh_token']?.toString(),
+
+    final response = await _withRetry<Response<Map<String, dynamic>>>(() {
+      return _dio.post<Map<String, dynamic>>(
+        '/auth/register',
+        data: {
+          'email': email,
+          'password': password,
+          'password_confirm': password,
+        },
       );
-    } catch (error, stackTrace) {
-      AppLogger.warning('Registration failed, returning mock token.');
-      AppLogger.error('Registration error', error: error, stackTrace: stackTrace);
-      return _mockTokens(email);
+    });
+    if (response.data?['access_token'] == null) {
+      return null;
     }
+    return _parseTokens(
+      response.data,
+      fallbackMessage: 'Registration did not return an access token.',
+    );
+  }
+
+  Future<String> fetchVpnProfile({String? serverId}) async {
+    if (_config.useMockApi) {
+      return _mockVpnProfile();
+    }
+
+    final response = await _withRetry<Response<Map<String, dynamic>>>(() {
+      return _dio.post<Map<String, dynamic>>(
+        '/vpn/profile',
+        data: {
+          if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
+        },
+      );
+    });
+    final data = response.data ?? const <String, dynamic>{};
+    final profile = data['profile'] ?? data['config'];
+    if (profile is String && profile.trim().isNotEmpty) {
+      return profile;
+    }
+    throw const ApiClientException(
+      'profile_missing',
+      'VPN profile response did not include a usable profile payload.',
+    );
+  }
+
+  Future<T> _withRetry<T>(Future<T> Function() request) async {
+    final attempts = _vmEnvironment.safeModeEnabled ? 4 : 3;
+    final baseDelay = _vmEnvironment.safeModeEnabled ? 1200 : 500;
+    Object? lastError;
+    StackTrace? lastStackTrace;
+
+    for (var attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        return await request();
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        final shouldRetry = _isTransient(error) && attempt < attempts;
+        if (!shouldRetry) {
+          break;
+        }
+        AppLogger.warning(
+            'API request retry $attempt/$attempts after transient failure.');
+        await Future<void>.delayed(Duration(milliseconds: baseDelay * attempt));
+      }
+    }
+
+    if (lastError is DioException) {
+      throw ApiClientException.fromDio(lastError);
+    }
+    Error.throwWithStackTrace(lastError!, lastStackTrace!);
+  }
+
+  bool _isTransient(Object error) {
+    if (error is! DioException) {
+      return false;
+    }
+    return error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.connectionError ||
+        (error.response?.statusCode != null &&
+            error.response!.statusCode! >= 500);
+  }
+
+  AuthTokens _parseTokens(
+    Map<String, dynamic>? data, {
+    required String fallbackMessage,
+  }) {
+    final accessToken = data?['access_token']?.toString();
+    if (accessToken == null || accessToken.isEmpty) {
+      throw ApiClientException('token_missing', fallbackMessage);
+    }
+    return AuthTokens(
+      accessToken: accessToken,
+      refreshToken: data?['refresh_token']?.toString(),
+    );
   }
 
   AuthTokens _mockTokens(String email) {
     final handle = email.split('@').first;
-    return AuthTokens(accessToken: 'mock-token-$handle', refreshToken: 'mock-refresh-$handle');
+    return AuthTokens(
+      accessToken: 'mock-token-$handle',
+      refreshToken: 'mock-refresh-$handle',
+    );
   }
 
   List<ServerRegion> _mockServers() {
     return const [
-      ServerRegion(id: 'us-chi', name: 'Chicago, IL', country: 'United States', latencyMs: 28),
-      ServerRegion(id: 'us-nyc', name: 'New York, NY', country: 'United States', latencyMs: 42),
-      ServerRegion(id: 'uk-lon', name: 'London', country: 'United Kingdom', latencyMs: 75),
-      ServerRegion(id: 'de-fra', name: 'Frankfurt', country: 'Germany', latencyMs: 58),
-      ServerRegion(id: 'sg-sin', name: 'Singapore', country: 'Singapore', latencyMs: 91),
+      ServerRegion(
+          id: 'us-chi',
+          name: 'Chicago, IL',
+          country: 'United States',
+          latencyMs: 28),
+      ServerRegion(
+          id: 'us-nyc',
+          name: 'New York, NY',
+          country: 'United States',
+          latencyMs: 42),
+      ServerRegion(
+          id: 'uk-lon',
+          name: 'London',
+          country: 'United Kingdom',
+          latencyMs: 75),
+      ServerRegion(
+          id: 'de-fra', name: 'Frankfurt', country: 'Germany', latencyMs: 58),
+      ServerRegion(
+          id: 'sg-sin', name: 'Singapore', country: 'Singapore', latencyMs: 91),
     ];
+  }
+
+  Future<File> _serverCacheFile() async {
+    final directory = await getApplicationSupportDirectory();
+    return File('${directory.path}/securewave_servers_cache.json');
+  }
+
+  Future<void> _saveServersCache(List<ServerRegion> servers) async {
+    try {
+      final file = await _serverCacheFile();
+      await file.parent.create(recursive: true);
+      final payload = <Map<String, Object?>>[
+        for (final server in servers)
+          <String, Object?>{
+            'id': server.id,
+            'name': server.name,
+            'city': server.city,
+            'country': server.country,
+            'latency_ms': server.latencyMs,
+          },
+      ];
+      await file.writeAsString(jsonEncode(payload), flush: true);
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to save server cache',
+        category: AppLogCategory.server,
+        fields: <String, Object?>{'error': error.toString()},
+      );
+      AppLogger.error(
+        'Server cache write failed',
+        error: error,
+        stackTrace: stackTrace,
+        category: AppLogCategory.server,
+      );
+    }
+  }
+
+  Future<List<ServerRegion>> _loadCachedServers() async {
+    try {
+      final file = await _serverCacheFile();
+      if (!await file.exists()) {
+        return const <ServerRegion>[];
+      }
+      final payload = jsonDecode(await file.readAsString());
+      if (payload is! List) {
+        return const <ServerRegion>[];
+      }
+      return payload
+          .whereType<Map>()
+          .map(
+            (entry) => ServerRegion.fromJson(
+              <String, dynamic>{
+                'id': entry['id'],
+                'name': entry['name'],
+                'city': entry['city'],
+                'country': entry['country'],
+                'latency_ms': entry['latency_ms'],
+              },
+            ),
+          )
+          .where((server) => server.id.isNotEmpty)
+          .toList();
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Server cache read failed',
+        error: error,
+        stackTrace: stackTrace,
+        category: AppLogCategory.server,
+      );
+      return const <ServerRegion>[];
+    }
   }
 
   UserPlan _mockPlan() {
@@ -182,47 +390,7 @@ class ApiClient {
     );
   }
 
-  Future<String> fetchVpnConfig({String? serverId}) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return _mockVpnConfig();
-    }
-    Map<String, dynamic>? payload;
-    if (serverId != null && serverId.isNotEmpty) {
-      try {
-        final response = await _dio.post<Map<String, dynamic>>(
-          '/vpn/allocate',
-          data: {'server_id': serverId},
-        );
-        payload = response.data;
-      } catch (error, stackTrace) {
-        AppLogger.warning('VPN allocation failed, falling back to existing config.');
-        AppLogger.error('VPN allocation error', error: error, stackTrace: stackTrace);
-      }
-    }
-    try {
-      final response = payload == null
-          ? await _dio.get<Map<String, dynamic>>('/vpn/config')
-          : null;
-      final data = payload ?? response?.data ?? <String, dynamic>{};
-      final config = data['config'];
-      if (config is String && config.trim().isNotEmpty) {
-        return config;
-      }
-      throw StateError('VPN configuration missing from response.');
-    } catch (error, stackTrace) {
-      AppLogger.error('VPN config fetch failed', error: error, stackTrace: stackTrace);
-      rethrow;
-    }
-  }
-
-  void _logMockApi() {
-    if (_mockNoticeLogged) return;
-    _mockNoticeLogged = true;
-    AppLogger.warning('Mock API enabled: returning demo data instead of live endpoints.');
-  }
-
-  String _mockVpnConfig() {
+  String _mockVpnProfile() {
     return '''
 [Interface]
 PrivateKey = DEMO_PRIVATE_KEY
@@ -242,4 +410,26 @@ class AuthTokens {
 
   final String accessToken;
   final String? refreshToken;
+}
+
+class ApiClientException implements Exception {
+  const ApiClientException(this.code, this.message);
+
+  final String code;
+  final String message;
+
+  factory ApiClientException.fromDio(DioException error) {
+    final code = error.response?.statusCode?.toString() ?? error.type.name;
+    final data = error.response?.data;
+    final message = data is Map<String, dynamic>
+        ? (data['detail']?.toString() ??
+            data['message']?.toString() ??
+            error.message ??
+            'API request failed.')
+        : (error.message ?? 'API request failed.');
+    return ApiClientException(code, message);
+  }
+
+  @override
+  String toString() => 'ApiClientException($code): $message';
 }

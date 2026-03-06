@@ -15,7 +15,8 @@ class AdblockBridge {
         'last_updated': state.lastUpdated?.toIso8601String(),
       });
     } on PlatformException catch (error, stackTrace) {
-      AppLogger.error('Adblock config send failed', error: error, stackTrace: stackTrace);
+      AppLogger.error('Adblock config send failed',
+          error: error, stackTrace: stackTrace);
     } on MissingPluginException {
       AppLogger.warning('Adblock channel not ready.');
     }

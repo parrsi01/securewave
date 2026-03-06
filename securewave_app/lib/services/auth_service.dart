@@ -24,7 +24,8 @@ class AuthService {
     );
   }
 
-  Future<void> register({required String email, required String password}) async {
+  Future<void> register(
+      {required String email, required String password}) async {
     final tokens = await _api.register(email: email, password: password);
     if (tokens == null) {
       AppLogger.warning('Registration completed without token payload.');

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../ui/app_ui_v1.dart';
 import '../../core/state/preferences_state.dart';
+import '../../ui/app_ui_v1.dart';
 
 class LanguagePage extends ConsumerWidget {
   const LanguagePage({super.key});
@@ -17,75 +17,35 @@ class LanguagePage extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(AppUIv1.space5),
           children: [
-            Text('Choose your language', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppUIv1.space3),
+            Text('Language', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: AppUIv1.space2),
+            Text(
+              'Choose the interface language for the SecureWave client.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: AppUIv1.space4),
             Card(
-              child: Column(
-                children: [
-                  _LanguageTile(
-                    label: 'English',
-                    value: 'en',
-                    groupValue: language,
-                    onSelected: (value) =>
-                        ref.read(preferencesProvider.notifier).setLanguage(value),
-                  ),
-                  const Divider(height: 1),
-                  _LanguageTile(
-                    label: 'Spanish',
-                    value: 'es',
-                    groupValue: language,
-                    onSelected: (value) =>
-                        ref.read(preferencesProvider.notifier).setLanguage(value),
-                  ),
-                  const Divider(height: 1),
-                  _LanguageTile(
-                    label: 'French',
-                    value: 'fr',
-                    groupValue: language,
-                    onSelected: (value) =>
-                        ref.read(preferencesProvider.notifier).setLanguage(value),
-                  ),
-                  const Divider(height: 1),
-                  _LanguageTile(
-                    label: 'German',
-                    value: 'de',
-                    groupValue: language,
-                    onSelected: (value) =>
-                        ref.read(preferencesProvider.notifier).setLanguage(value),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(AppUIv1.space4),
+                child: SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'en', label: Text('English')),
+                    ButtonSegment(value: 'es', label: Text('Spanish')),
+                    ButtonSegment(value: 'fr', label: Text('French')),
+                    ButtonSegment(value: 'de', label: Text('German')),
+                  ],
+                  selected: {language},
+                  onSelectionChanged: (selection) {
+                    ref
+                        .read(preferencesProvider.notifier)
+                        .setLanguage(selection.first);
+                  },
+                ),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _LanguageTile extends StatelessWidget {
-  const _LanguageTile({
-    required this.label,
-    required this.value,
-    required this.groupValue,
-    required this.onSelected,
-  });
-
-  final String label;
-  final String value;
-  final String groupValue;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return RadioListTile<String>(
-      title: Text(label),
-      value: value,
-      groupValue: groupValue,
-      onChanged: (value) {
-        if (value == null) return;
-        onSelected(value);
-      },
     );
   }
 }

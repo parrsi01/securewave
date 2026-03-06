@@ -30,10 +30,12 @@ class AccountPage extends ConsumerWidget {
           plan.when(
             data: (data) => _PlanSummary(plan: data),
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Text('Unable to load plan details right now.'),
+            error: (_, __) =>
+                const Text('Unable to load plan details right now.'),
           ),
           const SizedBox(height: AppUIv1.space4),
-          Text('Subscription options', style: Theme.of(context).textTheme.titleMedium),
+          Text('Subscription options',
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppUIv1.space3),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -45,8 +47,13 @@ class AccountPage extends ConsumerWidget {
                       child: _PlanOptionCard(
                         title: 'Free',
                         price: '5 GB included',
-                        description: 'Best for occasional browsing and short trips.',
-                        features: const ['5 GB monthly data', 'Region auto-select', 'Email support'],
+                        description:
+                            'Best for occasional browsing and short trips.',
+                        features: const [
+                          '5 GB monthly data',
+                          'Region auto-select',
+                          'Email support'
+                        ],
                         actionLabel: 'Stay on Free',
                         onAction: () => AppLogger.info('Free plan intent'),
                         accent: AppUIv1.surfaceMuted,
@@ -58,9 +65,15 @@ class AccountPage extends ConsumerWidget {
                         title: 'Premium',
                         price: '\$9 / month',
                         description: 'Unlimited data with priority routing.',
-                        features: const ['Unlimited data', 'Priority servers', 'Priority support'],
+                        features: const [
+                          'Unlimited data',
+                          'Priority servers',
+                          'Priority support'
+                        ],
                         actionLabel: 'Upgrade to Premium',
-                        onAction: () => ref.read(externalLinksProvider).openUrl(config.upgradeUrl),
+                        onAction: () => ref
+                            .read(externalLinksProvider)
+                            .openUrl(config.upgradeUrl),
                         accent: AppUIv1.accentSoft,
                         highlight: true,
                       ),
@@ -73,8 +86,13 @@ class AccountPage extends ConsumerWidget {
                   _PlanOptionCard(
                     title: 'Free',
                     price: '5 GB included',
-                    description: 'Best for occasional browsing and short trips.',
-                    features: const ['5 GB monthly data', 'Region auto-select', 'Email support'],
+                    description:
+                        'Best for occasional browsing and short trips.',
+                    features: const [
+                      '5 GB monthly data',
+                      'Region auto-select',
+                      'Email support'
+                    ],
                     actionLabel: 'Stay on Free',
                     onAction: () => AppLogger.info('Free plan intent'),
                     accent: AppUIv1.surfaceMuted,
@@ -84,9 +102,15 @@ class AccountPage extends ConsumerWidget {
                     title: 'Premium',
                     price: '\$9 / month',
                     description: 'Unlimited data with priority routing.',
-                    features: const ['Unlimited data', 'Priority servers', 'Priority support'],
+                    features: const [
+                      'Unlimited data',
+                      'Priority servers',
+                      'Priority support'
+                    ],
                     actionLabel: 'Upgrade to Premium',
-                    onAction: () => ref.read(externalLinksProvider).openUrl(config.upgradeUrl),
+                    onAction: () => ref
+                        .read(externalLinksProvider)
+                        .openUrl(config.upgradeUrl),
                     accent: AppUIv1.accentSoft,
                     highlight: true,
                   ),
@@ -100,7 +124,8 @@ class AccountPage extends ConsumerWidget {
               leading: const Icon(Icons.open_in_new),
               title: const Text('Manage account in web portal'),
               subtitle: Text(config.portalUrl),
-              onTap: () => ref.read(externalLinksProvider).openUrl(config.portalUrl),
+              onTap: () =>
+                  ref.read(externalLinksProvider).openUrl(config.portalUrl),
             ),
           ),
         ],
@@ -116,8 +141,10 @@ class _PlanSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final usageLabel = '${plan.usedGb.toStringAsFixed(1)} GB of ${plan.dataCapGb.toStringAsFixed(0)} GB';
-    final remainingLabel = '${plan.remainingGb.toStringAsFixed(1)} GB remaining';
+    final usageLabel =
+        '${plan.usedGb.toStringAsFixed(1)} GB of ${plan.dataCapGb.toStringAsFixed(0)} GB';
+    final remainingLabel =
+        '${plan.remainingGb.toStringAsFixed(1)} GB remaining';
     return Column(
       children: [
         Card(
@@ -129,17 +156,22 @@ class _PlanSummary extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Current plan', style: Theme.of(context).textTheme.bodySmall),
+                    Text('Current plan',
+                        style: Theme.of(context).textTheme.bodySmall),
                     const SizedBox(height: AppUIv1.space1),
-                    Text(plan.name, style: Theme.of(context).textTheme.titleLarge),
+                    Text(plan.name,
+                        style: Theme.of(context).textTheme.titleLarge),
                   ],
                 ),
                 Chip(
                   label: Text(plan.isPremium ? 'Premium' : 'Free'),
-                  backgroundColor: (plan.isPremium ? AppUIv1.accentSoft : AppUIv1.surfaceMuted)
+                  backgroundColor: (plan.isPremium
+                          ? AppUIv1.accentSoft
+                          : AppUIv1.surfaceMuted)
                       .withValues(alpha: 0.7),
                   labelStyle: TextStyle(
-                    color: plan.isPremium ? AppUIv1.accentStrong : AppUIv1.inkSoft,
+                    color:
+                        plan.isPremium ? AppUIv1.accentStrong : AppUIv1.inkSoft,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -154,7 +186,8 @@ class _PlanSummary extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Data usage', style: Theme.of(context).textTheme.titleMedium),
+                Text('Data usage',
+                    style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: AppUIv1.space2),
                 Text(usageLabel, style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: AppUIv1.space2),
@@ -168,7 +201,8 @@ class _PlanSummary extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppUIv1.space2),
-                Text(remainingLabel, style: Theme.of(context).textTheme.bodySmall),
+                Text(remainingLabel,
+                    style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),
@@ -208,14 +242,18 @@ class _PlanOptionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppUIv1.space3, vertical: AppUIv1.space1),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppUIv1.space3, vertical: AppUIv1.space1),
               decoration: BoxDecoration(
                 color: accent,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 title,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: AppUIv1.space3),
@@ -228,9 +266,13 @@ class _PlanOptionCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: AppUIv1.space1),
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle, size: 18, color: highlight ? AppUIv1.accent : AppUIv1.inkSoft),
+                    Icon(Icons.check_circle,
+                        size: 18,
+                        color: highlight ? AppUIv1.accent : AppUIv1.inkSoft),
                     const SizedBox(width: AppUIv1.space2),
-                    Expanded(child: Text(feature, style: Theme.of(context).textTheme.bodySmall)),
+                    Expanded(
+                        child: Text(feature,
+                            style: Theme.of(context).textTheme.bodySmall)),
                   ],
                 ),
               ),
@@ -240,7 +282,8 @@ class _PlanOptionCard extends StatelessWidget {
               width: double.infinity,
               child: highlight
                   ? FilledButton(onPressed: onAction, child: Text(actionLabel))
-                  : OutlinedButton(onPressed: onAction, child: Text(actionLabel)),
+                  : OutlinedButton(
+                      onPressed: onAction, child: Text(actionLabel)),
             ),
           ],
         ),

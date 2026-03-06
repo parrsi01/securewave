@@ -67,7 +67,8 @@ class BootController extends ChangeNotifier {
     await Future.any([
       _doInitialize(),
       Future.delayed(const Duration(seconds: 10), () {
-        throw TimeoutException('Boot initialization timed out after 10 seconds');
+        throw TimeoutException(
+            'Boot initialization timed out after 10 seconds');
       }),
     ]);
   }
@@ -80,7 +81,8 @@ class BootController extends ChangeNotifier {
     final storage = SecureStorage();
 
     if (config.resetSessionOnBoot) {
-      final resetDone = await storage.getBool(SecureStorage.resetSessionDoneKey) ?? false;
+      final resetDone =
+          await storage.getBool(SecureStorage.resetSessionDoneKey) ?? false;
       if (!resetDone) {
         await _ref.read(authSessionProvider).clearSession();
         await storage.saveBool(SecureStorage.resetSessionDoneKey, true);
@@ -88,9 +90,18 @@ class BootController extends ChangeNotifier {
       }
     }
 
+    // Step 1b: wait for secure storage session restoration so login survives app restart.
+    final authSession = _ref.read(authSessionProvider);
+    var attempts = 0;
+    while (!authSession.isInitialized && attempts < 20) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      attempts += 1;
+    }
+
     // Step 2: Restore VPN server selection (can fail gracefully)
     try {
-      final selectedServer = await storage.getString(SecureStorage.selectedServerKey);
+      final selectedServer =
+          await storage.getString(SecureStorage.selectedServerKey);
       if (selectedServer != null) {
         _ref.read(vpnStateProvider.notifier).selectServer(selectedServer);
         AppLogger.info('Boot: restored server $selectedServer');

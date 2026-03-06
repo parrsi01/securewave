@@ -5,7 +5,8 @@ import '../../core/logging/app_logger.dart';
 import '../../ui/app_ui_v1.dart';
 
 class FallbackErrorScreen extends StatelessWidget {
-  const FallbackErrorScreen({super.key, required this.message, this.error, this.stackTrace});
+  const FallbackErrorScreen(
+      {super.key, required this.message, this.error, this.stackTrace});
 
   final String message;
   final Object? error;
@@ -21,7 +22,8 @@ class FallbackErrorScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Something went wrong', style: Theme.of(context).textTheme.headlineMedium),
+              Text('Something went wrong',
+                  style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: AppUIv1.space2),
               Text(
                 'Copy the diagnostics below and share with support.',
@@ -54,7 +56,8 @@ class FallbackErrorScreen extends StatelessWidget {
                     border: Border.all(color: AppUIv1.border),
                   ),
                   child: SingleChildScrollView(
-                    child: SelectableText(details, style: Theme.of(context).textTheme.bodySmall),
+                    child: SelectableText(details,
+                        style: Theme.of(context).textTheme.bodySmall),
                   ),
                 ),
               ),
@@ -66,7 +69,8 @@ class FallbackErrorScreen extends StatelessWidget {
   }
 
   String _buildDetails() {
-    final logText = AppLogger.logStream.value.map((e) => e.toString()).join('\n');
+    final logText =
+        AppLogger.logStream.value.map((e) => e.toString()).join('\n');
     return [
       'SecureWave Diagnostics',
       'Message: $message',

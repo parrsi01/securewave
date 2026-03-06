@@ -22,7 +22,8 @@ void main() {
       runApp(const ProviderScope(child: SecureWaveApp()));
     },
     (error, stackTrace) {
-      AppLogger.error('Uncaught zone error', error: error, stackTrace: stackTrace);
+      AppLogger.error('Uncaught zone error',
+          error: error, stackTrace: stackTrace);
     },
   );
 }

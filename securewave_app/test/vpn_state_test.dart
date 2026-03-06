@@ -20,7 +20,8 @@ void main() {
   });
 
   test('VpnStateNotifier transitions through connect and disconnect', () async {
-    final service = MockVpnService(connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+    final service = MockVpnService(
+        connectDelay: Duration.zero, disconnectDelay: Duration.zero);
     final container = ProviderContainer(
       overrides: [vpnServiceProvider.overrideWithValue(service)],
     );

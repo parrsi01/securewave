@@ -15,6 +15,8 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
   private val channelName = "securewave/vpn"
+  private val trafficChannelName = "securewave/traffic_stats"
+  private val tunnelStatusChannelName = "securewave/tunnel_status"
   private var pendingResult: MethodChannel.Result? = null
   private var pendingConfig: String? = null
   private var pendingAction: String? = null
@@ -78,6 +80,22 @@ class MainActivity : FlutterActivity() {
         else -> result.notImplemented()
       }
     }
+
+    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, trafficChannelName)
+      .setMethodCallHandler { call, result ->
+        when (call.method) {
+          "getTrafficStats" -> result.success(vpn.SecureWaveVpnService.trafficStats())
+          else -> result.notImplemented()
+        }
+      }
+
+    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, tunnelStatusChannelName)
+      .setMethodCallHandler { call, result ->
+        when (call.method) {
+          "getTunnelStatus" -> result.success(vpn.SecureWaveVpnService.tunnelStatus())
+          else -> result.notImplemented()
+        }
+      }
   }
 
   private fun startVpnService(action: String, config: String?, result: MethodChannel.Result?) {

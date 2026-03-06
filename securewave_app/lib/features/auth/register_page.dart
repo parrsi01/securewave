@@ -42,7 +42,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               height: 56,
             ),
             const SizedBox(height: AppUIv1.space4),
-            Text('Create your account', style: Theme.of(context).textTheme.headlineMedium),
+            Text('Create your account',
+                style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: AppUIv1.space2),
             Text(
               'SecureWave keeps your connection calm and reliable.',
@@ -57,44 +58,62 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Email address', style: Theme.of(context).textTheme.titleSmall),
+                      Text('Email address',
+                          style: Theme.of(context).textTheme.titleSmall),
                       const SizedBox(height: AppUIv1.space2),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(hintText: 'you@example.com'),
+                        decoration:
+                            const InputDecoration(hintText: 'you@example.com'),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Enter your email.';
-                          if (!value.contains('@')) return 'Enter a valid email.';
+                          if (value == null || value.isEmpty) {
+                            return 'Enter your email.';
+                          }
+                          if (!value.contains('@')) {
+                            return 'Enter a valid email.';
+                          }
                           return null;
                         },
                       ),
                       const SizedBox(height: AppUIv1.space4),
-                      Text('Password', style: Theme.of(context).textTheme.titleSmall),
+                      Text('Password',
+                          style: Theme.of(context).textTheme.titleSmall),
                       const SizedBox(height: AppUIv1.space2),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: true,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(hintText: 'Create a password'),
+                        decoration: const InputDecoration(
+                            hintText: 'Create a password'),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Create a password.';
-                          if (value.length < 8) return 'Use at least 8 characters.';
+                          if (value == null || value.isEmpty) {
+                            return 'Create a password.';
+                          }
+                          if (value.length < 8) {
+                            return 'Use at least 8 characters.';
+                          }
                           return null;
                         },
                       ),
                       const SizedBox(height: AppUIv1.space4),
-                      Text('Confirm password', style: Theme.of(context).textTheme.titleSmall),
+                      Text('Confirm password',
+                          style: Theme.of(context).textTheme.titleSmall),
                       const SizedBox(height: AppUIv1.space2),
                       TextFormField(
                         controller: _confirmController,
                         obscureText: true,
                         textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(hintText: 'Repeat your password'),
+                        decoration: const InputDecoration(
+                            hintText: 'Repeat your password'),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Confirm your password.';
-                          if (value != _passwordController.text) return 'Passwords do not match.';
+                          if (value == null || value.isEmpty) {
+                            return 'Confirm your password.';
+                          }
+                          if (value != _passwordController.text) {
+                            return 'Passwords do not match.';
+                          }
                           return null;
                         },
                       ),
@@ -112,13 +131,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           onPressed: state.isLoading
                               ? null
                               : () async {
-                                  if (!_formKey.currentState!.validate()) return;
-                                  await ref.read(authControllerProvider.notifier).register(
+                                  if (!_formKey.currentState!.validate()) {
+                                    return;
+                                  }
+                                  await ref
+                                      .read(authControllerProvider.notifier)
+                                      .register(
                                         email: _emailController.text.trim(),
-                                        password: _passwordController.text.trim(),
+                                        password:
+                                            _passwordController.text.trim(),
                                       );
                                   if (!context.mounted) return;
-                                  if (ref.read(authControllerProvider).errorMessage == null) {
+                                  if (ref
+                                          .read(authControllerProvider)
+                                          .errorMessage ==
+                                      null) {
                                     context.go('/vpn');
                                   }
                                 },
@@ -126,7 +153,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Text('Create account'),
                         ),

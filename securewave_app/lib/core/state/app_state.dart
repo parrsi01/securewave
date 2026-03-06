@@ -26,7 +26,8 @@ final userPlanProvider = FutureProvider<UserPlan>((ref) async {
   return api.fetchUserPlan();
 });
 
-final favoriteServersProvider = StateNotifierProvider<FavoriteServersNotifier, Set<String>>((ref) {
+final favoriteServersProvider =
+    StateNotifierProvider<FavoriteServersNotifier, Set<String>>((ref) {
   return FavoriteServersNotifier();
 });
 

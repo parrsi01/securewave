@@ -144,18 +144,30 @@ class AdblockEngine {
       final cleaned = line.trim();
 
       // Skip empty lines and comments
-      if (cleaned.isEmpty || cleaned.startsWith('#') || cleaned.startsWith('!')) {
+      if (cleaned.isEmpty ||
+          cleaned.startsWith('#') ||
+          cleaned.startsWith('!') ||
+          cleaned.startsWith('###') ||
+          cleaned.startsWith('*')) {
         continue;
       }
 
       // Extract domain from various formats:
       // ||example.com^ -> example.com
       // ||ads.example.com^ -> ads.example.com
-      var domain = cleaned.split(' ').first;
-      domain = domain.replaceFirst('||', '').replaceAll('^', '');
+      var domain = cleaned.replaceAll(' ', '');
+      domain =
+          domain.replaceFirst('||', '').replaceAll('^', '').replaceAll('|', '');
+
+      if (domain.contains('/')) {
+        continue;
+      }
 
       // Only add valid domains (must contain at least one dot)
-      if (domain.contains('.')) {
+      final isValidDomain =
+          RegExp(r'^[a-z0-9.-]+\.[a-z]{2,}$', caseSensitive: false)
+              .hasMatch(domain);
+      if (isValidDomain) {
         entries.add(domain.toLowerCase());
       }
     }

@@ -22,7 +22,8 @@ class MarLXGBPredictor {
     return blended.clamp(min, max).toDouble();
   }
 
-  double scoreServer(ServerRegion region, {required bool isFavorite, double stability = 0.8}) {
+  double scoreServer(ServerRegion region,
+      {required bool isFavorite, double stability = 0.8}) {
     final latency = (region.latencyMs ?? 120).toDouble();
     final latencyScore = 1 / (1 + (latency / 60));
     final favoriteScore = isFavorite ? favoriteBoost : 0;

@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import NetworkExtension
 import os
@@ -122,8 +123,67 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
   }
 
   override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)? = nil) {
-    completionHandler?(nil)
+    guard
+      let payload = try? JSONSerialization.jsonObject(with: messageData) as? [String: Any],
+      let command = payload["command"] as? String
+    else {
+      completionHandler?(nil)
+      return
+    }
+
+    let response: [String: Any]
+    switch command {
+    case "traffic_stats":
+      let stats = tunnelInterfaceStats()
+      response = [
+        "rxBytes": stats?.rxBytes ?? 0,
+        "txBytes": stats?.txBytes ?? 0,
+        "interfaceName": stats?.name as Any,
+      ]
+    case "tunnel_status":
+      let stats = tunnelInterfaceStats()
+      response = [
+        "status": adapter == nil ? "DISCONNECTED" : "CONNECTED",
+        "interfaceName": stats?.name as Any,
+        "interfaceOk": stats != nil,
+        "routingOk": stats != nil,
+        "details": stats == nil ? "No active utun interface detected." : "Tunnel interface is active.",
+      ]
+    default:
+      response = ["error": "unsupported_command"]
+    }
+
+    let data = try? JSONSerialization.data(withJSONObject: response)
+    completionHandler?(data)
   }
+}
+
+private func tunnelInterfaceStats() -> (name: String, rxBytes: Int64, txBytes: Int64)? {
+  var pointer: UnsafeMutablePointer<ifaddrs>?
+  guard getifaddrs(&pointer) == 0, let first = pointer else {
+    return nil
+  }
+  defer { freeifaddrs(pointer) }
+
+  var candidate: (name: String, rxBytes: Int64, txBytes: Int64)?
+  var cursor: UnsafeMutablePointer<ifaddrs>? = first
+
+  while let current = cursor {
+    let interface = current.pointee
+    let name = String(cString: interface.ifa_name)
+    let isTunnel = name.hasPrefix("utun") || name.hasPrefix("wg") || name.hasPrefix("tun")
+    if isTunnel,
+       let data = interface.ifa_data?.assumingMemoryBound(to: if_data.self).pointee {
+      candidate = (
+        name: name,
+        rxBytes: Int64(data.ifi_ibytes),
+        txBytes: Int64(data.ifi_obytes)
+      )
+    }
+    cursor = interface.ifa_next
+  }
+
+  return candidate
 }
 
 #if canImport(WireGuardKit)

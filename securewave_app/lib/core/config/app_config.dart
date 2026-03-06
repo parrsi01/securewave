@@ -45,7 +45,8 @@ class AppConfig {
       }
     } catch (error, stackTrace) {
       AppLogger.warning('Config: .env load failed, using defaults');
-      AppLogger.error('Config: .env load error', error: error, stackTrace: stackTrace);
+      AppLogger.error('Config: .env load error',
+          error: error, stackTrace: stackTrace);
     }
 
     final env = dotenv.isInitialized ? dotenv.env : const <String, String>{};
@@ -75,7 +76,7 @@ class AppConfig {
     var useMock = _parseBool(
       env['SECUREWAVE_USE_MOCK_API'] ??
           const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
-            defaultValue: kIsDebugMode ? 'true' : 'false'),
+              defaultValue: kIsDebugMode ? 'true' : 'false'),
     );
     if (kIsReleaseMode && useMock) {
       AppLogger.warning('Config: mock API disabled in release builds.');
@@ -100,13 +101,16 @@ class AppConfig {
     return _cached!;
   }
 
-  static String _envOrDefault(Map<String, String> env, String key, String fallback) {
+  static String _envOrDefault(
+      Map<String, String> env, String key, String fallback) {
     final value = env[key];
     if (value == null || value.trim().isEmpty) return fallback;
     return value;
   }
 
   static bool _parseBool(String value) {
-    return value.toLowerCase() == 'true' || value == '1' || value.toLowerCase() == 'yes';
+    return value.toLowerCase() == 'true' ||
+        value == '1' ||
+        value.toLowerCase() == 'yes';
   }
 }

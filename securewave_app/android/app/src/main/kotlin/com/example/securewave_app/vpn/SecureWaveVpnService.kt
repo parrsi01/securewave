@@ -9,11 +9,14 @@ import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Process
 import android.os.ResultReceiver
+import android.net.TrafficStats
 import androidx.core.app.NotificationCompat
 import com.wireguard.android.backend.GoBackend
 import com.wireguard.android.backend.Tunnel
 import com.wireguard.config.Config
+import java.net.NetworkInterface
 import java.io.StringReader
 import java.util.concurrent.Executors
 
@@ -25,6 +28,7 @@ class SecureWaveVpnService : VpnService() {
 
     override fun onStateChange(newState: Tunnel.State) {
       currentState = newState
+      lastKnownState = newState
     }
   }
   @Volatile private var currentState = Tunnel.State.DOWN
@@ -64,9 +68,12 @@ class SecureWaveVpnService : VpnService() {
         val config = Config.parse(StringReader(configText))
         backend.setState(tunnel, Tunnel.State.UP, config)
         currentState = Tunnel.State.UP
+        activeInterfaceName = detectTunnelInterfaceName()
         updateNotification("SecureWave VPN", "Connected")
         sendSuccess(receiver)
       } catch (error: Exception) {
+        currentState = Tunnel.State.DOWN
+        activeInterfaceName = null
         sendError(
           receiver,
           "vpn_connect_failed",
@@ -84,6 +91,7 @@ class SecureWaveVpnService : VpnService() {
         if (currentState != Tunnel.State.DOWN) {
           backend.setState(tunnel, Tunnel.State.DOWN, null)
           currentState = Tunnel.State.DOWN
+          activeInterfaceName = null
         }
         sendSuccess(receiver)
       } catch (error: Exception) {
@@ -143,5 +151,51 @@ class SecureWaveVpnService : VpnService() {
     private const val NOTIFICATION_ID = 4201
     private const val RESULT_SUCCESS = 0
     private const val RESULT_ERROR = 1
+    @Volatile private var activeInterfaceName: String? = null
+    @Volatile private var lastKnownState: Tunnel.State = Tunnel.State.DOWN
+
+    fun trafficStats(): Map<String, Any> {
+      val uid = Process.myUid()
+      val rx = TrafficStats.getUidRxBytes(uid).takeIf { it >= 0 } ?: 0L
+      val tx = TrafficStats.getUidTxBytes(uid).takeIf { it >= 0 } ?: 0L
+      return mapOf(
+        "rxBytes" to rx,
+        "txBytes" to tx,
+        "interfaceName" to (activeInterfaceName ?: ""),
+      )
+    }
+
+    fun tunnelStatus(): Map<String, Any> {
+      val interfaceName = activeInterfaceName ?: detectTunnelInterfaceName()
+      val interfaceOk = !interfaceName.isNullOrBlank()
+      val status = when (lastKnownState) {
+        Tunnel.State.UP -> if (interfaceOk) "CONNECTED" else "ERROR"
+        Tunnel.State.DOWN -> "DISCONNECTED"
+        Tunnel.State.TOGGLE -> "CONNECTING"
+      }
+      return mapOf(
+        "status" to status,
+        "interfaceName" to (interfaceName ?: ""),
+        "interfaceOk" to interfaceOk,
+        "routingOk" to interfaceOk,
+        "details" to if (interfaceOk) {
+          "Android VPN interface $interfaceName is active."
+        } else {
+          "No Android VPN interface detected."
+        },
+      )
+    }
+
+    private fun detectTunnelInterfaceName(): String? {
+      return try {
+        NetworkInterface.getNetworkInterfaces().toList()
+          .map { it.name }
+          .firstOrNull { name ->
+            name.startsWith("tun") || name.startsWith("wg") || name.startsWith("ppp")
+          }
+      } catch (_: Exception) {
+        null
+      }
+    }
   }
 }

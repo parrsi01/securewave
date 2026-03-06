@@ -18,7 +18,8 @@ class BootScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('SecureWave', style: Theme.of(context).textTheme.headlineMedium),
+              Text('SecureWave',
+                  style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: AppUIv1.space2),
               Text(
                 boot.status == BootStatus.failed
@@ -29,7 +30,8 @@ class BootScreen extends ConsumerWidget {
               const SizedBox(height: AppUIv1.space4),
               if (boot.status == BootStatus.initializing)
                 const LinearProgressIndicator(minHeight: 3),
-              if (boot.status == BootStatus.failed && boot.errorMessage != null) ...[
+              if (boot.status == BootStatus.failed &&
+                  boot.errorMessage != null) ...[
                 const SizedBox(height: AppUIv1.space3),
                 Text(
                   boot.errorMessage!,

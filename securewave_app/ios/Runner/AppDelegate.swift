@@ -10,9 +10,13 @@ import UIKit
     GeneratedPluginRegistrant.register(with: self)
 
     if let controller = window?.rootViewController as? FlutterViewController {
-      let channel = FlutterMethodChannel(name: "securewave/vpn", binaryMessenger: controller.binaryMessenger)
-      channel.setMethodCallHandler { call, result in
+      let messenger = controller.binaryMessenger
+
+      let vpnChannel = FlutterMethodChannel(name: "securewave/vpn", binaryMessenger: messenger)
+      vpnChannel.setMethodCallHandler { call, result in
         switch call.method {
+        case "isAvailable":
+          result(true)
         case "connect":
           guard let args = call.arguments as? [String: Any],
                 let config = args["config"] as? String,
@@ -21,7 +25,7 @@ import UIKit
             return
           }
           SecureWaveVPNManager.shared.connect(config: config) { error in
-            if let error = error {
+            if let error {
               result(FlutterError(code: "vpn_connect_failed", message: error.localizedDescription, details: nil))
             } else {
               result(nil)
@@ -30,6 +34,33 @@ import UIKit
         case "disconnect":
           SecureWaveVPNManager.shared.disconnect {
             result(nil)
+          }
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+
+      let trafficChannel = FlutterMethodChannel(name: "securewave/traffic_stats", binaryMessenger: messenger)
+      trafficChannel.setMethodCallHandler { call, result in
+        switch call.method {
+        case "getTrafficStats":
+          SecureWaveVPNManager.shared.trafficStats { payload in
+            result(payload)
+          }
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+
+      let tunnelStatusChannel = FlutterMethodChannel(
+        name: "securewave/tunnel_status",
+        binaryMessenger: messenger
+      )
+      tunnelStatusChannel.setMethodCallHandler { call, result in
+        switch call.method {
+        case "getTunnelStatus":
+          SecureWaveVPNManager.shared.tunnelStatus { payload in
+            result(payload)
           }
         default:
           result(FlutterMethodNotImplemented)

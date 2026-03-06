@@ -10,8 +10,10 @@ import 'features/auth/register_page.dart';
 import 'features/bootstrap/boot_screen.dart';
 import 'features/bootstrap/fallback_error_screen.dart';
 import 'features/servers/servers_page.dart';
+import 'features/settings/diagnostics_page.dart';
 import 'features/settings/language_page.dart';
 import 'features/settings/settings_page.dart';
+import 'features/vpn/connection_page.dart';
 import 'features/vpn/vpn_page.dart';
 import 'core/routing/app_shell.dart';
 
@@ -104,9 +106,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 _fadePage<void>(state: state, child: const VpnPage()),
           ),
           GoRoute(
+            path: '/connection',
+            pageBuilder: (context, state) =>
+                _fadePage<void>(state: state, child: const ConnectionPage()),
+          ),
+          GoRoute(
             path: '/servers',
             pageBuilder: (context, state) =>
                 _fadePage<void>(state: state, child: const ServersPage()),
+          ),
+          GoRoute(
+            path: '/diagnostics',
+            pageBuilder: (context, state) =>
+                _fadePage<void>(state: state, child: const DiagnosticsPage()),
           ),
           GoRoute(
             path: '/settings',
@@ -128,7 +140,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
-        child: Text('Page not found', style: Theme.of(context).textTheme.titleLarge),
+        child: Text('Page not found',
+            style: Theme.of(context).textTheme.titleLarge),
       ),
     ),
   );
