@@ -1,0 +1,107 @@
+Redirect Debug Evidence
+Timestamp: 2026-02-28T14:27:47Z
+
+Flutter Base URL Source
+- File: securewave_app/lib/core/constants/app_constants.dart
+- baseUrlFallback: http://138.199.204.139/api
+- securewave_app/.env: SECUREWAVE_API_BASE_URL=http://138.199.204.139/api
+- Config precedence in securewave_app/lib/core/config/app_config.dart:
+  1. SECUREWAVE_API_BASE_URL dart-define
+  2. SECUREWAVE_API_BASE_URL from .env
+  3. AppConstants.baseUrlFallback
+- Login path in securewave_app/lib/services/api_client.dart: POST /auth/login
+- Exact Flutter login URL: http://138.199.204.139/api/auth/login
+
+Phase 1: Initial Redirect Probe (Before Fix)
+- Probe: curl -I http://138.199.204.139/api/auth/login
+- Result:
+  HTTP/1.1 301 Moved Permanently
+  Server: nginx/1.18.0 (Ubuntu)
+  Location: https://138.199.204.139/api/auth/login
+- Redirect type: HTTP -> HTTPS
+- Redirect target issue: HTTPS listener presented a self-signed certificate, causing TLS trust failure for strict clients.
+
+Additional Pre-Fix Probes
+- curl -I https://138.199.204.139/api/auth/login
+  Result: curl: (60) SSL certificate problem: self-signed certificate
+- curl -I http://138.199.204.139:8080/api/auth/login
+  Result: timed out from the Flutter machine
+- Conclusion: adding :8080 to the app URL would not solve the reachable client path.
+
+Phase 2: Redirect Origin Layer
+- Remote host: securewave-prod
+- nginx active: yes
+- nginx config (pre-fix):
+  server {
+      listen 80;
+      listen [::]:80;
+      server_name _;
+      return 301 https://$host$request_uri;
+  }
+- HTTPS listener:
+  listen 443 ssl;
+  ssl_certificate /etc/ssl/certs/securewave-selfsigned.crt;
+  ssl_certificate_key /etc/ssl/private/securewave-selfsigned.key;
+- Backend binding:
+  gunicorn main:app --worker-class uvicorn.workers.UvicornWorker --bind 127.0.0.1:8080
+- Port bindings on VPS:
+  127.0.0.1:8080 -> gunicorn
+  0.0.0.0:80 -> nginx
+  0.0.0.0:443 -> nginx
+- App HTTPS middleware search:
+  No HTTPSRedirectMiddleware found.
+  main.py contains custom enforce_https_forwarded_proto middleware only.
+  Runtime ENVIRONMENT on VPS process: development
+  In development, that middleware does not force HTTPS.
+- Trailing slash probe on backend:
+  curl -I http://127.0.0.1:8080/api/auth/login   -> 405 Method Not Allowed (route reached; no HTTPS redirect)
+  curl -I http://127.0.0.1:8080/api/auth/login/  -> 307 Temporary Redirect to /api/auth/login
+- Redirect source determination:
+  Primary failing redirect source: nginx port-80 canonical redirect
+  Not caused by FastAPI HTTPSRedirectMiddleware
+  Not caused by missing :8080 in the Flutter base URL
+  Not caused by backend route code
+
+Phase 3: Minimal Surgical Fix Applied
+- Layer changed: remote nginx reverse proxy only
+- File changed on VPS: /etc/nginx/sites-enabled/securewave
+- Backup moved to: /root/securewave.bak_20260228T142747Z
+- Change:
+  Port 80 now proxies only /api/ to the backend with X-Forwarded-Proto=http.
+  Non-API HTTP traffic still redirects to HTTPS.
+- Reload result:
+  nginx syntax ok
+  nginx configuration test successful
+  nginx reloaded successfully
+
+Post-Fix Verification
+- Probe: curl -I http://138.199.204.139/api/auth/login
+- Result:
+  HTTP/1.1 405 Method Not Allowed
+  Allow: POST
+- Interpretation: route is reached directly; no 301 redirect remains
+
+- Probe: curl -I http://138.199.204.139/api/auth/login/
+- Result:
+  HTTP/1.1 307 Temporary Redirect
+  location: http://138.199.204.139/api/auth/login
+- Interpretation: only normal trailing-slash normalization remains
+
+- Probe: POST /api/auth/register
+  Payload: redirect_smoke_20260228T142747@example.com / StrongPass123!
+  Result: HTTP 201
+
+- Probe: POST /api/auth/login
+  Payload: redirect_smoke_20260228T142747@example.com / StrongPass123!
+  Result: HTTP 200
+  Result body contained: access_token, refresh_token, token_type=bearer, requires_2fa=false
+
+- Probe: GET /api/vpn/servers with Bearer token from login
+  Result: HTTP 200
+  Result body contained one server entry (securewave-prod)
+
+Flutter Verification
+- Temporary local smoke test used the real Dart ApiClient against http://138.199.204.139/api
+- Test action: ApiClient.login(...) then GET /vpn/servers with returned token
+- Result: pass
+- Flutter output summary: All tests passed; no DioException; no redirect-related failure

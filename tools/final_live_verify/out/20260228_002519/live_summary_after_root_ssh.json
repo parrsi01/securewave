@@ -1,0 +1,28 @@
+{
+  "openvpn": {
+    "status": "200",
+    "ok": false,
+    "details": {
+      "remote_line": "remote 138.199.204.139 1194",
+      "has_ca": true,
+      "has_cert": false,
+      "has_key": false
+    }
+  },
+  "ikev2": {
+    "status": "200",
+    "ok": true,
+    "details": {
+      "server": "138.199.204.139",
+      "has_username": true,
+      "has_password": true,
+      "proposals": [
+        "ike=aes256gcm16-prfsha256-ecp256",
+        "esp=aes256gcm16-ecp256"
+      ],
+      "traffic_selectors": [
+        "0.0.0.0/0"
+      ]
+    }
+  }
+}

@@ -1,0 +1,234 @@
+# backup=/etc/openvpn/server/server.conf.bak.20260227_202256
+# active unit status
+● openvpn-server@server.service - OpenVPN service for server
+     Loaded: loaded (/lib/systemd/system/openvpn-server@.service; enabled; vendor preset: enabled)
+     Active: active (running) since Fri 2026-02-27 20:22:58 UTC; 1s ago
+       Docs: man:openvpn(8)
+             https://community.openvpn.net/openvpn/wiki/Openvpn24ManPage
+             https://community.openvpn.net/openvpn/wiki/HOWTO
+   Main PID: 1346782 (openvpn)
+     Status: "Initialization Sequence Completed"
+      Tasks: 1 (limit: 9247)
+     Memory: 1.8M
+        CPU: 19ms
+     CGroup: /system.slice/system-openvpn\x2dserver.slice/openvpn-server@server.service
+             └─1346782 /usr/sbin/openvpn --status /run/openvpn-server/status-server.log --status-version 2 --suppress-timestamps --config server.conf
+
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: net_addr_v4_add: 10.9.0.1/24 dev tun0
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Could not determine IPv4/IPv6 protocol. Using AF_INET
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Socket Buffers: R=[212992->212992] S=[212992->212992]
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: UDPv4 link local (bound): [AF_INET][undef]:1194
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: UDPv4 link remote: [AF_UNSPEC]
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: GID set to nogroup
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: UID set to nobody
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: MULTI: multi_init called, r=256 v=256
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: IFCONFIG POOL IPv4: base=10.9.0.2 size=253
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Initialization Sequence Completed
+
+# recent journal
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: 127.0.0.1:51917 peer info: IV_LZO=1
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: 127.0.0.1:51917 peer info: IV_COMP_STUB=1
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: 127.0.0.1:51917 peer info: IV_COMP_STUBv2=1
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: 127.0.0.1:51917 peer info: IV_TCPNL=1
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: 127.0.0.1:51917 Control Channel: TLSv1.3, cipher TLSv1.3 TLS_AES_256_GCM_SHA384, peer certificate: 2048 bit RSA, signature: RSA-SHA256
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: 127.0.0.1:51917 [sw-egress-client] Peer Connection Initiated with [AF_INET]127.0.0.1:51917
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: sw-egress-client/127.0.0.1:51917 MULTI_sva: pool returned IPv4=10.9.0.2, IPv6=(Not enabled)
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: sw-egress-client/127.0.0.1:51917 MULTI: Learn: 10.9.0.2 -> sw-egress-client/127.0.0.1:51917
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: sw-egress-client/127.0.0.1:51917 MULTI: primary virtual IP for sw-egress-client/127.0.0.1:51917: 10.9.0.2
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: sw-egress-client/127.0.0.1:51917 Outgoing Data Channel: Cipher 'AES-256-GCM' initialized with 256 bit key
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: sw-egress-client/127.0.0.1:51917 Incoming Data Channel: Cipher 'AES-256-GCM' initialized with 256 bit key
+Feb 27 20:04:56 securewave-prod openvpn[1324320]: sw-egress-client/127.0.0.1:51917 SENT CONTROL [sw-egress-client]: 'PUSH_REPLY,redirect-gateway def1 bypass-dhcp,dhcp-option DNS 1.1.1.1,dhcp-option DNS 1.0.0.1,dhcp-option DNS 8.8.8.8,route-gateway 10.9.0.1,topology subnet,ping 10,ping-restart 60,ifconfig 10.9.0.2 255.255.255.0,peer-id 0,cipher AES-256-GCM' (status=1)
+Feb 27 20:05:31 securewave-prod openvpn[1324320]: event_wait : Interrupted system call (code=4)
+Feb 27 20:05:31 securewave-prod openvpn[1324320]: SENT CONTROL [sw-egress-client]: 'RESTART' (status=1)
+Feb 27 20:05:31 securewave-prod systemd[1]: Stopping OpenVPN service for server...
+Feb 27 20:05:33 securewave-prod openvpn[1324320]: Closing TUN/TAP interface
+Feb 27 20:05:33 securewave-prod openvpn[1324320]: net_addr_v4_del: 10.9.0.1 dev tun0
+Feb 27 20:05:33 securewave-prod openvpn[1324320]: sitnl_send: rtnl: generic error (-1): Operation not permitted
+Feb 27 20:05:33 securewave-prod openvpn[1324320]: Linux can't del IP from iface tun0
+Feb 27 20:05:33 securewave-prod openvpn[1324320]: SIGTERM[hard,] received, process exiting
+Feb 27 20:05:33 securewave-prod systemd[1]: openvpn-server@server.service: Deactivated successfully.
+Feb 27 20:05:33 securewave-prod systemd[1]: Stopped OpenVPN service for server.
+Feb 27 20:05:33 securewave-prod systemd[1]: Starting OpenVPN service for server...
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: Consider setting groups/curves preference with tls-groups instead of forcing a specific curve with ecdh-curve.
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: OpenVPN 2.5.11 x86_64-pc-linux-gnu [SSL (OpenSSL)] [LZO] [LZ4] [EPOLL] [PKCS11] [MH/PKTINFO] [AEAD] built on Sep 17 2024
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: library versions: OpenSSL 3.0.2 15 Mar 2022, LZO 2.10
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: net_route_v4_best_gw query: dst 0.0.0.0
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: net_route_v4_best_gw result: via 172.31.1.1 dev eth0
+Feb 27 20:05:33 securewave-prod systemd[1]: Started OpenVPN service for server.
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: ECDH curve prime256v1 added
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: TUN/TAP device tun0 opened
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: net_iface_mtu_set: mtu 1500 for tun0
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: net_iface_up: set tun0 up
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: net_addr_v4_add: 10.9.0.1/24 dev tun0
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: Could not determine IPv4/IPv6 protocol. Using AF_INET
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: Socket Buffers: R=[212992->212992] S=[212992->212992]
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: UDPv4 link local (bound): [AF_INET][undef]:1194
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: UDPv4 link remote: [AF_UNSPEC]
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: GID set to nogroup
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: UID set to nobody
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: MULTI: multi_init called, r=256 v=256
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: IFCONFIG POOL IPv4: base=10.9.0.2 size=253
+Feb 27 20:05:33 securewave-prod openvpn[1325677]: Initialization Sequence Completed
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 TLS: Initial packet from [AF_INET]127.0.0.1:44753, sid=1770bc11 d2e22af4
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 VERIFY OK: depth=1, CN=SecureWave OpenVPN CA
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 VERIFY OK: depth=0, CN=sw-egress-client
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_VER=2.5.11
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_PLAT=linux
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_PROTO=6
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_NCP=2
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_CIPHERS=AES-256-GCM:AES-128-GCM
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_LZ4=1
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_LZ4v2=1
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_LZO=1
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_COMP_STUB=1
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_COMP_STUBv2=1
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 peer info: IV_TCPNL=1
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 Control Channel: TLSv1.3, cipher TLSv1.3 TLS_AES_256_GCM_SHA384, peer certificate: 2048 bit RSA, signature: RSA-SHA256
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: 127.0.0.1:44753 [sw-egress-client] Peer Connection Initiated with [AF_INET]127.0.0.1:44753
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: sw-egress-client/127.0.0.1:44753 MULTI_sva: pool returned IPv4=10.9.0.2, IPv6=(Not enabled)
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: sw-egress-client/127.0.0.1:44753 MULTI: Learn: 10.9.0.2 -> sw-egress-client/127.0.0.1:44753
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: sw-egress-client/127.0.0.1:44753 MULTI: primary virtual IP for sw-egress-client/127.0.0.1:44753: 10.9.0.2
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: sw-egress-client/127.0.0.1:44753 Outgoing Data Channel: Cipher 'AES-256-GCM' initialized with 256 bit key
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: sw-egress-client/127.0.0.1:44753 Incoming Data Channel: Cipher 'AES-256-GCM' initialized with 256 bit key
+Feb 27 20:05:36 securewave-prod openvpn[1325677]: sw-egress-client/127.0.0.1:44753 SENT CONTROL [sw-egress-client]: 'PUSH_REPLY,redirect-gateway def1 bypass-dhcp,dhcp-option DNS 1.1.1.1,dhcp-option DNS 1.0.0.1,dhcp-option DNS 8.8.8.8,route-gateway 10.9.0.1,topology subnet,ping 10,ping-restart 60,ifconfig 10.9.0.2 255.255.255.0,peer-id 0,cipher AES-256-GCM' (status=1)
+Feb 27 20:06:02 securewave-prod openvpn[1325677]: 172.30.12.2:47759 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:06:02 securewave-prod openvpn[1325677]: 172.30.12.2:47759 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:06:02 securewave-prod openvpn[1325677]: 172.30.12.2:47759 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:06:02 securewave-prod openvpn[1325677]: 172.30.12.2:47759 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:06:02 securewave-prod openvpn[1325677]: 172.30.12.2:47759 TLS: Initial packet from [AF_INET]172.30.12.2:47759, sid=5f56f1dd 19bc1329
+Feb 27 20:06:11 securewave-prod openvpn[1325677]: event_wait : Interrupted system call (code=4)
+Feb 27 20:06:11 securewave-prod openvpn[1325677]: SENT CONTROL [UNDEF]: 'RESTART' (status=1)
+Feb 27 20:06:11 securewave-prod openvpn[1325677]: SENT CONTROL [sw-egress-client]: 'RESTART' (status=1)
+Feb 27 20:06:11 securewave-prod systemd[1]: Stopping OpenVPN service for server...
+Feb 27 20:06:13 securewave-prod openvpn[1325677]: Closing TUN/TAP interface
+Feb 27 20:06:13 securewave-prod openvpn[1325677]: net_addr_v4_del: 10.9.0.1 dev tun0
+Feb 27 20:06:13 securewave-prod openvpn[1325677]: sitnl_send: rtnl: generic error (-1): Operation not permitted
+Feb 27 20:06:13 securewave-prod openvpn[1325677]: Linux can't del IP from iface tun0
+Feb 27 20:06:13 securewave-prod openvpn[1325677]: SIGTERM[hard,] received, process exiting
+Feb 27 20:06:13 securewave-prod systemd[1]: openvpn-server@server.service: Deactivated successfully.
+Feb 27 20:06:13 securewave-prod systemd[1]: Stopped OpenVPN service for server.
+Feb 27 20:06:13 securewave-prod systemd[1]: Starting OpenVPN service for server...
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: Consider setting groups/curves preference with tls-groups instead of forcing a specific curve with ecdh-curve.
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: OpenVPN 2.5.11 x86_64-pc-linux-gnu [SSL (OpenSSL)] [LZO] [LZ4] [EPOLL] [PKCS11] [MH/PKTINFO] [AEAD] built on Sep 17 2024
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: library versions: OpenSSL 3.0.2 15 Mar 2022, LZO 2.10
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: net_route_v4_best_gw query: dst 0.0.0.0
+Feb 27 20:06:13 securewave-prod systemd[1]: Started OpenVPN service for server.
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: net_route_v4_best_gw result: via 172.31.1.1 dev eth0
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: ECDH curve prime256v1 added
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: TUN/TAP device tun0 opened
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: net_iface_mtu_set: mtu 1500 for tun0
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: net_iface_up: set tun0 up
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: net_addr_v4_add: 10.9.0.1/24 dev tun0
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: Could not determine IPv4/IPv6 protocol. Using AF_INET
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: Socket Buffers: R=[212992->212992] S=[212992->212992]
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: UDPv4 link local (bound): [AF_INET][undef]:1194
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: UDPv4 link remote: [AF_UNSPEC]
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: GID set to nogroup
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: UID set to nobody
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: MULTI: multi_init called, r=256 v=256
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: IFCONFIG POOL IPv4: base=10.9.0.2 size=253
+Feb 27 20:06:13 securewave-prod openvpn[1326889]: Initialization Sequence Completed
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 TLS: Initial packet from [AF_INET]127.0.0.1:35908, sid=270ca550 a931cb00
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 VERIFY OK: depth=1, CN=SecureWave OpenVPN CA
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 VERIFY OK: depth=0, CN=sw-egress-client
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_VER=2.5.11
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_PLAT=linux
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_PROTO=6
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_NCP=2
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_CIPHERS=AES-256-GCM:AES-128-GCM
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_LZ4=1
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_LZ4v2=1
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_LZO=1
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_COMP_STUB=1
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_COMP_STUBv2=1
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 peer info: IV_TCPNL=1
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 Control Channel: TLSv1.3, cipher TLSv1.3 TLS_AES_256_GCM_SHA384, peer certificate: 2048 bit RSA, signature: RSA-SHA256
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 127.0.0.1:35908 [sw-egress-client] Peer Connection Initiated with [AF_INET]127.0.0.1:35908
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: sw-egress-client/127.0.0.1:35908 MULTI_sva: pool returned IPv4=10.9.0.2, IPv6=(Not enabled)
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: sw-egress-client/127.0.0.1:35908 MULTI: Learn: 10.9.0.2 -> sw-egress-client/127.0.0.1:35908
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: sw-egress-client/127.0.0.1:35908 MULTI: primary virtual IP for sw-egress-client/127.0.0.1:35908: 10.9.0.2
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: sw-egress-client/127.0.0.1:35908 Outgoing Data Channel: Cipher 'AES-256-GCM' initialized with 256 bit key
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: sw-egress-client/127.0.0.1:35908 Incoming Data Channel: Cipher 'AES-256-GCM' initialized with 256 bit key
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: sw-egress-client/127.0.0.1:35908 SENT CONTROL [sw-egress-client]: 'PUSH_REPLY,redirect-gateway def1 bypass-dhcp,dhcp-option DNS 1.1.1.1,dhcp-option DNS 1.0.0.1,dhcp-option DNS 8.8.8.8,route-gateway 10.9.0.1,topology subnet,ping 10,ping-restart 60,ifconfig 10.9.0.2 255.255.255.0,peer-id 0,cipher AES-256-GCM' (status=1)
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 172.30.12.2:47759 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 172.30.12.2:47759 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 172.30.12.2:47759 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 172.30.12.2:47759 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:06:16 securewave-prod openvpn[1326889]: 172.30.12.2:47759 TLS: Initial packet from [AF_INET]172.30.12.2:47759, sid=5f56f1dd 19bc1329
+Feb 27 20:07:16 securewave-prod openvpn[1326889]: 172.30.12.2:47759 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 20:07:16 securewave-prod openvpn[1326889]: 172.30.12.2:47759 TLS Error: TLS handshake failed
+Feb 27 20:07:16 securewave-prod openvpn[1326889]: 172.30.12.2:47759 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 20:08:45 securewave-prod openvpn[1326889]: sw-egress-client/127.0.0.1:35908 [sw-egress-client] Inactivity timeout (--ping-restart), restarting
+Feb 27 20:08:45 securewave-prod openvpn[1326889]: sw-egress-client/127.0.0.1:35908 SIGUSR1[soft,ping-restart] received, client-instance restarting
+Feb 27 20:12:02 securewave-prod openvpn[1326889]: 172.30.12.2:49598 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:12:02 securewave-prod openvpn[1326889]: 172.30.12.2:49598 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:12:02 securewave-prod openvpn[1326889]: 172.30.12.2:49598 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:12:02 securewave-prod openvpn[1326889]: 172.30.12.2:49598 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:12:02 securewave-prod openvpn[1326889]: 172.30.12.2:49598 TLS: Initial packet from [AF_INET]172.30.12.2:49598, sid=f49a3a12 8d35cc0b
+Feb 27 20:13:02 securewave-prod openvpn[1326889]: 172.30.12.2:49598 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 20:13:02 securewave-prod openvpn[1326889]: 172.30.12.2:49598 TLS Error: TLS handshake failed
+Feb 27 20:13:02 securewave-prod openvpn[1326889]: 172.30.12.2:49598 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 20:18:02 securewave-prod openvpn[1326889]: 172.30.12.2:53557 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:18:02 securewave-prod openvpn[1326889]: 172.30.12.2:53557 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:18:02 securewave-prod openvpn[1326889]: 172.30.12.2:53557 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:18:02 securewave-prod openvpn[1326889]: 172.30.12.2:53557 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:18:02 securewave-prod openvpn[1326889]: 172.30.12.2:53557 TLS: Initial packet from [AF_INET]172.30.12.2:53557, sid=d22b6da1 55128e0e
+Feb 27 20:19:03 securewave-prod openvpn[1326889]: 172.30.12.2:53557 TLS Error: TLS key negotiation failed to occur within 60 seconds (check your network connectivity)
+Feb 27 20:19:03 securewave-prod openvpn[1326889]: 172.30.12.2:53557 TLS Error: TLS handshake failed
+Feb 27 20:19:03 securewave-prod openvpn[1326889]: 172.30.12.2:53557 SIGUSR1[soft,tls-error] received, client-instance restarting
+Feb 27 20:22:56 securewave-prod openvpn[1326889]: event_wait : Interrupted system call (code=4)
+Feb 27 20:22:56 securewave-prod systemd[1]: Stopping OpenVPN service for server...
+Feb 27 20:22:58 securewave-prod openvpn[1326889]: Closing TUN/TAP interface
+Feb 27 20:22:58 securewave-prod openvpn[1326889]: net_addr_v4_del: 10.9.0.1 dev tun0
+Feb 27 20:22:58 securewave-prod openvpn[1326889]: sitnl_send: rtnl: generic error (-1): Operation not permitted
+Feb 27 20:22:58 securewave-prod openvpn[1326889]: Linux can't del IP from iface tun0
+Feb 27 20:22:58 securewave-prod openvpn[1326889]: SIGTERM[hard,] received, process exiting
+Feb 27 20:22:58 securewave-prod systemd[1]: openvpn-server@server.service: Deactivated successfully.
+Feb 27 20:22:58 securewave-prod systemd[1]: Stopped OpenVPN service for server.
+Feb 27 20:22:58 securewave-prod systemd[1]: Starting OpenVPN service for server...
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Consider setting groups/curves preference with tls-groups instead of forcing a specific curve with ecdh-curve.
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: OpenVPN 2.5.11 x86_64-pc-linux-gnu [SSL (OpenSSL)] [LZO] [LZ4] [EPOLL] [PKCS11] [MH/PKTINFO] [AEAD] built on Sep 17 2024
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: library versions: OpenSSL 3.0.2 15 Mar 2022, LZO 2.10
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: net_route_v4_best_gw query: dst 0.0.0.0
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: net_route_v4_best_gw result: via 172.31.1.1 dev eth0
+Feb 27 20:22:58 securewave-prod systemd[1]: Started OpenVPN service for server.
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: ECDH curve prime256v1 added
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: TUN/TAP device tun0 opened
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: net_iface_mtu_set: mtu 1500 for tun0
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: net_iface_up: set tun0 up
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: net_addr_v4_add: 10.9.0.1/24 dev tun0
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Could not determine IPv4/IPv6 protocol. Using AF_INET
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Socket Buffers: R=[212992->212992] S=[212992->212992]
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: UDPv4 link local (bound): [AF_INET][undef]:1194
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: UDPv4 link remote: [AF_UNSPEC]
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: GID set to nogroup
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: UID set to nobody
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: MULTI: multi_init called, r=256 v=256
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: IFCONFIG POOL IPv4: base=10.9.0.2 size=253
+Feb 27 20:22:58 securewave-prod openvpn[1346782]: Initialization Sequence Completed
+
+# nat masquerade
+-A POSTROUTING -s 172.30.12.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.9.0.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.10.0.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE

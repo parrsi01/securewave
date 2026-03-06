@@ -1,0 +1,69 @@
+=== script ===
+#!/usr/bin/env bash
+set -euo pipefail
+OUT_IF="$(ip -4 route show default | awk '{print $5; exit}')"
+[ -n "$OUT_IF" ] || OUT_IF=eth0
+
+# WireGuard
+iptables -t nat -C POSTROUTING -s 10.8.0.0/24 -o "$OUT_IF" -j MASQUERADE >/dev/null 2>&1 || iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o "$OUT_IF" -j MASQUERADE
+iptables -C FORWARD -i wg0 -o "$OUT_IF" -j ACCEPT >/dev/null 2>&1 || iptables -A FORWARD -i wg0 -o "$OUT_IF" -j ACCEPT
+iptables -C FORWARD -i "$OUT_IF" -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1 || iptables -A FORWARD -i "$OUT_IF" -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+# OpenVPN
+iptables -t nat -C POSTROUTING -s 10.9.0.0/24 -o "$OUT_IF" -j MASQUERADE >/dev/null 2>&1 || iptables -t nat -A POSTROUTING -s 10.9.0.0/24 -o "$OUT_IF" -j MASQUERADE
+iptables -C FORWARD -i tun0 -o "$OUT_IF" -j ACCEPT >/dev/null 2>&1 || iptables -A FORWARD -i tun0 -o "$OUT_IF" -j ACCEPT
+iptables -C FORWARD -i "$OUT_IF" -o tun0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1 || iptables -A FORWARD -i "$OUT_IF" -o tun0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+# IKEv2
+iptables -t nat -C POSTROUTING -s 10.10.0.0/24 -o "$OUT_IF" -j MASQUERADE >/dev/null 2>&1 || iptables -t nat -A POSTROUTING -s 10.10.0.0/24 -o "$OUT_IF" -j MASQUERADE
+iptables -C FORWARD -m policy --pol ipsec --dir in -j ACCEPT >/dev/null 2>&1 || iptables -A FORWARD -m policy --pol ipsec --dir in -j ACCEPT
+iptables -C FORWARD -m policy --pol ipsec --dir out -j ACCEPT >/dev/null 2>&1 || iptables -A FORWARD -m policy --pol ipsec --dir out -j ACCEPT
+
+=== unit ===
+[Unit]
+Description=Restore SecureWave VPN firewall rules
+After=network-online.target ufw.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/securewave-firewall-restore.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+
+=== status ===
+● securewave-firewall-restore.service - Restore SecureWave VPN firewall rules
+     Loaded: loaded (/etc/systemd/system/securewave-firewall-restore.service; enabled; vendor preset: enabled)
+     Active: active (exited) since Fri 2026-02-27 23:15:23 UTC; 6ms ago
+    Process: 136578 ExecStart=/usr/local/sbin/securewave-firewall-restore.sh (code=exited, status=0/SUCCESS)
+   Main PID: 136578 (code=exited, status=0/SUCCESS)
+        CPU: 17ms
+
+Feb 27 23:15:23 securewave-prod systemd[1]: Starting Restore SecureWave VPN firewall rules...
+Feb 27 23:15:23 securewave-prod systemd[1]: Finished Restore SecureWave VPN firewall rules.
+
+=== nat ===
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.9.0.0/24 -o eth0 -j MASQUERADE
+-A POSTROUTING -s 10.10.0.0/24 -o eth0 -j MASQUERADE
+
+=== forward ===
+-P FORWARD DROP
+-A FORWARD -j ufw-before-logging-forward
+-A FORWARD -j ufw-before-forward
+-A FORWARD -j ufw-after-forward
+-A FORWARD -j ufw-after-logging-forward
+-A FORWARD -j ufw-reject-forward
+-A FORWARD -j ufw-track-forward
+-A FORWARD -i wg0 -o eth0 -j ACCEPT
+-A FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -i tun0 -o eth0 -j ACCEPT
+-A FORWARD -i eth0 -o tun0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -m policy --dir in --pol ipsec -j ACCEPT
+-A FORWARD -m policy --dir out --pol ipsec -j ACCEPT

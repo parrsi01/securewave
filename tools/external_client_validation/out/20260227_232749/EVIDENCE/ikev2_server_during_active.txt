@@ -1,0 +1,61 @@
+[SERVER DURING ACTIVE]
+Status of IKE charon daemon (strongSwan 5.9.5, Linux 5.15.0-170-generic, x86_64):
+  uptime: 28 minutes, since Feb 27 23:06:14 2026
+  malloc: sbrk 3555328, mmap 0, used 1699648, free 1855680
+  worker threads: 11 of 16 idle, 5/0/0/0 working, job queue: 0/0/0/0, scheduled: 3
+  loaded plugins: charon aesni aes rc2 sha2 sha1 md5 mgf1 random nonce x509 revocation constraints pubkey pkcs1 pkcs7 pkcs8 pkcs12 pgp dnskey sshkey pem openssl fips-prf gmp agent xcbc hmac gcm drbg attr kernel-netlink resolve socket-default connmark forecast farp stroke updown eap-identity eap-aka eap-md5 eap-gtc eap-mschapv2 eap-dynamic eap-radius eap-tls eap-ttls eap-peap eap-tnc xauth-generic xauth-eap xauth-pam tnc-tnccs dhcp lookip error-notify certexpire led addrblock unity counters
+Virtual IP pools (size/online/offline):
+  10.10.0.10-10.10.0.250: 241/1/1
+Listening IP addresses:
+  138.199.204.139
+  2a01:4f8:1c1f:9b0b::1
+  10.255.1.1
+  10.8.0.1
+  10.9.0.1
+Connections:
+securewave-ikev2-eap:  %any...%any  IKEv2, dpddelay=300s
+securewave-ikev2-eap:   local:  [138.199.204.139] uses public key authentication
+securewave-ikev2-eap:    cert:  "CN=138.199.204.139"
+securewave-ikev2-eap:   remote: uses EAP_MSCHAPV2 authentication with EAP identity '%any'
+securewave-ikev2-eap:   child:  0.0.0.0/0 === dynamic TUNNEL, dpdaction=clear
+Security Associations (1 up, 0 connecting):
+securewave-ikev2-eap[4]: ESTABLISHED 3 seconds ago, 138.199.204.139[138.199.204.139]...5.223.54.59[5.223.54.59]
+securewave-ikev2-eap[4]: Remote EAP identity: sw_ext_20260227_232749
+securewave-ikev2-eap[4]: IKEv2 SPIs: 5ddee263390d34cb_i 5e731f2df19d8dff_r*, rekeying disabled
+securewave-ikev2-eap[4]: IKE proposal: AES_GCM_16_256/PRF_HMAC_SHA2_256/ECP_256
+securewave-ikev2-eap{3}:  INSTALLED, TUNNEL, reqid 1, ESP in UDP SPIs: ca06713f_i cb1d1fba_o
+securewave-ikev2-eap{3}:  AES_GCM_16_256, 112 bytes_i (2 pkts, 0s ago), 60 bytes_o (1 pkt, 0s ago), rekeying disabled
+securewave-ikev2-eap{3}:   0.0.0.0/0 === 10.10.0.11/32
+--- xfrm state ---
+src 138.199.204.139 dst 5.223.54.59
+	proto esp spi 0xcb1d1fba(3407683514) reqid 1(0x00000001) mode tunnel
+	replay-window 0 seq 0x00000000 flag af-unspec (0x00100000)
+	aead rfc4106(gcm(aes)) 0xd4ff51eab9bc2a8b5b13222a7797ef12f159fb2f4dc0bfd893c0a0502610c11f0379cab7 (288 bits) 128
+	encap type espinudp sport 4500 dport 4500 addr 0.0.0.0
+	anti-replay context: seq 0x0, oseq 0x1, bitmap 0x00000000
+	lifetime config:
+	  limit: soft (INF)(bytes), hard (INF)(bytes)
+	  limit: soft (INF)(packets), hard (INF)(packets)
+	  expire add: soft 0(sec), hard 0(sec)
+	  expire use: soft 0(sec), hard 0(sec)
+	lifetime current:
+	  60(bytes), 1(packets)
+	  add 2026-02-27 23:35:07 use 2026-02-27 23:35:10
+	stats:
+	  replay-window 0 replay 0 failed 0
+src 5.223.54.59 dst 138.199.204.139
+	proto esp spi 0xca06713f(3389419839) reqid 1(0x00000001) mode tunnel
+	replay-window 32 seq 0x00000000 flag af-unspec (0x00100000)
+	aead rfc4106(gcm(aes)) 0x96aba6215ff70458e5f5abbf45477ba285881166312407e76a29e534b45fcbf86d6e1b78 (288 bits) 128
+	encap type espinudp sport 4500 dport 4500 addr 0.0.0.0
+	anti-replay context: seq 0x2, oseq 0x0, bitmap 0x00000003
+	lifetime config:
+	  limit: soft (INF)(bytes), hard (INF)(bytes)
+	  limit: soft (INF)(packets), hard (INF)(packets)
+	  expire add: soft 0(sec), hard 0(sec)
+	  expire use: soft 0(sec), hard 0(sec)
+	lifetime current:
+	  112(bytes), 2(packets)
+	  add 2026-02-27 23:35:07 use 2026-02-27 23:35:10
+	stats:
+	  replay-window 0 replay 0 failed 0

@@ -1,0 +1,89 @@
+[IKEV2]
+# /lib/systemd/system/strongswan-starter.service
+[Unit]
+Description=strongSwan IPsec IKEv1/IKEv2 daemon using ipsec.conf
+After=network-online.target
+
+[Service]
+ExecStart=/usr/sbin/ipsec start --nofork
+ExecReload=/usr/sbin/ipsec reload
+Restart=on-abnormal
+
+[Install]
+WantedBy=multi-user.target
+---ipsec.conf---
+config setup
+  uniqueids=no
+
+conn securewave-ikev2-eap
+  auto=add
+  type=tunnel
+  keyexchange=ikev2
+  fragmentation=yes
+  forceencaps=yes
+  dpdaction=clear
+  dpddelay=300s
+  rekey=no
+
+  left=%any
+  leftid=138.199.204.139
+  leftcert=server-cert.pem
+  leftsendcert=always
+  leftsubnet=0.0.0.0/0
+
+  right=%any
+  rightid=%any
+  rightauth=eap-mschapv2
+  rightsourceip=10.10.0.10-10.10.0.250
+  rightdns=1.1.1.1,1.0.0.1
+  rightsendcert=never
+  eap_identity=%identity
+
+  ike=aes256gcm16-prfsha256-ecp256,aes128gcm16-prfsha256-ecp256,aes256-sha256-modp2048!
+  esp=aes256gcm16-ecp256,aes128gcm16-ecp256,aes256-sha256!
+---ipsec.secrets---
+: RSA server-key.pem
+securewave : EAP "pNAHm3BwxyPQ2KU6YCLqubBg"
+sw_probe_user : EAP "secure-pass"
+sw_f2f4d4b213c9d600216c : EAP "QSXFIREhUuQ-IUMp5vx2mCyfjvE_4u4f"
+sw_10d210b68549b32afd8a : EAP "FCCyZJD-EwFt1tdP-3rp_XrNylSkFQUx"
+sw_selftest_1772220273 : EAP "SwSelfTest!234"
+sw_selftest_1772220313 : EAP "SwSelfTest!234"
+sw_selftest_live_1772220329 : EAP "SwSelfTest!234"
+sw_selftest_auto_1772220414 : EAP "SwSelfTest!234"
+sw_egress_1772221228 : EAP "SwSelfTest!234"
+sw_egress_1772221360 : EAP "SwSelfTest!234"
+sw_egress_1772221572 : EAP "SwSelfTest!234"
+sw_egress_1772221806 : EAP "SwSelfTest!234"
+sw_egress_1772222043 : EAP "SwSelfTest!234"
+sw_egress_1772222168 : EAP "SwSelfTest!234"
+sw_egress_1772222297 : EAP "SwSelfTest!234"
+sw_egress_1772222422 : EAP "SwSelfTest!234"
+sw_egress_1772222811 : EAP "SwSelfTest!234"
+sw_egress_1772222936 : EAP "SwSelfTest!234"
+sw_egress_1772223061 : EAP "SwSelfTest!234"
+sw_egress_1772223186 : EAP "SwSelfTest!234"
+sw_egress_1772234189 : EAP "SwSelfTest!234"
+---swanctl.conf---
+---statusall---
+Status of IKE charon daemon (strongSwan 5.9.5, Linux 5.15.0-170-generic, x86_64):
+  uptime: 22 minutes, since Feb 27 23:06:14 2026
+  malloc: sbrk 3555328, mmap 0, used 1599264, free 1956064
+  worker threads: 11 of 16 idle, 5/0/0/0 working, job queue: 0/0/0/0, scheduled: 0
+  loaded plugins: charon aesni aes rc2 sha2 sha1 md5 mgf1 random nonce x509 revocation constraints pubkey pkcs1 pkcs7 pkcs8 pkcs12 pgp dnskey sshkey pem openssl fips-prf gmp agent xcbc hmac gcm drbg attr kernel-netlink resolve socket-default connmark forecast farp stroke updown eap-identity eap-aka eap-md5 eap-gtc eap-mschapv2 eap-dynamic eap-radius eap-tls eap-ttls eap-peap eap-tnc xauth-generic xauth-eap xauth-pam tnc-tnccs dhcp lookip error-notify certexpire led addrblock unity counters
+Virtual IP pools (size/online/offline):
+  10.10.0.10-10.10.0.250: 241/0/1
+Listening IP addresses:
+  138.199.204.139
+  2a01:4f8:1c1f:9b0b::1
+  10.255.1.1
+  10.8.0.1
+  10.9.0.1
+Connections:
+securewave-ikev2-eap:  %any...%any  IKEv2, dpddelay=300s
+securewave-ikev2-eap:   local:  [138.199.204.139] uses public key authentication
+securewave-ikev2-eap:    cert:  "CN=138.199.204.139"
+securewave-ikev2-eap:   remote: uses EAP_MSCHAPV2 authentication with EAP identity '%any'
+securewave-ikev2-eap:   child:  0.0.0.0/0 === dynamic TUNNEL, dpdaction=clear
+Security Associations (0 up, 0 connecting):
+  none

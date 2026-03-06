@@ -168,7 +168,25 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _ref.listen<bool>(
       authSessionProvider.select((session) => session.isAuthenticated),
       (previous, next) {
-        if (previous == next || !next) return;
+        if (previous == next) return;
+        _updateReadiness(
+          authenticated: next
+              ? VpnReadinessGateState.ready
+              : VpnReadinessGateState.notReady,
+        );
+        if (!next) {
+          if (state.desiredOn ||
+              state.status == VpnStatus.connected ||
+              state.status == VpnStatus.connecting ||
+              state.status == VpnStatus.disconnecting) {
+            _setDesiredOnInternal(false, source: 'disconnect');
+            _safeFireAndForget(
+              _requestReconcile(),
+              context: 'auth_session_cleared_disconnect',
+            );
+          }
+          return;
+        }
         _safeFireAndForget(
           _attemptAutoConnect(reason: 'auth_session_available'),
           context: 'auto_connect_auth_change',
@@ -235,6 +253,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   List<VpnTransitionRecord> get debugTransitionHistory =>
       List.unmodifiable(_transitionHistory);
 
+  List<VpnTransitionRecord> get recentTransitions =>
+      List.unmodifiable(_transitionHistory);
+
   Future<void> _loadProtocol() async {
     final stored = await _storage.getString(SecureStorage.vpnProtocolKey);
     final loadedProtocol = vpnProtocolFromStorage(stored);
@@ -280,13 +301,33 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         'current=${state.status.name} desiredOn=${state.desiredOn}',
       );
       if (!mounted) return;
+      final shouldMirrorIntent =
+          next == VpnStatus.connected || next == VpnStatus.connecting;
+      if (state.desiredOn != shouldMirrorIntent) {
+        state = state.copyWith(
+          desiredOn: shouldMirrorIntent,
+          clearError: shouldMirrorIntent,
+        );
+      }
       _transitionTo(
         next,
         trigger: VpnTransitionTrigger.initSync,
         force: true,
       );
+      _updateReadiness(
+        authenticated: _ref.read(authSessionProvider).isAuthenticated
+            ? VpnReadinessGateState.ready
+            : VpnReadinessGateState.notReady,
+        tunnelUp: next == VpnStatus.connected
+            ? VpnReadinessGateState.ready
+            : VpnReadinessGateState.notReady,
+        clearLastErrorCode:
+            next == VpnStatus.connected || next == VpnStatus.disconnected,
+      );
       if (next == VpnStatus.connected) {
         _startRateSimulation();
+      } else {
+        _stopRateSimulation();
       }
     } catch (error, stackTrace) {
       AppLogger.warning('[VPN_SM] {"event":"native_status_sync_failed"}');
@@ -317,8 +358,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final isActive = state.desiredOn ||
         state.status == VpnStatus.connected ||
         state.status == VpnStatus.connecting ||
-        state.status == VpnStatus.disconnecting ||
-        state.status == VpnStatus.error;
+        state.status == VpnStatus.disconnecting;
     if (isActive) {
       AppLogger.info(
         '[VPN_SM] {"event":"auto_connect_skipped","status":"${state.status.name}","desiredOn":${state.desiredOn},"reason":"$reason"}',
@@ -1367,6 +1407,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             deviceId != null && code == 'device_not_found';
         final staleSelectedServer = (state.selectedServerId ?? '').isNotEmpty &&
             (code == 'server_not_found' || code == 'region_down');
+        final recoveredDeviceId = _isDeviceLimitCode(code)
+            ? await _recoverSingleDeviceSlotId(
+                api: api,
+                identity: identity,
+                requestedDeviceId: deviceId,
+              )
+            : null;
         if (staleCachedDevice) {
           AppLogger.warning(
             '[VPN_SM] {"event":"profile_retry_without_cached_device","device_id":$deviceId}',
@@ -1374,6 +1421,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           await _storage.delete(SecureStorage.vpnDeviceIdKey);
           _throwIfCancelled(op);
           profile = await fetchProfile(requestedDeviceId: null);
+        } else if (recoveredDeviceId != null && recoveredDeviceId != deviceId) {
+          AppLogger.warning(
+            '[VPN_SM] {"event":"profile_retry_with_recovered_device_id","device_id":$recoveredDeviceId}',
+          );
+          await _storage.saveInt(
+            SecureStorage.vpnDeviceIdKey,
+            recoveredDeviceId,
+          );
+          _throwIfCancelled(op);
+          profile = await fetchProfile(requestedDeviceId: recoveredDeviceId);
         } else if (staleSelectedServer) {
           final staleServerId = state.selectedServerId;
           AppLogger.warning(
@@ -1419,6 +1476,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
       final nativeProfile =
           Map<String, dynamic>.from(profile.toNativeProfile());
+      nativeProfile['server_id'] = profile.serverId;
       await _validateProfileForProtocol(
         protocol: effectiveProtocol,
         profile: profile,
@@ -2042,6 +2100,49 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     final status = error.response?.statusCode;
     return status == 409 || status == 503;
+  }
+
+  bool _isDeviceLimitCode(String? code) {
+    final normalized = (code ?? '').trim().toLowerCase();
+    return normalized == 'device_limit_reached' ||
+        normalized == 'device_limit' ||
+        normalized == 'device_limit_exceeded' ||
+        normalized == 'too_many_devices';
+  }
+
+  Future<int?> _recoverSingleDeviceSlotId({
+    required ApiClient api,
+    required DeviceIdentity identity,
+    required int? requestedDeviceId,
+  }) async {
+    try {
+      final devices = await api.listDevices();
+      if (devices.limit != 1 || devices.devices.length != 1) {
+        return null;
+      }
+      final existing = devices.devices.first;
+      if (existing.id <= 0 || existing.id == requestedDeviceId) {
+        return null;
+      }
+      final existingType = (existing.deviceType ?? '').trim().toLowerCase();
+      final currentType = identity.type.trim().toLowerCase();
+      if (existingType.isNotEmpty &&
+          currentType.isNotEmpty &&
+          existingType != currentType) {
+        return null;
+      }
+      return existing.id;
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        '[VPN_SM] {"event":"device_limit_recovery_probe_failed"}',
+      );
+      AppLogger.error(
+        'Device-limit recovery probe failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
   }
 
   String? _errorCodeFrom(Object error) {

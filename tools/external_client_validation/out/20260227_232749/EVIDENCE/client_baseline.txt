@@ -1,0 +1,23 @@
+[BASELINE]
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 92:00:07:4a:ab:7a brd ff:ff:ff:ff:ff:ff
+    altname enp1s0
+    inet 5.223.54.59/32 metric 100 scope global dynamic eth0
+       valid_lft 86191sec preferred_lft 86191sec
+    inet6 2a01:4ff:2f0:11fd::1/64 scope global 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::9000:7ff:fe4a:ab7a/64 scope link 
+       valid_lft forever preferred_lft forever
+---
+default via 172.31.1.1 dev eth0 proto dhcp src 5.223.54.59 metric 100 
+172.31.1.1 dev eth0 proto dhcp scope link src 5.223.54.59 metric 100 
+185.12.64.1 via 172.31.1.1 dev eth0 proto dhcp src 5.223.54.59 metric 100 
+185.12.64.2 via 172.31.1.1 dev eth0 proto dhcp src 5.223.54.59 metric 100 
+---
+5.223.54.59

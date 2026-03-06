@@ -1,0 +1,6 @@
+=== ip route get 1.1.1.1 ===
+1.1.1.1 dev tun-egress-proo src 10.9.0.2 uid 0 
+    cache 
+=== ip route get 8.8.8.8 ===
+8.8.8.8 dev tun-egress-proo src 10.9.0.2 uid 0 
+    cache 

@@ -27,6 +27,10 @@
 		33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F22044A3C60003C045 /* Assets.xcassets */; };
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
+		AB1000040000000000000004 /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1000150000000000000005 /* VPNManager.swift */; };
+		AB1000010000000000000001 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1000110000000000000001 /* PacketTunnelProvider.swift */; };
+		AB1000020000000000000002 /* PacketTunnelMac.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = AB1000140000000000000004 /* PacketTunnelMac.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		AB1000030000000000000003 /* WireGuardKit in Frameworks */ = {isa = PBXBuildFile; productRef = AB1000710000000000000071 /* WireGuardKit */; };
 		A1605B251773A18B2D53A5B2 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 89E67DAAD80493FFBA4EC761 /* Pods_RunnerTests.framework */; };
 		CD4C32BF3685F9FE9121690D /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8D7B6BBC3F790E5B865CFE46 /* Pods_Runner.framework */; };
 /* End PBXBuildFile section */
@@ -59,6 +63,17 @@
 			name = "Bundle Framework";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AB1000200000000000000020 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AB1000020000000000000002 /* PacketTunnelMac.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -82,6 +97,11 @@
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		89E67DAAD80493FFBA4EC761 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D7B6BBC3F790E5B865CFE46 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB1000150000000000000005 /* VPNManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNManager.swift; sourceTree = "<group>"; };
+		AB1000110000000000000001 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		AB1000120000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AB1000130000000000000003 /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
+		AB1000140000000000000004 /* PacketTunnelMac.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnelMac.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		A51E2FBAC6D4E1B12F810884 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		AE071CA09A8BE06299556D46 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
@@ -104,6 +124,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				CD4C32BF3685F9FE9121690D /* Pods_Runner.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB1000300000000000000030 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB1000030000000000000003 /* WireGuardKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -133,6 +161,7 @@
 			isa = PBXGroup;
 			children = (
 				33FAB671232836740065AC1E /* Runner */,
+				AB1000400000000000000040 /* PacketTunnel */,
 				33CEB47122A05771004F2AC0 /* Flutter */,
 				331C80D6294CF71000263BE5 /* RunnerTests */,
 				33CC10EE2044A3C60003C045 /* Products */,
@@ -145,9 +174,20 @@
 			isa = PBXGroup;
 			children = (
 				33CC10ED2044A3C60003C045 /* securewave_app.app */,
+				AB1000140000000000000004 /* PacketTunnelMac.appex */,
 				331C80D5294CF71000263BE5 /* RunnerTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AB1000400000000000000040 /* PacketTunnel */ = {
+			isa = PBXGroup;
+			children = (
+				AB1000110000000000000001 /* PacketTunnelProvider.swift */,
+				AB1000120000000000000002 /* Info.plist */,
+				AB1000130000000000000003 /* PacketTunnel.entitlements */,
+			);
+			path = PacketTunnel;
 			sourceTree = "<group>";
 		};
 		33CC11242044D66E0003C045 /* Resources */ = {
@@ -176,6 +216,7 @@
 			isa = PBXGroup;
 			children = (
 				33CC10F02044A3C60003C045 /* AppDelegate.swift */,
+				AB1000150000000000000005 /* VPNManager.swift */,
 				33CC11122044BFA00003C045 /* MainFlutterWindow.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
@@ -239,6 +280,7 @@
 				33CC10EA2044A3C60003C045 /* Frameworks */,
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
+				AB1000200000000000000020 /* Embed App Extensions */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				3BB270E760F40B64B9F3D41E /* [CP] Embed Pods Frameworks */,
 			);
@@ -251,6 +293,27 @@
 			productName = Runner;
 			productReference = 33CC10ED2044A3C60003C045 /* securewave_app.app */;
 			productType = "com.apple.product-type.application";
+		};
+		AB1000500000000000000050 /* PacketTunnelMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB1000600000000000000060 /* Build configuration list for PBXNativeTarget "PacketTunnelMac" */;
+			buildPhases = (
+				AB1000210000000000000021 /* Build WireGuard Go Backend */,
+				AB1000220000000000000022 /* Sources */,
+				AB1000300000000000000030 /* Frameworks */,
+				AB1000230000000000000023 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PacketTunnelMac;
+			packageProductDependencies = (
+				AB1000710000000000000071 /* WireGuardKit */,
+			);
+			productName = PacketTunnelMac;
+			productReference = AB1000140000000000000004 /* PacketTunnelMac.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -281,6 +344,9 @@
 						CreatedOnToolsVersion = 9.2;
 						ProvisioningStyle = Manual;
 					};
+					AB1000500000000000000050 = {
+						CreatedOnToolsVersion = 15.0;
+					};
 				};
 			};
 			buildConfigurationList = 33CC10E82044A3C60003C045 /* Build configuration list for PBXProject "Runner" */;
@@ -292,11 +358,15 @@
 				Base,
 			);
 			mainGroup = 33CC10E42044A3C60003C045;
+			packageReferences = (
+				AB1000700000000000000070 /* XCLocalSwiftPackageReference "wireguard-apple" */,
+			);
 			productRefGroup = 33CC10EE2044A3C60003C045 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				33CC10EC2044A3C60003C045 /* Runner */,
+				AB1000500000000000000050 /* PacketTunnelMac */,
 				331C80D4294CF70F00263BE5 /* RunnerTests */,
 				33CC111A2044C6BA0003C045 /* Flutter Assemble */,
 			);
@@ -317,6 +387,13 @@
 			files = (
 				33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */,
 				33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB1000230000000000000023 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -422,6 +499,22 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		AB1000210000000000000021 /* Build WireGuard Go Backend */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Build WireGuard Go Backend";
+			outputPaths = (
+				"$(CONFIGURATION_BUILD_DIR)/libwg-go.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"$PROJECT_DIR/scripts/build_wg_go.sh\"";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -438,8 +531,17 @@
 			buildActionMask = 2147483647;
 			files = (
 				33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */,
+				AB1000040000000000000004 /* VPNManager.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB1000220000000000000022 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB1000010000000000000001 /* PacketTunnelProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -752,6 +854,76 @@
 			};
 			name = Release;
 		};
+		AB1000610000000000000061 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+				INFOPLIST_FILE = PacketTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited)";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-Xcc",
+					"-I$(PROJECT_DIR)/../ios/ThirdParty/wireguard-apple/Sources/WireGuardKitC/include",
+					"-Xcc",
+					"-I$(PROJECT_DIR)/../ios/ThirdParty/wireguard-apple/Sources/WireGuardKitGo/include",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.securewaveApp.PacketTunnelMac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AB1000620000000000000062 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+				INFOPLIST_FILE = PacketTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited)";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-Xcc",
+					"-I$(PROJECT_DIR)/../ios/ThirdParty/wireguard-apple/Sources/WireGuardKitC/include",
+					"-Xcc",
+					"-I$(PROJECT_DIR)/../ios/ThirdParty/wireguard-apple/Sources/WireGuardKitGo/include",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.securewaveApp.PacketTunnelMac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		AB1000630000000000000063 /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+				INFOPLIST_FILE = PacketTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited)";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-Xcc",
+					"-I$(PROJECT_DIR)/../ios/ThirdParty/wireguard-apple/Sources/WireGuardKitC/include",
+					"-Xcc",
+					"-I$(PROJECT_DIR)/../ios/ThirdParty/wireguard-apple/Sources/WireGuardKitGo/include",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.securewaveApp.PacketTunnelMac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Profile;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -795,7 +967,32 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		AB1000600000000000000060 /* Build configuration list for PBXNativeTarget "PacketTunnelMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB1000610000000000000061 /* Debug */,
+				AB1000620000000000000062 /* Release */,
+				AB1000630000000000000063 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AB1000700000000000000070 /* XCLocalSwiftPackageReference "wireguard-apple" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../ios/ThirdParty/wireguard-apple;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AB1000710000000000000071 /* WireGuardKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AB1000700000000000000070 /* XCLocalSwiftPackageReference "wireguard-apple" */;
+			productName = WireGuardKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 33CC10E52044A3C60003C045 /* Project object */;
 }

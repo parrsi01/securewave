@@ -1,0 +1,6 @@
+=== ip route get 1.1.1.1 ===
+1.1.1.1 via 172.31.1.1 dev eth0 src 138.199.204.139 uid 0 
+    cache 
+=== ip route get 8.8.8.8 ===
+8.8.8.8 via 172.31.1.1 dev eth0 src 138.199.204.139 uid 0 
+    cache 

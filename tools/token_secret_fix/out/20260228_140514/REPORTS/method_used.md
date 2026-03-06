@@ -1,0 +1,1 @@
+Local sudo -n unavailable or unnecessary for this manual uvicorn runtime. Used root SSH to read the VPS secret in-memory, did not persist a local copy, and exported SECUREWAVE_PROVISIONING_TOKEN_SECRET only in the backend restart shell.

@@ -14,21 +14,21 @@ class AppMotion {
   // ── Implicit Animation Configs ──────────────────────────────────────────
 
   /// Standard implicit animation (size, opacity, position)
-  static const Duration standard  = AppAnimations.durationNormal;
+  static const Duration standard = AppAnimations.durationNormal;
 
   /// Snappy micro-interaction (toggles, checkbox, icon swaps)
-  static const Duration micro     = AppAnimations.durationFast;
+  static const Duration micro = AppAnimations.durationFast;
 
   /// Expressive motion for hero elements
   static const Duration expressive = AppAnimations.durationMedium;
 
   /// Slow reveal for page-level content
-  static const Duration reveal    = AppAnimations.durationSlow;
+  static const Duration reveal = AppAnimations.durationSlow;
 
   // ── Curve Presets ────────────────────────────────────────────────────────
 
-  static const Curve enter    = AppAnimations.curveEnter;
-  static const Curve exit     = AppAnimations.curveExit;
+  static const Curve enter = AppAnimations.curveEnter;
+  static const Curve exit = AppAnimations.curveExit;
   static const Curve standardCurve = AppAnimations.curveDefault;
 
   /// Snappy overshoot for icon/fab state changes
@@ -77,8 +77,7 @@ class AppMotion {
 
   // ── Hero Flight ──────────────────────────────────────────────────────────
 
-  static const HeroFlightShuttleBuilder logoShuttle =
-      _logoShuttleBuilder;
+  static const HeroFlightShuttleBuilder logoShuttle = _logoShuttleBuilder;
 
   static Widget _logoShuttleBuilder(
     BuildContext flightContext,

@@ -1,0 +1,7 @@
+git_head=c0d3b33
+--- printenv ---
+--- lsof_8080 ---
+COMMAND    PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+uvicorn 125878   sp    3u  IPv4 306797      0t0  TCP *:http-alt (LISTEN)
+python3 125884   sp    3u  IPv4 306797      0t0  TCP *:http-alt (LISTEN)
+python3 125885   sp    3u  IPv4 306797      0t0  TCP *:http-alt (LISTEN)

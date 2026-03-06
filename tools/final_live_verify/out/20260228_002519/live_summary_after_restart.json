@@ -1,0 +1,22 @@
+{
+  "openvpn": {
+    "status": "500",
+    "ok": false,
+    "details": {
+      "error_code": "internal_error",
+      "message": "Internal server error",
+      "missing": null,
+      "hint": null
+    }
+  },
+  "ikev2": {
+    "status": "500",
+    "ok": false,
+    "details": {
+      "error_code": "internal_error",
+      "message": "Internal server error",
+      "missing": null,
+      "hint": null
+    }
+  }
+}

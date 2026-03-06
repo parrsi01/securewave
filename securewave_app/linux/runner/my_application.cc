@@ -36,6 +36,7 @@ const guint kWgQuickTimeoutMs = 30000;
 const guint kRuntimeSanityTimeoutMs = 7000;
 const guint kRuntimeSanityPollIntervalMs = 200;
 const char* kSecureWaveWgHelperPath = "/usr/local/libexec/securewave-wg-quick";
+const char* kPkexecDisableInternalAgentArg = "--disable-internal-agent";
 
 typedef struct {
   FlMethodChannel* channel;
@@ -722,6 +723,7 @@ static void spawn_wg_quick_async(
   int idx = 0;
   if (needs_elevation) {
     argv[idx++] = pkexec_path;
+    argv[idx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
   }
   if (needs_elevation && helper_ready) {
     helper_path = g_strdup(kSecureWaveWgHelperPath);
@@ -937,13 +939,17 @@ static gchar* detect_active_interface(const gchar* active_protocol) {
   }
   if (active_protocol && g_strcmp0(active_protocol, "openvpn") == 0 &&
       interface_exists("tun0")) {
-    return g_strdup("tun0");
+    g_autofree gchar* routed = detect_route_interface();
+    if (routed && g_strcmp0(routed, "tun0") == 0) {
+      return g_strdup("tun0");
+    }
   }
   if (active_protocol && g_strcmp0(active_protocol, "ikev2") == 0) {
     if (interface_exists("ipsec0")) {
       return g_strdup("ipsec0");
     }
-    if (interface_exists("tun0")) {
+    g_autofree gchar* routed = detect_route_interface();
+    if (routed && g_strcmp0(routed, "tun0") == 0 && interface_exists("tun0")) {
       return g_strdup("tun0");
     }
   }
@@ -959,10 +965,18 @@ static gchar* detect_active_interface(const gchar* active_protocol) {
   if (interface_exists("wg0")) {
     return g_strdup("wg0");
   }
-  if (interface_exists("tun0")) {
+  if (interface_exists("tun0") && routed && g_strcmp0(routed, "tun0") == 0) {
     return g_strdup("tun0");
   }
   return nullptr;
+}
+
+static gboolean default_route_uses_interface(const gchar* iface) {
+  if (!iface || *iface == '\0' || !interface_exists(iface)) {
+    return FALSE;
+  }
+  g_autofree gchar* routed = detect_route_interface();
+  return routed != nullptr && g_strcmp0(routed, iface) == 0;
 }
 
 static gboolean route_exists_for_interface(const gchar* iface) {
@@ -1157,7 +1171,8 @@ static void refresh_runtime_connection_state(VpnChannelState* state) {
       return;
     }
     if (g_strcmp0(active, "openvpn") == 0 &&
-        (interface_exists("tun0") || openvpn_process_alive(state->openvpn_pid_path))) {
+        (openvpn_process_alive(state->openvpn_pid_path) ||
+         default_route_uses_interface("tun0"))) {
       state->last_connected = TRUE;
       set_active_protocol(state, "openvpn");
       return;
@@ -1185,7 +1200,8 @@ static void refresh_runtime_connection_state(VpnChannelState* state) {
     set_active_protocol(state, "ikev2");
     return;
   }
-  if (interface_exists("tun0") || openvpn_process_alive(state->openvpn_pid_path)) {
+  if (openvpn_process_alive(state->openvpn_pid_path) ||
+      default_route_uses_interface("tun0")) {
     state->last_connected = TRUE;
     set_active_protocol(state, "openvpn");
     return;
@@ -1381,6 +1397,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
         g_autofree gchar* pkexec_pre = g_find_program_in_path("pkexec");
         if (pkexec_pre) {
           gchar* pre_argv[] = {pkexec_pre,
+                               const_cast<gchar*>(kPkexecDisableInternalAgentArg),
                                const_cast<gchar*>(kSecureWaveWgHelperPath),
                                const_cast<gchar*>("down"),
                                state->wg_config_path, nullptr};
@@ -1494,6 +1511,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       int idx = 0;
       if (needs_elevation) {
         argv[idx++] = pkexec_path;
+        argv[idx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
       }
       argv[idx++] = openvpn_path;
       argv[idx++] = const_cast<gchar*>("--config");
@@ -1623,6 +1641,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       int didx = 0;
       if (needs_elevation) {
         delete_argv[didx++] = pkexec_path;
+        delete_argv[didx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
       }
       delete_argv[didx++] = const_cast<gchar*>("nmcli");
       delete_argv[didx++] = const_cast<gchar*>("connection");
@@ -1643,6 +1662,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       int aidx = 0;
       if (needs_elevation) {
         add_argv[aidx++] = pkexec_path;
+        add_argv[aidx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
       }
       add_argv[aidx++] = const_cast<gchar*>("nmcli");
       add_argv[aidx++] = const_cast<gchar*>("connection");
@@ -1677,6 +1697,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       int uidx = 0;
       if (needs_elevation) {
         up_argv[uidx++] = pkexec_path;
+        up_argv[uidx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
       }
       up_argv[uidx++] = const_cast<gchar*>("nmcli");
       up_argv[uidx++] = const_cast<gchar*>("connection");
@@ -1703,6 +1724,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
         int didx = 0;
         if (needs_elevation) {
           down_argv[didx++] = pkexec_path;
+          down_argv[didx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
         }
         down_argv[didx++] = const_cast<gchar*>("nmcli");
         down_argv[didx++] = const_cast<gchar*>("connection");
@@ -1775,6 +1797,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       int idx = 0;
       if (needs_elevation) {
         argv[idx++] = pkexec_path;
+        argv[idx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
       }
       argv[idx++] = const_cast<gchar*>("kill");
       argv[idx++] = const_cast<gchar*>("-TERM");
@@ -1836,6 +1859,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       int idx = 0;
       if (needs_elevation) {
         argv[idx++] = pkexec_path;
+        argv[idx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
       }
       argv[idx++] = const_cast<gchar*>("nmcli");
       argv[idx++] = const_cast<gchar*>("connection");
@@ -1864,6 +1888,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       int didx = 0;
       if (needs_elevation) {
         delete_argv[didx++] = pkexec_path;
+        delete_argv[didx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
       }
       delete_argv[didx++] = const_cast<gchar*>("nmcli");
       delete_argv[didx++] = const_cast<gchar*>("connection");

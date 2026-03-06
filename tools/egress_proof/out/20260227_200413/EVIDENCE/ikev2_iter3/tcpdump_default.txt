@@ -1,0 +1,8 @@
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+20:12:35.774730 IP6 2a01:4f8:1c1f:9b0b::1.54282 > 2a01:4ff:ff00::add:2.53: 13042+ [1au] AAAA? api.ipify.org. (42)
+20:12:35.775276 IP6 2a01:4ff:ff00::add:2.53 > 2a01:4f8:1c1f:9b0b::1.54282: 13042 0/1/1 (104)
+
+2 packets captured
+2 packets received by filter
+0 packets dropped by kernel

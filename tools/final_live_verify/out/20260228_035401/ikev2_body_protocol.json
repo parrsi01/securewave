@@ -1,0 +1,1 @@
+{"error":{"code":"protocol_not_supported_on_platform","message":"Requested protocol is not supported on this platform.","details":{"protocol":"ikev2","device_type":null}},"request_id":"195240fa-a6a0-40cb-ab61-f1211195434f"}

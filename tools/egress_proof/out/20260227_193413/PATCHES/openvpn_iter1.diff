@@ -1,0 +1,7 @@
+--- tools/egress_proof/out/20260227_193413/PATCHES/openvpn_server_before_iter1.conf	2026-02-27 19:39:12.918118274 +0000
++++ tools/egress_proof/out/20260227_193413/PATCHES/openvpn_server_after_iter1.conf	2026-02-27 19:39:16.334142404 +0000
+@@ -29,3 +29,4 @@
+ 
+ status /var/log/openvpn/status.log
+ verb 3
++push "dhcp-option DNS 8.8.8.8"

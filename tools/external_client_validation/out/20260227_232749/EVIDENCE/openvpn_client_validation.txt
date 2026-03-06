@@ -1,0 +1,72 @@
+OVPN_UP=yes
+ROUTE=1.1.1.1 via 10.9.0.1 dev tun0 src 10.9.0.3 uid 0      cache  
+PUBLIC_IP=138.199.204.139
+--- ip addr ---
+4: tun0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 500
+    link/none 
+    inet 10.9.0.3/24 scope global tun0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::9f80:4c88:b399:32ff/64 scope link stable-privacy 
+       valid_lft forever preferred_lft forever
+--- ip route ---
+0.0.0.0/1 via 10.9.0.1 dev tun0 
+default via 172.31.1.1 dev eth0 proto dhcp src 5.223.54.59 metric 100 
+10.9.0.0/24 dev tun0 proto kernel scope link src 10.9.0.3 
+92.105.134.148 via 172.31.1.1 dev eth0 
+128.0.0.0/1 via 10.9.0.1 dev tun0 
+138.199.204.139 via 172.31.1.1 dev eth0 
+172.31.1.1 dev eth0 proto dhcp scope link src 5.223.54.59 metric 100 
+185.12.64.1 via 172.31.1.1 dev eth0 proto dhcp src 5.223.54.59 metric 100 
+185.12.64.2 via 172.31.1.1 dev eth0 proto dhcp src 5.223.54.59 metric 100 
+--- log tail ---
+2026-02-27 23:32:47 OpenVPN 2.5.11 x86_64-pc-linux-gnu [SSL (OpenSSL)] [LZO] [LZ4] [EPOLL] [PKCS11] [MH/PKTINFO] [AEAD] built on Sep 17 2024
+2026-02-27 23:32:47 library versions: OpenSSL 3.0.2 15 Mar 2022, LZO 2.10
+2026-02-27 23:32:47 Outgoing Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+2026-02-27 23:32:47 Outgoing Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+2026-02-27 23:32:47 Incoming Control Channel Encryption: Cipher 'AES-256-CTR' initialized with 256 bit key
+2026-02-27 23:32:47 Incoming Control Channel Encryption: Using 256 bit message hash 'SHA256' for HMAC authentication
+2026-02-27 23:32:47 TCP/UDP: Preserving recently used remote address: [AF_INET]138.199.204.139:1194
+2026-02-27 23:32:47 Socket Buffers: R=[212992->212992] S=[212992->212992]
+2026-02-27 23:32:47 UDP link local: (not bound)
+2026-02-27 23:32:47 UDP link remote: [AF_INET]138.199.204.139:1194
+2026-02-27 23:32:47 TLS: Initial packet from [AF_INET]138.199.204.139:1194, sid=795dd421 a9eb945b
+2026-02-27 23:32:48 VERIFY OK: depth=1, CN=SecureWave OpenVPN CA
+2026-02-27 23:32:48 VERIFY KU OK
+2026-02-27 23:32:48 Validating certificate extended key usage
+2026-02-27 23:32:48 ++ Certificate has EKU (str) TLS Web Server Authentication, expects TLS Web Server Authentication
+2026-02-27 23:32:48 VERIFY EKU OK
+2026-02-27 23:32:48 VERIFY OK: depth=0, CN=securewave-prod-openvpn
+2026-02-27 23:32:48 Control Channel: TLSv1.3, cipher TLSv1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bit RSA, signature: RSA-SHA256
+2026-02-27 23:32:48 [securewave-prod-openvpn] Peer Connection Initiated with [AF_INET]138.199.204.139:1194
+2026-02-27 23:32:48 PUSH: Received control message: 'PUSH_REPLY,redirect-gateway def1 bypass-dhcp,dhcp-option DNS 1.1.1.1,dhcp-option DNS 1.0.0.1,dhcp-option DNS 8.8.8.8,route-gateway 10.9.0.1,topology subnet,ping 10,ping-restart 60,ifconfig 10.9.0.3 255.255.255.0,peer-id 1,cipher AES-256-GCM'
+2026-02-27 23:32:48 OPTIONS IMPORT: timers and/or timeouts modified
+2026-02-27 23:32:48 OPTIONS IMPORT: --ifconfig/up options modified
+2026-02-27 23:32:48 OPTIONS IMPORT: route options modified
+2026-02-27 23:32:48 OPTIONS IMPORT: route-related options modified
+2026-02-27 23:32:48 OPTIONS IMPORT: --ip-win32 and/or --dhcp-option options modified
+2026-02-27 23:32:48 OPTIONS IMPORT: peer-id set
+2026-02-27 23:32:48 OPTIONS IMPORT: adjusting link_mtu to 1624
+2026-02-27 23:32:48 OPTIONS IMPORT: data channel crypto options modified
+2026-02-27 23:32:48 Outgoing Data Channel: Cipher 'AES-256-GCM' initialized with 256 bit key
+2026-02-27 23:32:48 Incoming Data Channel: Cipher 'AES-256-GCM' initialized with 256 bit key
+2026-02-27 23:32:48 net_route_v4_best_gw query: dst 0.0.0.0
+2026-02-27 23:32:48 net_route_v4_best_gw result: via 172.31.1.1 dev eth0
+2026-02-27 23:32:48 ROUTE_GATEWAY 172.31.1.1
+2026-02-27 23:32:48 TUN/TAP device tun0 opened
+2026-02-27 23:32:48 net_iface_mtu_set: mtu 1500 for tun0
+2026-02-27 23:32:48 net_iface_up: set tun0 up
+2026-02-27 23:32:48 net_addr_v4_add: 10.9.0.3/24 dev tun0
+2026-02-27 23:32:48 net_route_v4_add: 138.199.204.139/32 via 172.31.1.1 dev [NULL] table 0 metric -1
+2026-02-27 23:32:48 net_route_v4_add: 0.0.0.0/1 via 10.9.0.1 dev [NULL] table 0 metric -1
+2026-02-27 23:32:48 net_route_v4_add: 128.0.0.0/1 via 10.9.0.1 dev [NULL] table 0 metric -1
+2026-02-27 23:32:48 Initialization Sequence Completed
+--- tcpdump ---
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+23:32:48.639118 IP 5.223.54.59.34080 > 138.199.204.139.1194: UDP, length 64
+23:32:49.627786 IP 5.223.54.59.34080 > 138.199.204.139.1194: UDP, length 84
+
+2 packets captured
+28 packets received by filter
+0 packets dropped by kernel
+--- runner log ---

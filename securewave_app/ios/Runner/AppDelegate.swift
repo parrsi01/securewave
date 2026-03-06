@@ -3,6 +3,8 @@ import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
+  private let bridgeChannelName = "securewave/vpn_platform_bridge"
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -10,55 +12,66 @@ import UIKit
     GeneratedPluginRegistrant.register(with: self)
 
     if let controller = window?.rootViewController as? FlutterViewController {
-      let channel = FlutterMethodChannel(name: "securewave/vpn", binaryMessenger: controller.binaryMessenger)
+      let channel = FlutterMethodChannel(
+        name: bridgeChannelName,
+        binaryMessenger: controller.binaryMessenger
+      )
       channel.setMethodCallHandler { call, result in
         switch call.method {
         case "isAvailable":
-          if let error = SecureWaveVPNManager.shared.availabilityError() {
-            result(FlutterError(code: "vpn_unavailable", message: error.localizedDescription, details: nil))
-          } else {
-            result(true)
+          SecureWaveVPNManager.shared.isAvailable { available, _ in
+            result(available)
           }
-        case "getStatus":
-          result(SecureWaveVPNManager.shared.statusString())
-        case "getCapabilities":
-          result(SecureWaveVPNManager.shared.capabilitiesPayload())
-        case "getTrafficStats":
-          result(SecureWaveVPNManager.shared.trafficStatsPayload())
-        case "connect":
+        case "diagnostics":
+          SecureWaveVPNManager.shared.diagnostics { payload in
+            result(payload)
+          }
+        case "status":
+          SecureWaveVPNManager.shared.status { payload in
+            result(payload)
+          }
+        case "connectWireGuard":
           guard let args = call.arguments as? [String: Any] else {
-            result(FlutterError(code: "invalid_profile", message: "Missing VPN arguments.", details: nil))
+            result(
+              FlutterError(
+                code: "invalid_profile",
+                message: "Missing WireGuard bridge arguments.",
+                details: nil
+              )
+            )
             return
           }
-          let protocolName = (args["protocol"] as? String ?? "wireguard").lowercased()
-          if protocolName != "wireguard" {
-            result(FlutterError(code: "protocol_unavailable", message: "iOS runtime currently supports WireGuard only.", details: nil))
-            return
-          }
-
-          let profile = args["profile"] as? [String: Any]
-          let configFromProfile = profile?["wireguard_config"] as? String
-          let config = (args["config"] as? String) ?? configFromProfile ?? ""
-          if config.isEmpty {
-            result(FlutterError(code: "invalid_config", message: "Missing WireGuard configuration.", details: nil))
-            return
-          }
-          SecureWaveVPNManager.shared.connect(config: config) { error in
-            if let error = error {
-              result(FlutterError(code: "vpn_connect_failed", message: error.localizedDescription, details: nil))
+          SecureWaveVPNManager.shared.connectWireGuard(arguments: args) { error in
+            if let error {
+              result(Self.flutterError(from: error))
             } else {
               result(nil)
             }
           }
         case "disconnect":
-          SecureWaveVPNManager.shared.disconnect {
-            result(nil)
+          SecureWaveVPNManager.shared.disconnect { error in
+            if let error {
+              result(Self.flutterError(from: error))
+            } else {
+              result(nil)
+            }
           }
         default:
           result(FlutterMethodNotImplemented)
         }
       }
     }
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  private static func flutterError(from error: Error) -> FlutterError {
+    let nsError = error as NSError
+    let code = (nsError.userInfo["SecureWaveErrorCode"] as? String) ?? "vpn_connect_failed"
+    return FlutterError(
+      code: code,
+      message: nsError.localizedDescription,
+      details: nil
+    )
   }
 }

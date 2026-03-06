@@ -1,0 +1,3 @@
+ACTIVE   NAME
+
+hcloud: no active context or token (see `hcloud context --help`)

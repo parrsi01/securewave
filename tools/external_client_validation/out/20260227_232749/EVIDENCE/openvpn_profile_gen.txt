@@ -1,0 +1,2 @@
+tmp=/root/securewave_ext_client_20260227_232749
+cn=external-ovpn-20260227_232749

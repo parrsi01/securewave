@@ -1,0 +1,154 @@
+--- ipsec up ---
+initiating IKE_SA securewave[1] to 138.199.204.139
+generating IKE_SA_INIT request 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(REDIR_SUP) ]
+sending packet: from 5.223.54.59[500] to 138.199.204.139[500] (344 bytes)
+received packet: from 138.199.204.139[500] to 5.223.54.59[500] (272 bytes)
+parsed IKE_SA_INIT response 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(CHDLESS_SUP) N(MULT_AUTH) ]
+selected proposal: IKE:AES_GCM_16_256/PRF_HMAC_SHA2_256/ECP_256
+remote host is behind NAT
+sending cert request for "CN=SecureWave IKEv2 CA"
+no IDi configured, fall back on IP address
+establishing CHILD_SA securewave{1}
+generating IKE_AUTH request 1 [ IDi N(INIT_CONTACT) CERTREQ IDr CPRQ(ADDR DNS) SA TSi TSr N(MOBIKE_SUP) N(ADD_6_ADDR) N(MULT_AUTH) N(EAP_ONLY) N(MSG_ID_SYN_SUP) ]
+sending packet: from 5.223.54.59[4500] to 138.199.204.139[4500] (342 bytes)
+received packet: from 138.199.204.139[4500] to 5.223.54.59[4500] (1248 bytes)
+parsed IKE_AUTH response 1 [ EF(1/2) ]
+received fragment #1 of 2, waiting for complete IKE message
+received packet: from 138.199.204.139[4500] to 5.223.54.59[4500] (733 bytes)
+parsed IKE_AUTH response 1 [ EF(2/2) ]
+received fragment #2 of 2, reassembled fragmented IKE message (1916 bytes)
+parsed IKE_AUTH response 1 [ IDr CERT AUTH EAP/REQ/ID ]
+received end entity cert "CN=138.199.204.139"
+  using certificate "CN=138.199.204.139"
+  using trusted ca certificate "CN=SecureWave IKEv2 CA"
+  reached self-signed root ca with a path length of 0
+checking certificate status of "CN=138.199.204.139"
+certificate status is not available
+authentication of '138.199.204.139' with RSA_EMSA_PKCS1_SHA2_384 successful
+server requested EAP_IDENTITY (id 0x00), sending 'sw_ext_20260227_232749'
+generating IKE_AUTH request 2 [ EAP/RES/ID ]
+sending packet: from 5.223.54.59[4500] to 138.199.204.139[4500] (88 bytes)
+received packet: from 138.199.204.139[4500] to 5.223.54.59[4500] (97 bytes)
+parsed IKE_AUTH response 2 [ EAP/REQ/MSCHAPV2 ]
+server requested EAP_MSCHAPV2 authentication (id 0xE0)
+generating IKE_AUTH request 3 [ EAP/RES/MSCHAPV2 ]
+sending packet: from 5.223.54.59[4500] to 138.199.204.139[4500] (142 bytes)
+received packet: from 138.199.204.139[4500] to 5.223.54.59[4500] (134 bytes)
+parsed IKE_AUTH response 3 [ EAP/REQ/MSCHAPV2 ]
+EAP-MS-CHAPv2 succeeded: 'Welcome2strongSwan'
+generating IKE_AUTH request 4 [ EAP/RES/MSCHAPV2 ]
+sending packet: from 5.223.54.59[4500] to 138.199.204.139[4500] (67 bytes)
+received packet: from 138.199.204.139[4500] to 5.223.54.59[4500] (65 bytes)
+parsed IKE_AUTH response 4 [ EAP/SUCC ]
+EAP method EAP_MSCHAPV2 succeeded, MSK established
+authentication of '5.223.54.59' (myself) with EAP
+generating IKE_AUTH request 5 [ AUTH ]
+sending packet: from 5.223.54.59[4500] to 138.199.204.139[4500] (97 bytes)
+received packet: from 138.199.204.139[4500] to 5.223.54.59[4500] (281 bytes)
+parsed IKE_AUTH response 5 [ AUTH CPRP(ADDR DNS DNS) SA TSi TSr N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N(ADD_4_ADDR) N(ADD_6_ADDR) ]
+authentication of '138.199.204.139' with EAP successful
+IKE_SA securewave[1] established between 5.223.54.59[5.223.54.59]...138.199.204.139[138.199.204.139]
+scheduling reauthentication in 9817s
+maximum IKE_SA lifetime 10357s
+adding DNS server failed
+adding DNS server failed
+handling INTERNAL_IP4_DNS attribute failed
+adding DNS server failed
+handling INTERNAL_IP4_DNS attribute failed
+installing new virtual IP 10.10.0.11
+selected proposal: ESP:AES_GCM_16_256/NO_EXT_SEQ
+CHILD_SA securewave{1} established with SPIs c1c02e05_i c4d58670_o and TS 10.10.0.11/32 === 0.0.0.0/0
+connection 'securewave' established successfully
+--- statusall ---
+Status of IKE charon daemon (strongSwan 5.9.5, Linux 5.15.0-164-generic, x86_64):
+  uptime: 8 seconds, since Feb 27 23:34:09 2026
+  malloc: sbrk 2486272, mmap 0, used 1484096, free 1002176
+  worker threads: 11 of 16 idle, 5/0/0/0 working, job queue: 0/0/0/0, scheduled: 3
+  loaded plugins: charon aesni aes rc2 sha2 sha1 md5 mgf1 random nonce x509 revocation constraints pubkey pkcs1 pkcs7 pkcs8 pkcs12 pgp dnskey sshkey pem openssl fips-prf gmp agent xcbc hmac gcm drbg attr kernel-netlink resolve socket-default connmark forecast farp stroke updown eap-identity eap-aka eap-md5 eap-gtc eap-mschapv2 eap-dynamic eap-radius eap-tls eap-ttls eap-peap eap-tnc xauth-generic xauth-eap xauth-pam tnc-tnccs dhcp lookip error-notify certexpire led addrblock unity counters
+Listening IP addresses:
+  5.223.54.59
+  2a01:4ff:2f0:11fd::1
+Connections:
+  securewave:  %any...138.199.204.139  IKEv2, dpddelay=300s
+  securewave:   local:  uses EAP_MSCHAPV2 authentication with EAP identity 'sw_ext_20260227_232749'
+  securewave:   remote: [138.199.204.139] uses public key authentication
+  securewave:   child:  dynamic === 0.0.0.0/0 TUNNEL, dpdaction=clear
+Security Associations (1 up, 0 connecting):
+  securewave[1]: ESTABLISHED 4 seconds ago, 5.223.54.59[5.223.54.59]...138.199.204.139[138.199.204.139]
+  securewave[1]: IKEv2 SPIs: 0185e7ee69bc05a9_i* 531580502ecf8e7c_r, EAP reauthentication in 2 hours
+  securewave[1]: IKE proposal: AES_GCM_16_256/PRF_HMAC_SHA2_256/ECP_256
+  securewave{1}:  INSTALLED, TUNNEL, reqid 1, ESP in UDP SPIs: c1c02e05_i c4d58670_o
+  securewave{1}:  AES_GCM_16_256, 0 bytes_i, 0 bytes_o, rekeying in 42 minutes
+  securewave{1}:   10.10.0.11/32 === 0.0.0.0/0
+ROUTE=1.1.1.1 via 172.31.1.1 dev eth0 table 220 src 10.10.0.11 uid 0      cache  
+PUBLIC_IP=138.199.204.139
+--- xfrm state ---
+src 5.223.54.59 dst 138.199.204.139
+	proto esp spi 0xc4d58670 reqid 1 mode tunnel
+	replay-window 0 flag af-unspec
+	aead rfc4106(gcm(aes)) 0x03dd9d645f8442dbb3579d425d3e8bba714e1e2cf64f08e0e2344543d3ebf6f329fac153 128
+	encap type espinudp sport 4500 dport 4500 addr 0.0.0.0
+	anti-replay context: seq 0x0, oseq 0xf, bitmap 0x00000000
+src 138.199.204.139 dst 5.223.54.59
+	proto esp spi 0xc1c02e05 reqid 1 mode tunnel
+	replay-window 32 flag af-unspec
+	aead rfc4106(gcm(aes)) 0x50415902ecaec4085d88d85ac55151ca68dc81b90b69259ef246a5939376a099ae25d999 128
+	encap type espinudp sport 4500 dport 4500 addr 0.0.0.0
+	anti-replay context: seq 0x9, oseq 0x0, bitmap 0x000001ff
+--- xfrm policy ---
+src 10.10.0.11/32 dst 0.0.0.0/0 
+	dir out priority 383615 
+	tmpl src 5.223.54.59 dst 138.199.204.139
+		proto esp spi 0xc4d58670 reqid 1 mode tunnel
+src 0.0.0.0/0 dst 10.10.0.11/32 
+	dir fwd priority 383615 
+	tmpl src 138.199.204.139 dst 5.223.54.59
+		proto esp reqid 1 mode tunnel
+src 0.0.0.0/0 dst 10.10.0.11/32 
+	dir in priority 383615 
+	tmpl src 138.199.204.139 dst 5.223.54.59
+		proto esp reqid 1 mode tunnel
+src 0.0.0.0/0 dst 0.0.0.0/0 
+	socket in priority 0 
+src 0.0.0.0/0 dst 0.0.0.0/0 
+	socket out priority 0 
+src 0.0.0.0/0 dst 0.0.0.0/0 
+	socket in priority 0 
+src 0.0.0.0/0 dst 0.0.0.0/0 
+	socket out priority 0 
+src ::/0 dst ::/0 
+	socket in priority 0 
+src ::/0 dst ::/0 
+	socket out priority 0 
+src ::/0 dst ::/0 
+	socket in priority 0 
+src ::/0 dst ::/0 
+	socket out priority 0 
+--- tcpdump ---
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+23:34:12.820835 IP 5.223.54.59.500 > 138.199.204.139.500: isakmp: parent_sa ikev2_init[I]
+23:34:12.982603 IP 138.199.204.139.500 > 5.223.54.59.500: isakmp: parent_sa ikev2_init[R]
+23:34:12.988437 IP 5.223.54.59.4500 > 138.199.204.139.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[I]
+23:34:13.158755 IP 138.199.204.139.4500 > 5.223.54.59.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[R]
+23:34:13.158756 IP 138.199.204.139.4500 > 5.223.54.59.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[R]
+23:34:13.167747 IP 5.223.54.59.4500 > 138.199.204.139.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[I]
+23:34:13.325977 IP 138.199.204.139.4500 > 5.223.54.59.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[R]
+23:34:13.327597 IP 5.223.54.59.4500 > 138.199.204.139.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[I]
+23:34:13.485555 IP 138.199.204.139.4500 > 5.223.54.59.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[R]
+23:34:13.488117 IP 5.223.54.59.4500 > 138.199.204.139.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[I]
+23:34:13.646065 IP 138.199.204.139.4500 > 5.223.54.59.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[R]
+23:34:13.649670 IP 5.223.54.59.4500 > 138.199.204.139.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[I]
+23:34:13.817052 IP 138.199.204.139.4500 > 5.223.54.59.4500: NONESP-encap: isakmp: child_sa  ikev2_auth[R]
+23:34:17.859316 IP 5.223.54.59.4500 > 138.199.204.139.4500: UDP-encap: ESP(spi=0xc4d58670,seq=0x1), length 96
+23:34:18.021714 IP 138.199.204.139.4500 > 5.223.54.59.4500: UDP-encap: ESP(spi=0xc1c02e05,seq=0x1), length 96
+23:34:18.021974 IP 5.223.54.59.4500 > 138.199.204.139.4500: UDP-encap: ESP(spi=0xc4d58670,seq=0x2), length 88
+23:34:18.048759 IP 5.223.54.59.4500 > 138.199.204.139.4500: UDP-encap: ESP(spi=0xc4d58670,seq=0x3), length 604
+23:34:18.210219 IP 138.199.204.139.4500 > 5.223.54.59.4500: UDP-encap: ESP(spi=0xc1c02e05,seq=0x2), length 88
+23:34:18.545865 IP 138.199.204.139.4500 > 5.223.54.59.4500: UDP-encap: ESP(spi=0xc1c02e05,seq=0x3), length 1468
+23:34:18.545995 IP 5.223.54.59.4500 > 138.199.204.139.4500: UDP-encap: ESP(spi=0xc4d58670,seq=0x4), length 100
+
+20 packets captured
+37 packets received by filter
+0 packets dropped by kernel
+--- runner log ---

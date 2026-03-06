@@ -8,7 +8,7 @@ import 'core/config/app_config.dart';
 import 'core/logging/app_logger.dart';
 import 'core/state/vpn_state.dart';
 import 'navigation/app_router.dart';
-import 'ui/design/app_theme.dart';
+import 'ui/theme/securewave_theme.dart';
 
 class SecureWaveApp extends ConsumerStatefulWidget {
   const SecureWaveApp({super.key});
@@ -63,9 +63,9 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     final router = ref.watch(appRouterProvider);
     return MaterialApp.router(
       title: 'SecureWave',
-      theme: AppTheme.lightTheme(),
-      darkTheme: AppTheme.darkTheme(),
-      themeMode: ThemeMode.system,
+      theme: SecureWaveTheme.light(),
+      darkTheme: SecureWaveTheme.dark(),
+      themeMode: SecureWaveTheme.defaultThemeMode,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );

@@ -1,0 +1,2 @@
+unit=securewave-failsafe-20260227210319
+script=/root/securewave_failsafe.sh

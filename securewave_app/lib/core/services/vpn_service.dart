@@ -7,6 +7,8 @@ import 'package:platform_info/platform_info.dart';
 import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 import '../logging/app_logger.dart';
+import 'vpn_platform_bridge.dart';
+import '../vpn/wireguard_native_config.dart';
 
 abstract class VpnService {
   Future<VpnStatus> connect(
@@ -134,6 +136,7 @@ class ChannelVpnService implements VpnService {
   }
 
   final MethodChannel _channel = const MethodChannel('securewave/vpn');
+  final VpnPlatformBridge _platformBridge = VpnPlatformBridge();
   final Duration _capabilitiesCacheTtl;
   final Duration _availabilityCacheTtl;
   final DateTime Function() _clock;
@@ -154,13 +157,16 @@ class ChannelVpnService implements VpnService {
   @override
   String? get availabilityMessage => _lastNativeAvailabilityMessage;
 
+  bool get usesApplePlatformBridge => _usesAppleBridge();
+
   /// Whether this platform has a native `getTrafficStats` implementation.
-  /// Linux/Android/iOS provide native stats in this client build.
+  /// Linux/Android/iOS/macOS provide native stats in this client build.
   bool get hasNativeTrafficStats {
     if (_simulationEnabled) return true;
+    if (_usesAppleBridge()) return true;
     if (!_supportsNativeChannel()) return false;
     final os = platform.operatingSystem.name.toLowerCase();
-    return os == 'linux' || os == 'android' || os == 'ios';
+    return os == 'linux' || os == 'android' || os == 'ios' || os == 'macos';
   }
 
   Future<VpnTrafficStats?> fetchTrafficStats() async {
@@ -179,6 +185,17 @@ class ChannelVpnService implements VpnService {
     }
     if (!_supportsNativeChannel()) return null;
     try {
+      if (_usesAppleBridge()) {
+        final native = await _platformBridge.status();
+        return VpnTrafficStats(
+          connected: native.isConnected,
+          rxBytes: native.rxBytes,
+          txBytes: native.txBytes,
+          interfaceName: native.isConnected ? 'utun' : null,
+          protocol: vpnProtocolStorageValue(VpnProtocol.wireGuard),
+          timestampMs: DateTime.now().millisecondsSinceEpoch,
+        );
+      }
       final raw = await _channel
           .invokeMethod<dynamic>('getTrafficStats')
           .timeout(const Duration(seconds: 2));
@@ -272,6 +289,37 @@ class ChannelVpnService implements VpnService {
         'Disconnect it and retry $requested.';
   }
 
+  bool _usesAppleBridge() {
+    final os = platform.operatingSystem.name.toLowerCase();
+    return os == 'ios' || os == 'macos';
+  }
+
+  VpnStatus _mapBridgeState(VpnPlatformBridgeState state) {
+    return switch (state) {
+      VpnPlatformBridgeState.connected => VpnStatus.connected,
+      VpnPlatformBridgeState.connecting => VpnStatus.connecting,
+      VpnPlatformBridgeState.disconnecting => VpnStatus.disconnecting,
+      VpnPlatformBridgeState.error => VpnStatus.error,
+      VpnPlatformBridgeState.disconnected ||
+      VpnPlatformBridgeState.unavailable => VpnStatus.disconnected,
+    };
+  }
+
+  Future<VpnNativeTunnelStatus> _waitForBridgeState({
+    required Set<VpnPlatformBridgeState> terminalStates,
+    Duration timeout = const Duration(seconds: 25),
+  }) async {
+    final deadline = _clock().add(timeout);
+    while (_clock().isBefore(deadline)) {
+      final status = await _platformBridge.status();
+      if (terminalStates.contains(status.state)) {
+        return status;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+    }
+    throw TimeoutException('Timed out waiting for Apple VPN bridge.');
+  }
+
   /// Best-effort sync of tunnel status from the native layer.
   ///
   /// This is primarily used to avoid "stuck disconnected" states after an app
@@ -282,10 +330,21 @@ class ChannelVpnService implements VpnService {
       return _status;
     }
     try {
+      if (_usesAppleBridge()) {
+        final native = await _platformBridge.status();
+        _status = _mapBridgeState(native.state);
+        return _status;
+      }
       final raw = await _channel.invokeMethod<String>('getStatus');
       final normalized = (raw ?? '').toLowerCase().trim();
       if (normalized == 'connected') {
         _status = VpnStatus.connected;
+      } else if (normalized == 'connecting') {
+        _status = VpnStatus.connecting;
+      } else if (normalized == 'disconnecting') {
+        _status = VpnStatus.disconnecting;
+      } else if (normalized == 'error') {
+        _status = VpnStatus.error;
       } else if (normalized == 'disconnected') {
         _status = VpnStatus.disconnected;
       }
@@ -361,6 +420,52 @@ class ChannelVpnService implements VpnService {
         _simTxBytes = 0;
         _simLastTick = _clock();
         _status = VpnStatus.connected;
+        return _status;
+      }
+      if (_usesAppleBridge()) {
+        if (protocol != VpnProtocol.wireGuard) {
+          _status = VpnStatus.disconnected;
+          throw VpnServiceException(
+            'protocol_unavailable',
+            'Apple Network Extension bridge currently supports WireGuard only.',
+          );
+        }
+        final request = (() {
+          try {
+            return WireGuardNativeConfig.fromProfilePayload(payload);
+          } on StateError catch (error) {
+            throw VpnServiceException('invalid_profile', error.message);
+          }
+        })();
+        await _platformBridge.connectWireGuard(
+          serverId: request.serverId,
+          endpointHost: request.endpointHost,
+          endpointPort: request.endpointPort,
+          clientPrivateKey: request.clientPrivateKey,
+          addressCidr: request.addressCidr,
+          dns: request.dns,
+          allowedIps: request.allowedIps,
+          keepaliveSeconds: request.keepaliveSeconds,
+          presharedKey: request.presharedKey,
+          serverPublicKey: request.serverPublicKey,
+        );
+        final native = await _waitForBridgeState(
+          terminalStates: const <VpnPlatformBridgeState>{
+            VpnPlatformBridgeState.connected,
+            VpnPlatformBridgeState.disconnected,
+            VpnPlatformBridgeState.error,
+            VpnPlatformBridgeState.unavailable,
+          },
+        );
+        _status = _mapBridgeState(native.state);
+        if (native.state != VpnPlatformBridgeState.connected) {
+          throw VpnServiceException(
+            native.state == VpnPlatformBridgeState.error
+                ? 'vpn_connect_failed'
+                : 'connect_incomplete',
+            native.lastError ?? 'Apple Network Extension tunnel did not connect.',
+          );
+        }
         return _status;
       }
       await _channel.invokeMethod('connect', {
@@ -454,6 +559,27 @@ class ChannelVpnService implements VpnService {
     }
     if (!_supportsNativeChannel()) return VpnCapabilities.none;
     final os = platform.operatingSystem.name.toLowerCase();
+    if (_usesAppleBridge()) {
+      final diagnostics = await fetchPlatformDiagnostics();
+      final available = diagnostics?.available ?? false;
+      final warning =
+          diagnostics?.lastError ?? _defaultUnavailableMessage(os);
+      final capabilities = VpnCapabilities(
+        wireGuard: available,
+        openVpn: false,
+        ikev2: false,
+        windowsThreadSafe: false,
+        androidVpnServiceBased: false,
+        macosEntitlementReady: os != 'macos' || available,
+        linuxWireGuardInstalled: true,
+        linuxElevationAvailable: true,
+        wireGuardInstallHint: available ? null : warning,
+        macosEntitlementWarning:
+            os == 'macos' && !available ? warning : null,
+      );
+      _cacheCapabilities(capabilities);
+      return capabilities;
+    }
     try {
       final raw = await _channel
           .invokeMethod<dynamic>('getCapabilities')
@@ -545,6 +671,25 @@ class ChannelVpnService implements VpnService {
         _status = VpnStatus.disconnected;
         return _status;
       }
+      if (_usesAppleBridge()) {
+        await _platformBridge.disconnect();
+        final native = await _waitForBridgeState(
+          terminalStates: const <VpnPlatformBridgeState>{
+            VpnPlatformBridgeState.disconnected,
+            VpnPlatformBridgeState.error,
+            VpnPlatformBridgeState.unavailable,
+          },
+          timeout: const Duration(seconds: 20),
+        );
+        _status = _mapBridgeState(native.state);
+        if (_status == VpnStatus.error) {
+          throw VpnServiceException(
+            'vpn_disconnect_failed',
+            native.lastError ?? 'Apple Network Extension tunnel failed to stop.',
+          );
+        }
+        return _status;
+      }
       await _channel
           .invokeMethod('disconnect')
           .timeout(const Duration(seconds: 20));
@@ -609,6 +754,40 @@ class ChannelVpnService implements VpnService {
       return _nativeAvailable;
     }
     final os = platform.operatingSystem.name.toLowerCase();
+    if (_usesAppleBridge()) {
+      try {
+        final available =
+            await _platformBridge.isAvailable().timeout(const Duration(seconds: 2));
+        _nativeAvailable = available;
+        if (_nativeAvailable) {
+          _lastNativeAvailabilityMessage = null;
+        } else {
+          final diagnostics = await fetchPlatformDiagnostics();
+          _lastNativeAvailabilityMessage =
+              diagnostics?.lastError ?? _defaultUnavailableMessage(os);
+        }
+        _nativeAvailabilityCheckedAt = _clock();
+        return _nativeAvailable;
+      } on TimeoutException {
+        _nativeAvailable = false;
+        _lastNativeAvailabilityMessage =
+            'VPN availability check timed out. Retry in a moment.';
+        _nativeAvailabilityCheckedAt = _clock();
+        return _nativeAvailable;
+      } on MissingPluginException {
+        _nativeAvailable = false;
+        _lastNativeAvailabilityMessage =
+            'Apple VPN bridge is missing for this platform/build.';
+        _nativeAvailabilityCheckedAt = _clock();
+        return _nativeAvailable;
+      } on PlatformException catch (error) {
+        _lastNativeAvailabilityMessage =
+            error.message ?? _defaultUnavailableMessage(os);
+        _nativeAvailable = false;
+        _nativeAvailabilityCheckedAt = _clock();
+        return _nativeAvailable;
+      }
+    }
     try {
       final available = await _channel
           .invokeMethod<bool>('isAvailable')
@@ -741,5 +920,27 @@ class ChannelVpnService implements VpnService {
     const txRateBytesPerSec = 64 * 1024;
     _simRxBytes += ((rxRateBytesPerSec * elapsedMs) / 1000).round();
     _simTxBytes += ((txRateBytesPerSec * elapsedMs) / 1000).round();
+  }
+
+  Future<VpnNativeTunnelStatus?> fetchPlatformBridgeStatus() async {
+    if (!_usesAppleBridge()) return null;
+    try {
+      return await _platformBridge.status();
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  Future<VpnPlatformBridgeDiagnostics?> fetchPlatformDiagnostics() async {
+    if (!_usesAppleBridge()) return null;
+    try {
+      return await _platformBridge.diagnostics();
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
   }
 }

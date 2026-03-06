@@ -3,10 +3,7 @@ import FlutterMacOS
 
 @main
 class AppDelegate: FlutterAppDelegate {
-  private let channelName = "securewave/vpn"
-  private let macosUnavailableMessage =
-    "macOS VPN in SecureWave requires a signed Network Extension integration. " +
-    "This build does not include a Packet Tunnel or NEVPNManager entitlements."
+  private let bridgeChannelName = "securewave/vpn_platform_bridge"
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return true
@@ -20,52 +17,64 @@ class AppDelegate: FlutterAppDelegate {
     super.applicationDidFinishLaunching(notification)
 
     if let controller = mainFlutterWindow?.contentViewController as? FlutterViewController {
-      let channel = FlutterMethodChannel(name: channelName, binaryMessenger: controller.engine.binaryMessenger)
+      let channel = FlutterMethodChannel(
+        name: bridgeChannelName,
+        binaryMessenger: controller.engine.binaryMessenger
+      )
       channel.setMethodCallHandler { call, result in
-        let args = call.arguments as? [String: Any]
-        let protocolId = (args?["protocol"] as? String ?? "").lowercased()
-
         switch call.method {
         case "isAvailable":
-          result(false)
-        case "getStatus":
-          result("disconnected")
-        case "getCapabilities":
-          result([
-            "wireguard": false,
-            "openvpn": false,
-            "ikev2": false,
-            "windows_thread_safe": false,
-            "android_vpnservice_based": false,
-            "macos_entitlements_ready": false,
-            "macos_entitlement_warning": self.macosUnavailableMessage,
-            "openvpn_install_hint":
-              "OpenVPN on macOS requires a signed Network Extension/Packet Tunnel integration.",
-            "ikev2_install_hint":
-              "IKEv2 on macOS requires NEVPNManager entitlements and signed provisioning.",
-          ])
-        case "connect":
-          let protocolMessage: String
-          if protocolId == "openvpn" {
-            protocolMessage =
-              "OpenVPN is unavailable on this macOS build. A signed Packet Tunnel/Network Extension target is required."
-          } else if protocolId == "ikev2" || protocolId == "ipsec" {
-            protocolMessage =
-              "IKEv2 is unavailable on this macOS build. NEVPNManager entitlements and signing are required."
-          } else {
-            protocolMessage = self.macosUnavailableMessage
+          SecureWaveVPNManager.shared.isAvailable { available, _ in
+            result(available)
           }
-          result(FlutterError(
-            code: "protocol_unavailable",
-            message: protocolMessage,
-            details: ["platform": "macos", "configured": false, "protocol": protocolId]
-          ))
+        case "diagnostics":
+          SecureWaveVPNManager.shared.diagnostics { payload in
+            result(payload)
+          }
+        case "status":
+          SecureWaveVPNManager.shared.status { payload in
+            result(payload)
+          }
+        case "connectWireGuard":
+          guard let args = call.arguments as? [String: Any] else {
+            result(
+              FlutterError(
+                code: "invalid_profile",
+                message: "Missing WireGuard bridge arguments.",
+                details: nil
+              )
+            )
+            return
+          }
+          SecureWaveVPNManager.shared.connectWireGuard(arguments: args) { error in
+            if let error {
+              result(Self.flutterError(from: error))
+            } else {
+              result(nil)
+            }
+          }
         case "disconnect":
-          result(nil)
+          SecureWaveVPNManager.shared.disconnect { error in
+            if let error {
+              result(Self.flutterError(from: error))
+            } else {
+              result(nil)
+            }
+          }
         default:
           result(FlutterMethodNotImplemented)
         }
       }
     }
+  }
+
+  private static func flutterError(from error: Error) -> FlutterError {
+    let nsError = error as NSError
+    let code = (nsError.userInfo["SecureWaveErrorCode"] as? String) ?? "vpn_connect_failed"
+    return FlutterError(
+      code: code,
+      message: nsError.localizedDescription,
+      details: nil
+    )
   }
 }

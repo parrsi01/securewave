@@ -1,0 +1,3 @@
+tmp=/root/securewave_ext_client_20260227_232749
+user=sw_ext_20260227_232749
+pass=NE2zKNYTlorUAu6qoiNVShyV

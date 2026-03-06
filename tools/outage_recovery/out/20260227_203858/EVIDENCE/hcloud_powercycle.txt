@@ -1,0 +1,176 @@
+# before 2026-02-27T21:02:19Z
+ID:       120788588
+Name:     securewave-prod
+Status:   running
+Created:  2026-02-12 00:54:17 UTC (2 weeks ago)
+
+Server Type:
+  ID:            115
+  Name:          cx33
+  Description:   CX 33
+  Category:      cost_optimized
+  Cores:         4
+  CPU Type:      shared
+  Architecture:  x86
+  Memory:        8.0 GB
+  Disk:          80 GB
+  Storage Type:  local
+
+Public Net:
+  IPv4:
+    ID:       117811364
+    IP:       138.199.204.139
+    Blocked:  no
+    DNS:      static.139.204.199.138.clients.your-server.de
+
+  IPv6:
+    ID:       117811365
+    IP:       2a01:4f8:1c1f:9b0b::/64
+    Blocked:  no
+
+  Floating IPs:
+    No Floating IPs
+
+Private Net:
+  - ID:           11982940
+    Name:         securewave-private
+    IP:           10.255.1.1
+    MAC Address:  86:00:00:75:8c:78
+    Alias IPs:    -
+
+Volumes:
+  No Volumes
+
+Image:
+  ID:            67794396
+  Type:          system
+  Status:        available
+  Name:          ubuntu-22.04
+  Created:       2022-04-21 13:32:38 UTC (3 years ago)
+  Description:   Ubuntu 22.04
+  Image size:    -
+  Disk size:     5 GB
+  OS flavor:     ubuntu
+  OS version:    22.04
+  Architecture:  x86
+  Rapid deploy:  yes
+  
+  Protection:
+    Delete:  no
+  
+  Labels:
+    No labels
+
+Location:
+  ID:            2
+  Name:          nbg1
+  Description:   Nuremberg DC Park 1
+  Network Zone:  eu-central
+  Country:       DE
+  City:          Nuremberg
+  Latitude:      49.452102
+  Longitude:     11.076665
+
+Datacenter:
+  ID:           2
+  Name:         nbg1-dc3
+  Description:  Nuremberg 1 virtual DC 3
+
+Backup Window:  Backups disabled
+
+Rescue System:  disabled
+
+Traffic:
+  Outgoing:  458 MiB
+  Ingoing:   383 MiB
+  Included:  20 TiB
+
+ISO:
+  No ISO attached
+
+Protection:
+  Delete:   no
+  Rebuild:  no
+
+Labels:
+  No labels
+
+Placement Group:
+  No Placement Group set
+
+# powercycle
+Manage Servers
+
+Usage:
+  hcloud server [command]
+
+Aliases:
+  server, servers
+
+General:
+  add-label                   Add a label to a Server
+  change-type                 Change type of a server
+  create                      Create a Server
+  create-image                Create an Image from a Server
+  delete                      Delete a server
+  describe                    Describe a Server
+  list                        List Servers
+  rebuild                     Rebuild a server
+  remove-label                Remove a label from a Server
+  update                      Update a Server
+
+Protection:
+  disable-protection          Disable resource protection for a Server
+  enable-protection           Enable resource protection for a Server
+
+Rescue:
+  disable-rescue              Disable rescue for a server
+  enable-rescue               Enable rescue for a server
+
+Power/Reboot:
+  poweroff                    Poweroff a Server
+  poweron                     Poweron a server
+  reboot                      Reboot a server
+  reset                       Reset a Server
+  shutdown                    Shutdown a server
+
+Networks:
+  attach-to-network           Attach a Server to a Network
+  change-alias-ips            Change a server's alias IPs in a Network
+  detach-from-network         Detach a Server from a Network
+
+ISO:
+  attach-iso                  Attach an ISO to a server
+  detach-iso                  Detach an ISO from a Server
+
+Placement Groups:
+  add-to-placement-group      Add a Server to a Placement Group
+  remove-from-placement-group Removes a Server from a Placement Group
+
+Backup:
+  disable-backup              Disable backup for a server
+  enable-backup               Enable backup for a server
+
+Additional Commands:
+  ip                          Print a server's IP address
+  metrics                     [ALPHA] Metrics from a Server
+  request-console             Request a WebSocket VNC console for a Server
+  reset-password              Reset the root password of a Server
+  set-rdns                    Change reverse DNS of a Server
+  ssh                         Spawn an SSH connection for the Server
+
+Flags:
+  -h, --help   help for server
+
+Global Flags:
+      --config string              Config file path (default "~/.config/hcloud/cli.toml")
+      --context string             Currently active context
+      --debug                      Enable debug output
+      --debug-file string          File to write debug output to
+      --endpoint string            Hetzner Cloud API endpoint (default "https://api.hetzner.cloud/v1")
+      --hetzner-endpoint string    Hetzner API endpoint (default "https://api.hetzner.com/v1")
+      --no-experimental-warnings   If true, experimental warnings are not shown
+      --poll-interval duration     Interval at which to poll information, for example action progress (default 500ms)
+      --quiet                      If true, only print error messages
+
+Use "hcloud server [command] --help" for more information about a command.

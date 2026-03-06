@@ -1,0 +1,1 @@
+{"error":{"code":"protocol_not_supported_on_platform","message":"Requested protocol is not supported on this platform.","details":{"protocol":"openvpn","device_type":null}},"request_id":"9ef92c0a-11cd-4f7f-9f79-14e78b59e53d"}

@@ -1,0 +1,200 @@
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_selftest_live_1772220329
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_selftest_auto_1772220414
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772221228
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772221360
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772221572
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772221806
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772222043
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772222168
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772222297
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772222422
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772222811
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772222936
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772223061
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772223186
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_egress_1772234189
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_ext_20260227_232749
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_a4061dc38fb0750c9c44
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_9ecc73d246315ef814a7
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_49cb9a53bf5584b2ec49
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_241b751976a7371e2c67
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_66f043f74e2044cd20fc
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_f3977ec3cc48c517fcf5
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[CFG]   loaded EAP secret for sw_e08626fcc749157ff470
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[KNL] interface wg0 deactivated
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 14[KNL] 10.8.0.1 disappeared from wg0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 08[KNL] interface wg0 deleted
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[NET] using forecast interface eth0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 12[KNL] 10.8.0.1 appeared on wg0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[KNL] interface wg0 activated
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 11[NET] using forecast interface eth0
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_probe_user
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 11[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 03[KNL] interface wg0 deactivated
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 11[KNL] 10.8.0.1 disappeared from wg0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 08[KNL] interface wg0 deleted
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 10[NET] using forecast interface eth0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 10[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[KNL] 10.8.0.1 appeared on wg0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 06[KNL] interface wg0 activated
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 11[NET] using forecast interface eth0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 11[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 10[KNL] interface wg0 deactivated
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[KNL] 10.8.0.1 disappeared from wg0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 06[KNL] interface wg0 deleted
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 07[NET] using forecast interface eth0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 07[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 16[KNL] 10.8.0.1 appeared on wg0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 11[KNL] interface wg0 activated
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 09[NET] using forecast interface eth0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 09[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 09[KNL] interface wg0 deactivated
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 07[KNL] 10.8.0.1 disappeared from wg0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 16[KNL] interface wg0 deleted
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 08[NET] using forecast interface eth0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 08[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 10[KNL] 10.8.0.1 appeared on wg0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[KNL] interface wg0 activated
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 07[NET] using forecast interface eth0
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 07[CFG] joining forecast multicast groups: 224.0.0.1,224.0.0.22,224.0.0.251,224.0.0.252,239.255.255.250
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG] rereading secrets
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG] loading secrets from '/etc/ipsec.secrets'
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded RSA private key from '/etc/ipsec.d/private/server-key.pem'
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded EAP secret for securewave
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded EAP secret for sw_probe_user
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded EAP secret for sw_f2f4d4b213c9d600216c
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded EAP secret for sw_10d210b68549b32afd8a
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded EAP secret for sw_selftest_1772220273
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded EAP secret for sw_selftest_1772220313
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded EAP secret for sw_selftest_live_1772220329
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded EAP secret for sw_selftest_auto_1772220414
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_f2f4d4b213c9d600216c
+Feb 28 14:08:55 securewave-prod ipsec[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772221228
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_10d210b68549b32afd8a
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_selftest_1772220273
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_selftest_1772220313
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_selftest_live_1772220329
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_selftest_auto_1772220414
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772221228
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772221360
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772221572
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772221806
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772222043
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772222168
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772222297
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772222422
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772222811
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772222936
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772223061
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772223186
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_egress_1772234189
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_ext_20260227_232749
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_a4061dc38fb0750c9c44
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_9ecc73d246315ef814a7
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_241b751976a7371e2c67
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_66f043f74e2044cd20fc
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_f3977ec3cc48c517fcf5
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_e08626fcc749157ff470
+Feb 28 14:08:55 securewave-prod charon[126895]: 13[CFG]   loaded EAP secret for sw_49cb9a53bf5584b2ec49
+Feb 28 14:08:55 securewave-prod sudo[1101879]: pam_unix(sudo:session): session closed for user root
+Feb 28 14:08:55 securewave-prod sshd[1101878]: Received disconnect from 92.105.134.148 port 37759:11: disconnected by user
+Feb 28 14:08:55 securewave-prod sshd[1101878]: Disconnected from user securewave 92.105.134.148 port 37759
+Feb 28 14:08:55 securewave-prod sshd[1101832]: pam_unix(sshd:session): session closed for user securewave
+Feb 28 14:08:55 securewave-prod systemd[1]: session-24105.scope: Deactivated successfully.
+Feb 28 14:08:55 securewave-prod systemd-logind[815]: Session 24105 logged out. Waiting for processes to exit.
+Feb 28 14:08:55 securewave-prod systemd-logind[815]: Removed session 24105.
+Feb 28 14:08:55 securewave-prod sshd[1101893]: Accepted publickey for securewave from 92.105.134.148 port 47181 ssh2: ED25519 SHA256:KK0ZO/hKZwsQe5N1zRDX0D9hLAj/jsmWyQDPzwTF63Y
+Feb 28 14:08:55 securewave-prod sshd[1101893]: pam_unix(sshd:session): session opened for user securewave(uid=1000) by (uid=0)
+Feb 28 14:08:55 securewave-prod systemd-logind[815]: New session 24106 of user securewave.
+Feb 28 14:08:55 securewave-prod systemd[1]: Started Session 24106 of User securewave.
+Feb 28 14:08:55 securewave-prod sudo[1101941]: pam_unix(sudo:auth): conversation failed
+Feb 28 14:08:55 securewave-prod sudo[1101941]: pam_unix(sudo:auth): auth could not identify password for [securewave]
+Feb 28 14:08:55 securewave-prod sshd[1101940]: Received disconnect from 92.105.134.148 port 47181:11: disconnected by user
+Feb 28 14:08:55 securewave-prod sshd[1101940]: Disconnected from user securewave 92.105.134.148 port 47181
+Feb 28 14:08:55 securewave-prod sshd[1101893]: pam_unix(sshd:session): session closed for user securewave
+Feb 28 14:08:55 securewave-prod systemd[1]: session-24106.scope: Deactivated successfully.
+Feb 28 14:08:55 securewave-prod systemd-logind[815]: Session 24106 logged out. Waiting for processes to exit.
+Feb 28 14:08:55 securewave-prod systemd-logind[815]: Removed session 24106.
+Feb 28 14:08:55 securewave-prod sshd[1101942]: Accepted publickey for securewave from 92.105.134.148 port 33407 ssh2: ED25519 SHA256:KK0ZO/hKZwsQe5N1zRDX0D9hLAj/jsmWyQDPzwTF63Y
+Feb 28 14:08:55 securewave-prod sshd[1101942]: pam_unix(sshd:session): session opened for user securewave(uid=1000) by (uid=0)
+Feb 28 14:08:55 securewave-prod systemd-logind[815]: New session 24107 of user securewave.
+Feb 28 14:08:55 securewave-prod systemd[1]: Started Session 24107 of User securewave.
+Feb 28 14:08:56 securewave-prod sudo[1101992]: securewave : PWD=/home/securewave ; USER=root ; COMMAND=/usr/local/bin/securewave-ikev2-issue-client --common-name sw-ikev2-u1-d1-r2 --valid-days 30 --provisioning-token eyJleHAiOjE3NzIyODgwMzUsImlhdCI6MTc3MjI4NzczNSwibm9uY2UiOiJ0Nmx4WVI3WlMwenlpYmFkIiwicHJvdG8iOiJpa2V2MiIsInN1YiI6InN3LWlrZXYyLXUxLWQxLXIyIn0._rBlbKpY1OE-prBxtlBT3fnlozlJjYeTJyTdO6s6hQs --server 138.199.204.139 --remote-id 138.199.204.139 --output json
+Feb 28 14:08:56 securewave-prod sudo[1101992]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)
+Feb 28 14:08:56 securewave-prod systemd[1]: Stopping User Manager for UID 0...
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Stopped target Main User Target.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Stopped target Basic System.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Stopped target Paths.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Stopped target Sockets.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Stopped target Timers.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Closed D-Bus User Message Bus Socket.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Closed GnuPG network certificate management daemon.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Closed GnuPG cryptographic agent and passphrase cache (access for web browsers).
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Closed GnuPG cryptographic agent and passphrase cache (restricted).
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Closed GnuPG cryptographic agent (ssh-agent emulation).
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Closed GnuPG cryptographic agent and passphrase cache.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Closed debconf communication socket.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Closed REST API socket for snapd user session agent.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Removed slice User Application Slice.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Reached target Shutdown.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Finished Exit the Session.
+Feb 28 14:08:56 securewave-prod systemd[1101189]: Reached target Exit the Session.
+Feb 28 14:08:56 securewave-prod systemd[1]: user@0.service: Deactivated successfully.
+Feb 28 14:08:56 securewave-prod systemd[1]: Stopped User Manager for UID 0.
+Feb 28 14:08:56 securewave-prod systemd[1]: Stopping User Runtime Directory /run/user/0...
+Feb 28 14:08:56 securewave-prod systemd[1]: run-user-0.mount: Deactivated successfully.
+Feb 28 14:08:56 securewave-prod systemd[1]: user-runtime-dir@0.service: Deactivated successfully.
+Feb 28 14:08:56 securewave-prod systemd[1]: Stopped User Runtime Directory /run/user/0.
+Feb 28 14:08:56 securewave-prod systemd[1]: Removed slice User Slice of UID 0.
+Feb 28 14:08:56 securewave-prod sudo[1101992]: pam_unix(sudo:session): session closed for user root
+Feb 28 14:08:56 securewave-prod sshd[1101988]: Received disconnect from 92.105.134.148 port 33407:11: disconnected by user
+Feb 28 14:08:56 securewave-prod sshd[1101988]: Disconnected from user securewave 92.105.134.148 port 33407
+Feb 28 14:08:56 securewave-prod sshd[1101942]: pam_unix(sshd:session): session closed for user securewave
+Feb 28 14:08:56 securewave-prod systemd[1]: session-24107.scope: Deactivated successfully.
+Feb 28 14:08:56 securewave-prod systemd-logind[815]: Session 24107 logged out. Waiting for processes to exit.
+Feb 28 14:08:56 securewave-prod systemd-logind[815]: Removed session 24107.
+Feb 28 14:08:56 securewave-prod sshd[1102024]: error: kex_exchange_identification: Connection closed by remote host
+Feb 28 14:08:56 securewave-prod sshd[1102024]: Connection closed by 92.105.134.148 port 35151
+Feb 28 14:08:56 securewave-prod sshd[1102025]: error: kex_exchange_identification: Connection closed by remote host
+Feb 28 14:08:56 securewave-prod sshd[1102025]: Connection closed by 92.105.134.148 port 43059
+Feb 28 14:08:56 securewave-prod sshd[1102026]: Accepted publickey for securewave from 92.105.134.148 port 32831 ssh2: ED25519 SHA256:KK0ZO/hKZwsQe5N1zRDX0D9hLAj/jsmWyQDPzwTF63Y
+Feb 28 14:08:56 securewave-prod sshd[1102026]: pam_unix(sshd:session): session opened for user securewave(uid=1000) by (uid=0)
+Feb 28 14:08:56 securewave-prod systemd-logind[815]: New session 24108 of user securewave.
+Feb 28 14:08:56 securewave-prod systemd[1]: Started Session 24108 of User securewave.
+Feb 28 14:08:56 securewave-prod sudo[1102076]: securewave : PWD=/home/securewave ; USER=root ; COMMAND=/bin/cat /var/lib/securewave/pki/ikev2/sw-ikev2-u1-d1-r2/payload.json
+Feb 28 14:08:56 securewave-prod sudo[1102076]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)
+Feb 28 14:08:56 securewave-prod sudo[1102076]: pam_unix(sudo:session): session closed for user root
+Feb 28 14:08:56 securewave-prod sshd[1102072]: Received disconnect from 92.105.134.148 port 32831:11: disconnected by user
+Feb 28 14:08:56 securewave-prod sshd[1102072]: Disconnected from user securewave 92.105.134.148 port 32831
+Feb 28 14:08:56 securewave-prod sshd[1102026]: pam_unix(sshd:session): session closed for user securewave
+Feb 28 14:08:56 securewave-prod systemd[1]: session-24108.scope: Deactivated successfully.
+Feb 28 14:08:56 securewave-prod systemd-logind[815]: Session 24108 logged out. Waiting for processes to exit.
+Feb 28 14:08:56 securewave-prod systemd-logind[815]: Removed session 24108.
+Feb 28 14:08:57 securewave-prod sshd[1102078]: Accepted publickey for root from 92.105.134.148 port 35170 ssh2: ED25519 SHA256:KK0ZO/hKZwsQe5N1zRDX0D9hLAj/jsmWyQDPzwTF63Y
+Feb 28 14:08:57 securewave-prod sshd[1102078]: pam_unix(sshd:session): session opened for user root(uid=0) by (uid=0)
+Feb 28 14:08:57 securewave-prod systemd[1]: Created slice User Slice of UID 0.
+Feb 28 14:08:57 securewave-prod systemd[1]: Starting User Runtime Directory /run/user/0...
+Feb 28 14:08:57 securewave-prod systemd-logind[815]: New session 24109 of user root.
+Feb 28 14:08:57 securewave-prod systemd[1]: Finished User Runtime Directory /run/user/0.
+Feb 28 14:08:57 securewave-prod systemd[1]: Starting User Manager for UID 0...
+Feb 28 14:08:57 securewave-prod systemd[1102081]: pam_unix(systemd-user:session): session opened for user root(uid=0) by (uid=0)
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Queued start job for default target Main User Target.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Created slice User Application Slice.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Reached target Paths.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Reached target Timers.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Starting D-Bus User Message Bus Socket...
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Listening on GnuPG network certificate management daemon.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Listening on GnuPG cryptographic agent and passphrase cache (access for web browsers).
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Listening on GnuPG cryptographic agent and passphrase cache (restricted).
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Listening on GnuPG cryptographic agent (ssh-agent emulation).
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Listening on GnuPG cryptographic agent and passphrase cache.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Listening on debconf communication socket.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Listening on REST API socket for snapd user session agent.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Listening on D-Bus User Message Bus Socket.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Reached target Sockets.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Reached target Basic System.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Reached target Main User Target.
+Feb 28 14:08:57 securewave-prod systemd[1102081]: Startup finished in 68ms.
+Feb 28 14:08:57 securewave-prod systemd[1]: Started User Manager for UID 0.
+Feb 28 14:08:57 securewave-prod systemd[1]: Started Session 24109 of User root.

@@ -15,16 +15,15 @@ class AppTheme {
   // ── Public Entry Points ──────────────────────────────────────────────────
 
   static ThemeData lightTheme() => _build(Brightness.light);
-  static ThemeData darkTheme()  => _build(Brightness.dark);
+  static ThemeData darkTheme() => _build(Brightness.dark);
 
   // ── Theme Builder ────────────────────────────────────────────────────────
 
   static ThemeData _build(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
 
-    final colorScheme = isDark
-        ? AppColors.darkScheme()
-        : AppColors.lightScheme();
+    final colorScheme =
+        isDark ? AppColors.darkScheme() : AppColors.lightScheme();
 
     final base = ThemeData(
       useMaterial3: true,
@@ -36,13 +35,16 @@ class AppTheme {
 
     final scaffoldBg = isDark ? AppColors.darkBackground : AppColors.background;
     final surfaceColor = isDark ? AppColors.darkSurface : AppColors.surface;
-    final mutedSurface = isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted;
-    final borderColor  = isDark ? AppColors.darkBorder : AppColors.border;
-    final inkColor     = isDark ? AppColors.darkInk : AppColors.ink;
-    final inkMuted     = isDark ? AppColors.darkInkMuted : AppColors.inkMuted;
-    final inkSoft      = isDark ? AppColors.darkInkSoft : AppColors.inkSoft;
+    final mutedSurface =
+        isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.border;
+    final inkColor = isDark ? AppColors.darkInk : AppColors.ink;
+    final inkMuted = isDark ? AppColors.darkInkMuted : AppColors.inkMuted;
+    final inkSoft = isDark ? AppColors.darkInkSoft : AppColors.inkSoft;
     final primaryColor = isDark ? AppColors.primaryBright : AppColors.primary;
-    final primaryLight = isDark ? AppColors.primaryDeep.withValues(alpha: 0.5) : AppColors.primaryLight;
+    final primaryLight = isDark
+        ? AppColors.primaryDeep.withValues(alpha: 0.5)
+        : AppColors.primaryLight;
 
     return base.copyWith(
       scaffoldBackgroundColor: scaffoldBg,
@@ -186,9 +188,7 @@ class AppTheme {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return primaryColor;
-          return isDark
-              ? AppColors.darkSurfaceMuted
-              : AppColors.surfaceMuted;
+          return isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted;
         }),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
@@ -249,7 +249,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
           side: BorderSide(color: borderColor, width: 0.5),
         ),
-        titleTextStyle: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        titleTextStyle:
+            textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
         contentTextStyle: textTheme.bodyMedium?.copyWith(color: inkMuted),
       ),
 
@@ -321,10 +322,10 @@ class AppTheme {
       // ── Page Transitions ──────────────────────────────────────────────────
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.iOS:     CupertinoPageTransitionsBuilder(),
-          TargetPlatform.macOS:   CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
           TargetPlatform.android: FadeSlidePageTransitionsBuilder(),
-          TargetPlatform.linux:   FadeSlidePageTransitionsBuilder(),
+          TargetPlatform.linux: FadeSlidePageTransitionsBuilder(),
           TargetPlatform.windows: FadeSlidePageTransitionsBuilder(),
           TargetPlatform.fuchsia: FadeSlidePageTransitionsBuilder(),
         },
@@ -335,10 +336,30 @@ class AppTheme {
   // ── Shadow Helpers ────────────────────────────────────────────────────────
 
   static List<BoxShadow> shadowSm(bool isDark) => isDark
-      ? [BoxShadow(color: Colors.black.withValues(alpha: 0.24), blurRadius: 8, offset: const Offset(0, 2))]
-      : [BoxShadow(color: AppColors.ink.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))];
+      ? [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.24),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ]
+      : [
+          BoxShadow(
+              color: AppColors.ink.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ];
 
   static List<BoxShadow> shadowMd(bool isDark) => isDark
-      ? [BoxShadow(color: Colors.black.withValues(alpha: 0.32), blurRadius: 24, offset: const Offset(0, 6))]
-      : [BoxShadow(color: AppColors.ink.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 6))];
+      ? [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.32),
+              blurRadius: 24,
+              offset: const Offset(0, 6))
+        ]
+      : [
+          BoxShadow(
+              color: AppColors.ink.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 6))
+        ];
 }

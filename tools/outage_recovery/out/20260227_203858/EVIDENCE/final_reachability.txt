@@ -1,0 +1,13 @@
+# final reachability check 2026-02-27T20:41:55Z
+## ping
+PING 138.199.204.139 (138.199.204.139) 56(84) bytes of data.
+
+--- 138.199.204.139 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2078ms
+
+
+## nc 22
+nc: connect to 138.199.204.139 port 22 (tcp) timed out: Operation now in progress
+
+## ssh probe
+ssh: connect to host 138.199.204.139 port 22: Connection timed out

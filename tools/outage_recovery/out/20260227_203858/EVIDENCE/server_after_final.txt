@@ -1,0 +1,164 @@
+=== ip route ===
+default via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+10.8.0.0/24 dev wg0 proto kernel scope link src 10.8.0.1 
+10.9.0.0/24 dev tun0 proto kernel scope link src 10.9.0.1 
+10.255.0.0/16 via 10.255.0.1 dev enp7s0 
+10.255.0.1 dev enp7s0 scope link 
+172.31.1.1 dev eth0 proto dhcp scope link src 138.199.204.139 metric 100 
+185.12.64.1 via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+185.12.64.2 via 172.31.1.1 dev eth0 proto dhcp src 138.199.204.139 metric 100 
+
+=== ip rule ===
+0:	from all lookup local
+220:	from all lookup 220
+32766:	from all lookup main
+32767:	from all lookup default
+
+=== iptables -S ===
+-P INPUT DROP
+-P FORWARD DROP
+-P OUTPUT ACCEPT
+-N ufw-after-forward
+-N ufw-after-input
+-N ufw-after-logging-forward
+-N ufw-after-logging-input
+-N ufw-after-logging-output
+-N ufw-after-output
+-N ufw-before-forward
+-N ufw-before-input
+-N ufw-before-logging-forward
+-N ufw-before-logging-input
+-N ufw-before-logging-output
+-N ufw-before-output
+-N ufw-logging-allow
+-N ufw-logging-deny
+-N ufw-not-local
+-N ufw-reject-forward
+-N ufw-reject-input
+-N ufw-reject-output
+-N ufw-skip-to-policy-forward
+-N ufw-skip-to-policy-input
+-N ufw-skip-to-policy-output
+-N ufw-track-forward
+-N ufw-track-input
+-N ufw-track-output
+-N ufw-user-forward
+-N ufw-user-input
+-N ufw-user-limit
+-N ufw-user-limit-accept
+-N ufw-user-logging-forward
+-N ufw-user-logging-input
+-N ufw-user-logging-output
+-N ufw-user-output
+-A INPUT -p tcp -m tcp --dport 22 -j ACCEPT
+-A INPUT -j ufw-before-logging-input
+-A INPUT -j ufw-before-input
+-A INPUT -j ufw-after-input
+-A INPUT -j ufw-after-logging-input
+-A INPUT -j ufw-reject-input
+-A INPUT -j ufw-track-input
+-A FORWARD -j ufw-before-logging-forward
+-A FORWARD -j ufw-before-forward
+-A FORWARD -j ufw-after-forward
+-A FORWARD -j ufw-after-logging-forward
+-A FORWARD -j ufw-reject-forward
+-A FORWARD -j ufw-track-forward
+-A FORWARD -i wg0 -o eth0 -j ACCEPT
+-A FORWARD -i eth0 -o wg0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A OUTPUT -j ufw-before-logging-output
+-A OUTPUT -j ufw-before-output
+-A OUTPUT -j ufw-after-output
+-A OUTPUT -j ufw-after-logging-output
+-A OUTPUT -j ufw-reject-output
+-A OUTPUT -j ufw-track-output
+-A ufw-after-input -p udp -m udp --dport 137 -j ufw-skip-to-policy-input
+-A ufw-after-input -p udp -m udp --dport 138 -j ufw-skip-to-policy-input
+-A ufw-after-input -p tcp -m tcp --dport 139 -j ufw-skip-to-policy-input
+-A ufw-after-input -p tcp -m tcp --dport 445 -j ufw-skip-to-policy-input
+-A ufw-after-input -p udp -m udp --dport 67 -j ufw-skip-to-policy-input
+-A ufw-after-input -p udp -m udp --dport 68 -j ufw-skip-to-policy-input
+-A ufw-after-input -m addrtype --dst-type BROADCAST -j ufw-skip-to-policy-input
+-A ufw-after-logging-forward -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+-A ufw-after-logging-input -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+-A ufw-before-forward -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 3 -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 11 -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 12 -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 8 -j ACCEPT
+-A ufw-before-forward -j ufw-user-forward
+-A ufw-before-input -i lo -j ACCEPT
+-A ufw-before-input -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-input -m conntrack --ctstate INVALID -j ufw-logging-deny
+-A ufw-before-input -m conntrack --ctstate INVALID -j DROP
+-A ufw-before-input -p icmp -m icmp --icmp-type 3 -j ACCEPT
+-A ufw-before-input -p icmp -m icmp --icmp-type 11 -j ACCEPT
+-A ufw-before-input -p icmp -m icmp --icmp-type 12 -j ACCEPT
+-A ufw-before-input -p icmp -m icmp --icmp-type 8 -j ACCEPT
+-A ufw-before-input -p udp -m udp --sport 67 --dport 68 -j ACCEPT
+-A ufw-before-input -j ufw-not-local
+-A ufw-before-input -d 224.0.0.251/32 -p udp -m udp --dport 5353 -j ACCEPT
+-A ufw-before-input -d 239.255.255.250/32 -p udp -m udp --dport 1900 -j ACCEPT
+-A ufw-before-input -j ufw-user-input
+-A ufw-before-output -o lo -j ACCEPT
+-A ufw-before-output -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-output -j ufw-user-output
+-A ufw-logging-allow -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW ALLOW] "
+-A ufw-logging-deny -m conntrack --ctstate INVALID -m limit --limit 3/min --limit-burst 10 -j RETURN
+-A ufw-logging-deny -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+-A ufw-not-local -m addrtype --dst-type LOCAL -j RETURN
+-A ufw-not-local -m addrtype --dst-type MULTICAST -j RETURN
+-A ufw-not-local -m addrtype --dst-type BROADCAST -j RETURN
+-A ufw-not-local -m limit --limit 3/min --limit-burst 10 -j ufw-logging-deny
+-A ufw-not-local -j DROP
+-A ufw-skip-to-policy-forward -j DROP
+-A ufw-skip-to-policy-input -j DROP
+-A ufw-skip-to-policy-output -j ACCEPT
+-A ufw-track-output -p tcp -m conntrack --ctstate NEW -j ACCEPT
+-A ufw-track-output -p udp -m conntrack --ctstate NEW -j ACCEPT
+-A ufw-user-input -p udp -m udp --dport 51820 -j ACCEPT
+-A ufw-user-input -p tcp -m tcp --dport 22 -m comment --comment "\'dapp_OpenSSH\'" -j ACCEPT
+-A ufw-user-input -p tcp -m tcp --dport 80 -j ACCEPT
+-A ufw-user-input -p tcp -m tcp --dport 443 -j ACCEPT
+-A ufw-user-input -p udp -m udp --dport 1194 -j ACCEPT
+-A ufw-user-input -p udp -m udp --dport 500 -j ACCEPT
+-A ufw-user-input -p udp -m udp --dport 4500 -j ACCEPT
+-A ufw-user-input -p tcp -m tcp --dport 22 -j ACCEPT
+-A ufw-user-limit -m limit --limit 3/min -j LOG --log-prefix "[UFW LIMIT BLOCK] "
+-A ufw-user-limit -j REJECT --reject-with icmp-port-unreachable
+-A ufw-user-limit-accept -j ACCEPT
+
+=== iptables -t nat -S ===
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+
+=== ufw status verbose ===
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), deny (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+51820/udp                  ALLOW IN    Anywhere                  
+22/tcp (OpenSSH)           ALLOW IN    Anywhere                  
+80/tcp                     ALLOW IN    Anywhere                  
+443/tcp                    ALLOW IN    Anywhere                  
+1194/udp                   ALLOW IN    Anywhere                  
+500/udp                    ALLOW IN    Anywhere                  
+4500/udp                   ALLOW IN    Anywhere                  
+22/tcp                     ALLOW IN    Anywhere                  
+51820/udp (v6)             ALLOW IN    Anywhere (v6)             
+22/tcp (OpenSSH (v6))      ALLOW IN    Anywhere (v6)             
+80/tcp (v6)                ALLOW IN    Anywhere (v6)             
+443/tcp (v6)               ALLOW IN    Anywhere (v6)             
+1194/udp (v6)              ALLOW IN    Anywhere (v6)             
+500/udp (v6)               ALLOW IN    Anywhere (v6)             
+4500/udp (v6)              ALLOW IN    Anywhere (v6)             
+22/tcp (v6)                ALLOW IN    Anywhere (v6)             
+
+
+=== outbound ip check ===
+138.199.204.139

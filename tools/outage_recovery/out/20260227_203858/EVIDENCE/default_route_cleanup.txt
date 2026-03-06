@@ -1,0 +1,2 @@
+after_cleanup:
+unicast default via 172.31.1.1 dev eth0 proto dhcp scope global src 138.199.204.139 metric 100 

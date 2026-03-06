@@ -1,0 +1,3 @@
+https://ifconfig.me	92.105.134.148
+https://api.ipify.org	92.105.134.148
+https://ifconfig.co/ip	92.105.134.148

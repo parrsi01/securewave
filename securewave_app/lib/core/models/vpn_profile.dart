@@ -199,12 +199,24 @@ class VpnProfile {
   }
 
   Map<String, dynamic> toNativeProfile() {
-    if (profile != null && profile!.isNotEmpty) return profile!;
+    if (profile != null && profile!.isNotEmpty) {
+      return <String, dynamic>{
+        ...profile!,
+        if (serverId.trim().isNotEmpty) 'server_id': serverId,
+        if (serverLocation.trim().isNotEmpty) 'server_location': serverLocation,
+        if (protocol.trim().isNotEmpty) 'protocol': protocol,
+        if (deviceId > 0) 'device_id': deviceId,
+      };
+    }
     final wg = (wireguardConfig ?? '').trim();
     if (wg.isNotEmpty) {
       return <String, dynamic>{
         'type': 'wireguard',
         'wireguard_config': wg,
+        if (serverId.trim().isNotEmpty) 'server_id': serverId,
+        if (serverLocation.trim().isNotEmpty) 'server_location': serverLocation,
+        'protocol': protocol,
+        if (deviceId > 0) 'device_id': deviceId,
       };
     }
     return const <String, dynamic>{};

@@ -1,0 +1,6 @@
+- token_secret_aligned: PASS
+- backend_health_8080: PASS
+- openvpn_provisioning: PASS
+- ikev2_linux_provisioning: PASS
+- ikev2_windows_tls_bundle: PASS
+- next_step_required: Implement or enable a strongSwan EAP-TLS connection profile, since the current live connection is still configured for EAP_MSCHAPV2.

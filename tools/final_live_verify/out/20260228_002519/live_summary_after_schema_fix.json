@@ -1,0 +1,26 @@
+{
+  "openvpn": {
+    "status": "409",
+    "ok": false,
+    "details": {
+      "error_code": "openvpn_temporarily_unavailable",
+      "message": "Requested protocol is currently unavailable on active servers.",
+      "details": {
+        "protocol": "openvpn",
+        "reason": "no_servers_available"
+      }
+    }
+  },
+  "ikev2": {
+    "status": "409",
+    "ok": false,
+    "details": {
+      "error_code": "ikev2_temporarily_unavailable",
+      "message": "Requested protocol is currently unavailable on active servers.",
+      "details": {
+        "protocol": "ikev2",
+        "reason": "no_servers_available"
+      }
+    }
+  }
+}

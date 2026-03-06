@@ -1,0 +1,21 @@
+{
+  "openvpn": {
+    "http_status": 200,
+    "status": "openvpn_profile_issued",
+    "auth_method": "mtls",
+    "has_ovpn_config": true,
+    "has_remote": true,
+    "has_ca": true,
+    "has_cert": true,
+    "has_key": true
+  },
+  "ikev2": {
+    "http_status": 200,
+    "status": "credential_provisioned",
+    "username_present": true,
+    "password_present": true,
+    "server": "138.199.204.139",
+    "proposals_present": true,
+    "full_tunnel": true
+  }
+}

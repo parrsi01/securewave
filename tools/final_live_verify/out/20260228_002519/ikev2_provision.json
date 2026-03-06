@@ -1,0 +1,1 @@
+{"error":{"code":"ikev2_server_misconfigured","message":"Requested protocol server provisioning is incomplete.","details":{"protocol":"ikev2"}},"request_id":"0c1cac60-49d0-4653-a971-e202708773d7"}

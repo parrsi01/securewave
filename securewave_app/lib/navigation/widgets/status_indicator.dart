@@ -44,13 +44,13 @@ class _StatusIndicatorState extends ConsumerState<StatusIndicator>
 
   @override
   Widget build(BuildContext context) {
-    final status    = ref.watch(vpnStateProvider.select((s) => s.status));
-    final color     = ref.watch(vpnStateProvider.select((s) => s.statusColor));
+    final status = ref.watch(vpnStateProvider.select((s) => s.status));
+    final color = ref.watch(vpnStateProvider.select((s) => s.statusColor));
     final statusText = widget.showLabel
         ? ref.watch(vpnStateProvider.select((s) => s.statusText()))
         : null;
-    final isBusy    = status == VpnStatus.connecting ||
-        status == VpnStatus.disconnecting;
+    final isBusy =
+        status == VpnStatus.connecting || status == VpnStatus.disconnecting;
 
     if (isBusy && !_pulseCtrl.isAnimating) {
       _pulseCtrl.repeat(reverse: true);

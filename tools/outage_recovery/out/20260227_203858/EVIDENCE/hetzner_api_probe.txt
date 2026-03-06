@@ -1,0 +1,4 @@
+# env token hints
+
+# hcloud cli
+/usr/local/bin/hcloud

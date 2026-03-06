@@ -1,0 +1,87 @@
+[OPENVPN]
+# /lib/systemd/system/openvpn-server@.service
+[Unit]
+Description=OpenVPN service for %I
+After=network-online.target
+Wants=network-online.target
+Documentation=man:openvpn(8)
+Documentation=https://community.openvpn.net/openvpn/wiki/Openvpn24ManPage
+Documentation=https://community.openvpn.net/openvpn/wiki/HOWTO
+
+[Service]
+Type=notify
+PrivateTmp=true
+WorkingDirectory=/etc/openvpn/server
+ExecStart=/usr/sbin/openvpn --status %t/openvpn-server/status-%i.log --status-version 2 --suppress-timestamps --config %i.conf
+CapabilityBoundingSet=CAP_IPC_LOCK CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETGID CAP_SETUID CAP_SYS_CHROOT CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
+LimitNPROC=10
+DeviceAllow=/dev/null rw
+DeviceAllow=/dev/net/tun rw
+ProtectSystem=true
+ProtectHome=true
+KillMode=process
+RestartSec=5s
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+---server.conf---
+PATH=/etc/openvpn/server/server.conf
+port 1194
+proto udp
+dev tun
+topology subnet
+server 10.9.0.0 255.255.255.0
+
+user nobody
+group nogroup
+persist-key
+persist-tun
+keepalive 10 60
+explicit-exit-notify 1
+
+ca /etc/openvpn/server/ca.crt
+cert /etc/openvpn/server/server.crt
+key /etc/openvpn/server/server.key
+dh none
+ecdh-curve prime256v1
+tls-crypt /etc/openvpn/server/tls-crypt.key
+
+tls-server
+cipher AES-256-GCM
+data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
+auth SHA256
+
+push "redirect-gateway def1 bypass-dhcp"
+push "dhcp-option DNS 1.1.1.1"
+push "dhcp-option DNS 1.0.0.1"
+
+status /var/log/openvpn/status.log
+verb 3
+push "dhcp-option DNS 8.8.8.8"
+---openvpn dirs---
+/etc/openvpn:
+client
+pki
+server
+update-resolv-conf
+
+/etc/openvpn/client:
+
+/etc/openvpn/pki:
+ca.crt
+ca.key
+server-ext.cnf
+server.crt
+server.csr
+server.key
+
+/etc/openvpn/server:
+ca.crt
+server.conf
+server.conf.bak.20260227_202232
+server.conf.bak.20260227_202241
+server.conf.bak.20260227_202256
+server.crt
+server.key
+tls-crypt.key

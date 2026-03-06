@@ -67,8 +67,7 @@ class PlatformNotice extends ConsumerWidget {
     return Semantics(
       container: true,
       liveRegion: true,
-      label:
-          'Platform setup notice. ${notices.join('. ')}',
+      label: 'Platform setup notice. ${notices.join('. ')}',
       child: Card(
         elevation: 0,
         color: AppColors.secondary.withValues(alpha: 0.12),

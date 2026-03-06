@@ -1,0 +1,7 @@
+default_route=restated via 172.31.1.1 dev eth0
+ssh_ingress=ensured
+detached_rules=none
+rule_220=retained
+services=restarted
+route_get_1_1_1_1=1.1.1.1 via 172.31.1.1 dev eth0 src 138.199.204.139 uid 0 
+public_ip=138.199.204.139

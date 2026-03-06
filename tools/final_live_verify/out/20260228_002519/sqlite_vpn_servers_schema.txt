@@ -1,0 +1,2 @@
+db=/home/sp/cyber-course/projects/securewave/securewave.db
+columns=

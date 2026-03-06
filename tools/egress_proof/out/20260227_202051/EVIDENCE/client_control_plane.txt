@@ -1,0 +1,8 @@
+### scope
+remote: securewave-prod
+
+### nmcli connection show --active
+
+### ps aux | grep -E "openvpn|nm-openvpn"
+root      962712  0.0  0.0  13436  7740 ?        Ss   14:27   0:00 openvpn --config /root/securewave_runtime_validation_20260227_142705/ovpn_client.ovpn --daemon --writepid /root/securewave_runtime_validation_20260227_142705/ovpn_client.pid --log /root/securewave_runtime_validation_20260227_142705/ovpn_client.log --verb 3
+nobody   1326889  0.0  0.1  13632  9940 ?        Ss   20:06   0:00 /usr/sbin/openvpn --status /run/openvpn-server/status-server.log --status-version 2 --suppress-timestamps --config server.conf

@@ -1,106 +1,76 @@
-import 'package:flutter/cupertino.dart';
+import 'package:animations/animations.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/bootstrap/boot_controller.dart';
 import '../core/services/auth_session.dart';
-import '../ui/design/app_animations.dart';
-import '../ui/design/app_typography.dart';
-
-// Existing auth and boot screens (reuse)
-import '../features/auth/login_page.dart';
-import '../features/auth/register_page.dart';
 import '../features/bootstrap/boot_screen.dart';
 import '../features/bootstrap/fallback_error_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
-
-// Main app screens
-import '../screens/home/home_screen.dart';
-import '../screens/locations/locations_screen.dart';
-import '../screens/settings/settings_screen.dart';
-import '../screens/account/account_screen.dart';
 import '../screens/account/edit_profile_screen.dart';
+import '../screens/settings/apple_vpn_diagnostics_screen.dart';
 import '../screens/settings/manage_devices_screen.dart';
+import '../ui/screens/account_screen.dart';
+import '../ui/screens/connection_screen.dart';
+import '../ui/screens/diagnostics_screen.dart';
+import '../ui/screens/home_screen.dart';
+import '../ui/screens/login_screen.dart';
+import '../ui/screens/register_screen.dart';
+import '../ui/screens/server_selection_screen.dart';
+import '../ui/screens/settings_screen.dart';
 
-// Navigation shell
 import 'app_shell.dart';
 
-/// Builds a platform-adaptive page with custom transitions.
 Page<T> _buildPage<T>({
   required GoRouterState state,
   required Widget child,
 }) {
-  // iOS/macOS: Native Cupertino slide transition
-  if (AppTypography.isApplePlatform) {
-    return CupertinoPage<T>(key: state.pageKey, child: child);
-  }
-
-  // Android/Windows/Linux: Fade + slide transition
   return CustomTransitionPage<T>(
     key: state.pageKey,
-    transitionDuration: AppAnimations.durationNormal,
-    reverseTransitionDuration: AppAnimations.durationFast,
+    transitionDuration: const Duration(milliseconds: 260),
+    reverseTransitionDuration: const Duration(milliseconds: 220),
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: AppAnimations.curveEnter,
-        reverseCurve: AppAnimations.curveExit,
-      );
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 0.015),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        ),
+      return FadeThroughTransition(
+        animation: animation,
+        secondaryAnimation: secondaryAnimation,
+        fillColor: Colors.transparent,
+        child: child,
       );
     },
   );
 }
 
-/// Main app router provider.
 String? resolveAppRedirect({
   required BootStatus bootStatus,
   required bool isAuthenticated,
   required String matchedLocation,
 }) {
   final booting = bootStatus == BootStatus.initializing;
-  final authed = isAuthenticated;
   final onBootPage = matchedLocation == '/boot';
   final onAuthPage =
       matchedLocation == '/login' || matchedLocation == '/register';
 
-  // Show boot screen while bootstrapping
   if (booting && !onBootPage) {
     return '/boot';
   }
-
-  // Always leave the boot screen once initialization completes.
-  // Without this, authenticated users can remain on /boot indefinitely.
   if (!booting && onBootPage) {
-    return authed ? '/home' : '/login';
+    return isAuthenticated ? '/home' : '/login';
   }
-
-  // After boot: redirect to login if not authenticated
-  if (!booting && !authed && !onAuthPage) {
+  if (!booting && !isAuthenticated && !onAuthPage) {
     return '/login';
   }
-
-  // After boot: redirect to home if authenticated and on auth page
-  if (!booting && authed && onAuthPage) {
+  if (!booting && isAuthenticated && onAuthPage) {
     return '/home';
   }
-
   return null;
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authSession = ref.watch(authSessionProvider);
   final boot = ref.watch(bootControllerProvider);
-  final refreshListenable = Listenable.merge([authSession, boot]);
+  final refreshListenable = Listenable.merge(<Listenable>[authSession, boot]);
 
   return GoRouter(
     initialLocation: '/boot',
@@ -112,8 +82,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         matchedLocation: state.matchedLocation,
       );
     },
-    routes: [
-      // Boot screen
+    routes: <RouteBase>[
       GoRoute(
         path: '/boot',
         pageBuilder: (context, state) => _buildPage(
@@ -121,8 +90,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           child: const BootScreen(),
         ),
       ),
-
-      // Error screen
       GoRoute(
         path: '/error',
         pageBuilder: (context, state) => _buildPage(
@@ -130,37 +97,51 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           child: const FallbackErrorScreen(message: 'An error occurred'),
         ),
       ),
-
-      // Auth routes (no shell)
       GoRoute(
         path: '/login',
         pageBuilder: (context, state) => _buildPage(
           state: state,
-          child: const LoginPage(),
+          child: const LoginScreen(),
         ),
       ),
       GoRoute(
         path: '/register',
         pageBuilder: (context, state) => _buildPage(
           state: state,
-          child: const RegisterPage(),
+          child: const RegisterScreen(),
         ),
       ),
-
-      // Onboarding (first-time users)
       GoRoute(
         path: '/onboarding',
         pageBuilder: (context, state) => _buildPage(
           state: state,
           child: OnboardingScreen(
-            onComplete: () {
-              // Navigate to home after onboarding
-            },
+            onComplete: () {},
           ),
         ),
       ),
-
-      // Manage Devices (sub-screen, no bottom nav)
+      GoRoute(
+        path: '/locations',
+        redirect: (context, state) => '/servers',
+      ),
+      GoRoute(
+        path: '/servers/select',
+        redirect: (context, state) => '/servers',
+      ),
+      GoRoute(
+        path: '/diagnostics',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const DiagnosticsScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/diagnostics/apple',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const AppleVpnDiagnosticsScreen(),
+        ),
+      ),
       GoRoute(
         path: '/devices',
         pageBuilder: (context, state) => _buildPage(
@@ -168,8 +149,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           child: const ManageDevicesScreen(),
         ),
       ),
-
-      // Edit Profile (sub-screen, no bottom nav)
       GoRoute(
         path: '/edit-profile',
         pageBuilder: (context, state) => _buildPage(
@@ -177,38 +156,65 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           child: const EditProfileScreen(),
         ),
       ),
-
-      // Main app shell with 4 destinations
-      ShellRoute(
-        builder: (context, state, child) => AppShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/home',
-            pageBuilder: (context, state) => _buildPage(
-              state: state,
-              child: const HomeScreen(),
-            ),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return AppShell(navigationShell: navigationShell);
+        },
+        branches: <StatefulShellBranch>[
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/home',
+                pageBuilder: (context, state) => _buildPage(
+                  state: state,
+                  child: const HomeScreen(),
+                ),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/locations',
-            pageBuilder: (context, state) => _buildPage(
-              state: state,
-              child: const LocationsScreen(),
-            ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/servers',
+                pageBuilder: (context, state) => _buildPage(
+                  state: state,
+                  child: const ServerSelectionScreen(),
+                ),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/settings',
-            pageBuilder: (context, state) => _buildPage(
-              state: state,
-              child: const SettingsScreen(),
-            ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/connection',
+                pageBuilder: (context, state) => _buildPage(
+                  state: state,
+                  child: const ConnectionScreen(),
+                ),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/account',
-            pageBuilder: (context, state) => _buildPage(
-              state: state,
-              child: const AccountScreen(),
-            ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/settings',
+                pageBuilder: (context, state) => _buildPage(
+                  state: state,
+                  child: const SettingsScreen(),
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/account',
+                pageBuilder: (context, state) => _buildPage(
+                  state: state,
+                  child: const AccountScreen(),
+                ),
+              ),
+            ],
           ),
         ],
       ),

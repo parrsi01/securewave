@@ -1,0 +1,33 @@
+{
+  "openvpn": {
+    "status": "409",
+    "ok": false,
+    "details": {
+      "error_code": "unavailable_region",
+      "message": "Requested protocol is currently unavailable on active servers.",
+      "details": {
+        "protocol": "openvpn",
+        "reason": null
+      }
+    }
+  },
+  "ikev2": {
+    "status": "409",
+    "ok": false,
+    "details": {
+      "error_code": "ikev2_server_misconfigured",
+      "message": "Requested protocol server provisioning is incomplete.",
+      "details": {
+        "protocol": "ikev2",
+        "server_id": "securewave-prod",
+        "missing": [
+          "/usr/local/bin/securewave-ikev2-issue-client",
+          "/usr/local/bin/securewave-ikev2-upsert-user",
+          "/usr/local/bin/securewave-ikev2-revoke-client"
+        ],
+        "hint": "Install the expected SecureWave provisioning scripts on the target server.",
+        "provisioning_mode": "ssh_real"
+      }
+    }
+  }
+}

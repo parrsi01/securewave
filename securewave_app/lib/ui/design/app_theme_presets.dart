@@ -47,7 +47,7 @@ class AppPalette {
     required this.accent,
     required this.accentDim,
     required this.accentGhost,
-    required this.onAccent,      // text/icon color ON the accent fill
+    required this.onAccent, // text/icon color ON the accent fill
     // Secondary accent
     required this.secondary,
     required this.onSecondary,
@@ -112,9 +112,9 @@ class AppPalette {
 
   factory AppPalette.forPreset(AppThemePreset preset) {
     return switch (preset) {
-      AppThemePreset.vpn     => _vpn,
+      AppThemePreset.vpn => _vpn,
       AppThemePreset.finance => _finance,
-      AppThemePreset.health  => _health,
+      AppThemePreset.health => _health,
       AppThemePreset.general => _general,
     };
   }
@@ -134,38 +134,39 @@ class AppPalette {
     label: 'VPN Dark',
 
     // Accent — cyber-green, used ONLY for active/connected/CTA
-    accent:       Color(0xFF08CB00),
-    accentDim:    Color(0xFF069E00),
-    accentGhost:  Color(0x1408CB00),
-    onAccent:     Color(0xFF000000), // black text on bright green
+    accent: Color(0xFF08CB00),
+    accentDim: Color(0xFF069E00),
+    accentGhost: Color(0x1408CB00),
+    onAccent: Color(0xFF000000), // black text on bright green
 
     // Secondary — muted cyan for info/protocol context
-    secondary:   Color(0xFF00BFA5),
+    secondary: Color(0xFF00BFA5),
     onSecondary: Color(0xFF000000),
 
     // Surfaces — pure black base, dark-green tinted layers
-    background:      Color(0xFF000000), // pure black
-    backgroundWarm:  Color(0xFF050A05), // black with barely perceptible green
-    surface:         Color(0xFF0A140A), // dark forest surface (#253900 × 0.25)
-    surfaceMuted:    Color(0xFF111D11), // card fills
+    background: Color(0xFF000000), // pure black
+    backgroundWarm: Color(0xFF050A05), // black with barely perceptible green
+    surface: Color(0xFF0A140A), // dark forest surface (#253900 × 0.25)
+    surfaceMuted: Color(0xFF111D11), // card fills
     surfaceElevated: Color(0xFF1A2E1A), // elevated modals/tooltips
 
     // Text — #EEEEEE primary, green-grey secondary/tertiary
-    ink:      Color(0xFFEEEEEE), // #EEEEEE from palette
+    ink: Color(0xFFEEEEEE), // #EEEEEE from palette
     inkMuted: Color(0xFF8CAF8C), // desaturated mid-green
-    inkSoft:  Color(0xFF3D5C3D), // dim green for placeholders, labels
+    inkSoft: Color(0xFF3D5C3D), // dim green for placeholders, labels
 
     // Borders — barely-visible green separators
-    border:      Color(0xFF1C3020), // #253900 at ~40% lightness
+    border: Color(0xFF1C3020), // #253900 at ~40% lightness
     borderFocus: Color(0xFF08CB00), // full accent on focus
 
     // Semantic — intentionally distinct from accent green
-    success:        Color(0xFF08CB00), // VPN connected = green (same as accent — intentional)
-    warning:        Color(0xFFFFAA00), // amber
-    error:          Color(0xFFFF3B30), // red
+    success: Color(
+        0xFF08CB00), // VPN connected = green (same as accent — intentional)
+    warning: Color(0xFFFFAA00), // amber
+    error: Color(0xFFFF3B30), // red
     successSurface: Color(0xFF081A08),
     warningSurface: Color(0xFF1A1200),
-    errorSurface:   Color(0xFF1A0808),
+    errorSurface: Color(0xFF1A0808),
 
     // Gradients
     heroGradient: RadialGradient(
@@ -194,33 +195,33 @@ class AppPalette {
     preset: AppThemePreset.finance,
     label: 'Finance Dark',
 
-    accent:      Color(0xFFD4AF37), // gold
-    accentDim:   Color(0xFFA88B2A),
+    accent: Color(0xFFD4AF37), // gold
+    accentDim: Color(0xFFA88B2A),
     accentGhost: Color(0x1AD4AF37),
-    onAccent:    Color(0xFF0A0C14),
+    onAccent: Color(0xFF0A0C14),
 
-    secondary:   Color(0xFF4D9EFF), // steel blue
+    secondary: Color(0xFF4D9EFF), // steel blue
     onSecondary: Color(0xFF0A0C14),
 
-    background:      Color(0xFF08090F),
-    backgroundWarm:  Color(0xFF0C0D14),
-    surface:         Color(0xFF111320),
-    surfaceMuted:    Color(0xFF191C2E),
+    background: Color(0xFF08090F),
+    backgroundWarm: Color(0xFF0C0D14),
+    surface: Color(0xFF111320),
+    surfaceMuted: Color(0xFF191C2E),
     surfaceElevated: Color(0xFF222540),
 
-    ink:      Color(0xFFF0F2FA),
+    ink: Color(0xFFF0F2FA),
     inkMuted: Color(0xFF7A85A8),
-    inkSoft:  Color(0xFF3A4060),
+    inkSoft: Color(0xFF3A4060),
 
-    border:      Color(0xFF1E2238),
+    border: Color(0xFF1E2238),
     borderFocus: Color(0xFFD4AF37),
 
-    success:        Color(0xFF00C853),
-    warning:        Color(0xFFFFAA00),
-    error:          Color(0xFFFF3B30),
+    success: Color(0xFF00C853),
+    warning: Color(0xFFFFAA00),
+    error: Color(0xFFFF3B30),
     successSurface: Color(0xFF051A08),
     warningSurface: Color(0xFF1A1200),
-    errorSurface:   Color(0xFF1A0808),
+    errorSurface: Color(0xFF1A0808),
 
     heroGradient: RadialGradient(
       center: Alignment.topCenter,
@@ -248,33 +249,33 @@ class AppPalette {
     preset: AppThemePreset.health,
     label: 'Health Dark',
 
-    accent:      Color(0xFF00B8A4), // teal
-    accentDim:   Color(0xFF008C7C),
+    accent: Color(0xFF00B8A4), // teal
+    accentDim: Color(0xFF008C7C),
     accentGhost: Color(0x1A00B8A4),
-    onAccent:    Color(0xFF000E0D),
+    onAccent: Color(0xFF000E0D),
 
-    secondary:   Color(0xFF7B61FF), // soft purple
+    secondary: Color(0xFF7B61FF), // soft purple
     onSecondary: Color(0xFF000E0D),
 
-    background:      Color(0xFF060C0B),
-    backgroundWarm:  Color(0xFF0A1210),
-    surface:         Color(0xFF0F1A18),
-    surfaceMuted:    Color(0xFF162420),
+    background: Color(0xFF060C0B),
+    backgroundWarm: Color(0xFF0A1210),
+    surface: Color(0xFF0F1A18),
+    surfaceMuted: Color(0xFF162420),
     surfaceElevated: Color(0xFF1E3530),
 
-    ink:      Color(0xFFE8F5F3),
+    ink: Color(0xFFE8F5F3),
     inkMuted: Color(0xFF6A9A94),
-    inkSoft:  Color(0xFF2E5550),
+    inkSoft: Color(0xFF2E5550),
 
-    border:      Color(0xFF1A2F2C),
+    border: Color(0xFF1A2F2C),
     borderFocus: Color(0xFF00B8A4),
 
-    success:        Color(0xFF00B8A4),
-    warning:        Color(0xFFFFAA00),
-    error:          Color(0xFFFF5A5A),
+    success: Color(0xFF00B8A4),
+    warning: Color(0xFFFFAA00),
+    error: Color(0xFFFF5A5A),
     successSurface: Color(0xFF061514),
     warningSurface: Color(0xFF1A1200),
-    errorSurface:   Color(0xFF1A0808),
+    errorSurface: Color(0xFF1A0808),
 
     heroGradient: RadialGradient(
       center: Alignment.topCenter,
@@ -302,33 +303,33 @@ class AppPalette {
     preset: AppThemePreset.general,
     label: 'General Dark',
 
-    accent:      Color(0xFF6C63FF), // indigo
-    accentDim:   Color(0xFF4A42CC),
+    accent: Color(0xFF6C63FF), // indigo
+    accentDim: Color(0xFF4A42CC),
     accentGhost: Color(0x1A6C63FF),
-    onAccent:    Color(0xFFFFFFFF),
+    onAccent: Color(0xFFFFFFFF),
 
-    secondary:   Color(0xFF00C8B0), // mint
+    secondary: Color(0xFF00C8B0), // mint
     onSecondary: Color(0xFF000E0D),
 
-    background:      Color(0xFF08080F),
-    backgroundWarm:  Color(0xFF0C0C14),
-    surface:         Color(0xFF111120),
-    surfaceMuted:    Color(0xFF18192E),
+    background: Color(0xFF08080F),
+    backgroundWarm: Color(0xFF0C0C14),
+    surface: Color(0xFF111120),
+    surfaceMuted: Color(0xFF18192E),
     surfaceElevated: Color(0xFF222440),
 
-    ink:      Color(0xFFF0EFFF),
+    ink: Color(0xFFF0EFFF),
     inkMuted: Color(0xFF7A78A8),
-    inkSoft:  Color(0xFF3A3860),
+    inkSoft: Color(0xFF3A3860),
 
-    border:      Color(0xFF1C1C38),
+    border: Color(0xFF1C1C38),
     borderFocus: Color(0xFF6C63FF),
 
-    success:        Color(0xFF00C853),
-    warning:        Color(0xFFFFAA00),
-    error:          Color(0xFFFF3B30),
+    success: Color(0xFF00C853),
+    warning: Color(0xFFFFAA00),
+    error: Color(0xFFFF3B30),
     successSurface: Color(0xFF051A08),
     warningSurface: Color(0xFF1A1200),
-    errorSurface:   Color(0xFF1A0808),
+    errorSurface: Color(0xFF1A0808),
 
     heroGradient: RadialGradient(
       center: Alignment.topCenter,

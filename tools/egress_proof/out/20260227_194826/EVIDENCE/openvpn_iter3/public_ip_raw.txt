@@ -1,0 +1,3 @@
+https://ifconfig.me	138.199.204.139
+https://api.ipify.org	138.199.204.139
+https://ifconfig.co/ip	

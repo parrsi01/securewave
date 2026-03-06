@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Navigation destinations for the app shell.
-///
-/// Defines the 4 main tabs: Home, Locations, Settings, Account.
 class NavDestination {
   const NavDestination({
     required this.path,
@@ -17,7 +14,6 @@ class NavDestination {
   final IconData selectedIcon;
 }
 
-/// The 4 main navigation destinations.
 class NavDestinations {
   NavDestinations._();
 
@@ -25,34 +21,42 @@ class NavDestinations {
     path: '/home',
     label: 'Home',
     icon: Icons.shield_outlined,
-    selectedIcon: Icons.shield,
+    selectedIcon: Icons.shield_rounded,
   );
 
-  static const locations = NavDestination(
-    path: '/locations',
-    label: 'Locations',
+  static const servers = NavDestination(
+    path: '/servers',
+    label: 'Servers',
     icon: Icons.public_outlined,
-    selectedIcon: Icons.public,
+    selectedIcon: Icons.public_rounded,
+  );
+
+  static const connection = NavDestination(
+    path: '/connection',
+    label: 'Connection',
+    icon: Icons.hub_outlined,
+    selectedIcon: Icons.hub_rounded,
   );
 
   static const settings = NavDestination(
     path: '/settings',
     label: 'Settings',
-    icon: Icons.settings_outlined,
-    selectedIcon: Icons.settings,
+    icon: Icons.tune_outlined,
+    selectedIcon: Icons.tune_rounded,
   );
 
   static const account = NavDestination(
     path: '/account',
     label: 'Account',
-    icon: Icons.person_outline,
-    selectedIcon: Icons.person,
+    icon: Icons.person_outline_rounded,
+    selectedIcon: Icons.person_rounded,
   );
 
-  static const all = [
+  static const List<NavDestination> all = <NavDestination>[
     home,
-    locations,
-    account,
+    servers,
+    connection,
     settings,
+    account,
   ];
 }

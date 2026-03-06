@@ -1,0 +1,1 @@
+{"error":{"code":"openvpn_server_misconfigured","message":"Requested protocol server provisioning is incomplete.","details":{"protocol":"openvpn"}},"request_id":"32bf82a5-81d3-4816-9028-301faf87bbfa"}

@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SecureWaveAppGroupIdentifier</key>
+	<string>group.com.example.securewaveApp.shared</string>
+	<key>SecureWavePacketTunnelBundleIdentifier</key>
+	<string>com.example.securewaveApp.PacketTunnelMacOS</string>
 </dict>
 </plist>
