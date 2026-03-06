@@ -7,6 +7,7 @@ import '../../ui/app_ui_v1.dart';
 import '../config/app_config.dart';
 import '../models/vpn_status.dart';
 import '../services/auth_session.dart';
+import '../services/vm_environment.dart';
 import '../state/vpn_state.dart';
 
 class AppShell extends ConsumerWidget {
@@ -31,6 +32,7 @@ class AppShell extends ConsumerWidget {
         _destinations.indexWhere((item) => location.startsWith(item.route));
     final vpnState = ref.watch(vpnStateProvider);
     final config = ref.watch(appConfigProvider);
+    final vmEnvironment = ref.watch(vmEnvironmentProvider);
 
     final statusLabel = switch (vpnState.status) {
       VpnStatus.connected => 'Connected',
@@ -100,6 +102,20 @@ class AppShell extends ConsumerWidget {
         final appBar = AppBar(
           title: const Text('SecureWave'),
           actions: [
+            if (vmEnvironment.safeModeEnabled)
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: AppUIv1.space2),
+                padding: const EdgeInsets.symmetric(horizontal: AppUIv1.space3),
+                decoration: BoxDecoration(
+                  color: AppUIv1.accentSoft,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Center(
+                  child: Text('VM SAFE MODE'),
+                ),
+              ),
+            if (vmEnvironment.safeModeEnabled)
+              const SizedBox(width: AppUIv1.space2),
             Container(
               margin: const EdgeInsets.symmetric(vertical: AppUIv1.space2),
               padding: const EdgeInsets.symmetric(horizontal: AppUIv1.space3),

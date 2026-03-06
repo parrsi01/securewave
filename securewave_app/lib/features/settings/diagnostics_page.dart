@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/diagnostics.dart';
+import '../../core/services/vm_environment.dart';
 import '../../core/state/vpn_state.dart';
 import '../../ui/app_ui_v1.dart';
 
@@ -37,6 +38,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
   Widget build(BuildContext context) {
     final checks = ref.watch(
         vpnStateProvider.select((state) => state.checks.values.toList()));
+    final vmEnvironment = ref.watch(vmEnvironmentProvider);
 
     return SafeArea(
       child: ListView(
@@ -55,6 +57,20 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                       'Runtime validation of backend, auth, profile, tunnel, routing, and traffic.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
+                    if (vmEnvironment.safeModeEnabled) ...[
+                      const SizedBox(height: AppUIv1.space2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppUIv1.space2,
+                          vertical: AppUIv1.space1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppUIv1.accentSoft,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text('VM SAFE MODE ACTIVE'),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -76,7 +92,32 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                     color: _colorFor(check.status),
                   ),
                   title: Text(check.label),
-                  subtitle: Text(check.message),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(check.message),
+                      if (check.commands.isNotEmpty) ...[
+                        const SizedBox(height: AppUIv1.space2),
+                        Text(
+                          'Suggested commands:',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                        const SizedBox(height: AppUIv1.space1),
+                        for (final command in check.commands)
+                          Text(
+                            command,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(fontFamily: 'monospace'),
+                          ),
+                      ],
+                    ],
+                  ),
                   trailing: Text(
                     _labelFor(check.status),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(

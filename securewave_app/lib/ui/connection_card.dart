@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/models/vpn_protocol.dart';
 import '../core/models/vpn_status.dart';
 import 'app_ui_v1.dart';
 import 'status_indicator.dart';
@@ -11,17 +10,19 @@ class ConnectionCard extends StatelessWidget {
     required this.status,
     required this.statusLabel,
     required this.serverLabel,
-    required this.protocol,
+    required this.protocolLabel,
     required this.durationLabel,
     required this.stageLabel,
+    this.detail,
   });
 
   final VpnStatus status;
   final String statusLabel;
   final String serverLabel;
-  final VpnProtocol protocol;
+  final String protocolLabel;
   final String durationLabel;
   final String stageLabel;
+  final String? detail;
 
   @override
   Widget build(BuildContext context) {
@@ -35,11 +36,21 @@ class ConnectionCard extends StatelessWidget {
             const SizedBox(height: AppUIv1.space4),
             _Item(label: 'Location', value: serverLabel),
             const SizedBox(height: AppUIv1.space3),
-            _Item(label: 'Protocol', value: vpnProtocolLabel(protocol)),
+            _Item(label: 'Protocol', value: protocolLabel),
             const SizedBox(height: AppUIv1.space3),
             _Item(label: 'Duration', value: durationLabel),
             const SizedBox(height: AppUIv1.space3),
             _Item(label: 'Pipeline', value: stageLabel),
+            if (detail != null && detail!.isNotEmpty) ...[
+              const SizedBox(height: AppUIv1.space3),
+              Text(
+                detail!,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppUIv1.inkMuted),
+              ),
+            ],
           ],
         ),
       ),

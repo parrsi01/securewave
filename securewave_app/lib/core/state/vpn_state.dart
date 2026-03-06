@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +7,7 @@ import '../../services/api_client.dart';
 import '../config/app_config.dart';
 import '../logging/app_logger.dart';
 import '../models/diagnostics.dart';
+import '../models/server_region.dart';
 import '../models/traffic_snapshot.dart';
 import '../models/tunnel_health_snapshot.dart';
 import '../models/vpn_protocol.dart';
@@ -17,7 +19,10 @@ import '../services/traffic_stats_service.dart';
 import '../services/tunnel_status_service.dart';
 import '../services/vm_environment.dart';
 import '../services/vpn_service.dart';
+import '../utils/api_error.dart';
 import 'app_state.dart';
+import 'client_settings_state.dart';
+import 'network_lock_state.dart';
 
 class VpnState {
   const VpnState({
@@ -41,6 +46,12 @@ class VpnState {
     this.interfaceOk = false,
     this.routingOk = false,
     this.reconnectAttempt = 0,
+    this.desiredOn = false,
+    this.activeProtocol,
+    this.networkLockActive = false,
+    this.networkLockReason,
+    this.diagnosticsUpdatedAt,
+    this.statusDetail,
   });
 
   final VpnStatus status;
@@ -63,6 +74,12 @@ class VpnState {
   final bool interfaceOk;
   final bool routingOk;
   final int reconnectAttempt;
+  final bool desiredOn;
+  final VpnProtocol? activeProtocol;
+  final bool networkLockActive;
+  final String? networkLockReason;
+  final DateTime? diagnosticsUpdatedAt;
+  final String? statusDetail;
 
   bool get isConnected => status == VpnStatus.connected;
   bool get canConnect =>
@@ -93,6 +110,12 @@ class VpnState {
     bool? interfaceOk,
     bool? routingOk,
     int? reconnectAttempt,
+    bool? desiredOn,
+    VpnProtocol? activeProtocol,
+    bool? networkLockActive,
+    String? networkLockReason,
+    DateTime? diagnosticsUpdatedAt,
+    String? statusDetail,
     bool clearError = false,
   }) {
     return VpnState(
@@ -117,6 +140,12 @@ class VpnState {
       interfaceOk: interfaceOk ?? this.interfaceOk,
       routingOk: routingOk ?? this.routingOk,
       reconnectAttempt: reconnectAttempt ?? this.reconnectAttempt,
+      desiredOn: desiredOn ?? this.desiredOn,
+      activeProtocol: activeProtocol ?? this.activeProtocol,
+      networkLockActive: networkLockActive ?? this.networkLockActive,
+      networkLockReason: networkLockReason ?? this.networkLockReason,
+      diagnosticsUpdatedAt: diagnosticsUpdatedAt ?? this.diagnosticsUpdatedAt,
+      statusDetail: statusDetail ?? this.statusDetail,
     );
   }
 }
@@ -149,13 +178,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   bool _networkAvailable = true;
   bool _recoveryArmed = false;
   int _reconnectAttempts = 0;
+  final Map<String, int> _serverFailureCounts = <String, int>{};
+  DateTime? _lastUserActionAt;
 
   static const List<Duration> _reconnectBackoff = <Duration>[
     Duration(seconds: 2),
     Duration(seconds: 5),
     Duration(seconds: 10),
-    Duration(seconds: 10),
-    Duration(seconds: 10),
+    Duration(seconds: 20),
   ];
 
   static const Set<VpnStatus> _connectableStates = <VpnStatus>{
@@ -177,6 +207,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final storedStage = await _storage.getString(SecureStorage.vpnStageKey);
     final connectedAtRaw =
         await _storage.getString(SecureStorage.vpnConnectedAtKey);
+    final desiredOn =
+        await _storage.getBool(SecureStorage.vpnDesiredOnKey) ?? false;
+    final diagnosticsHistory =
+        await _storage.getString(SecureStorage.vpnDiagnosticsHistoryKey);
+    final restoredDiagnostics = _decodeDiagnosticsHistory(diagnosticsHistory);
 
     if (!mounted) {
       return;
@@ -190,6 +225,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       lastConnectedAt: connectedAtRaw == null || connectedAtRaw.isEmpty
           ? null
           : DateTime.tryParse(connectedAtRaw),
+      desiredOn: desiredOn,
+      checks: restoredDiagnostics,
+      diagnosticsUpdatedAt: restoredDiagnostics.isEmpty ? null : DateTime.now(),
     );
 
     await _syncWithNativeStatus(reason: 'restore');
@@ -198,13 +236,39 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       return;
     }
 
-    if (state.status == VpnStatus.connected ||
-        state.status == VpnStatus.connecting) {
-      _recoveryArmed = true;
+    final auth = _ref.read(authSessionProvider);
+    final settings = _ref.read(clientSettingsProvider);
+    if (settings.bestEffortKillSwitch &&
+        desiredOn &&
+        auth.isAuthenticated &&
+        state.status != VpnStatus.connected) {
+      _engageKillSwitch(
+          'Best-effort kill switch is active until SecureWave reconnects.');
+    }
+
+    if (state.status == VpnStatus.connected) {
+      _ref.read(networkLockProvider.notifier).release();
       _startMonitoring();
+      return;
+    }
+
+    if (desiredOn &&
+        settings.autoConnect &&
+        auth.isAuthenticated &&
+        (state.status == VpnStatus.connecting ||
+            state.status == VpnStatus.reconnecting ||
+            state.status == VpnStatus.disconnected)) {
+      _recoveryArmed = true;
       await _scheduleReconnect(
-        reason: 'Restored active tunnel state from storage.',
+        reason: 'Ready to reconnect after restart.',
         immediate: true,
+      );
+    } else if (desiredOn &&
+        auth.isAuthenticated &&
+        state.status == VpnStatus.disconnected) {
+      state = state.copyWith(
+        errorMessage: 'Ready to reconnect.',
+        statusDetail: 'Last session was restored. Tap Reconnect now to resume.',
       );
     }
   }
@@ -217,7 +281,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> selectProtocol(VpnProtocol protocol) async {
-    state = state.copyWith(protocol: protocol, clearError: true);
+    state = state.copyWith(
+      protocol: protocol,
+      activeProtocol: protocol == VpnProtocol.auto ? null : protocol,
+      clearError: true,
+    );
     await _storage.saveString(
       SecureStorage.vpnProtocolKey,
       vpnProtocolStorageValue(protocol),
@@ -226,6 +294,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   Future<void> connect() async {
     if (!_connectableStates.contains(state.status) || state.isBusy) {
+      return;
+    }
+    if (_shouldThrottleUserAction()) {
       return;
     }
     if (state.selectedServerId == null || state.selectedServerId!.isEmpty) {
@@ -237,7 +308,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _recoveryArmed = false;
     _cancelReconnectTimer();
     _reconnectAttempts = 0;
-    state = state.copyWith(reconnectAttempt: 0);
+    state = state.copyWith(reconnectAttempt: 0, desiredOn: true);
+    await _storage.saveBool(SecureStorage.vpnDesiredOnKey, true);
     await _runConnectionCycle(isReconnect: false);
   }
 
@@ -249,14 +321,32 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     await _scheduleReconnect(reason: reason ?? 'App resumed.', immediate: true);
   }
 
+  Future<void> reconnectNow() async {
+    if (state.selectedServerId == null || state.selectedServerId!.isEmpty) {
+      state = state.copyWith(
+        errorMessage: 'Choose a server before reconnecting.',
+      );
+      return;
+    }
+    _cancelReconnectTimer();
+    _recoveryArmed = true;
+    await _scheduleReconnect(
+        reason: 'Manual reconnect requested.', immediate: true);
+  }
+
   Future<void> disconnect() async {
     if (!_disconnectableStates.contains(state.status) || state.isBusy) {
+      return;
+    }
+    if (_shouldThrottleUserAction()) {
       return;
     }
 
     _recoveryArmed = false;
     _cancelReconnectTimer();
     state = state.copyWith(isBusy: true, clearError: true);
+    await _storage.saveBool(SecureStorage.vpnDesiredOnKey, false);
+    _ref.read(networkLockProvider.notifier).release();
     await _transitionTo(
         VpnStatus.disconnecting, VpnConnectionStage.tunnelStart);
 
@@ -273,6 +363,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         connectionDuration: Duration.zero,
         lastConnectedAt: null,
         reconnectAttempt: 0,
+        desiredOn: false,
+        networkLockActive: false,
+        networkLockReason: null,
       );
       await refreshDiagnostics();
     } catch (error, stackTrace) {
@@ -287,9 +380,17 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     if (!mounted) {
       return;
     }
-    state = state.copyWith(checks: <String, DiagnosticResult>{
+    final mapped = <String, DiagnosticResult>{
       for (final DiagnosticResult check in checks) check.key: check,
-    });
+    };
+    state = state.copyWith(
+      checks: mapped,
+      diagnosticsUpdatedAt: DateTime.now(),
+    );
+    await _storage.saveString(
+      SecureStorage.vpnDiagnosticsHistoryKey,
+      _encodeDiagnosticsHistory(mapped),
+    );
   }
 
   void onNetworkAvailabilityChanged(bool isAvailable) {
@@ -298,7 +399,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       'network_path_changed',
       fields: <String, Object?>{'available': isAvailable},
     );
-    if (!isAvailable && state.status == VpnStatus.connected) {
+    if (!isAvailable &&
+        state.status == VpnStatus.connected &&
+        _ref.read(clientSettingsProvider).autoReconnect) {
       _recoveryArmed = true;
       unawaited(_scheduleReconnect(
           reason: 'Network path changed.', immediate: false));
@@ -323,11 +426,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }) async {
     final VpnStatus nextStatus =
         isReconnect ? VpnStatus.reconnecting : VpnStatus.connecting;
+    final settings = _ref.read(clientSettingsProvider);
     state = state.copyWith(
       isBusy: true,
       vmSafeMode: _ref.read(vmEnvironmentProvider).safeModeEnabled,
       clearError: true,
       reconnectAttempt: _reconnectAttempts,
+      desiredOn: true,
     );
 
     try {
@@ -346,7 +451,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
       final ApiClient api = _ref.read(apiClientProvider);
       await _transitionTo(nextStatus, VpnConnectionStage.fetchServers);
-      final servers = await api.fetchServers(forceRefresh: true);
+      final servers = await api.fetchServers(
+        forceRefresh: true,
+        allowWhenLocked: true,
+      );
       final serverId = state.selectedServerId;
       final hasServer = servers.any((server) => server.id == serverId);
       if (!hasServer && !config.useMockApi) {
@@ -364,11 +472,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       );
 
       await _transitionTo(nextStatus, VpnConnectionStage.fetchProfile);
-      final String profile = await api.fetchVpnProfile(serverId: serverId);
+      final String profile = await api.fetchVpnProfile(
+        serverId: serverId,
+        allowWhenLocked: true,
+      );
 
       await _transitionTo(nextStatus, VpnConnectionStage.protocolReady);
       if (state.vmSafeMode) {
-        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
       }
       if (!_networkAvailable && state.vmSafeMode) {
         throw const ApiClientException(
@@ -378,21 +489,46 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       }
 
       await _transitionTo(nextStatus, VpnConnectionStage.tunnelStart);
-      final VpnStatus connectedStatus =
-          await _ref.read(vpnServiceProvider).connect(
-                protocol: state.protocol,
-                config: profile,
-              );
-      if (connectedStatus != VpnStatus.connected) {
-        throw VpnServiceException(
-          'unexpected_status',
-          'VPN service returned ${connectedStatus.name} instead of connected.',
-        );
+      final vpnService = _ref.read(vpnServiceProvider);
+      final protocolCandidates =
+          _protocolCandidates(state.protocol, vpnService.supportedProtocols);
+      VpnStatus connectedStatus = VpnStatus.error;
+      Object? lastProtocolError;
+      VpnProtocol? resolvedProtocol;
+
+      for (final protocol in protocolCandidates) {
+        try {
+          connectedStatus = await vpnService.connect(
+            protocol: protocol,
+            config: profile,
+          );
+          resolvedProtocol = protocol;
+          if (connectedStatus == VpnStatus.connected) {
+            break;
+          }
+          lastProtocolError = VpnServiceException(
+            'unexpected_status',
+            'VPN service returned ${connectedStatus.name} instead of connected.',
+          );
+        } catch (error) {
+          lastProtocolError = error;
+          if (state.protocol != VpnProtocol.auto) {
+            break;
+          }
+        }
+      }
+
+      if (connectedStatus != VpnStatus.connected || resolvedProtocol == null) {
+        throw lastProtocolError ??
+            VpnServiceException(
+              'protocol_unavailable',
+              'No supported protocol could start the tunnel.',
+            );
       }
 
       final TunnelHealthSnapshot nativeSnapshot =
           await _ref.read(tunnelStatusServiceProvider).getStatus();
-      if (_ref.read(vpnServiceProvider).isNativeAvailable &&
+      if (vpnService.isNativeAvailable &&
           !config.useMockApi &&
           nativeSnapshot.status != VpnStatus.connected &&
           nativeSnapshot.status != VpnStatus.connecting) {
@@ -401,16 +537,30 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           'Native tunnel did not report a connected state.',
         );
       }
+      if (state.vmSafeMode && !nativeSnapshot.routingOk) {
+        throw const ApiClientException(
+          'vm_route_conflict',
+          'VM route conflict detected. Default route is not using the tunnel.',
+        );
+      }
 
       await _transitionTo(VpnStatus.connected, VpnConnectionStage.tunnelActive);
       final DateTime connectedAt = DateTime.now();
+      _ref.read(networkLockProvider.notifier).release();
       state = state.copyWith(
         lastConnectedAt: connectedAt,
         connectionDuration: Duration.zero,
         reconnectAttempt: 0,
+        activeProtocol: resolvedProtocol,
+        statusDetail: settings.bestEffortKillSwitch
+            ? 'Best-effort kill switch ready.'
+            : nativeSnapshot.details,
+        networkLockActive: false,
+        networkLockReason: null,
       );
       _applyNativeSnapshot(nativeSnapshot);
       _reconnectAttempts = 0;
+      _serverFailureCounts[state.selectedServerId ?? ''] = 0;
       _recoveryArmed = true;
       _startMonitoring();
       await refreshDiagnostics();
@@ -420,7 +570,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       }
     } catch (error, stackTrace) {
       await _fail(error, stackTrace,
-          allowRecovery: isReconnect || _recoveryArmed);
+          allowRecovery:
+              (isReconnect || _recoveryArmed) && settings.autoReconnect,
+          servers:
+              state.selectedServerId == null || state.selectedServerId!.isEmpty
+                  ? const <ServerRegion>[]
+                  : await _loadServersForRecovery());
     } finally {
       if (mounted) {
         state = state.copyWith(isBusy: false);
@@ -433,13 +588,29 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     Object error,
     StackTrace stackTrace, {
     required bool allowRecovery,
+    List<ServerRegion> servers = const <ServerRegion>[],
   }) async {
     _stopMonitoring(resetSession: false);
     await _transitionTo(VpnStatus.error, state.stage);
     if (!mounted) {
       return;
     }
-    state = state.copyWith(errorMessage: _vpnErrorMessage(error));
+    final failureMessage = _vpnErrorMessage(error);
+    final killSwitchEnabled =
+        _ref.read(clientSettingsProvider).bestEffortKillSwitch;
+    if (killSwitchEnabled && state.desiredOn) {
+      _engageKillSwitch(
+        'Best-effort kill switch is holding app traffic until SecureWave reconnects.',
+      );
+    }
+    _recordServerFailure(state.selectedServerId);
+    final failoverServer = _selectFailoverServer(servers);
+    state = state.copyWith(
+      errorMessage: failureMessage,
+      statusDetail: failoverServer != null
+          ? 'Failing over to ${failoverServer.name} after repeated tunnel failures.'
+          : failureMessage,
+    );
     AppLogger.error(
       'vpn_flow_failed',
       error: error,
@@ -453,8 +624,15 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
     await refreshDiagnostics();
     if (allowRecovery && _recoveryArmed) {
+      if (failoverServer != null) {
+        selectServer(failoverServer.id);
+      }
       await _scheduleReconnect(
-          reason: _vpnErrorMessage(error), immediate: false);
+        reason: failoverServer != null
+            ? 'Server failover triggered after repeated tunnel failures.'
+            : failureMessage,
+        immediate: false,
+      );
     }
   }
 
@@ -530,9 +708,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           connectionDuration: DateTime.now().difference(connectedAt));
     });
 
-    _trafficTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      final TrafficSnapshot sample =
-          await _ref.read(trafficStatsServiceProvider).sample();
+    final trafficPollingInterval = state.vmSafeMode && !state.interfaceOk
+        ? const Duration(seconds: 3)
+        : const Duration(seconds: 1);
+
+    _trafficTimer = Timer.periodic(trafficPollingInterval, (_) async {
+      final TrafficSnapshot sample = await _ref
+          .read(trafficStatsServiceProvider)
+          .sample(preferredInterface: state.interfaceName);
       final TrafficSnapshot? previous = _lastTrafficSnapshot;
       _lastTrafficSnapshot = sample;
       if (previous == null || !mounted) {
@@ -561,6 +744,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         sessionUploadBytes: rate.sessionUploadBytes,
         lifetimeDownloadBytes: state.lifetimeDownloadBytes + rxDelta,
         lifetimeUploadBytes: state.lifetimeUploadBytes + txDelta,
+        statusDetail: sample.countersAvailable
+            ? state.statusDetail
+            : (sample.statusMessage ?? 'Native traffic counters unavailable.'),
       );
     });
 
@@ -599,6 +785,20 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     if (!mounted) {
       return;
     }
+    if (snapshot.status == VpnStatus.connected &&
+        state.status != VpnStatus.connected &&
+        state.desiredOn) {
+      state = state.copyWith(
+        status: VpnStatus.connected,
+        stage: VpnConnectionStage.tunnelActive,
+        lastConnectedAt: snapshot.connectedSince ?? DateTime.now(),
+        networkLockActive: false,
+        networkLockReason: null,
+      );
+      _ref.read(networkLockProvider.notifier).release();
+      _startMonitoring();
+      return;
+    }
     if (state.status == VpnStatus.connected &&
         snapshot.status == VpnStatus.disconnected &&
         _recoveryArmed) {
@@ -609,6 +809,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           'interface': snapshot.interfaceName
         },
       );
+      if (_ref.read(clientSettingsProvider).bestEffortKillSwitch) {
+        _engageKillSwitch(
+          'Best-effort kill switch is active because the tunnel dropped unexpectedly.',
+        );
+      }
       await _scheduleReconnect(
           reason: 'Native tunnel dropped.', immediate: false);
     }
@@ -618,10 +823,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     if (!mounted) {
       return;
     }
+    final connectedSince = snapshot.connectedSince;
     state = state.copyWith(
       interfaceName: snapshot.interfaceName,
       interfaceOk: snapshot.interfaceOk,
       routingOk: snapshot.routingOk,
+      lastConnectedAt: connectedSince ?? state.lastConnectedAt,
+      statusDetail:
+          snapshot.lastError ?? snapshot.details ?? state.statusDetail,
     );
   }
 
@@ -630,6 +839,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     required bool immediate,
   }) async {
     if (!_recoveryArmed ||
+        !state.desiredOn ||
         state.selectedServerId == null ||
         state.selectedServerId!.isEmpty ||
         !mounted) {
@@ -642,9 +852,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       await _transitionTo(VpnStatus.error, state.stage);
       if (mounted) {
         state = state.copyWith(
-          errorMessage:
-              'Reconnect failed after ${_reconnectBackoff.length} attempts.',
+          errorMessage: 'Reconnect failed after 5 attempts.',
           reconnectAttempt: _reconnectAttempts,
+          statusDetail:
+              'Reconnect now is available if the network is stable again.',
         );
       }
       return;
@@ -686,6 +897,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   Future<void> _persistState() async {
     await _storage.saveString(SecureStorage.vpnStatusKey, state.status.name);
     await _storage.saveString(SecureStorage.vpnStageKey, state.stage.name);
+    await _storage.saveBool(SecureStorage.vpnDesiredOnKey, state.desiredOn);
     await _storage.saveString(
       SecureStorage.vpnConnectedAtKey,
       state.lastConnectedAt?.toIso8601String() ?? '',
@@ -707,16 +919,143 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   String _vpnErrorMessage(Object error) {
-    if (error is VpnServiceException) {
-      return error.message;
+    return ApiError.messageFrom(
+      error,
+      fallback: 'Unable to complete the VPN request right now.',
+    );
+  }
+
+  bool _shouldThrottleUserAction() {
+    final now = DateTime.now();
+    final lastActionAt = _lastUserActionAt;
+    _lastUserActionAt = now;
+    if (!state.vmSafeMode || lastActionAt == null) {
+      return false;
     }
-    if (error is ApiClientException) {
-      return error.message;
+    if (now.difference(lastActionAt) < const Duration(seconds: 2)) {
+      state = state.copyWith(
+        errorMessage:
+            'VM safe mode is slowing rapid connect/disconnect attempts to protect routing.',
+      );
+      return true;
     }
-    if (error is StateError) {
-      return error.message;
+    return false;
+  }
+
+  void _engageKillSwitch(String reason) {
+    _ref.read(networkLockProvider.notifier).engage(reason);
+    if (!mounted) {
+      return;
     }
-    return 'Unable to complete the VPN request right now.';
+    state = state.copyWith(
+      networkLockActive: true,
+      networkLockReason: reason,
+    );
+  }
+
+  List<VpnProtocol> _protocolCandidates(
+    VpnProtocol preferred,
+    List<VpnProtocol> supported,
+  ) {
+    final available = vpnProtocolPriority
+        .where((protocol) => supported.contains(protocol))
+        .toList(growable: false);
+    if (preferred == VpnProtocol.auto) {
+      return available;
+    }
+    if (available.contains(preferred)) {
+      return <VpnProtocol>[
+        preferred,
+        ...available.where((protocol) => protocol != preferred),
+      ];
+    }
+    return <VpnProtocol>[preferred];
+  }
+
+  Future<List<ServerRegion>> _loadServersForRecovery() async {
+    try {
+      return await _ref.read(apiClientProvider).fetchServers(
+            forceRefresh: false,
+            allowWhenLocked: true,
+          );
+    } catch (_) {
+      return const <ServerRegion>[];
+    }
+  }
+
+  void _recordServerFailure(String? serverId) {
+    if (serverId == null || serverId.isEmpty) {
+      return;
+    }
+    _serverFailureCounts.update(serverId, (value) => value + 1,
+        ifAbsent: () => 1);
+  }
+
+  ServerRegion? _selectFailoverServer(List<ServerRegion> servers) {
+    final currentId = state.selectedServerId;
+    if (currentId == null || currentId.isEmpty || servers.isEmpty) {
+      return null;
+    }
+    final failureCount = _serverFailureCounts[currentId] ?? 0;
+    if (failureCount < 2) {
+      return null;
+    }
+    ServerRegion? current;
+    for (final server in servers) {
+      if (server.id == currentId) {
+        current = server;
+        break;
+      }
+    }
+    if (current == null) {
+      return null;
+    }
+    final activeServer = current;
+    final regionKey = _serverRegionKey(activeServer);
+    final candidate = servers.firstWhere(
+      (server) =>
+          server.id != activeServer.id && _serverRegionKey(server) == regionKey,
+      orElse: () => const ServerRegion(id: '', name: ''),
+    );
+    return candidate.id.isEmpty ? null : candidate;
+  }
+
+  String _serverRegionKey(ServerRegion server) {
+    final country = server.country?.trim().toLowerCase();
+    if (country != null && country.isNotEmpty) {
+      return country;
+    }
+    final city = server.city?.trim().toLowerCase();
+    if (city != null && city.isNotEmpty) {
+      return city;
+    }
+    final name = server.name.trim().toLowerCase();
+    return name.split(',').first.trim();
+  }
+
+  Map<String, DiagnosticResult> _decodeDiagnosticsHistory(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return const <String, DiagnosticResult>{};
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return const <String, DiagnosticResult>{};
+      }
+      return <String, DiagnosticResult>{
+        for (final item in decoded.whereType<Map>())
+          DiagnosticResult.fromJson(Map<String, dynamic>.from(item)).key:
+              DiagnosticResult.fromJson(Map<String, dynamic>.from(item)),
+      };
+    } catch (_) {
+      return const <String, DiagnosticResult>{};
+    }
+  }
+
+  String _encodeDiagnosticsHistory(Map<String, DiagnosticResult> checks) {
+    return jsonEncode(<Map<String, Object?>>[
+      for (final check in checks.values) check.toJson(),
+    ]);
   }
 
   @override

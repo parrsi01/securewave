@@ -11,6 +11,7 @@ abstract class VpnService {
   Future<VpnStatus> disconnect();
   VpnStatus getStatus();
   bool get isNativeAvailable;
+  List<VpnProtocol> get supportedProtocols;
 }
 
 class VpnServiceException implements Exception {
@@ -41,8 +42,19 @@ class ChannelVpnService implements VpnService {
   bool get isNativeAvailable => _nativeAvailable;
 
   @override
+  List<VpnProtocol> get supportedProtocols => const <VpnProtocol>[
+        VpnProtocol.wireGuard,
+      ];
+
+  @override
   Future<VpnStatus> connect(
       {required VpnProtocol protocol, String? config}) async {
+    if (!supportedProtocols.contains(protocol)) {
+      throw VpnServiceException(
+        'protocol_unavailable',
+        '${vpnProtocolLabel(protocol)} is not supported by this client build.',
+      );
+    }
     if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
       return _status;
     }
@@ -186,6 +198,11 @@ class MockVpnService implements VpnService {
 
   @override
   bool get isNativeAvailable => false;
+
+  @override
+  List<VpnProtocol> get supportedProtocols => const <VpnProtocol>[
+        VpnProtocol.wireGuard,
+      ];
 
   @override
   Future<VpnStatus> connect(

@@ -9,7 +9,9 @@ import '../logging/app_logger.dart';
 import '../models/diagnostics.dart';
 import '../models/tunnel_health_snapshot.dart';
 import '../models/vpn_status.dart';
+import '../state/network_lock_state.dart';
 import '../state/vpn_state.dart';
+import '../utils/api_error.dart';
 import 'auth_session.dart';
 import 'traffic_stats_service.dart';
 import 'tunnel_status_service.dart';
@@ -31,15 +33,70 @@ class DiagnosticsService {
     final VmEnvironment vmEnvironment = _ref.read(vmEnvironmentProvider);
     final TunnelHealthSnapshot tunnelSnapshot =
         await _ref.read(tunnelStatusServiceProvider).getStatus();
+    final networkLock = _ref.read(networkLockProvider);
 
-    final List<DiagnosticResult> results = <DiagnosticResult>[];
+    final List<DiagnosticResult> results = <DiagnosticResult>[
+      _environmentCheck(
+        key: 'VM_SAFE_MODE_ACTIVE',
+        label: 'VM safe mode',
+        ok: vmEnvironment.safeModeEnabled,
+        okMessage: vmEnvironment.reason ??
+            'Linux VM safe mode is active. Reconnect pacing and route checks are hardened.',
+        failedMessage: 'VM safe mode not required on this device.',
+      ),
+      _environmentCheck(
+        key: vmEnvironment.defaultRoutePresent
+            ? 'DEFAULT_ROUTE_OK'
+            : 'DEFAULT_ROUTE_MISSING',
+        label: 'Default route',
+        ok: vmEnvironment.defaultRoutePresent,
+        okMessage:
+            'Default route via ${vmEnvironment.defaultRouteInterface ?? 'system route'}.',
+        failedMessage: 'No default route detected.',
+        commands: const <String>[
+          'ip route',
+          'nmcli connection show',
+          'sudo systemctl restart NetworkManager',
+        ],
+      ),
+      _environmentCheck(
+        key: 'DOCKER_CONFLICT_DETECTED',
+        label: 'Docker bridge conflict',
+        ok: !(vmEnvironment.hasDockerBridge &&
+            tunnelSnapshot.interfaceOk &&
+            !tunnelSnapshot.routingOk),
+        okMessage: vmEnvironment.hasDockerBridge
+            ? 'Docker bridge present, but no active routing conflict detected.'
+            : 'No Docker bridge conflict detected.',
+        failedMessage:
+            'Docker bridge and VPN tunnel appear to be competing for routing.',
+        commands: const <String>[
+          'ip addr show docker0',
+          'ip route get 1.1.1.1',
+          'docker network ls',
+        ],
+      ),
+    ];
+
+    if (networkLock.isLocked) {
+      results.add(
+        DiagnosticResult(
+          key: 'KILL_SWITCH_ACTIVE',
+          label: 'Best-effort kill switch',
+          status: DiagnosticStatus.retrying,
+          message: networkLock.reason ??
+              'App network requests are paused until the tunnel reconnects.',
+          checkedAt: DateTime.now(),
+        ),
+      );
+    }
 
     results.add(await _runCheck(
       key: 'BACKEND_OK',
       label: 'Backend reachability',
       action: () async {
         await api.healthCheck();
-        return 'Health endpoint reachable.';
+        return const _CheckOutcome('Health endpoint reachable.');
       },
     ));
 
@@ -49,9 +106,10 @@ class DiagnosticsService {
       action: () async {
         if (!auth.isAuthenticated || (auth.accessToken?.isEmpty ?? true)) {
           throw const _DiagnosticFailure(
-              'No active session token. Sign in again.');
+            'No active session token. Sign in again.',
+          );
         }
-        return 'Access token is present.';
+        return const _CheckOutcome('Access token is present.');
       },
     ));
 
@@ -63,7 +121,7 @@ class DiagnosticsService {
         if (servers.isEmpty) {
           throw const _DiagnosticFailure('Server list is empty.');
         }
-        return '${servers.length} servers available.';
+        return _CheckOutcome('${servers.length} servers available.');
       },
     ));
 
@@ -79,21 +137,26 @@ class DiagnosticsService {
         if (profile.trim().isEmpty) {
           throw const _DiagnosticFailure('Profile payload is empty.');
         }
-        return 'Profile fetched for $serverId.';
+        return _CheckOutcome('Profile fetched for $serverId.');
       },
     ));
 
     results.add(await _runCheck(
-      key: 'TUNNEL_INTERFACE_OK',
+      key: tunnelSnapshot.interfaceOk
+          ? 'TUNNEL_INTERFACE_OK'
+          : 'TUNNEL_INTERFACE_MISSING',
       label: 'Tunnel interface',
       action: () async {
         if (tunnelSnapshot.interfaceOk) {
-          return 'Tunnel interface ${tunnelSnapshot.interfaceName ?? 'detected'} is available.';
+          return _CheckOutcome(
+            'Tunnel interface ${tunnelSnapshot.interfaceName ?? 'detected'} is available.',
+          );
         }
         throw _DiagnosticFailure(
           vpnState.status == VpnStatus.connected
               ? 'Tunnel interface missing while connected.'
               : 'Tunnel interface is not active.',
+          commands: _vmCommands(vmEnvironment),
         );
       },
     ));
@@ -103,13 +166,23 @@ class DiagnosticsService {
       label: 'Routing validation',
       action: () async {
         if (vmEnvironment.safeModeEnabled && !tunnelSnapshot.routingOk) {
-          return 'VM safe mode enabled; routing validation deferred.';
+          throw _DiagnosticFailure(
+            'VM route conflict detected. Default route is not using the tunnel.',
+            commands: _vmCommands(vmEnvironment),
+          );
         }
         if (tunnelSnapshot.routingOk) {
-          return 'Default route points at ${tunnelSnapshot.interfaceName ?? 'the tunnel interface'}.';
+          return _CheckOutcome(
+            'Default route points at ${tunnelSnapshot.interfaceName ?? 'the tunnel interface'}.',
+          );
         }
         throw const _DiagnosticFailure(
-            'Default route is not using the active tunnel.');
+          'Default route is not using the active tunnel.',
+          commands: <String>[
+            'ip route get 1.1.1.1',
+            'route -n get default',
+          ],
+        );
       },
     ));
 
@@ -121,9 +194,15 @@ class DiagnosticsService {
         final host = uri.host.isEmpty ? 'securewave.ai' : uri.host;
         final resolved = await InternetAddress.lookup(host);
         if (resolved.isEmpty) {
-          throw const _DiagnosticFailure('DNS resolution returned no records.');
+          throw const _DiagnosticFailure(
+            'DNS resolution returned no records.',
+            commands: <String>[
+              'cat /etc/resolv.conf',
+              'nslookup securewave.ai',
+            ],
+          );
         }
-        return 'Resolved $host to ${resolved.first.address}.';
+        return _CheckOutcome('Resolved $host to ${resolved.first.address}.');
       },
     ));
 
@@ -133,22 +212,34 @@ class DiagnosticsService {
       action: () async {
         if (vpnState.status != VpnStatus.connected) {
           throw const _DiagnosticFailure(
-              'Connect the tunnel before running traffic validation.');
+            'Connect the tunnel before running traffic validation.',
+          );
         }
-        final before = await _ref.read(trafficStatsServiceProvider).sample();
+        final before = await _ref.read(trafficStatsServiceProvider).sample(
+              preferredInterface: tunnelSnapshot.interfaceName,
+            );
         final stopwatch = Stopwatch()..start();
-        final response = await Dio(BaseOptions(
-          connectTimeout: const Duration(seconds: 6),
-          receiveTimeout: const Duration(seconds: 6),
-          responseType: ResponseType.plain,
-        )).get<String>('https://1.1.1.1/cdn-cgi/trace');
+        final response = await Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 6),
+            receiveTimeout: const Duration(seconds: 6),
+            responseType: ResponseType.plain,
+          ),
+        ).get<String>('https://1.1.1.1/cdn-cgi/trace');
         stopwatch.stop();
-        final after = await _ref.read(trafficStatsServiceProvider).sample();
+        final after = await _ref.read(trafficStatsServiceProvider).sample(
+              preferredInterface: tunnelSnapshot.interfaceName,
+            );
         final deltaRx = after.receivedBytes - before.receivedBytes;
         final deltaTx = after.transmittedBytes - before.transmittedBytes;
         if ((response.data ?? '').isEmpty || (deltaRx <= 0 && deltaTx <= 0)) {
           throw const _DiagnosticFailure(
-              'HTTP probe completed but traffic counters did not advance.');
+            'HTTP probe completed but traffic counters did not advance.',
+            commands: <String>[
+              'curl -I https://1.1.1.1/cdn-cgi/trace',
+              'ip route get 1.1.1.1',
+            ],
+          );
         }
         AppLogger.diagnostics(
           'traffic_probe_complete',
@@ -158,27 +249,48 @@ class DiagnosticsService {
             'tx_delta': deltaTx,
           },
         );
-        return 'Traffic flowing with ${stopwatch.elapsedMilliseconds}ms latency.';
+        return _CheckOutcome(
+          'Traffic flowing with ${stopwatch.elapsedMilliseconds}ms latency.',
+        );
       },
     ));
 
     return results;
   }
 
+  DiagnosticResult _environmentCheck({
+    required String key,
+    required String label,
+    required bool ok,
+    required String okMessage,
+    required String failedMessage,
+    List<String> commands = const <String>[],
+  }) {
+    return DiagnosticResult(
+      key: key,
+      label: label,
+      status: ok ? DiagnosticStatus.ok : DiagnosticStatus.failed,
+      message: ok ? okMessage : failedMessage,
+      commands: ok ? const <String>[] : commands,
+      checkedAt: DateTime.now(),
+    );
+  }
+
   Future<DiagnosticResult> _runCheck({
     required String key,
     required String label,
-    required Future<String> Function() action,
+    required Future<_CheckOutcome> Function() action,
   }) async {
     try {
-      final message = await action();
+      final outcome = await action();
       AppLogger.diagnostics('check_ok',
-          fields: <String, Object?>{'key': key, 'message': message});
+          fields: <String, Object?>{'key': key, 'message': outcome.message});
       return DiagnosticResult(
         key: key,
         label: label,
         status: DiagnosticStatus.ok,
-        message: message,
+        message: outcome.message,
+        checkedAt: DateTime.now(),
       );
     } on _DiagnosticFailure catch (error) {
       AppLogger.warning(
@@ -191,6 +303,8 @@ class DiagnosticsService {
         label: label,
         status: DiagnosticStatus.failed,
         message: error.message,
+        commands: error.commands,
+        checkedAt: DateTime.now(),
       );
     } catch (error, stackTrace) {
       AppLogger.error(
@@ -204,14 +318,38 @@ class DiagnosticsService {
         key: key,
         label: label,
         status: DiagnosticStatus.failed,
-        message: 'Check failed: $error',
+        message: ApiError.messageFrom(
+          error,
+          fallback: 'Check failed: $error',
+        ),
+        checkedAt: DateTime.now(),
       );
     }
   }
+
+  List<String> _vmCommands(VmEnvironment vmEnvironment) {
+    if (!vmEnvironment.safeModeEnabled) {
+      return const <String>[];
+    }
+    return const <String>[
+      'ip route',
+      'ip route get 1.1.1.1',
+      'nmcli device status',
+      'sudo systemctl restart NetworkManager',
+      'sudo dhclient -r && sudo dhclient',
+    ];
+  }
+}
+
+class _CheckOutcome {
+  const _CheckOutcome(this.message);
+
+  final String message;
 }
 
 class _DiagnosticFailure implements Exception {
-  const _DiagnosticFailure(this.message);
+  const _DiagnosticFailure(this.message, {this.commands = const <String>[]});
 
   final String message;
+  final List<String> commands;
 }

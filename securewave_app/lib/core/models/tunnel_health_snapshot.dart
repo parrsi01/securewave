@@ -7,6 +7,8 @@ class TunnelHealthSnapshot {
     required this.interfaceOk,
     required this.routingOk,
     required this.details,
+    this.connectedSince,
+    this.lastError,
   });
 
   final VpnStatus status;
@@ -14,6 +16,8 @@ class TunnelHealthSnapshot {
   final bool interfaceOk;
   final bool routingOk;
   final String? details;
+  final DateTime? connectedSince;
+  final String? lastError;
 
   static const disconnected = TunnelHealthSnapshot(
     status: VpnStatus.disconnected,
@@ -21,5 +25,7 @@ class TunnelHealthSnapshot {
     interfaceOk: false,
     routingOk: false,
     details: null,
+    connectedSince: null,
+    lastError: null,
   );
 }

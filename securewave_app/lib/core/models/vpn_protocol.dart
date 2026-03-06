@@ -1,4 +1,5 @@
 enum VpnProtocol {
+  auto,
   wireGuard,
   openVpn,
   ikev2,
@@ -6,6 +7,8 @@ enum VpnProtocol {
 
 String vpnProtocolLabel(VpnProtocol protocol) {
   switch (protocol) {
+    case VpnProtocol.auto:
+      return 'Auto';
     case VpnProtocol.wireGuard:
       return 'WireGuard';
     case VpnProtocol.openVpn:
@@ -17,6 +20,8 @@ String vpnProtocolLabel(VpnProtocol protocol) {
 
 String vpnProtocolStorageValue(VpnProtocol protocol) {
   switch (protocol) {
+    case VpnProtocol.auto:
+      return 'auto';
     case VpnProtocol.wireGuard:
       return 'wireguard';
     case VpnProtocol.openVpn:
@@ -28,6 +33,8 @@ String vpnProtocolStorageValue(VpnProtocol protocol) {
 
 VpnProtocol vpnProtocolFromStorage(String? value) {
   switch (value?.toLowerCase()) {
+    case 'auto':
+      return VpnProtocol.auto;
     case 'openvpn':
       return VpnProtocol.openVpn;
     case 'ikev2':
@@ -39,3 +46,9 @@ VpnProtocol vpnProtocolFromStorage(String? value) {
       return VpnProtocol.wireGuard;
   }
 }
+
+const List<VpnProtocol> vpnProtocolPriority = <VpnProtocol>[
+  VpnProtocol.wireGuard,
+  VpnProtocol.ikev2,
+  VpnProtocol.openVpn,
+];

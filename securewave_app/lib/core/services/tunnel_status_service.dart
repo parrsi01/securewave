@@ -26,6 +26,10 @@ class TunnelStatusService {
         interfaceOk: response['interfaceOk'] == true,
         routingOk: response['routingOk'] == true,
         details: response['details']?.toString(),
+        connectedSince: response['connectedSince'] == null
+            ? null
+            : DateTime.tryParse(response['connectedSince'].toString()),
+        lastError: response['lastError']?.toString(),
       );
     } on MissingPluginException {
       return TunnelHealthSnapshot.disconnected;

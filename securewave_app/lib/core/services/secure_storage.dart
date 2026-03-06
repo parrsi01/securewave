@@ -16,6 +16,11 @@ class SecureStorage {
   static const vpnStatusKey = 'vpn_status';
   static const vpnStageKey = 'vpn_stage';
   static const vpnConnectedAtKey = 'vpn_connected_at';
+  static const vpnDesiredOnKey = 'vpn_desired_on';
+  static const vpnDiagnosticsHistoryKey = 'vpn_diagnostics_history';
+  static const settingsAutoConnectKey = 'settings_auto_connect';
+  static const settingsAutoReconnectKey = 'settings_auto_reconnect';
+  static const settingsKillSwitchKey = 'settings_kill_switch';
 
   Future<void> saveTokens(
       {required String accessToken, String? refreshToken}) async {
@@ -56,4 +61,6 @@ class SecureStorage {
     if (raw == null) return null;
     return int.tryParse(raw);
   }
+
+  Future<void> delete(String key) => _storage.delete(key: key);
 }

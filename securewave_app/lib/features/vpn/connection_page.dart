@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/models/vpn_protocol.dart';
 import '../../core/models/vpn_status.dart';
 import '../../core/state/vpn_state.dart';
 import '../../ui/app_ui_v1.dart';
@@ -34,6 +35,9 @@ class ConnectionPage extends ConsumerWidget {
       VpnStatus.error => 'Error',
       VpnStatus.disconnected => 'Disconnected',
     };
+    final protocolLabel = vpnState.protocol == VpnProtocol.auto
+        ? 'Auto${vpnState.activeProtocol == null ? '' : ' → ${vpnProtocolLabel(vpnState.activeProtocol!)}'}'
+        : vpnProtocolLabel(vpnState.activeProtocol ?? vpnState.protocol);
 
     return SafeArea(
       child: ListView(
@@ -53,7 +57,7 @@ class ConnectionPage extends ConsumerWidget {
                       label: 'Selected server',
                       value: vpnState.selectedServerId ?? 'None'),
                   const SizedBox(height: AppUIv1.space3),
-                  _Row(label: 'Protocol', value: vpnState.protocol.name),
+                  _Row(label: 'Protocol', value: protocolLabel),
                   const SizedBox(height: AppUIv1.space3),
                   _Row(
                       label: 'Interface',
@@ -66,7 +70,7 @@ class ConnectionPage extends ConsumerWidget {
                   const SizedBox(height: AppUIv1.space3),
                   _Row(
                       label: 'Routing',
-                      value: vpnState.routingOk ? 'OK' : 'Pending'),
+                      value: vpnState.routingOk ? 'OK' : 'Pending / conflict'),
                   const SizedBox(height: AppUIv1.space3),
                   _Row(
                     label: 'Session usage',
@@ -79,6 +83,18 @@ class ConnectionPage extends ConsumerWidget {
                   _Row(
                       label: 'Reconnect attempts',
                       value: '${vpnState.reconnectAttempt}'),
+                  const SizedBox(height: AppUIv1.space3),
+                  _Row(
+                    label: 'Desired protection',
+                    value: vpnState.desiredOn ? 'On' : 'Off',
+                  ),
+                  if (vpnState.networkLockActive) ...[
+                    const SizedBox(height: AppUIv1.space3),
+                    const _Row(
+                      label: 'App network lock',
+                      value: 'Active',
+                    ),
+                  ],
                 ],
               ),
             ),

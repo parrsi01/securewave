@@ -84,6 +84,8 @@ class AppDelegate: FlutterAppDelegate {
       "interfaceName": stats?.name as Any,
       "interfaceOk": interfaceOk,
       "routingOk": routingOk,
+      "connectedSince": NSNull(),
+      "lastError": NSNull(),
       "details": interfaceOk
         ? "Detected tunnel interface \(stats?.name ?? "unknown")."
         : "No active utun or WireGuard interface detected."
@@ -95,7 +97,9 @@ class AppDelegate: FlutterAppDelegate {
     return [
       "rxBytes": stats?.rxBytes ?? 0,
       "txBytes": stats?.txBytes ?? 0,
-      "interfaceName": stats?.name as Any
+      "interfaceName": stats?.name as Any,
+      "countersAvailable": stats != nil,
+      "details": stats == nil ? "Native traffic counters unavailable." : "Traffic counters captured from \(stats?.name ?? "tunnel")."
     ]
   }
 

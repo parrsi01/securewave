@@ -12,12 +12,19 @@ import '../core/models/server_region.dart';
 import '../core/models/user_plan.dart';
 import '../core/services/auth_session.dart';
 import '../core/services/vm_environment.dart';
+import '../core/state/network_lock_state.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final config = ref.watch(appConfigProvider);
   final session = ref.watch(authSessionProvider);
   final vmEnvironment = ref.watch(vmEnvironmentProvider);
-  return ApiClient(config, session: session, vmEnvironment: vmEnvironment);
+  final networkLock = ref.watch(networkLockProvider);
+  return ApiClient(
+    config,
+    session: session,
+    vmEnvironment: vmEnvironment,
+    networkLock: networkLock,
+  );
 });
 
 class ApiClient {
@@ -25,13 +32,15 @@ class ApiClient {
     this._config, {
     AuthSession? session,
     VmEnvironment? vmEnvironment,
+    NetworkLockState? networkLock,
   })  : _session = session,
         _vmEnvironment = vmEnvironment ??
             const VmEnvironment(
               isVirtualMachine: false,
               safeModeEnabled: false,
               reason: null,
-            ) {
+            ),
+        _networkLock = networkLock ?? const NetworkLockState() {
     _dio = Dio(
       BaseOptions(
         baseUrl: _config.apiBaseUrl,
@@ -60,6 +69,7 @@ class ApiClient {
   final AppConfig _config;
   final AuthSession? _session;
   final VmEnvironment _vmEnvironment;
+  final NetworkLockState _networkLock;
   late final Dio _dio;
   List<ServerRegion>? _cachedServers;
   DateTime? _serversFetchedAt;
@@ -69,7 +79,8 @@ class ApiClient {
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
 
-  Future<void> healthCheck() async {
+  Future<void> healthCheck({bool allowWhenLocked = false}) async {
+    _assertNetworkAllowed(allowWhenLocked: allowWhenLocked);
     if (_config.useMockApi) {
       return;
     }
@@ -78,7 +89,11 @@ class ApiClient {
     });
   }
 
-  Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
+  Future<List<ServerRegion>> fetchServers({
+    bool forceRefresh = false,
+    bool allowWhenLocked = false,
+  }) async {
+    _assertNetworkAllowed(allowWhenLocked: allowWhenLocked);
     if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
       final age = DateTime.now().difference(_serversFetchedAt!);
       if (age < _serversCacheTtl) {
@@ -135,7 +150,11 @@ class ApiClient {
     }
   }
 
-  Future<UserPlan> fetchUserPlan({bool forceRefresh = false}) async {
+  Future<UserPlan> fetchUserPlan({
+    bool forceRefresh = false,
+    bool allowWhenLocked = false,
+  }) async {
+    _assertNetworkAllowed(allowWhenLocked: allowWhenLocked);
     if (!forceRefresh && _cachedPlan != null && _planFetchedAt != null) {
       final age = DateTime.now().difference(_planFetchedAt!);
       if (age < _planCacheTtl) {
@@ -161,6 +180,7 @@ class ApiClient {
 
   Future<AuthTokens> login(
       {required String email, required String password}) async {
+    _assertNetworkAllowed();
     if (_config.useMockApi) {
       return _mockTokens(email);
     }
@@ -177,6 +197,7 @@ class ApiClient {
 
   Future<AuthTokens?> register(
       {required String email, required String password}) async {
+    _assertNetworkAllowed();
     if (_config.useMockApi) {
       return _mockTokens(email);
     }
@@ -200,7 +221,11 @@ class ApiClient {
     );
   }
 
-  Future<String> fetchVpnProfile({String? serverId}) async {
+  Future<String> fetchVpnProfile({
+    String? serverId,
+    bool allowWhenLocked = false,
+  }) async {
+    _assertNetworkAllowed(allowWhenLocked: allowWhenLocked);
     if (_config.useMockApi) {
       return _mockVpnProfile();
     }
@@ -250,6 +275,17 @@ class ApiClient {
       throw ApiClientException.fromDio(lastError);
     }
     Error.throwWithStackTrace(lastError!, lastStackTrace!);
+  }
+
+  void _assertNetworkAllowed({bool allowWhenLocked = false}) {
+    if (allowWhenLocked || !_networkLock.isLocked) {
+      return;
+    }
+    throw ApiClientException(
+      'kill_switch_active',
+      _networkLock.reason ??
+          'Best-effort kill switch is blocking new app traffic.',
+    );
   }
 
   bool _isTransient(Object error) {

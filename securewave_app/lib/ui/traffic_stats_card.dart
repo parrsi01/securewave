@@ -12,6 +12,7 @@ class TrafficStatsCard extends StatelessWidget {
     required this.uploadPoints,
     required this.sessionUsageLabel,
     required this.lifetimeUsageLabel,
+    this.note,
   });
 
   final String downloadLabel;
@@ -20,6 +21,7 @@ class TrafficStatsCard extends StatelessWidget {
   final List<double> uploadPoints;
   final String sessionUsageLabel;
   final String lifetimeUsageLabel;
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +74,13 @@ class TrafficStatsCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
+            if (note != null && note!.isNotEmpty) ...[
+              const SizedBox(height: AppUIv1.space2),
+              Text(
+                note!,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ],
         ),
       ),

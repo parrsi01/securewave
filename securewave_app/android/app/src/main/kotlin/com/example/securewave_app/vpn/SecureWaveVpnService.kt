@@ -69,11 +69,15 @@ class SecureWaveVpnService : VpnService() {
         backend.setState(tunnel, Tunnel.State.UP, config)
         currentState = Tunnel.State.UP
         activeInterfaceName = detectTunnelInterfaceName()
+        connectedSinceMs = System.currentTimeMillis()
+        lastKnownError = null
         updateNotification("SecureWave VPN", "Connected")
         sendSuccess(receiver)
       } catch (error: Exception) {
         currentState = Tunnel.State.DOWN
         activeInterfaceName = null
+        connectedSinceMs = null
+        lastKnownError = error.message ?: "unknown error"
         sendError(
           receiver,
           "vpn_connect_failed",
@@ -92,9 +96,11 @@ class SecureWaveVpnService : VpnService() {
           backend.setState(tunnel, Tunnel.State.DOWN, null)
           currentState = Tunnel.State.DOWN
           activeInterfaceName = null
+          connectedSinceMs = null
         }
         sendSuccess(receiver)
       } catch (error: Exception) {
+        lastKnownError = error.message ?: "unknown error"
         sendError(
           receiver,
           "vpn_disconnect_failed",
@@ -153,6 +159,8 @@ class SecureWaveVpnService : VpnService() {
     private const val RESULT_ERROR = 1
     @Volatile private var activeInterfaceName: String? = null
     @Volatile private var lastKnownState: Tunnel.State = Tunnel.State.DOWN
+    @Volatile private var connectedSinceMs: Long? = null
+    @Volatile private var lastKnownError: String? = null
 
     fun trafficStats(): Map<String, Any> {
       val uid = Process.myUid()
@@ -162,6 +170,12 @@ class SecureWaveVpnService : VpnService() {
         "rxBytes" to rx,
         "txBytes" to tx,
         "interfaceName" to (activeInterfaceName ?: ""),
+        "countersAvailable" to true,
+        "details" to if (activeInterfaceName.isNullOrBlank()) {
+          "Native traffic counters unavailable."
+        } else {
+          "Traffic counters captured for ${activeInterfaceName ?: "tun"}."
+        },
       )
     }
 
@@ -178,6 +192,8 @@ class SecureWaveVpnService : VpnService() {
         "interfaceName" to (interfaceName ?: ""),
         "interfaceOk" to interfaceOk,
         "routingOk" to interfaceOk,
+        "connectedSince" to null,
+        "lastError" to lastKnownError,
         "details" to if (interfaceOk) {
           "Android VPN interface $interfaceName is active."
         } else {

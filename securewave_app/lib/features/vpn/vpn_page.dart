@@ -6,7 +6,9 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import '../../core/models/vpn_protocol.dart';
 import '../../core/models/vpn_status.dart';
+import '../../core/state/client_settings_state.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
 import '../../ui/app_ui_v1.dart';
@@ -23,6 +25,7 @@ class VpnPage extends HookConsumerWidget {
     final vpnState = ref.watch(vpnStateProvider);
     final servers = ref.watch(serversProvider);
     final plan = ref.watch(userPlanProvider);
+    final settings = ref.watch(clientSettingsProvider);
     final downHistory = useState<List<double>>(<double>[]);
     final upHistory = useState<List<double>>(<double>[]);
 
@@ -67,6 +70,22 @@ class VpnPage extends HookConsumerWidget {
       VpnConnectionStage.tunnelActive => 'Tunnel active',
     };
 
+    final protocolLabel = vpnState.protocol == VpnProtocol.auto
+        ? 'Auto${vpnState.activeProtocol == null ? '' : ' → ${vpnProtocolLabel(vpnState.activeProtocol!)}'}'
+        : vpnProtocolLabel(vpnState.activeProtocol ?? vpnState.protocol);
+
+    final trafficNote = !vpnState.isConnected
+        ? (vpnState.statusDetail ?? vpnState.networkLockReason)
+        : (!settings.bestEffortKillSwitch &&
+                vpnState.dataRateDown == 0 &&
+                vpnState.dataRateUp == 0)
+            ? 'Connected, but no traffic detected yet.'
+            : (!vpnState.interfaceOk
+                ? 'Native traffic counters unavailable.'
+                : (vpnState.dataRateDown == 0 && vpnState.dataRateUp == 0
+                    ? 'Connected, but no traffic detected yet.'
+                    : null));
+
     Future<void> onPrimaryAction() async {
       if (vpnState.status == VpnStatus.connected) {
         await ref.read(vpnStateProvider.notifier).disconnect();
@@ -101,9 +120,12 @@ class VpnPage extends HookConsumerWidget {
             status: vpnState.status,
             statusLabel: statusLabel,
             serverLabel: serverLabel,
-            protocol: vpnState.protocol,
+            protocolLabel: protocolLabel,
             durationLabel: AppUIv1.formatDuration(vpnState.connectionDuration),
             stageLabel: stageLabel,
+            detail: vpnState.networkLockActive
+                ? vpnState.networkLockReason
+                : vpnState.statusDetail,
           ),
           const SizedBox(height: AppUIv1.space4),
           Row(
@@ -125,6 +147,21 @@ class VpnPage extends HookConsumerWidget {
               ),
             ],
           ),
+          if (vpnState.desiredOn &&
+              vpnState.status != VpnStatus.connected &&
+              settings.autoReconnect) ...[
+            const SizedBox(height: AppUIv1.space3),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                onPressed: vpnState.isBusy
+                    ? null
+                    : () => ref.read(vpnStateProvider.notifier).reconnectNow(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reconnect now'),
+              ),
+            ),
+          ],
           if (vpnState.errorMessage != null) ...[
             const SizedBox(height: AppUIv1.space3),
             Text(
@@ -147,6 +184,7 @@ class VpnPage extends HookConsumerWidget {
             lifetimeUsageLabel: AppUIv1.formatDataAmount(
               vpnState.lifetimeDownloadBytes + vpnState.lifetimeUploadBytes,
             ),
+            note: trafficNote,
           ),
           const SizedBox(height: AppUIv1.space4),
           plan.when(

@@ -128,6 +128,18 @@ class AccountPage extends ConsumerWidget {
                   ref.read(externalLinksProvider).openUrl(config.portalUrl),
             ),
           ),
+          const SizedBox(height: AppUIv1.space3),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.devices_outlined),
+              title: const Text('Manage devices'),
+              subtitle: const Text(
+                'Use the web portal if you hit a device limit and need to free a slot.',
+              ),
+              onTap: () =>
+                  ref.read(externalLinksProvider).openUrl(config.portalUrl),
+            ),
+          ),
         ],
       ),
     );

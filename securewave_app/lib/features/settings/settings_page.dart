@@ -3,31 +3,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/models/vpn_protocol.dart';
+import '../../core/services/vm_environment.dart';
 import '../../core/state/adblock_state.dart';
 import '../../core/state/app_state.dart';
+import '../../core/state/client_settings_state.dart';
+import '../../core/state/network_lock_state.dart';
 import '../../core/state/preferences_state.dart';
 import '../../core/state/vpn_state.dart';
-import '../../core/services/vm_environment.dart';
 import '../../ui/app_ui_v1.dart';
 
-class SettingsPage extends ConsumerStatefulWidget {
+class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   @override
-  ConsumerState<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends ConsumerState<SettingsPage> {
-  bool autoConnect = true;
-  bool connectionGuard = true;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final deviceInfo = ref.watch(deviceInfoProvider);
     final language = ref.watch(preferencesProvider).language;
     final protocol =
         ref.watch(vpnStateProvider.select((state) => state.protocol));
+    final activeProtocol =
+        ref.watch(vpnStateProvider.select((state) => state.activeProtocol));
+    final settings = ref.watch(clientSettingsProvider);
     final vmEnvironment = ref.watch(vmEnvironmentProvider);
+    final supportedProtocols = ref.watch(vpnServiceProvider).supportedProtocols;
+
     final languageLabel = switch (language) {
       'es' => 'Spanish',
       'fr' => 'French',
@@ -82,53 +81,85 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: Column(
               children: [
                 SwitchListTile(
-                  value: autoConnect,
-                  onChanged: (value) => setState(() => autoConnect = value),
+                  value: settings.autoConnect,
+                  onChanged: (value) => ref
+                      .read(clientSettingsProvider.notifier)
+                      .setAutoConnect(value),
                   title: const Text('Auto-connect'),
                   subtitle: const Text(
-                      'Reconnect to the last selected server after launch.'),
+                    'Reconnect to the last selected server after launch when the last session wanted protection.',
+                  ),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
-                  value: connectionGuard,
-                  onChanged: (value) => setState(() => connectionGuard = value),
-                  title: const Text('Connection guard'),
+                  value: settings.autoReconnect,
+                  onChanged: (value) => ref
+                      .read(clientSettingsProvider.notifier)
+                      .setAutoReconnect(value),
+                  title: const Text('Auto-reconnect'),
                   subtitle: const Text(
-                      'Avoid reconnect loops and fail closed on tunnel loss.'),
+                    'Retry with exponential backoff if the tunnel drops unexpectedly.',
+                  ),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  value: settings.bestEffortKillSwitch,
+                  onChanged: (value) async {
+                    await ref
+                        .read(clientSettingsProvider.notifier)
+                        .setBestEffortKillSwitch(value);
+                    if (!value) {
+                      ref.read(networkLockProvider.notifier).release();
+                    }
+                  },
+                  title: const Text('Best-effort kill switch'),
+                  subtitle: const Text(
+                    'Blocks SecureWave app network requests when the tunnel drops until reconnect or manual disable.',
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: AppUIv1.space4),
           Text('Protocol', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppUIv1.space2),
+          Text(
+            activeProtocol == null
+                ? 'Preferred protocol: ${vpnProtocolLabel(protocol)}'
+                : 'Preferred protocol: ${vpnProtocolLabel(protocol)} • Active: ${vpnProtocolLabel(activeProtocol)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: AppUIv1.space3),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(AppUIv1.space3),
-              child: SegmentedButton<VpnProtocol>(
-                segments: const [
-                  ButtonSegment(
-                    value: VpnProtocol.wireGuard,
-                    label: Text('WireGuard'),
-                  ),
-                  ButtonSegment(
-                    value: VpnProtocol.ikev2,
-                    label: Text('IKEv2'),
-                  ),
-                  ButtonSegment(
-                    value: VpnProtocol.openVpn,
-                    label: Text('OpenVPN'),
-                  ),
+              child: Wrap(
+                spacing: AppUIv1.space2,
+                runSpacing: AppUIv1.space2,
+                children: [
+                  for (final protocolOption in VpnProtocol.values)
+                    ChoiceChip(
+                      label: Text(vpnProtocolLabel(protocolOption)),
+                      selected: protocol == protocolOption,
+                      onSelected: protocolOption == VpnProtocol.auto ||
+                              supportedProtocols.contains(protocolOption)
+                          ? (_) => ref
+                              .read(vpnStateProvider.notifier)
+                              .selectProtocol(protocolOption)
+                          : null,
+                    ),
                 ],
-                selected: {protocol},
-                onSelectionChanged: (selection) {
-                  ref
-                      .read(vpnStateProvider.notifier)
-                      .selectProtocol(selection.first);
-                },
               ),
             ),
           ),
+          if (!supportedProtocols.contains(VpnProtocol.ikev2) ||
+              !supportedProtocols.contains(VpnProtocol.openVpn)) ...[
+            const SizedBox(height: AppUIv1.space2),
+            Text(
+              'This build currently exposes WireGuard as the supported tunnel protocol. Auto mode will prefer WireGuard and only fall back to protocols the client can verify.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: AppUIv1.space4),
           if (vmEnvironment.safeModeEnabled)
             Card(
@@ -136,7 +167,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 leading: const Icon(Icons.memory),
                 title: const Text('Linux VM safe mode'),
                 subtitle: Text(vmEnvironment.reason ??
-                    'VM-safe retries and delayed startup enabled.'),
+                    'Virtualization detected. Routing and DNS checks are hardened.'),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppUIv1.space2,
+                    vertical: AppUIv1.space1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppUIv1.accentSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text('ACTIVE'),
+                ),
               ),
             ),
           if (vmEnvironment.safeModeEnabled)
