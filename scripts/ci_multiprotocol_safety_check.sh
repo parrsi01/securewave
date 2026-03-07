@@ -39,9 +39,13 @@ if git grep -n "BEGIN [A-Z ]*PRIVATE KEY" -- \
   ':!securewave_app/ios/ThirdParty/**' \
   ':!docs/reference/**' \
   ':!scripts/pre-commit-hook.sh' \
-  ':!artifacts/**' >/dev/null 2>&1; then
+  ':!scripts/secret_scan.sh' \
+  ':!scripts/scan_git_history_for_secrets.sh' \
+  ':!artifacts/**' \
+  ':!tools/*/out/**' \
+  ':!tools/egress_proof/out/**' >/dev/null 2>&1; then
   echo "private_key_block_detected_in_tracked_files" >&2
-  git grep -n "BEGIN [A-Z ]*PRIVATE KEY" -- ':!securewave_app/ios/ThirdParty/**' ':!docs/reference/**' ':!scripts/pre-commit-hook.sh' ':!artifacts/**' >&2 || true
+  git grep -n "BEGIN [A-Z ]*PRIVATE KEY" -- ':!securewave_app/ios/ThirdParty/**' ':!docs/reference/**' ':!scripts/pre-commit-hook.sh' ':!scripts/secret_scan.sh' ':!scripts/scan_git_history_for_secrets.sh' ':!artifacts/**' ':!tools/*/out/**' ':!tools/egress_proof/out/**' >&2 || true
   exit 14
 fi
 

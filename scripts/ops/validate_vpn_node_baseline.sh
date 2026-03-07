@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Secret path guard — all sensitive material (WireGuard keys, PKI certs,
+# shared secrets) must reside under /etc/securewave/secrets on each node.
+# This script validates that no production secrets are passed via environment
+# or command-line arguments; they are always read from /etc/securewave/secrets
+# at runtime by the audit tooling.
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 

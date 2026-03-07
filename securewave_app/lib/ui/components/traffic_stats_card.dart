@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import '../../core/state/vpn_state.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
+import '../widgets/glass_panel.dart';
 import '../widgets/ui_helpers.dart';
 
-/// Card showing download / upload rates and session total.
+/// Glass card showing download / upload rates and session total.
 class TrafficStatsCard extends StatelessWidget {
   const TrafficStatsCard({super.key, required this.vpnState});
 
@@ -13,34 +14,35 @@ class TrafficStatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _Stat(
-              icon: Icons.arrow_downward_rounded,
-              label: 'Download',
-              value: formatDataRate(vpnState.dataRateDown),
-              color: AppColors.success,
-            ),
-            _Divider(),
-            _Stat(
-              icon: Icons.arrow_upward_rounded,
-              label: 'Upload',
-              value: formatDataRate(vpnState.dataRateUp),
-              color: AppColors.primary,
-            ),
-            _Divider(),
-            _Stat(
-              icon: Icons.data_usage_rounded,
-              label: 'Session',
-              value: formatBytesCompact(vpnState.sessionTransferredBytes),
-              color: AppColors.inkMuted,
-            ),
-          ],
-        ),
+    return GlassPanel(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.space5,
+        vertical: AppSpacing.space4,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _Stat(
+            icon: Icons.arrow_downward_rounded,
+            label: 'Download',
+            value: formatDataRate(vpnState.dataRateDown),
+            color: AppColors.success,
+          ),
+          _Divider(),
+          _Stat(
+            icon: Icons.arrow_upward_rounded,
+            label: 'Upload',
+            value: formatDataRate(vpnState.dataRateUp),
+            color: AppColors.primaryBright,
+          ),
+          _Divider(),
+          _Stat(
+            icon: Icons.data_usage_rounded,
+            label: 'Used',
+            value: formatBytesCompact(vpnState.sessionTransferredBytes),
+            color: AppColors.darkInkMuted,
+          ),
+        ],
       ),
     );
   }
@@ -70,12 +72,13 @@ class _Stat extends StatelessWidget {
           value,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
+                color: Colors.white,
               ),
         ),
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppColors.inkSoft,
+                color: AppColors.darkInkSoft,
               ),
         ),
       ],
@@ -89,7 +92,7 @@ class _Divider extends StatelessWidget {
     return SizedBox(
       height: 40,
       child: VerticalDivider(
-        color: AppColors.border,
+        color: AppColors.darkBorder,
         width: 1,
       ),
     );

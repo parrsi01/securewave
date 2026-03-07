@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
 import '../../ui/widgets/vpn_ui_bindings.dart';
 import 'connect_button.dart';

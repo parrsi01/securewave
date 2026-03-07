@@ -21,7 +21,7 @@ _DEFAULT_SERVERS = (
         "city": "Nuremberg",
         "region": "Europe",
         "hcloud_location": "nbg1",
-        "wg_public_key": "BOOTSTRAP_WG_PUBKEY_DE_NUE_1",
+        "wg_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",  # placeholder
         "tier_restriction": None,
     },
     {
@@ -32,7 +32,7 @@ _DEFAULT_SERVERS = (
         "city": "Frankfurt",
         "region": "Europe",
         "hcloud_location": "fsn1",
-        "wg_public_key": "BOOTSTRAP_WG_PUBKEY_DE_FRA_1",
+        "wg_public_key": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",  # placeholder
         "tier_restriction": None,
     },
     {
@@ -43,7 +43,7 @@ _DEFAULT_SERVERS = (
         "city": "Zurich",
         "region": "Europe",
         "hcloud_location": "fsn1",
-        "wg_public_key": "BOOTSTRAP_WG_PUBKEY_CH_ZRH_1",
+        "wg_public_key": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=",  # placeholder
         "tier_restriction": "premium",
     },
     {
@@ -54,7 +54,7 @@ _DEFAULT_SERVERS = (
         "city": "Amsterdam",
         "region": "Europe",
         "hcloud_location": "fsn1",
-        "wg_public_key": "BOOTSTRAP_WG_PUBKEY_NL_AMS_1",
+        "wg_public_key": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=",  # placeholder
         "tier_restriction": "premium",
     },
     {
@@ -65,7 +65,7 @@ _DEFAULT_SERVERS = (
         "city": "Paris",
         "region": "Europe",
         "hcloud_location": "fsn1",
-        "wg_public_key": "BOOTSTRAP_WG_PUBKEY_FR_PAR_1",
+        "wg_public_key": "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=",  # placeholder
         "tier_restriction": "premium",
     },
 )
