@@ -1,83 +1,63 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/models/server_region.dart';
-import '../../core/state/app_state.dart';
-import '../../core/state/vpn_state.dart';
-import '../widgets/glass_panel.dart';
+import '../../ui/design/app_colors.dart';
+import '../../ui/design/app_spacing.dart';
+import '../../ui/widgets/ui_helpers.dart';
 
-class ServerPill extends ConsumerWidget {
-  const ServerPill({super.key});
+/// Card showing a server region's location — used in the server pill on the
+/// home screen.
+class ServerLocationCard extends StatelessWidget {
+  const ServerLocationCard({
+    super.key,
+    required this.server,
+    this.onTap,
+  });
+
+  final ServerRegion server;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selectedId =
-        ref.watch(vpnStateProvider.select((state) => state.selectedServerId));
-    final servers = ref.watch(serversProvider);
-    ServerRegion? selected;
-    final items = servers.valueOrNull;
-    if (items != null) {
-      for (final server in items) {
-        if (server.id == selectedId) {
-          selected = server;
-          break;
-        }
-      }
-    }
-    return GlassPanel(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: () => context.go('/locations'),
+  Widget build(BuildContext context) {
+    final flag = flagEmoji(server.countryCode);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.space4,
+          vertical: AppSpacing.space2,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+        ),
         child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    'Server location',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _locationLabel(selected),
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _supportingText(selected),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              flag.isNotEmpty ? flag : '🌐',
+              style: const TextStyle(fontSize: 18),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 18),
+            const SizedBox(width: AppSpacing.space2),
+            Text(
+              server.name,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.primaryDeep,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            if (onTap != null) ...[
+              const SizedBox(width: AppSpacing.space1),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: AppSpacing.iconXS,
+                color: AppColors.primary,
+              ),
+            ],
           ],
         ),
       ),
     );
-  }
-
-  static String _locationLabel(ServerRegion? server) {
-    if (server == null) return 'Automatic selection';
-    final city = (server.city ?? '').trim();
-    final country = (server.country ?? '').trim();
-    if (city.isNotEmpty && country.isNotEmpty) {
-      return '$city, $country';
-    }
-    return server.name;
-  }
-
-  static String _supportingText(ServerRegion? server) {
-    if (server == null) {
-      return 'Choose a preferred region or let SecureWave route automatically.';
-    }
-    final latency =
-        server.latencyMs == null ? 'Latency unknown' : '${server.latencyMs} ms';
-    final protocols = server.supportedProtocols.isEmpty
-        ? 'Protocols adapt automatically'
-        : server.supportedProtocols.join(' • ').toUpperCase();
-    return '$latency  •  $protocols';
   }
 }

@@ -1,88 +1,118 @@
 import 'package:flutter/material.dart';
 
-import '../theme/securewave_palette.dart';
+import '../design/app_colors.dart';
+import '../design/app_spacing.dart';
 import '../widgets/vpn_ui_bindings.dart';
 
-class StatusIndicator extends StatelessWidget {
-  const StatusIndicator({
-    super.key,
-    required this.label,
-    required this.color,
-    required this.icon,
-    this.detail,
-    this.emphasized = false,
-  });
+/// Small dot + label showing VPN visual state.
+class StatusIndicator extends StatefulWidget {
+  const StatusIndicator({super.key, required this.visualState});
 
-  final String label;
-  final String? detail;
-  final Color color;
-  final IconData icon;
-  final bool emphasized;
+  final ConnectionVisualState visualState;
 
-  static Color colorFor(ConnectionVisualState state) {
-    return switch (state) {
-      ConnectionVisualState.connected => SecureWavePalette.success,
-      ConnectionVisualState.connecting ||
-      ConnectionVisualState.reconnecting ||
-      ConnectionVisualState.disconnecting =>
-        SecureWavePalette.warning,
-      ConnectionVisualState.error => SecureWavePalette.danger,
-      ConnectionVisualState.disconnected => SecureWavePalette.mint,
-    };
+  @override
+  State<StatusIndicator> createState() => _StatusIndicatorState();
+}
+
+class _StatusIndicatorState extends State<StatusIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _scale = Tween<double>(begin: 1, end: 1.4).animate(
+      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
+    );
+    _updateAnimation();
   }
 
-  static IconData iconFor(ConnectionVisualState state) {
-    return switch (state) {
-      ConnectionVisualState.connected => Icons.check_circle_rounded,
-      ConnectionVisualState.connecting ||
-      ConnectionVisualState.reconnecting ||
-      ConnectionVisualState.disconnecting =>
-        Icons.autorenew_rounded,
-      ConnectionVisualState.error => Icons.error_outline_rounded,
-      ConnectionVisualState.disconnected => Icons.shield_outlined,
-    };
+  @override
+  void didUpdateWidget(StatusIndicator old) {
+    super.didUpdateWidget(old);
+    if (old.visualState != widget.visualState) {
+      _updateAnimation();
+    }
+  }
+
+  void _updateAnimation() {
+    final pulse = widget.visualState == ConnectionVisualState.connecting ||
+        widget.visualState == ConnectionVisualState.reconnecting;
+    if (pulse) {
+      _pulse.repeat(reverse: true);
+    } else {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: emphasized ? 16 : 12,
-        vertical: emphasized ? 12 : 8,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(icon, size: emphasized ? 18 : 16, color: color),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: color,
-                      ),
-                ),
-                if (detail != null)
-                  Text(
-                    detail!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: color.withValues(alpha: 0.9),
-                        ),
+    final color = _color(widget.visualState);
+    final label = _label(widget.visualState);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedBuilder(
+          animation: _scale,
+          builder: (_, __) => Transform.scale(
+            scale: _scale.value,
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.4),
+                    blurRadius: 6,
+                    spreadRadius: 1,
                   ),
-              ],
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: AppSpacing.space2),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
     );
   }
+
+  Color _color(ConnectionVisualState s) => switch (s) {
+        ConnectionVisualState.connected => AppColors.success,
+        ConnectionVisualState.connecting => AppColors.secondary,
+        ConnectionVisualState.reconnecting => AppColors.warning,
+        ConnectionVisualState.disconnecting => AppColors.inkSoft,
+        ConnectionVisualState.error => AppColors.error,
+        ConnectionVisualState.disconnected => AppColors.inkSoft,
+      };
+
+  String _label(ConnectionVisualState s) => switch (s) {
+        ConnectionVisualState.connected => 'Connected',
+        ConnectionVisualState.connecting => 'Connecting',
+        ConnectionVisualState.reconnecting => 'Reconnecting',
+        ConnectionVisualState.disconnecting => 'Disconnecting',
+        ConnectionVisualState.error => 'Error',
+        ConnectionVisualState.disconnected => 'Disconnected',
+      };
 }

@@ -1,69 +1,94 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
-import '../theme/securewave_theme.dart';
-import 'brand_mark.dart';
-import 'glass_panel.dart';
-import 'securewave_motion_art.dart';
+import '../design/app_colors.dart';
+import '../design/app_spacing.dart';
 
+/// Auth screen wrapper with gradient header and centered content column.
+///
+/// Provides a consistent layout for login, register, and password reset
+/// screens: a teal gradient header band at the top, then scrollable centered
+/// content constrained to [AppSpacing.authMaxWidth].
 class AuthShell extends StatelessWidget {
   const AuthShell({
     super.key,
-    required this.title,
-    required this.subtitle,
     required this.child,
-    this.footer,
+    this.title = '',
   });
 
-  final String title;
-  final String subtitle;
   final Widget child;
-  final Widget? footer;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(gradient: context.swGradients.canvas),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: GlassPanel(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const BrandMark(size: 40),
-                    const SizedBox(height: 28),
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.headlineMedium,
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      body: Column(
+        children: [
+          // ── Gradient header ──────────────────────────────────────────
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + AppSpacing.space5,
+              bottom: AppSpacing.space6,
+              left: AppSpacing.pagePadding,
+              right: AppSpacing.pagePadding,
+            ),
+            decoration: const BoxDecoration(
+              gradient: AppColors.authHeaderGradient,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(AppSpacing.radiusXXL),
+                bottomRight: Radius.circular(AppSpacing.radiusXXL),
+              ),
+            ),
+            child: title.isNotEmpty
+                ? Text(
+                    title,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 20),
-                    const SizedBox(
-                      height: 120,
-                      child: SecureWaveMotionArt(opacity: 0.16),
-                    ),
-                    const SizedBox(height: 20),
-                    child,
-                    if (footer != null) ...<Widget>[
-                      const SizedBox(height: 18),
-                      footer!,
+                    textAlign: TextAlign.center,
+                  )
+                : const SizedBox.shrink(),
+          ),
+
+          // ── Scrollable body ──────────────────────────────────────────
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.pagePadding,
+                vertical: AppSpacing.space6,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: AppSpacing.authMaxWidth,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Material(
+                        color: isDark
+                            ? AppColors.darkSurface
+                            : AppColors.surface,
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusL),
+                        elevation: isDark ? 0 : 1,
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.all(AppSpacing.cardPadding),
+                          child: child,
+                        ),
+                      ),
                     ],
-                  ],
+                  ),
                 ),
-              ).animate().fadeIn(duration: 280.ms).slideY(begin: 0.08),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

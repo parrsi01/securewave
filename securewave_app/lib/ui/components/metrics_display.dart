@@ -1,33 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'live_traffic_chart.dart';
-import 'usage_meter.dart';
+import '../../core/state/vpn_state.dart';
+import '../../ui/design/app_colors.dart';
+import '../../ui/design/app_spacing.dart';
+import '../../ui/widgets/ui_helpers.dart';
+import 'traffic_stats_card.dart';
 
-class MetricsDisplay extends StatelessWidget {
+/// Riverpod-wired metrics widget — reads [vpnStateProvider] and renders
+/// a [TrafficStatsCard].
+class MetricsDisplay extends ConsumerWidget {
   const MetricsDisplay({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 920) {
-          return const Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(child: LiveTrafficChart()),
-              SizedBox(width: 16),
-              Expanded(child: UsageMeter()),
-            ],
-          );
-        }
-        return const Column(
-          children: <Widget>[
-            LiveTrafficChart(),
-            SizedBox(height: 16),
-            UsageMeter(),
-          ],
-        );
-      },
-    );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final vpnState = ref.watch(vpnStateProvider);
+    return TrafficStatsCard(vpnState: vpnState);
   }
 }

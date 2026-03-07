@@ -1,148 +1,96 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/state/vpn_state.dart';
-import '../theme/securewave_theme.dart';
-import '../widgets/glass_panel.dart';
+import '../design/app_colors.dart';
+import '../design/app_spacing.dart';
 import '../widgets/ui_helpers.dart';
-import 'live_traffic_chart.dart';
 
-class TrafficStatsCard extends ConsumerWidget {
-  const TrafficStatsCard({super.key});
+/// Card showing download / upload rates and session total.
+class TrafficStatsCard extends StatelessWidget {
+  const TrafficStatsCard({super.key, required this.vpnState});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final vpn = ref.watch(vpnStateProvider);
-    return GlassPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text('Traffic overview', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: SecureWaveSpacing.spaceXS),
-          Text(
-            'Realtime bandwidth from the active tunnel interface.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: SecureWaveSpacing.spaceSM),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _MetricChip(
-                  label: 'Download',
-                  value: formatDataRate(vpn.dataRateDown),
-                  icon: Icons.south_rounded,
-                  tint: context.swColors.connectionActive,
-                ),
-              ),
-              const SizedBox(width: SecureWaveSpacing.spaceSM),
-              Expanded(
-                child: _MetricChip(
-                  label: 'Upload',
-                  value: formatDataRate(vpn.dataRateUp),
-                  icon: Icons.north_rounded,
-                  tint: Theme.of(context).colorScheme.tertiary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: SecureWaveSpacing.spaceSM),
-          const LiveTrafficChart(height: 210),
-          const SizedBox(height: SecureWaveSpacing.spaceSM),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _SummaryCell(
-                  label: 'Session',
-                  value: formatBytesCompact(vpn.sessionTransferredBytes),
-                ),
-              ),
-              const SizedBox(width: SecureWaveSpacing.spaceSM),
-              Expanded(
-                child: _SummaryCell(
-                  label: 'Lifetime',
-                  value: formatBytesCompact(vpn.lifetimeTransferredBytes),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MetricChip extends StatelessWidget {
-  const _MetricChip({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.tint,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color tint;
+  final VpnState vpnState;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(SecureWaveRadius.lg),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.25),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _Stat(
+              icon: Icons.arrow_downward_rounded,
+              label: 'Download',
+              value: formatDataRate(vpnState.dataRateDown),
+              color: AppColors.success,
+            ),
+            _Divider(),
+            _Stat(
+              icon: Icons.arrow_upward_rounded,
+              label: 'Upload',
+              value: formatDataRate(vpnState.dataRateUp),
+              color: AppColors.primary,
+            ),
+            _Divider(),
+            _Stat(
+              icon: Icons.data_usage_rounded,
+              label: 'Session',
+              value: formatBytesCompact(vpnState.sessionTransferredBytes),
+              color: AppColors.inkMuted,
+            ),
+          ],
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(icon, size: 20, color: tint),
-          const SizedBox(height: SecureWaveSpacing.spaceXS),
-          Text(label, style: Theme.of(context).textTheme.labelSmall),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ],
-      ),
     );
   }
 }
 
-class _SummaryCell extends StatelessWidget {
-  const _SummaryCell({
+class _Stat extends StatelessWidget {
+  const _Stat({
+    required this.icon,
     required this.label,
     required this.value,
+    required this.color,
   });
 
+  final IconData icon;
   final String label;
   final String value;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(SecureWaveSpacing.spaceSM),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(SecureWaveRadius.lg),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.labelSmall),
-          const SizedBox(height: SecureWaveSpacing.spaceXS),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: AppSpacing.iconS),
+        const SizedBox(height: AppSpacing.space1),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: AppColors.inkSoft,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 40,
+      child: VerticalDivider(
+        color: AppColors.border,
+        width: 1,
       ),
     );
   }

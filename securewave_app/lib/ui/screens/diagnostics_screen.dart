@@ -1,166 +1,128 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../debug/automation_keys.dart';
-import '../../debug/runtime_diagnostics.dart';
-import '../theme/securewave_palette.dart';
-import '../layout/page_frame.dart';
-import '../widgets/glass_panel.dart';
+import '../../core/state/vpn_state.dart';
+import '../../ui/design/app_colors.dart';
+import '../../ui/design/app_spacing.dart';
+import '../../ui/widgets/ui_helpers.dart';
+import '../../ui/widgets/vpn_ui_bindings.dart';
 
+/// VPN diagnostics screen.
 class DiagnosticsScreen extends ConsumerWidget {
   const DiagnosticsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final report = ref.watch(runtimeDiagnosticsProvider);
-    return PageFrame(
-      eyebrow: 'Diagnostics',
-      title: 'Runtime validation',
-      subtitle:
-          'Live backend, auth, catalog, profile, tunnel, and traffic checks rendered in one operational view.',
-      trailing: IconButton(
-        tooltip: 'Refresh diagnostics',
-        onPressed: () => ref.invalidate(runtimeDiagnosticsProvider),
-        icon: const Icon(Icons.refresh_rounded),
+    final vpnState = ref.watch(vpnStateProvider);
+    final visualState = resolveConnectionVisualState(vpnState);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Diagnostics'),
+        centerTitle: false,
+        actions: [
+          if (Theme.of(context).platform == TargetPlatform.iOS ||
+              Theme.of(context).platform == TargetPlatform.macOS)
+            TextButton(
+              onPressed: () => context.push('/diagnostics/apple'),
+              child: const Text('Apple VPN'),
+            ),
+        ],
       ),
-      child: report.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => GlassPanel(
-          child: Text('Diagnostics failed to start: $error'),
-        ),
-        data: (value) {
-          return Column(
-            children: <Widget>[
-              GlassPanel(
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: <Widget>[
-                    _SummaryTile(
-                        label: 'Connection',
-                        value: value.connectionStatus.name),
-                    _SummaryTile(
-                        label: 'Interface', value: value.interfaceSource),
-                    _SummaryTile(
-                        label: 'RX bytes', value: value.rxBytes.toString()),
-                    _SummaryTile(
-                        label: 'TX bytes', value: value.txBytes.toString()),
-                  ],
-                ),
-              ).animate().fadeIn(duration: 260.ms).slideY(begin: 0.05),
-              if (value.tunnelActiveButNoTraffic) ...<Widget>[
-                const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: SecureWavePalette.warning.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: SecureWavePalette.warning.withValues(alpha: 0.22),
+      body: ListView(
+        padding: const EdgeInsets.all(AppSpacing.pagePadding),
+        children: [
+          _DiagRow(
+            label: 'Status',
+            value: visualState.name,
+          ),
+          _DiagRow(
+            label: 'Protocol',
+            value: vpnState.effectiveProtocol?.name.toUpperCase() ?? '--',
+          ),
+          _DiagRow(
+            label: 'Server',
+            value: vpnState.selectedServerId ?? 'None',
+          ),
+          _DiagRow(
+            label: 'Download',
+            value: formatDataRate(vpnState.dataRateDown),
+          ),
+          _DiagRow(
+            label: 'Upload',
+            value: formatDataRate(vpnState.dataRateUp),
+          ),
+          _DiagRow(
+            label: 'Session bytes',
+            value: formatBytesCompact(vpnState.sessionTransferredBytes),
+          ),
+          _DiagRow(
+            label: 'Stability',
+            value: '${(vpnState.stabilityScore * 100).round()}%',
+          ),
+          if (vpnState.failoverActive) ...[
+            const SizedBox(height: AppSpacing.space4),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.space4),
+              decoration: BoxDecoration(
+                color: AppColors.warningLight,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+              ),
+              child: Text(
+                'Failover active: ${vpnState.failoverReason ?? 'unknown reason'}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.warning,
                     ),
-                  ),
-                  child: const Text(
-                    'Tunnel is active but no return traffic was observed. Inspect routing, interface counters, and DNS behavior.',
-                  ),
-                ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05),
-              ],
-              const SizedBox(height: 16),
-              ...value.checks.asMap().entries.map(
-                    (entry) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _DiagnosticCard(
-                        index: entry.key,
-                        check: entry.value,
-                      )
-                          .animate()
-                          .fadeIn(duration: 260.ms, delay: (entry.key * 40).ms)
-                          .slideY(begin: 0.04),
+              ),
+            ),
+          ],
+          if (vpnState.errorMessage != null) ...[
+            const SizedBox(height: AppSpacing.space4),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.space4),
+              decoration: BoxDecoration(
+                color: AppColors.errorLight,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+              ),
+              child: Text(
+                'Error: ${vpnState.errorMessage}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.error,
                     ),
-                  ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 180,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.48),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 8),
-          Text(value, style: Theme.of(context).textTheme.titleMedium),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _DiagnosticCard extends StatelessWidget {
-  const _DiagnosticCard({
-    required this.index,
-    required this.check,
-  });
+class _DiagRow extends StatelessWidget {
+  const _DiagRow({required this.label, required this.value});
 
-  final int index;
-  final RuntimeDiagnosticCheck check;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        check.passed ? SecureWavePalette.success : SecureWavePalette.danger;
-    return GlassPanel(
-      key: ValueKey<String>(
-        AutomationKeys.diagnosticsResult(index, check.statusKey),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.space2),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(
-            check.passed ? Icons.check_circle : Icons.error_outline_rounded,
-            color: color,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.inkMuted,
+                ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  check.label,
-                  style: Theme.of(context).textTheme.titleMedium,
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  check.detail,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ),
           ),
         ],
       ),

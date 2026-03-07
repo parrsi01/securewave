@@ -1,128 +1,129 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/server_region.dart';
-import '../../debug/automation_keys.dart';
-import '../theme/securewave_palette.dart';
+import '../../ui/design/app_colors.dart';
+import '../../ui/design/app_spacing.dart';
+import '../../ui/widgets/ui_helpers.dart';
 
+/// Compact server tile for use in lists (server selection screen).
 class ServerTile extends StatelessWidget {
   const ServerTile({
     super.key,
     required this.server,
     required this.isSelected,
-    required this.isFavorite,
-    required this.enabled,
     required this.onTap,
-    required this.onToggleFavorite,
+    this.isFavorite = false,
+    this.enabled = true,
     this.disabledReason,
+    this.onToggleFavorite,
   });
 
   final ServerRegion server;
   final bool isSelected;
+  final VoidCallback onTap;
   final bool isFavorite;
   final bool enabled;
-  final VoidCallback onTap;
-  final VoidCallback onToggleFavorite;
   final String? disabledReason;
+  final VoidCallback? onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
-    final premium = server.premiumOnly ||
-        (server.tierRestriction ?? '').trim().toLowerCase() == 'premium';
-    final latency = server.latencyMs == null ? '--' : '${server.latencyMs} ms';
-    final health =
-        (server.regionHealthStatus ?? server.healthStatus ?? 'unknown')
-            .trim()
-            .toLowerCase();
-    final healthColor = switch (health) {
-      'up' => SecureWavePalette.success,
-      'down' => SecureWavePalette.danger,
-      _ => SecureWavePalette.warning,
-    };
+    final flag = flagEmoji(server.countryCode);
+    final isPremium = server.premiumOnly || server.tierRestriction == 'premium';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.outline.withValues(alpha: 0.7),
-        ),
-        color: Theme.of(context)
-            .colorScheme
-            .surface
-            .withValues(alpha: enabled ? 1 : 0.8),
-      ),
-      child: ListTile(
-        key: ValueKey<String>(AutomationKeys.serverTile(server.id)),
-        enabled: enabled,
-        onTap: enabled ? onTap : null,
-        leading: CircleAvatar(
-          backgroundColor: healthColor.withValues(alpha: 0.14),
-          foregroundColor: healthColor,
-          child: Text(
-            (server.countryCode ?? server.country ?? server.name)
-                .trim()
-                .substring(0, 1)
-                .toUpperCase(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListTile(
+          leading: Text(
+            flag.isNotEmpty ? flag : '🌐',
+            style: const TextStyle(fontSize: 22),
           ),
-        ),
-        title: Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                server.country ?? server.name,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            if (premium)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: SecureWavePalette.warning.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Text('Premium'),
-              ),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                [
-                  if ((server.city ?? '').trim().isNotEmpty)
-                    server.city!.trim(),
-                  latency,
-                  'Health ${health.toUpperCase()}',
-                ].join('  •  '),
-              ),
-              if (!enabled && disabledReason != null) ...<Widget>[
-                const SizedBox(height: 8),
-                Text(
-                  disabledReason!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: SecureWavePalette.warning,
-                        fontWeight: FontWeight.w700,
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  server.name,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color:
+                            enabled ? null : AppColors.inkSoft,
                       ),
                 ),
-              ],
+              ),
+              if (isPremium)
+                Container(
+                  margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryDark,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  ),
+                  child: const Text(
+                    'Premium',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
             ],
           ),
-        ),
-        trailing: IconButton(
-          onPressed: onToggleFavorite,
-          icon: Icon(
-            isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
-            color: isFavorite
-                ? SecureWavePalette.warning
-                : Theme.of(context).colorScheme.outline,
+          subtitle: server.city != null ? Text(server.city!) : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (onToggleFavorite != null)
+                IconButton(
+                  icon: Icon(
+                    isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                    color: isFavorite ? AppColors.secondary : AppColors.inkSoft,
+                    size: AppSpacing.iconS,
+                  ),
+                  onPressed: onToggleFavorite,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              if (isSelected)
+                const Icon(Icons.check_circle_rounded,
+                    color: AppColors.primary)
+              else
+                Text(
+                  latencyLabel(server.latencyMs),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.inkSoft,
+                      ),
+                ),
+            ],
           ),
+          selected: isSelected,
+          selectedTileColor: AppColors.primaryLight,
+          enabled: enabled,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+          ),
+          onTap: enabled ? onTap : null,
         ),
-      ),
+        if (disabledReason != null && !enabled)
+          Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.space7,
+              bottom: AppSpacing.space2,
+            ),
+            child: Text(
+              disabledReason!,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.warning,
+                  ),
+            ),
+          ),
+      ],
     );
   }
 }

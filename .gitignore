@@ -169,6 +169,11 @@ terraform.tfvars
 *.tfvars
 *.tfvars.json
 
+# Watchdog event log — regenerated each run, not meaningful in git
+artifacts/watchdog/watchdog_events.jsonl
+.codex_build/
+*.jsonl
+
 # Test/simulation artifacts (generated locally and in CI)
 artifacts/**
 !artifacts/hetzner/

@@ -1,10 +1,23 @@
 import 'package:flutter/material.dart';
+
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 
-/// Empty state component.
-///
-/// Displays when a list or content area has no data.
+/// Describes an action button shown below the empty state.
+class EmptyStateAction {
+  const EmptyStateAction({
+    required this.label,
+    required this.onTap,
+    this.icon = Icons.refresh,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final IconData icon;
+}
+
+/// Generic empty state placeholder — icon, title, optional message, optional
+/// action button.
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -23,20 +36,16 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.space6),
+        padding: const EdgeInsets.all(AppSpacing.pagePadding),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 64,
-              color: AppColors.inkSoft.withValues(alpha: 0.5),
-            ),
+            Icon(icon, size: 56, color: AppColors.inkSoft),
             const SizedBox(height: AppSpacing.space4),
             Text(
               title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.inkMuted,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
               textAlign: TextAlign.center,
             ),
@@ -52,7 +61,7 @@ class EmptyState extends StatelessWidget {
             ],
             if (action != null) ...[
               const SizedBox(height: AppSpacing.space5),
-              FilledButton.icon(
+              OutlinedButton.icon(
                 onPressed: action!.onTap,
                 icon: Icon(action!.icon),
                 label: Text(action!.label),
@@ -63,17 +72,4 @@ class EmptyState extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Empty state action button configuration.
-class EmptyStateAction {
-  const EmptyStateAction({
-    required this.label,
-    required this.onTap,
-    this.icon = Icons.refresh,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final IconData icon;
 }
