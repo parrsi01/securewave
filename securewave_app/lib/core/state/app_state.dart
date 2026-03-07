@@ -26,6 +26,11 @@ final userPlanProvider = FutureProvider<UserPlan>((ref) async {
   return api.fetchUserPlan();
 });
 
+final vpnDevicesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.read(apiClientProvider);
+  return api.fetchDevices();
+});
+
 final favoriteServersProvider =
     StateNotifierProvider<FavoriteServersNotifier, Set<String>>((ref) {
   return FavoriteServersNotifier();

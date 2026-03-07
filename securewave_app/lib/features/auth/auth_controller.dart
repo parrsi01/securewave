@@ -32,6 +32,10 @@ class AuthController extends StateNotifier<AuthState> {
   final Ref _ref;
 
   Future<void> login({required String email, required String password}) async {
+    AppLogger.uiAction('submit_login', fields: const <String, Object?>{
+      'trigger': 'AuthController.login',
+      'endpoint': '/auth/login',
+    });
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       await _ref
@@ -53,6 +57,10 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> register(
       {required String email, required String password}) async {
+    AppLogger.uiAction('submit_register', fields: const <String, Object?>{
+      'trigger': 'AuthController.register',
+      'endpoint': '/auth/register',
+    });
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       await _ref

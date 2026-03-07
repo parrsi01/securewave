@@ -138,18 +138,30 @@ class AdblockController extends StateNotifier<AdblockState> {
   }
 
   Future<void> setBlockAds(bool value) async {
+    AppLogger.uiAction('toggle_block_ads', fields: <String, Object?>{
+      'value': value,
+      'mapping': 'native_adblock_bridge',
+    });
     state = state.copyWith(blockAds: value);
     await SecureStorage().saveBool(SecureStorage.adblockAdsKey, value);
     await _bridge.sendConfig(state);
   }
 
   Future<void> setBlockMalware(bool value) async {
+    AppLogger.uiAction('toggle_block_malware', fields: <String, Object?>{
+      'value': value,
+      'mapping': 'native_adblock_bridge',
+    });
     state = state.copyWith(blockMalware: value);
     await SecureStorage().saveBool(SecureStorage.adblockMalwareKey, value);
     await _bridge.sendConfig(state);
   }
 
   Future<void> setStrictMode(bool value) async {
+    AppLogger.uiAction('toggle_strict_mode', fields: <String, Object?>{
+      'value': value,
+      'mapping': 'native_adblock_bridge',
+    });
     state = state.copyWith(strictMode: value);
     await SecureStorage().saveBool(SecureStorage.adblockStrictKey, value);
     await _bridge.sendConfig(state);

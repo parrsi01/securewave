@@ -274,6 +274,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   void selectServer(String? serverId) {
+    AppLogger.uiAction('select_server', fields: <String, Object?>{
+      'server': serverId,
+      'trigger': 'VpnStateNotifier.selectServer',
+      'backend_on_connect': '/vpn/profile',
+    });
     state = state.copyWith(selectedServerId: serverId, clearError: true);
     if (serverId != null && serverId.isNotEmpty) {
       unawaited(_storage.saveString(SecureStorage.selectedServerKey, serverId));
@@ -281,6 +286,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> selectProtocol(VpnProtocol protocol) async {
+    AppLogger.uiAction('select_protocol', fields: <String, Object?>{
+      'protocol': vpnProtocolStorageValue(protocol),
+      'trigger': 'VpnStateNotifier.selectProtocol',
+      'backend_on_connect': '/vpn/profile',
+    });
     state = state.copyWith(
       protocol: protocol,
       activeProtocol: protocol == VpnProtocol.auto ? null : protocol,
@@ -293,6 +303,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> connect() async {
+    AppLogger.uiAction('tap_connect', fields: <String, Object?>{
+      'trigger': 'VpnStateNotifier.connect',
+      'selected_server': state.selectedServerId,
+    });
     if (!_connectableStates.contains(state.status) || state.isBusy) {
       return;
     }
@@ -322,6 +336,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> reconnectNow() async {
+    AppLogger.uiAction('tap_reconnect_now', fields: <String, Object?>{
+      'trigger': 'VpnStateNotifier.reconnectNow',
+      'selected_server': state.selectedServerId,
+    });
     if (state.selectedServerId == null || state.selectedServerId!.isEmpty) {
       state = state.copyWith(
         errorMessage: 'Choose a server before reconnecting.',
@@ -335,6 +353,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> disconnect() async {
+    AppLogger.uiAction('tap_disconnect', fields: const <String, Object?>{
+      'trigger': 'VpnStateNotifier.disconnect',
+    });
     if (!_disconnectableStates.contains(state.status) || state.isBusy) {
       return;
     }
@@ -376,6 +397,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> refreshDiagnostics() async {
+    AppLogger.uiAction('run_diagnostics', fields: const <String, Object?>{
+      'trigger': 'VpnStateNotifier.refreshDiagnostics',
+    });
     final checks = await _ref.read(diagnosticsServiceProvider).run();
     if (!mounted) {
       return;

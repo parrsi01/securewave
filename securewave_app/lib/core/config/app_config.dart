@@ -50,34 +50,50 @@ class AppConfig {
     }
 
     final env = dotenv.isInitialized ? dotenv.env : const <String, String>{};
-    final baseUrl = _envOrDefault(
+    final explicitApiBase = _firstEnv(
       env,
-      'SECUREWAVE_API_BASE_URL',
+      const <String>[
+        'SECUREWAVE_API_BASE_URL',
+        'API_BASE_URL',
+        'BASE_URL',
+        'API_URL',
+      ],
+    );
+    final baseUrl = _envOrDefaultMany(
+      env,
+      const <String>[
+        'SECUREWAVE_API_BASE_URL',
+        'API_BASE_URL',
+        'BASE_URL',
+        'API_URL',
+      ],
       AppConstants.baseUrlFallback,
     );
-    final portalUrl = _envOrDefault(
+    final portalUrl = _envOrDefaultMany(
       env,
-      'SECUREWAVE_PORTAL_URL',
+      const <String>['SECUREWAVE_PORTAL_URL'],
       AppConstants.portalUrlFallback,
     );
-    final upgradeUrl = _envOrDefault(
+    final upgradeUrl = _envOrDefaultMany(
       env,
-      'SECUREWAVE_UPGRADE_URL',
+      const <String>['SECUREWAVE_UPGRADE_URL'],
       AppConstants.upgradeUrlFallback,
     );
-    final adblockUrl = _envOrDefault(
+    final adblockUrl = _envOrDefaultMany(
       env,
-      'SECUREWAVE_ADBLOCK_LIST_URL',
+      const <String>['SECUREWAVE_ADBLOCK_LIST_URL'],
       AppConstants.adblockListUrlFallback,
     );
     // CRITICAL: In release/profile, default to false unless explicitly enabled via env
     const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
     const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
-    var useMock = _parseBool(
-      env['SECUREWAVE_USE_MOCK_API'] ??
-          const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
-              defaultValue: kIsDebugMode ? 'true' : 'false'),
+    final explicitMockFlag = _firstEnv(
+      env,
+      const <String>['SECUREWAVE_USE_MOCK_API', 'USE_MOCK_API'],
     );
+    var useMock = explicitMockFlag == null
+        ? (explicitApiBase == null ? kIsDebugMode : false)
+        : _parseBool(explicitMockFlag);
     if (kIsReleaseMode && useMock) {
       AppLogger.warning('Config: mock API disabled in release builds.');
       useMock = false;
@@ -101,11 +117,22 @@ class AppConfig {
     return _cached!;
   }
 
-  static String _envOrDefault(
-      Map<String, String> env, String key, String fallback) {
-    final value = env[key];
-    if (value == null || value.trim().isEmpty) return fallback;
-    return value;
+  static String _envOrDefaultMany(
+    Map<String, String> env,
+    List<String> keys,
+    String fallback,
+  ) {
+    return _firstEnv(env, keys) ?? fallback;
+  }
+
+  static String? _firstEnv(Map<String, String> env, List<String> keys) {
+    for (final key in keys) {
+      final value = env[key];
+      if (value != null && value.trim().isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
   }
 
   static bool _parseBool(String value) {

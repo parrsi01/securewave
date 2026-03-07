@@ -84,8 +84,14 @@ class ApiClient {
     if (_config.useMockApi) {
       return;
     }
+    AppLogger.apiRequest('GET', '/api/health');
     await _withRetry<void>(() async {
-      await _dio.get<Map<String, dynamic>>('/api/health');
+      final response = await _dio.get<Map<String, dynamic>>('/api/health');
+      AppLogger.apiResponse(
+        'GET',
+        '/api/health',
+        statusCode: response.statusCode,
+      );
     });
   }
 
@@ -109,9 +115,16 @@ class ApiClient {
     }
 
     try {
+      AppLogger.apiRequest('GET', '/vpn/servers',
+          fields: <String, Object?>{'force_refresh': forceRefresh});
       final response = await _withRetry<Response<List<dynamic>>>(() {
         return _dio.get<List<dynamic>>('/vpn/servers');
       });
+      AppLogger.apiResponse(
+        'GET',
+        '/vpn/servers',
+        statusCode: response.statusCode,
+      );
       final data = response.data ?? <dynamic>[];
       final servers = data
           .whereType<Map>()
@@ -185,12 +198,18 @@ class ApiClient {
       return _mockTokens(email);
     }
 
+    AppLogger.apiRequest('POST', '/auth/login');
     final response = await _withRetry<Response<Map<String, dynamic>>>(() {
       return _dio.post<Map<String, dynamic>>(
         '/auth/login',
         data: {'email': email, 'password': password},
       );
     });
+    AppLogger.apiResponse(
+      'POST',
+      '/auth/login',
+      statusCode: response.statusCode,
+    );
     return _parseTokens(response.data,
         fallbackMessage: 'Login did not return an access token.');
   }
@@ -202,6 +221,7 @@ class ApiClient {
       return _mockTokens(email);
     }
 
+    AppLogger.apiRequest('POST', '/auth/register');
     final response = await _withRetry<Response<Map<String, dynamic>>>(() {
       return _dio.post<Map<String, dynamic>>(
         '/auth/register',
@@ -212,6 +232,11 @@ class ApiClient {
         },
       );
     });
+    AppLogger.apiResponse(
+      'POST',
+      '/auth/register',
+      statusCode: response.statusCode,
+    );
     if (response.data?['access_token'] == null) {
       return null;
     }
@@ -230,6 +255,8 @@ class ApiClient {
       return _mockVpnProfile();
     }
 
+    AppLogger.apiRequest('POST', '/vpn/profile',
+        fields: <String, Object?>{'server_id': serverId});
     final response = await _withRetry<Response<Map<String, dynamic>>>(() {
       return _dio.post<Map<String, dynamic>>(
         '/vpn/profile',
@@ -238,6 +265,12 @@ class ApiClient {
         },
       );
     });
+    AppLogger.apiResponse(
+      'POST',
+      '/vpn/profile',
+      statusCode: response.statusCode,
+      fields: <String, Object?>{'server_id': serverId},
+    );
     final data = response.data ?? const <String, dynamic>{};
     final profile = data['profile'] ?? data['config'];
     if (profile is String && profile.trim().isNotEmpty) {
@@ -247,6 +280,36 @@ class ApiClient {
       'profile_missing',
       'VPN profile response did not include a usable profile payload.',
     );
+  }
+
+  Future<List<Map<String, dynamic>>> fetchDevices({
+    bool allowWhenLocked = false,
+  }) async {
+    _assertNetworkAllowed(allowWhenLocked: allowWhenLocked);
+    if (_config.useMockApi) {
+      return <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'mock-device-1',
+          'name': 'SecureWave Test Device',
+          'active': true,
+        },
+      ];
+    }
+
+    AppLogger.apiRequest('GET', '/vpn/devices');
+    final response = await _withRetry<Response<List<dynamic>>>(() {
+      return _dio.get<List<dynamic>>('/vpn/devices');
+    });
+    AppLogger.apiResponse(
+      'GET',
+      '/vpn/devices',
+      statusCode: response.statusCode,
+    );
+    return (response.data ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((Map<dynamic, dynamic> entry) =>
+            Map<String, dynamic>.from(entry))
+        .toList();
   }
 
   Future<T> _withRetry<T>(Future<T> Function() request) async {

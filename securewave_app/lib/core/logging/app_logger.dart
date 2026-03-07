@@ -3,6 +3,8 @@ import 'dart:developer';
 import 'package:flutter/widgets.dart';
 
 enum AppLogCategory {
+  ui('UI'),
+  api('API'),
   vpnState('VPN_STATE'),
   auth('AUTH'),
   server('SERVER'),
@@ -114,6 +116,47 @@ class AppLogger {
         'server': server,
         'protocol': protocol,
         'latency': latencyMs == null ? null : '${latencyMs}ms',
+      },
+    );
+  }
+
+  static void uiAction(
+    String action, {
+    Map<String, Object?> fields = const <String, Object?>{},
+  }) {
+    info(action, category: AppLogCategory.ui, fields: fields);
+  }
+
+  static void apiRequest(
+    String method,
+    String endpoint, {
+    Map<String, Object?> fields = const <String, Object?>{},
+  }) {
+    info(
+      'request',
+      category: AppLogCategory.api,
+      fields: <String, Object?>{
+        'method': method,
+        'endpoint': endpoint,
+        ...fields,
+      },
+    );
+  }
+
+  static void apiResponse(
+    String method,
+    String endpoint, {
+    int? statusCode,
+    Map<String, Object?> fields = const <String, Object?>{},
+  }) {
+    info(
+      'response',
+      category: AppLogCategory.api,
+      fields: <String, Object?>{
+        'method': method,
+        'endpoint': endpoint,
+        'status_code': statusCode,
+        ...fields,
       },
     );
   }

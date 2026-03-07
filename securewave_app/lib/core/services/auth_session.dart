@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../logging/app_logger.dart';
 import 'secure_storage.dart';
 
 final authSessionProvider = ChangeNotifierProvider<AuthSession>((ref) {
@@ -38,6 +39,7 @@ class AuthSession extends ChangeNotifier {
 
   Future<void> setSession(
       {required String accessToken, String? refreshToken}) async {
+    AppLogger.auth('session_set');
     _accessToken = accessToken;
     _refreshToken = refreshToken;
     _isAuthenticated = true;
@@ -47,6 +49,7 @@ class AuthSession extends ChangeNotifier {
   }
 
   Future<void> clearSession() async {
+    AppLogger.auth('session_cleared');
     _accessToken = null;
     _refreshToken = null;
     _isAuthenticated = false;

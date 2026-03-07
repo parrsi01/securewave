@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../logging/app_logger.dart';
 import '../services/secure_storage.dart';
 
 class ClientSettingsState {
@@ -54,16 +55,28 @@ class ClientSettingsController extends StateNotifier<ClientSettingsState> {
   }
 
   Future<void> setAutoConnect(bool value) async {
+    AppLogger.uiAction('toggle_auto_connect', fields: <String, Object?>{
+      'value': value,
+      'mapping': 'client_restore',
+    });
     state = state.copyWith(autoConnect: value);
     await _storage.saveBool(SecureStorage.settingsAutoConnectKey, value);
   }
 
   Future<void> setAutoReconnect(bool value) async {
+    AppLogger.uiAction('toggle_auto_reconnect', fields: <String, Object?>{
+      'value': value,
+      'mapping': 'vpn_state_machine',
+    });
     state = state.copyWith(autoReconnect: value);
     await _storage.saveBool(SecureStorage.settingsAutoReconnectKey, value);
   }
 
   Future<void> setBestEffortKillSwitch(bool value) async {
+    AppLogger.uiAction('toggle_kill_switch', fields: <String, Object?>{
+      'value': value,
+      'mapping': 'client_network_lock',
+    });
     state = state.copyWith(bestEffortKillSwitch: value);
     await _storage.saveBool(SecureStorage.settingsKillSwitchKey, value);
   }

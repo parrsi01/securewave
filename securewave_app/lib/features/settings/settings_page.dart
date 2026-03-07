@@ -10,11 +10,7 @@ import '../../core/state/client_settings_state.dart';
 import '../../core/state/network_lock_state.dart';
 import '../../core/state/preferences_state.dart';
 import '../../core/state/vpn_state.dart';
-import '../../ui/components/dashboard_card.dart';
-import '../../ui/components/section_container.dart';
-import '../../ui/components/settings_toggle.dart';
-import '../../ui/layout/adaptive_shell_scaffold.dart';
-import '../../ui/theme/spacing.dart';
+import '../../ui/app_ui_v1.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -38,64 +34,73 @@ class SettingsPage extends ConsumerWidget {
       _ => 'English',
     };
 
-    return AdaptiveShellScaffold(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(AppUIv1.space5),
         children: [
-          SectionContainer(
-            title: 'Settings',
-            subtitle:
-                'Production controls, protocol preferences, diagnostics, and platform compatibility in one place.',
-            child: DashboardCard(
-              child: Wrap(
-                spacing: SecureWaveSpacing.md,
-                runSpacing: SecureWaveSpacing.md,
-                children: [
-                  _InfoPill(label: 'Device', value: deviceInfo),
-                  _InfoPill(label: 'Language', value: languageLabel),
-                  _InfoPill(
-                    label: 'Preferred protocol',
-                    value: activeProtocol == null
-                        ? vpnProtocolLabel(protocol)
-                        : '${vpnProtocolLabel(protocol)} • ${vpnProtocolLabel(activeProtocol)}',
-                  ),
-                  if (vmEnvironment.safeModeEnabled)
-                    const _InfoPill(label: 'VM mode', value: 'Active'),
-                ],
-              ),
+          Text('Settings', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: AppUIv1.space2),
+          Text(
+            'Clear device controls with explicit runtime mapping. Server and protocol choices are the only settings sent back to the VPN backend.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: AppUIv1.space4),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.devices),
+              title: const Text('Current device'),
+              subtitle: Text(deviceInfo),
             ),
           ),
-          const SizedBox(height: SecureWaveSpacing.xl),
-          SectionContainer(
-            title: 'Connection behavior',
-            subtitle:
-                'Modern VPN controls with safe defaults and best-effort recovery.',
+          const SizedBox(height: AppUIv1.space3),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.language),
+              title: const Text('Language'),
+              subtitle: Text(languageLabel),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/language'),
+            ),
+          ),
+          const SizedBox(height: AppUIv1.space3),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.health_and_safety),
+              title: const Text('Diagnostics'),
+              subtitle:
+                  const Text('Run backend, tunnel, route, and traffic checks'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/diagnostics'),
+            ),
+          ),
+          const SizedBox(height: AppUIv1.space4),
+          Text('Device controls',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppUIv1.space3),
+          Card(
             child: Column(
               children: [
-                SettingsToggle(
-                  title: 'Auto-connect',
-                  subtitle:
-                      'Reconnect to the last selected server after launch.',
+                _MappedSwitchTile(
                   value: settings.autoConnect,
                   onChanged: (value) => ref
                       .read(clientSettingsProvider.notifier)
                       .setAutoConnect(value),
+                  title: const Text('Auto-connect'),
+                  subtitle: const Text('Restores the last wanted connection on this device.'),
+                  mappingLabel: 'Client restore',
                 ),
-                const SizedBox(height: SecureWaveSpacing.md),
-                SettingsToggle(
-                  title: 'Auto-reconnect',
-                  subtitle:
-                      'Retry with exponential backoff if the tunnel drops.',
+                const Divider(height: 1),
+                _MappedSwitchTile(
                   value: settings.autoReconnect,
                   onChanged: (value) => ref
                       .read(clientSettingsProvider.notifier)
                       .setAutoReconnect(value),
+                  title: const Text('Auto-reconnect'),
+                  subtitle: const Text('Uses the VPN state machine retry path after unexpected tunnel drops.'),
+                  mappingLabel: 'State machine',
                 ),
-                const SizedBox(height: SecureWaveSpacing.md),
-                SettingsToggle(
-                  title: 'Best-effort kill switch',
-                  subtitle:
-                      'Blocks SecureWave app requests until reconnect or manual disable.',
+                const Divider(height: 1),
+                _MappedSwitchTile(
                   value: settings.bestEffortKillSwitch,
                   onChanged: (value) async {
                     await ref
@@ -105,19 +110,29 @@ class SettingsPage extends ConsumerWidget {
                       ref.read(networkLockProvider.notifier).release();
                     }
                   },
+                  title: const Text('Best-effort kill switch'),
+                  subtitle: const Text('Pauses SecureWave app requests locally until reconnect or manual disable.'),
+                  mappingLabel: 'App network lock',
                 ),
               ],
             ),
           ),
-          const SizedBox(height: SecureWaveSpacing.xl),
-          SectionContainer(
-            title: 'Protocol',
-            subtitle:
-                'Auto mode prefers WireGuard and only offers protocols verified by this client build.',
-            child: DashboardCard(
+          const SizedBox(height: AppUIv1.space4),
+          Text('Protocol', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppUIv1.space2),
+          Text(
+            activeProtocol == null
+                ? 'Preferred protocol: ${vpnProtocolLabel(protocol)}'
+                : 'Preferred protocol: ${vpnProtocolLabel(protocol)} • Active: ${vpnProtocolLabel(activeProtocol)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppUIv1.space3),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppUIv1.space3),
               child: Wrap(
-                spacing: SecureWaveSpacing.sm,
-                runSpacing: SecureWaveSpacing.sm,
+                spacing: AppUIv1.space2,
+                runSpacing: AppUIv1.space2,
                 children: [
                   for (final protocolOption in VpnProtocol.values)
                     ChoiceChip(
@@ -134,41 +149,59 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: SecureWaveSpacing.xl),
-          SectionContainer(
-            title: 'Utilities',
-            subtitle: vmEnvironment.safeModeEnabled &&
-                    vmEnvironment.reason != null
-                ? vmEnvironment.reason
-                : 'Extra tools for diagnostics, language, and blocklist controls.',
-            child: Column(
-              children: [
-                _ActionCard(
-                  title: 'Diagnostics',
-                  subtitle: 'Run backend, route, tunnel, and traffic checks.',
-                  icon: Icons.health_and_safety_rounded,
-                  onTap: () => context.push('/diagnostics'),
-                ),
-                const SizedBox(height: SecureWaveSpacing.md),
-                _ActionCard(
-                  title: 'Language',
-                  subtitle: 'Switch app language.',
-                  icon: Icons.language_rounded,
-                  onTap: () => context.push('/settings/language'),
-                ),
-                const SizedBox(height: SecureWaveSpacing.md),
-                const _AdBlockSection(),
-              ],
-            ),
+          const SizedBox(height: AppUIv1.space2),
+          Text(
+            'Protocol choice is applied on the next `/vpn/profile` request. This build only enables protocols the client can verify natively.',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
+          if (!supportedProtocols.contains(VpnProtocol.ikev2) ||
+              !supportedProtocols.contains(VpnProtocol.openVpn))
+            Padding(
+              padding: const EdgeInsets.only(top: AppUIv1.space2),
+              child: Text(
+                'WireGuard is currently the verified native tunnel in this build, so Auto prefers WireGuard first.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          const SizedBox(height: AppUIv1.space4),
+          if (vmEnvironment.safeModeEnabled)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.memory),
+                title: const Text('Linux VM safe mode'),
+                subtitle: Text(vmEnvironment.reason ??
+                    'Virtualization detected. Routing and DNS checks are hardened.'),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppUIv1.space2,
+                    vertical: AppUIv1.space1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppUIv1.accentSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text('ACTIVE'),
+                ),
+              ),
+            ),
+          if (vmEnvironment.safeModeEnabled)
+            const SizedBox(height: AppUIv1.space4),
+          Text('Tunnel filters', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppUIv1.space2),
+          Text(
+            'These switches are pushed through the native adblock bridge on this device. They are not stored by the backend API.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppUIv1.space3),
+          const _AdblockCard(),
         ],
       ),
     );
   }
 }
 
-class _AdBlockSection extends ConsumerWidget {
-  const _AdBlockSection();
+class _AdblockCard extends ConsumerWidget {
+  const _AdblockCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -177,100 +210,111 @@ class _AdBlockSection extends ConsumerWidget {
         ? 'Not updated yet'
         : 'Last updated ${adblock.lastUpdated!.toLocal().toString().split('.').first}';
 
-    return DashboardCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppUIv1.space4),
+        child: Column(
+          children: [
+            _MappedSwitchTile(
+              value: adblock.blockAds,
+              onChanged: (value) =>
+                  ref.read(adblockStateProvider.notifier).setBlockAds(value),
+              title: const Text('Block ads and trackers'),
+              mappingLabel: 'Native bridge',
+            ),
+            const Divider(height: 1),
+            _MappedSwitchTile(
+              value: adblock.blockMalware,
+              onChanged: (value) => ref
+                  .read(adblockStateProvider.notifier)
+                  .setBlockMalware(value),
+              title: const Text('Block malware'),
+              mappingLabel: 'Native bridge',
+            ),
+            const Divider(height: 1),
+            _MappedSwitchTile(
+              value: adblock.strictMode,
+              onChanged: (value) =>
+                  ref.read(adblockStateProvider.notifier).setStrictMode(value),
+              title: const Text('Strict mode'),
+              subtitle: const Text(
+                  'More aggressive filtering; may block more domains.'),
+              mappingLabel: 'Native bridge',
+            ),
+            const SizedBox(height: AppUIv1.space3),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Rules ${adblock.totalRules}',
+                    style: Theme.of(context).textTheme.bodySmall),
+                Text(updatedLabel,
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+            const SizedBox(height: AppUIv1.space3),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: adblock.isUpdating
+                    ? null
+                    : () => ref
+                        .read(adblockStateProvider.notifier)
+                        .updateFromRemote(),
+                icon: const Icon(Icons.refresh),
+                label:
+                    Text(adblock.isUpdating ? 'Updating' : 'Update blocklist'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MappedSwitchTile extends StatelessWidget {
+  const _MappedSwitchTile({
+    required this.value,
+    required this.onChanged,
+    required this.title,
+    required this.mappingLabel,
+    this.subtitle,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Widget title;
+  final Widget? subtitle;
+  final String mappingLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      value: value,
+      onChanged: onChanged,
+      title: Row(
         children: [
-          Text('Ad blocking', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: SecureWaveSpacing.md),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: adblock.blockAds,
-            onChanged: (value) =>
-                ref.read(adblockStateProvider.notifier).setBlockAds(value),
-            title: const Text('Block ads and trackers'),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: adblock.blockMalware,
-            onChanged: (value) =>
-                ref.read(adblockStateProvider.notifier).setBlockMalware(value),
-            title: const Text('Block malware'),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: adblock.strictMode,
-            onChanged: (value) =>
-                ref.read(adblockStateProvider.notifier).setStrictMode(value),
-            title: const Text('Strict mode'),
-            subtitle: const Text('More aggressive filtering.'),
-          ),
-          const SizedBox(height: SecureWaveSpacing.md),
-          Text(updatedLabel, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: SecureWaveSpacing.md),
-          FilledButton.icon(
-            onPressed: adblock.isUpdating
-                ? null
-                : () =>
-                    ref.read(adblockStateProvider.notifier).updateFromRemote(),
-            icon: const Icon(Icons.refresh_rounded),
-            label: Text(adblock.isUpdating ? 'Updating' : 'Update blocklist'),
+          Expanded(child: title),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppUIv1.space2,
+              vertical: AppUIv1.space1,
+            ),
+            decoration: BoxDecoration(
+              color: AppUIv1.accentSoft,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              mappingLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppUIv1.accentStrong,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ActionCard extends StatelessWidget {
-  const _ActionCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return DashboardCard(
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: onTap,
-      ),
-    );
-  }
-}
-
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: SecureWaveSpacing.md,
-        vertical: SecureWaveSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text('$label · $value'),
+      subtitle: subtitle,
     );
   }
 }
