@@ -123,15 +123,28 @@ def _fallback_baselines() -> GeoRecoBaselines:
     return GeoRecoBaselines(barbados_ms=barbados, europe_ms=europe, source="env_fallback")
 
 
+def _has_explicit_env_baselines() -> bool:
+    for key in ("BARBADOS_BASELINE_MS", "EUROPE_BASELINE_MS", "FRANKFURT_BASELINE_MS"):
+        raw = os.getenv(key)
+        if raw is not None and raw.strip():
+            return True
+    return False
+
+
 def load_baselines() -> GeoRecoBaselines:
-    report_path = Path(
-        os.getenv("SECUREWAVE_GEO_LATENCY_REPORT_PATH", "artifacts/live_validation/geo_latency_report.json")
-    )
+    report_path_env = os.getenv("SECUREWAVE_GEO_LATENCY_REPORT_PATH")
+    explicit_env_baselines = _fallback_baselines() if _has_explicit_env_baselines() else None
+    if explicit_env_baselines and not report_path_env:
+        return explicit_env_baselines
+
+    report_path = Path(report_path_env or "artifacts/live_validation/geo_latency_report.json")
     report = _load_geo_latency_report(report_path)
     if report:
         baselines = _baselines_from_geo_report(report, report_path=str(report_path))
         if baselines:
             return baselines
+    if explicit_env_baselines:
+        return explicit_env_baselines
     return _fallback_baselines()
 
 
@@ -306,4 +319,3 @@ def _write_geo_reco_artifacts(payload: dict) -> None:
                 )
             )
         _atomic_write(out_dir / "candidates.csv", "\n".join(rows) + "\n")
-

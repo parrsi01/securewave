@@ -28,7 +28,7 @@ from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
 from models import user, subscription, payment_idempotency_key, webhook_event_receipt, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, vpn_credential, auth_refresh_token, jwt_blacklist_token  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
-from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user
+from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user, vpn_metrics
 from services.wireguard_service import WireGuardService
 from services.email_service import EmailService
 from services.runtime_metrics import get_runtime_metrics
@@ -590,6 +590,7 @@ app.include_router(payment_paypal.router, prefix="/api/payments", tags=["payment
 app.include_router(contact.router, prefix="/api/contact", tags=["contact"])
 app.include_router(security.router, prefix="/api/security", tags=["security"])
 app.include_router(diagnostics.router, tags=["diagnostics"])
+app.include_router(vpn_metrics.router, tags=["vpn-metrics"])
 app.include_router(downloads.router, tags=["downloads"])
 app.include_router(tools.router, tags=["tools"])
 app.include_router(user.router, tags=["user"])
@@ -664,12 +665,40 @@ def version():
 
 
 @app.get("/metrics", include_in_schema=False)
-def prometheus_metrics():
+def prometheus_metrics(db: Session = Depends(get_db)):
     """
-    Prometheus-compatible metrics export.
+    Prometheus-compatible metrics export with fleet gauges.
     """
+    from models.vpn_server import VPNServer
+    from models.vpn_connection import VPNConnection
+
+    active_sessions = (
+        db.query(VPNConnection)
+        .filter(VPNConnection.disconnected_at.is_(None))
+        .count()
+    )
+    active_tunnels = (
+        db.query(WireGuardPeer)
+        .filter(WireGuardPeer.is_revoked == False, WireGuardPeer.is_active == True)
+        .count()
+    )
+    servers = db.query(VPNServer).filter(VPNServer.status == "active").all()
+    total_servers = len(servers)
+
+    fleet = {
+        "active_sessions": active_sessions,
+        "active_tunnels": active_tunnels,
+        "total_servers": total_servers,
+        "healthy_servers": sum(1 for s in servers if s.health_status == "healthy"),
+        "total_connections": sum(s.current_connections for s in servers),
+        "avg_load_score": (
+            round(sum(s.load_score or 0.0 for s in servers) / total_servers, 4)
+            if total_servers else 0.0
+        ),
+    }
+
     return PlainTextResponse(
-        content=get_runtime_metrics().export_prometheus(),
+        content=get_runtime_metrics().export_prometheus(fleet=fleet),
         media_type="text/plain; version=0.0.4",
     )
 
@@ -751,6 +780,70 @@ def api_system_metrics(
             "revoked": peer_revoked,
             "zombie": zombie_peers,
         },
+    }
+
+
+@app.get("/api/metrics")
+def api_fleet_metrics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Unified production metrics: active sessions, server load, tunnel count.
+
+    Returns fleet-wide operational gauges for monitoring dashboards.
+    """
+    from models.vpn_server import VPNServer
+    from models.vpn_connection import VPNConnection
+
+    # Active VPN sessions (connections with no disconnected_at).
+    active_sessions = (
+        db.query(VPNConnection)
+        .filter(VPNConnection.disconnected_at.is_(None))
+        .count()
+    )
+
+    # Active WireGuard tunnels (non-revoked, active peers).
+    active_tunnels = (
+        db.query(WireGuardPeer)
+        .filter(
+            WireGuardPeer.is_revoked == False,
+            WireGuardPeer.is_active == True,
+        )
+        .count()
+    )
+
+    # Server fleet metrics.
+    servers = (
+        db.query(VPNServer)
+        .filter(VPNServer.status == "active")
+        .all()
+    )
+    total_servers = len(servers)
+    healthy_servers = sum(1 for s in servers if s.health_status == "healthy")
+    total_capacity = sum(s.max_connections for s in servers) or 1
+    total_connections = sum(s.current_connections for s in servers)
+    avg_load_score = (
+        round(sum(s.load_score or 0.0 for s in servers) / total_servers, 4)
+        if total_servers
+        else 0.0
+    )
+
+    runtime = get_runtime_metrics().snapshot()
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "active_sessions": active_sessions,
+        "active_tunnels": active_tunnels,
+        "fleet": {
+            "total_servers": total_servers,
+            "healthy_servers": healthy_servers,
+            "total_connections": total_connections,
+            "total_capacity": total_capacity,
+            "capacity_pct": round(total_connections / total_capacity * 100, 2),
+            "avg_load_score": avg_load_score,
+        },
+        "runtime": runtime,
     }
 
 

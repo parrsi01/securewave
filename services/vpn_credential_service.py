@@ -18,12 +18,12 @@ from typing import Any, Optional
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.orm import Session
 
+from config.settings import get_settings
 from models.vpn_credential import VPNCredential
 from services.wireguard_server_manager import get_wireguard_server_manager, server_connection_from_db
 from utils.env_validation import validate_fernet_key, is_production
 
 logger = logging.getLogger(__name__)
-
 _REMOTE_EXIT_MARKER = "__SECUREWAVE_REMOTE_EXIT_CODE__="
 _REMOTE_OUTPUT_LIMIT = 8192
 
@@ -121,7 +121,7 @@ class VpnCredentialService:
     def __init__(self, db: Session):
         self.db = db
         self.fernet = self._load_fernet()
-        self.testing = os.getenv("TESTING", "").lower() == "true"
+        self.testing = self._parse_bool_env("TESTING", get_settings().testing)
 
     def _load_fernet(self) -> Optional[Fernet]:
         key = (os.getenv("AUTH_ENCRYPTION_KEY") or os.getenv("WG_ENCRYPTION_KEY") or "").strip()

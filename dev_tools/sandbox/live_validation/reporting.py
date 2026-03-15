@@ -81,6 +81,18 @@ def compute_geo_summary(rows: list[dict[str, str]]) -> dict[str, Any]:
     }
 
 
+def compute_routing_summary(rows: list[dict[str, str]]) -> dict[str, Any]:
+    total = len(rows)
+    failures = sum(1 for row in rows if row.get("routing_status", "").lower() != "ok")
+    api_failures = sum(1 for row in rows if row.get("api_health_status", "").lower() != "ok")
+    return {
+        "checks": total,
+        "routing_failures": failures,
+        "api_health_failures": api_failures,
+        "pass_rate_pct": round(0.0 if total == 0 else ((total - failures) / total) * 100.0, 2),
+    }
+
+
 def compute_readiness_score(
     *,
     handshake: dict[str, float],
@@ -123,10 +135,12 @@ def generate_readiness_report(output_dir: Path) -> dict[str, Any]:
     handshake_rows = _read_csv_rows(out_dir / "handshake_stats.csv")
     dns_rows = _read_csv_rows(out_dir / "dns_checks.csv")
     geo_rows = _read_csv_rows(out_dir / "geo_latency_report.csv")
+    routing_rows = _read_csv_rows(out_dir / "routing_checks.csv")
 
     handshake_summary = compute_handshake_summary(handshake_rows)
     dns_summary = compute_dns_summary(dns_rows)
     geo_summary = compute_geo_summary(geo_rows)
+    routing_summary = compute_routing_summary(routing_rows)
 
     e2e_status = str(e2e.get("overall_status", "unknown"))
     stress_status = str(stress.get("overall_status", "unknown"))
@@ -152,6 +166,7 @@ def generate_readiness_report(output_dir: Path) -> dict[str, Any]:
         "handshake": handshake_summary,
         "dns": dns_summary,
         "geo": geo_summary,
+        "routing": routing_summary,
     }
 
     write_json(out_dir / "validation_summary.json", summary)
@@ -173,6 +188,12 @@ def generate_readiness_report(output_dir: Path) -> dict[str, Any]:
         f"- Checks: **{dns_summary['checks']}**",
         f"- Leaks: **{dns_summary['leaks']}**",
         f"- Pass rate: **{dns_summary['pass_rate_pct']}%**",
+        "",
+        "## Routing Safeguards",
+        f"- Checks: **{routing_summary['checks']}**",
+        f"- Routing failures: **{routing_summary['routing_failures']}**",
+        f"- API health failures: **{routing_summary['api_health_failures']}**",
+        f"- Pass rate: **{routing_summary['pass_rate_pct']}%**",
         "",
         "## Throughput and Latency",
         f"- Stress status: **{stress_status}**",

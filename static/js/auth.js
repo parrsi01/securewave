@@ -1,12 +1,14 @@
-function setMessage(form, text) {
+function setMessage(form, text, type) {
   const box = form.querySelector('[data-form-message]');
   if (!box) return;
   if (!text) {
     box.classList.remove('visible');
     box.textContent = '';
+    box.removeAttribute('data-type');
     return;
   }
   box.textContent = text;
+  box.setAttribute('data-type', type || 'error');
   box.classList.add('visible');
 }
 
@@ -42,6 +44,95 @@ async function handleAuth(event) {
   const confirm = form.querySelector('#passwordConfirm')?.value || '';
 
   let valid = true;
+
+  if (action === 'forgot-password') {
+    if (!email) { setFieldError(form.querySelector('#email'), 'Enter your email.'); valid = false; }
+    if (!valid) {
+      setMessage(form, 'Please enter your email address.');
+      return;
+    }
+    const button = form.querySelector('button[type="submit"]');
+    if (button) { button.disabled = true; button.textContent = 'Sending...'; }
+    try {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+      const res = await fetch('/api/auth/password-reset/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+        signal: controller.signal,
+        credentials: 'include',
+      });
+      window.clearTimeout(timeoutId);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        form.querySelector('.form-group').style.display = 'none';
+        button.style.display = 'none';
+        setMessage(form, 'Check your email for a password reset link.', 'success');
+        return;
+      }
+      setMessage(form, data.detail || 'Unable to send reset link. Please try again.');
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setMessage(form, 'Request timed out. Please try again.');
+      } else {
+        setMessage(form, 'Network issue. Please try again.');
+      }
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Send Reset Link'; }
+    }
+    return;
+  }
+
+  if (action === 'reset-password') {
+    const token = form.querySelector('#resetToken')?.value || '';
+    if (!token) {
+      setMessage(form, 'Invalid or missing reset token. Please use the link from your email.');
+      return;
+    }
+    if (!password) { setFieldError(form.querySelector('#password'), 'Enter your new password.'); valid = false; }
+    if (password && password.length < 8) { setFieldError(form.querySelector('#password'), 'Use at least 8 characters.'); valid = false; }
+    if (!confirm) { setFieldError(form.querySelector('#passwordConfirm'), 'Confirm your new password.'); valid = false; }
+    if (confirm && confirm !== password) { setFieldError(form.querySelector('#passwordConfirm'), 'Passwords do not match.'); valid = false; }
+    if (!valid) {
+      setMessage(form, 'Please complete the fields to continue.');
+      return;
+    }
+    const button = form.querySelector('button[type="submit"]');
+    if (button) { button.disabled = true; button.textContent = 'Resetting...'; }
+    try {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+      const res = await fetch('/api/auth/password-reset/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, new_password: password, confirm_password: confirm }),
+        signal: controller.signal,
+        credentials: 'include',
+      });
+      window.clearTimeout(timeoutId);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        form.querySelectorAll('.form-group').forEach(g => g.style.display = 'none');
+        form.querySelector('#resetToken').style.display = 'none';
+        button.style.display = 'none';
+        setMessage(form, 'Password reset successfully. You can now sign in.', 'success');
+        return;
+      }
+      setMessage(form, data.detail || 'Unable to reset password. The link may have expired.');
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setMessage(form, 'Request timed out. Please try again.');
+      } else {
+        setMessage(form, 'Network issue. Please try again.');
+      }
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Reset Password'; }
+    }
+    return;
+  }
+
+  // Login / Register flow
   if (!email) { setFieldError(form.querySelector('#email'), 'Enter your email.'); valid = false; }
   if (!password) { setFieldError(form.querySelector('#password'), 'Enter your password.'); valid = false; }
   if (action === 'register') {
@@ -91,13 +182,28 @@ async function handleAuth(event) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  fetch('/api/auth/me', { credentials: 'include' })
-    .then((res) => {
-      if (res.ok) {
-        window.location.href = '/dashboard';
-      }
-    })
-    .catch(() => {});
+  // Populate reset token from URL query param
+  const resetTokenInput = document.querySelector('#resetToken');
+  if (resetTokenInput) {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      resetTokenInput.value = token;
+    }
+  }
+
+  // Redirect to dashboard if already logged in (login/register pages only)
+  const authForm = document.querySelector('[data-auth="login"], [data-auth="register"]');
+  if (authForm) {
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then((res) => {
+        if (res.ok) {
+          window.location.href = '/dashboard';
+        }
+      })
+      .catch(() => {});
+  }
+
   document.querySelectorAll('[data-auth]')?.forEach((form) => {
     form.addEventListener('submit', handleAuth);
   });

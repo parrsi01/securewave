@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from models.vpn_server import VPNServer
+from models.wireguard_peer import WireGuardPeer
 
 
 def _seed_server(
@@ -61,6 +62,44 @@ def test_profile_generation_returns_valid_wireguard_config(client, auth_headers,
     assert issued.tzinfo is not None
     assert expires.tzinfo is not None
     assert expires > issued
+
+
+def test_profile_generation_assigns_single_host_cidr_in_config_and_db(client, auth_headers, db):
+    server = _seed_server(db, server_id="iad1-01", endpoint="198.51.100.11:51820")
+    response = client.post(
+        "/api/vpn/profile",
+        headers=auth_headers,
+        json={
+            "device_name": "CIDR Laptop",
+            "device_type": "linux",
+            "server_id": server.server_id,
+            "protocol": "wireguard",
+        },
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+
+    peer = db.query(WireGuardPeer).filter(WireGuardPeer.id == data["device_id"]).first()
+    assert peer is not None
+    assert peer.ipv4_address.endswith("/32")
+    assert f"Address = {peer.ipv4_address}" in data["wireguard_config"]
+    assert f"Endpoint = {server.endpoint}" in data["wireguard_config"]
+
+
+def test_profile_generation_rejects_unknown_server_id(client, auth_headers):
+    response = client.post(
+        "/api/vpn/profile",
+        headers=auth_headers,
+        json={
+            "device_name": "Unknown Server Device",
+            "device_type": "linux",
+            "server_id": "missing-server",
+            "protocol": "wireguard",
+        },
+    )
+    assert response.status_code == 404
+    payload = response.json()
+    assert payload["error"]["code"] in {"server_not_found", "http_error", "not_found"}
 
 
 def test_servers_endpoint_rejects_invalid_region(client, auth_headers, db):

@@ -3,7 +3,6 @@ SecureWave VPN - Authentication Service
 Handles email verification, password reset, 2FA, and account security
 """
 
-import os
 import secrets
 import logging
 import json
@@ -19,12 +18,14 @@ import pyotp
 import qrcode
 from io import BytesIO
 
+from config.settings import get_settings
 from models.user import User
 from services.email_service import EmailService
 from services.hashing_service import hash_password
 from utils.password_policy import validate_password_strength
 
 logger = logging.getLogger(__name__)
+SETTINGS = get_settings()
 
 # Security configuration
 EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS = 24
@@ -241,8 +242,8 @@ class AuthService:
         Fernet key (44-byte base64-encoded). Invalid keys cause explicit failure
         rather than silent degradation to prevent weak encryption.
         """
-        key = os.getenv("AUTH_ENCRYPTION_KEY") or os.getenv("WG_ENCRYPTION_KEY")
-        environment = os.getenv("ENVIRONMENT", "").lower()
+        key = SETTINGS.auth_encryption_key or SETTINGS.wg_encryption_key
+        environment = SETTINGS.environment
         if not key:
             if environment == "production":
                 logger.error("AUTH_ENCRYPTION_KEY is required in production")

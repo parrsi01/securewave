@@ -5,7 +5,8 @@ Input sanitization utilities for external-facing APIs.
 from __future__ import annotations
 
 import re
-import os
+
+from config.settings import get_settings
 
 SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{1,63}$")
 SAFE_REGION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{1,63}$")
@@ -15,6 +16,7 @@ SAFE_ENDPOINT_RE = re.compile(
 )
 SAFE_ALLOWED_IPS_RE = re.compile(r"^[A-Za-z0-9:.,/\s]{3,128}$")
 SAFE_WG_KEY_RE = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
+SETTINGS = get_settings()
 
 
 def normalize_whitespace(value: str) -> str:
@@ -68,7 +70,7 @@ def sanitize_allowed_ips(value: str) -> str:
 def sanitize_wireguard_key(value: str, *, field_name: str = "wg_key") -> str:
     candidate = value.strip()
     if not SAFE_WG_KEY_RE.fullmatch(candidate):
-        if os.getenv("TESTING", "").lower() == "true":
+        if SETTINGS.testing:
             if re.fullmatch(r"^[A-Za-z0-9+/=]{16,128}$", candidate):
                 return candidate
         raise ValueError(f"{field_name} must be a valid WireGuard base64 key")

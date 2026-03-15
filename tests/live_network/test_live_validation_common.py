@@ -1,5 +1,8 @@
 from dev_tools.sandbox.live_validation.common import (
+    auth_endpoint_urls,
+    build_api_url,
     evaluate_dns_leak,
+    normalize_api_base_url,
     parse_latest_handshake_epoch,
     parse_wireguard_config,
 )
@@ -42,3 +45,21 @@ def test_evaluate_dns_leak():
     clean2, leaked2 = evaluate_dns_leak(["8.8.8.8"], allowed, allow_private=True)
     assert clean2 is False
     assert leaked2 == ["8.8.8.8"]
+
+
+def test_live_api_url_normalization_accepts_site_root_or_api_root():
+    site_root = "http://127.0.0.1:8000"
+    api_root = "http://127.0.0.1:8000/api"
+
+    assert normalize_api_base_url(site_root) == api_root
+    assert normalize_api_base_url(api_root) == api_root
+
+    expected_endpoints = {
+        "register": "http://127.0.0.1:8000/api/auth/register",
+        "login": "http://127.0.0.1:8000/api/auth/login",
+        "refresh": "http://127.0.0.1:8000/api/auth/refresh",
+    }
+    assert auth_endpoint_urls(site_root) == expected_endpoints
+    assert auth_endpoint_urls(api_root) == expected_endpoints
+    assert build_api_url(site_root, "/health") == "http://127.0.0.1:8000/api/health"
+    assert build_api_url(api_root, "/vpn/profile") == "http://127.0.0.1:8000/api/vpn/profile"

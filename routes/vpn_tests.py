@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from database.session import get_db
 from models.user import User
 from services.jwt_service import get_current_user
+from utils.structured_logging import log_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn/tests", tags=["vpn-tests"])
@@ -205,14 +206,15 @@ async def run_tests_async(
     _running_tests[user_id] = True
 
     try:
-        logger.info(json.dumps({
-            "event": "vpn_test_start",
-            "run_id": run_id,
-            "user_id": user_id,
-            "skip_baseline": skip_baseline,
-            "stability_duration": stability_duration,
-            "timeout_seconds": timeout_seconds,
-        }))
+        log_event(
+            logger,
+            "vpn_test_start",
+            run_id=run_id,
+            user_id=user_id,
+            skip_baseline=skip_baseline,
+            stability_duration=stability_duration,
+            timeout_seconds=timeout_seconds,
+        )
 
         loop = asyncio.get_event_loop()
 
@@ -242,23 +244,26 @@ async def run_tests_async(
             lambda: save_results(results, str(RESULTS_DIR))
         )
 
-        logger.info(json.dumps({
-            "event": "vpn_test_complete",
-            "run_id": run_id,
-            "user_id": user_id,
-            "status": results.get("scoring", {}).get("status"),
-        }))
+        log_event(
+            logger,
+            "vpn_test_complete",
+            run_id=run_id,
+            user_id=user_id,
+            status=results.get("scoring", {}).get("status"),
+        )
 
         return results
 
     except asyncio.TimeoutError:
         message = "VPN test timed out. Please try again or use Quick Test."
-        logger.error(json.dumps({
-            "event": "vpn_test_timeout",
-            "run_id": run_id,
-            "user_id": user_id,
-            "timeout_seconds": timeout_seconds,
-        }))
+        log_event(
+            logger,
+            "vpn_test_timeout",
+            level=logging.ERROR,
+            run_id=run_id,
+            user_id=user_id,
+            timeout_seconds=timeout_seconds,
+        )
         results = build_failure_results(run_id, message)
         await loop.run_in_executor(
             None,
@@ -267,12 +272,14 @@ async def run_tests_async(
         return results
     except Exception as e:
         message = "VPN test failed. Please try again."
-        logger.error(json.dumps({
-            "event": "vpn_test_error",
-            "run_id": run_id,
-            "user_id": user_id,
-            "error": str(e),
-        }))
+        log_event(
+            logger,
+            "vpn_test_error",
+            level=logging.ERROR,
+            run_id=run_id,
+            user_id=user_id,
+            error=str(e),
+        )
         results = build_failure_results(run_id, message)
         await loop.run_in_executor(
             None,

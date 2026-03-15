@@ -1,15 +1,19 @@
-import os
+import logging
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from config.settings import get_settings
 from database.session import get_db
 from models.audit_log import AuditLog
 from services.jwt_service import get_current_user
+from utils.structured_logging import log_event
 
 router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
+SETTINGS = get_settings()
+logger = logging.getLogger(__name__)
 
 
 # ============================================
@@ -48,6 +52,9 @@ def ingest_telemetry(
     Stores latency, packet loss, uptime metrics.
     (Day 5: Telemetry ingestion endpoint)
     """
+    if not SETTINGS.telemetry_enabled:
+        raise HTTPException(status_code=503, detail="Telemetry ingestion disabled")
+
     record = {
         "user_id": current_user.id,
         "timestamp": datetime.utcnow().isoformat(),
@@ -79,6 +86,14 @@ def ingest_telemetry(
         except Exception:
             pass  # Non-critical
 
+    log_event(
+        logger,
+        "metrics_submission",
+        user_id=current_user.id,
+        server_id=payload.server_id,
+        record_count=1,
+        latency_ms=payload.latency_ms,
+    )
     return {"status": "accepted", "record_id": len(_telemetry_store)}
 
 
@@ -89,6 +104,9 @@ def ingest_telemetry_batch(
     db: Session = Depends(get_db)
 ):
     """Ingest multiple telemetry records at once"""
+    if not SETTINGS.telemetry_enabled:
+        raise HTTPException(status_code=503, detail="Telemetry ingestion disabled")
+
     accepted = 0
     for payload in batch.records:
         record = {
@@ -109,6 +127,13 @@ def ingest_telemetry_batch(
     while len(_telemetry_store) > 10000:
         _telemetry_store.pop(0)
 
+    log_event(
+        logger,
+        "metrics_submission",
+        user_id=current_user.id,
+        record_count=accepted,
+        server_ids=sorted({payload.server_id for payload in batch.records if payload.server_id}),
+    )
     return {"status": "accepted", "records_accepted": accepted}
 
 
@@ -164,13 +189,14 @@ def diagnostics_summary(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    env = os.getenv("ENVIRONMENT", "development")
-    db_url = os.getenv("DATABASE_URL", "")
+    env = SETTINGS.environment
+    db_url = SETTINGS.database_url
     db_type = "sqlite" if db_url.startswith("sqlite") else "postgres"
 
     return {
         "environment": env,
         "database": db_type,
+        "telemetry_enabled": SETTINGS.telemetry_enabled,
         "user_id": current_user.id,
     }
 

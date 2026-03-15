@@ -1,8 +1,8 @@
 [Unit]
 Description=SecureWave VPN Stack Watchdog (live_loop.sh)
-After=network-online.target securewave-backend.service
+After=network-online.target securewave-api.service
 Wants=network-online.target
-BindsTo=securewave-backend.service
+BindsTo=securewave-api.service
 
 [Service]
 Type=simple

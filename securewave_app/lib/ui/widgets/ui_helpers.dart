@@ -1,4 +1,8 @@
+import 'package:flutter/material.dart';
+
 import '../../core/models/server_region.dart';
+import '../design/app_colors.dart';
+import '../design/app_spacing.dart';
 
 /// Format a data rate in Mbps to a human-readable string.
 ///
@@ -69,32 +73,126 @@ String latencyLabel(int? latencyMs) {
 
 /// Estimate a server load percentage (0-100) based on latency heuristic.
 ///
-/// This is a rough UI-only estimate for visual indicators. It uses the
-/// server's latency to approximate load — lower latency suggests less load.
-///
-/// Bands:
-///   0-30 ms  => 10-25% (low load)
-///   31-80 ms => 25-50% (moderate)
-///   81-150 ms => 50-75% (elevated)
-///   151+ ms  => 75-95% (high)
-///
-/// When no latency data is available, returns 50 (unknown/moderate).
+/// This is a rough UI-only estimate for visual indicators.
 int estimateServerLoad(ServerRegion server) {
   final latency = server.latencyMs;
   if (latency == null) return 50;
 
   if (latency <= 30) {
-    // Scale 0-30 ms to 10-25%
     return 10 + ((latency / 30) * 15).round();
   } else if (latency <= 80) {
-    // Scale 31-80 ms to 25-50%
     return 25 + (((latency - 30) / 50) * 25).round();
   } else if (latency <= 150) {
-    // Scale 81-150 ms to 50-75%
     return 50 + (((latency - 80) / 70) * 25).round();
   } else {
-    // Scale 151-300+ ms to 75-95%, clamped
     final scaled = 75 + (((latency - 150) / 150) * 20).round();
     return scaled.clamp(75, 95);
+  }
+}
+
+// ── Helper Widgets ───────────────────────────────────────────────────────────
+
+/// Section header label — uppercase, muted text.
+class SectionHeader extends StatelessWidget {
+  const SectionHeader(this.title, {super.key});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: AppSpacing.space2,
+        bottom: AppSpacing.space2,
+      ),
+      child: Text(
+        title.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.inkSoft,
+              letterSpacing: 1.1,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
+  }
+}
+
+/// Small colored dot indicating status.
+class StatusDot extends StatelessWidget {
+  const StatusDot({
+    super.key,
+    required this.color,
+    this.size = 10,
+    this.pulsing = false,
+  });
+
+  final Color color;
+  final double size;
+  final bool pulsing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.4),
+            blurRadius: 6,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Key-value info row with icon.
+class InfoRow extends StatelessWidget {
+  const InfoRow({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.iconColor,
+    this.valueColor,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? iconColor;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.space3),
+      child: Row(
+        children: [
+          Icon(icon,
+              size: AppSpacing.iconS,
+              color: iconColor ?? AppColors.primaryBright),
+          const SizedBox(width: AppSpacing.space3),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.inkMuted,
+                  ),
+            ),
+          ),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: valueColor,
+                ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -11,62 +11,83 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
         centerTitle: false,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.pagePadding),
-        children: [
-          _Section(
-            title: 'VPN',
-            tiles: [
-              _Tile(
-                icon: Icons.bug_report_outlined,
-                label: 'Diagnostics',
-                onTap: () => context.push('/diagnostics'),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.pagePadding),
+            children: [
+              _Section(
+                title: 'VPN',
+                isDark: isDark,
+                tiles: [
+                  _Tile(
+                    icon: Icons.bug_report_outlined,
+                    label: 'Diagnostics',
+                    isDark: isDark,
+                    onTap: () => context.push('/diagnostics'),
+                  ),
+                  _Tile(
+                    icon: Icons.devices_rounded,
+                    label: 'Manage Devices',
+                    isDark: isDark,
+                    onTap: () => context.push('/devices'),
+                  ),
+                ],
               ),
-              _Tile(
-                icon: Icons.devices_rounded,
-                label: 'Manage Devices',
-                onTap: () => context.push('/devices'),
+              const SizedBox(height: AppSpacing.space5),
+              _Section(
+                title: 'Account',
+                isDark: isDark,
+                tiles: [
+                  _Tile(
+                    icon: Icons.person_outline_rounded,
+                    label: 'Edit Profile',
+                    isDark: isDark,
+                    onTap: () => context.push('/edit-profile'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.space5),
+              _Section(
+                title: 'App',
+                isDark: isDark,
+                tiles: [
+                  _Tile(
+                    icon: Icons.info_outline_rounded,
+                    label: 'About SecureWave',
+                    isDark: isDark,
+                    onTap: () {},
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.space5),
-          _Section(
-            title: 'Account',
-            tiles: [
-              _Tile(
-                icon: Icons.person_outline_rounded,
-                label: 'Edit Profile',
-                onTap: () => context.push('/edit-profile'),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.space5),
-          _Section(
-            title: 'App',
-            tiles: [
-              _Tile(
-                icon: Icons.info_outline_rounded,
-                label: 'About SecureWave',
-                onTap: () {},
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.tiles});
+  const _Section({
+    required this.title,
+    required this.tiles,
+    required this.isDark,
+  });
 
   final String title;
   final List<Widget> tiles;
+  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +102,7 @@ class _Section extends StatelessWidget {
           child: Text(
             title.toUpperCase(),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.inkSoft,
+                  color: isDark ? AppColors.darkInkSoft : AppColors.inkSoft,
                   letterSpacing: 1.1,
                   fontWeight: FontWeight.w700,
                 ),
@@ -90,7 +111,9 @@ class _Section extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(AppSpacing.radiusL),
           child: Material(
-            color: Theme.of(context).colorScheme.surface,
+            color: isDark
+                ? AppColors.darkSurface
+                : Theme.of(context).colorScheme.surface,
             child: Column(
               children: [
                 for (var i = 0; i < tiles.length; i++) ...[
@@ -99,9 +122,9 @@ class _Section extends StatelessWidget {
                     Divider(
                       height: 1,
                       indent: AppSpacing.space7,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .outlineVariant,
+                      color: isDark
+                          ? AppColors.darkBorder
+                          : Theme.of(context).colorScheme.outlineVariant,
                     ),
                 ],
               ],
@@ -118,17 +141,19 @@ class _Tile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    required this.isDark,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
-    const color = AppColors.primary;
     return ListTile(
-      leading: Icon(icon, color: color, size: AppSpacing.iconM),
+      leading: Icon(icon,
+          color: AppColors.primaryBright, size: AppSpacing.iconM),
       title: Text(
         label,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -138,7 +163,7 @@ class _Tile extends StatelessWidget {
       trailing: Icon(
         Icons.chevron_right_rounded,
         size: AppSpacing.iconS,
-        color: AppColors.inkSoft,
+        color: isDark ? AppColors.darkInkSoft : AppColors.inkSoft,
       ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space4,

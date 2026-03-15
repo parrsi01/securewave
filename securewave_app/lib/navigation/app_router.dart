@@ -19,6 +19,7 @@ import '../ui/screens/login_screen.dart';
 import '../ui/screens/register_screen.dart';
 import '../ui/screens/server_selection_screen.dart';
 import '../ui/screens/settings_screen.dart';
+import '../ui/screens/vpn_debug_screen.dart';
 
 import 'app_shell.dart';
 
@@ -147,6 +148,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _buildPage(
           state: state,
           child: const ManageDevicesScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/vpn-debug',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const VpnDebugScreen(),
         ),
       ),
       GoRoute(

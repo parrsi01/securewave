@@ -193,7 +193,7 @@ class RuntimeMetrics:
             self._extended_system_cache_at = now
         return extended
 
-    def export_prometheus(self) -> str:
+    def export_prometheus(self, *, fleet: Optional[Dict] = None) -> str:
         snapshot = self.snapshot()
         counters = snapshot["counters"]
         profile_latency = snapshot["profile_issue_latency"]
@@ -253,6 +253,29 @@ class RuntimeMetrics:
             "# TYPE securewave_zombie_processes gauge",
             f"securewave_zombie_processes {system.get('zombie_processes', 0)}",
         ]
+
+        if fleet:
+            lines.extend([
+                "# HELP securewave_active_sessions Current active VPN sessions.",
+                "# TYPE securewave_active_sessions gauge",
+                f"securewave_active_sessions {fleet.get('active_sessions', 0)}",
+                "# HELP securewave_active_tunnels Current active WireGuard tunnels.",
+                "# TYPE securewave_active_tunnels gauge",
+                f"securewave_active_tunnels {fleet.get('active_tunnels', 0)}",
+                "# HELP securewave_fleet_total_servers Total active VPN servers.",
+                "# TYPE securewave_fleet_total_servers gauge",
+                f"securewave_fleet_total_servers {fleet.get('total_servers', 0)}",
+                "# HELP securewave_fleet_healthy_servers Healthy VPN servers.",
+                "# TYPE securewave_fleet_healthy_servers gauge",
+                f"securewave_fleet_healthy_servers {fleet.get('healthy_servers', 0)}",
+                "# HELP securewave_fleet_total_connections Total current connections across fleet.",
+                "# TYPE securewave_fleet_total_connections gauge",
+                f"securewave_fleet_total_connections {fleet.get('total_connections', 0)}",
+                "# HELP securewave_fleet_avg_load_score Average server load score (0.0-1.0).",
+                "# TYPE securewave_fleet_avg_load_score gauge",
+                f"securewave_fleet_avg_load_score {fleet.get('avg_load_score', 0.0)}",
+            ])
+
         return "\n".join(lines) + "\n"
 
 

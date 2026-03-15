@@ -19,8 +19,12 @@ class ServerLocationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flag = flagEmoji(server.countryCode);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Material(
-      color: AppColors.darkSurface,
+      color: isDark
+          ? AppColors.darkSurfaceMuted
+          : Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(AppSpacing.radiusM),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -42,7 +46,6 @@ class ServerLocationCard extends StatelessWidget {
                 child: Text(
                   server.name,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.darkInk,
                         fontWeight: FontWeight.w600,
                       ),
                   overflow: TextOverflow.ellipsis,

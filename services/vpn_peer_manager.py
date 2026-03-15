@@ -16,7 +16,11 @@ import qrcode
 
 from models.user import User
 from models.vpn_server import VPNServer
-from models.wireguard_peer import WireGuardPeer
+from models.wireguard_peer import (
+    DEVICE_STATE_ACTIVE,
+    DEVICE_STATE_REVOKED,
+    WireGuardPeer,
+)
 from services.wireguard_service import WireGuardService
 
 logger = logging.getLogger(__name__)
@@ -84,6 +88,7 @@ class VPNPeerManager:
                 device_type=device_type,
                 is_active=True,
                 is_revoked=False,
+                device_state=DEVICE_STATE_ACTIVE,
                 key_version=1,
                 next_key_rotation_at=next_rotation,
             )
@@ -174,6 +179,7 @@ class VPNPeerManager:
 
             peer.is_revoked = True
             peer.is_active = False
+            peer.device_state = DEVICE_STATE_REVOKED
             peer.revoked_at = datetime.utcnow()
             self.db.commit()
 

@@ -3,32 +3,30 @@ SecureWave VPN - Enhanced Email Service
 Multi-provider email service with SendGrid, AWS SES, and SMTP support
 """
 
-import os
 import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from datetime import datetime
-from dotenv import load_dotenv
 from jinja2 import Template
 
-load_dotenv()
-load_dotenv(".env.production")
+from config.settings import get_settings
 
 logger = logging.getLogger(__name__)
+SETTINGS = get_settings()
 
 # Email configuration
-EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")  # smtp, sendgrid, aws_ses
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
-FROM_EMAIL = os.getenv("FROM_EMAIL") or os.getenv("SMTP_FROM_EMAIL") or SMTP_USER
-FROM_NAME = os.getenv("FROM_NAME") or os.getenv("SMTP_FROM_NAME") or "SecureWave VPN"
-APP_URL = os.getenv("APP_URL", "https://securewave.example.com")
+EMAIL_PROVIDER = SETTINGS.email_provider  # smtp, sendgrid, aws_ses
+SMTP_HOST = SETTINGS.smtp_host
+SMTP_PORT = SETTINGS.smtp_port
+SMTP_USER = SETTINGS.smtp_user
+SMTP_PASSWORD = SETTINGS.smtp_password
+SENDGRID_API_KEY = SETTINGS.sendgrid_api_key
+AWS_SES_REGION = SETTINGS.aws_ses_region
+FROM_EMAIL = SETTINGS.from_email
+FROM_NAME = SETTINGS.from_name
+APP_URL = SETTINGS.app_url
 
 
 class EnhancedEmailService:

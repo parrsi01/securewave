@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from models.subscription import Subscription
 from models.user import User
 from models.vpn_server import VPNServer
-from models.wireguard_peer import WireGuardPeer
+from models.wireguard_peer import DEVICE_STATE_REVOKED, WireGuardPeer
 from services.wireguard_server_manager import get_wireguard_server_manager, server_connection_from_db
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,7 @@ async def revoke_user_peers(db: Session, user: User) -> int:
 
         peer.is_revoked = True
         peer.is_active = False
+        peer.device_state = DEVICE_STATE_REVOKED
         peer.revoked_at = datetime.utcnow()
         revoked += 1
 

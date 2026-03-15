@@ -20,9 +20,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from dev_tools.sandbox.live_validation.common import (
+    build_api_url,
+    build_wireguard_test_config,
     build_interface_name,
     ensure_dir,
     fetch_vpn_profile,
+    linux_runtime_preflight,
+    linux_route_snapshot,
     mean,
     parse_latest_handshake_epoch,
     parse_wireguard_config,
@@ -128,6 +132,24 @@ def _throughput_probe(url: str, *, interface: str | None, platform: str) -> tupl
     return True, round(mbps, 3)
 
 
+def _control_plane_health_probe(url: str) -> bool:
+    res = run_command(
+        [
+            "curl",
+            "--max-time",
+            "10",
+            "-sS",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            url,
+        ],
+        timeout_seconds=15,
+    )
+    return res.returncode == 0 and res.stdout.strip().endswith(("200", "204"))
+
+
 def run_stress(
     *,
     output_dir: Path,
@@ -142,16 +164,45 @@ def run_stress(
     device_type: str,
     http_probe_url: str,
     server_id: str | None,
+    enable_split_tunnel: bool,
+    split_tunnel_allowed_ips: list[str],
 ) -> dict[str, Any]:
     out_dir = ensure_dir(output_dir)
     password = os.getenv("LIVE_VALIDATION_PASSWORD", "LiveValidate#123")
     email_prefix = os.getenv("LIVE_VALIDATION_EMAIL_PREFIX", "live.stress")
+    preflights: dict[str, Any] = {}
+
+    if enable_tunnel and "linux" in platforms:
+        linux_preflight = linux_runtime_preflight(api_base_url=api_base_url)
+        preflights["linux"] = linux_preflight
+        write_json(out_dir / "linux_preflight.json", linux_preflight)
+        if not linux_preflight.get("can_continue", True):
+            summary = {
+                "harness": "live_stress_runner",
+                "generated_at": utc_now_iso(),
+                "overall_status": "fail",
+                "strict": strict,
+                "enable_tunnel": enable_tunnel,
+                "enable_split_tunnel": enable_split_tunnel,
+                "split_tunnel_allowed_ips": split_tunnel_allowed_ips,
+                "platforms": platforms,
+                "workers": workers,
+                "cycles": cycles,
+                "global_failures": len(linux_preflight.get("failures") or []),
+                "strict_failures": len(linux_preflight.get("failures") or []),
+                "platform_summaries": [],
+                "preflights": preflights,
+            }
+            write_json(out_dir / "live_stress_summary.json", summary)
+            return summary
 
     latency_rows: list[dict[str, Any]] = []
     jitter_rows: list[dict[str, Any]] = []
     throughput_rows: list[dict[str, Any]] = []
     handshake_rows: list[dict[str, Any]] = []
     fail_rate_rows: list[dict[str, Any]] = []
+    routing_rows: list[dict[str, Any]] = []
+    api_health_url = build_api_url(api_base_url, "/health")
 
     global_failures = 0
     strict_failures = 0
@@ -227,7 +278,14 @@ def run_stress(
             interface = build_interface_name(f"{interface_prefix}{worker_id}", cycle_id)
             with tempfile.TemporaryDirectory(prefix=f"securewave_stress_{platform}_") as tmp:
                 conf_path = Path(tmp) / f"{interface}.conf"
-                _write_config(conf_path, config_text)
+                rendered_config, rendered_meta = build_wireguard_test_config(
+                    config_text,
+                    api_base_url=api_base_url,
+                    enable_split_tunnel=enable_split_tunnel,
+                    split_tunnel_allowed_ips=split_tunnel_allowed_ips,
+                )
+                api_ip = (rendered_meta.get("api_ips") or [None])[0]
+                _write_config(conf_path, rendered_config)
                 connect_cmd, disconnect_cmd, handshake_cmd = _platform_commands(
                     platform,
                     config_path=conf_path,
@@ -261,16 +319,41 @@ def run_stress(
                         time.sleep(0.75)
 
                     throughput_ok, throughput_mbps = _throughput_probe(http_probe_url, interface=interface, platform=platform)
+                    routing_ok = True
+                    if platform == "linux":
+                        route_after = linux_route_snapshot(
+                            api_ip if isinstance(api_ip, str) else None,
+                            interface=interface,
+                        )
+                        table_text = str(((route_after.get("table_51820") or {}).get("stdout")) or "")
+                        main_text = str(((route_after.get("main_table") or {}).get("stdout")) or "")
+                        api_route_text = str(((route_after.get("api_route_get") or {}).get("stdout")) or "")
+                        if enable_split_tunnel:
+                            tunnel_route_ok = interface in table_text or interface in main_text
+                        else:
+                            tunnel_route_ok = "default" in table_text and interface in table_text
+                        api_bypass_ok = bool(api_ip) and interface not in api_route_text
+                        routing_ok = tunnel_route_ok and api_bypass_ok
+                    api_health_ok = _control_plane_health_probe(api_health_url)
                     _exec(disconnect_cmd, timeout_seconds=timeout_seconds)
 
             return {
-                "ok": handshake_ok,
+                "ok": handshake_ok and routing_ok and api_health_ok,
                 "worker": worker_id,
                 "cycle": cycle_id,
                 "profile_latency_ms": profile.duration_ms,
                 "handshake_ms": handshake_ms,
                 "throughput_mbps": throughput_mbps if throughput_ok else 0.0,
-                "detail": "ok" if handshake_ok else "handshake_failed",
+                "detail": "ok"
+                if handshake_ok and routing_ok and api_health_ok
+                else "handshake_failed"
+                if not handshake_ok
+                else "routing_failed"
+                if not routing_ok
+                else "api_health_failed",
+                "routing_ok": routing_ok,
+                "api_health_ok": api_health_ok,
+                "api_ip": str(api_ip or ""),
                 "token": redact(token),
             }
 
@@ -324,6 +407,17 @@ def run_stress(
                     "cycle": row["cycle"],
                     "throughput_mbps": row["throughput_mbps"],
                     "status": "ok" if float(row.get("throughput_mbps", 0.0)) > 0 else "failed",
+                }
+            )
+            routing_rows.append(
+                {
+                    "timestamp": utc_now_iso(),
+                    "platform": platform,
+                    "worker": row["worker"],
+                    "cycle": row["cycle"],
+                    "api_ip": row.get("api_ip", ""),
+                    "routing_status": "ok" if row.get("routing_ok") else "failed",
+                    "api_health_status": "ok" if row.get("api_health_ok") else "failed",
                 }
             )
 
@@ -398,6 +492,19 @@ def run_stress(
         handshake_rows,
         ["timestamp", "platform", "worker", "cycle", "handshake_ms", "success"],
     )
+    write_csv(
+        out_dir / "routing_metrics.csv",
+        routing_rows,
+        [
+            "timestamp",
+            "platform",
+            "worker",
+            "cycle",
+            "api_ip",
+            "routing_status",
+            "api_health_status",
+        ],
+    )
 
     summary = {
         "harness": "live_stress_runner",
@@ -405,12 +512,15 @@ def run_stress(
         "overall_status": "pass" if strict_failures == 0 else "fail",
         "strict": strict,
         "enable_tunnel": enable_tunnel,
+        "enable_split_tunnel": enable_split_tunnel,
+        "split_tunnel_allowed_ips": split_tunnel_allowed_ips,
         "platforms": platforms,
         "workers": workers,
         "cycles": cycles,
         "global_failures": global_failures,
         "strict_failures": strict_failures,
         "platform_summaries": platform_summaries,
+        "preflights": preflights,
     }
     write_json(out_dir / "live_stress_summary.json", summary)
     return summary
@@ -432,6 +542,16 @@ def main() -> int:
     parser.add_argument("--device-type", default=os.getenv("LIVE_STRESS_DEVICE_TYPE", "linux"))
     parser.add_argument("--http-probe-url", default=os.getenv("LIVE_HTTP_PROBE_URL", "https://api.ipify.org"))
     parser.add_argument("--server-id", default=os.getenv("LIVE_VALIDATION_SERVER_ID", ""))
+    parser.add_argument(
+        "--test-split-tunnel",
+        action="store_true",
+        default=os.getenv("LIVE_TEST_SPLIT_TUNNEL", "").strip().lower()
+        in {"1", "true", "yes", "on"},
+    )
+    parser.add_argument(
+        "--split-tunnel-allowed-ips",
+        default=os.getenv("LIVE_TEST_ALLOWED_IPS", "10.0.0.0/8,172.16.0.0/12"),
+    )
     args = parser.parse_args()
 
     if not args.api_base_url.strip():
@@ -450,6 +570,12 @@ def main() -> int:
         device_type=args.device_type,
         http_probe_url=args.http_probe_url,
         server_id=args.server_id.strip() or None,
+        enable_split_tunnel=bool(args.test_split_tunnel),
+        split_tunnel_allowed_ips=[
+            item.strip()
+            for item in str(args.split_tunnel_allowed_ips).split(",")
+            if item.strip()
+        ],
     )
     print(json.dumps(summary, indent=2))
     return 0 if summary.get("overall_status") == "pass" else 1

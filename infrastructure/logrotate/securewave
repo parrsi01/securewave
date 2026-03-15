@@ -7,6 +7,6 @@
     notifempty
     create 0640 securewave securewave
     postrotate
-        systemctl kill -s USR1 securewave-backend.service 2>/dev/null || true
+        systemctl kill -s USR1 securewave-api.service 2>/dev/null || true
     endscript
 }

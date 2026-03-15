@@ -1,0 +1,11 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sw-mark" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1B6B68"/>
+      <stop offset="1" stop-color="#0F4F4C"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 4C20 11 11 13 11 13v16c0 16.5 11 28.5 21 34 10-5.5 21-17.5 21-34V13S44 11 32 4z" fill="url(#sw-mark)"/>
+  <circle cx="32" cy="30" r="13" fill="#F5F7FB"/>
+  <path d="M20 34c5-5 11-7 18-6 4 1 8 2 11 4" stroke="#1B6B68" stroke-width="4" stroke-linecap="round"/>
+</svg>

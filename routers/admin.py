@@ -2,7 +2,6 @@
 Admin endpoints for WireGuard peer management.
 Allows auto-registration of peers on the WG VM.
 """
-import os
 import re
 import shutil
 import subprocess  # nosec B404 - controlled subprocess usage with validated args
@@ -13,18 +12,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from config.settings import get_settings
 from database.session import get_db
 from models.user import User
 from services.jwt_service import get_current_user
 from services.wireguard_service import WireGuardService
 
 router = APIRouter()
+SETTINGS = get_settings()
 
 # WireGuard server details (SSH)
-WG_SSH_HOST = os.getenv("WG_SSH_HOST", "127.0.0.1")
-WG_SSH_USER = os.getenv("WG_SSH_USER", "securewave")
-WG_SSH_PORT = int(os.getenv("WG_SSH_PORT", "22"))
-WG_SSH_KEY_PATH = os.getenv("WG_SSH_KEY_PATH")
+WG_SSH_HOST = SETTINGS.wg_ssh_host
+WG_SSH_USER = SETTINGS.wg_ssh_user
+WG_SSH_PORT = SETTINGS.wg_ssh_port
+WG_SSH_KEY_PATH = SETTINGS.wg_ssh_key_path
 WG_KEY_PATTERN = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
 
 

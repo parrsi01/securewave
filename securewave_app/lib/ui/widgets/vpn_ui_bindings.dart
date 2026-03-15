@@ -4,6 +4,7 @@ import '../../core/models/server_region.dart';
 import '../../core/models/vpn_status.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
+import '../../core/state/vpn_state_machine.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Visual state enum
@@ -21,20 +22,10 @@ enum ConnectionVisualState {
   error,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Transition record — lightweight history entry
-// ─────────────────────────────────────────────────────────────────────────────
-
-class VpnTransitionRecord {
-  const VpnTransitionRecord({
-    required this.from,
-    required this.to,
-    required this.timestamp,
-  });
-
-  final VpnStatus from;
-  final VpnStatus to;
-  final DateTime timestamp;
+enum ConnectionPrimaryAction {
+  connect,
+  disconnect,
+  none,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,6 +43,12 @@ ConnectionVisualState resolveConnectionVisualState(
   VpnState state, [
   List<VpnTransitionRecord> history = const [],
 ]) {
+  if (state.reconnectPending &&
+      state.desiredOn &&
+      (state.status == VpnStatus.disconnected ||
+          state.status == VpnStatus.error)) {
+    return ConnectionVisualState.reconnecting;
+  }
   switch (state.status) {
     case VpnStatus.connected:
       return ConnectionVisualState.connected;
@@ -63,11 +60,11 @@ ConnectionVisualState resolveConnectionVisualState(
       return ConnectionVisualState.error;
 
     case VpnStatus.connecting:
-      // Detect reconnecting: if history shows a recent connected→X or
-      // error→connecting transition, treat it as a reconnection.
+      // Detect reconnecting: if history shows a recent connected->X or
+      // error->connecting transition, treat it as a reconnection.
       if (history.isNotEmpty) {
         final last = history.last;
-        final age = DateTime.now().difference(last.timestamp);
+        final age = DateTime.now().difference(last.at);
         final isRecent = age.inSeconds < 15;
         final wasOnline =
             last.from == VpnStatus.connected || last.from == VpnStatus.error;
@@ -83,6 +80,40 @@ ConnectionVisualState resolveConnectionVisualState(
 
     case VpnStatus.disconnected:
       return ConnectionVisualState.disconnected;
+  }
+}
+
+bool connectionVisualStateIsBusy(ConnectionVisualState state) {
+  return state == ConnectionVisualState.connecting ||
+      state == ConnectionVisualState.reconnecting ||
+      state == ConnectionVisualState.disconnecting;
+}
+
+bool connectionVisualStateHasActiveTunnel(ConnectionVisualState state) {
+  return state == ConnectionVisualState.connected ||
+      state == ConnectionVisualState.disconnecting;
+}
+
+bool connectionVisualStateSupportsLiveSwitch(ConnectionVisualState state) {
+  return state == ConnectionVisualState.connected ||
+      state == ConnectionVisualState.connecting ||
+      state == ConnectionVisualState.reconnecting ||
+      state == ConnectionVisualState.disconnecting;
+}
+
+ConnectionPrimaryAction resolveConnectionPrimaryAction(
+  ConnectionVisualState state,
+) {
+  switch (state) {
+    case ConnectionVisualState.connected:
+      return ConnectionPrimaryAction.disconnect;
+    case ConnectionVisualState.connecting:
+    case ConnectionVisualState.reconnecting:
+    case ConnectionVisualState.disconnecting:
+      return ConnectionPrimaryAction.none;
+    case ConnectionVisualState.disconnected:
+    case ConnectionVisualState.error:
+      return ConnectionPrimaryAction.connect;
   }
 }
 
@@ -108,4 +139,31 @@ final selectedServerProvider = Provider<ServerRegion?>((ref) {
       return null;
     },
   );
+});
+
+final connectionVisualStateProvider = Provider<ConnectionVisualState>((ref) {
+  final vpnState = ref.watch(vpnStateProvider);
+  final history = ref.read(vpnStateProvider.notifier).recentTransitions;
+  return resolveConnectionVisualState(vpnState, history);
+});
+
+final connectionPrimaryActionProvider =
+    Provider<ConnectionPrimaryAction>((ref) {
+  final visualState = ref.watch(connectionVisualStateProvider);
+  return resolveConnectionPrimaryAction(visualState);
+});
+
+final connectionBusyProvider = Provider<bool>((ref) {
+  final visualState = ref.watch(connectionVisualStateProvider);
+  return connectionVisualStateIsBusy(visualState);
+});
+
+final connectionHasActiveTunnelProvider = Provider<bool>((ref) {
+  final visualState = ref.watch(connectionVisualStateProvider);
+  return connectionVisualStateHasActiveTunnel(visualState);
+});
+
+final connectionSupportsLiveSwitchProvider = Provider<bool>((ref) {
+  final visualState = ref.watch(connectionVisualStateProvider);
+  return connectionVisualStateSupportsLiveSwitch(visualState);
 });

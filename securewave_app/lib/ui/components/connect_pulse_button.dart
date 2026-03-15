@@ -8,6 +8,7 @@ export 'connect_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/logging/app_logger.dart';
 import '../../core/models/server_region.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
@@ -26,16 +27,21 @@ class ConnectionRing extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final vpnState = ref.watch(vpnStateProvider);
-    final visualState = resolveConnectionVisualState(vpnState);
+    final visualState = ref.watch(connectionVisualStateProvider);
+    final primaryAction = ref.watch(connectionPrimaryActionProvider);
     final serversAsync = ref.watch(serversProvider);
 
     return ConnectButton(
       visualState: visualState,
+      connectPhaseLabel: vpnState.connectPhaseLabel,
       onTap: () {
         final notifier = ref.read(vpnStateProvider.notifier);
-        if (visualState == ConnectionVisualState.connected ||
-            visualState == ConnectionVisualState.connecting) {
+        if (primaryAction == ConnectionPrimaryAction.disconnect) {
+          AppLogger.vpn('UI', 'DISCONNECT_BUTTON_PRESSED');
           notifier.disconnect();
+          return;
+        }
+        if (primaryAction == ConnectionPrimaryAction.none) {
           return;
         }
 
@@ -55,6 +61,9 @@ class ConnectionRing extends ConsumerWidget {
           }
         }
 
+        AppLogger.vpn('UI', 'CONNECT_BUTTON_PRESSED', fields: <String, Object?>{
+          'server_id': vpnState.selectedServerId ?? 'auto',
+        });
         notifier.connect();
       },
     );

@@ -1,7 +1,5 @@
 import base64
 import logging
-import os
-import secrets
 import shutil
 import stat
 import subprocess  # nosec B404 - controlled subprocess usage
@@ -19,22 +17,20 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
     NoEncryption,
 )
-from dotenv import load_dotenv
 
+from config.settings import get_settings
 from utils.env_validation import validate_fernet_key, is_production
 
 from models.user import User
 from services.wireguard_tuning import tune_wireguard
 
-# Load environment variables
-load_dotenv()
-
 logger = logging.getLogger(__name__)
+SETTINGS = get_settings()
 
 
 class WireGuardService:
     def __init__(self):
-        self.base_dir = Path(os.getenv("WG_DATA_DIR", "/wg")).expanduser()
+        self.base_dir = SETTINGS.wg_data_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)
         try:
             self.base_dir.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
@@ -48,20 +44,15 @@ class WireGuardService:
             pass
         self.server_private_path = self.base_dir / "server_private.key"
         self.server_public_path = self.base_dir / "server_public.key"
-        self.endpoint = os.getenv("WG_ENDPOINT", "127.0.0.1:51820")
-        # Prefer SECUREWAVE_TUNNEL_DNS (used by the profile provisioning path).
-        raw_dns = os.getenv("SECUREWAVE_TUNNEL_DNS", "").strip() or os.getenv("WG_DNS", "").strip()
-        if not raw_dns:
-            raw_dns = "94.140.14.14,94.140.15.15"
-        dns_parts = [p.strip() for p in raw_dns.split(",") if p.strip()]
-        self.dns = ",".join(dns_parts) if dns_parts else "94.140.14.14,94.140.15.15"
-        self.server_public_override = os.getenv("WG_SERVER_PUBLIC_KEY", "").strip() or None
+        self.endpoint = SETTINGS.vpn_server_endpoint
+        self.dns = SETTINGS.wg_dns
+        self.server_public_override = SETTINGS.wg_server_public_key
         self.fernet = self._load_fernet()
         self.wg_path = shutil.which("wg")
         self.ensure_server_keys()
 
     def _load_fernet(self):
-        key = os.getenv("WG_ENCRYPTION_KEY")
+        key = SETTINGS.wg_encryption_key
         issue = validate_fernet_key(key)
         if issue:
             if is_production():
@@ -127,7 +118,7 @@ class WireGuardService:
         - Primary allocation path is `VPNPeerManager._allocate_ip_address` with DB uniqueness.
         - This fallback keeps legacy flows functional and removes the historical 240-IP cap.
         """
-        base_cidr = os.getenv("WG_IP_POOL_BASE_CIDR", "10.8.0.0/22").strip()
+        base_cidr = SETTINGS.wg_ip_pool_base_cidr
         try:
             base_network = ipaddress.ip_network(base_cidr, strict=False)
         except ValueError:

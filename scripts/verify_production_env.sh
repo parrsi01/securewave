@@ -177,10 +177,28 @@ fi
 validate_fernet AUTH_ENCRYPTION_KEY
 validate_fernet WG_ENCRYPTION_KEY
 
+for flag in PAYMENTS_MOCK DEMO_MODE WG_MOCK_MODE; do
+  value="${!flag-}"
+  if [[ "$ENVIRONMENT_LOWER" == "production" && "$value" =~ ^([Tt][Rr][Uu][Ee]|1|yes|on)$ ]]; then
+    log_error "$flag must not be enabled in production."
+  fi
+done
+
+if [[ "$ENVIRONMENT_LOWER" == "production" ]]; then
+  require_var STRIPE_SECRET_KEY
+  require_var STRIPE_PUBLISHABLE_KEY
+  require_var STRIPE_WEBHOOK_SECRET
+  require_var STRIPE_PRICE_BASIC_MONTHLY
+  require_var STRIPE_PRICE_PREMIUM_MONTHLY
+  require_var STRIPE_PRICE_ULTRA_MONTHLY
+fi
+
 # Guard against missing database configuration in production.
 if [[ "$ENVIRONMENT_LOWER" == "production" ]]; then
   if [[ -z "${DATABASE_URL:-}" ]]; then
     log_error "DATABASE_URL is required for production (example: postgresql://user:pass@host:5432/securewave)."
+  elif [[ "${ALLOW_SQLITE_PRODUCTION:-false}" != "true" && "${DATABASE_URL,,}" == sqlite* ]]; then
+    log_error "DATABASE_URL points to SQLite. Set ALLOW_SQLITE_PRODUCTION=true only for an intentional fallback."
   fi
 fi
 

@@ -66,6 +66,21 @@ class AppLogger {
     return true;
   }
 
+  static void vpn(
+    String category,
+    String event, {
+    Map<String, Object?> fields = const <String, Object?>{},
+    int level = 500,
+  }) {
+    final normalizedCategory = category.trim().toUpperCase();
+    final normalizedEvent = event.trim().toUpperCase();
+    final suffix = _formatFields(fields);
+    final message = suffix.isEmpty
+        ? '[VPN][$normalizedCategory] $normalizedEvent'
+        : '[VPN][$normalizedCategory] $normalizedEvent $suffix';
+    _record(message, level: level, tag: 'SecureWave.VPN');
+  }
+
   static void _record(
     String message, {
     required int level,
@@ -87,6 +102,19 @@ class AppLogger {
       log(message,
           name: tag, level: level, error: error, stackTrace: stackTrace);
     }
+  }
+
+  static String _formatFields(Map<String, Object?> fields) {
+    if (fields.isEmpty) return '';
+    final parts = <String>[];
+    for (final entry in fields.entries) {
+      final key = entry.key.trim();
+      if (key.isEmpty) continue;
+      final value = entry.value;
+      final text = value == null ? 'null' : value.toString().replaceAll(' ', '_');
+      parts.add('$key=$text');
+    }
+    return parts.join(' ');
   }
 }
 

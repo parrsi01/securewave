@@ -5,7 +5,7 @@ set -euo pipefail
 
 # Collect production env files
 env_files=()
-for file in .env.production.example .env.template; do
+for file in .env.production.example .env.example.backend; do
   if [[ -f "$file" ]]; then
     env_files+=("$file")
   fi

@@ -5,8 +5,9 @@ import '../design/app_spacing.dart';
 
 /// Adaptive navigation shell.
 ///
-/// Mobile (< 600dp): NavigationBar at the bottom.
-/// Desktop/tablet (≥ 600dp): NavigationRail on the left.
+/// Mobile  (< 600dp): NavigationBar at the bottom.
+/// Tablet  (600-900dp): Compact icon-only NavigationRail on the left.
+/// Desktop (>= 900dp):  Wide NavigationRail with labels on the left.
 class AdaptiveShellScaffold extends StatelessWidget {
   const AdaptiveShellScaffold({
     super.key,
@@ -19,7 +20,13 @@ class AdaptiveShellScaffold extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
   final Widget child;
 
-  static const _labels = ['Home', 'Servers', 'Connect', 'Settings', 'Account'];
+  static const _labels = [
+    'Home',
+    'Servers',
+    'Connect',
+    'Settings',
+    'Account',
+  ];
 
   static const _icons = [
     Icons.home_outlined,
@@ -40,11 +47,10 @@ class AdaptiveShellScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final useRail = width >= AppSpacing.mobileBreakpoint;
 
-    if (useRail) {
+    if (width >= AppSpacing.mobileBreakpoint) {
+      final wide = width >= AppSpacing.tabletBreakpoint;
       return Scaffold(
-        backgroundColor: AppColors.darkBackground,
         body: Row(
           children: [
             _DesktopRail(
@@ -53,6 +59,7 @@ class AdaptiveShellScaffold extends StatelessWidget {
               labels: _labels,
               icons: _icons,
               activeIcons: _activeIcons,
+              showLabels: wide,
             ),
             Expanded(child: child),
           ],
@@ -61,7 +68,6 @@ class AdaptiveShellScaffold extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
       body: child,
       bottomNavigationBar: _BottomBar(
         currentIndex: currentIndex,
@@ -83,6 +89,7 @@ class _DesktopRail extends StatelessWidget {
     required this.labels,
     required this.icons,
     required this.activeIcons,
+    required this.showLabels,
   });
 
   final int currentIndex;
@@ -90,25 +97,62 @@ class _DesktopRail extends StatelessWidget {
   final List<String> labels;
   final List<IconData> icons;
   final List<IconData> activeIcons;
+  final bool showLabels;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
+    final w = showLabels ? AppSpacing.sidebarWidth : AppSpacing.railWidth;
+    final bgColor = isDark ? AppColors.darkBackgroundWarm : cs.surface;
+
     return Container(
-      width: AppSpacing.railWidth,
+      width: w,
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color: bgColor,
         border: Border(
-          right: BorderSide(color: AppColors.darkBorder, width: 1),
+          right: BorderSide(
+            color: isDark ? AppColors.darkBorder : cs.outlineVariant,
+            width: 1,
+          ),
         ),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: AppSpacing.space6),
-          // Logo
-          Icon(
-            Icons.shield_rounded,
-            color: AppColors.primaryBright,
-            size: 28,
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: showLabels ? AppSpacing.space4 : 0,
+            ),
+            child: showLabels
+                ? const Row(
+                    children: [
+                      SizedBox(width: AppSpacing.space2),
+                      Icon(
+                        Icons.shield_rounded,
+                        color: AppColors.primaryBright,
+                        size: 24,
+                      ),
+                      SizedBox(width: AppSpacing.space2),
+                      Text(
+                        'SecureWave',
+                        style: TextStyle(
+                          color: AppColors.primaryBright,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ],
+                  )
+                : const Center(
+                    child: Icon(
+                      Icons.shield_rounded,
+                      color: AppColors.primaryBright,
+                      size: 28,
+                    ),
+                  ),
           ),
           const SizedBox(height: AppSpacing.space5),
           for (var i = 0; i < labels.length; i++)
@@ -118,6 +162,7 @@ class _DesktopRail extends StatelessWidget {
               label: labels[i],
               selected: currentIndex == i,
               onTap: () => onDestinationSelected(i),
+              showLabel: showLabels,
             ),
         ],
       ),
@@ -132,6 +177,7 @@ class _RailItem extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    required this.showLabel,
   });
 
   final IconData icon;
@@ -139,9 +185,14 @@ class _RailItem extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final activeColor = cs.primary;
+    final inactiveColor = cs.onSurfaceVariant;
+
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space2,
@@ -149,7 +200,7 @@ class _RailItem extends StatelessWidget {
       ),
       child: Material(
         color: selected
-            ? AppColors.primaryBright.withValues(alpha: 0.15)
+            ? cs.primary.withValues(alpha: 0.1)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(AppSpacing.radiusM),
         clipBehavior: Clip.antiAlias,
@@ -158,31 +209,52 @@ class _RailItem extends StatelessWidget {
           child: SizedBox(
             width: double.infinity,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.space3),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    selected ? activeIcon : icon,
-                    color: selected
-                        ? AppColors.primaryBright
-                        : AppColors.darkInkSoft,
-                    size: 22,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.w400,
-                      color: selected
-                          ? AppColors.primaryBright
-                          : AppColors.darkInkSoft,
-                    ),
-                  ),
-                ],
+              padding: EdgeInsets.symmetric(
+                horizontal: showLabel ? AppSpacing.space3 : 0,
+                vertical: AppSpacing.space3,
               ),
+              child: showLabel
+                  ? Row(
+                      children: [
+                        Icon(
+                          selected ? activeIcon : icon,
+                          color: selected ? activeColor : inactiveColor,
+                          size: 20,
+                        ),
+                        const SizedBox(width: AppSpacing.space3),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w400,
+                            color: selected ? activeColor : inactiveColor,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          selected ? activeIcon : icon,
+                          color: selected ? activeColor : inactiveColor,
+                          size: 22,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w400,
+                            color: selected ? activeColor : inactiveColor,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ),
@@ -210,11 +282,17 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
+
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color: isDark ? AppColors.darkBackgroundWarm : cs.surface,
         border: Border(
-          top: BorderSide(color: AppColors.darkBorder, width: 1),
+          top: BorderSide(
+            color: isDark ? AppColors.darkBorder : cs.outlineVariant,
+            width: 1,
+          ),
         ),
       ),
       child: SafeArea(
@@ -255,6 +333,10 @@ class _BarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final activeColor = cs.primary;
+    final inactiveColor = cs.onSurfaceVariant;
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -264,9 +346,7 @@ class _BarItem extends StatelessWidget {
           children: [
             Icon(
               selected ? activeIcon : icon,
-              color: selected
-                  ? AppColors.primaryBright
-                  : AppColors.darkInkSoft,
+              color: selected ? activeColor : inactiveColor,
               size: 22,
             ),
             const SizedBox(height: 3),
@@ -274,11 +354,8 @@ class _BarItem extends StatelessWidget {
               label,
               style: TextStyle(
                 fontSize: 10,
-                fontWeight:
-                    selected ? FontWeight.w700 : FontWeight.w400,
-                color: selected
-                    ? AppColors.primaryBright
-                    : AppColors.darkInkSoft,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                color: selected ? activeColor : inactiveColor,
               ),
             ),
           ],

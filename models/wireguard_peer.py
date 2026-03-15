@@ -2,13 +2,22 @@
 WireGuard Peer Model - Track individual client configurations and keys
 """
 
-from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
+
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, Index, Float, text
 from sqlalchemy.orm import relationship
 
 from database.base import Base
 from utils.time_utils import utcnow
+
+DEVICE_STATE_ACTIVE = "active"
+DEVICE_STATE_REVOKED = "revoked"
+DEVICE_STATE_EXPIRED = "expired"
+DEVICE_STATES = (
+    DEVICE_STATE_ACTIVE,
+    DEVICE_STATE_REVOKED,
+    DEVICE_STATE_EXPIRED,
+)
 
 
 class WireGuardPeer(Base):
@@ -49,6 +58,8 @@ class WireGuardPeer(Base):
     # Status
     is_active = Column(Boolean, default=True)  # Can be deactivated without deletion
     is_revoked = Column(Boolean, default=False)  # Key has been revoked
+    device_state = Column(String(length=16), nullable=False, default=DEVICE_STATE_ACTIVE, index=True)
+    profile_expires_at = Column(DateTime, nullable=True, index=True)
 
     # Key rotation
     key_version = Column(Integer, default=1)  # Increments on rotation
@@ -83,6 +94,27 @@ class WireGuardPeer(Base):
         return utcnow() >= self.next_key_rotation_at
 
     @property
+    def is_profile_expired(self) -> bool:
+        """Return True when the last issued profile for this device has expired."""
+        if self.profile_expires_at is None or self.is_revoked:
+            return False
+        return utcnow() >= self.profile_expires_at
+
+    @property
+    def effective_device_state(self) -> str:
+        """Resolve a stable lifecycle state even for legacy rows without device_state."""
+        if self.is_revoked:
+            return DEVICE_STATE_REVOKED
+        if self.is_profile_expired:
+            return DEVICE_STATE_EXPIRED
+        if not self.is_active:
+            return DEVICE_STATE_EXPIRED
+        state = (self.device_state or "").strip().lower()
+        if state in DEVICE_STATES:
+            return state
+        return DEVICE_STATE_ACTIVE
+
+    @property
     def days_since_rotation(self) -> int:
         """Days since last key rotation"""
         if not self.last_key_rotation_at:
@@ -110,11 +142,13 @@ class WireGuardPeer(Base):
             "device_type": self.device_type,
             "is_active": self.is_active,
             "is_revoked": self.is_revoked,
+            "device_state": self.effective_device_state,
             "key_version": self.key_version,
             "health_status": self.health_status,
             "last_handshake_latency_ms": self.last_handshake_latency_ms,
             "last_handshake_at": self.last_handshake_at.isoformat() if self.last_handshake_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "profile_expires_at": self.profile_expires_at.isoformat() if self.profile_expires_at else None,
             "needs_rotation": self.needs_rotation,
             "days_since_rotation": self.days_since_rotation,
         }

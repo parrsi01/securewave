@@ -1,0 +1,590 @@
+from __future__ import annotations
+
+import hashlib
+import hmac
+import os
+import secrets
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+from typing import Mapping, Optional, Sequence
+from urllib.parse import urlsplit, urlunsplit
+
+from cryptography.fernet import Fernet
+from dotenv import dotenv_values, load_dotenv
+from sqlalchemy.engine.url import make_url
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_DEFAULT_DATABASE_URL = "postgresql+psycopg2://postgres:postgres@localhost:5432/securewave"
+_DEFAULT_API_BASE_URL = "http://127.0.0.1:8000/api"
+_DEFAULT_VPN_SERVER_ENDPOINT = "127.0.0.1:51820"
+_DEFAULT_JWT_SECRET = secrets.token_urlsafe(32)
+_ALLOWED_COOKIE_SAMESITE = {"lax", "strict", "none"}
+_LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"}
+_ENV_FILES_LOADED = False
+
+
+class ConfigurationError(RuntimeError):
+    """Raised when startup configuration is invalid."""
+
+    def __init__(self, errors: Sequence[str]):
+        self.errors = list(errors)
+        super().__init__("Invalid configuration: " + "; ".join(self.errors))
+
+
+@dataclass(frozen=True)
+class Settings:
+    environment: str
+    testing: bool
+    is_production: bool
+    log_level: str
+    docs_enabled: bool
+    api_base_url: str
+    app_url: str
+    vpn_server_endpoint: str
+    wg_ssh_key_path: Optional[str]
+    database_url: str
+    db_pool_size: int
+    db_max_overflow: int
+    db_pool_timeout: int
+    db_pool_recycle: int
+    db_ssl_mode: Optional[str]
+    db_echo: bool
+    auto_create_tables: bool
+    jwt_secret: str
+    access_token_secret: str
+    refresh_token_secret: str
+    access_token_expire_minutes: int
+    refresh_token_expire_minutes: int
+    refresh_session_required: bool
+    telemetry_enabled: bool
+    auth_encryption_key: Optional[str]
+    wg_encryption_key: Optional[str]
+    cors_origins: tuple[str, ...]
+    cookie_samesite: str
+    redis_url: str
+    app_version: str
+    git_sha: str
+    admin_email: Optional[str]
+    allow_sqlite_production: bool
+    wg_data_dir: Path
+    wg_dns: str
+    wg_server_public_key: Optional[str]
+    wg_ip_pool_base_cidr: str
+    wg_api_key: Optional[str]
+    wg_api_port: int
+    wg_ssh_user: str
+    wg_ssh_host: str
+    wg_ssh_port: int
+    wg_command_timeout: int
+    email_provider: str
+    smtp_host: str
+    smtp_port: int
+    smtp_user: Optional[str]
+    smtp_password: Optional[str]
+    smtp_from_email: Optional[str]
+    smtp_from_name: Optional[str]
+    from_email: Optional[str]
+    from_name: str
+    sendgrid_api_key: Optional[str]
+    aws_ses_region: str
+    slow_query_threshold_ms: int
+    slow_api_threshold_ms: int
+    release_manifest_path: str
+    warnings: tuple[str, ...]
+
+
+def _load_environment_files() -> None:
+    global _ENV_FILES_LOADED
+    if _ENV_FILES_LOADED:
+        return
+    for path in (PROJECT_ROOT / ".env", PROJECT_ROOT / ".env.production"):
+        if path.exists():
+            load_dotenv(path, override=False)
+    _ENV_FILES_LOADED = True
+
+
+def _clean(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _parse_bool(value: Optional[str]) -> Optional[bool]:
+    if value is None:
+        return None
+    lowered = value.strip().lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _parse_int(
+    name: str,
+    value: Optional[str],
+    *,
+    default: int,
+    errors: list[str],
+    minimum: Optional[int] = None,
+) -> int:
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        errors.append(f"{name} must be an integer")
+        return default
+    if minimum is not None and parsed < minimum:
+        errors.append(f"{name} must be >= {minimum}")
+        return default
+    return parsed
+
+
+def _normalize_http_url(
+    name: str,
+    value: Optional[str],
+    *,
+    default: Optional[str],
+    errors: list[str],
+    require_https: bool,
+) -> str:
+    candidate = _clean(value) or default
+    if not candidate:
+        errors.append(f"{name} missing")
+        return default or ""
+
+    parsed = urlsplit(candidate)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        errors.append(f"{name} must be a valid http(s) URL")
+        return candidate.rstrip("/")
+    if require_https and parsed.scheme != "https":
+        errors.append(f"{name} must use https in production")
+
+    normalized = urlunsplit(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path.rstrip("/"),
+            "",
+            "",
+        )
+    )
+    return normalized.rstrip("/")
+
+
+def _normalize_wireguard_endpoint(value: Optional[str], *, errors: list[str]) -> str:
+    candidate = _clean(value) or _DEFAULT_VPN_SERVER_ENDPOINT
+    if "://" in candidate or "/" in candidate or "?" in candidate or "#" in candidate:
+        errors.append("VPN_SERVER_ENDPOINT must use host:port format")
+        return candidate
+
+    parsed = urlsplit(f"//{candidate}")
+    host = parsed.hostname
+    try:
+        port = parsed.port
+    except ValueError:
+        errors.append("VPN_SERVER_ENDPOINT has an invalid port")
+        return candidate
+
+    if not host or port is None:
+        errors.append("VPN_SERVER_ENDPOINT must use host:port format")
+        return candidate
+
+    normalized_host = host
+    if ":" in normalized_host and not normalized_host.startswith("["):
+        normalized_host = f"[{normalized_host}]"
+    return f"{normalized_host}:{port}"
+
+
+def _validate_database_url(
+    database_url: str,
+    *,
+    allow_sqlite_production: bool,
+    is_production: bool,
+    errors: list[str],
+) -> str:
+    try:
+        parsed = make_url(database_url)
+    except Exception as exc:
+        errors.append(f"DATABASE_URL invalid ({exc})")
+        return database_url
+
+    if is_production and parsed.drivername.startswith("sqlite") and not allow_sqlite_production:
+        errors.append("DATABASE_URL points to SQLite without ALLOW_SQLITE_PRODUCTION=true")
+    return database_url
+
+
+def _derive_secret(base_secret: str, label: str) -> str:
+    digest = hmac.new(base_secret.encode(), label.encode(), hashlib.sha256).hexdigest()
+    return digest
+
+
+def _validate_secret_strength(name: str, value: str, *, errors: list[str]) -> None:
+    if len(value) < 32:
+        errors.append(f"{name} must be at least 32 characters")
+
+
+def _validate_fernet_key(name: str, value: Optional[str], *, errors: list[str]) -> None:
+    if not value:
+        errors.append(f"{name} missing")
+        return
+    try:
+        Fernet(value.encode())
+    except Exception as exc:
+        errors.append(f"{name} invalid ({exc})")
+
+
+def _resolve_value(
+    environ: Mapping[str, str],
+    primary: str,
+    *aliases: str,
+    warnings: list[str],
+) -> tuple[Optional[str], Optional[str]]:
+    for key in (primary, *aliases):
+        cleaned = _clean(environ.get(key))
+        if cleaned is None:
+            continue
+        if key != primary:
+            warnings.append(f"{key} is deprecated; use {primary}")
+        return cleaned, key
+    return None, None
+
+
+def _build_settings(environ: Mapping[str, str]) -> tuple[Settings, list[str]]:
+    warnings: list[str] = []
+    errors: list[str] = []
+
+    environment = (_clean(environ.get("ENVIRONMENT")) or "development").lower()
+    testing = (_clean(environ.get("TESTING")) or "").lower() == "true"
+    is_production = environment == "production"
+
+    log_level = (_clean(environ.get("LOG_LEVEL")) or "INFO").upper()
+    if log_level not in _LOG_LEVELS:
+        errors.append(f"LOG_LEVEL must be one of: {', '.join(sorted(_LOG_LEVELS))}")
+        log_level = "INFO"
+
+    raw_app_url, _ = _resolve_value(environ, "APP_URL", warnings=warnings)
+    raw_api_base_url, _ = _resolve_value(environ, "API_BASE_URL", "LIVE_API_BASE_URL", warnings=warnings)
+    if raw_api_base_url is None and raw_app_url:
+        raw_api_base_url = raw_app_url.rstrip("/") + "/api"
+    api_base_url = _normalize_http_url(
+        "API_BASE_URL",
+        raw_api_base_url,
+        default=None if is_production else _DEFAULT_API_BASE_URL,
+        errors=errors,
+        require_https=is_production,
+    )
+    app_url = _normalize_http_url(
+        "APP_URL",
+        raw_app_url,
+        default=api_base_url[:-4] if api_base_url.endswith("/api") else api_base_url,
+        errors=errors,
+        require_https=is_production,
+    )
+
+    database_url_raw, _ = _resolve_value(environ, "DATABASE_URL", warnings=warnings)
+    if database_url_raw is None:
+        if is_production:
+            errors.append("DATABASE_URL missing")
+        database_url_raw = "sqlite:///:memory:" if testing else _DEFAULT_DATABASE_URL
+    allow_sqlite_production = (
+        _parse_bool(_clean(environ.get("ALLOW_SQLITE_PRODUCTION"))) is True
+    )
+    database_url = _validate_database_url(
+        database_url_raw,
+        allow_sqlite_production=allow_sqlite_production,
+        is_production=is_production,
+        errors=errors,
+    )
+
+    db_pool_size = _parse_int(
+        "DB_POOL_SIZE",
+        _clean(environ.get("DB_POOL_SIZE")),
+        default=20,
+        errors=errors,
+        minimum=1,
+    )
+    db_max_overflow = _parse_int(
+        "DB_MAX_OVERFLOW",
+        _clean(environ.get("DB_MAX_OVERFLOW")),
+        default=40,
+        errors=errors,
+        minimum=0,
+    )
+    db_pool_timeout = _parse_int(
+        "DB_POOL_TIMEOUT",
+        _clean(environ.get("DB_POOL_TIMEOUT")),
+        default=30,
+        errors=errors,
+        minimum=1,
+    )
+    db_pool_recycle = _parse_int(
+        "DB_POOL_RECYCLE",
+        _clean(environ.get("DB_POOL_RECYCLE")),
+        default=3600,
+        errors=errors,
+        minimum=1,
+    )
+    db_echo_value = _parse_bool(_clean(environ.get("DB_ECHO")))
+    db_echo = (not is_production) if db_echo_value is None else db_echo_value
+    auto_create_value = _parse_bool(_clean(environ.get("AUTO_CREATE_TABLES")))
+    auto_create_tables = True if auto_create_value is None else auto_create_value
+    db_ssl_mode = _clean(environ.get("DB_SSL_MODE"))
+
+    raw_jwt_secret, _ = _resolve_value(
+        environ,
+        "JWT_SECRET",
+        "ACCESS_TOKEN_SECRET",
+        "REFRESH_TOKEN_SECRET",
+        "SECRET_KEY",
+        warnings=warnings,
+    )
+    if raw_jwt_secret is None:
+        if is_production:
+            errors.append("JWT_SECRET missing")
+        raw_jwt_secret = _DEFAULT_JWT_SECRET
+    raw_access_secret, _ = _resolve_value(environ, "ACCESS_TOKEN_SECRET", warnings=warnings)
+    raw_refresh_secret, _ = _resolve_value(environ, "REFRESH_TOKEN_SECRET", warnings=warnings)
+
+    jwt_secret = raw_jwt_secret
+    access_token_secret = raw_access_secret or _derive_secret(jwt_secret, "access")
+    refresh_token_secret = raw_refresh_secret or _derive_secret(jwt_secret, "refresh")
+
+    if is_production:
+        _validate_secret_strength("JWT_SECRET", jwt_secret, errors=errors)
+        _validate_secret_strength("ACCESS_TOKEN_SECRET", access_token_secret, errors=errors)
+        _validate_secret_strength("REFRESH_TOKEN_SECRET", refresh_token_secret, errors=errors)
+
+    access_token_expire_minutes = _parse_int(
+        "ACCESS_TOKEN_EXPIRE_MINUTES",
+        _clean(environ.get("ACCESS_TOKEN_EXPIRE_MINUTES")),
+        default=30,
+        errors=errors,
+        minimum=1,
+    )
+    refresh_token_expire_minutes = _parse_int(
+        "REFRESH_TOKEN_EXPIRE_MINUTES",
+        _clean(environ.get("REFRESH_TOKEN_EXPIRE_MINUTES")),
+        default=60 * 24 * 14,
+        errors=errors,
+        minimum=1,
+    )
+    refresh_required_value = _parse_bool(_clean(environ.get("REFRESH_SESSION_REQUIRED")))
+    refresh_session_required = (
+        is_production if refresh_required_value is None else refresh_required_value
+    )
+
+    telemetry_value, _ = _resolve_value(
+        environ,
+        "TELEMETRY_ENABLED",
+        "ENABLE_PERFORMANCE_MONITORING",
+        warnings=warnings,
+    )
+    telemetry_enabled = True
+    if telemetry_value is not None:
+        parsed = _parse_bool(telemetry_value)
+        if parsed is None:
+            errors.append("TELEMETRY_ENABLED must be a boolean")
+        else:
+            telemetry_enabled = parsed
+
+    auth_encryption_key = _clean(environ.get("AUTH_ENCRYPTION_KEY"))
+    wg_encryption_key = _clean(environ.get("WG_ENCRYPTION_KEY"))
+    if is_production:
+        if testing:
+            errors.append("TESTING must not be true in production")
+        _validate_fernet_key("AUTH_ENCRYPTION_KEY", auth_encryption_key, errors=errors)
+        _validate_fernet_key("WG_ENCRYPTION_KEY", wg_encryption_key, errors=errors)
+
+    origins_raw = _clean(environ.get("CORS_ORIGINS")) or ""
+    cors_origins = tuple(origin.strip() for origin in origins_raw.split(",") if origin.strip())
+    if is_production and "*" in cors_origins:
+        errors.append("CORS_ORIGINS must not contain '*' in production")
+
+    cookie_samesite = (_clean(environ.get("COOKIE_SAMESITE")) or "lax").lower()
+    if cookie_samesite not in _ALLOWED_COOKIE_SAMESITE:
+        errors.append("COOKIE_SAMESITE must be one of: lax, strict, none")
+        cookie_samesite = "lax"
+
+    redis_url = _clean(environ.get("REDIS_URL")) or "memory://"
+    app_version = _clean(environ.get("APP_VERSION")) or "dev"
+    git_sha = _clean(environ.get("GIT_SHA")) or ""
+    admin_email = _clean(environ.get("ADMIN_EMAIL"))
+
+    raw_vpn_server_endpoint, _ = _resolve_value(
+        environ,
+        "VPN_SERVER_ENDPOINT",
+        "WG_ENDPOINT",
+        warnings=warnings,
+    )
+    if raw_vpn_server_endpoint is None and is_production and not testing:
+        errors.append("VPN_SERVER_ENDPOINT missing")
+    vpn_server_endpoint = _normalize_wireguard_endpoint(raw_vpn_server_endpoint, errors=errors)
+
+    wg_data_dir = Path(_clean(environ.get("WG_DATA_DIR")) or "/wg").expanduser()
+    raw_dns = _clean(environ.get("SECUREWAVE_TUNNEL_DNS")) or _clean(environ.get("WG_DNS"))
+    if not raw_dns:
+        raw_dns = "94.140.14.14,94.140.15.15"
+    wg_dns = ",".join(part.strip() for part in raw_dns.split(",") if part.strip())
+    wg_server_public_key = _clean(environ.get("WG_SERVER_PUBLIC_KEY"))
+    wg_ip_pool_base_cidr = _clean(environ.get("WG_IP_POOL_BASE_CIDR")) or "10.8.0.0/22"
+    wg_api_key = _clean(environ.get("WG_API_KEY"))
+    wg_api_port = _parse_int(
+        "WG_API_PORT",
+        _clean(environ.get("WG_API_PORT")),
+        default=8080,
+        errors=errors,
+        minimum=1,
+    )
+    wg_ssh_user = _clean(environ.get("WG_SSH_USER")) or "securewave"
+    wg_ssh_host = _clean(environ.get("WG_SSH_HOST")) or "127.0.0.1"
+    wg_ssh_port = _parse_int(
+        "WG_SSH_PORT",
+        _clean(environ.get("WG_SSH_PORT")),
+        default=22,
+        errors=errors,
+        minimum=1,
+    )
+    wg_command_timeout = _parse_int(
+        "WG_COMMAND_TIMEOUT",
+        _clean(environ.get("WG_COMMAND_TIMEOUT")),
+        default=30,
+        errors=errors,
+        minimum=1,
+    )
+    wg_ssh_key_path = _clean(environ.get("WG_SSH_KEY_PATH"))
+    if wg_ssh_key_path:
+        expanded_key_path = Path(wg_ssh_key_path).expanduser()
+        wg_ssh_key_path = str(expanded_key_path)
+        if is_production and not testing and not expanded_key_path.exists() and not wg_api_key:
+            errors.append(f"WG_SSH_KEY_PATH does not exist: {wg_ssh_key_path}")
+    elif is_production and not testing and not wg_api_key:
+        errors.append("WG_SSH_KEY_PATH missing")
+
+    email_provider = (_clean(environ.get("EMAIL_PROVIDER")) or "smtp").lower()
+    smtp_host = _clean(environ.get("SMTP_HOST")) or "smtp.gmail.com"
+    smtp_port = _parse_int(
+        "SMTP_PORT",
+        _clean(environ.get("SMTP_PORT")),
+        default=587,
+        errors=errors,
+        minimum=1,
+    )
+    smtp_user = _clean(environ.get("SMTP_USER"))
+    smtp_password = _clean(environ.get("SMTP_PASSWORD"))
+    smtp_from_email = _clean(environ.get("SMTP_FROM_EMAIL"))
+    smtp_from_name = _clean(environ.get("SMTP_FROM_NAME"))
+    from_email = _clean(environ.get("FROM_EMAIL")) or smtp_from_email or smtp_user
+    from_name = _clean(environ.get("FROM_NAME")) or smtp_from_name or "SecureWave VPN"
+    sendgrid_api_key = _clean(environ.get("SENDGRID_API_KEY"))
+    aws_ses_region = _clean(environ.get("AWS_SES_REGION")) or "us-east-1"
+
+    slow_query_threshold_ms = _parse_int(
+        "SLOW_QUERY_THRESHOLD_MS",
+        _clean(environ.get("SLOW_QUERY_THRESHOLD_MS")),
+        default=1000,
+        errors=errors,
+        minimum=1,
+    )
+    slow_api_threshold_ms = _parse_int(
+        "SLOW_API_THRESHOLD_MS",
+        _clean(environ.get("SLOW_API_THRESHOLD_MS")),
+        default=500,
+        errors=errors,
+        minimum=1,
+    )
+    release_manifest_path = _clean(environ.get("SECUREWAVE_RELEASE_MANIFEST_PATH")) or str(
+        PROJECT_ROOT / "downloads" / "version.json"
+    )
+
+    settings = Settings(
+        environment=environment,
+        testing=testing,
+        is_production=is_production,
+        log_level=log_level,
+        docs_enabled=not is_production,
+        api_base_url=api_base_url,
+        app_url=app_url,
+        vpn_server_endpoint=vpn_server_endpoint,
+        wg_ssh_key_path=wg_ssh_key_path,
+        database_url=database_url,
+        db_pool_size=db_pool_size,
+        db_max_overflow=db_max_overflow,
+        db_pool_timeout=db_pool_timeout,
+        db_pool_recycle=db_pool_recycle,
+        db_ssl_mode=db_ssl_mode,
+        db_echo=db_echo,
+        auto_create_tables=auto_create_tables,
+        jwt_secret=jwt_secret,
+        access_token_secret=access_token_secret,
+        refresh_token_secret=refresh_token_secret,
+        access_token_expire_minutes=access_token_expire_minutes,
+        refresh_token_expire_minutes=refresh_token_expire_minutes,
+        refresh_session_required=refresh_session_required,
+        telemetry_enabled=telemetry_enabled,
+        auth_encryption_key=auth_encryption_key,
+        wg_encryption_key=wg_encryption_key,
+        cors_origins=cors_origins,
+        cookie_samesite=cookie_samesite,
+        redis_url=redis_url,
+        app_version=app_version,
+        git_sha=git_sha,
+        admin_email=admin_email,
+        allow_sqlite_production=allow_sqlite_production,
+        wg_data_dir=wg_data_dir,
+        wg_dns=wg_dns,
+        wg_server_public_key=wg_server_public_key,
+        wg_ip_pool_base_cidr=wg_ip_pool_base_cidr,
+        wg_api_key=wg_api_key,
+        wg_api_port=wg_api_port,
+        wg_ssh_user=wg_ssh_user,
+        wg_ssh_host=wg_ssh_host,
+        wg_ssh_port=wg_ssh_port,
+        wg_command_timeout=wg_command_timeout,
+        email_provider=email_provider,
+        smtp_host=smtp_host,
+        smtp_port=smtp_port,
+        smtp_user=smtp_user,
+        smtp_password=smtp_password,
+        smtp_from_email=smtp_from_email,
+        smtp_from_name=smtp_from_name,
+        from_email=from_email,
+        from_name=from_name,
+        sendgrid_api_key=sendgrid_api_key,
+        aws_ses_region=aws_ses_region,
+        slow_query_threshold_ms=slow_query_threshold_ms,
+        slow_api_threshold_ms=slow_api_threshold_ms,
+        release_manifest_path=release_manifest_path,
+        warnings=tuple(dict.fromkeys(warnings)),
+    )
+    return settings, errors
+
+
+def collect_configuration_errors(environ: Optional[Mapping[str, str]] = None) -> list[str]:
+    _load_environment_files()
+    _, errors = _build_settings(environ or os.environ)
+    return errors
+
+
+@lru_cache(maxsize=1)
+def _cached_settings() -> Settings:
+    _load_environment_files()
+    settings, errors = _build_settings(os.environ)
+    if errors:
+        raise ConfigurationError(errors)
+    return settings
+
+
+def get_settings(*, refresh: bool = False) -> Settings:
+    if refresh:
+        _cached_settings.cache_clear()
+    return _cached_settings()
+
+
+def env_file_has_value(path: str | os.PathLike[str], key: str) -> bool:
+    values = dotenv_values(Path(path))
+    return _clean(values.get(key)) is not None

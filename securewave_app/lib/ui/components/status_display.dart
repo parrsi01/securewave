@@ -21,7 +21,7 @@ class StatusDisplay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final vpnState = ref.watch(vpnStateProvider);
-    final visualState = resolveConnectionVisualState(vpnState);
+    final visualState = ref.watch(connectionVisualStateProvider);
     final serversAsync = ref.watch(serversProvider);
 
     return Column(
@@ -30,10 +30,28 @@ class StatusDisplay extends ConsumerWidget {
       children: [
         StatusIndicator(visualState: visualState),
 
+        if (vpnState.killSwitchActive) ...[
+          const SizedBox(height: AppSpacing.space3),
+          const _Banner(
+            color: AppColors.errorLight,
+            text:
+                'Kill switch active. Traffic stays blocked until the tunnel reconnects or you disconnect.',
+          ),
+        ],
+
+        if (vpnState.reconnectPending) ...[
+          const SizedBox(height: AppSpacing.space3),
+          _Banner(
+            color: AppColors.primaryGhost,
+            text: vpnState.reconnectReason ??
+                'SecureWave is reconnecting automatically.',
+          ),
+        ],
+
         // ── Failover banner ────────────────────────────────────────────
         if (vpnState.failoverActive) ...[
           const SizedBox(height: AppSpacing.space3),
-          _FailoverBanner(vpnState: vpnState, ref: ref),
+          _FailoverBanner(vpnState: vpnState),
         ],
 
         // ── Server-health banners (disconnected state) ─────────────────
@@ -60,14 +78,13 @@ class StatusDisplay extends ConsumerWidget {
 
 // ── Failover banner ─────────────────────────────────────────────────────────
 
-class _FailoverBanner extends StatelessWidget {
-  const _FailoverBanner({required this.vpnState, required this.ref});
+class _FailoverBanner extends ConsumerWidget {
+  const _FailoverBanner({required this.vpnState});
 
   final VpnState vpnState;
-  final WidgetRef ref;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final serversAsync = ref.watch(serversProvider);
     final fallbackServer = serversAsync.whenOrNull<ServerRegion?>(
       data: (servers) {
@@ -144,7 +161,7 @@ class _ServerHealthBanner extends StatelessWidget {
 
     final allDown = servers.every((s) => s.regionHealthStatus == 'down');
     if (allDown) {
-      return _Banner(
+      return const _Banner(
         color: AppColors.errorLight,
         text: 'No servers available',
       );
@@ -154,7 +171,7 @@ class _ServerHealthBanner extends StatelessWidget {
     if (selectedId != null) {
       for (final s in servers) {
         if (s.id == selectedId && s.regionHealthStatus == 'down') {
-          return _Banner(
+          return const _Banner(
             color: AppColors.warningLight,
             text: 'Selected region is offline',
           );
@@ -188,7 +205,7 @@ class _OptimisationHint extends StatelessWidget {
       if (s.id == selectedId) {
         final hint = _hints[s.regionGroup ?? ''];
         if (hint != null) {
-          return _Banner(color: AppColors.primaryLight, text: hint);
+          return _Banner(color: AppColors.primaryGhost, text: hint);
         }
         return const SizedBox.shrink();
       }

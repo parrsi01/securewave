@@ -15,14 +15,29 @@ This guide applies SecureWave's HTTPS-only production baseline with certbot on H
 
 ## Setup Steps
 
-1. Set your domain and email:
-   - `export DOMAIN=api.securewave.app`
+1. Set your domains and email:
+   - `export DOMAIN=securewave.app`
+   - `export WWW_DOMAIN=www.securewave.app`
    - `export EMAIL=ops@securewave.app`
 2. Run TLS setup:
-   - `sudo bash scripts/setup_tls_certbot.sh --domain "$DOMAIN" --email "$EMAIL" --upstream-host 127.0.0.1 --upstream-port 8080`
+   - `sudo bash scripts/setup_tls_certbot.sh --domain "$DOMAIN" --domain "$WWW_DOMAIN" --email "$EMAIL" --upstream-host 127.0.0.1 --upstream-port 8080`
 3. Validate HTTPS:
    - `curl -I "http://$DOMAIN"` should return `301` to `https://...`
    - `curl -I "https://$DOMAIN"` should return security headers including `Strict-Transport-Security`.
+
+If you also expose an API hostname, add another `--domain api.securewave.app` so the certificate covers every public hostname in one issuance.
+
+## Pre-DNS Readiness Check
+
+Before the public DNS cutover, you can still verify the host-side HTTPS edge:
+
+- `bash scripts/ops/check_https_edge_readiness.sh`
+
+This validates:
+- `securewave-api` is healthy on `127.0.0.1:8080`
+- `nginx` is active and its config passes `nginx -t`
+- the local HTTP and HTTPS edge paths proxy `/api/health` successfully
+- `certbot.timer` is installed, enabled, and active when present
 
 ## Renewal Verification
 
@@ -48,7 +63,7 @@ This guide applies SecureWave's HTTPS-only production baseline with certbot on H
 
 - Cert issuance fails:
   - Confirm DNS resolves to server IP.
-  - Confirm ports `80` and `443` are open in host and Hetzner firewall.
+  - Confirm ports `80` and `443` are open in both UFW and the Hetzner firewall.
   - Verify challenge path:
     - `curl -i "http://$DOMAIN/.well-known/acme-challenge/test"`
 - `nginx -t` fails:

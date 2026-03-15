@@ -130,3 +130,36 @@ def test_ikev2_credential_provision_returns_eap_tls_bundle(client, auth_headers,
     assert profile["auth_method"] == "eap-tls"
     assert profile["client_pkcs12_base64"]
     assert profile["client_pkcs12_password"]
+
+
+def test_device_revoke_endpoint_revokes_linked_credentials(client, auth_headers, db):
+    from models.vpn_credential import VPNCredential
+    from models.wireguard_peer import WireGuardPeer
+
+    server = _create_openvpn_server(db)
+
+    provision = client.post(
+        "/api/vpn/credentials/provision",
+        headers=auth_headers,
+        json={
+            "protocol": "openvpn",
+            "device_name": "Revoked Laptop",
+            "device_type": "windows",
+            "server_id": server.server_id,
+        },
+    )
+    assert provision.status_code == 200, provision.text
+    credential = provision.json()["credential"]
+    device_id = credential["device_id"]
+
+    revoke = client.post(f"/api/vpn/devices/{device_id}/revoke", headers=auth_headers)
+    assert revoke.status_code == 204, revoke.text
+
+    peer = db.query(WireGuardPeer).filter(WireGuardPeer.id == device_id).first()
+    assert peer is not None
+    assert peer.is_revoked is True
+    assert peer.device_state == "revoked"
+
+    record = db.query(VPNCredential).filter(VPNCredential.id == credential["id"]).first()
+    assert record is not None
+    assert record.revoked_at is not None

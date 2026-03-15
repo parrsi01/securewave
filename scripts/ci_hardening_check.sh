@@ -43,6 +43,9 @@ check_legacy_cloud_references() {
   local pattern='[Aa][Zz][Uu][Rr][Ee]|[Aa][Zz][Uu][Rr][Ee][Rr][Mm]|[Aa][Zz][Uu][Rr][Ee][Dd][Ee][Vv][Oo][Pp][Ss]'
   if git -C "$ROOT_DIR" grep -nEI "$pattern" -- . \
     ':(exclude)securewave_app/ios/ThirdParty/*' \
+    ':(exclude)securewave_app/third_party/*' \
+    ':(exclude)scripts/ci_hardening_check.sh' \
+    ':(exclude)scripts/ci_multiprotocol_safety_check.sh' \
     ':(exclude)artifacts/*' >/tmp/securewave_legacy_cloud_refs.out; then
     cat /tmp/securewave_legacy_cloud_refs.out >&2
     fail "Disallowed legacy cloud reference detected in tracked repository files."

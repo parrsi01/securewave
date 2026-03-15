@@ -3,7 +3,6 @@ Performance Monitoring Service
 Tracks application performance metrics and generates insights
 """
 
-import os
 import logging
 import time
 import psutil
@@ -11,12 +10,15 @@ from typing import Dict, List, Optional, Callable
 from datetime import datetime, timedelta
 from functools import wraps
 
+from config.settings import get_settings
+
 logger = logging.getLogger(__name__)
+SETTINGS = get_settings()
 
 # Configuration
-ENABLE_PERFORMANCE_MONITORING = os.getenv("ENABLE_PERFORMANCE_MONITORING", "true").lower() == "true"
-SLOW_QUERY_THRESHOLD_MS = int(os.getenv("SLOW_QUERY_THRESHOLD_MS", "1000"))  # 1 second
-SLOW_API_THRESHOLD_MS = int(os.getenv("SLOW_API_THRESHOLD_MS", "500"))  # 500ms
+ENABLE_PERFORMANCE_MONITORING = SETTINGS.telemetry_enabled
+SLOW_QUERY_THRESHOLD_MS = SETTINGS.slow_query_threshold_ms  # 1 second
+SLOW_API_THRESHOLD_MS = SETTINGS.slow_api_threshold_ms  # 500ms
 
 
 class PerformanceMonitorService:

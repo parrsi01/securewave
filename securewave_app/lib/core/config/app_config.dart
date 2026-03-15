@@ -52,6 +52,10 @@ class AppConfig {
     // hardcoded `.env` and makes CI/release pipelines deterministic.
     const defineBaseUrl =
         String.fromEnvironment('SECUREWAVE_API_BASE_URL', defaultValue: '');
+    const defineLiveBaseUrl =
+        String.fromEnvironment('LIVE_API_BASE_URL', defaultValue: '');
+    const defineApiBaseUrl =
+        String.fromEnvironment('API_BASE_URL', defaultValue: '');
     const definePortalUrl =
         String.fromEnvironment('SECUREWAVE_PORTAL_URL', defaultValue: '');
     const defineUpgradeUrl =
@@ -59,7 +63,11 @@ class AppConfig {
 
     final rawBaseUrl = _firstNonEmpty(
       defineBaseUrl,
+      defineLiveBaseUrl,
+      defineApiBaseUrl,
       env['SECUREWAVE_API_BASE_URL'],
+      env['LIVE_API_BASE_URL'],
+      env['API_BASE_URL'],
       AppConstants.baseUrlFallback,
     );
     final rawPortalUrl = _firstNonEmpty(
@@ -124,11 +132,22 @@ class AppConfig {
     return _cached!;
   }
 
-  static String _firstNonEmpty(String a, String? b, String c) {
-    if (a.trim().isNotEmpty) return a.trim();
-    final bb = (b ?? '').trim();
-    if (bb.isNotEmpty) return bb;
-    return c;
+  static String _firstNonEmpty(
+    String a, [
+    String? b,
+    String? c,
+    String? d,
+    String? e,
+    String? f,
+    String? g,
+  ]) {
+    for (final candidate in <String?>[a, b, c, d, e, f, g]) {
+      final value = (candidate ?? '').trim();
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+    return '';
   }
 
   static String _normalizeApiBaseUrl(

@@ -106,7 +106,7 @@ def ensure_default_servers(session: Session) -> None:
                 wg_public_key=str(item["wg_public_key"]),
                 wg_private_key_encrypted="bootstrap-placeholder",
                 status="active",
-                health_status="unknown",
+                health_status="healthy",
                 hcloud_server_state="running",
                 priority_weight=100,
                 tier_restriction=item["tier_restriction"],

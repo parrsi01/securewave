@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from config.settings import get_settings
 from database.session import get_db
 from models.subscription import Subscription
 from models.user import User
@@ -35,7 +36,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
-IS_TESTING = os.getenv("TESTING", "").lower() == "true"
+SETTINGS = get_settings()
+IS_TESTING = SETTINGS.testing
 
 
 def rate_limit(rule: str):
@@ -52,7 +54,7 @@ def _stripe_configured() -> bool:
 
 
 def _base_url(request: Request) -> str:
-    app_url = os.getenv("APP_URL", "").strip().rstrip("/")
+    app_url = SETTINGS.app_url
     if app_url:
         return app_url
     return str(request.base_url).rstrip("/")

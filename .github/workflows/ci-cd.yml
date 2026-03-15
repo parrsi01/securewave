@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "release/**" ]
+    branches: [ "main", "master", "release/**" ]
   pull_request:
 
 jobs:
@@ -143,7 +143,7 @@ jobs:
     name: Deploy to Hetzner
     runs-on: ubuntu-latest
     needs: [ checks ]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
     environment: production
     concurrency:
       group: deploy-production
@@ -159,29 +159,12 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy backend via rsync
-        run: |
-          rsync -azP --delete \
-            --exclude '.git' \
-            --exclude '.env' \
-            --exclude '__pycache__' \
-            --exclude '*.pyc' \
-            --exclude 'venv/' \
-            --exclude '.venv/' \
-            --exclude 'node_modules/' \
-            --exclude 'securewave_app/' \
-            --exclude 'artifacts/' \
-            --exclude 'dev_tools/' \
-            --exclude '.github/' \
-            --exclude 'keys_and_storage_configurations/' \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            ./ "${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }}:/opt/securewave/"
-
-      - name: Install dependencies and restart service
-        run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            "${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }}" \
-            'cd /opt/securewave && source venv/bin/activate && pip install -q -r requirements.txt && sudo systemctl restart securewave.service'
+      - name: Deploy backend
+        env:
+          VPS_HOST: ${{ secrets.HETZNER_HOST }}
+          VPS_USER: ${{ secrets.HETZNER_SSH_USER }}
+          SSH_KEY_PATH: ~/.ssh/deploy_key
+        run: bash scripts/ops/hetzner_deploy.sh
 
       - name: Verify deployment
         run: |

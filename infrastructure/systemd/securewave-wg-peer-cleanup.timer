@@ -1,0 +1,11 @@
+[Unit]
+Description=SecureWave WireGuard Orphaned Peer Cleanup Timer
+Requires=securewave-wg-peer-cleanup.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

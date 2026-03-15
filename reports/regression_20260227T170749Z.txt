@@ -1,1 +1,0 @@
-ERROR: run as root (required for iptables/tc and root-only checks)

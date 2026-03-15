@@ -15,6 +15,10 @@ enum VpnTransitionTrigger {
   disconnectOperationFailed,
   connectivityLost,
   connectivityRestored,
+  networkPathChanged,
+  watchdogRecoveryRequested,
+  watchdogFailureDetected,
+  shutdownRequested,
   timeout,
   dispose,
 }
@@ -27,6 +31,7 @@ class VpnStateMachineConfig {
     this.connectOperationGuardTimeout = const Duration(seconds: 45),
     this.disconnectOperationGuardTimeout = const Duration(seconds: 30),
     this.autoReconnectCooldown = const Duration(seconds: 10),
+    this.reconnectDelayAfterDisconnect = const Duration(seconds: 5),
     this.transitionHistoryLimit = 200,
     this.maxReconcileIterations = 64,
     this.autoConnectInitDelay = const Duration(milliseconds: 400),
@@ -38,6 +43,7 @@ class VpnStateMachineConfig {
   final Duration connectOperationGuardTimeout;
   final Duration disconnectOperationGuardTimeout;
   final Duration autoReconnectCooldown;
+  final Duration reconnectDelayAfterDisconnect;
   final int transitionHistoryLimit;
   final int maxReconcileIterations;
   final Duration autoConnectInitDelay;
@@ -67,8 +73,6 @@ class VpnStateMachine {
     },
     VpnStatus.connecting: {
       VpnStatus.connected,
-      VpnStatus.disconnecting,
-      VpnStatus.disconnected,
       VpnStatus.error,
     },
     VpnStatus.connected: {
@@ -77,14 +81,9 @@ class VpnStateMachine {
     },
     VpnStatus.disconnecting: {
       VpnStatus.disconnected,
-      VpnStatus.connecting,
       VpnStatus.error,
     },
-    VpnStatus.error: {
-      VpnStatus.connecting,
-      VpnStatus.disconnecting,
-      VpnStatus.disconnected,
-    },
+    VpnStatus.error: {},
   };
 
   static bool canTransition(VpnStatus from, VpnStatus to) {

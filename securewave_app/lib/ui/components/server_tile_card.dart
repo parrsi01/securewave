@@ -29,7 +29,8 @@ class ServerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flag = flagEmoji(server.countryCode);
-    final isPremium = server.premiumOnly || server.tierRestriction == 'premium';
+    final isPremium =
+        server.premiumOnly || server.tierRestriction == 'premium';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,8 +49,7 @@ class ServerTile extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight:
                             isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color:
-                            enabled ? null : AppColors.inkSoft,
+                        color: enabled ? null : AppColors.inkSoft,
                       ),
                 ),
               ),
@@ -62,7 +62,8 @@ class ServerTile extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.secondaryDark,
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusFull),
                   ),
                   child: const Text(
                     'Premium',
@@ -82,8 +83,12 @@ class ServerTile extends StatelessWidget {
               if (onToggleFavorite != null)
                 IconButton(
                   icon: Icon(
-                    isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
-                    color: isFavorite ? AppColors.secondary : AppColors.inkSoft,
+                    isFavorite
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    color: isFavorite
+                        ? AppColors.secondary
+                        : AppColors.inkSoft,
                     size: AppSpacing.iconS,
                   ),
                   onPressed: onToggleFavorite,
@@ -103,7 +108,7 @@ class ServerTile extends StatelessWidget {
             ],
           ),
           selected: isSelected,
-          selectedTileColor: AppColors.primaryLight,
+          selectedTileColor: AppColors.primaryGhost,
           enabled: enabled,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radiusM),

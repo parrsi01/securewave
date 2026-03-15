@@ -141,6 +141,8 @@ class TestVpnProfileProvisioning:
 
         assert data.get("device_id")
         assert data.get("server_id")
+        assert data.get("device_state") == "active"
+        assert data.get("profile_expires_at") == data.get("expires_at")
         assert data.get("wireguard_config")
         assert "[Interface]" in data["wireguard_config"]
         assert "[Peer]" in data["wireguard_config"]

@@ -102,9 +102,9 @@ class _StatusIndicatorState extends State<StatusIndicator>
         ConnectionVisualState.connected => AppColors.success,
         ConnectionVisualState.connecting => AppColors.secondary,
         ConnectionVisualState.reconnecting => AppColors.warning,
-        ConnectionVisualState.disconnecting => AppColors.inkSoft,
+        ConnectionVisualState.disconnecting => AppColors.darkInkSoft,
         ConnectionVisualState.error => AppColors.error,
-        ConnectionVisualState.disconnected => AppColors.inkSoft,
+        ConnectionVisualState.disconnected => AppColors.darkInkSoft,
       };
 
   String _label(ConnectionVisualState s) => switch (s) {

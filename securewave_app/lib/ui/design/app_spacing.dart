@@ -1,4 +1,4 @@
-/// SecureWave spacing scale — v2 (8dp grid system).
+/// SecureWave spacing scale — 8dp grid system.
 ///
 /// Numeric scale, semantic aliases, icon sizes, and layout constants.
 class AppSpacing {
@@ -52,7 +52,7 @@ class AppSpacing {
   /// Fully rounded — pills, chips
   static const double radiusFull = 999;
 
-  // ── Icon Sizes ───────────────────────────────────────────────────────────
+  // ── Icon Sizes ─────────────────────────────────────────────────────────
 
   static const double iconXS = 14;
   static const double iconS = 18;
@@ -60,19 +60,19 @@ class AppSpacing {
   static const double iconL = 28;
   static const double iconXL = 36;
 
-  // ── Layout Breakpoints ───────────────────────────────────────────────────
+  // ── Layout Breakpoints ─────────────────────────────────────────────────
 
   static const double mobileBreakpoint = 600;
   static const double tabletBreakpoint = 900;
 
-  // ── Content Constraints ──────────────────────────────────────────────────
+  // ── Content Constraints ────────────────────────────────────────────────
 
   static const double authMaxWidth = 440;
   static const double contentMaxWidth = 720;
   static const double sidebarWidth = 240;
   static const double railWidth = 80;
 
-  // ── Connection Ring ──────────────────────────────────────────────────────
+  // ── Connection Ring ────────────────────────────────────────────────────
 
   static const double connectionRingSize = 220;
   static const double connectionRingStroke = 5;

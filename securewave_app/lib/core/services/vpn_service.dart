@@ -4,11 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:platform_info/platform_info.dart';
 
+import '../config/app_config.dart';
 import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 import '../logging/app_logger.dart';
 import 'vpn_platform_bridge.dart';
 import '../vpn/wireguard_native_config.dart';
+import '../vpn/wireguard_linux_runtime_config.dart';
 
 abstract class VpnService {
   Future<VpnStatus> connect(
@@ -104,6 +106,32 @@ class VpnTrafficStats {
   final int txBytes;
   final String? interfaceName;
   final String? protocol;
+  final int? timestampMs;
+}
+
+class VpnRuntimeSnapshot {
+  const VpnRuntimeSnapshot({
+    required this.nativeStatus,
+    required this.hasNativeTrafficStats,
+    required this.sampleAvailable,
+    required this.trafficConnected,
+    required this.interfaceCompatible,
+    required this.reportedProtocol,
+    required this.rxBytes,
+    required this.txBytes,
+    this.interfaceName,
+    this.timestampMs,
+  });
+
+  final VpnStatus nativeStatus;
+  final bool hasNativeTrafficStats;
+  final bool sampleAvailable;
+  final bool trafficConnected;
+  final bool interfaceCompatible;
+  final VpnProtocol reportedProtocol;
+  final int rxBytes;
+  final int txBytes;
+  final String? interfaceName;
   final int? timestampMs;
 }
 
@@ -301,7 +329,8 @@ class ChannelVpnService implements VpnService {
       VpnPlatformBridgeState.disconnecting => VpnStatus.disconnecting,
       VpnPlatformBridgeState.error => VpnStatus.error,
       VpnPlatformBridgeState.disconnected ||
-      VpnPlatformBridgeState.unavailable => VpnStatus.disconnected,
+      VpnPlatformBridgeState.unavailable =>
+        VpnStatus.disconnected,
     };
   }
 
@@ -363,6 +392,39 @@ class ChannelVpnService implements VpnService {
     return _status;
   }
 
+  Future<VpnRuntimeSnapshot> fetchRuntimeSnapshot({
+    required VpnProtocol expectedProtocol,
+  }) async {
+    final nativeStatus = await refreshStatus();
+    final stats = await fetchTrafficStats();
+    final reportedProtocol = vpnProtocolFromStorage(stats?.protocol);
+    var interfaceCompatible = true;
+
+    if (stats != null && expectedProtocol != VpnProtocol.auto) {
+      if (reportedProtocol != VpnProtocol.auto) {
+        interfaceCompatible = reportedProtocol == expectedProtocol;
+      } else if ((stats.interfaceName?.trim().isNotEmpty ?? false)) {
+        interfaceCompatible =
+            _interfaceLooksCompatible(stats.interfaceName, expectedProtocol);
+      } else if (stats.connected || nativeStatus == VpnStatus.connected) {
+        interfaceCompatible = false;
+      }
+    }
+
+    return VpnRuntimeSnapshot(
+      nativeStatus: nativeStatus,
+      hasNativeTrafficStats: hasNativeTrafficStats,
+      sampleAvailable: stats != null,
+      trafficConnected: stats?.connected ?? false,
+      interfaceCompatible: interfaceCompatible,
+      reportedProtocol: reportedProtocol,
+      rxBytes: stats?.rxBytes ?? 0,
+      txBytes: stats?.txBytes ?? 0,
+      interfaceName: stats?.interfaceName,
+      timestampMs: stats?.timestampMs,
+    );
+  }
+
   @override
   Future<VpnStatus> connect(
       {required VpnProtocol protocol, Map<String, dynamic>? profile}) async {
@@ -414,12 +476,44 @@ class ChannelVpnService implements VpnService {
           'Missing VPN profile. Please refresh and try again.',
         );
       }
+      final preparedPayload = Map<String, dynamic>.from(payload);
+      if (protocol == VpnProtocol.wireGuard &&
+          !_usesAppleBridge() &&
+          platform.operatingSystem.name.toLowerCase() == 'linux') {
+        final rawConfig =
+            (preparedPayload['wireguard_config']?.toString() ?? '').trim();
+        if (rawConfig.isNotEmpty) {
+          final config = await AppConfig.load();
+          preparedPayload['wireguard_config'] =
+              buildLinuxWireGuardRuntimeConfig(
+            rawConfig,
+            apiBaseUrl: config.apiBaseUrl,
+          );
+        }
+      }
+      AppLogger.vpn(
+        'TUNNEL',
+        'STARTING',
+        fields: <String, Object?>{
+          'protocol': vpnProtocolStorageValue(protocol),
+          'server_id': preparedPayload['server_id'] ?? '-',
+          'platform': platform.operatingSystem.name.toLowerCase(),
+        },
+      );
       if (_simulationEnabled) {
         _simProtocol = protocol;
         _simRxBytes = 0;
         _simTxBytes = 0;
         _simLastTick = _clock();
         _status = VpnStatus.connected;
+        AppLogger.vpn(
+          'TUNNEL',
+          'ACTIVE',
+          fields: <String, Object?>{
+            'protocol': vpnProtocolStorageValue(protocol),
+            'mode': 'simulation',
+          },
+        );
         return _status;
       }
       if (_usesAppleBridge()) {
@@ -432,7 +526,7 @@ class ChannelVpnService implements VpnService {
         }
         final request = (() {
           try {
-            return WireGuardNativeConfig.fromProfilePayload(payload);
+            return WireGuardNativeConfig.fromProfilePayload(preparedPayload);
           } on StateError catch (error) {
             throw VpnServiceException('invalid_profile', error.message);
           }
@@ -463,17 +557,28 @@ class ChannelVpnService implements VpnService {
             native.state == VpnPlatformBridgeState.error
                 ? 'vpn_connect_failed'
                 : 'connect_incomplete',
-            native.lastError ?? 'Apple Network Extension tunnel did not connect.',
+            native.lastError ??
+                'Apple Network Extension tunnel did not connect.',
           );
         }
+        AppLogger.vpn(
+          'TUNNEL',
+          'ACTIVE',
+          fields: <String, Object?>{
+            'protocol': vpnProtocolStorageValue(protocol),
+            'platform': platform.operatingSystem.name.toLowerCase(),
+          },
+        );
         return _status;
       }
       await _channel.invokeMethod('connect', {
         'protocol': vpnProtocolStorageValue(protocol),
-        'profile': payload,
+        'profile': preparedPayload,
         if (protocol == VpnProtocol.wireGuard &&
-            (payload['wireguard_config']?.toString() ?? '').trim().isNotEmpty)
-          'config': payload['wireguard_config']?.toString(),
+            (preparedPayload['wireguard_config']?.toString() ?? '')
+                .trim()
+                .isNotEmpty)
+          'config': preparedPayload['wireguard_config']?.toString(),
       }).timeout(const Duration(seconds: 30));
       if (platform.operatingSystem.name.toLowerCase() == 'linux') {
         final nativeStatus = await _channel
@@ -495,6 +600,14 @@ class ChannelVpnService implements VpnService {
         }
       }
       _status = VpnStatus.connected;
+      AppLogger.vpn(
+        'TUNNEL',
+        'ACTIVE',
+        fields: <String, Object?>{
+          'protocol': vpnProtocolStorageValue(protocol),
+          'platform': platform.operatingSystem.name.toLowerCase(),
+        },
+      );
     } on TimeoutException {
       _status = VpnStatus.disconnected;
       throw VpnServiceException(
@@ -562,8 +675,7 @@ class ChannelVpnService implements VpnService {
     if (_usesAppleBridge()) {
       final diagnostics = await fetchPlatformDiagnostics();
       final available = diagnostics?.available ?? false;
-      final warning =
-          diagnostics?.lastError ?? _defaultUnavailableMessage(os);
+      final warning = diagnostics?.lastError ?? _defaultUnavailableMessage(os);
       final capabilities = VpnCapabilities(
         wireGuard: available,
         openVpn: false,
@@ -574,8 +686,7 @@ class ChannelVpnService implements VpnService {
         linuxWireGuardInstalled: true,
         linuxElevationAvailable: true,
         wireGuardInstallHint: available ? null : warning,
-        macosEntitlementWarning:
-            os == 'macos' && !available ? warning : null,
+        macosEntitlementWarning: os == 'macos' && !available ? warning : null,
       );
       _cacheCapabilities(capabilities);
       return capabilities;
@@ -664,6 +775,11 @@ class ChannelVpnService implements VpnService {
       if (_simulationEnabled) {
         _advanceSimTraffic();
         _status = VpnStatus.disconnected;
+        AppLogger.vpn(
+          'TUNNEL',
+          'DISCONNECTED',
+          fields: const <String, Object?>{'mode': 'simulation'},
+        );
         return _status;
       }
       final available = await _refreshNativeAvailability();
@@ -685,7 +801,17 @@ class ChannelVpnService implements VpnService {
         if (_status == VpnStatus.error) {
           throw VpnServiceException(
             'vpn_disconnect_failed',
-            native.lastError ?? 'Apple Network Extension tunnel failed to stop.',
+            native.lastError ??
+                'Apple Network Extension tunnel failed to stop.',
+          );
+        }
+        if (_status == VpnStatus.disconnected) {
+          AppLogger.vpn(
+            'TUNNEL',
+            'DISCONNECTED',
+            fields: <String, Object?>{
+              'platform': platform.operatingSystem.name.toLowerCase(),
+            },
           );
         }
         return _status;
@@ -694,6 +820,13 @@ class ChannelVpnService implements VpnService {
           .invokeMethod('disconnect')
           .timeout(const Duration(seconds: 20));
       _status = VpnStatus.disconnected;
+      AppLogger.vpn(
+        'TUNNEL',
+        'DISCONNECTED',
+        fields: <String, Object?>{
+          'platform': platform.operatingSystem.name.toLowerCase(),
+        },
+      );
     } on TimeoutException {
       _status = VpnStatus.disconnected;
       throw VpnServiceException(
@@ -756,8 +889,9 @@ class ChannelVpnService implements VpnService {
     final os = platform.operatingSystem.name.toLowerCase();
     if (_usesAppleBridge()) {
       try {
-        final available =
-            await _platformBridge.isAvailable().timeout(const Duration(seconds: 2));
+        final available = await _platformBridge
+            .isAvailable()
+            .timeout(const Duration(seconds: 2));
         _nativeAvailable = available;
         if (_nativeAvailable) {
           _lastNativeAvailabilityMessage = null;

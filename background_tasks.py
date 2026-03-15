@@ -5,6 +5,7 @@ from typing import Optional
 
 from services.vpn_health_monitor import get_health_monitor
 from database.session import SessionLocal
+from services.device_service import get_device_service
 from services.vpn_peer_manager import get_peer_manager
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ class BackgroundTaskManager:
         self.watchdog_task: Optional[asyncio.Task] = None
         self.region_watchdog_task: Optional[asyncio.Task] = None
         self.key_rotation_task: Optional[asyncio.Task] = None
+        self.device_cleanup_task: Optional[asyncio.Task] = None
         self.token_purge_task: Optional[asyncio.Task] = None
 
     async def _region_health_watchdog_loop(self) -> None:
@@ -54,6 +56,21 @@ class BackgroundTaskManager:
                 logger.info(f"Key rotation completed: {rotated} peers rotated")
             except Exception as e:
                 logger.warning(f"Key rotation failed: {e}")
+            finally:
+                if db:
+                    db.close()
+            await asyncio.sleep(interval_seconds)
+
+    async def _device_cleanup_loop(self, interval_seconds: int = 900):
+        """Mark expired device profiles so reconnects can rotate stale keys cleanly."""
+        while True:
+            db = None
+            try:
+                db = SessionLocal()
+                summary = get_device_service(db).expire_due_devices().to_dict()
+                logger.info("Device cleanup completed: %s", summary)
+            except Exception as e:
+                logger.warning(f"Device cleanup failed: {e}")
             finally:
                 if db:
                     db.close()
@@ -103,6 +120,10 @@ class BackgroundTaskManager:
         self.key_rotation_task = asyncio.create_task(self._key_rotation_loop())
         logger.info("Key rotation task created")
 
+        # Start device lifecycle cleanup loop.
+        self.device_cleanup_task = asyncio.create_task(self._device_cleanup_loop())
+        logger.info("Device cleanup task created")
+
         # Start expired JWT blacklist purge
         self.token_purge_task = asyncio.create_task(self._jwt_blacklist_purge_loop())
         logger.info("JWT blacklist purge task created")
@@ -118,6 +139,14 @@ class BackgroundTaskManager:
                 await self.key_rotation_task
             except asyncio.CancelledError:
                 logger.info("Key rotation task cancelled")
+
+        # Stop device cleanup loop
+        if self.device_cleanup_task:
+            self.device_cleanup_task.cancel()
+            try:
+                await self.device_cleanup_task
+            except asyncio.CancelledError:
+                logger.info("Device cleanup task cancelled")
 
         # Stop JWT blacklist purge loop
         if self.token_purge_task:

@@ -12,12 +12,15 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import asyncio
 
+from config.settings import get_settings
+
 logger = logging.getLogger(__name__)
+SETTINGS = get_settings()
 
 # Configuration
-APP_URL = os.getenv("APP_URL", "http://localhost:8000")
-DATABASE_URL = os.getenv("DATABASE_URL", "")
-REDIS_URL = os.getenv("REDIS_URL", "")
+APP_URL = SETTINGS.app_url
+DATABASE_URL = SETTINGS.database_url
+REDIS_URL = SETTINGS.redis_url
 CHECK_INTERVAL_SECONDS = int(os.getenv("UPTIME_CHECK_INTERVAL", "300"))  # 5 minutes
 
 

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SecureWave system status - check the current operational status of all services.">
+  <title>System Status - SecureWave</title>
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/web_ui_v1.css">
+  <style>
+    .status-hero-indicator { display:flex; align-items:center; justify-content:center; gap:var(--sw-space-3); margin-top:var(--sw-space-4); }
+    .status-dot { width:16px; height:16px; border-radius:50%; flex-shrink:0; }
+    .status-dot.green { background:#10b981; box-shadow:0 0 8px rgba(16,185,129,.5); }
+    .status-dot.yellow { background:#f59e0b; box-shadow:0 0 8px rgba(245,158,11,.5); }
+    .status-dot.red { background:#ef4444; box-shadow:0 0 8px rgba(239,68,68,.5); }
+    .status-label { font-size:1.25rem; font-weight:600; }
+    .service-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:var(--sw-space-4); }
+    .service-card { display:flex; align-items:center; gap:var(--sw-space-3); padding:var(--sw-space-5); border-radius:var(--sw-radius-lg); background:var(--sw-surface); border:1px solid var(--sw-border-light); }
+    .service-card .status-dot { width:12px; height:12px; }
+    .service-name { font-weight:600; flex:1; }
+    .service-status { font-size:0.875rem; color:var(--sw-text-secondary); }
+    .incidents-empty { text-align:center; padding:var(--sw-space-8); color:var(--sw-text-muted); }
+    .uptime-bar { height:4px; border-radius:2px; background:var(--sw-border-light); overflow:hidden; margin-top:var(--sw-space-2); }
+    .uptime-fill { height:100%; background:#10b981; border-radius:2px; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav" id="navbar">
+    <div class="nav-inner">
+      <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+      <div class="nav-links">
+        <a href="/home">Features</a>
+        <a href="/services">Services</a>
+        <a href="/subscription">Pricing</a>
+        <a href="/download">Download</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+      </div>
+      <div class="nav-actions">
+        <a class="btn btn-ghost btn-sm" href="/login">Sign in</a>
+        <a class="btn btn-primary btn-sm" href="/register">Get Started</a>
+      </div>
+      <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
+        <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="nav-mobile">
+      <a href="/home">Features</a><a href="/services">Services</a><a href="/subscription">Pricing</a><a href="/download">Download</a><a href="/about">About</a><a href="/contact">Contact</a>
+      <div class="nav-mobile-actions">
+        <a class="btn btn-ghost btn-block" href="/login">Sign in</a>
+        <a class="btn btn-primary btn-block" href="/register">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero hero-centered">
+      <div class="container">
+        <div class="hero-content">
+          <span class="section-eyebrow">Status</span>
+          <h1>System Status</h1>
+          <p class="hero-desc">Current operational status of SecureWave services.</p>
+          <div class="status-hero-indicator">
+            <span class="status-dot green" data-overall-dot></span>
+            <span class="status-label" data-overall-label>All Systems Operational</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>Services</h2>
+          <p>Real-time status of all SecureWave infrastructure components.</p>
+        </div>
+        <div class="service-grid">
+          <div class="service-card">
+            <span class="status-dot green"></span>
+            <span class="service-name">VPN Network</span>
+            <span class="service-status">Operational</span>
+          </div>
+          <div class="service-card">
+            <span class="status-dot green"></span>
+            <span class="service-name">Authentication</span>
+            <span class="service-status">Operational</span>
+          </div>
+          <div class="service-card">
+            <span class="status-dot green"></span>
+            <span class="service-name">API Services</span>
+            <span class="service-status">Operational</span>
+          </div>
+          <div class="service-card">
+            <span class="status-dot green"></span>
+            <span class="service-name">Payment Processing</span>
+            <span class="service-status">Operational</span>
+          </div>
+          <div class="service-card">
+            <span class="status-dot green"></span>
+            <span class="service-name">Website</span>
+            <span class="service-status">Operational</span>
+          </div>
+          <div class="service-card">
+            <span class="status-dot green"></span>
+            <span class="service-name">DNS Resolution</span>
+            <span class="service-status">Operational</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" style="background:var(--sw-bg-alt)">
+      <div class="container">
+        <div class="section-header">
+          <h2>Uptime (Last 90 Days)</h2>
+        </div>
+        <div class="grid grid-3">
+          <div class="card card-elevated">
+            <h4>VPN Network</h4>
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-size:1.5rem;font-weight:700;color:var(--sw-success)">99.98%</span>
+              <span class="text-muted" style="font-size:.875rem">uptime</span>
+            </div>
+            <div class="uptime-bar"><div class="uptime-fill" style="width:99.98%"></div></div>
+          </div>
+          <div class="card card-elevated">
+            <h4>API Services</h4>
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-size:1.5rem;font-weight:700;color:var(--sw-success)">99.99%</span>
+              <span class="text-muted" style="font-size:.875rem">uptime</span>
+            </div>
+            <div class="uptime-bar"><div class="uptime-fill" style="width:99.99%"></div></div>
+          </div>
+          <div class="card card-elevated">
+            <h4>Authentication</h4>
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-size:1.5rem;font-weight:700;color:var(--sw-success)">100%</span>
+              <span class="text-muted" style="font-size:.875rem">uptime</span>
+            </div>
+            <div class="uptime-bar"><div class="uptime-fill" style="width:100%"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>Recent Incidents</h2>
+        </div>
+        <div class="card">
+          <div class="incidents-empty">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--sw-success)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:var(--sw-space-3)"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <p style="font-weight:600">No recent incidents</p>
+            <p class="text-muted">All systems have been operating normally.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="cta-banner">
+          <h2>Need to report an issue?</h2>
+          <p>If you are experiencing problems, please contact our support team.</p>
+          <a class="btn btn-primary btn-lg" href="/contact">Contact Support</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
+          <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
+        </div>
+        <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/download">Downloads</a></div>
+        <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a><a href="/data_retention">Data Retention</a><a href="/acceptable_use">Acceptable Use</a></div>
+        <div class="footer-col"><h5>Support</h5><a href="/status">System Status</a><a href="/faq">FAQ</a><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/contact">Contact</a></div>
+      </div>
+      <div class="footer-bottom">
+        <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
+        <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/data_retention">Data retention</a><a href="/acceptable_use">Acceptable use</a></div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/site.js"></script>
+</body>
+</html>

@@ -22,10 +22,14 @@ pytest_plugins = ["tests.fixtures.users"]
 # ---------------------------------------------------------------------------
 os.environ["TESTING"] = "true"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["API_BASE_URL"] = "http://127.0.0.1:8000/api"
+os.environ["VPN_SERVER_ENDPOINT"] = "127.0.0.1:51820"
+os.environ["JWT_SECRET"] = "test-jwt-secret-do-not-use-in-prod-1234567890"
 os.environ["SECRET_KEY"] = "test-secret-key-do-not-use-in-prod"
 os.environ["ACCESS_TOKEN_SECRET"] = "test-access-secret-stable-across-restarts"
 os.environ["REFRESH_TOKEN_SECRET"] = "test-refresh-secret-stable-across-restarts"
 os.environ["ENVIRONMENT"] = "development"
+os.environ["TELEMETRY_ENABLED"] = "true"
 os.environ["ENABLE_SENTRY"] = "false"
 os.environ["EMAIL_VALIDATOR_CHECK_DELIVERABILITY"] = "false"
 os.environ["BCRYPT_ROUNDS"] = "4"  # Fast hashing in tests
@@ -125,6 +129,7 @@ def _ensure_tables():
         email_log,
         auth_refresh_token,
         jwt_blacklist_token,
+        vpn_metric,
     )
     Base.metadata.create_all(bind=TEST_ENGINE)
 

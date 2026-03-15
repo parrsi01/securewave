@@ -25,6 +25,7 @@ from models.user import User
 from models.subscription import Subscription
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
+from services.device_service import get_device_service
 from services.jwt_service import get_current_user
 from services.vpn_peer_manager import get_peer_manager
 from services.vpn_server_service import VPNServerService
@@ -96,7 +97,9 @@ class DeviceResponse(BaseModel):
     server_location: Optional[str] = None
     is_active: bool
     is_revoked: bool
+    device_state: str
     created_at: str
+    profile_expires_at: Optional[str]
     last_handshake: Optional[str]
     data_sent_mb: float
     data_received_mb: float
@@ -161,7 +164,9 @@ def _device_response(peer: WireGuardPeer) -> DeviceResponse:
         server_location=server_location,
         is_active=peer.is_active,
         is_revoked=peer.is_revoked,
+        device_state=peer.effective_device_state,
         created_at=peer.created_at.isoformat() if peer.created_at else "",
+        profile_expires_at=peer.profile_expires_at.isoformat() if peer.profile_expires_at else None,
         last_handshake=peer.last_handshake_at.isoformat() if peer.last_handshake_at else None,
         data_sent_mb=round(peer.total_data_sent / 1024 / 1024, 2) if peer.total_data_sent else 0,
         data_received_mb=round(peer.total_data_received / 1024 / 1024, 2) if peer.total_data_received else 0,
@@ -448,24 +453,20 @@ async def revoke_device(
         '[DEVICES] {"event":"revoke","user_id":%d,"device_id":%d,"name":"%s"}',
         current_user.id, device_id, peer.device_name or "unknown",
     )
-    peer_manager = get_peer_manager(db)
-    if peer.server_id:
-        server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-        if server:
-            try:
-                manager = get_wireguard_server_manager()
-                conn = server_connection_from_db(server)
-                await manager.remove_peer(conn, peer.public_key)
-            except Exception as e:
-                logger.warning(f"Failed to remove peer {peer.id} from server {server.server_id}: {e}")
-    success = peer_manager.revoke_peer(device_id)
+    device_service = get_device_service(db)
+    await device_service.revoke_device(peer, reason="manual_revoke")
 
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to revoke device"
-        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
+@router.post("/{device_id}/revoke", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_device_alias(
+    device_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Explicit revocation endpoint for device lifecycle management clients."""
+    await revoke_device(device_id=device_id, current_user=current_user, db=db)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

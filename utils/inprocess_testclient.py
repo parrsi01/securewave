@@ -18,6 +18,8 @@ from typing import Any, Optional
 
 import httpx
 
+from config.settings import get_settings
+
 
 class InProcessTestClient:
     def __init__(
@@ -42,7 +44,8 @@ class InProcessTestClient:
         # In this sandbox, thread-to-loop wakeups are blocked, which breaks
         # AnyIO's threadpool offloading used for sync endpoints/dependencies.
         # For tests/harnesses we run sync callables inline instead.
-        if os.getenv("TESTING", "").lower() == "true" or os.getenv("SECUREWAVE_DISABLE_THREADPOOL", "").lower() in {"1", "true", "yes", "on"}:
+        settings = get_settings(refresh=True)
+        if settings.testing or os.getenv("SECUREWAVE_DISABLE_THREADPOOL", "").lower() in {"1", "true", "yes", "on"}:
             import anyio.to_thread
 
             self._orig_anyio_run_sync = anyio.to_thread.run_sync

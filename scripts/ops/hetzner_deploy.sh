@@ -13,19 +13,25 @@
 #   VPS_HOST=138.199.204.139 bash scripts/ops/hetzner_deploy.sh
 #
 # Rollback:
-#   SSH in → systemctl restart securewave-backend
-#   or: systemctl stop securewave-backend; git -C /opt/securewave checkout <prev-sha>
-#       systemctl start securewave-backend
+#   SSH in → systemctl restart securewave-api
+#   or: systemctl stop securewave-api; git -C /opt/securewave checkout <prev-sha>
+#       systemctl start securewave-api
 set -euo pipefail
 
 VPS_HOST="${VPS_HOST:-138.199.204.139}"
 VPS_USER="${VPS_USER:-securewave}"
-APP_DIR="/opt/securewave"
-VENV_DIR="$APP_DIR/venv"
+APP_DIR="${APP_DIR:-/opt/securewave}"
+VENV_DIR="${VENV_DIR:-$APP_DIR/.venv}"
+SSH_KEY_PATH="${SSH_KEY_PATH:-}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-ssh_exec() { ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" "$@"; }
-scp_file() { scp -o StrictHostKeyChecking=no "$1" "${VPS_USER}@${VPS_HOST}:$2"; }
+SSH_OPTS=(-o StrictHostKeyChecking=no)
+if [[ -n "$SSH_KEY_PATH" ]]; then
+    SSH_OPTS+=(-i "$SSH_KEY_PATH")
+fi
+
+ssh_exec() { ssh "${SSH_OPTS[@]}" "${VPS_USER}@${VPS_HOST}" "$@"; }
+scp_file() { scp "${SSH_OPTS[@]}" "$1" "${VPS_USER}@${VPS_HOST}:$2"; }
 
 echo "==> [1/7] Verifying VPS reachability"
 ssh_exec "echo VPS_OK"
@@ -36,15 +42,19 @@ rsync -az --delete \
     --exclude='.git' \
     --exclude='venv/' \
     --exclude='.venv/' \
+    --exclude='.env' \
+    --exclude='.env.production' \
+    --exclude='.env.hetzner' \
     --exclude='__pycache__' \
     --exclude='*.pyc' \
     --exclude='*.sqlite' \
     --exclude='*.db' \
+    --exclude='securewave_private/' \
     --exclude='tools/egress_proof/out' \
     --exclude='tools/live_debugger/out' \
     --exclude='tools/outage_recovery/out' \
     --exclude='securewave_app/' \
-    -e "ssh -o StrictHostKeyChecking=no" \
+    -e "ssh ${SSH_OPTS[*]}" \
     "$REPO_ROOT/" "${VPS_USER}@${VPS_HOST}:${APP_DIR}/"
 
 echo "==> [3/7] Installing Python dependencies"
@@ -60,19 +70,15 @@ echo "==> [4/7] Running DB migrations"
 ssh_exec "
     set -euo pipefail
     cd $APP_DIR
+    test -f /etc/securewave/env
+    set -a
     source /etc/securewave/env
-    $VENV_DIR/bin/python -m alembic upgrade head 2>/dev/null || \
-        $VENV_DIR/bin/python -c '
-from database.session import engine
-from database import base
-from models import user, subscription, audit_log, vpn_server, vpn_connection
-base.Base.metadata.create_all(bind=engine)
-print(\"DB tables ready\")
-'
+    set +a
+    $VENV_DIR/bin/python -m alembic upgrade head
 "
 
 echo "==> [5/7] Installing systemd units"
-for unit in securewave-backend.service securewave-watchdog.service securewave-watchdog.timer securewave-db-maintenance.service securewave-db-maintenance.timer; do
+for unit in securewave-api.service securewave-watchdog.service securewave-watchdog.timer securewave-db-maintenance.service securewave-db-maintenance.timer; do
     local_file="$REPO_ROOT/infrastructure/systemd/$unit"
     [[ -f "$local_file" ]] || { echo "SKIP: $unit not found"; continue; }
     scp_file "$local_file" "/tmp/$unit"
@@ -92,22 +98,28 @@ fi
 
 # Systemd services
 ssh_exec "
-    sudo systemctl enable --now securewave-backend
-    sudo systemctl restart securewave-backend
+    sudo systemctl disable --now securewave.service 2>/dev/null || true
+    sudo systemctl disable --now securewave-backend.service 2>/dev/null || true
+    sudo systemctl enable --now securewave-api
+    sudo systemctl restart securewave-api
     sudo systemctl enable --now securewave-watchdog.timer
     sudo systemctl enable --now securewave-db-maintenance.timer
     sleep 3
-    sudo systemctl is-active securewave-backend
+    sudo systemctl is-active securewave-api
 "
 
 echo "==> [7/7] Smoke test"
-ssh_exec "curl -fsS http://127.0.0.1:8080/health && echo 'Backend health: OK'"
+if ! ssh_exec "curl -fsS http://127.0.0.1:8080/api/health >/dev/null"; then
+    echo "  direct HTTP health check failed, trying HTTPS edge"
+    ssh_exec "curl -fsSk https://127.0.0.1/api/health >/dev/null"
+fi
+ssh_exec "echo 'Backend health: OK'"
 
 echo ""
 echo "Deploy complete. Backend is live on ${VPS_HOST}:8080"
-echo "Logs: ssh ${VPS_USER}@${VPS_HOST} journalctl -u securewave-backend -f"
+echo "Logs: ssh ${VPS_USER}@${VPS_HOST} journalctl -u securewave-api -f"
 echo "Watchdog: ssh ${VPS_USER}@${VPS_HOST} journalctl -u securewave-watchdog -f"
 echo ""
 echo "REMINDER: nginx config is NOT auto-deployed here."
 echo "  To deploy/refresh nginx (requires domain + certs):"
-echo "  SERVER_NAME=<domain> SSL_CERT=<path> SSL_KEY=<path> bash scripts/ops/render_nginx_conf.sh"
+echo "  bash scripts/setup_tls_certbot.sh --domain <apex> --domain <www> --email <ops@email>"

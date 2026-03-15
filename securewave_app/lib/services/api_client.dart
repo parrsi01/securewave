@@ -20,8 +20,26 @@ import '../core/models/vpn_protocol_catalog.dart';
 final apiClientProvider = Provider<ApiClient>((ref) {
   final config = ref.watch(appConfigProvider);
   final session = ref.watch(authSessionProvider);
-  return ApiClient(config, session: session);
+  final client = ApiClient(config, session: session);
+  ref.onDispose(client.dispose);
+  return client;
 });
+
+class ControlPlaneSessionEvent {
+  const ControlPlaneSessionEvent({
+    required this.reason,
+    required this.generation,
+    required this.at,
+  });
+
+  final String reason;
+  final int generation;
+  final DateTime at;
+}
+
+typedef ControlPlaneReconnectHook = FutureOr<void> Function(
+  ControlPlaneSessionEvent event,
+);
 
 class ApiClient {
   ApiClient(
@@ -29,27 +47,121 @@ class ApiClient {
     AuthSession? session,
     Dio? dio,
     SecureStorage? storage,
-  }) : _storage = storage ?? SecureStorage() {
+  })  : _storage = storage ?? SecureStorage(),
+        _session = session {
     _effectiveApiBaseUrl = _config.httpsPreferred &&
             _config.apiBaseUrl.toLowerCase().startsWith('http://')
-        ? _config.apiBaseUrl.replaceFirst(RegExp(r'^http://', caseSensitive: false), 'https://')
+        ? _config.apiBaseUrl
+            .replaceFirst(RegExp(r'^http://', caseSensitive: false), 'https://')
         : _config.apiBaseUrl;
-    _dio = dio ??
-        Dio(
-          BaseOptions(
-            baseUrl: _effectiveApiBaseUrl,
-            headers: {'Content-Type': 'application/json'},
-            connectTimeout: const Duration(seconds: 10),
-            sendTimeout: const Duration(seconds: 10),
-            receiveTimeout: const Duration(seconds: 20),
-          ),
-        );
+    _dio = dio ?? _createDio(session: _session);
 
+    AppLogger.info('ApiClient: initialized with baseUrl=$_effectiveApiBaseUrl');
+    _debugLog('api_client_init', <String, Object?>{
+      'base_url': _effectiveApiBaseUrl,
+      'portal_url': _config.portalUrl,
+      'upgrade_url': _config.upgradeUrl,
+      'https_preferred': _config.httpsPreferred,
+    });
+  }
+
+  final AppConfig _config;
+  final SecureStorage _storage;
+  final AuthSession? _session;
+  late final String _effectiveApiBaseUrl;
+  late Dio _dio;
+  List<ServerRegion>? _cachedServers;
+  DateTime? _serversFetchedAt;
+  UserPlan? _cachedPlan;
+  DateTime? _planFetchedAt;
+  final Map<Object, ControlPlaneReconnectHook> _reconnectHooks =
+      <Object, ControlPlaneReconnectHook>{};
+  Future<void> _reinitializeQueue = Future<void>.value();
+  int _networkSessionGeneration = 0;
+
+  static const Duration _serversCacheTtl = Duration(minutes: 5);
+  static const Duration _planCacheTtl = Duration(minutes: 2);
+  static const bool _strictContractValidation = !kReleaseMode;
+  static const Duration _networkRetryBaseDelay = Duration(milliseconds: 350);
+
+  int get networkSessionGeneration => _networkSessionGeneration;
+
+  void registerControlPlaneReconnectHook(
+    Object owner,
+    ControlPlaneReconnectHook hook,
+  ) {
+    _reconnectHooks[owner] = hook;
+  }
+
+  void unregisterControlPlaneReconnectHook(Object owner) {
+    _reconnectHooks.remove(owner);
+  }
+
+  Future<void> reinitializeControlPlane({
+    required String reason,
+  }) {
+    _reinitializeQueue = _reinitializeQueue
+        .catchError((Object _, StackTrace __) {})
+        .then((_) async {
+      final previous = _dio;
+      _dio = _createDio(session: _session);
+      _networkSessionGeneration += 1;
+      previous.close(force: true);
+
+      final event = ControlPlaneSessionEvent(
+        reason: reason,
+        generation: _networkSessionGeneration,
+        at: DateTime.now().toUtc(),
+      );
+      for (final hook in List<ControlPlaneReconnectHook>.from(
+        _reconnectHooks.values,
+      )) {
+        try {
+          await hook(event);
+        } catch (error, stackTrace) {
+          AppLogger.error(
+            'Control-plane reconnect hook failed',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
+      }
+      _debugLog('control_plane_reinitialized', <String, Object?>{
+        'reason': reason,
+        'generation': _networkSessionGeneration,
+      });
+    });
+    return _reinitializeQueue;
+  }
+
+  void dispose() {
+    _reconnectHooks.clear();
+    _dio.close(force: true);
+  }
+
+  Dio _createDio({AuthSession? session}) {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: _effectiveApiBaseUrl,
+        headers: {'Content-Type': 'application/json'},
+        connectTimeout: const Duration(seconds: 10),
+        sendTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 20),
+      ),
+    );
+    _configureDebugHttpClient(dio);
+    if (session != null) {
+      _attachSessionInterceptors(dio, session);
+    }
+    return dio;
+  }
+
+  void _configureDebugHttpClient(Dio dio) {
     // In non-release builds, allow self-signed certificates so the dev VPS
     // (which uses a self-signed cert on an IP address) remains reachable.
     // This path is never compiled into release builds.
-    if (!kReleaseMode && _dio.httpClientAdapter is IOHttpClientAdapter) {
-      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+    if (!kReleaseMode && dio.httpClientAdapter is IOHttpClientAdapter) {
+      (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
         client.badCertificateCallback =
             (X509Certificate cert, String host, int port) {
@@ -62,106 +174,90 @@ class ApiClient {
         return client;
       };
     }
+  }
 
-    AppLogger.info('ApiClient: initialized with baseUrl=$_effectiveApiBaseUrl');
-    _debugLog('api_client_init', <String, Object?>{
-      'base_url': _effectiveApiBaseUrl,
-      'portal_url': _config.portalUrl,
-      'upgrade_url': _config.upgradeUrl,
-      'https_preferred': _config.httpsPreferred,
-    });
-    if (session != null) {
-      _dio.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) {
-            final token = session.accessToken;
-            if (token != null && token.isNotEmpty) {
-              options.headers['Authorization'] = 'Bearer $token';
-            }
-            return handler.next(options);
-          },
-          onError: (error, handler) async {
-            if (error.response?.statusCode != 401) {
-              return handler.next(error);
-            }
-            // Prevent infinite loop: if this is already a retry, give up.
-            if (error.requestOptions.extra['_isRetry'] == true) {
-              return handler.next(error);
-            }
-            try {
-              final refreshToken = await session.getRefreshToken();
-              if (refreshToken == null || refreshToken.isEmpty) {
-                debugPrint(
-                    '[AUTH_REFRESH] no refresh token — clearing session');
-                await session.clearSession();
-                return handler.next(error);
-              }
-              debugPrint(
-                  '[AUTH_REFRESH] 401 received — attempting token refresh');
-              // Use a plain Dio (no interceptors) to avoid re-entry.
-              final refreshDio = Dio(BaseOptions(
-                baseUrl: _effectiveApiBaseUrl,
-                headers: {'Content-Type': 'application/json'},
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 10),
-              ));
-              if (!kReleaseMode &&
-                  refreshDio.httpClientAdapter is IOHttpClientAdapter) {
-                (refreshDio.httpClientAdapter as IOHttpClientAdapter)
-                    .createHttpClient = () {
-                  final client = HttpClient();
-                  client.badCertificateCallback = (_, __, ___) => true;
-                  return client;
-                };
-              }
-              final refreshResp = await refreshDio.post<Map<String, dynamic>>(
-                '/auth/refresh',
-                data: {'refresh_token': refreshToken},
-              );
-              final newAccess = refreshResp.data?['access_token']?.toString();
-              final newRefresh = refreshResp.data?['refresh_token']?.toString();
-              if (newAccess == null || newAccess.isEmpty) {
-                debugPrint(
-                    '[AUTH_REFRESH] refresh response missing access_token');
-                await session.clearSession();
-                return handler.next(error);
-              }
-              await session.setSession(
-                accessToken: newAccess,
-                refreshToken: newRefresh,
-              );
-              debugPrint('[AUTH_REFRESH] tokens refreshed — retrying request');
-              // Retry the original request with the new token.
-              final opts = error.requestOptions;
-              opts.headers['Authorization'] = 'Bearer $newAccess';
-              opts.extra['_isRetry'] = true;
-              final retryResp = await _dio.fetch(opts);
-              return handler.resolve(retryResp);
-            } catch (refreshError) {
-              debugPrint(
-                  '[AUTH_REFRESH] refresh failed: $refreshError — clearing session');
+  void _attachSessionInterceptors(Dio dio, AuthSession session) {
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final token = session.accessToken;
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          return handler.next(options);
+        },
+        onError: (error, handler) async {
+          if (error.response?.statusCode != 401) {
+            return handler.next(error);
+          }
+          // Prevent infinite loop: if this is already a retry, give up.
+          if (error.requestOptions.extra['_isRetry'] == true) {
+            return handler.next(error);
+          }
+          try {
+            final refreshToken = await session.getRefreshToken();
+            if (refreshToken == null || refreshToken.isEmpty) {
+              debugPrint('[AUTH_REFRESH] no refresh token — clearing session');
               await session.clearSession();
               return handler.next(error);
             }
-          },
-        ),
-      );
-    }
+            debugPrint(
+                '[AUTH_REFRESH] 401 received — attempting token refresh');
+            final refreshDio = _buildRefreshDio();
+            final refreshResp = await refreshDio.post<Map<String, dynamic>>(
+              '/auth/refresh',
+              data: {'refresh_token': refreshToken},
+            );
+            final newAccess = refreshResp.data?['access_token']?.toString();
+            final newRefresh = refreshResp.data?['refresh_token']?.toString();
+            if (newAccess == null || newAccess.isEmpty) {
+              debugPrint(
+                  '[AUTH_REFRESH] refresh response missing access_token');
+              await session.clearSession();
+              return handler.next(error);
+            }
+            await session.setSession(
+              accessToken: newAccess,
+              refreshToken: newRefresh,
+            );
+            debugPrint('[AUTH_REFRESH] tokens refreshed — retrying request');
+            // Retry the original request with the new token.
+            final opts = error.requestOptions;
+            opts.headers['Authorization'] = 'Bearer $newAccess';
+            opts.extra['_isRetry'] = true;
+            final retryResp = await _dio.fetch(opts);
+            return handler.resolve(retryResp);
+          } catch (refreshError) {
+            debugPrint(
+              '[AUTH_REFRESH] refresh failed: $refreshError — clearing session',
+            );
+            await session.clearSession();
+            return handler.next(error);
+          }
+        },
+      ),
+    );
   }
 
-  final AppConfig _config;
-  final SecureStorage _storage;
-  late final String _effectiveApiBaseUrl;
-  late final Dio _dio;
-  List<ServerRegion>? _cachedServers;
-  DateTime? _serversFetchedAt;
-  UserPlan? _cachedPlan;
-  DateTime? _planFetchedAt;
-
-  static const Duration _serversCacheTtl = Duration(minutes: 5);
-  static const Duration _planCacheTtl = Duration(minutes: 2);
-  static const bool _strictContractValidation = !kReleaseMode;
-  static const Duration _networkRetryBaseDelay = Duration(milliseconds: 350);
+  Dio _buildRefreshDio() {
+    final refreshDio = Dio(
+      BaseOptions(
+        baseUrl: _effectiveApiBaseUrl,
+        headers: {'Content-Type': 'application/json'},
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+      ),
+    );
+    if (!kReleaseMode && refreshDio.httpClientAdapter is IOHttpClientAdapter) {
+      (refreshDio.httpClientAdapter as IOHttpClientAdapter).createHttpClient =
+          () {
+        final client = HttpClient();
+        client.badCertificateCallback = (_, __, ___) => true;
+        return client;
+      };
+    }
+    return refreshDio;
+  }
 
   void _debugLog(String event, Map<String, Object?> payload) {
     if (!kDebugMode) return;
@@ -389,7 +485,8 @@ class ApiClient {
 
   Future<List<ServerRegion>> _loadCachedServers() async {
     try {
-      final raw = await _storage.getString(SecureStorage.serversCatalogCacheKey);
+      final raw =
+          await _storage.getString(SecureStorage.serversCatalogCacheKey);
       if (raw == null || raw.trim().isEmpty) return const <ServerRegion>[];
       final decoded = jsonDecode(raw);
       if (decoded is! Map) return const <ServerRegion>[];
@@ -442,6 +539,14 @@ class ApiClient {
     if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
       final age = DateTime.now().difference(_serversFetchedAt!);
       if (age < _serversCacheTtl) {
+        AppLogger.vpn(
+          'API',
+          'SERVER_LIST_LOADED',
+          fields: <String, Object?>{
+            'count': _cachedServers!.length,
+            'source': 'cache',
+          },
+        );
         return _cachedServers!;
       }
     }
@@ -463,7 +568,8 @@ class ApiClient {
         for (final entry in rawList) {
           if (entry is! Map) continue;
           try {
-            servers.add(ServerRegion.fromJson(Map<String, dynamic>.from(entry)));
+            servers
+                .add(ServerRegion.fromJson(Map<String, dynamic>.from(entry)));
           } catch (error) {
             _debugLog('servers_parse_skip', <String, Object?>{
               'path': path,
@@ -502,6 +608,14 @@ class ApiClient {
       AppLogger.info(
         'VPN servers fetched: count=${servers.length} source=$sourcePath baseUrl=$_effectiveApiBaseUrl sample=${servers.take(5).map((s) => s.name).join(", ")}',
       );
+      AppLogger.vpn(
+        'API',
+        'SERVER_LIST_LOADED',
+        fields: <String, Object?>{
+          'count': servers.length,
+          'source': sourcePath,
+        },
+      );
       _debugLog('servers_ok', <String, Object?>{
         'count': servers.length,
         'source': sourcePath,
@@ -524,7 +638,8 @@ class ApiClient {
                       'region_health_status': region.regionHealthStatus,
                       'region_health_last_checked_at':
                           region.regionHealthLastCheckedAt,
-                      'region_health_reason_code': region.regionHealthReasonCode,
+                      'region_health_reason_code':
+                          region.regionHealthReasonCode,
                       'public_ip': region.publicIp,
                       'tier_restriction': region.tierRestriction,
                       'premium_only': region.premiumOnly,
@@ -546,7 +661,8 @@ class ApiClient {
                       'region_health_status': region.regionHealthStatus,
                       'region_health_last_checked_at':
                           region.regionHealthLastCheckedAt,
-                      'region_health_reason_code': region.regionHealthReasonCode,
+                      'region_health_reason_code':
+                          region.regionHealthReasonCode,
                       'public_ip': region.publicIp,
                       'tier_restriction': region.tierRestriction,
                       'premium_only': region.premiumOnly,
@@ -753,6 +869,16 @@ class ApiClient {
         'requestId=$requestId '
         'protocol=${responseProtocol?.isNotEmpty == true ? responseProtocol : requestedProtocol} '
         'server=${responseServer?.isNotEmpty == true ? responseServer : "-"}',
+      );
+      AppLogger.vpn(
+        'API',
+        'PROFILE_GENERATED',
+        fields: <String, Object?>{
+          'status': response.statusCode ?? 200,
+          'request_id': requestId,
+          'protocol': responseProtocol ?? requestedProtocol,
+          'server_id': responseServer ?? '-',
+        },
       );
       _debugLog('profile_ok', <String, Object?>{
         'status': response.statusCode ?? 200,

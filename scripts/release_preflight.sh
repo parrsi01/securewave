@@ -102,6 +102,24 @@ if [[ "${TESTING:-false}" =~ ^([Tt][Rr][Uu][Ee])$ ]]; then
   fail_with_fix "TESTING must be false for release." "unset TESTING"
 fi
 
+for flag in PAYMENTS_MOCK DEMO_MODE WG_MOCK_MODE; do
+  if [[ "${!flag:-false}" =~ ^([Tt][Rr][Uu][Ee]|1|yes|on)$ ]]; then
+    fail_with_fix "$flag must be false for release." "export ${flag}=false"
+  fi
+done
+
+require_var "DATABASE_URL" 'export DATABASE_URL="postgresql+psycopg2://securewave:password@localhost:5432/securewave"'
+if [[ "${ALLOW_SQLITE_PRODUCTION:-false}" != "true" && "${DATABASE_URL:-}" == sqlite* ]]; then
+  fail_with_fix "DATABASE_URL must not point to SQLite for the primary release path." 'Set a PostgreSQL DATABASE_URL or export ALLOW_SQLITE_PRODUCTION=true for an explicit fallback release.'
+fi
+
+require_var "STRIPE_SECRET_KEY" 'export STRIPE_SECRET_KEY="sk_live_..."'
+require_var "STRIPE_PUBLISHABLE_KEY" 'export STRIPE_PUBLISHABLE_KEY="pk_live_..."'
+require_var "STRIPE_WEBHOOK_SECRET" 'export STRIPE_WEBHOOK_SECRET="whsec_..."'
+require_var "STRIPE_PRICE_BASIC_MONTHLY" 'export STRIPE_PRICE_BASIC_MONTHLY="price_..."'
+require_var "STRIPE_PRICE_PREMIUM_MONTHLY" 'export STRIPE_PRICE_PREMIUM_MONTHLY="price_..."'
+require_var "STRIPE_PRICE_ULTRA_MONTHLY" 'export STRIPE_PRICE_ULTRA_MONTHLY="price_..."'
+
 # Guard against Xcode project usage in build commands (not documentation warnings).
 # We explicitly allow mentions in .md files, guard scripts, and error messages.
 check_xcodeproj_misuse() {

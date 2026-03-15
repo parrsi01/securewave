@@ -3,7 +3,7 @@
 # Run on the VPS as root after certbot has issued a certificate.
 #
 # Usage:
-#   SERVER_NAME=vpn.example.com \
+#   SERVER_NAMES="securewave.app www.securewave.app" \
 #   SSL_CERT=/etc/letsencrypt/live/vpn.example.com/fullchain.pem \
 #   SSL_KEY=/etc/letsencrypt/live/vpn.example.com/privkey.pem \
 #   UPSTREAM_HOST=127.0.0.1 \
@@ -20,6 +20,7 @@ TEMPLATE="$REPO_ROOT/infra/nginx/securewave_prod.conf"
 OUT="/etc/nginx/sites-available/securewave.conf"
 
 : "${SERVER_NAME:?Set SERVER_NAME}"
+: "${SERVER_NAMES:=${SERVER_NAME}}"
 : "${SSL_CERT:?Set SSL_CERT}"
 : "${SSL_KEY:?Set SSL_KEY}"
 : "${UPSTREAM_HOST:=127.0.0.1}"
@@ -33,7 +34,7 @@ if [[ -f "$OUT" ]]; then
 fi
 
 sed \
-    -e "s|__SERVER_NAME__|${SERVER_NAME}|g" \
+    -e "s|__SERVER_NAMES__|${SERVER_NAMES}|g" \
     -e "s|__UPSTREAM_HOST__|${UPSTREAM_HOST}|g" \
     -e "s|__UPSTREAM_PORT__|${UPSTREAM_PORT}|g" \
     -e "s|__SSL_CERT__|${SSL_CERT}|g" \

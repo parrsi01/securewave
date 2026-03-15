@@ -29,9 +29,12 @@ class GlassPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fillColor = color ?? (isDark ? AppColors.glassFillDark : AppColors.glassFillLight);
-    final borderColor = isDark ? AppColors.glassBorderDark : AppColors.glassBorderLight;
-    final radius = borderRadius ?? BorderRadius.circular(AppSpacing.radiusL);
+    final fillColor =
+        color ?? (isDark ? AppColors.glassFillDark : AppColors.glassFillLight);
+    final borderColor =
+        isDark ? AppColors.glassBorderDark : AppColors.glassBorderLight;
+    final radius =
+        borderRadius ?? BorderRadius.circular(AppSpacing.radiusL);
 
     return ClipRRect(
       borderRadius: radius,

@@ -30,7 +30,7 @@ location = "ash"
 server_type = "cx33"
 node_count = 1
 allow_scale = false
-allow_http_https = false
+allow_http_https = true
 ```
 
 3. Apply:
@@ -59,8 +59,17 @@ ssh root@<server-ip> 'bash -s' < scripts/hetzner_bootstrap.sh
 What it does (high level):
 - Creates `securewave` admin user (sudo + docker)
 - Enables IP forwarding
-- Enables UFW (defaults: allow 22/tcp + 51820/udp)
-- Enables fail2ban
+- Enables UFW with the production baseline:
+  - `22/tcp`
+  - `80/tcp`
+  - `443/tcp`
+  - `51820/udp`
+  - `1194/udp`
+  - `500/udp`
+  - `4500/udp`
+- Enables fail2ban with an explicit SSH jail
+- Enables unattended security upgrades
+- Installs `nginx`, `certbot`, and `python3-certbot-nginx`
 
 ## Install WireGuard (VPN Server)
 
@@ -114,6 +123,10 @@ In production, SecureWave fails fast unless production config is explicit:
 You must also set:
 - `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`
 - `AUTH_ENCRYPTION_KEY`, `WG_ENCRYPTION_KEY`
+- `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_BASIC_MONTHLY`, `STRIPE_PRICE_PREMIUM_MONTHLY`, `STRIPE_PRICE_ULTRA_MONTHLY`
+- `EMAIL_PROVIDER=smtp` plus `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`/`FROM_EMAIL`
+- `DATABASE_URL=postgresql+psycopg2://...`
 
 Peer auto-registration (optional):
 - Set `WG_AUTO_REGISTER_PEERS=true`

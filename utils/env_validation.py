@@ -9,6 +9,8 @@ from typing import List, Optional, Tuple
 
 from cryptography.fernet import Fernet
 
+from config.settings import collect_configuration_errors
+
 
 def get_environment() -> str:
     return os.getenv("ENVIRONMENT", "development").strip().lower()
@@ -33,6 +35,7 @@ def _bool_from_env(value: Optional[str]) -> Optional[bool]:
     if value is None:
         return None
     return value.strip().lower() in ("1", "true", "yes", "on")
+
 
 def is_testing() -> bool:
     return os.getenv("TESTING", "").strip().lower() == "true"
@@ -71,23 +74,50 @@ def email_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str]]
     return resolved, missing
 
 
+def stripe_config_issues() -> List[str]:
+    """Return missing Stripe variables for hosted checkout in production."""
+    missing: List[str] = []
+
+    def require(name: str) -> None:
+        if not os.getenv(name):
+            missing.append(name)
+
+    require("STRIPE_SECRET_KEY")
+    require("STRIPE_PUBLISHABLE_KEY")
+    require("STRIPE_WEBHOOK_SECRET")
+    require("STRIPE_PRICE_BASIC_MONTHLY")
+    require("STRIPE_PRICE_PREMIUM_MONTHLY")
+    require("STRIPE_PRICE_ULTRA_MONTHLY")
+    return missing
+
+
 def production_env_errors() -> List[str]:
     """Collect hard errors for production mode."""
     if not is_production():
         return []
 
-    errors: List[str] = []
+    environ = dict(os.environ)
 
-    if is_testing():
-        errors.append("TESTING must not be true in production")
+    # Treat JWT_SECRET as the canonical root secret for validation snapshots so
+    # inherited alias variables from the parent shell do not create false
+    # positives when the current target configuration intentionally relies on
+    # derived access/refresh secrets.
+    if (environ.get("JWT_SECRET") or "").strip():
+        environ.pop("ACCESS_TOKEN_SECRET", None)
+        environ.pop("REFRESH_TOKEN_SECRET", None)
 
-    for key_name in ("AUTH_ENCRYPTION_KEY", "WG_ENCRYPTION_KEY"):
-        issue = validate_fernet_key(os.getenv(key_name))
-        if issue:
-            errors.append(f"{key_name} {issue}")
+    errors: List[str] = collect_configuration_errors(environ)
 
     provider, missing = email_config_issues()
     if missing:
         errors.append(f"EMAIL_PROVIDER({provider}) missing: {', '.join(missing)}")
 
-    return errors
+    for key_name in ("PAYMENTS_MOCK", "DEMO_MODE", "WG_MOCK_MODE"):
+        if _bool_from_env(os.getenv(key_name)):
+            errors.append(f"{key_name} must not be true in production")
+
+    stripe_missing = stripe_config_issues()
+    if stripe_missing:
+        errors.append(f"Stripe missing: {', '.join(stripe_missing)}")
+
+    return list(dict.fromkeys(errors))

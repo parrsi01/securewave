@@ -18,21 +18,49 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from dev_tools.sandbox.live_validation.common import (
+    auth_endpoint_urls,
+    build_wireguard_test_config,
+    build_api_url,
     build_interface_name,
     ensure_dir,
     evaluate_dns_leak,
     fetch_public_ip,
     fetch_vpn_profile,
+    http_json_request,
+    linux_runtime_preflight,
+    linux_route_snapshot,
     parse_latest_handshake_epoch,
     parse_nameservers,
     parse_wireguard_config,
     read_text,
     redact,
-    register_or_login_user,
     run_command,
     utc_now_iso,
     write_csv,
     write_json,
+)
+from dev_tools.sandbox.live_validation.dns_leak_test import (
+    run_dns_leak_test,
+)
+from dev_tools.sandbox.live_validation.ipv6_leak_test import (
+    run_ipv6_leak_test,
+)
+from dev_tools.sandbox.live_validation.webrtc_leak_test import (
+    run_webrtc_leak_test,
+)
+from dev_tools.sandbox.live_validation.failover_test import (
+    run_failover_test,
+)
+from dev_tools.sandbox.live_validation.server_selection_test import (
+    run_server_selection_test,
+)
+from dev_tools.sandbox.live_validation.packet_leak_test import (
+    capture_interface_snapshot,
+    capture_tcpdump_pcap,
+    run_packet_leak_test,
+)
+from dev_tools.sandbox.live_validation.dpi_resistance_test import (
+    run_dpi_resistance_test,
 )
 
 
@@ -165,6 +193,201 @@ def _http_probe(platform: str, interface: str, url: str) -> tuple[bool, dict[str
         "command": curl.command,
         "duration_ms": curl.duration_ms,
         "stderr": curl.stderr[:400],
+    }
+
+
+def _control_plane_probe(url: str) -> tuple[bool, dict[str, Any]]:
+    curl = run_command(
+        [
+            "curl",
+            "--max-time",
+            "10",
+            "-sS",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            url,
+        ],
+        timeout_seconds=15,
+    )
+    status_code = curl.stdout.strip()[-3:] if curl.stdout else ""
+    ok = curl.returncode == 0 and status_code.startswith("2")
+    return ok, {
+        "status": "ok" if ok else "failed",
+        "detail": f"http_status={status_code or 'unknown'}",
+        "command": curl.command,
+        "duration_ms": curl.duration_ms,
+        "stderr": curl.stderr[:400],
+    }
+
+
+def _auth_response_summary(body: dict[str, Any] | str) -> dict[str, Any] | str:
+    if not isinstance(body, dict):
+        return str(body)[:240]
+
+    summary: dict[str, Any] = {}
+    for key in ("message", "detail", "requires_2fa", "email_sent", "user_id", "email"):
+        if key in body:
+            summary[key] = body[key]
+    if "error" in body:
+        summary["error"] = body["error"]
+    return summary
+
+
+def create_test_user(
+    *,
+    api_base_url: str,
+    email: str,
+    password: str,
+    timeout_seconds: int,
+) -> tuple[dict[str, str], Any]:
+    endpoints = auth_endpoint_urls(api_base_url)
+    response = http_json_request(
+        "POST",
+        endpoints["register"],
+        payload={
+            "email": email,
+            "password": password,
+            "password_confirm": password,
+        },
+        timeout_seconds=timeout_seconds,
+    )
+    return endpoints, response
+
+
+def login_user(
+    *,
+    api_base_url: str,
+    email: str,
+    password: str,
+    timeout_seconds: int,
+) -> tuple[dict[str, str], Any]:
+    endpoints = auth_endpoint_urls(api_base_url)
+    response = http_json_request(
+        "POST",
+        endpoints["login"],
+        payload={"email": email, "password": password},
+        timeout_seconds=timeout_seconds,
+    )
+    return endpoints, response
+
+
+def get_auth_token(
+    *,
+    api_base_url: str,
+    email: str,
+    password: str,
+    timeout_seconds: int,
+) -> tuple[bool, str | None, dict[str, Any]]:
+    endpoints = auth_endpoint_urls(api_base_url)
+    fallback_email = (os.getenv("LIVE_VALIDATION_FALLBACK_EMAIL") or "securewave_test_user@example.com").strip()
+    fallback_password = os.getenv("LIVE_VALIDATION_FALLBACK_PASSWORD") or "SecureWaveTest123"
+    attempts: list[dict[str, Any]] = []
+
+    for attempt in range(1, 3):
+        _, register = create_test_user(
+            api_base_url=api_base_url,
+            email=email,
+            password=password,
+            timeout_seconds=timeout_seconds,
+        )
+        register_body = register.body if isinstance(register.body, dict) else {}
+        register_token = str(register_body.get("access_token") or "")
+        register_refresh_token = str(register_body.get("refresh_token") or "")
+
+        _, login = login_user(
+            api_base_url=api_base_url,
+            email=email,
+            password=password,
+            timeout_seconds=timeout_seconds,
+        )
+        login_body = login.body if isinstance(login.body, dict) else {}
+        login_token = str(login_body.get("access_token") or "")
+
+        attempt_meta: dict[str, Any] = {
+            "attempt": attempt,
+            "register_status": register.status_code,
+            "register_token_received": bool(register_token),
+            "register_response": _auth_response_summary(register_body),
+            "login_status": login.status_code,
+            "login_token_received": bool(login_token),
+            "login_response": _auth_response_summary(login_body),
+            "refresh_status": None,
+            "refresh_token_received": False,
+            "refresh_response": None,
+        }
+
+        if login.status_code == 200 and login_token:
+            attempt_meta["source"] = "login"
+            return True, login_token, {
+                "source": "login",
+                "endpoints": endpoints,
+                "email_verification_bypass": False,
+                "attempts": [attempt_meta],
+            }
+
+        if register.status_code in {200, 201} and register_refresh_token:
+            refresh = http_json_request(
+                "POST",
+                endpoints["refresh"],
+                payload={"refresh_token": register_refresh_token},
+                timeout_seconds=timeout_seconds,
+            )
+            refresh_body = refresh.body if isinstance(refresh.body, dict) else {}
+            refresh_token = str(refresh_body.get("access_token") or "")
+            attempt_meta["refresh_status"] = refresh.status_code
+            attempt_meta["refresh_token_received"] = bool(refresh_token)
+            attempt_meta["refresh_response"] = _auth_response_summary(refresh_body)
+            if refresh.status_code == 200 and refresh_token:
+                attempt_meta["source"] = "refresh"
+                return True, refresh_token, {
+                    "source": "refresh",
+                    "endpoints": endpoints,
+                    "email_verification_bypass": False,
+                    "attempts": [attempt_meta],
+                }
+
+        if register.status_code in {200, 201} and register_token:
+            attempt_meta["source"] = "register"
+            attempts.append(attempt_meta)
+            return True, register_token, {
+                "source": "register",
+                "endpoints": endpoints,
+                "email_verification_bypass": login.status_code in {401, 403},
+                "attempts": attempts,
+            }
+
+        attempts.append(attempt_meta)
+        if attempt == 1:
+            time.sleep(1.0)
+
+    if fallback_email and fallback_password and (fallback_email != email or fallback_password != password):
+        _, fallback = login_user(
+            api_base_url=api_base_url,
+            email=fallback_email,
+            password=fallback_password,
+            timeout_seconds=timeout_seconds,
+        )
+        fallback_body = fallback.body if isinstance(fallback.body, dict) else {}
+        fallback_token = str(fallback_body.get("access_token") or "")
+        if fallback.status_code == 200 and fallback_token:
+            return True, fallback_token, {
+                "source": "fallback_login",
+                "endpoints": endpoints,
+                "email_verification_bypass": False,
+                "fallback_email": fallback_email,
+                "fallback_response": _auth_response_summary(fallback_body),
+                "attempts": attempts,
+            }
+
+    return False, None, {
+        "source": "auth_failed",
+        "endpoints": endpoints,
+        "email_verification_bypass": False,
+        "attempts": attempts,
+        "register_status": attempts[-1]["register_status"] if attempts else 0,
+        "login_status": attempts[-1]["login_status"] if attempts else 0,
     }
 
 
@@ -375,29 +598,49 @@ def run_live_validation(
     throughput_bytes: int,
     ping_hosts: list[str],
     dns_test_domain: str,
+    enable_split_tunnel: bool,
+    split_tunnel_allowed_ips: list[str],
+    dns_leak_test: bool = False,
+    packet_leak_test: bool = False,
+    ipv6_leak_test: bool = False,
+    webrtc_leak_test: bool = False,
+    failover_test: bool = False,
+    server_selection_test: bool = False,
+    dpi_resistance_test: bool = False,
 ) -> dict:
     out_dir = ensure_dir(output_dir)
     started_at = utc_now_iso()
     effective_platform = _detect_platform(platform)
+    preflight: dict[str, Any] = {}
+    auth_endpoints = auth_endpoint_urls(api_base_url)
+
+    if effective_platform == "linux":
+        preflight = linux_runtime_preflight(
+            api_base_url=api_base_url,
+            public_ip_endpoint=public_ip_endpoint,
+        )
+        write_json(out_dir / "linux_preflight.json", preflight)
 
     password = os.getenv("LIVE_VALIDATION_PASSWORD", "LiveValidate#123")
     username_prefix = os.getenv("LIVE_VALIDATION_EMAIL_PREFIX", "live.validation")
 
-    before_ip = fetch_public_ip(endpoint=public_ip_endpoint)
+    before_ip = (preflight.get("public_ip") if preflight else None) or fetch_public_ip(endpoint=public_ip_endpoint)
     handshake_rows: list[dict[str, Any]] = []
     dns_rows: list[dict[str, Any]] = []
     perf_rows: list[dict[str, Any]] = []
+    routing_rows: list[dict[str, Any]] = []
+    api_health_url = build_api_url(api_base_url, "/health")
 
     user_results: list[dict[str, Any]] = []
-    failures = 0
-    strict_failures = 0
+    failures = len(preflight.get("failures") or [])
+    strict_failures = len(preflight.get("failures") or [])
 
     with tempfile.TemporaryDirectory(prefix="securewave_live_validation_") as temp_dir:
         temp_path = Path(temp_dir)
 
         for index in range(1, max(1, users) + 1):
             email = f"{username_prefix}+{int(time.time())}{index}@example.com"
-            ok_auth, access_token, auth_meta = register_or_login_user(
+            ok_auth, access_token, auth_meta = get_auth_token(
                 api_base_url=api_base_url,
                 email=email,
                 password=password,
@@ -434,6 +677,7 @@ def run_live_validation(
                         "status": "failed",
                         "stage": "profile",
                         "detail": {
+                            "auth": auth_meta,
                             "status_code": profile.status_code,
                             "response": profile_body,
                         },
@@ -453,14 +697,55 @@ def run_live_validation(
                         "user": email,
                         "status": "failed",
                         "stage": "profile_parse",
-                        "detail": "wireguard config missing sections",
+                        "detail": {
+                            "auth": auth_meta,
+                            "message": "wireguard config missing sections",
+                        },
+                    }
+                )
+                continue
+
+            if effective_platform == "linux" and not preflight.get("can_continue", True):
+                user_results.append(
+                    {
+                        "user": email,
+                        "status": "blocked",
+                        "stage": "preflight",
+                        "detail": {
+                            "auth": auth_meta,
+                            "profile_status_code": profile.status_code,
+                            "server_endpoint": endpoint,
+                            "preflight_failures": preflight.get("failures") or [],
+                        },
                     }
                 )
                 continue
 
             interface = build_interface_name(interface_prefix, index)
             config_path = temp_path / f"{interface}.conf"
-            _write_secure_config(config_path, config_text)
+            rendered_config, rendered_meta = build_wireguard_test_config(
+                config_text,
+                api_base_url=api_base_url,
+                enable_split_tunnel=enable_split_tunnel,
+                split_tunnel_allowed_ips=split_tunnel_allowed_ips,
+            )
+            api_ip = (rendered_meta.get("api_ips") or [None])[0]
+            route_before = (
+                linux_route_snapshot(api_ip if isinstance(api_ip, str) else None)
+                if effective_platform == "linux"
+                else {}
+            )
+            baseline_interface_snapshot = ""
+            baseline_capture_path: Path | None = None
+            baseline_capture_meta: dict[str, Any] | None = None
+            if packet_leak_test and effective_platform == "linux":
+                baseline_interface_snapshot = capture_interface_snapshot()
+                baseline_capture_path = out_dir / f"{interface}_baseline.pcap"
+                baseline_capture_meta = capture_tcpdump_pcap(
+                    baseline_capture_path,
+                    duration_seconds=2,
+                )
+            _write_secure_config(config_path, rendered_config)
 
             connect_cmd, disconnect_cmd, handshake_cmd = _platform_commands(
                 effective_platform,
@@ -478,6 +763,8 @@ def run_live_validation(
                 "profile_status_code": profile.status_code,
                 "profile_latency_ms": profile.duration_ms,
                 "auth": auth_meta,
+                "test_profile": rendered_meta,
+                "routing_before": route_before,
             }
 
             connect_ok, connect_meta = _run_platform_command(connect_cmd, timeout_seconds=timeout_seconds)
@@ -508,6 +795,19 @@ def run_live_validation(
 
             after_ip = fetch_public_ip(endpoint=public_ip_endpoint)
             ip_changed = bool(before_ip and after_ip and before_ip != after_ip)
+            route_after = (
+                linux_route_snapshot(
+                    api_ip if isinstance(api_ip, str) else None,
+                    interface=interface,
+                )
+                if effective_platform == "linux"
+                else {}
+            )
+            api_health_ok, api_health_meta = _control_plane_probe(api_health_url)
+            if not api_health_ok:
+                failures += 1
+                if strict:
+                    strict_failures += 1
 
             observed_dns = _observed_dns(effective_platform)
             dns_ok, leaked_dns = evaluate_dns_leak(observed_dns, set(expected_dns), allow_private=True)
@@ -555,6 +855,121 @@ def run_live_validation(
                 if strict:
                     strict_failures += 1
 
+            routing_ok = True
+            if effective_platform == "linux":
+                table_text = str(((route_after.get("table_51820") or {}).get("stdout")) or "")
+                main_text = str(((route_after.get("main_table") or {}).get("stdout")) or "")
+                api_route_text = str(((route_after.get("api_route_get") or {}).get("stdout")) or "")
+                if enable_split_tunnel:
+                    tunnel_route_ok = interface in table_text or interface in main_text
+                else:
+                    tunnel_route_ok = "default" in table_text and interface in table_text
+                api_bypass_ok = bool(api_ip) and interface not in api_route_text
+                routing_ok = tunnel_route_ok and api_bypass_ok
+                if not routing_ok:
+                    failures += 1
+                    if strict:
+                        strict_failures += 1
+
+            # Dedicated DNS leak detection (opt-in via --dns-leak-test).
+            dns_leak_report: dict[str, Any] | None = None
+            if dns_leak_test and effective_platform == "linux":
+                leak_result = run_dns_leak_test(
+                    tunnel_interface=interface,
+                    expected_dns=set(expected_dns),
+                    tunnel_active=True,
+                    capture_baseline=True,
+                    output_dir=out_dir,
+                )
+                dns_leak_report = leak_result.to_dict()
+                if leak_result.leak_detected:
+                    failures += 1
+                    if strict:
+                        strict_failures += 1
+
+            packet_leak_report: dict[str, Any] | None = None
+            if packet_leak_test and effective_platform == "linux":
+                if baseline_capture_meta and not baseline_capture_meta.get("success"):
+                    packet_leak_report = {
+                        "test_name": "packet_leak_detection",
+                        "verdict": "FAIL",
+                        "tunnel_interface": interface,
+                        "baseline_capture_meta": baseline_capture_meta,
+                        "failures": [
+                            f"baseline_capture_failed:{baseline_capture_meta.get('stderr') or 'unknown'}",
+                        ],
+                    }
+                    failures += 1
+                    if strict:
+                        strict_failures += 1
+                else:
+                    packet_result = run_packet_leak_test(
+                        tunnel_interface=interface,
+                        output_dir=out_dir,
+                        baseline_capture_path=baseline_capture_path,
+                        baseline_interface_snapshot=baseline_interface_snapshot,
+                    )
+                    packet_leak_report = packet_result.to_dict()
+                    if baseline_capture_meta:
+                        packet_leak_report["baseline_capture_meta"] = baseline_capture_meta
+                    if packet_result.verdict != "PASS":
+                        failures += 1
+                        if strict:
+                            strict_failures += 1
+
+            # IPv6 leak detection (opt-in via --ipv6-leak-test).
+            ipv6_leak_report: dict[str, Any] | None = None
+            if ipv6_leak_test and effective_platform == "linux":
+                ipv6_result = run_ipv6_leak_test(
+                    tunnel_interface=interface,
+                    tunnel_active=True,
+                    output_dir=out_dir,
+                )
+                ipv6_leak_report = ipv6_result.to_dict()
+                if ipv6_result.leak_detected:
+                    failures += 1
+                    if strict:
+                        strict_failures += 1
+
+            # WebRTC leak detection (opt-in via --webrtc-leak-test).
+            webrtc_leak_report: dict[str, Any] | None = None
+            if webrtc_leak_test:
+                webrtc_result = run_webrtc_leak_test(
+                    tunnel_interface=interface,
+                    tunnel_active=True,
+                    vpn_exit_ip=after_ip or "",
+                    output_dir=out_dir,
+                )
+                webrtc_leak_report = webrtc_result.to_dict()
+                if webrtc_result.leak_detected:
+                    failures += 1
+                    if strict:
+                        strict_failures += 1
+
+            # Failover test (opt-in via --failover-test, simulation only in harness).
+            failover_report: dict[str, Any] | None = None
+            if failover_test and effective_platform == "linux":
+                fo_result = run_failover_test(
+                    interface=interface,
+                    execute=False,  # Simulation mode in harness; use standalone for destructive.
+                    output_dir=out_dir,
+                )
+                failover_report = fo_result.to_dict()
+
+            # DPI resistance test (opt-in via --dpi-resistance-test, simulation in harness).
+            dpi_report: dict[str, Any] | None = None
+            if dpi_resistance_test and effective_platform == "linux":
+                dpi_result = run_dpi_resistance_test(
+                    tunnel_interface=interface,
+                    execute=False,  # Simulation mode in harness; use standalone for destructive.
+                    output_dir=out_dir,
+                )
+                dpi_report = dpi_result.to_dict()
+                if dpi_result.verdict == "FAIL":
+                    failures += 1
+                    if strict:
+                        strict_failures += 1
+
             _run_platform_command(disconnect_cmd, timeout_seconds=timeout_seconds)
 
             if not handshake_success:
@@ -581,6 +996,15 @@ def run_live_validation(
                     "http_probe": http_meta,
                     "ping": ping_results,
                     "throughput": throughput_meta,
+                    "api_reachability": api_health_meta,
+                    "routing_after": route_after,
+                    "routing_status": "ok" if routing_ok else "failed",
+                    "dns_leak_report": dns_leak_report,
+                    "packet_leak_report": packet_leak_report,
+                    "ipv6_leak_report": ipv6_leak_report,
+                    "webrtc_leak_report": webrtc_leak_report,
+                    "failover_report": failover_report,
+                    "dpi_resistance_report": dpi_report,
                 }
             )
 
@@ -623,6 +1047,20 @@ def run_live_validation(
                     "ping_avg_ms": ";".join([str(p.get("avg_ms", "")) for p in ping_results if isinstance(p, dict)]),
                     "external_ip_changed": ip_changed,
                     "dns_external_status": external_dns.get("status"),
+                }
+            )
+            routing_rows.append(
+                {
+                    "timestamp": utc_now_iso(),
+                    "user": email,
+                    "platform": effective_platform,
+                    "interface": interface,
+                    "api_host": str(rendered_meta.get("api_host") or ""),
+                    "api_ip": str(api_ip or ""),
+                    "routing_status": "ok" if routing_ok else "failed",
+                    "api_health_status": api_health_meta.get("status"),
+                    "api_route": str(((route_after.get("api_route_get") or {}).get("stdout")) or "")[:400],
+                    "table_51820": str(((route_after.get("table_51820") or {}).get("stdout")) or "")[:400],
                 }
             )
 
@@ -674,6 +1112,55 @@ def run_live_validation(
             "dns_external_status",
         ],
     )
+    write_csv(
+        out_dir / "routing_checks.csv",
+        routing_rows,
+        [
+            "timestamp",
+            "user",
+            "platform",
+            "interface",
+            "api_host",
+            "api_ip",
+            "routing_status",
+            "api_health_status",
+            "api_route",
+            "table_51820",
+        ],
+    )
+
+    # Server selection test (opt-in, runs after tunnel sessions).
+    server_selection_report: dict[str, Any] | None = None
+    if server_selection_test:
+        # Use the last successful auth token if available.
+        last_token = None
+        for ur in reversed(user_results):
+            auth_meta = ur.get("auth")
+            if isinstance(auth_meta, dict):
+                # Token was redacted in session, re-auth for selection test.
+                break
+        # Re-authenticate for server selection test.
+        from dev_tools.sandbox.live_validation.common import register_or_login_user
+        ss_email = f"server.selection.{int(time.time())}@example.com"
+        ss_password = os.getenv("LIVE_VALIDATION_PASSWORD", "LiveValidate#123")
+        ss_ok, ss_token, _ = register_or_login_user(
+            api_base_url=api_base_url,
+            email=ss_email,
+            password=ss_password,
+            timeout_seconds=timeout_seconds,
+        )
+        if ss_ok and ss_token:
+            ss_result = run_server_selection_test(
+                api_base_url=api_base_url,
+                access_token=ss_token,
+                device_type=device_type,
+                output_dir=out_dir,
+            )
+            server_selection_report = ss_result.to_dict()
+            if not ss_result.selection_matches and ss_result.verdict == "FAIL":
+                failures += 1
+                if strict:
+                    strict_failures += 1
 
     payload = {
         "harness": "live_e2e_validate",
@@ -693,7 +1180,13 @@ def run_live_validation(
         "throughput_bytes": throughput_bytes,
         "ping_hosts": ping_hosts,
         "dns_test_domain": dns_test_domain,
+        "auth_endpoints": auth_endpoints,
+        "enable_split_tunnel": enable_split_tunnel,
+        "split_tunnel_allowed_ips": split_tunnel_allowed_ips,
+        "packet_leak_test": packet_leak_test,
+        "preflight": preflight,
         "results": user_results,
+        "server_selection_report": server_selection_report,
     }
     write_json(out_dir / "live_e2e_result.json", payload)
     return payload
@@ -742,6 +1235,67 @@ def main() -> int:
         default=os.getenv("LIVE_DNS_TEST_DOMAIN", "example.com"),
         help="Domain name used for external DNS probe via dig (Linux best-effort).",
     )
+    parser.add_argument(
+        "--test-split-tunnel",
+        action="store_true",
+        default=os.getenv("LIVE_TEST_SPLIT_TUNNEL", "").strip().lower()
+        in {"1", "true", "yes", "on"},
+        help="Replace full-tunnel AllowedIPs in the temporary validation profile.",
+    )
+    parser.add_argument(
+        "--split-tunnel-allowed-ips",
+        default=os.getenv("LIVE_TEST_ALLOWED_IPS", "10.0.0.0/8,172.16.0.0/12"),
+        help="Comma-separated AllowedIPs used when --test-split-tunnel is enabled.",
+    )
+    parser.add_argument(
+        "--dns-leak-test",
+        action="store_true",
+        default=os.getenv("LIVE_DNS_LEAK_TEST", "").strip().lower()
+        in {"1", "true", "yes", "on"},
+        help="Run dedicated DNS leak detection after each tunnel session.",
+    )
+    parser.add_argument(
+        "--packet-leak-test",
+        action="store_true",
+        default=os.getenv("LIVE_PACKET_LEAK_TEST", "").strip().lower()
+        in {"1", "true", "yes", "on"},
+        help="Run tcpdump-based packet leak detection after tunnel bring-up.",
+    )
+    parser.add_argument(
+        "--ipv6-leak-test",
+        action="store_true",
+        default=os.getenv("LIVE_IPV6_LEAK_TEST", "").strip().lower()
+        in {"1", "true", "yes", "on"},
+        help="Run IPv6 leak detection after each tunnel session.",
+    )
+    parser.add_argument(
+        "--webrtc-leak-test",
+        action="store_true",
+        default=os.getenv("LIVE_WEBRTC_LEAK_TEST", "").strip().lower()
+        in {"1", "true", "yes", "on"},
+        help="Run WebRTC leak detection (STUN/Playwright) after each tunnel session.",
+    )
+    parser.add_argument(
+        "--failover-test",
+        action="store_true",
+        default=os.getenv("LIVE_FAILOVER_TEST", "").strip().lower()
+        in {"1", "true", "yes", "on"},
+        help="Run multi-server failover validation (simulation mode in harness).",
+    )
+    parser.add_argument(
+        "--server-selection-test",
+        action="store_true",
+        default=os.getenv("LIVE_SERVER_SELECTION_TEST", "").strip().lower()
+        in {"1", "true", "yes", "on"},
+        help="Run latency-based server selection validation after tunnel sessions.",
+    )
+    parser.add_argument(
+        "--dpi-resistance-test",
+        action="store_true",
+        default=os.getenv("LIVE_DPI_TEST", "").strip().lower()
+        in {"1", "true", "yes", "on"},
+        help="Run DPI resistance / anti-censorship analysis (simulation mode in harness).",
+    )
     args = parser.parse_args()
 
     if not args.api_base_url.strip():
@@ -765,6 +1319,19 @@ def main() -> int:
         throughput_bytes=max(256 * 1024, int(args.throughput_bytes)),
         ping_hosts=[item.strip() for item in str(args.ping_hosts).split(",") if item.strip()],
         dns_test_domain=str(args.dns_test_domain),
+        enable_split_tunnel=bool(args.test_split_tunnel),
+        split_tunnel_allowed_ips=[
+            item.strip()
+            for item in str(args.split_tunnel_allowed_ips).split(",")
+            if item.strip()
+        ],
+        dns_leak_test=bool(args.dns_leak_test),
+        packet_leak_test=bool(args.packet_leak_test),
+        ipv6_leak_test=bool(args.ipv6_leak_test),
+        webrtc_leak_test=bool(args.webrtc_leak_test),
+        failover_test=bool(args.failover_test),
+        server_selection_test=bool(args.server_selection_test),
+        dpi_resistance_test=bool(args.dpi_resistance_test),
     )
 
     print(json.dumps(payload, indent=2))

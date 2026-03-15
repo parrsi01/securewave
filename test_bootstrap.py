@@ -13,7 +13,7 @@ import requests
 # Ensure project root is on path
 sys.path.insert(0, _project_root)
 
-BASE_URL = "http://138.199.204.139/api"
+BASE_URL = "https://138.199.204.139.nip.io/api"
 TEST_EMAIL = "test@securewaveapp.com"
 TEST_PASSWORD = "Test123Secure!"
 

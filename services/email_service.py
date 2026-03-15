@@ -3,32 +3,15 @@ SecureWave VPN - Email Service
 Handles sending transactional emails for verification, password reset, and notifications
 """
 
-import os
 import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional, Dict
-from dotenv import load_dotenv
 
-load_dotenv()
-load_dotenv(".env.production")
+from config.settings import get_settings
 
 logger = logging.getLogger(__name__)
-
-# Email configuration from environment
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL")
-SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME")
-FROM_EMAIL = os.getenv("FROM_EMAIL") or SMTP_FROM_EMAIL or SMTP_USER
-FROM_NAME = os.getenv("FROM_NAME") or SMTP_FROM_NAME or "SecureWave VPN"
-EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp").strip().lower()
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
-APP_URL = os.getenv("APP_URL", "https://securewave.example.com")
 
 
 class EmailService:
@@ -39,7 +22,17 @@ class EmailService:
 
     def __init__(self):
         """Initialize email service"""
-        self.provider = EMAIL_PROVIDER
+        settings = get_settings(refresh=True)
+        self.provider = settings.email_provider
+        self.smtp_host = settings.smtp_host
+        self.smtp_port = settings.smtp_port
+        self.smtp_user = settings.smtp_user
+        self.smtp_password = settings.smtp_password
+        self.from_email = settings.from_email
+        self.from_name = settings.from_name
+        self.sendgrid_api_key = settings.sendgrid_api_key
+        self.aws_ses_region = settings.aws_ses_region
+        self.app_url = settings.app_url
         self.enabled = self._provider_ready()
         if not self.enabled:
             logger.warning("Email provider not configured - Email functionality disabled")
@@ -54,17 +47,17 @@ class EmailService:
                 missing.append(name)
 
         if provider == "smtp":
-            require("SMTP_HOST", os.getenv("SMTP_HOST"))
-            require("SMTP_PORT", os.getenv("SMTP_PORT"))
-            require("SMTP_USER", SMTP_USER)
-            require("SMTP_PASSWORD", SMTP_PASSWORD)
-            require("FROM_EMAIL", FROM_EMAIL)
+            require("SMTP_HOST", self.smtp_host)
+            require("SMTP_PORT", str(self.smtp_port))
+            require("SMTP_USER", self.smtp_user)
+            require("SMTP_PASSWORD", self.smtp_password)
+            require("FROM_EMAIL", self.from_email)
         elif provider == "sendgrid":
-            require("SENDGRID_API_KEY", SENDGRID_API_KEY)
-            require("FROM_EMAIL", FROM_EMAIL)
+            require("SENDGRID_API_KEY", self.sendgrid_api_key)
+            require("FROM_EMAIL", self.from_email)
         elif provider in ("ses", "aws_ses"):
-            require("FROM_EMAIL", FROM_EMAIL)
-            require("AWS_SES_REGION", AWS_SES_REGION)
+            require("FROM_EMAIL", self.from_email)
+            require("AWS_SES_REGION", self.aws_ses_region)
         else:
             missing.append(f"EMAIL_PROVIDER({provider})")
 
@@ -72,10 +65,10 @@ class EmailService:
             "provider": provider,
             "enabled": self.enabled,
             "missing": missing,
-            "from_email": FROM_EMAIL,
-            "from_name": FROM_NAME,
-            "smtp_host": SMTP_HOST if provider == "smtp" else None,
-            "smtp_port": SMTP_PORT if provider == "smtp" else None,
+            "from_email": self.from_email,
+            "from_name": self.from_name,
+            "smtp_host": self.smtp_host if provider == "smtp" else None,
+            "smtp_port": self.smtp_port if provider == "smtp" else None,
         }
 
     def send_email(
@@ -124,11 +117,11 @@ class EmailService:
 
     def _provider_ready(self) -> bool:
         if self.provider == "smtp":
-            return bool(SMTP_USER and SMTP_PASSWORD and FROM_EMAIL)
+            return bool(self.smtp_user and self.smtp_password and self.from_email)
         if self.provider == "sendgrid":
-            return bool(SENDGRID_API_KEY and FROM_EMAIL)
+            return bool(self.sendgrid_api_key and self.from_email)
         if self.provider in ("ses", "aws_ses"):
-            return bool(FROM_EMAIL)
+            return bool(self.from_email)
         logger.error(f"Unknown email provider: {self.provider}")
         return False
 
@@ -141,17 +134,17 @@ class EmailService:
     ) -> bool:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
+        message["From"] = f"{self.from_name} <{self.from_email}>"
         message["To"] = to_email
 
         if text_content:
             message.attach(MIMEText(text_content, "plain"))
         message.attach(MIMEText(html_content, "html"))
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
             server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(FROM_EMAIL, to_email, message.as_string())
+            server.login(self.smtp_user, self.smtp_password)
+            server.sendmail(self.from_email, to_email, message.as_string())
         return True
 
     def _send_via_sendgrid(
@@ -161,7 +154,7 @@ class EmailService:
         html_content: str,
         text_content: Optional[str],
     ) -> bool:
-        if not SENDGRID_API_KEY:
+        if not self.sendgrid_api_key:
             logger.error("SENDGRID_API_KEY not configured")
             return False
         try:
@@ -172,7 +165,7 @@ class EmailService:
             return False
 
         mail = Mail(
-            from_email=Email(FROM_EMAIL, FROM_NAME),
+            from_email=Email(self.from_email, self.from_name),
             to_emails=To(to_email),
             subject=subject,
             html_content=Content("text/html", html_content),
@@ -180,7 +173,7 @@ class EmailService:
         if text_content:
             mail.add_content(Content("text/plain", text_content))
 
-        client = SendGridAPIClient(SENDGRID_API_KEY)
+        client = SendGridAPIClient(self.sendgrid_api_key)
         response = client.send(mail)
         return 200 <= response.status_code < 300
 
@@ -197,12 +190,12 @@ class EmailService:
             logger.error(f"boto3 not installed: {exc}")
             return False
 
-        client = boto3.client("ses", region_name=AWS_SES_REGION)
+        client = boto3.client("ses", region_name=self.aws_ses_region)
         body = {"Html": {"Data": html_content}}
         if text_content:
             body["Text"] = {"Data": text_content}
         response = client.send_email(
-            Source=f"{FROM_NAME} <{FROM_EMAIL}>",
+            Source=f"{self.from_name} <{self.from_email}>",
             Destination={"ToAddresses": [to_email]},
             Message={
                 "Subject": {"Data": subject},
@@ -228,7 +221,7 @@ class EmailService:
         Returns:
             True if successful
         """
-        verification_url = f"{APP_URL}/verify-email?token={verification_token}"
+        verification_url = f"{self.app_url}/verify-email?token={verification_token}"
 
         html_content = f"""
 <!DOCTYPE html>

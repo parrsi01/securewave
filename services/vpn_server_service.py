@@ -128,8 +128,9 @@ class VPNServerService:
         if "bandwidth_out_mbps" in metrics:
             server.bandwidth_out_mbps = metrics["bandwidth_out_mbps"]
 
-        # Update health status based on metrics
+        # Update health status and composite load score
         server.health_status = VPNServerService._calculate_health_status(metrics)
+        server.load_score = server.compute_load_score()
         server.last_health_check = datetime.utcnow()
         server.updated_at = datetime.utcnow()
 
@@ -174,87 +175,45 @@ class VPNServerService:
         preferred_location: Optional[str] = None,
     ) -> Optional[VPNServer]:
         """
-        Use optimizer to select best server for user.
+        Select the best server for *user* using the weighted ranking algorithm.
 
-        IMPORTANT: The optimizer is a *suggestion engine* only. Selection must
-        never hard-block VPN connectivity. If the optimizer returns an invalid
-        or unknown server, we fall back deterministically to an available server.
+        Uses ``server_ranker.select_best`` (latency × load × region) as the
+        primary selection path.  Falls back to the first available server if
+        the ranker returns nothing.
 
         Args:
             db: Database session
             user: User object
-            preferred_location: User's preferred location (optional)
+            preferred_location: User's preferred location / region hint
 
         Returns:
             Selected VPN server or None if no servers available
         """
+        is_premium = user.subscription_status == "active"
+        user_tier = "premium" if is_premium else "free"
+
+        available_servers = VPNServerService.get_active_servers(db, user_tier)
+        if not available_servers:
+            logger.warning(f"No available servers for user {user.id} (tier: {user_tier})")
+            return None
+
         try:
-            from services.vpn_optimizer import get_vpn_optimizer
+            from services.server_ranker import select_best
 
-            optimizer = get_vpn_optimizer()
-
-            # Determine user tier
-            is_premium = user.subscription_status == "active"
-            user_tier = "premium" if is_premium else "free"
-
-            # Get available servers for this tier
-            available_servers = VPNServerService.get_active_servers(db, user_tier)
-
-            if not available_servers:
-                logger.warning(f"No available servers for user {user.id} (tier: {user_tier})")
-                return None
-
-            # RTT-first fallback so optimizer failures never block connections.
-            from services.latency_optimizer import get_latency_optimizer
-
-            latency_optimizer = get_latency_optimizer()
-            ranked = latency_optimizer.rank_servers(
-                available_servers,
-                user_region_hint=preferred_location,
-            )
-            ranked_map = {server.server_id: server for server in available_servers}
-            fallback_server = ranked_map.get(ranked[0].server_id, available_servers[0]) if ranked else available_servers[0]
-            allowed_server_ids = {s.server_id for s in available_servers}
-
-            # Use optimizer to select best server
-            result = optimizer.select_optimal_server(
-                user_id=user.id,
-                user_location=preferred_location,
-                is_premium=is_premium,
-            )
-
-            # Get the selected server from database
-            suggested_id = result.get("server_id") if isinstance(result, dict) else None
-            if not suggested_id or suggested_id not in allowed_server_ids:
-                logger.warning(
-                    "Optimizer suggested invalid server_id=%s for user %s; falling back to %s",
-                    suggested_id,
-                    user.id,
-                    fallback_server.server_id,
-                )
-                return fallback_server
-
-            server = VPNServerService.get_server_by_id(db, suggested_id)
-
+            server = select_best(available_servers, region_hint=preferred_location)
             if server:
                 logger.info(
-                    f"Allocated server {server.server_id} ({server.location}) to user {user.id}"
+                    "Ranked server %s (%s) for user %s",
+                    server.server_id,
+                    server.location,
+                    user.id,
                 )
-            else:
-                logger.warning(
-                    f"Optimizer selected non-existent server {suggested_id} for user {user.id}"
-                )
-                return fallback_server
-
-            return server
-
+                return server
         except Exception as e:
-            logger.error(f"Failed to allocate server for user {user.id}: {e}")
-            # Fallback: return first available server
-            available_servers = VPNServerService.get_active_servers(
-                db, "premium" if user.subscription_status == "active" else "free"
-            )
-            return available_servers[0] if available_servers else None
+            logger.error(f"Server ranker failed for user {user.id}: {e}")
+
+        # Deterministic fallback — never block connectivity.
+        return available_servers[0]
 
     @staticmethod
     def get_server_stats(db: Session) -> Dict:

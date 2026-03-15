@@ -44,7 +44,6 @@ env/
 .env.local
 .env.production
 .env.*
-!.env.template
 !.env.production.example
 !.env.example.backend
 !.env.example.flutter
@@ -170,7 +169,6 @@ terraform.tfvars
 *.tfvars.json
 
 # Watchdog event log — regenerated each run, not meaningful in git
-artifacts/watchdog/watchdog_events.jsonl
 .codex_build/
 *.jsonl
 
@@ -181,8 +179,6 @@ artifacts/**
 !artifacts/final_integration_report.md
 !artifacts/reliability_phase/
 !artifacts/reliability_phase/report.md
-!artifacts/watchdog/
-!artifacts/watchdog/watchdog_events.jsonl
 !artifacts/ip_pool_pressure/
 !artifacts/ip_pool_pressure/report.json
 !artifacts/ip_pool_pressure/summary.csv
@@ -230,6 +226,13 @@ data/models/*.json
 results/
 securewave-tests/results/
 securewave-tests/results/*.json
+reports/
+tools/*/out/
+tools/egress_proof/out/
+securewave_app/FILES_CHANGED.txt
+securewave_app/ui_snapshot_before_redesign/
+securewave_app/ui_rebuild/
+securewave_app/ui_legacy_source/
 
 # Flutter app (SecureWave)
 !securewave_app/

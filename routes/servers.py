@@ -14,7 +14,10 @@ import logging
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+import hmac
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -31,6 +34,18 @@ from services.wireguard_server_manager import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/servers", tags=["admin-servers"])
+
+# ---------------------------------------------------------------------------
+# Server-to-server API key auth (for automated infrastructure tooling)
+# ---------------------------------------------------------------------------
+
+_api_key_header = APIKeyHeader(name="X-Admin-API-Key", auto_error=False)
+
+
+def _get_admin_api_key() -> Optional[str]:
+    """Return the configured ADMIN_API_KEY, or None if not set."""
+    key = os.getenv("ADMIN_API_KEY", "").strip()
+    return key if key else None
 
 
 # =============================================================================
@@ -107,12 +122,55 @@ class PeerSyncResult(BaseModel):
 # Auth Helpers
 # =============================================================================
 
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency that requires admin privileges"""
+def _get_current_user_or_none(request: Request, db: Session) -> Optional[User]:
+    """Try JWT auth, return None instead of raising on failure."""
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else None
+    try:
+        return get_current_user(request=request, db=db, token=token)
+    except HTTPException:
+        return None
+
+
+def require_admin(
+    request: Request,
+    api_key: Optional[str] = Depends(_api_key_header),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    Dependency that requires admin privileges.
+
+    Accepts either:
+    1. ``X-Admin-API-Key`` header matching ``ADMIN_API_KEY`` env var, OR
+    2. A valid JWT token for a user with ``is_admin=True``.
+
+    Server-to-server calls (e.g. Hetzner bootstrap scripts) use option 1.
+    Human admin sessions use option 2.
+    """
+    configured_key = _get_admin_api_key()
+    if configured_key and api_key:
+        if hmac.compare_digest(api_key, configured_key):
+            logger.info(
+                "Admin API key auth accepted from %s",
+                request.client.host if request.client else "unknown",
+            )
+            return None  # No user object for API key auth
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid admin API key",
+        )
+
+    # Fall back to JWT-based admin auth.
+    current_user = _get_current_user_or_none(request, db)
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication",
+        )
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
+            detail="Admin access required",
         )
     return current_user
 
@@ -180,7 +238,7 @@ async def create_server(
     db.commit()
     db.refresh(server)
 
-    logger.info(f"Server {request.server_id} registered by admin {admin.email}")
+    logger.info(f"Server {request.server_id} registered by admin {admin.email if admin else 'api-key'}")
 
     return ServerResponse(
         server_id=server.server_id,
@@ -306,7 +364,7 @@ async def update_server(
 
     db.commit()
 
-    logger.info(f"Server {server_id} updated by admin {admin.email}")
+    logger.info(f"Server {server_id} updated by admin {admin.email if admin else 'api-key'}")
 
     return {"message": f"Server {server_id} updated", "server_id": server_id}
 
@@ -330,7 +388,7 @@ async def delete_server(
     db.delete(server)
     db.commit()
 
-    logger.info(f"Server {server_id} deleted by admin {admin.email}")
+    logger.info(f"Server {server_id} deleted by admin {admin.email if admin else 'api-key'}")
 
     return {"message": f"Server {server_id} deleted", "server_id": server_id}
 

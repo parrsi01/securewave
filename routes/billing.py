@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
+from config.settings import get_settings
 from database.session import get_db
 from services.subscription_manager import SubscriptionManager
 from services.billing_automation import BillingAutomationService
@@ -31,7 +32,8 @@ from slowapi.util import get_remote_address
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
 limiter = Limiter(key_func=get_remote_address)
-IS_TESTING = os.getenv("TESTING", "").lower() == "true"
+SETTINGS = get_settings()
+IS_TESTING = SETTINGS.testing
 
 
 def rate_limit(rule: str):
@@ -51,7 +53,7 @@ def _missing_provider_config(provider: str) -> bool:
 
 
 def _base_url(request: Request) -> str:
-    app_url = os.getenv("APP_URL", "").strip().rstrip("/")
+    app_url = SETTINGS.app_url
     if app_url:
         return app_url
     return str(request.base_url).rstrip("/")

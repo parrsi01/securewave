@@ -103,8 +103,23 @@ jobs:
         with:
           channel: stable
 
+      - name: Install Linux desktop deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            libsecret-1-dev \
+            xvfb
+
       - name: Flutter pub get
         run: flutter pub get
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
 
       - name: Flutter analyze
         run: flutter analyze
@@ -115,8 +130,14 @@ jobs:
       - name: Flutter state-machine tests
         run: flutter test test/state_machine
 
+      - name: Build Linux debug target
+        run: flutter build linux --debug
+
+      - name: Linux devices
+        run: flutter devices
+
       - name: Flutter integration harness
-        run: flutter test integration_test
+        run: bash scripts/run_linux_integration_tests.sh
 
   flutter-state-stress:
     runs-on: ubuntu-latest

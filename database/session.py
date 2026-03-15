@@ -3,46 +3,34 @@ import logging
 import tempfile
 from typing import Generator
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, pool
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import Engine
 
-# Load environment variables
-load_dotenv()
-load_dotenv(".env.production")  # Load production env if exists
+from config.settings import get_settings
 
 logger = logging.getLogger(__name__)
+SETTINGS = get_settings()
 
 # Database configuration
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg2://postgres:postgres@localhost:5432/securewave",
-)
+DATABASE_URL = SETTINGS.database_url
 
 # Connection pool settings (production-grade)
-POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "20"))
-MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "40"))
-POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
-POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "3600"))  # 1 hour
+POOL_SIZE = SETTINGS.db_pool_size
+MAX_OVERFLOW = SETTINGS.db_max_overflow
+POOL_TIMEOUT = SETTINGS.db_pool_timeout
+POOL_RECYCLE = SETTINGS.db_pool_recycle  # 1 hour
 POOL_PRE_PING = True
 
 # Environment
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-IS_PRODUCTION = ENVIRONMENT == "production"
-
-# Optional override for SQL echo verbosity.
-def _bool_env(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+ENVIRONMENT = SETTINGS.environment
+IS_PRODUCTION = SETTINGS.is_production
 
 # Engine configuration
 engine_config = {
     "pool_pre_ping": POOL_PRE_PING,
     # Disable SQL logging in production by default; override with DB_ECHO=true/false.
-    "echo": _bool_env("DB_ECHO", not IS_PRODUCTION),
+    "echo": SETTINGS.db_echo,
     "future": True,  # Use SQLAlchemy 2.0 style
 }
 
@@ -107,9 +95,9 @@ elif DATABASE_URL.startswith("postgresql"):
 
     # SSL/TLS configuration for PostgreSQL in production
     connect_args = {}
-    if IS_PRODUCTION or os.getenv("DB_SSL_MODE"):
+    if IS_PRODUCTION or SETTINGS.db_ssl_mode:
         connect_args = {
-            "sslmode": os.getenv("DB_SSL_MODE", "require"),
+            "sslmode": SETTINGS.db_ssl_mode or "require",
             "connect_timeout": 10,
         }
 
@@ -274,7 +262,7 @@ def get_database_info() -> dict:
 
 
 # Initialize database on import (development only)
-if not IS_PRODUCTION and os.getenv("AUTO_CREATE_TABLES", "true").lower() == "true":
+if not IS_PRODUCTION and SETTINGS.auto_create_tables:
     try:
         create_tables()
     except Exception as e:

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// SecureWave color system — v2 redesign.
+/// SecureWave color system — deep navy/teal VPN aesthetic.
 ///
-/// Teal brand (#1B6B68) preserved exactly. New: full dark palette,
-/// teal-tinted neutrals, glassmorphism tokens, and semantic depth layers.
+/// Brand teal (#1B6B68) preserved. New: navy surfaces, cyan secondary,
+/// neon status colors, glassmorphism tokens, gradient presets.
 class AppColors {
   AppColors._();
 
@@ -22,16 +22,20 @@ class AppColors {
   /// Translucent teal overlay
   static const Color primaryGhost = Color(0x141B6B68);
 
-  // ── Secondary (Gold) ───────────────────────────────────────────────────
+  // ── Secondary (Cyan) ─────────────────────────────────────────────────
 
-  static const Color secondary = Color(0xFFF6C14D);
-  static const Color secondaryDark = Color(0xFFC28A10);
+  static const Color secondary = Color(0xFF00BCD4);
+  static const Color secondaryDark = Color(0xFF0097A7);
+  static const Color secondaryLight = Color(0xFFB2EBF2);
 
-  // ── Semantic ───────────────────────────────────────────────────────────
+  // ── Semantic / Status ─────────────────────────────────────────────────
 
-  static const Color success = Color(0xFF1F8F5C);
-  static const Color warning = Color(0xFFC26B1F);
-  static const Color error = Color(0xFFB3261E);
+  static const Color success = Color(0xFF00E676);
+  static const Color successDark = Color(0xFF1F8F5C);
+  static const Color warning = Color(0xFFFFAB00);
+  static const Color warningDark = Color(0xFFC26B1F);
+  static const Color error = Color(0xFFFF5252);
+  static const Color errorDark = Color(0xFFB3261E);
 
   static const Color successLight = Color(0xFFD4F0E4);
   static const Color warningLight = Color(0xFFF9E5D0);
@@ -56,23 +60,23 @@ class AppColors {
   static const Color border = Color(0xFFE2E8ED);
   static const Color borderFocus = Color(0xFF1B6B68);
 
-  // ── Dark Mode Surfaces ────────────────────────────────────────────────
+  // ── Dark Mode Surfaces (deep navy) ──────────────────────────────────
 
-  static const Color darkBackground = Color(0xFF07121C);
-  static const Color darkBackgroundWarm = Color(0xFF0C1A26);
-  static const Color darkSurface = Color(0xFF102030);
-  static const Color darkSurfaceMuted = Color(0xFF162D40);
-  static const Color darkSurfaceElevated = Color(0xFF1C3550);
+  static const Color darkBackground = Color(0xFF0A1628);
+  static const Color darkBackgroundWarm = Color(0xFF0E1B30);
+  static const Color darkSurface = Color(0xFF121E32);
+  static const Color darkSurfaceMuted = Color(0xFF1A2940);
+  static const Color darkSurfaceElevated = Color(0xFF223350);
 
   // ── Dark Mode Text ─────────────────────────────────────────────────────
 
-  static const Color darkInk = Color(0xFFEDF2F7);
-  static const Color darkInkMuted = Color(0xFF90B0C8);
-  static const Color darkInkSoft = Color(0xFF557090);
+  static const Color darkInk = Color(0xFFF0F4F8);
+  static const Color darkInkMuted = Color(0xFFB0BEC5);
+  static const Color darkInkSoft = Color(0xFF6B7D8D);
 
   // ── Dark Mode Borders ──────────────────────────────────────────────────
 
-  static const Color darkBorder = Color(0xFF1E3D58);
+  static const Color darkBorder = Color(0xFF1E3050);
   static const Color darkBorderFocus = Color(0xFF26A09B);
 
   // ── Glassmorphism Tokens ──────────────────────────────────────────────
@@ -83,7 +87,7 @@ class AppColors {
 
   /// Frosted glass fill — dark mode
   static Color get glassFillDark =>
-      const Color(0xFF102030).withValues(alpha: 0.72);
+      const Color(0xFF121E32).withValues(alpha: 0.80);
 
   /// Glass border — light mode
   static Color get glassBorderLight =>
@@ -107,40 +111,61 @@ class AppColors {
   static const Gradient heroGradientDark = RadialGradient(
     center: Alignment.topCenter,
     radius: 1.2,
-    colors: [Color(0xFF0D2A3A), Color(0xFF07121C)],
+    colors: [Color(0xFF0D1F3C), Color(0xFF0A1628)],
     stops: [0.0, 1.0],
   );
 
-  /// Teal brand gradient (buttons, headers)
+  /// Deep navy gradient — primary CTA (connect button, avatar, badges)
   static const Gradient brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF26A09B), Color(0xFF0F4F4C)],
+    colors: [Color(0xFF1B6B68), Color(0xFF0A1628)],
   );
 
-  /// Auth screen header gradient
+  /// Auth screen header gradient (dark login page)
   static const Gradient authHeaderGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF1B6B68), Color(0xFF093837)],
+    colors: [Color(0xFF1B6B68), Color(0xFF0A1628)],
+  );
+
+  /// Connected state gradient — teal to navy
+  static const Gradient connectedGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF00E676), Color(0xFF1B6B68)],
+  );
+
+  /// Navy depth gradient for shells / backgrounds
+  static const Gradient navyGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF0E1B30), Color(0xFF0A1628)],
+  );
+
+  /// Cyan accent gradient
+  static const Gradient cyanGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF00BCD4), Color(0xFF0097A7)],
   );
 
   // ── ColorScheme Builders ──────────────────────────────────────────────
 
   static ColorScheme lightScheme() {
     return ColorScheme.fromSeed(
-      seedColor: primary,
+      seedColor: primaryDeep,
       brightness: Brightness.light,
     ).copyWith(
-      primary: primary,
+      primary: primaryDeep,
       onPrimary: Colors.white,
       primaryContainer: primaryLight,
       onPrimaryContainer: primaryDeep,
       secondary: secondary,
       onSecondary: ink,
-      secondaryContainer: const Color(0xFFFEF3D8),
-      onSecondaryContainer: const Color(0xFF5A3800),
-      error: error,
+      secondaryContainer: secondaryLight,
+      onSecondaryContainer: const Color(0xFF004D54),
+      error: errorDark,
       onError: Colors.white,
       surface: surface,
       onSurface: ink,
@@ -159,21 +184,28 @@ class AppColors {
       brightness: Brightness.dark,
     ).copyWith(
       primary: primaryBright,
-      onPrimary: darkBackgroundWarm,
-      primaryContainer: primaryDeep,
+      onPrimary: darkBackground,
+      primaryContainer: darkSurfaceElevated,
       onPrimaryContainer: primaryLight,
       secondary: secondary,
       onSecondary: darkBackground,
       surface: darkSurface,
       onSurface: darkInk,
-      surfaceContainerHighest: darkSurfaceMuted,
+      surfaceContainerLowest: darkBackground,
+      surfaceContainerLow: darkBackgroundWarm,
+      surfaceContainer: darkSurface,
+      surfaceContainerHigh: darkSurfaceMuted,
+      surfaceContainerHighest: darkSurfaceElevated,
       onSurfaceVariant: darkInkMuted,
       outline: darkBorder,
-      outlineVariant: const Color(0xFF162030),
-      error: const Color(0xFFFF6B6B),
+      outlineVariant: const Color(0xFF162540),
+      error: error,
       onError: darkBackground,
       shadow: Colors.black,
       scrim: Colors.black,
+      inverseSurface: darkInk,
+      onInverseSurface: darkBackground,
+      inversePrimary: primaryDeep,
     );
   }
 }

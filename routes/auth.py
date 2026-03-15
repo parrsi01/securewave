@@ -4,9 +4,7 @@ Complete authentication system with email verification, password reset, and 2FA
 """
 
 import logging
-import os
 import secrets
-import json
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Response, BackgroundTasks
@@ -16,6 +14,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from io import BytesIO
 
+from config.settings import get_settings
 from database.session import get_db, SessionLocal
 from models.user import User
 from services.hashing_service import hash_password, verify_password
@@ -34,14 +33,16 @@ from services.auth_service import AuthService
 from services.runtime_metrics import get_runtime_metrics
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from utils.structured_logging import log_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
-COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
+SETTINGS = get_settings()
+COOKIE_SAMESITE = SETTINGS.cookie_samesite
 
 
 def _cookie_secure() -> bool:
-    return os.getenv("ENVIRONMENT", "development") == "production"
+    return SETTINGS.is_production
 
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str, csrf_token: str) -> None:
@@ -74,7 +75,7 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str,
     )
     response.headers["Cache-Control"] = "no-store"
 
-is_testing = os.getenv("TESTING", "").lower() == "true"
+is_testing = SETTINGS.testing
 
 # Rate limiter (disabled in tests to avoid hangs)
 limiter = Limiter(key_func=get_remote_address)
@@ -98,10 +99,15 @@ def record_login_success(user_id: int, ip_address: Optional[str]) -> None:
         db.close()
 
 
-def _log_auth_event(event: str, **fields) -> None:
-    payload = {"event": event, **fields}
-    logger.warning(json.dumps(payload, sort_keys=True))
-    if event == "auth_failed_login":
+def _log_auth_event(action: str, *, level: int = logging.INFO, **fields) -> None:
+    log_event(
+        logger,
+        "authentication",
+        level=level,
+        action=action,
+        **fields,
+    )
+    if action == "failed_login":
         get_runtime_metrics().record_failed_auth()
 
 
@@ -232,7 +238,12 @@ async def register(
             if not email_sent:
                 logger.warning(f"Failed to send verification email to {user.email}")
 
-        logger.info(f"✓ New user registered: {user.email}")
+        _log_auth_event(
+            "register",
+            user_id=user.id,
+            email=user.email,
+            email_sent=email_sent,
+        )
 
         # Always issue tokens so clients can proceed without a separate login step.
         # Email verification state is reflected in the /me endpoint.
@@ -306,7 +317,8 @@ async def login(
                 ip_address = request.client.host if request.client else None
                 auth_service.record_login_attempt(user, success=False, ip_address=ip_address)
             _log_auth_event(
-                "auth_failed_login",
+                "failed_login",
+                level=logging.WARNING,
                 email=payload.email,
                 ip_address=request.client.host if request.client else None,
                 reason="invalid_credentials",
@@ -354,7 +366,8 @@ async def login(
                 ip_address = request.client.host if request.client else None
                 auth_service.record_login_attempt(user, success=False, ip_address=ip_address)
                 _log_auth_event(
-                    "auth_failed_login",
+                    "failed_login",
+                    level=logging.WARNING,
                     user_id=user.id,
                     ip_address=ip_address,
                     reason="invalid_2fa",
@@ -367,13 +380,19 @@ async def login(
         ip_address = request.client.host if request.client else None
         background_tasks.add_task(record_login_success, user.id, ip_address)
 
-        admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
+        admin_email = (SETTINGS.admin_email or "").strip().lower()
         if admin_email and user.email.lower() == admin_email and not user.is_admin:
             user.is_admin = True
             db.commit()
             logger.info(f"Admin access granted to {user.email} via ADMIN_EMAIL")
 
-        logger.info(f"✓ User logged in: {user.email}")
+        _log_auth_event(
+            "login",
+            user_id=user.id,
+            email=user.email,
+            ip_address=ip_address,
+            two_factor_enabled=user.has_2fa_enabled,
+        )
 
         access_token = create_access_token(user)
         user_agent = request.headers.get("user-agent")
@@ -467,6 +486,7 @@ async def logout(response: Response):
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/")
     response.delete_cookie("csrf_token", path="/")
+    _log_auth_event("logout")
     return {"status": "ok"}
 
 
@@ -510,7 +530,7 @@ async def revoke_token(
         jti = token_data.get("jti")
 
     _log_auth_event(
-        "auth_token_revoked",
+        "token_revoked",
         token_type=token_type,
         user_id=token_data.get("sub"),
         jti_present=bool(token_data.get("jti")),

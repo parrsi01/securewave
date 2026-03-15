@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/models/vpn_status.dart';
-import '../../core/state/vpn_state.dart';
+import '../../ui/widgets/vpn_ui_bindings.dart';
 import '../../ui/design/app_animations.dart';
 import '../../ui/design/app_spacing.dart';
 
@@ -44,13 +43,12 @@ class _StatusIndicatorState extends ConsumerState<StatusIndicator>
 
   @override
   Widget build(BuildContext context) {
-    final status = ref.watch(vpnStateProvider.select((s) => s.status));
-    final color = ref.watch(vpnStateProvider.select((s) => s.statusColor));
-    final statusText = widget.showLabel
-        ? ref.watch(vpnStateProvider.select((s) => s.statusText()))
-        : null;
-    final isBusy =
-        status == VpnStatus.connecting || status == VpnStatus.disconnecting;
+    final visualState = ref.watch(connectionVisualStateProvider);
+    final color = _color(visualState);
+    final statusText = widget.showLabel ? _label(visualState) : null;
+    final isBusy = visualState == ConnectionVisualState.connecting ||
+        visualState == ConnectionVisualState.reconnecting ||
+        visualState == ConnectionVisualState.disconnecting;
 
     if (isBusy && !_pulseCtrl.isAnimating) {
       _pulseCtrl.repeat(reverse: true);
@@ -97,7 +95,7 @@ class _StatusIndicatorState extends ConsumerState<StatusIndicator>
             duration: AppAnimations.durationFast,
             child: Text(
               statusText ?? '',
-              key: ValueKey(status),
+              key: ValueKey(visualState),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: color,
                     fontWeight: FontWeight.w700,
@@ -108,4 +106,22 @@ class _StatusIndicatorState extends ConsumerState<StatusIndicator>
       ],
     );
   }
+
+  Color _color(ConnectionVisualState state) => switch (state) {
+        ConnectionVisualState.connected => const Color(0xFF2E7D32),
+        ConnectionVisualState.connecting => const Color(0xFF0277BD),
+        ConnectionVisualState.reconnecting => const Color(0xFFF57C00),
+        ConnectionVisualState.disconnecting => const Color(0xFF546E7A),
+        ConnectionVisualState.error => const Color(0xFFC62828),
+        ConnectionVisualState.disconnected => const Color(0xFF607D8B),
+      };
+
+  String _label(ConnectionVisualState state) => switch (state) {
+        ConnectionVisualState.connected => 'Connected',
+        ConnectionVisualState.connecting => 'Connecting',
+        ConnectionVisualState.reconnecting => 'Reconnecting',
+        ConnectionVisualState.disconnecting => 'Disconnecting',
+        ConnectionVisualState.error => 'Error',
+        ConnectionVisualState.disconnected => 'Disconnected',
+      };
 }

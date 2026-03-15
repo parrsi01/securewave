@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 
-/// Auth screen wrapper with gradient header and centered content column.
+/// Auth screen wrapper with gradient background and centered card.
 ///
 /// Provides a consistent layout for login, register, and password reset
-/// screens: a teal gradient header band at the top, then scrollable centered
+/// screens: a deep navy gradient background, then scrollable centered
 /// content constrained to [AppSpacing.authMaxWidth].
 class AuthShell extends StatelessWidget {
   const AuthShell({
@@ -24,71 +24,77 @@ class AuthShell extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      body: Column(
-        children: [
-          // ── Gradient header ──────────────────────────────────────────
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + AppSpacing.space5,
-              bottom: AppSpacing.space6,
-              left: AppSpacing.pagePadding,
-              right: AppSpacing.pagePadding,
-            ),
-            decoration: const BoxDecoration(
-              gradient: AppColors.authHeaderGradient,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(AppSpacing.radiusXXL),
-                bottomRight: Radius.circular(AppSpacing.radiusXXL),
-              ),
-            ),
-            child: title.isNotEmpty
-                ? Text(
-                    title,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    textAlign: TextAlign.center,
-                  )
-                : const SizedBox.shrink(),
-          ),
-
-          // ── Scrollable body ──────────────────────────────────────────
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.pagePadding,
-                vertical: AppSpacing.space6,
-              ),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: AppSpacing.authMaxWidth,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: isDark ? AppColors.navyGradient : null,
+          color: isDark ? null : AppColors.background,
+        ),
+        child: Column(
+          children: [
+            // ── Header ──────────────────────────────────────────────────
+            if (title.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + AppSpacing.space5,
+                  bottom: AppSpacing.space4,
+                  left: AppSpacing.pagePadding,
+                  right: AppSpacing.pagePadding,
+                ),
+                child: Text(
+                  title,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Material(
-                        color: isDark
-                            ? AppColors.darkSurface
-                            : AppColors.surface,
-                        borderRadius:
-                            BorderRadius.circular(AppSpacing.radiusL),
-                        elevation: isDark ? 0 : 1,
-                        child: Padding(
-                          padding:
-                              const EdgeInsets.all(AppSpacing.cardPadding),
-                          child: child,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+            // ── Scrollable body ──────────────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.pagePadding,
+                  vertical: AppSpacing.space6,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: AppSpacing.authMaxWidth,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Material(
+                          color: isDark
+                              ? AppColors.darkSurface
+                              : theme.colorScheme.surface,
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusL),
+                          elevation: isDark ? 0 : 1,
+                          child: Container(
+                            decoration: isDark
+                                ? BoxDecoration(
+                                    borderRadius: BorderRadius.circular(
+                                        AppSpacing.radiusL),
+                                    border: Border.all(
+                                      color: AppColors.darkBorder,
+                                      width: 1,
+                                    ),
+                                  )
+                                : null,
+                            padding:
+                                const EdgeInsets.all(AppSpacing.cardPadding),
+                            child: child,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

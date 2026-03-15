@@ -4,7 +4,7 @@ and /vpn/status schema correctness.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +56,8 @@ class TestDeviceDeletionReducesCount:
 
         # Revoke
         peer_manager.revoke_peer(peer.id)
+        db.refresh(peer)
+        assert peer.device_state == "revoked"
 
         # Active count should be 0
         active_after = db.query(WireGuardPeer).filter(
@@ -88,6 +90,30 @@ class TestDeviceDeletionReducesCount:
         assert peer2 is not None
         assert peer2.is_active is True
         assert peer2.is_revoked is False
+        assert peer2.device_state == "active"
+
+    def test_cleanup_job_marks_expired_devices(self, db, free_user, test_vpn_server):
+        from services.device_service import get_device_service
+        from services.vpn_peer_manager import get_peer_manager
+
+        peer_manager = get_peer_manager(db)
+        peer = peer_manager.create_peer(
+            user=free_user,
+            server=test_vpn_server,
+            device_name="stale-device",
+            device_type="linux",
+        )
+        peer.profile_expires_at = datetime.utcnow() - timedelta(minutes=10)
+        db.add(peer)
+        db.commit()
+
+        summary = get_device_service(db).expire_due_devices()
+        assert summary.expired == 1
+
+        db.refresh(peer)
+        assert peer.device_state == "expired"
+        assert peer.is_active is False
+        assert peer.is_revoked is False
 
 
 # ---------------------------------------------------------------------------

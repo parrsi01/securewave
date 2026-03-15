@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../ui/design/app_colors.dart';
-import '../../../ui/design/app_spacing.dart';
+import '../../ui/design/app_colors.dart';
+import '../../ui/design/app_spacing.dart';
 
 /// Feedback category options for the feedback sheet.
 enum FeedbackCategory {

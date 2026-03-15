@@ -16,7 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from dev_tools.sandbox.live_validation.common import ensure_dir, run_command, utc_now_iso, write_json, write_markdown
+from dev_tools.sandbox.live_validation.common import build_api_url, ensure_dir, run_command, utc_now_iso, write_json, write_markdown
 
 
 def categorize_fault_result(status: str, recovered: bool) -> str:
@@ -52,7 +52,7 @@ def _scenario_backend_unreachable(api_base_url: str, execute: bool) -> dict[str,
     add_rule = run_command(["iptables", "-I", "OUTPUT", "1", "-d", host_ip, "-j", "REJECT"], timeout_seconds=12)
     failed_as_expected = False
     if add_rule.returncode == 0:
-        probe = run_command(["curl", "--max-time", "6", "-sS", f"{api_base_url.rstrip('/')}/health"], timeout_seconds=8)
+        probe = run_command(["curl", "--max-time", "6", "-sS", build_api_url(api_base_url, "/health")], timeout_seconds=8)
         failed_as_expected = probe.returncode != 0
     remove_rule = run_command(["iptables", "-D", "OUTPUT", "-d", host_ip, "-j", "REJECT"], timeout_seconds=12)
 
@@ -106,7 +106,7 @@ def _scenario_gateway_reset(execute: bool, api_base_url: str) -> dict[str, Any]:
 
     # Temporarily remove defaults to simulate gateway reset.
     delete_cmd = run_command(["ip", "route", "del", "default"], timeout_seconds=8)
-    probe = run_command(["curl", "--max-time", "5", "-sS", f"{api_base_url.rstrip('/')}/health"], timeout_seconds=7)
+    probe = run_command(["curl", "--max-time", "5", "-sS", build_api_url(api_base_url, "/health")], timeout_seconds=7)
     restore = run_command(f"ip route replace {line}", timeout_seconds=8, shell=True)
 
     degraded = probe.returncode != 0

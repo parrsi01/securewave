@@ -4,14 +4,10 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 from alembic import context
-from dotenv import load_dotenv
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# Load environment variables (production takes precedence)
-load_dotenv()
-load_dotenv(".env.production")
-
+from config.settings import get_settings  # noqa: E402
 from database.base import Base  # noqa: E402
 from database.session import DATABASE_URL  # noqa: E402
 
@@ -26,8 +22,8 @@ from models.auth_refresh_token import AuthRefreshToken  # noqa: E402
 config = context.config
 fileConfig(config.config_file_name)
 
-# Set database URL from environment (production or development)
-database_url = os.getenv("DATABASE_URL", DATABASE_URL)
+# Set database URL from the centralized settings loader.
+database_url = get_settings().database_url or DATABASE_URL
 config.set_main_option("sqlalchemy.url", database_url)
 
 

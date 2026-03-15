@@ -74,7 +74,7 @@ class SecureWaveGradients extends ThemeExtension<SecureWaveGradients> {
     connectedGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF1F8F5C), Color(0xFF156B44)],
+      colors: [Color(0xFF00E676), Color(0xFF1B6B68)],
     ),
     connectGradient: LinearGradient(
       begin: Alignment.topLeft,
@@ -90,21 +90,13 @@ class SecureWaveGradients extends ThemeExtension<SecureWaveGradients> {
 
   static const SecureWaveGradients dark = SecureWaveGradients(
     brandGradient: AppColors.brandGradient,
-    connectedGradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFF1F8F5C), Color(0xFF0D5A3A)],
-    ),
+    connectedGradient: AppColors.connectedGradient,
     connectGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [AppColors.primaryBright, AppColors.primaryDark],
     ),
-    shellBackground: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [AppColors.darkBackground, AppColors.darkBackgroundWarm],
-    ),
+    shellBackground: AppColors.navyGradient,
   );
 
   @override
@@ -162,17 +154,17 @@ class SecureWaveSemanticColors
   final Color muted;
 
   static const SecureWaveSemanticColors light = SecureWaveSemanticColors(
-    success: AppColors.success,
-    warning: AppColors.warning,
-    danger: AppColors.error,
+    success: AppColors.successDark,
+    warning: AppColors.warningDark,
+    danger: AppColors.errorDark,
     brand: AppColors.primary,
     muted: AppColors.inkSoft,
   );
 
   static const SecureWaveSemanticColors dark = SecureWaveSemanticColors(
-    success: Color(0xFF34D399),
-    warning: Color(0xFFFBBF24),
-    danger: Color(0xFFFF6B6B),
+    success: AppColors.success,
+    warning: AppColors.warning,
+    danger: AppColors.error,
     brand: AppColors.primaryBright,
     muted: AppColors.darkInkSoft,
   );
@@ -239,6 +231,10 @@ class SecureWaveTheme {
   SecureWaveTheme._();
 
   static ThemeMode get defaultThemeMode => ThemeMode.dark;
+
+  /// Convenience aliases for app.dart
+  static ThemeData lightTheme() => light();
+  static ThemeData darkTheme() => dark();
 
   static TextTheme _textTheme() {
     return GoogleFonts.plusJakartaSansTextTheme();
@@ -336,6 +332,14 @@ class SecureWaveTheme {
 
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.darkBackground,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.darkBackground,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: AppColors.darkSurface,
+      ),
       extensions: const <ThemeExtension<dynamic>>[
         SecureWaveGradients.dark,
         SecureWaveSemanticColors.dark,

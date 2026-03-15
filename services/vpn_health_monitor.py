@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import socket
 import subprocess  # nosec B404 - controlled subprocess usage
 import shutil
 import time
@@ -22,6 +23,15 @@ logger = logging.getLogger(__name__)
 DEGRADED_HANDSHAKE_SECONDS = int(os.getenv("WG_HANDSHAKE_DEGRADED_SECONDS", "120"))
 UNSTABLE_HANDSHAKE_SECONDS = int(os.getenv("WG_HANDSHAKE_UNSTABLE_SECONDS", "300"))
 
+# After this many consecutive probe failures a node transitions to "offline".
+OFFLINE_FAILURE_THRESHOLD = int(os.getenv("VPN_OFFLINE_FAILURE_THRESHOLD", "5"))
+
+# Health check interval in seconds.
+HEALTH_CHECK_INTERVAL = int(os.getenv("VPN_HEALTH_CHECK_INTERVAL", "30"))
+
+# WireGuard port probe timeout in seconds.
+WG_PORT_PROBE_TIMEOUT = float(os.getenv("VPN_WG_PORT_PROBE_TIMEOUT", "3"))
+
 
 class VPNHealthMonitor:
     """Background service to monitor VPN server health"""
@@ -39,7 +49,7 @@ class VPNHealthMonitor:
         while self.is_running:
             try:
                 await self.check_all_servers()
-                await asyncio.sleep(30)  # Check every 30 seconds
+                await asyncio.sleep(HEALTH_CHECK_INTERVAL)
             except Exception as e:
                 logger.error(f"Health monitor error: {e}", exc_info=True)
                 await asyncio.sleep(60)  # Wait longer on error
@@ -70,6 +80,12 @@ class VPNHealthMonitor:
                     self.server_service.update_server_metrics(
                         self.db, server.server_id, metrics
                     )
+
+                    # Determine effective health from combined probes
+                    ping_ok = metrics["latency_ms"] < 999
+                    port_ok = metrics.get("wg_port_open", False)
+                    self._apply_health_transition(server, ping_ok, port_ok)
+
                     await self.refresh_peer_handshake_health(server)
 
                     # Update optimizer with fresh metrics
@@ -83,7 +99,10 @@ class VPNHealthMonitor:
 
                 except Exception as e:
                     logger.error(f"Failed to probe {server.server_id}: {e}")
+                    # Count the failure even when the entire probe threw.
+                    self._apply_health_transition(server, ping_ok=False, port_ok=False)
 
+            self.db.commit()
             self.db.close()
 
         except Exception as e:
@@ -91,32 +110,123 @@ class VPNHealthMonitor:
             if self.db:
                 self.db.close()
 
+    # ------------------------------------------------------------------
+    # Health state transitions
+    # ------------------------------------------------------------------
+
+    def _apply_health_transition(
+        self,
+        server: VPNServer,
+        ping_ok: bool,
+        port_ok: bool,
+    ) -> None:
+        """
+        Transition server health based on probe results.
+
+        Statuses:
+          healthy  — ping OK **and** WireGuard port reachable
+          degraded — ping OK but WireGuard port unreachable, or vice-versa
+          offline  — consecutive failures >= OFFLINE_FAILURE_THRESHOLD
+
+        When a previously-offline server passes both probes, it recovers to
+        healthy and the failure counter resets.
+        """
+        now = datetime.utcnow()
+        server.last_health_check = now
+
+        if ping_ok and port_ok:
+            # Full pass — reset failure counter and mark healthy.
+            server.consecutive_health_failures = 0
+            if server.health_status in ("offline", "unreachable"):
+                logger.info(
+                    "Server %s recovered from %s → healthy",
+                    server.server_id,
+                    server.health_status,
+                )
+            server.health_status = "healthy"
+            return
+
+        # At least one probe failed — increment failure counter.
+        server.consecutive_health_failures = (server.consecutive_health_failures or 0) + 1
+
+        if server.consecutive_health_failures >= OFFLINE_FAILURE_THRESHOLD:
+            if server.health_status != "offline":
+                logger.warning(
+                    "Server %s marked offline after %d consecutive failures",
+                    server.server_id,
+                    server.consecutive_health_failures,
+                )
+            server.health_status = "offline"
+        elif ping_ok or port_ok:
+            # Partial reachability
+            server.health_status = "degraded"
+        else:
+            # Both probes failed but below offline threshold
+            server.health_status = "unhealthy"
+
+    # ------------------------------------------------------------------
+    # Server probing
+    # ------------------------------------------------------------------
+
     async def probe_server(self, server: VPNServer) -> Dict:
         """
-        Probe individual server for metrics
+        Probe individual server for metrics.
 
-        Args:
-            server: VPN server object
-
-        Returns:
-            Dictionary of metrics
+        Returns a dict with latency, cpu, memory, packet_loss, and a
+        ``wg_port_open`` boolean indicating WireGuard UDP reachability.
         """
-        # For real server, probe actual metrics
         latency = await self.ping_server(server.public_ip)
+        wg_port_open = await self.check_wg_port(
+            server.public_ip,
+            server.wg_listen_port or 51820,
+        )
 
-        # In production, these would come from server monitoring agent
         metrics = {
             "latency_ms": latency,
             "active_connections": server.current_connections,
             "cpu_load": await self._get_cpu_load(server),
             "memory_usage": 0.6,  # Would come from monitoring agent
             "packet_loss": 0.0 if latency < 999 else 1.0,
-            "jitter_ms": max(0.5, latency * 0.05),  # Estimate jitter as 5% of latency
-            "bandwidth_in_mbps": 1000.0,  # Would come from monitoring agent
-            "bandwidth_out_mbps": 1000.0,  # Would come from monitoring agent
+            "jitter_ms": max(0.5, latency * 0.05),
+            "bandwidth_in_mbps": 1000.0,
+            "bandwidth_out_mbps": 1000.0,
+            "wg_port_open": wg_port_open,
         }
 
         return metrics
+
+    # ------------------------------------------------------------------
+    # WireGuard UDP port check
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def check_wg_port(
+        ip: str,
+        port: int,
+        timeout: float = WG_PORT_PROBE_TIMEOUT,
+    ) -> bool:
+        """
+        Check whether the WireGuard UDP port is reachable.
+
+        Sends a single empty UDP datagram and waits for an ICMP
+        "port unreachable" error. If the socket stays open (no error)
+        within the timeout, we assume the port is accepting packets.
+
+        Returns True if the port appears open, False otherwise.
+        """
+        loop = asyncio.get_event_loop()
+        try:
+            return await asyncio.wait_for(
+                loop.run_in_executor(None, _udp_port_probe, ip, port, timeout),
+                timeout=timeout + 1,
+            )
+        except (asyncio.TimeoutError, OSError) as exc:
+            logger.debug("WG port check %s:%d failed: %s", ip, port, exc)
+            return False
+
+    # ------------------------------------------------------------------
+    # Handshake freshness / server health classification
+    # ------------------------------------------------------------------
 
     @staticmethod
     def classify_handshake_freshness(age_seconds: float | None) -> str:
@@ -219,23 +329,21 @@ class VPNHealthMonitor:
             statuses.append(peer.health_status)
             self.db.add(peer)
 
-        server.health_status = self.classify_server_health(statuses)
+        # Only override server health from peer stats when server is not already
+        # marked offline by the probe layer.
+        if server.health_status != "offline":
+            server.health_status = self.classify_server_health(statuses)
         server.last_health_check = now
         self.db.add(server)
         self.db.commit()
 
     async def ping_server(self, ip: str) -> float:
         """
-        Measure latency to server via ping
+        Measure latency to server via ping.
 
-        Args:
-            ip: Server IP address
-
-        Returns:
-            Latency in milliseconds (999.0 if unreachable)
+        Returns latency in milliseconds (999.0 if unreachable).
         """
         try:
-            # Run ping command (platform-specific)
             ping_path = shutil.which("ping")
             if not ping_path:
                 raise FileNotFoundError("ping not available")
@@ -253,10 +361,8 @@ class VPNHealthMonitor:
 
             stdout, stderr = await asyncio.wait_for(result.communicate(), timeout=5)
 
-            # Parse average latency from output
             output = stdout.decode()
             if "avg" in output or "average" in output:
-                # Extract average from: "rtt min/avg/max/mdev = 10.1/15.3/20.5/3.2 ms"
                 for line in output.split("\n"):
                     if "avg" in line or "average" in line:
                         parts = line.split("=")
@@ -265,7 +371,6 @@ class VPNHealthMonitor:
                             if len(values) >= 2:
                                 return float(values[1].strip().replace("ms", "").strip())
 
-            # If we got here, parsing failed but ping succeeded
             return 50.0  # Default reasonable latency
 
         except FileNotFoundError:
@@ -277,22 +382,51 @@ class VPNHealthMonitor:
 
     async def _get_cpu_load(self, server: VPNServer) -> float:
         """
-        Get CPU load from server
+        Get CPU load from server.
 
         In production, this should query a monitoring agent on the server.
         Current implementation returns a deterministic estimate based on
         connection count.
-
-        Args:
-            server: VPN server object
-
-        Returns:
-            CPU load (0.0 to 1.0)
         """
-        # Estimate load from current connection pressure.
-        base_load = 0.15  # Idle load
+        base_load = 0.15
         connection_load = (server.current_connections / server.max_connections) * 0.6
         return min(0.95, base_load + connection_load)
+
+
+# ---------------------------------------------------------------------------
+# Helpers (module-level, not methods, so they work inside run_in_executor)
+# ---------------------------------------------------------------------------
+
+def _udp_port_probe(ip: str, port: int, timeout: float) -> bool:
+    """
+    Send a single empty UDP datagram and check for ICMP port-unreachable.
+
+    If the OS returns ECONNREFUSED (Linux) the port is explicitly closed.
+    If the socket stays writable with no error, we assume the port is open
+    (WireGuard silently drops unknown packets).
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(timeout)
+    try:
+        sock.sendto(b"", (ip, port))
+        # Wait for potential ICMP error to arrive.
+        try:
+            sock.recvfrom(1024)
+        except socket.timeout:
+            # No ICMP error within timeout — port is open (WireGuard drops silently).
+            return True
+        except OSError as e:
+            if e.errno in (111, 113):  # ECONNREFUSED / EHOSTUNREACH
+                return False
+            # Other OS error — treat as closed.
+            return False
+        # Got a response — port is definitely open.
+        return True
+    except OSError:
+        return False
+    finally:
+        sock.close()
+
 
 # Singleton instance
 _health_monitor = None

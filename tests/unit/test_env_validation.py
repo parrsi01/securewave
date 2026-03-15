@@ -15,6 +15,7 @@ from utils.env_validation import (
     is_production,
     validate_fernet_key,
     email_config_issues,
+    stripe_config_issues,
     production_env_errors,
 )
 
@@ -196,6 +197,12 @@ class TestProductionEnvErrors:
         valid_key = Fernet.generate_key().decode()
         env = {
             "ENVIRONMENT": "production",
+            "API_BASE_URL": "https://api.securewave.example/api",
+            "VPN_SERVER_ENDPOINT": "vpn.securewave.example:51820",
+            "WG_SSH_KEY_PATH": "/tmp/securewave_test_wg_key",
+            "WG_API_KEY": "test-api-key",
+            "JWT_SECRET": "x" * 64,
+            "DATABASE_URL": "postgresql://securewave:secret@localhost:5432/securewave",
             "AUTH_ENCRYPTION_KEY": valid_key,
             "WG_ENCRYPTION_KEY": valid_key,
             "TESTING": "false",
@@ -205,7 +212,120 @@ class TestProductionEnvErrors:
             "SMTP_USER": "user@example.com",
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
+            "STRIPE_SECRET_KEY": "sk_live_test",
+            "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra",
+            "PAYMENTS_MOCK": "false",
+            "DEMO_MODE": "false",
+            "WG_MOCK_MODE": "false",
         }
         with patch.dict(os.environ, env):
             errors = production_env_errors()
             assert errors == []
+
+    def test_sqlite_requires_explicit_override(self):
+        from cryptography.fernet import Fernet
+        valid_key = Fernet.generate_key().decode()
+        env = {
+            "ENVIRONMENT": "production",
+            "DATABASE_URL": "sqlite:///./securewave.db",
+            "API_BASE_URL": "https://api.securewave.example/api",
+            "VPN_SERVER_ENDPOINT": "vpn.securewave.example:51820",
+            "WG_SSH_KEY_PATH": "/tmp/securewave_test_wg_key",
+            "WG_API_KEY": "test-api-key",
+            "JWT_SECRET": "x" * 64,
+            "AUTH_ENCRYPTION_KEY": valid_key,
+            "WG_ENCRYPTION_KEY": valid_key,
+            "EMAIL_PROVIDER": "smtp",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "FROM_EMAIL": "noreply@example.com",
+            "STRIPE_SECRET_KEY": "sk_live_test",
+            "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            errors = production_env_errors()
+            assert any("ALLOW_SQLITE_PRODUCTION" in e for e in errors)
+
+    def test_mock_flags_are_rejected_in_production(self):
+        from cryptography.fernet import Fernet
+        valid_key = Fernet.generate_key().decode()
+        env = {
+            "ENVIRONMENT": "production",
+            "API_BASE_URL": "https://api.securewave.example/api",
+            "VPN_SERVER_ENDPOINT": "vpn.securewave.example:51820",
+            "WG_SSH_KEY_PATH": "/tmp/securewave_test_wg_key",
+            "WG_API_KEY": "test-api-key",
+            "JWT_SECRET": "x" * 64,
+            "DATABASE_URL": "postgresql://securewave:secret@localhost:5432/securewave",
+            "AUTH_ENCRYPTION_KEY": valid_key,
+            "WG_ENCRYPTION_KEY": valid_key,
+            "EMAIL_PROVIDER": "smtp",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "FROM_EMAIL": "noreply@example.com",
+            "STRIPE_SECRET_KEY": "sk_live_test",
+            "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra",
+            "PAYMENTS_MOCK": "true",
+            "DEMO_MODE": "true",
+            "WG_MOCK_MODE": "true",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            errors = production_env_errors()
+            assert any("PAYMENTS_MOCK" in e for e in errors)
+            assert any("DEMO_MODE" in e for e in errors)
+            assert any("WG_MOCK_MODE" in e for e in errors)
+
+    def test_invalid_wireguard_endpoint_is_reported(self):
+        from cryptography.fernet import Fernet
+        valid_key = Fernet.generate_key().decode()
+        env = {
+            "ENVIRONMENT": "production",
+            "API_BASE_URL": "https://api.securewave.example/api",
+            "VPN_SERVER_ENDPOINT": "https://vpn.securewave.example:51820",
+            "WG_SSH_KEY_PATH": "/tmp/securewave_test_wg_key",
+            "WG_API_KEY": "test-api-key",
+            "JWT_SECRET": "x" * 64,
+            "DATABASE_URL": "postgresql://securewave:secret@localhost:5432/securewave",
+            "AUTH_ENCRYPTION_KEY": valid_key,
+            "WG_ENCRYPTION_KEY": valid_key,
+            "EMAIL_PROVIDER": "smtp",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "FROM_EMAIL": "noreply@example.com",
+            "STRIPE_SECRET_KEY": "sk_live_test",
+            "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            errors = production_env_errors()
+            assert any("VPN_SERVER_ENDPOINT" in e for e in errors)
+
+
+class TestStripeConfigIssues:
+    def test_requires_checkout_fields(self):
+        with patch.dict(os.environ, {}, clear=True):
+            missing = stripe_config_issues()
+            assert "STRIPE_SECRET_KEY" in missing
+            assert "STRIPE_WEBHOOK_SECRET" in missing
+            assert "STRIPE_PRICE_BASIC_MONTHLY" in missing

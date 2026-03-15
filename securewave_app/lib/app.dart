@@ -6,6 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'core/config/app_config.dart';
 import 'core/logging/app_logger.dart';
+import 'core/services/network_path.dart';
 import 'core/state/vpn_state.dart';
 import 'navigation/app_router.dart';
 import 'ui/theme/securewave_theme.dart';
@@ -19,22 +20,20 @@ class SecureWaveApp extends ConsumerStatefulWidget {
 
 class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
   late final AppLifecycleObserver _observer;
+  late final Connectivity _connectivity;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  NetworkPathKind _lastNetworkPath = NetworkPathKind.offline;
 
   @override
   void initState() {
     super.initState();
+    _connectivity = Connectivity();
     _observer = AppLifecycleObserver(onStateChange: _handleLifecycle);
     WidgetsBinding.instance.addObserver(_observer);
-    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
-      final hasNetwork = !results.contains(ConnectivityResult.none);
-      debugPrint(
-        '[VPN_DIAG] connectivity event: results=$results hasNetwork=$hasNetwork',
-      );
-      unawaited(ref
-          .read(vpnStateProvider.notifier)
-          .handleConnectivityChange(hasNetwork: hasNetwork));
-    });
+    unawaited(_primeConnectivityState());
+    _connectivitySub = _connectivity.onConnectivityChanged.listen(
+      _handleConnectivityEvent,
+    );
   }
 
   @override
@@ -44,16 +43,57 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     super.dispose();
   }
 
+  Future<void> _primeConnectivityState() async {
+    final results = await _connectivity.checkConnectivity();
+    if (!mounted) return;
+    _handleConnectivityEvent(results);
+  }
+
+  void _handleConnectivityEvent(List<ConnectivityResult> results) {
+    final nextPath = networkPathKindFromResults(results);
+    final previousPath = _lastNetworkPath;
+    _lastNetworkPath = nextPath;
+
+    AppLogger.vpn(
+      'NETWORK',
+      'PATH_CHANGED',
+      fields: <String, Object?>{
+        'previous': previousPath.label,
+        'current': nextPath.label,
+        'online': nextPath.isOnline,
+      },
+    );
+
+    final notifier = ref.read(vpnStateProvider.notifier);
+    unawaited(
+      notifier.handleConnectivityChange(hasNetwork: nextPath.isOnline),
+    );
+    if (previousPath != nextPath) {
+      unawaited(
+        notifier.handleNetworkPathChange(
+          previous: previousPath,
+          current: nextPath,
+        ),
+      );
+    }
+  }
+
   Future<void> _handleLifecycle(AppLifecycleState state) async {
-    debugPrint('[VPN_DIAG] lifecycle event: ${state.name}');
     if (state == AppLifecycleState.resumed) {
       final config = await AppConfig.load();
       if (!mounted) return;
       ref.read(appConfigProvider.notifier).state = config;
       ref.read(vpnStateProvider.notifier).resumeRateUpdates();
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.detached) {
+      return;
+    }
+
+    if (state == AppLifecycleState.detached) {
+      await ref.read(vpnStateProvider.notifier).safeShutdown();
+      return;
+    }
+
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       ref.read(vpnStateProvider.notifier).pauseRateUpdates();
     }
   }

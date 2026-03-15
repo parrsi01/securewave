@@ -89,6 +89,10 @@ class VPNServer(Base):
     auto_scale_max_connections = Column(Integer, default=900)  # Scale up threshold
     is_auto_scaled = Column(Boolean, default=False)  # Was this server auto-created?
 
+    # Composite load score (0.0 = idle, 1.0 = saturated).
+    # Updated by health monitor from cpu_load, memory_usage, connection ratio.
+    load_score = Column(Float, default=0.0, nullable=False)
+
     # Real-time metrics (updated by monitoring service)
     current_connections = Column(Integer, default=0)
     cpu_load = Column(Float, default=0.0)  # 0.0 to 1.0
@@ -156,6 +160,12 @@ class VPNServer(Base):
             return False
         return self.current_connections < self.auto_scale_min_connections
 
+    def compute_load_score(self) -> float:
+        """Derive a 0.0–1.0 composite load score from cpu, memory, and connection ratio."""
+        conn_ratio = (self.current_connections / self.max_connections) if self.max_connections else 0.0
+        score = 0.4 * self.cpu_load + 0.3 * self.memory_usage + 0.3 * conn_ratio
+        return round(min(max(score, 0.0), 1.0), 4)
+
     def to_dict(self, include_sensitive=False):
         """Convert server to dictionary for API responses"""
         data = {
@@ -175,6 +185,7 @@ class VPNServer(Base):
             "allowed_ips": self.allowed_ips,
             "status": self.status,
             "health_status": self.health_status,
+            "load_score": round(self.load_score, 4),
             "current_connections": self.current_connections,
             "max_connections": self.max_connections,
             "capacity_percentage": self.capacity_percentage,

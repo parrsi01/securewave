@@ -273,9 +273,8 @@ class DatabaseInitializer:
 
     def _check_database_url(self) -> bool:
         """Check if DATABASE_URL is configured"""
-        from dotenv import load_dotenv
-        load_dotenv(self.env_file)
-        return bool(os.getenv("DATABASE_URL"))
+        from config.settings import env_file_has_value
+        return env_file_has_value(self.env_file, "DATABASE_URL")
 
 
 def main():

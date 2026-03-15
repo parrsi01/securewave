@@ -1,6 +1,4 @@
-import os
 import logging
-import secrets
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
@@ -14,43 +12,19 @@ from database.session import get_db
 from models.auth_refresh_token import AuthRefreshToken
 from models.jwt_blacklist_token import JWTBlacklistToken
 from models.user import User
+from config.settings import get_settings
 
 logger = logging.getLogger(__name__)
-
-# Load JWT secrets
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-
-
-def _load_secret(name: str) -> str:
-    secret = os.getenv(name)
-    if secret:
-        return secret
-    if ENVIRONMENT == "production":
-        raise RuntimeError(
-            f"CRITICAL SECURITY ERROR: Production requires secure {name}. "
-            "Generate a secret with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
-        )
-    generated = secrets.token_urlsafe(32)
-    logger.warning(
-        "WARNING: %s not set; generated an ephemeral development secret. "
-        "Set %s for stable tokens across restarts.",
-        name,
-        name,
-    )
-    return generated
-
-
-ACCESS_SECRET = _load_secret("ACCESS_TOKEN_SECRET")
-REFRESH_SECRET = _load_secret("REFRESH_TOKEN_SECRET")
+SETTINGS = get_settings()
+ENVIRONMENT = SETTINGS.environment
+ACCESS_SECRET = SETTINGS.access_token_secret
+REFRESH_SECRET = SETTINGS.refresh_token_secret
 ALGORITHM = "HS256"
-ACCESS_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-REFRESH_EXPIRE_MINUTES = int(os.getenv("REFRESH_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 14)))
-REFRESH_SESSION_REQUIRED = os.getenv(
-    "REFRESH_SESSION_REQUIRED",
-    "true" if ENVIRONMENT == "production" else "false",
-).lower() == "true"
+ACCESS_EXPIRE_MINUTES = SETTINGS.access_token_expire_minutes
+REFRESH_EXPIRE_MINUTES = SETTINGS.refresh_token_expire_minutes
+REFRESH_SESSION_REQUIRED = SETTINGS.refresh_session_required
 
-if ENVIRONMENT == "production":
+if SETTINGS.is_production:
     logger.info("JWT secrets validated for production environment")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)

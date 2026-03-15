@@ -1,5 +1,7 @@
 import os
 
+from config.settings import get_settings
+
 try:
     from passlib.context import CryptContext
     _HAS_PASSLIB = True
@@ -8,6 +10,9 @@ except ImportError:
     _HAS_PASSLIB = False
     import crypt
 
+
+SETTINGS = get_settings()
+
 def _bcrypt_rounds() -> int:
     env_rounds = os.getenv("BCRYPT_ROUNDS")
     if env_rounds:
@@ -15,7 +20,7 @@ def _bcrypt_rounds() -> int:
             return max(4, int(env_rounds))
         except ValueError:
             return 12
-    if os.getenv("TESTING", "").lower() == "true":
+    if SETTINGS.testing:
         return 4
     return 12
 

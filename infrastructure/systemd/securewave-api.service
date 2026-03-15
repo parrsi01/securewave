@@ -1,0 +1,31 @@
+[Unit]
+Description=SecureWave API (gunicorn)
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+
+[Service]
+Type=exec
+User=securewave
+Group=securewave
+WorkingDirectory=/opt/securewave
+EnvironmentFile=/etc/securewave/env
+Environment=PATH=/opt/securewave/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/opt/securewave/.venv/bin/gunicorn main:app \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers 2 \
+    --bind 127.0.0.1:8080 \
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile -
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/securewave /var/log/securewave /tmp
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=securewave-api
+
+[Install]
+WantedBy=multi-user.target

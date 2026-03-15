@@ -1,0 +1,18 @@
+version: 1
+
+AppDir:
+  path: ./build/appimage/AppDir
+  app_info:
+    id: com.securewave.app
+    name: SecureWave
+    icon: securewave
+    version: "1.0.0"
+    exec: securewave_app
+  files:
+    include:
+      - build/linux/x64/release/bundle/**
+      - packaging/appimage/securewave.desktop
+      - packaging/appimage/securewave.png
+
+AppImage:
+  arch: x86_64

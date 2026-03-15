@@ -26,7 +26,7 @@ class TrafficStatsCard extends StatelessWidget {
             icon: Icons.arrow_downward_rounded,
             label: 'Download',
             value: formatDataRate(vpnState.dataRateDown),
-            color: AppColors.success,
+            color: AppColors.secondary,
           ),
           _Divider(),
           _Stat(
@@ -72,13 +72,12 @@ class _Stat extends StatelessWidget {
           value,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
               ),
         ),
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppColors.darkInkSoft,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
         ),
       ],
@@ -92,7 +91,7 @@ class _Divider extends StatelessWidget {
     return SizedBox(
       height: 40,
       child: VerticalDivider(
-        color: AppColors.darkBorder,
+        color: Theme.of(context).colorScheme.outlineVariant,
         width: 1,
       ),
     );

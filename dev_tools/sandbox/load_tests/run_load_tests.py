@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import importlib
 import json
 import os
 import random
@@ -234,14 +235,27 @@ def _cpu_memory_snapshot(process: psutil.Process) -> Dict:
 
 
 async def run(args) -> Dict:
-    db_file = Path(tempfile.gettempdir()) / "securewave_load_tests.db"
-    if db_file.exists():
-        db_file.unlink()
+    db_file = Path(tempfile.gettempdir()) / f"securewave_load_tests_{time.time_ns()}.db"
     _setup_env(db_file)
 
-    from main import app
-    from database.session import create_tables, SessionLocal
-    import database.session as db_session
+    if "database.session" in sys.modules:
+        old_db_session = sys.modules["database.session"]
+        engine = getattr(old_db_session, "engine", None)
+        if engine is not None:
+            engine.dispose()
+
+    db_session = importlib.import_module("database.session")
+    db_session = importlib.reload(db_session)
+    if "main" in sys.modules:
+        main_module = importlib.reload(sys.modules["main"])
+    else:
+        main_module = importlib.import_module("main")
+    auth_routes = importlib.import_module("routes.auth")
+    auth_routes.record_login_success = lambda *_args, **_kwargs: None
+
+    app = main_module.app
+    create_tables = db_session.create_tables
+    SessionLocal = db_session.SessionLocal
     import logging
     from models.user import User
     from models.vpn_server import VPNServer
@@ -249,6 +263,7 @@ async def run(args) -> Dict:
     from services.jwt_service import create_access_token
 
     db_session.engine.echo = False
+    db_session.SessionLocal.configure(bind=db_session.engine)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("services.wireguard_service").setLevel(logging.ERROR)
     create_tables()
@@ -295,7 +310,12 @@ async def run(args) -> Dict:
             credentials.append((email, password))
         db.commit()
 
-        users = db.query(User).order_by(User.id.asc()).all()
+        users = (
+            db.query(User)
+            .filter(User.email.like(f"load-user-{run_tag}-%@example.com"))
+            .order_by(User.id.asc())
+            .all()
+        )
         tokens = [create_access_token(user) for user in users]
 
         process = psutil.Process()
@@ -319,7 +339,7 @@ async def run(args) -> Dict:
             )
             cpu_memory_samples.append({"phase": "after_jwt_refresh", **_cpu_memory_snapshot(process)})
 
-        rate_limit_results = _rate_limit_exhaustion()
+        rate_limit_results = await asyncio.to_thread(_rate_limit_exhaustion)
         cpu_memory_samples.append({"phase": "after_rate_limit_test", **_cpu_memory_snapshot(process)})
 
         config_results = _wireguard_config_benchmark(db, iterations=args.config_iterations)

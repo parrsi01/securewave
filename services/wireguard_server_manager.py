@@ -22,9 +22,11 @@ from datetime import datetime
 import httpx
 from cryptography.fernet import Fernet
 
+from config.settings import get_settings
 from utils.env_validation import validate_fernet_key, is_production
 
 logger = logging.getLogger(__name__)
+SETTINGS = get_settings()
 
 # Communication method type
 CommunicationMethod = Literal["http_api", "ssh"]
@@ -47,6 +49,9 @@ class ServerConnection:
     method: CommunicationMethod = "ssh"
 
 
+_IS_TESTING = SETTINGS.testing
+
+
 class WireGuardServerManager:
     """
     Manages WireGuard peer operations on remote servers.
@@ -58,15 +63,16 @@ class WireGuardServerManager:
     def __init__(self):
         self.fernet = self._load_fernet()
         self._http_client: Optional[httpx.AsyncClient] = None
-        self.default_ssh_key = os.getenv("WG_SSH_KEY_PATH", os.path.expanduser("~/.ssh/id_rsa"))
-        self.default_api_key = os.getenv("WG_API_KEY", "")
-        self.timeout = int(os.getenv("WG_COMMAND_TIMEOUT", "30"))
+        self.default_ssh_key = SETTINGS.wg_ssh_key_path or os.path.expanduser("~/.ssh/id_rsa")
+        self.default_api_key = SETTINGS.wg_api_key or ""
+        self.timeout = SETTINGS.wg_command_timeout
         self.ssh_path = shutil.which("ssh")
         self._wg_key_pattern = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
+        self._test_mode = _IS_TESTING
 
     def _load_fernet(self) -> Optional[Fernet]:
         """Load Fernet encryption key for API keys"""
-        key = os.getenv("WG_ENCRYPTION_KEY")
+        key = SETTINGS.wg_encryption_key
         issue = validate_fernet_key(key)
         if issue:
             if is_production():
@@ -402,6 +408,41 @@ class WireGuardServerManager:
             return False, f"Health check failed: {e}"
 
     # =========================================================================
+    # Test-mode SSH stub
+    # =========================================================================
+
+    @staticmethod
+    def _mock_ssh_response(command: str) -> Tuple[bool, str, str]:
+        """Return a static mock response for SSH commands during testing."""
+        if "wg show" in command and "dump" in command:
+            return True, (
+                "dGVzdC1zZXJ2ZXItcHVibGljLWtleS1iYXNlNjQ=\t"
+                "cHJpdmF0ZS1rZXk=\t51820\toff\n"
+                "dGVzdC1wZWVyLXB1YmxpYy1rZXk=\t(none)\t"
+                "10.0.0.2/32\t0\t0\t0\t0\toff"
+            ), ""
+        if "wg show" in command:
+            return True, (
+                "interface: wg0\n"
+                "  public key: dGVzdC1zZXJ2ZXItcHVibGljLWtleS1iYXNlNjQ=\n"
+                "  private key: (hidden)\n"
+                "  listening port: 51820"
+            ), ""
+        if "wg set" in command and "remove" in command:
+            return True, "", ""
+        if "wg set" in command:
+            return True, "", ""
+        if "wg-quick" in command:
+            return True, "", ""
+        if "wg pubkey" in command:
+            return True, "dGVzdC1uZXctcHVibGljLWtleS1iYXNlNjQ=", ""
+        if "systemctl restart" in command:
+            return True, "", ""
+        if "echo" in command and "OK" in command:
+            return True, "OK", ""
+        return True, "", ""
+
+    # =========================================================================
     # SSH Implementation
     # =========================================================================
 
@@ -416,6 +457,9 @@ class WireGuardServerManager:
         Returns:
             Tuple of (success, stdout, stderr)
         """
+        if self._test_mode:
+            return self._mock_ssh_response(command)
+
         ssh_key = conn.ssh_key_path or self.default_ssh_key
         ssh_target = f"{conn.ssh_user}@{conn.public_ip}"
 
@@ -609,19 +653,19 @@ def server_connection_from_db(server) -> ServerConnection:
     method: CommunicationMethod = "ssh"  # Default
 
     # Prefer HTTP API if configured
-    api_key = os.getenv("WG_API_KEY")
+    api_key = SETTINGS.wg_api_key
     if api_key:
         method = "http_api"
-    elif os.getenv("WG_SSH_KEY_PATH"):
+    elif SETTINGS.wg_ssh_key_path:
         method = "ssh"
 
     return ServerConnection(
         server_id=server.server_id,
         public_ip=server.public_ip,
         wg_port=server.wg_listen_port or 51820,
-        api_port=int(os.getenv("WG_API_PORT", "8080")),
+        api_port=SETTINGS.wg_api_port,
         api_key=api_key,
-        ssh_user=os.getenv("WG_SSH_USER", "securewave"),
-        ssh_key_path=os.getenv("WG_SSH_KEY_PATH"),
+        ssh_user=SETTINGS.wg_ssh_user,
+        ssh_key_path=SETTINGS.wg_ssh_key_path,
         method=method,
     )

@@ -122,6 +122,12 @@ timestamp,region,endpoint,iteration,measured_latency_ms,latency_offset_ms,effect
 CSV
 fi
 
+if [[ ! -f "$OUT_DIR/routing_checks.csv" ]]; then
+  cat > "$OUT_DIR/routing_checks.csv" <<'CSV'
+timestamp,user,platform,interface,api_host,api_ip,routing_status,api_health_status,api_route,table_51820
+CSV
+fi
+
 if [[ "$status_fail" -ne 0 ]]; then
   exit 1
 fi
