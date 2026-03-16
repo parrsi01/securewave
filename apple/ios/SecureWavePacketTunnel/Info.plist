@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  SecureWave VPN — iOS Packet Tunnel Extension
+	  Bundle identifier must be: <host_app_bundle_id>.PacketTunnel
+	  Set PRODUCT_BUNDLE_IDENTIFIER in the extension target's Build Settings.
+	-->
+	<key>CFBundleDisplayName</key>
+	<string>SecureWave Packet Tunnel</string>
+
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+
+	<key>CFBundleName</key>
+	<string>SecureWavePacketTunnel</string>
+
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+
+	<key>CFBundleVersion</key>
+	<string>1</string>
+
+	<!--
+	  App Group used to share tunnel state (connection status, byte counters)
+	  with the host application process via UserDefaults(suiteName:).
+	  Must match the value in the host app's Info.plist and both entitlements files.
+	-->
+	<key>SecureWaveAppGroupIdentifier</key>
+	<string>group.com.securewave.app.shared</string>
+
+	<!--
+	  Network Extension point declaration.
+	  NSExtensionPrincipalClass must match the Swift class name (with module prefix).
+	-->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.networkextension.packet-tunnel</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>$(PRODUCT_MODULE_NAME).PacketTunnelProvider</string>
+	</dict>
+</dict>
+</plist>

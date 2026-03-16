@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+
+	<key>CFBundleIdentifier</key>
+	<string>com.securewave.mac</string>
+
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+
+	<key>CFBundleName</key>
+	<string>SecureWave VPN</string>
+
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+
+	<key>CFBundleVersion</key>
+	<string>1</string>
+
+	<!-- macOS 13 Ventura minimum — required for SwiftUI NavigationSplitView -->
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+
+	<!-- Background agent: NO — app appears in Dock + App Switcher -->
+	<key>LSUIElement</key>
+	<false/>
+
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright 2025 SecureWave. All rights reserved.</string>
+
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+
+	<!--
+	  App Group for shared UserDefaults between host app and Packet Tunnel extension.
+	  Must match the app group in SecureWaveMac.entitlements and the extension entitlements.
+	-->
+	<key>SecureWaveAppGroupIdentifier</key>
+	<string>group.com.securewave.mac.shared</string>
+
+	<!--
+	  Bundle identifier of the embedded Packet Tunnel extension.
+	  Used by VPNProfileManager to locate the matching NETunnelProviderManager.
+	-->
+	<key>SecureWavePacketTunnelBundleIdentifier</key>
+	<string>com.securewave.mac.PacketTunnel</string>
+
+	<!-- Network usage descriptions required by the App Store -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>SecureWave VPN routes network traffic through a secure tunnel to protect your connection.</string>
+</dict>
+</plist>

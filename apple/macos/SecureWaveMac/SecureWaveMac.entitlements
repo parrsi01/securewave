@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Sandbox — required for Mac App Store submission -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!--
+	  Outgoing network connections — required for:
+	  - HTTPS calls to securewaveapp.com API
+	  - DNS and VPN traffic through the tunnel
+	-->
+	<key>com.apple.security.network.client</key>
+	<true/>
+
+	<!--
+	  Network Extension — packet-tunnel-provider controls a Packet Tunnel extension.
+	  Requires the "Network Extensions" capability in your Apple Developer account
+	  and a provisioning profile with this entitlement enabled.
+	-->
+	<key>com.apple.developer.networking.networkextension</key>
+	<array>
+		<string>packet-tunnel-provider</string>
+	</array>
+
+	<!--
+	  VPN API — allows NETunnelProviderManager operations on macOS.
+	  Required alongside the networkextension entitlement on macOS.
+	-->
+	<key>com.apple.developer.networking.vpn.api</key>
+	<array>
+		<string>allow-vpn</string>
+	</array>
+
+	<!--
+	  App Group shared with the Packet Tunnel extension process.
+	  UserDefaults(suiteName:) across processes requires this group to match
+	  in both entitlements and both Info.plist files.
+	-->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.securewave.mac.shared</string>
+	</array>
+
+	<!--
+	  Keychain sharing — host app and extension share the same Keychain item
+	  so the auth token written at login is readable inside the tunnel extension.
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.securewave.mac</string>
+	</array>
+</dict>
+</plist>

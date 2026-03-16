@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Network Extension entitlement.
+	  packet-tunnel-provider: standard (free) tier — used by this extension.
+	  packet-tunnel-provider-systemextension: macOS system extension (not used here).
+	  Requires Apple provisioning profile with Network Extension capability enabled.
+	-->
+	<key>com.apple.developer.networking.networkextension</key>
+	<array>
+		<string>packet-tunnel-provider</string>
+	</array>
+
+	<!--
+	  App Group shared between the host app and this extension.
+	  Used for UserDefaults (tunnel state, byte counters) and shared Keychain access.
+	  Must match SecureWaveAppGroupIdentifier in Info.plist.
+	-->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.securewave.app.shared</string>
+	</array>
+
+	<!--
+	  Keychain sharing — allows the extension to read the auth token
+	  stored by the host app (same keychain-access-groups value in both targets).
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.securewave.app</string>
+	</array>
+</dict>
+</plist>
