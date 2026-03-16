@@ -220,8 +220,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    if os.getenv("ENVIRONMENT") == "production":
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self'; "
@@ -853,6 +852,8 @@ page_routes = {
     "/home": "home.html",
     "/login": "login.html",
     "/register": "register.html",
+    "/forgot-password": "forgot_password.html",
+    "/reset-password": "reset_password.html",
     "/dashboard": "dashboard.html",
     "/vpn": "vpn.html",
     # Legacy "VPN dashboard control" routes now point to diagnostics/support.
@@ -871,13 +872,18 @@ page_routes = {
     "/terms": "terms.html",
     "/data_retention": "data_retention.html",
     "/acceptable_use": "acceptable_use.html",
+    "/status": "status.html",
+    "/faq": "faq.html",
+    "/support": "faq.html",
+    "/help": "faq.html",
 }
 
 html_pages = [
     "index.html", "home.html", "login.html", "register.html",
     "dashboard.html", "vpn.html", "services.html", "subscription.html", "download.html", "leak_test.html",
     "about.html", "contact.html", "privacy.html", "terms.html", "data_retention.html", "acceptable_use.html",
-    "settings.html", "diagnostics.html", "billing.html"
+    "settings.html", "diagnostics.html", "billing.html", "status.html", "faq.html",
+    "forgot_password.html", "reset_password.html",
 ]
 
 
@@ -895,6 +901,48 @@ for route_path, page in page_routes.items():
 
 for page in html_pages:
     app.get(f"/{page}", include_in_schema=False)(make_page_handler(static_directory / page))
+
+
+# SEO / crawler files served from static root
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    return FileResponse(static_directory / "robots.txt", media_type="text/plain")
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_xml():
+    return FileResponse(static_directory / "sitemap.xml", media_type="application/xml")
+
+
+# Redirect legacy/missing routes to nearest equivalent pages
+@app.get("/pricing", include_in_schema=False)
+async def pricing_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/subscription", status_code=301)
+
+
+@app.get("/features", include_in_schema=False)
+async def features_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/services", status_code=301)
+
+
+@app.get("/downloads", include_in_schema=False)
+async def downloads_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/download", status_code=301)
+
+
+@app.get("/account", include_in_schema=False)
+async def account_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/settings", status_code=301)
+
+
+@app.get("/profile", include_in_schema=False)
+async def profile_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/settings", status_code=301)
 
 # Mount static assets (CSS, JS, images, etc.) under /static and root
 # Note: We mount unconditionally - Starlette will handle missing directories gracefully

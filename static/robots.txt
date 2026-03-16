@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /billing
+Disallow: /vpn
+
+Sitemap: https://securewaveapp.com/sitemap.xml

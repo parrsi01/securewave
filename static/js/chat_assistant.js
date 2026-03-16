@@ -122,7 +122,6 @@
       role: 'dialog',
       'aria-label': 'SecureWave Assistant',
       'aria-modal': 'false',
-      hidden: 'hidden',
     });
 
     const header = el('div', { class: 'sw-chat-header' });
@@ -135,7 +134,15 @@
       class: 'sw-chat-close',
       type: 'button',
       'aria-label': 'Close assistant',
-    }, [el('span', { 'aria-hidden': 'true', text: '×' })]);
+    }, [el('span', { 'aria-hidden': 'true', text: '\u00D7' })]);
+
+    // Direct onclick as primary close mechanism.
+    close.onclick = function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      panel.classList.remove('open');
+      fab.setAttribute('aria-expanded', 'false');
+    };
 
     header.appendChild(title);
     header.appendChild(close);
@@ -165,7 +172,12 @@
     return { fab, panel, messages, quick, close, input, send };
   }
 
+  var _instance = null;
+
   function assistantInit(options) {
+    // Prevent duplicate panels — return existing instance if already initialized.
+    if (_instance) return _instance;
+
     const intent = (options && options.intent) || null;
     let state = loadState() || defaultState(intent);
     if (intent && state.intent !== intent) state.intent = intent;
@@ -289,26 +301,23 @@
     }
 
     function open() {
-      ui.panel.hidden = false;
-      ui.fab.setAttribute('aria-expanded', 'true');
       ui.panel.classList.add('open');
+      ui.fab.setAttribute('aria-expanded', 'true');
       ui.input.focus({ preventScroll: true });
     }
 
-    function close() {
+    function closePanel() {
       ui.panel.classList.remove('open');
       ui.fab.setAttribute('aria-expanded', 'false');
-      ui.panel.hidden = true;
-      ui.fab.focus({ preventScroll: true });
     }
 
     function toggle() {
-      if (ui.panel.hidden) open();
-      else close();
+      if (ui.panel.classList.contains('open')) closePanel();
+      else open();
     }
 
     ui.fab.addEventListener('click', toggle);
-    ui.close.addEventListener('click', close);
+    ui.close.addEventListener('click', closePanel);
 
     function sendFreeform() {
       const text = (ui.input.value || '').trim();
@@ -336,12 +345,12 @@
         e.preventDefault();
         sendFreeform();
       } else if (e.key === 'Escape') {
-        close();
+        closePanel();
       }
     });
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !ui.panel.hidden) close();
+      if (e.key === 'Escape' && ui.panel.classList.contains('open')) closePanel();
     });
 
     // External triggers: any element with data-open-assistant opens the panel.
@@ -389,7 +398,8 @@
       }
     }
 
-    return { open, close, restart };
+    _instance = { open, close: closePanel, restart };
+    return _instance;
   }
 
   window.SecureWaveAssistant = {

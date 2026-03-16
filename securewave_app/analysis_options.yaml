@@ -15,8 +15,8 @@ analyzer:
     - ui_rebuild/**
     - ui_snapshot_before_redesign/**
     - ui_legacy_source/**
-  plugins:
-    - custom_lint
+  # plugins:
+  #   - custom_lint  # Disabled: spawns 3 workers × 1.2GB each, unusable on <8GB VM
 
 linter:
   # The lint rules applied to this project can be customized in the

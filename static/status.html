@@ -190,5 +190,46 @@
   </footer>
 
   <script src="/js/site.js"></script>
+  <script>
+  (function () {
+    var apiBase = '/api';
+    var checks = [
+      { name: 'API Services',       url: apiBase + '/health' },
+      { name: 'Authentication',     url: apiBase + '/auth/login', method: 'OPTIONS' },
+      { name: 'VPN Network',        url: apiBase + '/vpn/servers', method: 'OPTIONS' },
+      { name: 'Payment Processing', url: apiBase + '/payments/stripe/plans', method: 'OPTIONS' },
+    ];
+    var cards = document.querySelectorAll('.service-card');
+    var overallDot = document.querySelector('[data-overall-dot]');
+    var overallLabel = document.querySelector('[data-overall-label]');
+    var anyDown = false;
+
+    checks.forEach(function (check) {
+      fetch(check.url, { method: check.method || 'GET' })
+        .then(function (r) {
+          if (!r.ok && r.status !== 405) throw new Error(r.status);
+          setCard(check.name, 'green', 'Operational');
+        })
+        .catch(function () {
+          anyDown = true;
+          setCard(check.name, 'red', 'Degraded');
+          if (overallDot) { overallDot.className = 'status-dot yellow'; }
+          if (overallLabel) { overallLabel.textContent = 'Partial Outage'; }
+        });
+    });
+
+    function setCard(name, color, status) {
+      cards.forEach(function (card) {
+        var sn = card.querySelector('.service-name');
+        if (sn && sn.textContent.trim() === name) {
+          var dot = card.querySelector('.status-dot');
+          var st = card.querySelector('.service-status');
+          if (dot) { dot.className = 'status-dot ' + color; }
+          if (st) { st.textContent = status; }
+        }
+      });
+    }
+  })();
+  </script>
 </body>
 </html>
