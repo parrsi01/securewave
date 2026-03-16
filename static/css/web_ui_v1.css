@@ -917,6 +917,7 @@ tr:hover td{background:var(--sw-gray-50)}
   display:flex;align-items:center;justify-content:space-between;
   padding:var(--sw-space-4) var(--sw-space-5);
   background:var(--sw-primary);color:var(--sw-text-inverse);
+  position:relative;z-index:2;flex-shrink:0;
 }
 .sw-chat-title-name{font-weight:700;font-size:.9375rem}
 .sw-chat-title-sub{font-size:.75rem;opacity:.8}
@@ -928,9 +929,10 @@ tr:hover td{background:var(--sw-gray-50)}
   min-width:44px;min-height:44px;
   display:flex;align-items:center;justify-content:center;
   -webkit-tap-highlight-color:transparent;
-  flex-shrink:0;
+  flex-shrink:0;position:relative;z-index:3;
 }
-.sw-chat-close:hover,.sw-chat-close:active{opacity:1}
+.sw-chat-close span{pointer-events:none}
+.sw-chat-close:hover,.sw-chat-close:active{opacity:1;background:rgba(255,255,255,.15)}
 .sw-chat-body{flex:1;overflow-y:auto;padding:var(--sw-space-4)}
 .sw-chat-messages{display:flex;flex-direction:column;gap:var(--sw-space-3)}
 .sw-chat-msg{display:flex}
