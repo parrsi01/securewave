@@ -122,8 +122,8 @@ class TestFullVPNFlow:
         # Step 1: Register
         reg_resp = client.post("/api/auth/register", json={
             "email": "vpnflow@example.com",
-            "password": "SecurePass123",
-            "password_confirm": "SecurePass123",
+            "password": "SecurePass123!",
+            "password_confirm": "SecurePass123!",
         })
         assert reg_resp.status_code == 201, f"Registration failed: {reg_resp.json()}"
         reg_data = reg_resp.json()
@@ -134,7 +134,7 @@ class TestFullVPNFlow:
         # Step 2: Login (verify credentials work)
         login_resp = client.post("/api/auth/login", json={
             "email": "vpnflow@example.com",
-            "password": "SecurePass123",
+            "password": "SecurePass123!",
         })
         assert login_resp.status_code == 200, f"Login failed: {login_resp.json()}"
         login_token = login_resp.json().get("access_token")

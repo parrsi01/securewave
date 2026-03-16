@@ -58,7 +58,7 @@ resource "hcloud_server" "securewave" {
   ssh_keys    = [for key in data.hcloud_ssh_key.keys : key.id]
   firewall_ids = [hcloud_firewall.securewave.id]
 
-  backups = false
+  backups = true
 
   public_net {
     ipv4_enabled = true

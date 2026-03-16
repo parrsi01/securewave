@@ -545,6 +545,7 @@ class VpnCredentialService:
                 text=True,
                 capture_output=True,
                 executable="/bin/bash",
+                timeout=120,
             )
             duration_ms = int((time.monotonic() - started) * 1000)
             clean_stdout, exit_code = self._extract_remote_exit_code(proc.stdout)

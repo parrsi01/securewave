@@ -21,8 +21,8 @@ class TestRegisterSuccess:
         """A new user with a valid email and strong password should register."""
         response = client.post("/api/auth/register", json={
             "email": "newuser@example.com",
-            "password": "SecurePass123",
-            "password_confirm": "SecurePass123",
+            "password": "SecurePass123!",
+            "password_confirm": "SecurePass123!",
         })
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -36,8 +36,8 @@ class TestRegisterSuccess:
         """Registration returns a CSRF token for cookie auth flows."""
         response = client.post("/api/auth/register", json={
             "email": "csrftest@example.com",
-            "password": "SecurePass123",
-            "password_confirm": "SecurePass123",
+            "password": "SecurePass123!",
+            "password_confirm": "SecurePass123!",
         })
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -52,8 +52,8 @@ class TestRegisterDuplicate:
         """Registering with an already-registered email must return 400."""
         response = client.post("/api/auth/register", json={
             "email": "testuser@example.com",
-            "password": "SecurePass123",
-            "password_confirm": "SecurePass123",
+            "password": "SecurePass123!",
+            "password_confirm": "SecurePass123!",
         })
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
@@ -64,8 +64,8 @@ class TestRegisterDuplicate:
         """Email uniqueness should be enforced (if app normalizes case)."""
         response = client.post("/api/auth/register", json={
             "email": "TESTUSER@example.com",
-            "password": "SecurePass123",
-            "password_confirm": "SecurePass123",
+            "password": "SecurePass123!",
+            "password_confirm": "SecurePass123!",
         })
         # Accept 400 (duplicate) or 201 (if case-sensitive -- still valid)
         assert response.status_code in (
@@ -177,7 +177,7 @@ class TestPasswordValidation:
         """Mismatched password and confirmation must be rejected."""
         response = client.post("/api/auth/register", json={
             "email": "mismatch@example.com",
-            "password": "SecurePass123",
+            "password": "SecurePass123!",
             "password_confirm": "DifferentPass456",
         })
         assert response.status_code == status.HTTP_400_BAD_REQUEST

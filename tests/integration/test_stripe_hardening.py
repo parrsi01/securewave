@@ -97,7 +97,7 @@ class TestStripeCheckoutIdempotency:
         _patch_stripe_api(monkeypatch)
 
         email = "csrfpay@example.com"
-        password = "SecurePass123"
+        password = "SecurePass123!"
         reg = client.post(
             "/api/auth/register",
             json={"email": email, "password": password, "password_confirm": password},
