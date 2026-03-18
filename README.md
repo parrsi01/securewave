@@ -1,93 +1,101 @@
-# SecureWave VPN
+# SecureWave
 
-SecureWave is a website-first VPN control plane. It manages accounts, subscriptions, device provisioning, and WireGuard configuration delivery. VPN tunneling is performed by WireGuard clients on user devices.
+SecureWave is a full-stack VPN platform repository that combines a Python/FastAPI backend, a Flutter client app, VPN provisioning logic, payment flows, and infrastructure automation.
 
-## What It Is
-- FastAPI backend + static frontend
-- WireGuard config generation + QR codes
-- Device management and revocation
-- VPN performance test harness
-- Azure App Service deployment
+The repository now targets **Hetzner Cloud only**. Older Azure-era assumptions are not part of the supported deployment story; provisioning and production operations are centered on the Terraform module in `infrastructure/hetzner/` and the Hetzner runbook in `docs/HETZNER_RUNBOOK.md`.
 
-## What SecureWave Does NOT Do
-- macOS VPN tunneling is currently unimplemented.
-- No censorship impersonation (does not pretend to be other protocols to bypass censorship).
-- No manual config file editing/imports (profiles are provisioned by SecureWave; you are not expected to manage config files by hand).
-- No custom VPN protocol
-- No in-browser tunneling
-- No browser-based VPN or proxying
+If you encounter legacy Azure-named files elsewhere in the repository or older history, treat them as archival context rather than the supported deployment path.
 
-## Local Run
+## Recruiter-Friendly Overview
+
+This project demonstrates work across:
+
+- **Backend engineering:** FastAPI, SQLAlchemy, Alembic, auth flows, rate limiting, structured logging, and production config validation
+- **Client development:** Flutter/Dart app with Riverpod, GoRouter, Dio, secure storage, and native VPN integration hooks
+- **Payments and account systems:** Stripe and PayPal service integrations, subscription logic, and webhook handling
+- **Networking and VPN operations:** WireGuard profile generation and peer lifecycle management, plus multiprotocol provisioning and validation paths for OpenVPN and IKEv2
+- **Infrastructure and DevOps:** Terraform, Docker, systemd, Nginx, UFW, fail2ban, GitHub Actions, and deployment guardrails for Hetzner
+- **Security and reliability:** env validation, log redaction, secret scanning, regression tests, simulation tooling, and operational runbooks
+
+## Core Stack
+
+- **Languages:** Python, Dart, Shell, Terraform, SQL
+- **Backend:** FastAPI, Uvicorn, Gunicorn, SQLAlchemy, Alembic, PostgreSQL, Redis
+- **Frontend/App:** Flutter, Riverpod, Dio, GoRouter, flutter_secure_storage
+- **Payments:** Stripe, PayPal
+- **VPN/Infra:** WireGuard, OpenVPN/IKEv2 support code, Terraform, Docker, systemd, Nginx
+- **Tooling:** pytest, Flutter test/analyze, GitHub Actions, gitleaks-oriented secret hygiene
+
+## Current Deployment Model
+
+- **Cloud provider:** Hetzner Cloud only
+- **Default topology:** single-server deployment with explicit guardrails against accidental scaling
+- **Provisioning:** Terraform in `infrastructure/hetzner/`
+- **Host hardening:** `scripts/hetzner_bootstrap.sh`
+- **Operations docs:** `docs/HETZNER_RUNBOOK.md`, `ARCHITECTURE.md`, `SETUP_GUIDE.md`
+
+## Repository Map
+
+- `main.py`, `routes/`, `routers/`, `services/`, `models/`: backend API and business logic
+- `securewave_app/`: Flutter client app
+- `static/`: website and static assets
+- `infrastructure/hetzner/`: Terraform for Hetzner provisioning
+- `scripts/` and `docs/`: deployment, validation, and operations tooling
+- `tests/`, `tests_real/`, `securewave-tests/`: automated and simulated validation coverage
+
+## Getting Started
+
+### Local backend
 
 ```bash
 bash deploy.sh local
 ```
 
-Alternative:
+Then open:
+
+- `http://localhost:8000/home.html`
+- `http://localhost:8000/api/docs`
+
+### Flutter app
 
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cd securewave_app
+flutter pub get
+flutter run -d linux
 ```
 
-## Local Commands
-- Web UI (static preview): `scripts/run_web.sh`
-- Backend API: `scripts/run_backend.sh`
-- Full test suite: `scripts/run_tests.sh`
-- Fast smoke tests: `scripts/run_smoke_tests.sh`
-- Backend release build: `scripts/build_release.sh`
+See `securewave_app/README.md` for platform-specific notes.
 
-## Azure Deploy
+### Production on Hetzner
 
-```bash
-bash deploy.sh azure
-```
+Start with:
 
-Or the single-app deploy script:
+1. `SETUP_GUIDE.md`
+2. `ARCHITECTURE.md`
+3. `docs/HETZNER_RUNBOOK.md`
 
-```bash
-export AZURE_RESOURCE_GROUP="your-rg"
-export AZURE_APP_NAME="your-app"
+## Public Repo Safety
 
-bash deploy_securewave_single_app.sh
-```
+This repository is meant to be understandable in public without exposing deploy-time secrets.
 
-## Runtime Endpoints
-- Health: `/health` and `/api/health`
-- Docs (non-production): `/api/docs`
+- Secrets are supplied through environment variables or external secret stores, not committed config
+- `.gitignore` excludes `.env` files, Terraform state, key material, WireGuard runtime data, and private directories
+- Example env files use placeholders and should be copied and filled locally
+- The historical secret cleanup process is documented in `docs/SECRET_REMEDIATION.md`
 
-## VPN Notes
-- The website does not create tunnels; users import configs into WireGuard apps.
-- Device limits are enforced by subscription tier.
-- Demo/test usage is supported; production use requires managed Postgres and secrets.
+Do not commit real values for:
 
-## Brand Assets and How to Regenerate Icons
-- Master logo sources live in `assets/brand/` (SVG + monochrome).
-- The canonical 1024x1024 app icon source is `assets/brand/app_icon_1024.png`.
-- Regenerate all platform icons and web favicons with:
+- `HETZNER_API_TOKEN`
+- Stripe, PayPal, SMTP, or Sentry credentials
+- WireGuard private keys, management API keys, or SSH private keys
+- `terraform.tfvars`, `.tfstate`, or local `.env` files
 
-```bash
-python3 scripts/generate_brand_assets.py
-```
+## Key Docs
 
-## ML Experiments (MARL + XGBoost)
-Run the reproducible experiment harness with a JSON config profile:
-
-```bash
-python3 -m ml.experiment --config ml/configs/baseline.json --data data/vpn_telemetry.csv
-```
-
-For the optional v2 profile:
-
-```bash
-python3 -m ml.experiment --config ml/configs/v2.json --data data/vpn_telemetry.csv
-```
-
-## Required Production Secrets
-- `AUTH_ENCRYPTION_KEY` (Fernet key) is required in production for 2FA storage.
-- SMTP credentials are required for contact + billing notifications. If SMTP is missing, the contact form returns a 503 with a user-facing message.
-
-## Demo Scope
-See `DEMO.md` for the exact demo flow.
-
----
-© 2026 SecureWave. All rights reserved.
+- `QUICK_START.md`
+- `EXECUTIVE_SUMMARY.md`
+- `ARCHITECTURE.md`
+- `SETUP_GUIDE.md`
+- `docs/HETZNER_RUNBOOK.md`
+- `securewave_app/README.md`
+- `docs/SECRET_REMEDIATION.md`
