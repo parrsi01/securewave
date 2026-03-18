@@ -17,6 +17,7 @@ import asyncio
 import shutil
 import re
 import ipaddress
+import tempfile
 from typing import Dict, List, Optional, Tuple, Literal
 from dataclasses import dataclass
 from datetime import datetime
@@ -318,7 +319,7 @@ class WireGuardServerManager:
     ) -> Tuple[bool, str]:
         """Add peer via HTTP management API"""
         try:
-            url = f"http://{conn.public_ip}:{conn.api_port}/peers/add"
+            url = f"https://{conn.public_ip}:{conn.api_port}/peers/add"
             headers = {"X-API-Key": conn.api_key or self.default_api_key}
             data = {"public_key": public_key, "allowed_ips": allowed_ips}
 
@@ -340,7 +341,7 @@ class WireGuardServerManager:
     ) -> Tuple[bool, str]:
         """Remove peer via HTTP management API"""
         try:
-            url = f"http://{conn.public_ip}:{conn.api_port}/peers/remove"
+            url = f"https://{conn.public_ip}:{conn.api_port}/peers/remove"
             headers = {"X-API-Key": conn.api_key or self.default_api_key}
             data = {"public_key": public_key}
 
@@ -361,7 +362,7 @@ class WireGuardServerManager:
     ) -> Tuple[bool, List[Dict]]:
         """List peers via HTTP management API"""
         try:
-            url = f"http://{conn.public_ip}:{conn.api_port}/peers"
+            url = f"https://{conn.public_ip}:{conn.api_port}/peers"
             headers = {"X-API-Key": conn.api_key or self.default_api_key}
 
             response = await self.http_client.get(url, headers=headers)
@@ -379,7 +380,7 @@ class WireGuardServerManager:
     ) -> Tuple[bool, Dict]:
         """Get server status via HTTP management API"""
         try:
-            url = f"http://{conn.public_ip}:{conn.api_port}/status"
+            url = f"https://{conn.public_ip}:{conn.api_port}/status"
             headers = {"X-API-Key": conn.api_key or self.default_api_key}
 
             response = await self.http_client.get(url, headers=headers)
@@ -397,7 +398,7 @@ class WireGuardServerManager:
     ) -> Tuple[bool, str]:
         """Health check via HTTP management API"""
         try:
-            url = f"http://{conn.public_ip}:{conn.api_port}/health"
+            url = f"https://{conn.public_ip}:{conn.api_port}/health"
             headers = {"X-API-Key": conn.api_key or self.default_api_key}
 
             response = await self.http_client.get(url, headers=headers, timeout=10)
@@ -478,18 +479,44 @@ class WireGuardServerManager:
         if not self.ssh_path:
             return False, "", "SSH client not installed"
 
-        ssh_cmd = [
-            self.ssh_path,
-            "-i", ssh_key,
-            "-o", "StrictHostKeyChecking=accept-new",
-            "-o", f"ConnectTimeout={self.timeout}",
-            "-p", str(conn.ssh_port),
-            ssh_target,
-            command
-        ]
+        # H-WG-1: Pre-populate known_hosts per server to prevent TOFU MITM.
+        # Check for a pre-configured host key via env var:
+        # VPN_SSH_HOST_KEY_<SERVER_ID_UPPERCASED_DASHES_TO_UNDERSCORES>
+        env_key_name = f"VPN_SSH_HOST_KEY_{conn.server_id.upper().replace('-', '_')}"
+        host_key = os.getenv(env_key_name, "").strip()
 
-        stdin_pipe = asyncio.subprocess.PIPE if stdin_data is not None else None
+        known_hosts_tmpfile: Optional[str] = None
         try:
+            if host_key:
+                # Write pre-known fingerprint to a temp file; use strict checking.
+                with tempfile.NamedTemporaryFile(
+                    delete=False, mode="w", suffix=".known_hosts"
+                ) as kh:
+                    # known_hosts format: <hostname> <keytype> <pubkey>
+                    kh.write(f"{conn.public_ip} {host_key}\n")
+                    known_hosts_tmpfile = kh.name
+                strict_check = "yes"
+            else:
+                logger.warning(
+                    "No SSH host key configured for %s — using accept-new (TOFU). "
+                    "Set %s to pre-populate the known host fingerprint.",
+                    conn.server_id,
+                    env_key_name,
+                )
+                strict_check = "accept-new"
+
+            ssh_cmd = [
+                self.ssh_path,
+                "-i", ssh_key,
+                "-o", f"StrictHostKeyChecking={strict_check}",
+                "-o", f"ConnectTimeout={self.timeout}",
+                "-p", str(conn.ssh_port),
+            ]
+            if known_hosts_tmpfile:
+                ssh_cmd += ["-o", f"UserKnownHostsFile={known_hosts_tmpfile}"]
+            ssh_cmd += [ssh_target, command]
+
+            stdin_pipe = asyncio.subprocess.PIPE if stdin_data is not None else None
             process = await asyncio.create_subprocess_exec(
                 *ssh_cmd,
                 stdin=stdin_pipe,
@@ -508,6 +535,12 @@ class WireGuardServerManager:
             return False, "", "SSH command timed out"
         except Exception as e:
             return False, "", str(e)
+        finally:
+            if known_hosts_tmpfile:
+                try:
+                    os.unlink(known_hosts_tmpfile)
+                except OSError:
+                    pass
 
     async def run_ssh_command(
         self,

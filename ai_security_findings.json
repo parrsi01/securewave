@@ -1,0 +1,195 @@
+{
+  "findings": [
+    {
+      "file_path": "routes/auth.py",
+      "file_hash": "9fa97162e479bcdd69e3fb9a23ed089a",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:38:11.000673"
+    },
+    {
+      "file_path": "routes/billing.py",
+      "file_hash": "233fde2ffd8222871f92689705360b96",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:40:11.152461"
+    },
+    {
+      "file_path": "routes/devices.py",
+      "file_hash": "41a369335fa7501f4e776e7e6c8b87e5",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:42:11.648563"
+    },
+    {
+      "file_path": "routes/servers.py",
+      "file_hash": "ad13739fc9c24e3de27fee57e4f5dc94",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:44:11.837046"
+    },
+    {
+      "file_path": "routes/vpn.py",
+      "file_hash": "2e76f98fb2c0c6a559d572880724aaf3",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:46:12.002262"
+    },
+    {
+      "file_path": "routes/user.py",
+      "file_hash": "73d60e7938370a35da6aee4a1ec2bea6",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:48:12.151793"
+    },
+    {
+      "file_path": "services/auth_service.py",
+      "file_hash": "6ed869fa462534d6229f5d85118888da",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:50:12.282612"
+    },
+    {
+      "file_path": "services/jwt_service.py",
+      "file_hash": "bfe0f88ca47ba63eeb3edd5a6b4b68d1",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:52:12.435241"
+    },
+    {
+      "file_path": "services/stripe_service.py",
+      "file_hash": "1abbdd0aef2845de78dc5418fc9dfb76",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:54:12.590999"
+    },
+    {
+      "file_path": "services/payment_webhooks.py",
+      "file_hash": "7ef2c83a23575fbe2116750ea0db0e1d",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:56:12.744359"
+    },
+    {
+      "file_path": "services/vpn_credential_service.py",
+      "file_hash": "a8b6b199ee4d4e1003b7efad08396939",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T19:58:12.878559"
+    },
+    {
+      "file_path": "services/device_service.py",
+      "file_hash": "11217c0eedfef83403da5eae249b174c",
+      "vulnerabilities": [],
+      "ai_analysis": "AI analysis unavailable",
+      "scan_timestamp": "2026-03-16T20:00:13.001150"
+    }
+  ],
+  "static_analysis": {
+    "bandit": [],
+    "manual_checks": [
+      {
+        "file": "routes/vpn.py",
+        "line": 2565,
+        "issue": "hardcoded_secret",
+        "severity": "MEDIUM",
+        "snippet": "key=\"native_tunnel_runtime\""
+      },
+      {
+        "file": "routes/vpn.py",
+        "line": 2572,
+        "issue": "hardcoded_secret",
+        "severity": "MEDIUM",
+        "snippet": "key=\"openvpn_client\""
+      },
+      {
+        "file": "routes/vpn.py",
+        "line": 2576,
+        "issue": "hardcoded_secret",
+        "severity": "MEDIUM",
+        "snippet": "key=\"server_ca_certificate\""
+      },
+      {
+        "file": "routes/vpn.py",
+        "line": 2583,
+        "issue": "hardcoded_secret",
+        "severity": "MEDIUM",
+        "snippet": "key=\"ikev2_runtime\""
+      },
+      {
+        "file": "routes/vpn.py",
+        "line": 2587,
+        "issue": "hardcoded_secret",
+        "severity": "MEDIUM",
+        "snippet": "key=\"server_identity\""
+      },
+      {
+        "file": "services/wireguard_server_manager.py",
+        "line": 242,
+        "issue": "hardcoded_secret",
+        "severity": "MEDIUM",
+        "snippet": "KEY='{private_key}'"
+      }
+    ]
+  },
+  "dependencies": {
+    "vulnerabilities": [],
+    "status": "unknown",
+    "packages_found": [
+      "xgboost",
+      "numpy",
+      "scikit-learn"
+    ]
+  },
+  "attack_payloads": [
+    {
+      "name": "SQL Injection - Basic",
+      "payload": "' OR '1'='1",
+      "target": "input_fields",
+      "type": "sql_injection"
+    },
+    {
+      "name": "SQL Injection - Union",
+      "payload": "' UNION SELECT null, username, password FROM users--",
+      "target": "input_fields",
+      "type": "sql_injection"
+    },
+    {
+      "name": "Command Injection",
+      "payload": "; cat /etc/passwd;",
+      "target": "system_calls",
+      "type": "command_injection"
+    },
+    {
+      "name": "Path Traversal",
+      "payload": "../../../etc/passwd",
+      "target": "file_paths",
+      "type": "path_traversal"
+    },
+    {
+      "name": "XSS - Basic",
+      "payload": "<script>alert('xss')</script>",
+      "target": "output_fields",
+      "type": "xss"
+    },
+    {
+      "name": "JWT None Algorithm",
+      "payload": "{\"alg\":\"none\"}",
+      "target": "jwt_tokens",
+      "type": "jwt_manipulation"
+    },
+    {
+      "name": "NoSQL Injection",
+      "payload": "{\"$gt\": \"\"}",
+      "target": "mongo_queries",
+      "type": "nosql_injection"
+    },
+    {
+      "name": "LDAP Injection",
+      "payload": "*)(uid=*))(&(uid=*",
+      "target": "ldap_queries",
+      "type": "ldap_injection"
+    }
+  ],
+  "potential_fixes": []
+}

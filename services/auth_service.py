@@ -20,9 +20,11 @@ from io import BytesIO
 
 from config.settings import get_settings
 from models.user import User
+from models.used_totp_code import UsedTotpCode
 from services.email_service import EmailService
 from services.hashing_service import hash_password
 from utils.password_policy import validate_password_strength
+from utils.env_validation import is_testing
 
 logger = logging.getLogger(__name__)
 SETTINGS = get_settings()
@@ -264,7 +266,14 @@ class AuthService:
     def _encrypt_value(self, value: str) -> str:
         if self.fernet:
             return self.fernet.encrypt(value.encode()).decode()
-        return base64.b64encode(value.encode()).decode()
+        # M-AUTH-2: Never fall back to base64 (no encryption) in production.
+        # base64 is NOT encryption and must only be used in test environments.
+        if is_testing():
+            return base64.b64encode(value.encode()).decode()
+        raise RuntimeError(
+            "Encryption key not configured. TOTP secrets cannot be stored without encryption. "
+            "Set AUTH_ENCRYPTION_KEY to a valid Fernet key."
+        )
 
     def _decrypt_value(self, value: str) -> str:
         if not value:
@@ -295,8 +304,10 @@ class AuthService:
         """
         codes = []
         for _ in range(count):
-            # Generate 8-character alphanumeric code
-            code = secrets.token_hex(4).upper()
+            # L-5: 10 random bytes = 80 bits of entropy (NIST SP 800-63B requires ≥20 bits).
+            # Formatted as XXXX-XXXX-XXXX-XXXX-XX for readability (20 hex chars + 4 dashes).
+            raw = secrets.token_hex(10).upper()  # 20 hex chars = 80 bits
+            code = f"{raw[0:4]}-{raw[4:8]}-{raw[8:12]}-{raw[12:16]}-{raw[16:20]}"
             codes.append(code)
         return codes
 
@@ -380,6 +391,12 @@ class AuthService:
             if not totp.verify(totp_code, valid_window=1):
                 return False, "Invalid verification code"
 
+            # L-3: Reject replayed codes even during 2FA setup verification
+            if self._is_totp_code_used(user.id, totp_code):
+                logger.warning("TOTP replay attempt during 2FA setup for user %s", user.id)
+                return False, "TOTP code already used"
+            self._record_totp_code_used(user.id, totp_code)
+
             # Enable 2FA
             user.totp_enabled = True
             self.db.commit()
@@ -395,16 +412,44 @@ class AuthService:
             self.db.rollback()
             return False, "Internal error"
 
+    def _is_totp_code_used(self, user_id: int, totp_code: str) -> bool:
+        """Return True if this TOTP code was already used within the last 90 seconds."""
+        cutoff = datetime.utcnow() - timedelta(seconds=90)
+        return (
+            self.db.query(UsedTotpCode)
+            .filter(
+                UsedTotpCode.user_id == user_id,
+                UsedTotpCode.code == totp_code,
+                UsedTotpCode.used_at > cutoff,
+            )
+            .first()
+            is not None
+        )
+
+    def _record_totp_code_used(self, user_id: int, totp_code: str) -> None:
+        """Persist a used TOTP code to prevent replay within the 90s window."""
+        self.db.add(UsedTotpCode(user_id=user_id, code=totp_code, used_at=datetime.utcnow()))
+        # Opportunistic cleanup: delete codes older than 90s for this user to bound table growth.
+        cutoff = datetime.utcnow() - timedelta(seconds=90)
+        self.db.query(UsedTotpCode).filter(
+            UsedTotpCode.user_id == user_id,
+            UsedTotpCode.used_at <= cutoff,
+        ).delete(synchronize_session=False)
+        self.db.commit()
+
     def verify_totp(self, user: User, totp_code: str) -> bool:
         """
-        Verify TOTP code during login
+        Verify TOTP code during login.
+
+        L-3: Checks that the code has not already been used within the current
+        90-second validity window to prevent replay attacks.
 
         Args:
             user: User object
             totp_code: TOTP code from authenticator app
 
         Returns:
-            True if valid
+            True if valid and not replayed
         """
         if not user.totp_enabled or not user.totp_secret:
             return False
@@ -413,7 +458,16 @@ class AuthService:
         if not decrypted_secret:
             return False
         totp = pyotp.TOTP(decrypted_secret)
-        return totp.verify(totp_code, valid_window=1)
+        if not totp.verify(totp_code, valid_window=1):
+            return False
+
+        # L-3: Reject replayed codes
+        if self._is_totp_code_used(user.id, totp_code):
+            logger.warning("TOTP replay attempt blocked for user %s", user.id)
+            return False
+
+        self._record_totp_code_used(user.id, totp_code)
+        return True
 
     def verify_backup_code(self, user: User, backup_code: str) -> bool:
         """

@@ -366,8 +366,9 @@ class TestTwoFactorAuth:
         code = totp.now()
         client.post("/api/auth/2fa/verify", headers=auth_headers, json={"totp_code": code})
 
-        # Disable -- generate a fresh code (may have ticked over)
-        disable_code = totp.now()
+        # Disable -- generate a code at t+30s offset so replay prevention doesn't block it
+        from datetime import datetime
+        disable_code = totp.at(datetime.utcnow(), counter_offset=1)
         disable_resp = client.post(
             "/api/auth/2fa/disable",
             headers=auth_headers,

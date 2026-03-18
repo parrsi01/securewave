@@ -100,7 +100,15 @@ class WireGuardService:
 
     @staticmethod
     def _write_secret_file(path: Path, content: str) -> None:
-        """Write a file and restrict permissions to owner-only (0600)."""
+        """Write a file and restrict permissions to owner-only (0600).
+
+        L-9: WireGuard client config files contain the peer PrivateKey in plaintext.
+        This is unavoidable — the WireGuard kernel interface requires the raw key.
+        Mitigation: files are written with 0600 (owner read/write only) so no other
+        OS user can read the key. Files are stored under wg_data_dir (default: /tmp/wg_data
+        in dev, /opt/securewave/wg_data in prod) which should itself be 0700.
+        Callers are responsible for deleting config files when they are no longer needed.
+        """
         path.write_text(content)
         try:
             path.chmod(stat.S_IRUSR | stat.S_IWUSR)

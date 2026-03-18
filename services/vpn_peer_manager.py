@@ -442,9 +442,11 @@ class VPNPeerManager:
 
     def _active_ipv4_addresses(self) -> set[ipaddress.IPv4Address]:
         used: set[ipaddress.IPv4Address] = set()
+        # M-WG-3: Lock rows being read for IP allocation to prevent two concurrent
+        # requests from reading the same "available" IP before either commits.
         peers = self.db.query(WireGuardPeer.ipv4_address).filter(
             WireGuardPeer.is_revoked == False
-        ).all()
+        ).with_for_update().all()
         for (cidr,) in peers:
             if not cidr:
                 continue

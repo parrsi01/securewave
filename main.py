@@ -26,7 +26,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
-from models import user, subscription, payment_idempotency_key, webhook_event_receipt, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, vpn_credential, auth_refresh_token, jwt_blacklist_token  # noqa: F401
+from models import user, subscription, payment_idempotency_key, webhook_event_receipt, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, vpn_credential, auth_refresh_token, jwt_blacklist_token, used_totp_code  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
 from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user, vpn_metrics
 from services.wireguard_service import WireGuardService
@@ -236,7 +236,11 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
+        # script-src: no 'unsafe-inline' or 'unsafe-eval' — strictest possible without nonces
         "script-src 'self'; "
+        # L-14: style-src retains 'unsafe-inline' because 74 inline style attributes exist
+        # across 14 static HTML pages. Removing it requires migrating all inline styles to
+        # external stylesheets or adding nonce-based CSP — tracked as a template refactor task.
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
         "font-src 'self' data:; "
@@ -1056,9 +1060,13 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # L-12: Return a generic error without field paths/types to avoid leaking
+    # internal schema details (field names, loc paths, type strings) to clients.
+    # The full error is logged server-side for debugging.
+    _logger.debug("Validation error on %s: %s", request.url.path, exc.errors())
     if request.url.path.startswith("/api"):
-        return api_error("validation_error", "Invalid request", details=exc.errors(), status_code=422)
-    return JSONResponse({"detail": exc.errors()}, status_code=422)
+        return api_error("validation_error", "Invalid request parameters", status_code=422)
+    return JSONResponse({"detail": "Invalid request parameters"}, status_code=422)
 
 
 """

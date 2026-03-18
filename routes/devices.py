@@ -19,6 +19,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from database.session import get_db
 from models.user import User
@@ -34,6 +35,7 @@ from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
 )
+from utils.input_sanitizer import sanitize_device_name
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn/devices", tags=["devices"])
@@ -224,14 +226,25 @@ async def add_device(
     await require_active_subscription(db, current_user)
     peer_manager = get_peer_manager(db)
 
-    # Check device limit
+    # M-WG-1: Lock the user row first to prevent TOCTOU race on device limit check.
+    # Two concurrent add_device requests could both read count=0, both pass limit check,
+    # and both insert — exceeding the per-plan device cap without this lock.
+    db.query(User).filter(User.id == current_user.id).with_for_update().first()
+
+    # Check device limit (inside the lock)
     existing_peers = peer_manager.list_user_peers(current_user.id)
     active_count = len([p for p in existing_peers if p.is_active and not p.is_revoked])
     device_limit = get_device_limit(current_user, db)
 
+    # L-8: Sanitize device name before any use (strip injection characters)
+    try:
+        device_name = sanitize_device_name(request.name)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     logger.info(
         '[DEVICES] {"event":"add_check","user_id":%d,"active":%d,"limit":%d,"name":"%s"}',
-        current_user.id, active_count, device_limit, request.name,
+        current_user.id, active_count, device_limit, device_name,
     )
     if active_count >= device_limit:
         logger.warning(
@@ -245,7 +258,7 @@ async def add_device(
 
     # Check for duplicate name
     for peer in existing_peers:
-        if peer.device_name and peer.device_name.lower() == request.name.lower():
+        if peer.device_name and peer.device_name.lower() == device_name.lower():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Device name already exists"
@@ -275,7 +288,7 @@ async def add_device(
         peer = peer_manager.create_peer(
             user=current_user,
             server=server,
-            device_name=request.name,
+            device_name=device_name,
             device_type=device_type
         )
 

@@ -1,0 +1,191 @@
+[
+  {
+    "severity": "MEDIUM",
+    "category": "input_validation",
+    "file_path": "routes/billing.py",
+    "line_number": 251,
+    "issue": "Payment amount without validation",
+    "recommendation": "Validate amount is positive and within acceptable range",
+    "code_snippet": "\"amount\": subscription.amount,"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "input_validation",
+    "file_path": "services/enhanced_email_service.py",
+    "line_number": 407,
+    "issue": "Payment amount without validation",
+    "recommendation": "Validate amount is positive and within acceptable range",
+    "code_snippet": "\"amount\": f\"${amount:.2f}\","
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/billing_automation.py",
+    "line_number": 245,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "invoice = self.stripe.pay_invoice(invoices[0].id)"
+  },
+  {
+    "severity": "HIGH",
+    "category": "authorization",
+    "file_path": "services/billing_automation.py",
+    "line_number": 68,
+    "issue": "Subscription modification without ownership verification",
+    "recommendation": "Verify requesting user owns the subscription before cancellation",
+    "code_snippet": "Subscription.cancel_at_period_end == False"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "input_validation",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 109,
+    "issue": "Payment amount without validation",
+    "recommendation": "Validate amount is positive and within acceptable range",
+    "code_snippet": "amount=plan[f\"price_{billing_cycle}\"],"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 73,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "customer = self.stripe.create_customer("
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 85,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "self.stripe.attach_payment_method(stripe_customer_id, payment_method_id)"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 88,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "plan = self.stripe.get_plan_details(plan_id)"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 89,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "stripe_sub = self.stripe.create_subscription("
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 260,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "self.stripe.update_subscription("
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 269,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "plan = self.stripe.get_plan_details(new_plan_id)"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 331,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "self.stripe.cancel_subscription("
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 385,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "self.stripe.reactivate_subscription(subscription.stripe_subscription_id, idempotency_key=idempotency_key)"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "error_handling",
+    "file_path": "services/subscription_manager.py",
+    "line_number": 525,
+    "issue": "Stripe API call without exception handling",
+    "recommendation": "Wrap Stripe calls in try/except for CardError, InvalidRequestError, etc.",
+    "code_snippet": "stripe_sub = self.stripe.get_subscription(stripe_subscription_id)"
+  },
+  {
+    "severity": "CRITICAL",
+    "category": "webhook_security",
+    "file_path": "services/payment_webhooks.py",
+    "line_number": 2,
+    "issue": "Webhook endpoint without signature verification",
+    "recommendation": "Use stripe.Webhook.construct_event() to verify webhook signatures",
+    "code_snippet": "SecureWave VPN - Payment Webhook Handlers"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "input_validation",
+    "file_path": "services/payment_webhooks.py",
+    "line_number": 317,
+    "issue": "Payment amount without validation",
+    "recommendation": "Validate amount is positive and within acceptable range",
+    "code_snippet": "amount = float(plan.get(f\"price_{billing_cycle}\", 0.0)) if plan else 0.0"
+  },
+  {
+    "severity": "CRITICAL",
+    "category": "webhook_security",
+    "file_path": "services/paypal_service.py",
+    "line_number": 30,
+    "issue": "Webhook endpoint without signature verification",
+    "recommendation": "Use stripe.Webhook.construct_event() to verify webhook signatures",
+    "code_snippet": "Handles subscriptions, billing plans, and webhook verification"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "input_validation",
+    "file_path": "services/paypal_service.py",
+    "line_number": 599,
+    "issue": "Payment amount without validation",
+    "recommendation": "Validate amount is positive and within acceptable range",
+    "code_snippet": "\"amount\": {"
+  },
+  {
+    "severity": "HIGH",
+    "category": "authorization",
+    "file_path": "services/paypal_service.py",
+    "line_number": 329,
+    "issue": "Subscription modification without ownership verification",
+    "recommendation": "Verify requesting user owns the subscription before cancellation",
+    "code_snippet": "def cancel_subscription("
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "input_validation",
+    "file_path": "services/security_audit.py",
+    "line_number": 541,
+    "issue": "Payment amount without validation",
+    "recommendation": "Validate amount is positive and within acceptable range",
+    "code_snippet": "\"amount\": amount,"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "input_validation",
+    "file_path": "services/stripe_service.py",
+    "line_number": 567,
+    "issue": "Payment amount without validation",
+    "recommendation": "Validate amount is positive and within acceptable range",
+    "code_snippet": "amount=amount_cents,"
+  }
+]

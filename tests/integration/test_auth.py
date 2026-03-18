@@ -3,6 +3,7 @@ Authentication tests
 """
 
 import pytest
+from datetime import datetime
 from fastapi import status
 
 
@@ -168,10 +169,11 @@ class TestTwoFactorAuth:
             json={"totp_code": code}
         )
 
-        # Disable 2FA
+        # Disable 2FA — use a fresh code at t+30s offset so replay prevention doesn't block it
+        disable_code = totp.at(datetime.utcnow(), counter_offset=1)
         response = client.post(
             "/api/auth/2fa/disable",
             headers=auth_headers,
-            json={"totp_code": code}
+            json={"totp_code": disable_code}
         )
         assert response.status_code == status.HTTP_200_OK

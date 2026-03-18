@@ -130,6 +130,7 @@ def _ensure_tables():
         auth_refresh_token,
         jwt_blacklist_token,
         vpn_metric,
+        used_totp_code,
     )
     Base.metadata.create_all(bind=TEST_ENGINE)
 
