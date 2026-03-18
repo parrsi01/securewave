@@ -35,6 +35,34 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 
+# ---------------------------------------------------------------------------
+# Rate-limit exhaustion mini-app — built at import time to avoid any
+# interference from importlib.reload(main) which runs inside run().
+# ---------------------------------------------------------------------------
+from fastapi import FastAPI as _FastAPI, Request as _Request
+from fastapi.responses import JSONResponse as _JSONResponse
+from slowapi import Limiter as _Limiter
+from slowapi.errors import RateLimitExceeded as _RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware as _SlowAPIMiddleware
+from slowapi.util import get_remote_address as _get_remote_address
+
+_rl_app = _FastAPI()
+_rl_limiter = _Limiter(key_func=_get_remote_address, storage_uri="memory://", default_limits=["3/minute"])
+_rl_app.state.limiter = _rl_limiter
+_rl_app.add_middleware(_SlowAPIMiddleware)
+
+
+@_rl_app.exception_handler(_RateLimitExceeded)
+async def _rl_exc_handler(request: _Request, exc: _RateLimitExceeded):
+    return _JSONResponse({"detail": "rate_limited"}, status_code=429)
+
+
+@_rl_app.get("/limited")
+@_rl_limiter.limit("3/minute")
+async def _rl_limited(request: _Request):
+    return {"ok": True}
+
+
 @dataclass
 class Sample:
     test_name: str
@@ -154,33 +182,16 @@ async def _jwt_refresh_stress(
     }
 
 
-def _rate_limit_exhaustion() -> Dict:
-    from fastapi import FastAPI, Request
-    from fastapi.responses import JSONResponse
-    from slowapi import Limiter
-    from slowapi.errors import RateLimitExceeded
-    from slowapi.middleware import SlowAPIMiddleware
-    from slowapi.util import get_remote_address
-    from utils.inprocess_testclient import InProcessTestClient
-
-    app = FastAPI()
-    limiter = Limiter(key_func=get_remote_address, storage_uri="memory://", default_limits=["3/minute"])
-    app.state.limiter = limiter
-    app.add_middleware(SlowAPIMiddleware)
-
-    @app.exception_handler(RateLimitExceeded)
-    async def _rl_handler(request: Request, exc: RateLimitExceeded):
-        return JSONResponse({"detail": "rate_limited"}, status_code=429)
-
-    @app.get("/limited")
-    @limiter.limit("3/minute")
-    async def _limited(request: Request):
-        return {"ok": True}
-
+async def _rate_limit_exhaustion() -> Dict:
+    # Uses the module-level _rl_app (built at import time, before any reload).
+    # A fresh Limiter is created each call to reset the counter.
+    _rl_limiter.reset()  # reset per-call so each test starts with a clean counter
+    transport = httpx.ASGITransport(app=_rl_app)
     codes: List[int] = []
-    with InProcessTestClient(app) as tc:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as tc:
         for _ in range(6):
-            codes.append(tc.get("/limited").status_code)
+            r = await tc.get("/limited")
+            codes.append(r.status_code)
 
     exhausted = any(code == 429 for code in codes)
     return {
@@ -339,7 +350,7 @@ async def run(args) -> Dict:
             )
             cpu_memory_samples.append({"phase": "after_jwt_refresh", **_cpu_memory_snapshot(process)})
 
-        rate_limit_results = await asyncio.to_thread(_rate_limit_exhaustion)
+        rate_limit_results = await _rate_limit_exhaustion()
         cpu_memory_samples.append({"phase": "after_rate_limit_test", **_cpu_memory_snapshot(process)})
 
         config_results = _wireguard_config_benchmark(db, iterations=args.config_iterations)

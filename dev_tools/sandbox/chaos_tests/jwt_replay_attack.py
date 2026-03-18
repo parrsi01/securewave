@@ -46,10 +46,22 @@ def run_harness(*, output_dir: Path) -> dict:
     db_file = Path(tempfile.gettempdir()) / f"securewave_chaos_jwt_{uuid.uuid4().hex}.db"
     _prepare_runtime(db_file)
 
-    from database.session import create_tables, SessionLocal
+    import importlib
+    import sys as _sys
+    if "database.session" in _sys.modules:
+        db_session = importlib.reload(_sys.modules["database.session"])
+    else:
+        db_session = importlib.import_module("database.session")
+    create_tables = db_session.create_tables
+    SessionLocal = db_session.SessionLocal
+    if "main" in _sys.modules:
+        _main_mod = importlib.reload(_sys.modules["main"])
+    else:
+        _main_mod = importlib.import_module("main")
+    app = _main_mod.app
+
     from models.user import User
     from services.hashing_service import hash_password
-    from main import app
 
     create_tables()
     db = SessionLocal()
@@ -75,9 +87,11 @@ def run_harness(*, output_dir: Path) -> dict:
 
         body = login.json() if login.status_code == 200 else {}
         access_token = body.get("access_token", "")
-        refresh_token = body.get("refresh_token", "")
+        # refresh_token is set as HttpOnly cookie by login — capture it for replay attempt
+        original_refresh_cookie = client.cookies.get("refresh_token", "")
 
-        first_refresh = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+        # First refresh: cookie sent automatically by client
+        first_refresh = client.post("/api/auth/refresh")
         steps.append(
             StepResult(
                 name="refresh_once",
@@ -87,7 +101,11 @@ def run_harness(*, output_dir: Path) -> dict:
             )
         )
 
-        replay_refresh = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+        # Replay: force the original (now-rotated/revoked) token to test replay protection
+        replay_refresh = client.post(
+            "/api/auth/refresh",
+            cookies={"refresh_token": original_refresh_cookie},
+        )
         replay_ok = replay_refresh.status_code == 401
         steps.append(
             StepResult(

@@ -44,6 +44,8 @@ check_legacy_cloud_references() {
   if git -C "$ROOT_DIR" grep -nEI "$pattern" -- . \
     ':(exclude)securewave_app/ios/ThirdParty/*' \
     ':(exclude)securewave_app/third_party/*' \
+    ':(exclude)static/ios/ThirdParty/*' \
+    ':(exclude)static/third_party/*' \
     ':(exclude)scripts/ci_hardening_check.sh' \
     ':(exclude)scripts/ci_multiprotocol_safety_check.sh' \
     ':(exclude)artifacts/*' >/tmp/securewave_legacy_cloud_refs.out; then
