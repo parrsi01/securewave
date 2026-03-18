@@ -52,8 +52,6 @@ SKIP_PATTERNS=(
     '\.sample$'
     '\.example$'
     '\.template$'
-    'test.*\.py$'
-    '_test\.dart$'
     '\.md$'
     'CHANGELOG'
     'LICENSE'

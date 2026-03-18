@@ -609,7 +609,12 @@ class TestAccountTakeoverChains:
             "password_confirm": "SecurePass123!",
         })
         assert resp.status_code == 201
-        token = resp.json()["access_token"]
+        login = client.post("/api/auth/login", json={
+            "email": "newuser@example.com",
+            "password": "SecurePass123!",
+        })
+        assert login.status_code == 200
+        token = login.json()["access_token"]
 
         me = client.get("/api/auth/me",
                        headers={"Authorization": f"Bearer {token}"})

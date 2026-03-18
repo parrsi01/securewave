@@ -1,5 +1,5 @@
-def test_prometheus_metrics_format(client):
-    response = client.get("/metrics")
+def test_prometheus_metrics_format(client, admin_auth_headers):
+    response = client.get("/metrics", headers=admin_auth_headers)
     assert response.status_code == 200
     body = response.text
     assert "# HELP securewave_vpn_profiles_issued_total" in body

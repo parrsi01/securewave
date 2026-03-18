@@ -74,7 +74,12 @@ variable "firewall_name" {
 variable "ssh_allowed_cidrs" {
   description = "CIDR blocks allowed to SSH in."
   type        = list(string)
-  default     = ["0.0.0.0/0", "::/0"]
+  default     = []
+
+  validation {
+    condition     = !contains(var.ssh_allowed_cidrs, "0.0.0.0/0") && !contains(var.ssh_allowed_cidrs, "::/0")
+    error_message = "ssh_allowed_cidrs must not allow the entire internet (0.0.0.0/0 or ::/0)."
+  }
 }
 
 variable "allow_http_https" {

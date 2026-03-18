@@ -20,10 +20,9 @@ need_cmd() {
 
 need_cmd "$PYTHON_BIN"
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "WARN: $ENV_FILE not found. Copying from .env.example.backend"
-  [[ -f ".env.example.backend" ]] || fail ".env.example.backend is missing"
-  cp ".env.example.backend" "$ENV_FILE"
+if [[ ! -f /etc/securewave/env ]]; then
+    echo "ERROR: /etc/securewave/env not found. Cannot deploy without production secrets." >&2
+    exit 1
 fi
 
 if [[ ! -d "$VENV_DIR" ]]; then

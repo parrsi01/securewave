@@ -71,8 +71,8 @@ def upgrade() -> None:
             """
             UPDATE wireguard_peers
             SET device_state = CASE
-                WHEN is_revoked = 1 THEN 'revoked'
-                WHEN is_active = 0 THEN 'expired'
+                WHEN is_revoked IS TRUE THEN 'revoked'
+                WHEN is_active IS FALSE THEN 'expired'
                 ELSE 'active'
             END
             """

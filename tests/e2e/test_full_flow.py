@@ -138,8 +138,12 @@ class TestFullPaymentJourney:
             "password_confirm": "PayJourney123!",
         })
         assert reg.status_code == 201
-        token = reg.json().get("access_token")
-        assert token, "Registration should return access_token in test environment"
+        login = client.post("/api/auth/login", json={
+            "email": "payjour@example.com",
+            "password": "PayJourney123!",
+        })
+        assert login.status_code == 200, f"Login failed: {login.json()}"
+        token = login.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
         # Verify no subscription
@@ -276,7 +280,6 @@ class TestHealthEndpointsE2E:
         assert resp.status_code == 200
         data = resp.json()
         assert "version" in data
-        assert "environment" in data
 
     def test_ready_returns_status(self, client):
         resp = client.get("/api/ready")

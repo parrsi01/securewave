@@ -221,6 +221,7 @@ class TestProductionEnvErrors:
             "PAYMENTS_MOCK": "false",
             "DEMO_MODE": "false",
             "WG_MOCK_MODE": "false",
+            "REDIS_URL": "redis://localhost:6379/0",
         }
         with patch.dict(os.environ, env):
             errors = production_env_errors()

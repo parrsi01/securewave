@@ -411,6 +411,11 @@ def _build_settings(environ: Mapping[str, str]) -> tuple[Settings, list[str]]:
         cookie_samesite = "lax"
 
     redis_url = _clean(environ.get("REDIS_URL")) or "memory://"
+    if is_production and not testing and redis_url == "memory://":
+        warnings.append(
+            "REDIS_URL missing in production — memory-based rate limiting is per-process "
+            "and ineffective with multiple Gunicorn workers"
+        )
     app_version = _clean(environ.get("APP_VERSION")) or "dev"
     git_sha = _clean(environ.get("GIT_SHA")) or ""
     admin_email = _clean(environ.get("ADMIN_EMAIL"))

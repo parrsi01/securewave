@@ -44,6 +44,7 @@ from utils.env_validation import (
     validate_fernet_key,
     is_production,
 )
+from utils.structured_logging import log_security_event, sanitize_for_log
 
 # Request ID context
 request_id_ctx = contextvars.ContextVar("request_id", default="-")
@@ -175,9 +176,21 @@ is_testing = os.getenv("TESTING", "").lower() == "true"
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Rate Limiting Configuration
+# In production, REDIS_URL must be set so rate limits are shared across all
+# Gunicorn workers.  Memory-based rate limiting is per-process and silently
+# allows N×limit requests when running with N workers.
+_redis_url = os.getenv("REDIS_URL", "")
+_is_production = os.getenv("ENVIRONMENT", "development").strip().lower() == "production"
+if _is_production and not _redis_url and not is_testing:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "REDIS_URL not set in production — using memory:// rate limiting. "
+        "This is per-process and ineffective with multiple Gunicorn workers. "
+        "Set REDIS_URL to a Redis instance."
+    )
 limiter = Limiter(
     key_func=get_remote_address,
-    storage_uri=os.getenv("REDIS_URL", "memory://"),
+    storage_uri=_redis_url or "memory://",
     default_limits=["200 per minute"]
 )
 app.state.limiter = limiter
@@ -265,7 +278,8 @@ async def enforce_https_forwarded_proto(request: Request, call_next):
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     """Attach a request ID for traceability."""
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    raw_request_id = request.headers.get("X-Request-ID", "")
+    request_id = sanitize_for_log(raw_request_id, max_len=64) if raw_request_id else str(uuid.uuid4())
     request_id_ctx.set(request_id)
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
@@ -320,7 +334,6 @@ CSRF_EXEMPT_PATHS = {
     "/api/auth/refresh",
     "/api/auth/revoke-token",
     "/api/auth/password-reset/request",
-    "/api/auth/password-reset/confirm",
 }
 
 
@@ -332,13 +345,31 @@ async def enforce_csrf(request: Request, call_next):
         return await call_next(request)
     if request.url.path in CSRF_EXEMPT_PATHS:
         return await call_next(request)
-    if request.headers.get("Authorization"):
-        return await call_next(request)
+    # CSRF only applies to cookie-based sessions.
+    # Pure Bearer-only clients (no access_token cookie) are not vulnerable
+    # to CSRF because browsers cannot attach Authorization headers cross-origin.
     if "access_token" not in request.cookies:
+        return await call_next(request)
+    # If the Authorization Bearer token exactly matches the access_token cookie,
+    # the caller has read-access to the cookie (proves same-origin).
+    # A cross-site attacker cannot read httpOnly cookies, so this cannot be forged.
+    # NOTE: We require equality — merely having an Authorization header is NOT sufficient.
+    auth_header = request.headers.get("Authorization", "")
+    bearer_token = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else ""
+    cookie_token = request.cookies.get("access_token", "")
+    if bearer_token and cookie_token and bearer_token == cookie_token:
         return await call_next(request)
     csrf_header = request.headers.get("X-CSRF-Token")
     csrf_cookie = request.cookies.get("csrf_token")
     if not csrf_header or not csrf_cookie or csrf_header != csrf_cookie:
+        log_security_event(
+            "auth_failure",
+            "medium",
+            reason="csrf_failed",
+            ip_address=sanitize_for_log(request.client.host if request.client else "unknown", 64),
+            path=sanitize_for_log(str(request.url.path), 256),
+            method=request.method,
+        )
         return api_error("csrf_failed", "CSRF token missing or invalid", status_code=403)
     return await call_next(request)
 
@@ -656,15 +687,16 @@ def readiness():
 
 @app.get("/version")
 def version():
-    return {
-        "version": os.getenv("APP_VERSION", "dev"),
-        "commit": os.getenv("GIT_SHA", ""),
-        "environment": os.getenv("ENVIRONMENT", "development"),
-    }
+    return {"version": os.getenv("APP_VERSION", "dev")}
 
 
 @app.get("/metrics", include_in_schema=False)
-def prometheus_metrics(db: Session = Depends(get_db)):
+def prometheus_metrics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin required")
     """
     Prometheus-compatible metrics export with fleet gauges.
     """

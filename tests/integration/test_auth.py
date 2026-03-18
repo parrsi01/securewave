@@ -21,7 +21,9 @@ class TestRegistration:
         )
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
-        assert "access_token" in data
+        assert "user_id" in data
+        # Tokens are delivered via Set-Cookie only — not in the JSON body.
+        assert "access_token" not in data
 
     def test_register_duplicate_email(self, client, test_user):
         """Test registration with duplicate email"""

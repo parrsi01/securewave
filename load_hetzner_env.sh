@@ -2,7 +2,10 @@
 
 # Load Hetzner API token securely
 if [ -f ".env.hetzner" ]; then
-    export $(grep -v '^#' .env.hetzner | xargs)
+    set -a
+    # shellcheck source=/dev/null
+    source .env.hetzner
+    set +a
     echo "Hetzner API token loaded into environment."
 else
     echo "Error: .env.hetzner file not found."

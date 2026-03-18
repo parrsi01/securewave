@@ -30,10 +30,11 @@ from services.jwt_service import (
     get_current_user,
 )
 from services.auth_service import AuthService
+from auth.refresh_tokens import revoke_refresh_token_by_value, revoke_all_refresh_tokens
 from services.runtime_metrics import get_runtime_metrics
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from utils.structured_logging import log_event
+from utils.structured_logging import log_event, log_auth_failure, log_admin_action, sanitize_for_log
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
@@ -236,7 +237,7 @@ async def register(
             email_sent = auth_service.send_verification_email(user)
 
             if not email_sent:
-                logger.warning(f"Failed to send verification email to {user.email}")
+                logger.warning("Failed to send verification email", extra={"user_id": user.id})
 
         _log_auth_event(
             "register",
@@ -265,11 +266,8 @@ async def register(
             else "Registration successful. Please check your email to verify your account."
         )
         return {
+            "status": "ok",
             "message": message,
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "csrf_token": csrf_token,
             "email": user.email,
             "email_sent": email_sent,
             "user_id": user.id,
@@ -278,7 +276,7 @@ async def register(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Registration error: {e}")
+        logger.error("Registration error: %s", sanitize_for_log(str(e)))
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -302,6 +300,16 @@ async def login(
         # Get user
         user: Optional[User] = db.query(User).filter(User.email == payload.email).first()
 
+        # Check lockout BEFORE password verification to prevent timing-based enumeration.
+        # A locked account returns 423 regardless of whether the password is correct.
+        if user:
+            auth_service = AuthService(db)
+            if auth_service.is_account_locked(user):
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail="Account locked due to too many failed login attempts. Try again later."
+                )
+
         is_valid = False
         if user:
             is_valid = await run_in_threadpool(
@@ -313,7 +321,6 @@ async def login(
         if not user or not is_valid:
             # Record failed attempt
             if user:
-                auth_service = AuthService(db)
                 ip_address = request.client.host if request.client else None
                 auth_service.record_login_attempt(user, success=False, ip_address=ip_address)
             _log_auth_event(
@@ -329,14 +336,6 @@ async def login(
                 detail="Invalid credentials"
             )
 
-        # Check if account is locked
-        auth_service = AuthService(db)
-        if auth_service.is_account_locked(user):
-            raise HTTPException(
-                status_code=status.HTTP_423_LOCKED,
-                detail=f"Account locked due to too many failed login attempts. Try again later."
-            )
-
         # Check if email is verified (optional - can be enforced)
         # if not user.email_verified:
         #     raise HTTPException(
@@ -347,11 +346,11 @@ async def login(
         # Check 2FA
         if user.has_2fa_enabled:
             if not payload.totp_code:
-                # Return response indicating 2FA is required
-                return TokenResponse(
-                    access_token="",
-                    refresh_token="",
-                    requires_2fa=True
+                # Raise 401 so the client knows to show the 2FA prompt.
+                # A 200 response here would confirm the password was valid (oracle).
+                raise HTTPException(
+                    status_code=401,
+                    detail={"requires_2fa": True, "message": "Two-factor authentication required"},
                 )
 
             # Verify TOTP code
@@ -380,11 +379,7 @@ async def login(
         ip_address = request.client.host if request.client else None
         background_tasks.add_task(record_login_success, user.id, ip_address)
 
-        admin_email = (SETTINGS.admin_email or "").strip().lower()
-        if admin_email and user.email.lower() == admin_email and not user.is_admin:
-            user.is_admin = True
-            db.commit()
-            logger.info(f"Admin access granted to {user.email} via ADMIN_EMAIL")
+        # Admin status is managed via DB only — use management CLI to promote users
 
         _log_auth_event(
             "login",
@@ -415,7 +410,7 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Login error: {e}")
+        logger.error("Login error: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Login failed"
@@ -431,13 +426,11 @@ async def refresh(
 ):
     """Refresh access token"""
     try:
-        refresh_token_value = payload.refresh_token if payload else None
-        if not refresh_token_value:
-            refresh_token_value = request.cookies.get("refresh_token")
+        refresh_token_value = request.cookies.get("refresh_token")
         if not refresh_token_value:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Missing refresh token"
+                detail="Refresh token missing"
             )
 
         token_data = verify_refresh_token(refresh_token_value, db)
@@ -474,7 +467,7 @@ async def refresh(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Token refresh error: {e}")
+        logger.error("Token refresh error: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
@@ -482,7 +475,21 @@ async def refresh(
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    access_token = request.cookies.get("access_token") or (
+        request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or None
+    )
+    if access_token:
+        try:
+            revoke_access_token(db, access_token, reason="logout")
+        except Exception:
+            pass
+    refresh_token = request.cookies.get("refresh_token")
+    if refresh_token:
+        try:
+            revoke_refresh_token_by_value(db, refresh_token, reason="logout")
+        except Exception:
+            pass
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/")
     response.delete_cookie("csrf_token", path="/")
@@ -580,7 +587,7 @@ async def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Email verification error: {e}")
+        logger.error("Email verification error: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Verification failed"
@@ -613,7 +620,7 @@ async def resend_verification_email(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Resend verification error: {e}")
+        logger.error("Resend verification error: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to resend verification email"
@@ -624,11 +631,15 @@ async def resend_verification_email(
 @limiter.limit("5/hour")
 async def update_email(
     request: Request,
+    response: Response,
     payload: UpdateEmailRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update account email after verifying password"""
+    """Update account email after verifying password.
+    New tokens are set via Set-Cookie only — never returned in the JSON body.
+    The previous access token is revoked immediately.
+    """
     try:
         if not verify_password(payload.password, current_user.hashed_password):
             raise HTTPException(
@@ -650,6 +661,16 @@ async def update_email(
                 detail="Email already in use"
             )
 
+        # Revoke the old access token before issuing a new one
+        old_token = request.cookies.get("access_token") or (
+            request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or None
+        )
+        if old_token:
+            try:
+                revoke_access_token(db, old_token, reason="email_change")
+            except Exception:
+                pass
+
         current_user.email = new_email
         current_user.email_verified = False
         db.commit()
@@ -659,22 +680,19 @@ async def update_email(
             auth_service = AuthService(db)
             auth_service.send_verification_email(current_user)
 
-        return {
-            "message": "Email updated successfully",
-            "access_token": create_access_token(current_user),
-            "refresh_token": create_refresh_token(
-                current_user,
-                db,
-                ip_address=request.client.host if request.client else None,
-                user_agent=request.headers.get("user-agent"),
-            ),
-            "token_type": "bearer",
-        }
+        # Issue new tokens via cookies only — do NOT include in JSON body
+        new_access_token = create_access_token(current_user)
+        import secrets as _secrets
+        csrf_token = _secrets.token_hex(32)
+        response.set_cookie("access_token", new_access_token, httponly=True, samesite="lax", secure=not is_testing, path="/")
+        response.set_cookie("csrf_token", csrf_token, httponly=False, samesite="lax", secure=not is_testing, path="/")
+
+        return {"message": "Email updated successfully"}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Email update error: {e}")
+        logger.error("Email update error: %s", sanitize_for_log(str(e)))
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -717,7 +735,7 @@ async def update_password(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Password update error: {e}")
+        logger.error("Password update error: %s", sanitize_for_log(str(e)))
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -726,9 +744,28 @@ async def update_password(
 
 
 @router.post("/logout-all")
-async def logout_all():
-    """Demo-friendly endpoint to clear all sessions (stateless JWT)"""
-    return {"status": "ok"}
+async def logout_all(
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Revoke all refresh token sessions for the authenticated user."""
+    count = revoke_all_refresh_tokens(db, current_user.id)
+    # Also revoke the current access token
+    access_token = request.cookies.get("access_token") or (
+        request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or None
+    )
+    if access_token:
+        try:
+            revoke_access_token(db, access_token, reason="logout_all")
+        except Exception:
+            pass
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie("csrf_token", path="/")
+    _log_auth_event("logout_all", user_id=current_user.id, sessions_revoked=count)
+    return {"status": "ok", "sessions_revoked": count}
 
 
 # ===========================
@@ -753,7 +790,7 @@ async def request_password_reset(
         }
 
     except Exception as e:
-        logger.error(f"✗ Password reset request error: {e}")
+        logger.error("Password reset request error: %s", sanitize_for_log(str(e)))
         # Don't reveal errors to prevent enumeration
         return {
             "message": "If the email exists, a password reset link has been sent"
@@ -789,7 +826,7 @@ async def confirm_password_reset(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Password reset confirm error: {e}")
+        logger.error("Password reset confirm error: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Password reset failed"
@@ -826,7 +863,7 @@ async def setup_2fa(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ 2FA setup error: {e}")
+        logger.error("2FA setup error: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="2FA setup failed"
@@ -873,7 +910,7 @@ async def get_2fa_qr_code(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ QR code generation error: {e}")
+        logger.error("QR code generation error: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="QR code generation failed"
@@ -908,7 +945,7 @@ async def verify_and_enable_2fa(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ 2FA verification error: {e}")
+        logger.error("2FA verification error: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="2FA verification failed"
@@ -959,7 +996,7 @@ async def disable_2fa(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ 2FA disable error: {e}")
+        logger.error("2FA disable error: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to disable 2FA"

@@ -37,6 +37,10 @@ COPY static/ ./static/
 # Create necessary directories
 RUN mkdir -p /wg /app/logs
 
+# Copy and configure entrypoint
+COPY scripts/docker-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Expose port 8080
 EXPOSE 8080
 
@@ -44,14 +48,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8080/api/health || exit 1
 
-# Run migrations and start Gunicorn
-CMD alembic upgrade head && \
-    gunicorn main:app \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --workers ${WEB_CONCURRENCY:-2} \
-    --threads ${WORKER_THREADS:-2} \
-    --bind 0.0.0.0:${PORT:-8080} \
-    --timeout ${GUNICORN_TIMEOUT:-120} \
-    --access-logfile - \
-    --error-logfile - \
-    --log-level info
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "main:app"]

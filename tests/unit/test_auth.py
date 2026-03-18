@@ -26,23 +26,22 @@ class TestRegisterSuccess:
         })
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
-        assert "access_token" in data or "message" in data
-        # In this test environment, tokens may be returned directly.
-        if "access_token" in data:
-            assert data["token_type"] == "bearer"
-            assert len(data["access_token"]) > 0
+        assert "user_id" in data
+        assert "email" in data
+        # Tokens are set via Set-Cookie only — not in the JSON body.
+        assert "access_token" not in data
+        assert "refresh_token" not in data
 
     def test_register_returns_csrf_token(self, client):
-        """Registration returns a CSRF token for cookie auth flows."""
+        """Registration sets csrf_token as a cookie (not in JSON body)."""
         response = client.post("/api/auth/register", json={
             "email": "csrftest@example.com",
             "password": "SecurePass123!",
             "password_confirm": "SecurePass123!",
         })
         assert response.status_code == status.HTTP_201_CREATED
-        data = response.json()
-        # Cookie-auth flows return csrf_token.
-        assert "csrf_token" in data
+        # csrf_token is set as a cookie, not returned in the JSON body.
+        assert "csrf_token" in response.cookies
 
 
 class TestRegisterDuplicate:
@@ -188,9 +187,9 @@ class TestTokenRefresh:
 
     def test_refresh_with_valid_token(self, client, test_user, refresh_token):
         """A valid refresh token should return new access and refresh tokens."""
-        response = client.post("/api/auth/refresh", json={
-            "refresh_token": refresh_token,
-        })
+        client.cookies.set("refresh_token", refresh_token)
+        response = client.post("/api/auth/refresh")
+        client.cookies.clear()
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data

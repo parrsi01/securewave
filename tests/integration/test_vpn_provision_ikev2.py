@@ -66,7 +66,7 @@ def test_ikev2_provision_fallback_surfaces_real_issue_client_failure(
     monkeypatch.setattr(vpn_routes, "AUTO_PROVISION_CREDENTIALS", False)
 
     class _FakeSshManager:
-        async def run_ssh_command(self, conn, command):
+        async def run_ssh_command(self, conn, command, *, stdin_data=None):
             assert "securewave-ikev2-issue-client" in command
             stdout = stdout_body
             if stdout:

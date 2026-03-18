@@ -13,7 +13,7 @@ Environment=PATH=/opt/securewave/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/s
 ExecStart=/opt/securewave/.venv/bin/python /opt/securewave/scripts/ops/cleanup_wireguard_orphaned_peers.py --interface wg0
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
+ProtectSystem=strict
 ReadWritePaths=/opt/securewave /var/log/securewave /tmp /etc/wireguard
 StandardOutput=journal
 StandardError=journal

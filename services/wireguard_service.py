@@ -83,14 +83,20 @@ class WireGuardService:
     def encrypt_private_key(self, key: str) -> str:
         if self.fernet:
             return self.fernet.encrypt(key.encode()).decode()
-        return base64.b64encode(key.encode()).decode()
+        raise RuntimeError(
+            "WG_ENCRYPTION_KEY is not set or invalid. "
+            "Private keys cannot be stored without encryption."
+        )
 
     def decrypt_private_key(self, encrypted: str) -> str:
         if not encrypted:
             return ""
         if self.fernet:
             return self.fernet.decrypt(encrypted.encode()).decode()
-        return base64.b64decode(encrypted.encode()).decode()
+        raise RuntimeError(
+            "WG_ENCRYPTION_KEY is not set or invalid. "
+            "Cannot decrypt private key without an encryption key."
+        )
 
     @staticmethod
     def _write_secret_file(path: Path, content: str) -> None:

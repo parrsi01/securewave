@@ -206,6 +206,8 @@ def diagnostics_events(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
     events = (
         db.query(AuditLog)
         .order_by(AuditLog.created_at.desc())

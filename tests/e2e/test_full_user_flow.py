@@ -136,8 +136,11 @@ class TestRegistrationFlow:
         })
         assert resp.status_code == 201, f"Registration failed: {resp.json()}"
         data = resp.json()
-        assert "access_token" in data
-        assert "refresh_token" in data
+        assert "user_id" in data
+        assert "email" in data
+        # Tokens are set via Set-Cookie only — not in the JSON body.
+        assert "access_token" not in data
+        assert "refresh_token" not in data
 
     def test_duplicate_registration_rejected(self, client, db):
         """Duplicate email registration must be rejected."""
@@ -303,13 +306,17 @@ class TestSubscriptionPurchaseFlow:
         _patch_stripe(monkeypatch)
 
         # Step 1: Register
-        reg = client.post("/api/auth/register", json={
+        client.post("/api/auth/register", json={
             "email": TEST_EMAIL,
             "password": TEST_PASSWORD,
             "password_confirm": TEST_PASSWORD,
         })
-        assert reg.status_code == 201
-        token = reg.json()["access_token"]
+        login = client.post("/api/auth/login", json={
+            "email": TEST_EMAIL,
+            "password": TEST_PASSWORD,
+        })
+        assert login.status_code == 200
+        token = login.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
         # Step 2: Create checkout session
@@ -359,12 +366,17 @@ class TestSubscriptionPurchaseFlow:
         monkeypatch.setenv("STRIPE_PRICE_ULTRA_YEARLY", "price_ultra_y")
         _patch_stripe(monkeypatch)
 
-        reg = client.post("/api/auth/register", json={
+        client.post("/api/auth/register", json={
             "email": "freeuser@example.com",
             "password": TEST_PASSWORD,
             "password_confirm": TEST_PASSWORD,
         })
-        token = reg.json()["access_token"]
+        login = client.post("/api/auth/login", json={
+            "email": "freeuser@example.com",
+            "password": TEST_PASSWORD,
+        })
+        assert login.status_code == 200
+        token = login.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
         resp = client.post("/api/payments/stripe/create-checkout-session",
@@ -536,12 +548,17 @@ class TestProfileUpdate:
 
     def test_update_password(self, client, db):
         """User can change password with current password verification."""
-        reg = client.post("/api/auth/register", json={
+        client.post("/api/auth/register", json={
             "email": TEST_EMAIL,
             "password": TEST_PASSWORD,
             "password_confirm": TEST_PASSWORD,
         })
-        token = reg.json()["access_token"]
+        login = client.post("/api/auth/login", json={
+            "email": TEST_EMAIL,
+            "password": TEST_PASSWORD,
+        })
+        assert login.status_code == 200
+        token = login.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
         resp = client.post("/api/auth/update-password", json={
@@ -560,12 +577,17 @@ class TestProfileUpdate:
 
     def test_update_email(self, client, db):
         """User can change email with password verification."""
-        reg = client.post("/api/auth/register", json={
+        client.post("/api/auth/register", json={
             "email": TEST_EMAIL,
             "password": TEST_PASSWORD,
             "password_confirm": TEST_PASSWORD,
         })
-        token = reg.json()["access_token"]
+        login = client.post("/api/auth/login", json={
+            "email": TEST_EMAIL,
+            "password": TEST_PASSWORD,
+        })
+        assert login.status_code == 200
+        token = login.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
         resp = client.post("/api/auth/update-email", json={
@@ -576,12 +598,17 @@ class TestProfileUpdate:
 
     def test_update_password_wrong_current_rejected(self, client, db):
         """Wrong current password must be rejected."""
-        reg = client.post("/api/auth/register", json={
+        client.post("/api/auth/register", json={
             "email": "pwchange@example.com",
             "password": TEST_PASSWORD,
             "password_confirm": TEST_PASSWORD,
         })
-        token = reg.json()["access_token"]
+        login = client.post("/api/auth/login", json={
+            "email": "pwchange@example.com",
+            "password": TEST_PASSWORD,
+        })
+        assert login.status_code == 200
+        token = login.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
         resp = client.post("/api/auth/update-password", json={
@@ -717,8 +744,6 @@ class TestFullUserLifecycle:
             "password_confirm": TEST_PASSWORD,
         })
         assert reg.status_code == 201, f"Registration: {reg.json()}"
-        token = reg.json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
 
         # ── Step 2: Login ──
         login = client.post("/api/auth/login", json={

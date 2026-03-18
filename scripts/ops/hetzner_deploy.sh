@@ -36,6 +36,18 @@ scp_file() { scp "${SSH_OPTS[@]}" "$1" "${VPS_USER}@${VPS_HOST}:$2"; }
 echo "==> [1/7] Verifying VPS reachability"
 ssh_exec "echo VPS_OK"
 
+echo "==> [1b/7] Checking production env for REDIS_URL"
+# Multi-worker rate limiting requires Redis. Without it, each Gunicorn worker
+# has an independent in-memory rate limit counter — silently allowing N×limit
+# requests with N workers. Set REDIS_URL in /etc/securewave/env for production.
+if ssh_exec "grep -q '^REDIS_URL=' /etc/securewave/env 2>/dev/null"; then
+    echo "  REDIS_URL: present"
+else
+    echo "  WARNING: REDIS_URL is not set in /etc/securewave/env"
+    echo "  Rate limiting will be per-process (ineffective with multiple Gunicorn workers)."
+    echo "  To fix: add REDIS_URL=redis://127.0.0.1:6379/0 to /etc/securewave/env"
+fi
+
 echo "==> [2/7] Syncing application code"
 # rsync excludes: venv, __pycache__, .git, secrets, test artifacts
 rsync -az --delete \
@@ -70,7 +82,14 @@ echo "==> [4/7] Running DB migrations"
 ssh_exec "
     set -euo pipefail
     cd $APP_DIR
-    test -f /etc/securewave/env
+    # Verify env file exists and has secure permissions (600 = owner read/write only)
+    test -f /etc/securewave/env || { echo 'ERROR: /etc/securewave/env not found'; exit 1; }
+    actual_perms=\$(stat -c '%a' /etc/securewave/env)
+    if [[ \"\$actual_perms\" != '600' ]]; then
+        echo \"WARNING: /etc/securewave/env has permissions \$actual_perms, enforcing 600\"
+        sudo chmod 600 /etc/securewave/env
+        sudo chown root:root /etc/securewave/env
+    fi
     set -a
     source /etc/securewave/env
     set +a

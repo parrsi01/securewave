@@ -26,6 +26,7 @@ from services.jwt_service import get_current_user
 from services.payment_idempotency import run_idempotent
 from utils.api_errors import ApiException
 from utils.url_safety import require_safe_redirect_url
+from utils.structured_logging import log_admin_action, sanitize_for_log
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -808,8 +809,8 @@ async def create_checkout_session(
 
 
 @router.get("/stripe-status")
-async def get_stripe_status():
-    """Returns Stripe configuration status (test/live/unconfigured)."""
+async def get_stripe_status(current_user: User = Depends(get_current_user)):
+    """Returns Stripe configuration status (test/live/unconfigured). Requires authentication."""
     from services.stripe_service import stripe_mode_label
     configured = bool(os.getenv("STRIPE_SECRET_KEY"))
     webhook_configured = bool(os.getenv("STRIPE_WEBHOOK_SECRET"))
@@ -823,53 +824,9 @@ async def get_stripe_status():
 # ===========================
 # WEBHOOK ENDPOINTS
 # ===========================
-
-@router.post("/webhooks/stripe", include_in_schema=False)
-@rate_limit("120/minute")
-async def stripe_webhook(
-    request: Request,
-    stripe_signature: Optional[str] = Header(None, alias="Stripe-Signature"),
-    db: Session = Depends(get_db)
-):
-    """
-    Handle Stripe webhook events
-    Verifies signature and processes payment events
-    """
-    try:
-        if not stripe_signature:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Stripe-Signature header")
-        if not (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip():
-            raise ApiException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                code="stripe_webhook_not_configured",
-                message="STRIPE_WEBHOOK_SECRET is not configured.",
-            )
-
-        # Get raw body
-        payload = await request.body()
-
-        # Verify webhook signature
-        event = StripeService.construct_webhook_event(payload, stripe_signature)
-
-        # Process event
-        webhook_handler = PaymentWebhookHandler(db)
-        payload_hash = hashlib.sha256(payload).hexdigest()
-        result = webhook_handler.handle_stripe_event(event, payload_hash=payload_hash)
-
-        logger.info("Processed Stripe webhook: %s", event.get("type"))
-        return JSONResponse(content={"status": "success", "result": result})
-
-    except ValueError as e:
-        logger.error(f"✗ Invalid Stripe webhook signature: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"✗ Failed to process Stripe webhook: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process webhook"
-        )
+# NOTE: POST /api/billing/webhooks/stripe has been removed.
+# The canonical Stripe webhook endpoint is POST /api/payments/stripe/webhook
+# (mounted via payment_stripe router in main.py).
 
 
 @router.post("/webhooks/paypal", include_in_schema=False)
@@ -882,6 +839,11 @@ async def paypal_webhook(
     Handle PayPal webhook events
     Verifies signature and processes payment events
     """
+    if _missing_provider_config("paypal") or not os.getenv("PAYPAL_WEBHOOK_ID"):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PayPal webhook processing is not configured",
+        )
     try:
         # Get raw body and headers
         payload = await request.body()
@@ -920,6 +882,7 @@ async def paypal_webhook(
 
 @router.get("/admin/health-report", include_in_schema=False)
 async def get_billing_health_report(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -927,18 +890,24 @@ async def get_billing_health_report(
     Get billing health report (admin only)
     Returns comprehensive billing metrics
     """
+    ip_address = request.client.host if request.client else None
     try:
         # Check if user is admin
         if not current_user.is_admin:
+            log_admin_action("billing_health_report", current_user.id, ip_address, "denied")
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
         billing_service = BillingAutomationService(db)
         report = billing_service.generate_billing_health_report()
+        log_admin_action("billing_health_report", current_user.id, ip_address, "success")
 
         return report
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"✗ Failed to generate health report: {e}")
+        logger.error("Failed to generate health report: %s", sanitize_for_log(str(e)))
+        log_admin_action("billing_health_report", current_user.id, ip_address, "error")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate health report"
@@ -947,22 +916,29 @@ async def get_billing_health_report(
 
 @router.post("/admin/sync-subscriptions", include_in_schema=False)
 async def sync_all_subscriptions(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Sync all subscriptions with payment providers (admin only)"""
+    ip_address = request.client.host if request.client else None
     try:
         # Check if user is admin
         if not current_user.is_admin:
+            log_admin_action("billing_sync_subscriptions", current_user.id, ip_address, "denied")
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
         billing_service = BillingAutomationService(db)
         result = billing_service.sync_all_active_subscriptions()
+        log_admin_action("billing_sync_subscriptions", current_user.id, ip_address, "success")
 
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"✗ Failed to sync subscriptions: {e}")
+        logger.error("Failed to sync subscriptions: %s", sanitize_for_log(str(e)))
+        log_admin_action("billing_sync_subscriptions", current_user.id, ip_address, "error")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to sync subscriptions"

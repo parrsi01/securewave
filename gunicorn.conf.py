@@ -25,9 +25,9 @@ proc_name = "securewave-vpn"
 # Server mechanics
 daemon = False
 pidfile = None
-umask = 0
-user = None
-group = None
+umask = 0o027
+user = "securewave"
+group = "securewave"
 tmp_upload_dir = None
 
 # Preload app

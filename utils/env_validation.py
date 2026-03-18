@@ -31,6 +31,23 @@ def validate_fernet_key(value: Optional[str]) -> Optional[str]:
     return None
 
 
+def check_encryption_key_at_startup(env_var_name: str = "WG_ENCRYPTION_KEY") -> None:
+    """
+    Raise RuntimeError if the named Fernet encryption key is absent or invalid.
+
+    Call this during service startup to fail fast before any key material is
+    processed.  Raises RuntimeError with the env_var_name in the message so
+    that log scanners can identify which key is missing.
+    """
+    value = os.getenv(env_var_name, "").strip()
+    issue = validate_fernet_key(value if value else None)
+    if issue:
+        raise RuntimeError(
+            f"{env_var_name} is {issue}. "
+            "A valid Fernet key is required for private key encryption."
+        )
+
+
 def _bool_from_env(value: Optional[str]) -> Optional[bool]:
     if value is None:
         return None

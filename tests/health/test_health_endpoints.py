@@ -20,4 +20,3 @@ def test_version_endpoint(client):
     assert response.status_code == 200
     body = response.json()
     assert "version" in body
-    assert "environment" in body

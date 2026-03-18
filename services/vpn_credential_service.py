@@ -136,7 +136,12 @@ class VpnCredentialService:
     def _encrypt(self, value: str) -> str:
         if self.fernet:
             return self.fernet.encrypt(value.encode("utf-8")).decode("utf-8")
-        return base64.b64encode(value.encode("utf-8")).decode("utf-8")
+        if self.testing:
+            import base64 as _b64
+            return _b64.b64encode(value.encode("utf-8")).decode("utf-8")
+        raise RuntimeError(
+            "WG_ENCRYPTION_KEY is not set. Cannot store credentials without encryption."
+        )
 
     def _decrypt(self, value: str) -> str:
         if not value:
@@ -245,6 +250,20 @@ class VpnCredentialService:
 
     @classmethod
     def _should_run_local(cls, server: Any) -> bool:
+        """
+        Returns True only when:
+          - The server IP resolves to this machine, AND
+          - We are in a permitted local execution mode:
+              TESTING=true  (automated test runs)
+              LOCAL_WG=true (explicit developer override)
+
+        Local shell execution must never run in production.
+        """
+        if is_production():
+            return False
+        _bool = lambda v: (v or "").strip().lower() in {"1", "true", "yes", "on"}
+        if not _bool(os.getenv("TESTING")) and not _bool(os.getenv("LOCAL_WG")):
+            return False
         server_host = str(getattr(server, "public_ip", None) or "").strip().lower()
         if not server_host:
             return False
@@ -526,8 +545,9 @@ class VpnCredentialService:
         *,
         server: Any,
         command: str,
+        stdin_data: Optional[str] = None,
     ) -> tuple[bool, str, str]:
-        result = await self._run_remote_script_detailed(server=server, command=command)
+        result = await self._run_remote_script_detailed(server=server, command=command, stdin_data=stdin_data)
         return result.ok, result.stdout, result.stderr
 
     async def _run_remote_script_detailed(
@@ -535,17 +555,31 @@ class VpnCredentialService:
         *,
         server: Any,
         command: str,
+        stdin_data: Optional[str] = None,
     ) -> RemoteScriptExecution:
+        server_host = str(getattr(server, "public_ip", None) or "").strip().lower()
+        _is_local_host = bool(server_host and server_host in self._local_host_aliases())
+        if _is_local_host and not self._should_run_local(server):
+            # Local execution is blocked: not in TESTING mode and LOCAL_WG is not set.
+            # Refuse to run to prevent accidental local shell exec in production.
+            return RemoteScriptExecution(
+                ok=False,
+                stdout="",
+                stderr="Local execution blocked: set TESTING=true or LOCAL_WG=true to enable.",
+                exit_code=1,
+                duration_ms=0,
+                command_summary=self._redact_command_summary(command),
+            )
+
         if self._should_run_local(server):
             started = time.monotonic()
             wrapped_command = self._wrap_remote_command(command)
             proc = subprocess.run(
-                wrapped_command,
-                shell=True,
+                ["/bin/bash", "-c", wrapped_command],
                 text=True,
                 capture_output=True,
-                executable="/bin/bash",
                 timeout=120,
+                input=stdin_data,
             )
             duration_ms = int((time.monotonic() - started) * 1000)
             clean_stdout, exit_code = self._extract_remote_exit_code(proc.stdout)
@@ -566,6 +600,7 @@ class VpnCredentialService:
         transport_ok, stdout, stderr = await manager.run_ssh_command(
             conn,
             self._wrap_remote_command(command),
+            stdin_data=stdin_data,
         )
         duration_ms = int((time.monotonic() - started) * 1000)
         clean_stdout, exit_code = self._extract_remote_exit_code(stdout)
@@ -709,11 +744,11 @@ class VpnCredentialService:
             provisioned = True
             status_message = "issued_via_testing_payload"
         else:
+            # Secret is passed via stdin (read by the script as the first line).
+            # Never embed it in the command string to avoid ps/proc/audit-log exposure.
             issue_cmd = " ".join(
                 [
                     "sudo",
-                    "env",
-                    f"SECUREWAVE_PROVISIONING_TOKEN_SECRET={shlex.quote(provisioning_secret)}",
                     "/usr/local/bin/securewave-openvpn-issue-client",
                     "--common-name",
                     shlex.quote(common_name),
@@ -725,7 +760,7 @@ class VpnCredentialService:
                     "json",
                 ]
             )
-            ok, stdout, stderr = await self._run_remote_script(server=server, command=issue_cmd)
+            ok, stdout, stderr = await self._run_remote_script(server=server, command=issue_cmd, stdin_data=provisioning_secret)
             if not ok:
                 raise RuntimeError((stderr or stdout or "openvpn provisioning failed").strip())
             data = await self._resolve_script_payload(
@@ -821,11 +856,11 @@ class VpnCredentialService:
             provisioned = True
             status_message = "issued_via_testing_payload"
         else:
+            # Secret is passed via stdin (read by the script as the first line).
+            # Never embed it in the command string to avoid ps/proc/audit-log exposure.
             issue_cmd = " ".join(
                 [
                     "sudo",
-                    "env",
-                    f"SECUREWAVE_PROVISIONING_TOKEN_SECRET={shlex.quote(provisioning_secret)}",
                     "/usr/local/bin/securewave-ikev2-issue-client",
                     "--common-name",
                     shlex.quote(common_name),
@@ -841,7 +876,7 @@ class VpnCredentialService:
                     "json",
                 ]
             )
-            result = await self._run_remote_script_detailed(server=server, command=issue_cmd)
+            result = await self._run_remote_script_detailed(server=server, command=issue_cmd, stdin_data=provisioning_secret)
             stdout = result.stdout
             if not result.ok:
                 raise RemoteScriptError(

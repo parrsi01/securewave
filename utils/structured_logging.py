@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextvars
+import hashlib
 import json
 import logging
 import re
@@ -27,8 +28,10 @@ _SENSITIVE_FIELD_NAMES = {
     "preshared_key",
     "refresh_token",
     "secret",
+    "stripe_webhook_secret",
     "token",
     "wg_key",
+    "wg_private_key_encrypted",
 }
 _SENSITIVE_FIELD_SUFFIXES = (
     "_token",
@@ -39,13 +42,20 @@ _SENSITIVE_FIELD_SUFFIXES = (
     "_api_key",
 )
 _STANDARD_LOG_ATTRS = set(logging.makeLogRecord({}).__dict__.keys())
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[mGKHFABCDEJsu]|\x1b[()][AB012]")
 _STRING_REDACTIONS = (
     (re.compile(r"(Bearer\s+)[A-Za-z0-9._\-]+", re.IGNORECASE), r"\1[redacted]"),
+    (re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9]+\b"), "[redacted-stripe-secret]"),
+    (re.compile(r"\bwhsec_[A-Za-z0-9]+\b"), "[redacted-stripe-webhook-secret]"),
     (re.compile(r"(PrivateKey\s*=\s*)([^\s]+)", re.IGNORECASE), r"\1[redacted]"),
     (re.compile(r"(PresharedKey\s*=\s*)([^\s]+)", re.IGNORECASE), r"\1[redacted]"),
+    # Redact NEW_KEY='...' patterns used in SSH key rotation commands
+    (re.compile(r"(NEW_KEY\s*=\s*')[^']+'", re.IGNORECASE), r"\1[redacted]'"),
     (re.compile(r"((?:access|refresh|csrf)?_?token=)([^&\s]+)", re.IGNORECASE), r"\1[redacted]"),
     (re.compile(r"((?:password|secret|api_key)=)([^&\s]+)", re.IGNORECASE), r"\1[redacted]"),
 )
+
+_security_logger = logging.getLogger("securewave.security")
 
 
 def bind_request_context(request_id: str, *, user_id: Any = None) -> tuple[contextvars.Token, contextvars.Token]:
@@ -206,3 +216,66 @@ def structured_extras(record: logging.LogRecord) -> dict[str, Any]:
         for key, value in record.__dict__.items()
         if key not in _STANDARD_LOG_ATTRS
     }
+
+
+def sanitize_for_log(value: str, max_len: int = 500) -> str:
+    if not isinstance(value, str):
+        value = str(value)
+    value = _ANSI_ESCAPE_RE.sub("", value)
+    value = value.replace("\r", "\\r").replace("\n", "\\n").replace("\x00", "\\x00")
+    if len(value) > max_len:
+        value = value[:max_len] + "[truncated]"
+    return value
+
+
+def _hash_email(email: str) -> str:
+    return "sha256:" + hashlib.sha256(email.lower().encode()).hexdigest()[:16]
+
+
+def log_security_event(
+    event_type: str,
+    severity: str,
+    **fields: Any,
+) -> None:
+    _security_logger.warning(
+        event_type,
+        extra={
+            "event": event_type,
+            "severity": severity,
+            **fields,
+        },
+    )
+
+
+def log_auth_failure(
+    reason: str,
+    ip_address: str | None,
+    email_hint: str | None,
+    **extra: Any,
+) -> None:
+    log_security_event(
+        "auth_failure",
+        "medium",
+        reason=reason,
+        ip_address=sanitize_for_log(ip_address or "unknown", 64),
+        email_hint=_hash_email(email_hint) if email_hint else None,
+        **extra,
+    )
+
+
+def log_admin_action(
+    action: str,
+    user_id: Any,
+    ip_address: str | None,
+    result: str,
+    **extra: Any,
+) -> None:
+    log_security_event(
+        "admin_action",
+        "low" if result == "success" else "medium",
+        action=action,
+        user_id=user_id,
+        ip_address=sanitize_for_log(ip_address or "unknown", 64),
+        result=result,
+        **extra,
+    )

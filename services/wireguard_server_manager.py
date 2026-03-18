@@ -11,6 +11,7 @@ This service is the bridge between the FastAPI backend and the actual WireGuard 
 import os
 import json
 import logging
+import shlex
 import subprocess  # nosec B404 - controlled subprocess usage
 import asyncio
 import shutil
@@ -236,10 +237,12 @@ class WireGuardServerManager:
             return False, "Server key rotation currently supports SSH mode only", None
 
         safe_iface = re.sub(r"[^A-Za-z0-9_-]", "", interface) or "wg0"
+        # Private key is passed via stdin — never embedded in the command string
+        # to prevent exposure in SSH audit logs, process listings, and shell history.
         command = (
             "set -euo pipefail; "
             f"IFACE='{safe_iface}'; "
-            f"NEW_KEY='{private_key}'; "
+            "read -r NEW_KEY; "
             "KEY_PATH='/etc/wireguard/keys/server_private.key'; "
             "CONF=\"/etc/wireguard/${IFACE}.conf\"; "
             "BACKUP=\"/tmp/${IFACE}.conf.bak.$$\"; "
@@ -262,7 +265,7 @@ class WireGuardServerManager:
             "printf '%s' \"$NEW_KEY\" | wg pubkey"
         )
 
-        ok, stdout, stderr = await self._run_ssh_command(conn, command)
+        ok, stdout, stderr = await self._run_ssh_command(conn, command, stdin_data=private_key)
         if not ok:
             return False, (stderr or stdout or "rotation failed").strip(), None
 
@@ -450,9 +453,18 @@ class WireGuardServerManager:
         self,
         conn: ServerConnection,
         command: str,
+        *,
+        stdin_data: Optional[str] = None,
     ) -> Tuple[bool, str, str]:
         """
         Execute a command via SSH.
+
+        Args:
+            conn: Server connection details
+            command: Shell command to execute on the remote host
+            stdin_data: Optional data to pipe to the command's stdin.
+                        Use this to pass secrets instead of embedding them
+                        in the command string (avoids exposure in audit logs).
 
         Returns:
             Tuple of (success, stdout, stderr)
@@ -469,22 +481,24 @@ class WireGuardServerManager:
         ssh_cmd = [
             self.ssh_path,
             "-i", ssh_key,
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "StrictHostKeyChecking=accept-new",
             "-o", f"ConnectTimeout={self.timeout}",
             "-p", str(conn.ssh_port),
             ssh_target,
             command
         ]
 
+        stdin_pipe = asyncio.subprocess.PIPE if stdin_data is not None else None
         try:
             process = await asyncio.create_subprocess_exec(
                 *ssh_cmd,
+                stdin=stdin_pipe,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
+            stdin_bytes = (stdin_data + "\n").encode() if stdin_data is not None else None
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
+                process.communicate(input=stdin_bytes),
                 timeout=self.timeout
             )
 
@@ -499,6 +513,8 @@ class WireGuardServerManager:
         self,
         conn: ServerConnection,
         command: str,
+        *,
+        stdin_data: Optional[str] = None,
     ) -> Tuple[bool, str, str]:
         """
         Public wrapper for executing a command via SSH.
@@ -507,7 +523,7 @@ class WireGuardServerManager:
         credential install scripts) while reusing the same SSH configuration
         and timeouts as the WireGuard manager.
         """
-        return await self._run_ssh_command(conn, command)
+        return await self._run_ssh_command(conn, command, stdin_data=stdin_data)
 
     async def _add_peer_via_ssh(
         self,
@@ -535,7 +551,9 @@ class WireGuardServerManager:
         public_key: str,
     ) -> Tuple[bool, str]:
         """Remove peer via SSH"""
-        cmd = f"sudo wg set wg0 peer '{public_key}' remove && sudo wg-quick save wg0"
+        if not self._wg_key_pattern.match(public_key):
+            return False, "Invalid WireGuard public key format"
+        cmd = f"sudo wg set wg0 peer {shlex.quote(public_key)} remove && sudo wg-quick save wg0"
         success, stdout, stderr = await self._run_ssh_command(conn, cmd)
 
         if success:

@@ -131,8 +131,8 @@ class TestApiMetricsEndpoint:
 
 
 class TestPrometheusFleetGauges:
-    def test_metrics_endpoint_includes_fleet_gauges(self, client, db):
-        resp = client.get("/metrics")
+    def test_metrics_endpoint_includes_fleet_gauges(self, client, db, admin_auth_headers):
+        resp = client.get("/metrics", headers=admin_auth_headers)
         assert resp.status_code == 200
         text = resp.text
         assert "securewave_active_sessions" in text
@@ -142,7 +142,7 @@ class TestPrometheusFleetGauges:
         assert "securewave_fleet_total_connections" in text
         assert "securewave_fleet_avg_load_score" in text
 
-    def test_fleet_gauges_reflect_data(self, client, db):
+    def test_fleet_gauges_reflect_data(self, client, db, admin_auth_headers):
         from models.vpn_server import VPNServer
 
         server = VPNServer(
@@ -166,7 +166,7 @@ class TestPrometheusFleetGauges:
         db.add(server)
         db.commit()
 
-        resp = client.get("/metrics")
+        resp = client.get("/metrics", headers=admin_auth_headers)
         text = resp.text
         assert "securewave_fleet_total_servers 1" in text
         assert "securewave_fleet_healthy_servers 1" in text

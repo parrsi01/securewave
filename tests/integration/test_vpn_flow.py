@@ -126,11 +126,6 @@ class TestFullVPNFlow:
             "password_confirm": "SecurePass123!",
         })
         assert reg_resp.status_code == 201, f"Registration failed: {reg_resp.json()}"
-        reg_data = reg_resp.json()
-        token = reg_data.get("access_token")
-        assert token, "No access token in registration response"
-        headers = {"Authorization": f"Bearer {token}"}
-
         # Step 2: Login (verify credentials work)
         login_resp = client.post("/api/auth/login", json={
             "email": "vpnflow@example.com",
