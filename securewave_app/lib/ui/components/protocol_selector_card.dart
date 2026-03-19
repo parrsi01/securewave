@@ -19,7 +19,10 @@ class ProtocolSelectorCard extends ConsumerWidget {
     final vpnState = ref.watch(vpnStateProvider);
     final catalogAsync = ref.watch(vpnProtocolCatalogProvider);
     final activeTunnel = vpnState.status == VpnStatus.connected ||
+        vpnState.status == VpnStatus.degraded ||
         vpnState.status == VpnStatus.connecting ||
+        vpnState.status == VpnStatus.verifying ||
+        vpnState.status == VpnStatus.reconnecting ||
         vpnState.status == VpnStatus.disconnecting;
 
     return GlassPanel(
@@ -90,8 +93,8 @@ class ProtocolSelectorCard extends ConsumerWidget {
                 runSpacing: AppSpacing.space2,
                 children: entries.map((entry) {
                   final selected = vpnState.protocol == entry.protocol;
-                  final enabled = entry.protocol == VpnProtocol.auto ||
-                      entry.isAvailable;
+                  final enabled =
+                      entry.protocol == VpnProtocol.auto || entry.isAvailable;
                   final helpText =
                       enabled ? null : (entry.reason ?? 'Unavailable');
                   return Tooltip(
@@ -106,17 +109,18 @@ class ProtocolSelectorCard extends ConsumerWidget {
                             ? AppColors.primaryBright
                             : Theme.of(context).colorScheme.outlineVariant,
                       ),
-                      labelStyle:
-                          Theme.of(context).textTheme.labelMedium?.copyWith(
-                                fontWeight: selected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: enabled
-                                    ? null
-                                    : Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                              ),
+                      labelStyle: Theme.of(context)
+                          .textTheme
+                          .labelMedium
+                          ?.copyWith(
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w500,
+                            color: enabled
+                                ? null
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                          ),
                       avatar: _protocolAvatar(entry, selected),
                       onSelected: enabled
                           ? (_) => ref

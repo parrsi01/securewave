@@ -60,6 +60,7 @@ def preview_stack(tmp_path_factory: pytest.TempPathFactory) -> PreviewStack:
             "WG_AUTO_REGISTER_PEERS": "false",
             "EMAIL_PROVIDER": "smtp",
             "DATABASE_URL": f"sqlite:///{tmp_dir}/preview.db",
+            "AUTO_CREATE_TABLES": "true",
         }
     )
 

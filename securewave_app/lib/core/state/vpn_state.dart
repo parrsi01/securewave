@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ui/design/app_colors.dart';
+import '../config/runtime_flags.dart';
 import '../logging/app_logger.dart';
 import '../models/vpn_protocol.dart';
 import '../models/vpn_profile.dart';
@@ -14,10 +15,10 @@ import '../models/vpn_readiness.dart';
 import '../models/vpn_status.dart';
 import '../optimization/marlxgb.dart';
 import '../services/device_identity.dart';
+import '../services/health_monitor.dart';
 import '../services/network_path.dart';
 import '../services/protocol_selector.dart';
 import '../services/secure_storage.dart';
-import '../services/tunnel_watchdog_service.dart';
 import '../vpn/protocol_capabilities.dart';
 import 'vpn_state_machine.dart';
 import '../../services/api_client.dart';
@@ -217,10 +218,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
               : VpnReadinessGateState.notReady,
         );
         if (!next) {
-          if (state.desiredOn ||
-              state.status == VpnStatus.connected ||
-              state.status == VpnStatus.connecting ||
-              state.status == VpnStatus.disconnecting) {
+          if (state.desiredOn || _statusHasActiveTunnel(state.status)) {
             _setDesiredOnInternal(false, source: 'disconnect');
             _safeFireAndForget(
               _requestReconcile(),
@@ -252,9 +250,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   final _predictor = const MarLXGBPredictor();
   final SecureStorage _storage = SecureStorage();
   final List<VpnTransitionRecord> _transitionHistory = <VpnTransitionRecord>[];
-  late final TunnelWatchdogService _tunnelWatchdog = TunnelWatchdogService(
-    sample: _sampleRuntimeSnapshot,
-    onIssue: _handleTunnelWatchdogIssue,
+  late final HealthMonitorService _healthMonitor = HealthMonitorService(
+    sample: _sampleHealthSnapshot,
+    onIssue: _handleHealthMonitorIssue,
+    onRecovered: _handleHealthRecovered,
   );
 
   Timer? _rateTimer;
@@ -292,6 +291,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   bool _runtimeRecoveryInFlight = false;
   Future<VpnStatus>? _runtimeDisconnectFuture;
   Future<void>? _safeShutdownFuture;
+  int _recoveryAttemptCount = 0;
+  int _recoveryAttemptTotal = 0;
+  int _recoverySuccessCount = 0;
+  DateTime? _scheduledReconnectAt;
+  VpnHealthFailureType? _lastRecoveryFailureType;
 
   @visibleForTesting
   bool get debugHasRateTimer => _rateTimer?.isActive ?? false;
@@ -352,7 +356,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       );
       if (!mounted) return;
       final shouldMirrorIntent =
-          next == VpnStatus.connected || next == VpnStatus.connecting;
+          _statusIsConnectedLike(next) || _statusIsConnectInFlight(next);
       if (state.desiredOn != shouldMirrorIntent) {
         state = state.copyWith(
           desiredOn: shouldMirrorIntent,
@@ -368,13 +372,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         authenticated: _ref.read(authSessionProvider).isAuthenticated
             ? VpnReadinessGateState.ready
             : VpnReadinessGateState.notReady,
-        tunnelUp: next == VpnStatus.connected
+        tunnelUp: _statusIsConnectedLike(next)
             ? VpnReadinessGateState.ready
             : VpnReadinessGateState.notReady,
         clearLastErrorCode:
-            next == VpnStatus.connected || next == VpnStatus.disconnected,
+            _statusIsConnectedLike(next) || next == VpnStatus.disconnected,
       );
-      if (next == VpnStatus.connected) {
+      if (_statusIsConnectedLike(next)) {
         _startRateSimulation();
       } else {
         _stopRateSimulation();
@@ -405,10 +409,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       );
       return;
     }
-    final isActive = state.desiredOn ||
-        state.status == VpnStatus.connected ||
-        state.status == VpnStatus.connecting ||
-        state.status == VpnStatus.disconnecting;
+    if (_ref.read(deferPostAuthAutoConnectProvider)) {
+      AppLogger.info(
+        '[VPN_SM] {"event":"auto_connect_deferred","reason":"linux_ui_automation","trigger":"$reason","status":"${state.status.name}","desiredOn":${state.desiredOn}}',
+      );
+      return;
+    }
+    final isActive = state.desiredOn || _statusHasActiveTunnel(state.status);
     if (isActive) {
       AppLogger.info(
         '[VPN_SM] {"event":"auto_connect_skipped","status":"${state.status.name}","desiredOn":${state.desiredOn},"reason":"$reason"}',
@@ -442,18 +449,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       return;
     }
 
-    final shouldReconnect = state.desiredOn ||
-        state.status == VpnStatus.connected ||
-        state.status == VpnStatus.connecting ||
-        state.status == VpnStatus.disconnecting;
+    final shouldReconnect =
+        state.desiredOn || _statusHasActiveTunnel(state.status);
     if (!shouldReconnect) return;
 
     AppLogger.info(
       '[VPN_SM] {"event":"server_switch_reconnect","from":"${previousServer ?? ""}","to":"$serverId"}',
     );
-    if (state.status == VpnStatus.connected ||
-        state.status == VpnStatus.connecting ||
-        state.status == VpnStatus.disconnecting) {
+    if (_statusHasActiveTunnel(state.status)) {
       await disconnect();
       if (!mounted || _disposed) return;
     }
@@ -474,7 +477,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   Future<void> connect() async {
     final now = DateTime.now();
-    final connectInFlight = state.status == VpnStatus.connecting ||
+    final connectInFlight = _statusIsConnectInFlight(state.status) ||
         _activeOperation?.action == _VpnOperationAction.connect;
     if (_lastConnectRequestedAt != null &&
         now.difference(_lastConnectRequestedAt!) < _actionDebounce &&
@@ -492,8 +495,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       );
     }
     if (state.desiredOn &&
-        (state.status == VpnStatus.connected ||
-            state.status == VpnStatus.connecting ||
+        (_statusHasActiveTunnel(state.status) ||
             _activeOperation?.action == _VpnOperationAction.connect)) {
       if (kDebugMode) {
         debugPrint('[VPN_DIAG] connect() ignored (already desired on)');
@@ -504,7 +506,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       VpnStatus.connecting,
       trigger: VpnTransitionTrigger.userConnectRequested,
       message:
-          'Connect requested from ${state.status.name}, but only DISCONNECTED -> CONNECTING is allowed.',
+          'Connect requested from ${state.status.name}, but only DISCONNECTED/RECONNECTING -> CONNECTING is allowed.',
     )) {
       return;
     }
@@ -618,7 +620,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       VpnStatus.disconnecting,
       trigger: VpnTransitionTrigger.userDisconnectRequested,
       message:
-          'Disconnect requested from ${state.status.name}, but only CONNECTED -> DISCONNECTING is allowed.',
+          'Disconnect requested from ${state.status.name}, but only CONNECTED/DEGRADED/RECONNECTING -> DISCONNECTING is allowed.',
     )) {
       return;
     }
@@ -750,7 +752,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
     if (!hasNetwork) {
       if (!state.desiredOn) return;
-      if (state.status != VpnStatus.connected) return;
+      if (!_statusIsConnectedLike(state.status)) return;
 
       try {
         final config =
@@ -784,9 +786,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
 
     if (!state.desiredOn) return;
-    if (state.status == VpnStatus.connected ||
-        state.status == VpnStatus.connecting ||
-        state.status == VpnStatus.disconnecting) {
+    if (_statusHasActiveTunnel(state.status)) {
       return;
     }
 
@@ -814,7 +814,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     if (!previous.isTransportSwitchTo(current)) {
       return;
     }
-    if (!state.desiredOn || state.status != VpnStatus.connected) {
+    if (!state.desiredOn || !_statusIsConnectedLike(state.status)) {
       return;
     }
 
@@ -833,6 +833,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       source: 'network_path_change',
       reason:
           'Network changed from ${previous.label} to ${current.label}. Re-establishing the tunnel on the new path.',
+      failureType: VpnHealthFailureType.hardFailure,
     );
   }
 
@@ -841,7 +842,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   void resumeRateUpdates() {
-    if (state.status == VpnStatus.connected && _rateTimer == null) {
+    if (_statusIsConnectedLike(state.status) && _rateTimer == null) {
       _startRateSimulation();
     }
   }
@@ -885,16 +886,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     _reconcileRequested = false;
     _reconcileRunning = false;
-    _stopTunnelWatchdog();
+    _stopHealthMonitor();
     _stopRateSimulation();
     if (state.desiredOn) {
       _setDesiredOnInternal(false, source: 'disconnect');
     }
 
     final service = _ref.read(vpnServiceProvider);
-    final shouldDisconnect = state.status == VpnStatus.connected ||
-        state.status == VpnStatus.connecting ||
-        state.status == VpnStatus.disconnecting ||
+    final shouldDisconnect = _statusHasActiveTunnel(state.status) ||
         service.getStatus() == VpnStatus.connected;
     if (shouldDisconnect) {
       try {
@@ -1056,9 +1055,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     String? reconnectReason,
   }) {
     final current = state.status;
-    if (current != VpnStatus.disconnected) {
+    final target =
+        scheduleReconnect ? VpnStatus.reconnecting : VpnStatus.disconnected;
+    if (current != target) {
       _transitionTo(
-        VpnStatus.disconnected,
+        target,
         trigger: trigger,
         operationId: _activeOperation?.id,
         force: true,
@@ -1066,8 +1067,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     if (scheduleReconnect) {
       _lastDisconnectCompletedAt = DateTime.now();
-    } else if (current == VpnStatus.error) {
-      _lastDisconnectCompletedAt = null;
+    } else {
+      _scheduledReconnectAt = null;
+      if (current == VpnStatus.error) {
+        _lastDisconnectCompletedAt = null;
+      }
+      _resetRecoveryBackoff(logReason: 'manual_or_clean_disconnect');
     }
     state = state.copyWith(
       clearError: true,
@@ -1078,72 +1083,125 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
   }
 
-  void _startTunnelWatchdog() {
-    if (!mounted || _disposed || state.status != VpnStatus.connected) {
+  bool _statusHasActiveTunnel(VpnStatus status) {
+    return status == VpnStatus.connected ||
+        status == VpnStatus.degraded ||
+        status == VpnStatus.connecting ||
+        status == VpnStatus.verifying ||
+        status == VpnStatus.reconnecting ||
+        status == VpnStatus.disconnecting;
+  }
+
+  bool _statusIsConnectedLike(VpnStatus status) {
+    return status == VpnStatus.connected || status == VpnStatus.degraded;
+  }
+
+  bool _statusIsConnectInFlight(VpnStatus status) {
+    return status == VpnStatus.connecting ||
+        status == VpnStatus.verifying ||
+        status == VpnStatus.reconnecting;
+  }
+
+  bool _statusSupportsHealthMonitoring(VpnStatus status) {
+    return status == VpnStatus.connected || status == VpnStatus.degraded;
+  }
+
+  void _startHealthMonitor() {
+    if (!mounted || _disposed) {
       return;
     }
-    if (_tunnelWatchdog.isRunning) {
+    final active = state.status == VpnStatus.connected ||
+        state.status == VpnStatus.degraded;
+    if (!active || _healthMonitor.isRunning) {
       return;
     }
     _safeFireAndForget(
-      _tunnelWatchdog.start(),
-      context: 'tunnel_watchdog_start',
+      _healthMonitor.start(),
+      context: 'health_monitor_start',
     );
   }
 
-  void _stopTunnelWatchdog() {
-    if (!_tunnelWatchdog.isRunning) {
+  void _stopHealthMonitor() {
+    if (!_healthMonitor.isRunning) {
       return;
     }
     _safeFireAndForget(
-      _tunnelWatchdog.stop(),
-      context: 'tunnel_watchdog_stop',
+      _healthMonitor.stop(),
+      context: 'health_monitor_stop',
     );
   }
 
-  Future<VpnRuntimeSnapshot?> _sampleRuntimeSnapshot() async {
+  Future<VpnHealthSnapshot?> _sampleHealthSnapshot() async {
     final service = _ref.read(vpnServiceProvider);
     if (service is! ChannelVpnService) {
       return null;
     }
-    final expectedProtocol = state.effectiveProtocol ?? state.protocol;
-    return service.fetchRuntimeSnapshot(expectedProtocol: expectedProtocol);
+    return service.fetchHealthSnapshot();
   }
 
-  Future<void> _handleTunnelWatchdogIssue(TunnelWatchdogIssue issue) async {
+  Future<void> _handleHealthMonitorIssue(VpnHealthIssue issue) async {
     if (!mounted || _disposed || !state.desiredOn) {
       return;
     }
 
-    final snapshot = issue.snapshot;
     final event = switch (issue.type) {
-      TunnelWatchdogIssueType.handshakeFailure => 'HANDSHAKE_FAILURE',
-      TunnelWatchdogIssueType.serverDisconnect => 'SERVER_DISCONNECT',
-      TunnelWatchdogIssueType.interfaceRemoved => 'INTERFACE_REMOVED',
+      VpnHealthFailureType.softFailure => 'SOFT_FAILURE',
+      VpnHealthFailureType.hardFailure => 'HARD_FAILURE',
+      VpnHealthFailureType.handshakeFailure => 'HANDSHAKE_FAILURE',
     };
+    final snapshot = issue.snapshot;
 
     AppLogger.vpn(
-      'WATCHDOG',
+      'HEALTH',
       event,
       fields: <String, Object?>{
         'native_status': snapshot.nativeStatus.name,
+        'interface_up': snapshot.interfaceUp,
+        'route_present': snapshot.routePresent,
+        'ping_reachable': snapshot.pingReachable,
         'traffic_connected': snapshot.trafficConnected,
         'interface': snapshot.interfaceName ?? '-',
-        'reported_protocol': snapshot.reportedProtocol.name,
+        'consecutive_failures': issue.consecutiveFailures,
       },
       level: 900,
     );
+
+    if (issue.type == VpnHealthFailureType.softFailure) {
+      if (state.status == VpnStatus.connected) {
+        _transitionTo(
+          VpnStatus.degraded,
+          trigger: VpnTransitionTrigger.healthMonitorDegraded,
+        );
+      }
+      state = state.copyWith(clearReconnect: true);
+      return;
+    }
+
     await _restartTunnelAfterRuntimeChange(
-      trigger: VpnTransitionTrigger.watchdogRecoveryRequested,
-      source: 'watchdog_${issue.type.name}',
+      trigger: VpnTransitionTrigger.healthMonitorRecoveryRequested,
+      source: 'health_${issue.type.name}',
       reason: issue.reason,
+      failureType: issue.type,
     );
+  }
+
+  Future<void> _handleHealthRecovered(VpnHealthSnapshot snapshot) async {
+    if (!mounted || _disposed) return;
+    if (state.status == VpnStatus.degraded) {
+      _transitionTo(
+        VpnStatus.connected,
+        trigger: VpnTransitionTrigger.healthMonitorRecovered,
+      );
+      state = state.copyWith(clearReconnect: true);
+      _resetRecoveryBackoff(logReason: 'health_restored');
+    }
   }
 
   Future<void> _restartTunnelAfterRuntimeChange({
     required VpnTransitionTrigger trigger,
     required String source,
     required String reason,
+    required VpnHealthFailureType failureType,
   }) async {
     if (!mounted || _disposed) return;
     if (_runtimeRecoveryInFlight) return;
@@ -1155,18 +1213,25 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       return;
     }
     if (state.status != VpnStatus.connected &&
+        state.status != VpnStatus.degraded &&
         state.status != VpnStatus.disconnected &&
-        state.status != VpnStatus.error) {
+        state.status != VpnStatus.error &&
+        state.status != VpnStatus.verifying &&
+        state.status != VpnStatus.reconnecting) {
       return;
     }
 
     _runtimeRecoveryInFlight = true;
     final service = _ref.read(vpnServiceProvider);
     try {
-      AppLogger.warning(
-        '[VPN_SM] {"event":"runtime_recovery_requested","source":"$source","status":"${state.status.name}"}',
+      final backoff = _scheduleRecoveryBackoff(
+        failureType: failureType,
+        source: source,
       );
-      _stopTunnelWatchdog();
+      AppLogger.warning(
+        '[VPN_SM] {"event":"runtime_recovery_requested","source":"$source","status":"${state.status.name}","failure_type":"${failureType.name}","backoff_ms":${backoff.inMilliseconds}}',
+      );
+      _stopHealthMonitor();
       _stopRateSimulation();
 
       final runtimeStatus = await _readRuntimeStatus(service);
@@ -1174,9 +1239,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           runtimeStatus == VpnStatus.connecting ||
           runtimeStatus == VpnStatus.disconnecting;
 
-      if (state.status == VpnStatus.connected && runtimeNeedsDisconnect) {
+      if ((state.status == VpnStatus.connected ||
+              state.status == VpnStatus.degraded ||
+              state.status == VpnStatus.verifying) &&
+          runtimeNeedsDisconnect) {
         _transitionTo(
-          VpnStatus.disconnecting,
+          VpnStatus.reconnecting,
           trigger: trigger,
           force: true,
         );
@@ -1246,18 +1314,80 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         runtimeStatus == VpnStatus.error;
   }
 
-  Future<void> _respectReconnectDelay(_VpnOperation op) async {
-    final cooldown = _config.reconnectDelayAfterDisconnect;
-    if (cooldown <= Duration.zero) return;
-    final lastDisconnect = _lastDisconnectCompletedAt;
-    if (lastDisconnect == null) return;
-    final elapsed = DateTime.now().difference(lastDisconnect);
-    if (elapsed >= cooldown) return;
-    final remaining = cooldown - elapsed;
+  Duration _currentRecoveryBackoff() {
+    const sequence = <Duration>[
+      Duration(seconds: 1),
+      Duration(seconds: 2),
+      Duration(seconds: 5),
+      Duration(seconds: 10),
+    ];
+    final index = _recoveryAttemptCount <= 0 ? 0 : _recoveryAttemptCount - 1;
+    return sequence[index.clamp(0, sequence.length - 1)];
+  }
+
+  Duration _scheduleRecoveryBackoff({
+    required VpnHealthFailureType failureType,
+    required String source,
+  }) {
+    _recoveryAttemptCount += 1;
+    _recoveryAttemptTotal += 1;
+    _lastRecoveryFailureType = failureType;
+    final delay = _currentRecoveryBackoff();
+    _scheduledReconnectAt = DateTime.now().add(delay);
     AppLogger.info(
-      '[VPN_SM] {"event":"reconnect_backoff","wait_ms":${remaining.inMilliseconds}}',
+      '[VPN_SM] {"event":"recovery_backoff_scheduled","source":"$source","failure_type":"${failureType.name}","attempt":$_recoveryAttemptCount,"delay_ms":${delay.inMilliseconds}}',
+    );
+    return delay;
+  }
+
+  void _recordRecoverySuccess({required String source}) {
+    _recoverySuccessCount += 1;
+    final successRate = _recoveryAttemptTotal == 0
+        ? 1.0
+        : _recoverySuccessCount / _recoveryAttemptTotal;
+    AppLogger.info(
+      '[VPN_SM] {"event":"recovery_success","source":"$source","failure_type":"${_lastRecoveryFailureType?.name ?? "none"}","attempts_total":$_recoveryAttemptTotal,"successes":$_recoverySuccessCount,"success_rate":${successRate.toStringAsFixed(3)}}',
+    );
+    _resetRecoveryBackoff(logReason: 'recovery_success');
+  }
+
+  void _resetRecoveryBackoff({required String logReason}) {
+    if (_recoveryAttemptCount == 0 &&
+        _scheduledReconnectAt == null &&
+        _lastRecoveryFailureType == null) {
+      return;
+    }
+    AppLogger.info(
+      '[VPN_SM] {"event":"recovery_backoff_reset","reason":"$logReason"}',
+    );
+    _recoveryAttemptCount = 0;
+    _scheduledReconnectAt = null;
+    _lastRecoveryFailureType = null;
+  }
+
+  Future<void> _respectReconnectDelay(_VpnOperation op) async {
+    final scheduled = _scheduledReconnectAt;
+    Duration remaining;
+    if (scheduled != null) {
+      remaining = scheduled.difference(DateTime.now());
+      if (remaining <= Duration.zero) {
+        _scheduledReconnectAt = null;
+        return;
+      }
+    } else {
+      final cooldown = _config.reconnectDelayAfterDisconnect;
+      if (cooldown <= Duration.zero) return;
+      final lastDisconnect = _lastDisconnectCompletedAt;
+      if (lastDisconnect == null) return;
+      final elapsed = DateTime.now().difference(lastDisconnect);
+      if (elapsed >= cooldown) return;
+      remaining = cooldown - elapsed;
+    }
+    AppLogger.info(
+      '[VPN_SM] {"event":"reconnect_backoff","wait_ms":${remaining.inMilliseconds},"attempt":$_recoveryAttemptCount}',
     );
     await Future<void>.delayed(remaining);
+    _scheduledReconnectAt = null;
     _throwIfCancelled(op);
   }
 
@@ -1273,9 +1403,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     if (state.desiredOn) {
       switch (state.status) {
         case VpnStatus.connected:
+        case VpnStatus.degraded:
           return;
         case VpnStatus.connecting:
+        case VpnStatus.verifying:
+        case VpnStatus.reconnecting:
           if (_activeOperation?.action == _VpnOperationAction.connect) {
+            return;
+          }
+          if (state.status == VpnStatus.reconnecting) {
+            await _runConnectFlow();
             return;
           }
           _transitionTo(
@@ -1323,6 +1460,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         case VpnStatus.error:
           return;
         case VpnStatus.connecting:
+        case VpnStatus.verifying:
+        case VpnStatus.reconnecting:
           _transitionTo(
             VpnStatus.error,
             trigger: VpnTransitionTrigger.disconnectOperationStarted,
@@ -1336,6 +1475,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           _stopRateSimulation();
           return;
         case VpnStatus.connected:
+        case VpnStatus.degraded:
           debugPrint(
             '[VPN_DIAG] reconcile: !desiredOn && ${state.status.name} — '
             'triggering disconnect flow. errorKind=${state.errorKind?.name} '
@@ -1501,7 +1641,63 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
+  Future<void> _verifyConnectedTunnel({
+    required _VpnOperation op,
+    required VpnProtocol effectiveProtocol,
+    required ChannelVpnService service,
+  }) async {
+    state = state.copyWith(connectPhase: ConnectPhase.verifyingConnection);
+    _transitionTo(
+      VpnStatus.verifying,
+      trigger: VpnTransitionTrigger.connectVerificationStarted,
+      operationId: op.id,
+    );
+
+    if (effectiveProtocol != VpnProtocol.wireGuard) {
+      return;
+    }
+
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    VpnHealthSnapshot? lastSnapshot;
+    while (DateTime.now().isBefore(deadline)) {
+      _throwIfCancelled(op);
+      lastSnapshot = await service.fetchHealthSnapshot();
+      if (lastSnapshot.verifiedTunnel) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+    }
+
+    final failure = lastSnapshot;
+    if (failure == null) {
+      throw VpnServiceException(
+        'connect_verification_failed',
+        'Tunnel verification did not return native health data.',
+      );
+    }
+    if (!failure.interfaceUp) {
+      throw VpnServiceException(
+        'connect_verification_failed',
+        'Tunnel verification failed because the interface is not up.',
+      );
+    }
+    if (!failure.routePresent || !failure.policyRoutingPresent) {
+      throw VpnServiceException(
+        'connect_verification_failed',
+        'Tunnel verification failed because policy routing is missing.',
+      );
+    }
+    throw VpnServiceException(
+      'connect_verification_failed',
+      failure.handshakeAgeSeconds == null || failure.handshakeAgeSeconds! < 0
+          ? 'Tunnel verification failed because the WireGuard handshake is missing.'
+          : 'Tunnel verification failed because the WireGuard handshake is stale (${failure.handshakeAgeSeconds}s).',
+    );
+  }
+
   Future<void> _runConnectFlow() async {
+    final recoveryFlow =
+        state.status == VpnStatus.reconnecting || state.reconnectPending;
     final op = _beginOperation(_VpnOperationAction.connect);
     _setBusy(true);
     try {
@@ -1780,9 +1976,6 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       }
       _throwIfCancelled(op);
 
-      // ── Clear phase on completion ───────────────────────────────────
-      state = state.copyWith(clearConnectPhase: true);
-
       if (nextStatus == VpnStatus.connected && !state.desiredOn) {
         await _disconnectAfterStaleConnect();
         _transitionTo(
@@ -1808,12 +2001,19 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         );
       }
 
+      if (service is ChannelVpnService) {
+        await _verifyConnectedTunnel(
+          op: op,
+          effectiveProtocol: plan.effective,
+          service: service,
+        );
+      }
+
+      state = state.copyWith(clearConnectPhase: true);
       _transitionTo(
-        nextStatus,
-        trigger: VpnTransitionTrigger.connectOperationSucceeded,
+        VpnStatus.connected,
+        trigger: VpnTransitionTrigger.connectVerificationSucceeded,
         operationId: op.id,
-        force: nextStatus == VpnStatus.connected &&
-            state.status == VpnStatus.connected,
       );
       if (nextStatus == VpnStatus.connected) {
         state = state.copyWith(
@@ -1836,6 +2036,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           context: 'notify_backend_connected',
         );
         _updateStability(success: true);
+        if (recoveryFlow) {
+          _recordRecoverySuccess(source: 'connect_success');
+        } else {
+          _resetRecoveryBackoff(logReason: 'manual_connect_success');
+        }
         _startRateSimulation();
         _safeFireAndForget(
           _captureMetricsSnapshot(event: 'connect_success', operationId: op.id),
@@ -2498,23 +2703,20 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
     final service = _ref.read(vpnServiceProvider);
     late final Future<VpnStatus> future;
-    future = service
-        .disconnect()
-        .timeout(
-          _config.disconnectTimeout,
-          onTimeout: () {
-            onTimeout?.call();
-            throw TimeoutException(
-              'Runtime disconnect exceeded '
-              '${_config.disconnectTimeout.inSeconds}s.',
-            );
-          },
-        )
-        .whenComplete(() {
-          if (identical(_runtimeDisconnectFuture, future)) {
-            _runtimeDisconnectFuture = null;
-          }
-        });
+    future = service.disconnect().timeout(
+      _config.disconnectTimeout,
+      onTimeout: () {
+        onTimeout?.call();
+        throw TimeoutException(
+          'Runtime disconnect exceeded '
+          '${_config.disconnectTimeout.inSeconds}s.',
+        );
+      },
+    ).whenComplete(() {
+      if (identical(_runtimeDisconnectFuture, future)) {
+        _runtimeDisconnectFuture = null;
+      }
+    });
     _runtimeDisconnectFuture = future;
     return future;
   }
@@ -2555,13 +2757,15 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       ),
     );
 
-    if (current == VpnStatus.connected && next != VpnStatus.connected) {
+    if (_statusSupportsHealthMonitoring(current) &&
+        !_statusSupportsHealthMonitoring(next)) {
       _stopRateSimulation();
-      _stopTunnelWatchdog();
+      _stopHealthMonitor();
     }
-    if (next == VpnStatus.connected) {
+    if (!_statusSupportsHealthMonitoring(current) &&
+        _statusSupportsHealthMonitoring(next)) {
       _startRateSimulation();
-      _startTunnelWatchdog();
+      _startHealthMonitor();
     } else if (next == VpnStatus.disconnected) {
       _lastDisconnectCompletedAt = DateTime.now();
     }
@@ -2619,9 +2823,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         operationId: operationId,
       ),
     );
-    if (current == VpnStatus.connected) {
+    if (_statusSupportsHealthMonitoring(current)) {
       _stopRateSimulation();
-      _stopTunnelWatchdog();
+      _stopHealthMonitor();
     }
     state = state.copyWith(
       status: VpnStatus.error,
@@ -2746,14 +2950,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   Future<void> _pollTrafficRates() async {
     if (!mounted || _disposed || _trafficPollInFlight) return;
-    if (state.status != VpnStatus.connected) return;
+    if (!_statusIsConnectedLike(state.status)) return;
     final service = _ref.read(vpnServiceProvider);
     if (service is! ChannelVpnService) return;
 
     _trafficPollInFlight = true;
     try {
       final sample = await service.fetchTrafficStats();
-      if (!mounted || _disposed || state.status != VpnStatus.connected) return;
+      if (!mounted || _disposed || !_statusIsConnectedLike(state.status)) {
+        return;
+      }
       if (sample == null || !sample.connected) {
         // On platforms without native traffic stats (Android, Windows, iOS,
         // macOS), fetchTrafficStats always returns null.  This is not an
@@ -2853,7 +3059,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }) async {
     if (!mounted || _disposed) return;
     if (_dataPlaneFailoverInFlight) return;
-    if (!state.desiredOn || state.status != VpnStatus.connected) return;
+    if (!state.desiredOn || !_statusIsConnectedLike(state.status)) return;
     final now = DateTime.now();
     final last = _lastDataPlaneFailoverAt;
     if (last != null && now.difference(last) < _dataPlaneFailoverCooldown) {
@@ -2894,6 +3100,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         trigger: VpnTransitionTrigger.watchdogRecoveryRequested,
         source: 'data_plane_failover',
         reason: 'Tunnel health degraded ($reason). Restarting the tunnel.',
+        failureType: VpnHealthFailureType.handshakeFailure,
       );
     } catch (error, stackTrace) {
       AppLogger.error(
@@ -3247,7 +3454,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _disposed = true;
     _activeOperation?.cancel('dispose');
     _activeOperation = null;
-    _stopTunnelWatchdog();
+    _stopHealthMonitor();
     _rateTimer?.cancel();
     _rateTimer = null;
     super.dispose();
@@ -3397,12 +3604,19 @@ extension VpnStatePresentation on VpnState {
       };
 
   String statusText({bool includeEllipsis = false}) {
-    if (status == VpnStatus.connecting && connectPhase != null) {
+    if ((status == VpnStatus.connecting ||
+            status == VpnStatus.verifying ||
+            status == VpnStatus.reconnecting) &&
+        connectPhase != null) {
       return connectPhaseLabel!;
     }
     return switch (status) {
       VpnStatus.connected => 'Connected',
+      VpnStatus.degraded => 'Connection degraded',
       VpnStatus.connecting => includeEllipsis ? 'Connecting…' : 'Connecting',
+      VpnStatus.verifying => includeEllipsis ? 'Verifying…' : 'Verifying',
+      VpnStatus.reconnecting =>
+        includeEllipsis ? 'Reconnecting…' : 'Reconnecting',
       VpnStatus.disconnecting =>
         includeEllipsis ? 'Disconnecting…' : 'Disconnecting',
       VpnStatus.disconnected => 'Disconnected',
@@ -3415,7 +3629,10 @@ extension VpnStatePresentation on VpnState {
         errorKind == VpnErrorKind.backendUnreachable;
     return switch (status) {
       VpnStatus.connected => AppColors.success,
+      VpnStatus.degraded => AppColors.warning,
       VpnStatus.connecting => AppColors.secondary,
+      VpnStatus.verifying => AppColors.secondary,
+      VpnStatus.reconnecting => AppColors.secondary,
       VpnStatus.disconnecting => AppColors.secondary,
       VpnStatus.error =>
         backendUnreachable ? AppColors.error : AppColors.warning,
@@ -3428,7 +3645,10 @@ extension VpnStatePresentation on VpnState {
         errorKind == VpnErrorKind.backendUnreachable;
     return switch (status) {
       VpnStatus.connected => Icons.check_circle,
+      VpnStatus.degraded => Icons.warning_amber_rounded,
       VpnStatus.connecting => Icons.sync,
+      VpnStatus.verifying => Icons.verified_user,
+      VpnStatus.reconnecting => Icons.sync_problem,
       VpnStatus.disconnecting => Icons.sync,
       VpnStatus.error =>
         backendUnreachable ? Icons.cloud_off : Icons.warning_amber_rounded,

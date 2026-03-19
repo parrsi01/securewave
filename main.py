@@ -335,8 +335,6 @@ CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 CSRF_EXEMPT_PATHS = {
     "/api/auth/login",
     "/api/auth/register",
-    "/api/auth/refresh",
-    "/api/auth/revoke-token",
     "/api/auth/password-reset/request",
 }
 
@@ -350,18 +348,19 @@ async def enforce_csrf(request: Request, call_next):
     if request.url.path in CSRF_EXEMPT_PATHS:
         return await call_next(request)
     # CSRF only applies to cookie-based sessions.
-    # Pure Bearer-only clients (no access_token cookie) are not vulnerable
+    # Pure Bearer-only clients (no auth cookies) are not vulnerable
     # to CSRF because browsers cannot attach Authorization headers cross-origin.
-    if "access_token" not in request.cookies:
+    access_cookie = request.cookies.get("access_token", "")
+    refresh_cookie = request.cookies.get("refresh_token", "")
+    if not access_cookie and not refresh_cookie:
         return await call_next(request)
-    # If the Authorization Bearer token exactly matches the access_token cookie,
+    # If the Authorization Bearer token exactly matches one of the auth cookies,
     # the caller has read-access to the cookie (proves same-origin).
     # A cross-site attacker cannot read httpOnly cookies, so this cannot be forged.
     # NOTE: We require equality — merely having an Authorization header is NOT sufficient.
     auth_header = request.headers.get("Authorization", "")
     bearer_token = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else ""
-    cookie_token = request.cookies.get("access_token", "")
-    if bearer_token and cookie_token and bearer_token == cookie_token:
+    if bearer_token and bearer_token in {access_cookie, refresh_cookie}:
         return await call_next(request)
     csrf_header = request.headers.get("X-CSRF-Token")
     csrf_cookie = request.cookies.get("csrf_token")

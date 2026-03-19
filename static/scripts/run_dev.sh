@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SecureWave Flutter - local development runner
 # Detects the current OS and launches the Flutter app for that platform.
+# Kills any existing instance first so only one is ever running.
 # Usage: bash securewave_app/scripts/run_dev.sh
 set -euo pipefail
 
@@ -10,6 +11,13 @@ cd "$APP_DIR"
 
 echo "SecureWave dev runner"
 echo "Working directory: $APP_DIR"
+
+# Kill any existing Flutter-built securewave_app binary (not this script)
+if pgrep -f "bundle/securewave_app$" > /dev/null 2>&1; then
+  echo "Stopping existing instance..."
+  pkill -f "bundle/securewave_app$" || true
+  sleep 1
+fi
 
 # Ensure dependencies
 flutter pub get

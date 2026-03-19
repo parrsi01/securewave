@@ -412,8 +412,9 @@ class TestPasswordResetAbuse:
     def test_reset_token_not_reusable(self, client, test_user, db):
         """Password reset token must be invalidated after use."""
         # Set a reset token directly
+        from services.auth_service import AuthService
         token = secrets.token_urlsafe(32)
-        test_user.password_reset_token = token
+        test_user.password_reset_token = AuthService.hash_password_reset_token(token)
         test_user.password_reset_token_expires = datetime.utcnow() + timedelta(minutes=15)
         test_user.password_reset_requested_at = datetime.utcnow()
         db.commit()
@@ -435,8 +436,9 @@ class TestPasswordResetAbuse:
 
     def test_expired_reset_token_rejected(self, client, test_user, db):
         """Expired password reset token must be rejected."""
+        from services.auth_service import AuthService
         token = secrets.token_urlsafe(32)
-        test_user.password_reset_token = token
+        test_user.password_reset_token = AuthService.hash_password_reset_token(token)
         test_user.password_reset_token_expires = datetime.utcnow() - timedelta(hours=1)
         db.commit()
 

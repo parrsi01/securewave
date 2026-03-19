@@ -15,13 +15,13 @@ psycopg2-binary==2.9.9
 alembic==1.13.1
 
 # Authentication & Security
-python-jose[cryptography]==3.4.0
-PyJWT>=2.12.1
+PyJWT==2.12.1
 passlib==1.7.4
 bcrypt==3.2.2
 argon2-cffi>=23.1.0
 argon2-cffi-bindings>=21.2.0
 cryptography==46.0.5
+pyasn1==0.6.3
 pyotp==2.9.0
 
 # Payment Processing

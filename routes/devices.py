@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -83,10 +83,20 @@ class DeviceCreate(BaseModel):
     )
     server_id: Optional[str] = Field(None, description="Preferred server ID")
 
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        return sanitize_device_name(value)
+
 
 class DeviceRename(BaseModel):
     """Request to rename a device"""
     name: str = Field(..., min_length=1, max_length=50, description="New device name")
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        return sanitize_device_name(value)
 
 
 class DeviceResponse(BaseModel):
@@ -367,7 +377,7 @@ async def rename_device(
             detail="Device name already exists"
         )
 
-    peer.device_name = request.name
+    peer.device_name = sanitize_device_name(request.name)
     db.commit()
     db.refresh(peer)
 

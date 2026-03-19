@@ -240,8 +240,8 @@ class TestRefreshTokenRotation:
         assert resp.status_code == 200
         assert "refresh_token" in resp.cookies
 
-        # /refresh is CSRF exempt
-        refresh_resp = client.post("/api/auth/refresh")
+        csrf = resp.json()["csrf_token"]
+        refresh_resp = client.post("/api/auth/refresh", headers={"X-CSRF-Token": csrf})
         assert refresh_resp.status_code == 200
         assert "access_token" in refresh_resp.cookies
         assert "refresh_token" in refresh_resp.cookies
@@ -252,14 +252,18 @@ class TestRefreshTokenRotation:
         resp = client.post("/api/auth/login", json={"email": user.email, "password": "SecurePass123!"})
         assert resp.status_code == 200
         old_refresh = resp.cookies.get("refresh_token")
+        csrf = resp.json()["csrf_token"]
         assert old_refresh
 
-        client.post("/api/auth/refresh")
+        client.post("/api/auth/refresh", headers={"X-CSRF-Token": csrf})
 
         # Try to use old token — must fail
         client.cookies.clear()
         client.cookies.set("refresh_token", old_refresh)
-        replay_resp = client.post("/api/auth/refresh")
+        replay_resp = client.post(
+            "/api/auth/refresh",
+            headers={"Authorization": f"Bearer {old_refresh}"},
+        )
         assert replay_resp.status_code == 401
 
     def test_replay_detection_invalidates_chain(self, client, db):
@@ -271,8 +275,10 @@ class TestRefreshTokenRotation:
         revoke_refresh_token_by_value(db, refresh_token, reason="rotated")
         # Now replay should fail
         client.cookies.clear()
-        client.cookies.set("refresh_token", refresh_token)
-        resp = client.post("/api/auth/refresh")
+        resp = client.post(
+            "/api/auth/refresh",
+            headers={"Authorization": f"Bearer {refresh_token}"},
+        )
         assert resp.status_code == 401
 
 
@@ -367,8 +373,8 @@ class TestUpdateEmail:
         assert "access_token" not in body
         assert "refresh_token" not in body
 
-    def test_update_email_sets_new_cookies(self, client, db):
-        """New tokens must arrive via Set-Cookie, not in body."""
+    def test_update_email_clears_auth_cookies(self, client, db):
+        """Credential changes must clear the current browser session."""
         user = _make_user(db)
         _, csrf = _login(client, user.email)
 
@@ -378,7 +384,8 @@ class TestUpdateEmail:
             headers={"X-CSRF-Token": csrf},
         )
         assert resp.status_code == 200
-        assert "access_token" in resp.cookies
+        assert resp.cookies.get("access_token", "") == ""
+        assert resp.cookies.get("refresh_token", "") == ""
 
     def test_old_token_revoked_after_email_change(self, client, db):
         """The previous access token must be blacklisted after email change."""
@@ -394,6 +401,85 @@ class TestUpdateEmail:
         # Old token must now be rejected
         resp = client.get("/api/auth/me", headers={"Authorization": f"Bearer {old_token}"})
         assert resp.status_code == 401
+
+    def test_old_refresh_token_rejected_after_email_change(self, client, db):
+        """Email changes must revoke every outstanding refresh session."""
+        user = _make_user(db)
+        _, csrf = _login(client, user.email)
+        old_refresh = client.cookies.get("refresh_token")
+
+        resp = client.post(
+            "/api/auth/update-email",
+            json={"new_email": f"chg_{uuid.uuid4().hex[:6]}@example.com", "password": "SecurePass123!"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert resp.status_code == 200
+
+        client.cookies.clear()
+        refresh_resp = client.post(
+            "/api/auth/refresh",
+            headers={"Authorization": f"Bearer {old_refresh}"},
+        )
+        assert refresh_resp.status_code == 401
+
+
+class TestUpdatePassword:
+    def test_password_change_revokes_current_access_token(self, client, db):
+        user = _make_user(db)
+        old_access, csrf = _login(client, user.email)
+
+        resp = client.post(
+            "/api/auth/update-password",
+            json={"current_password": "SecurePass123!", "new_password": "ChangedPass123!"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert resp.status_code == 200
+
+        me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {old_access}"})
+        assert me.status_code == 401
+
+    def test_password_change_rejects_old_refresh_token(self, client, db):
+        user = _make_user(db)
+        _, csrf = _login(client, user.email)
+        old_refresh = client.cookies.get("refresh_token")
+
+        resp = client.post(
+            "/api/auth/update-password",
+            json={"current_password": "SecurePass123!", "new_password": "ChangedPass123!"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert resp.status_code == 200
+
+        client.cookies.clear()
+        refresh_resp = client.post(
+            "/api/auth/refresh",
+            headers={"Authorization": f"Bearer {old_refresh}"},
+        )
+        assert refresh_resp.status_code == 401
+
+    def test_password_change_requires_new_login(self, client, db):
+        user = _make_user(db)
+        _, csrf = _login(client, user.email)
+
+        resp = client.post(
+            "/api/auth/update-password",
+            json={"current_password": "SecurePass123!", "new_password": "ChangedPass123!"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert resp.status_code == 200
+
+        old_login = client.post(
+            "/api/auth/login",
+            json={"email": user.email, "password": "SecurePass123!"},
+        )
+        assert old_login.status_code == 401
+
+        new_login = client.post(
+            "/api/auth/login",
+            json={"email": user.email, "password": "ChangedPass123!"},
+        )
+        assert new_login.status_code == 200
+        assert "refresh_token" in new_login.json()
 
 
 # ══════════════════════════════════════════════════════════════════════════════

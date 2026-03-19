@@ -55,17 +55,56 @@ function setText(sel, text) {
   if (el) el.textContent = text;
 }
 
-function buildServerOptions(servers, selectedId) {
-  const options = [];
-  options.push(`<option value="auto"${selectedId ? '' : ' selected'}>Auto (fastest)</option>`);
+function buildServerOptions(selectEl, servers, selectedId) {
+  const autoOption = document.createElement('option');
+  autoOption.value = 'auto';
+  autoOption.textContent = 'Auto (fastest)';
+  autoOption.selected = !selectedId;
+  selectEl.appendChild(autoOption);
+
   (servers || []).forEach((s) => {
     const id = s.server_id || s.id;
     const label = s.location || s.name || id;
-    const selected = selectedId && id === selectedId ? ' selected' : '';
     if (!id) return;
-    options.push(`<option value="${id}"${selected}>${label}</option>`);
+    const option = document.createElement('option');
+    option.value = String(id);
+    option.textContent = String(label);
+    option.selected = !!selectedId && id === selectedId;
+    selectEl.appendChild(option);
   });
-  return options.join('');
+}
+
+function appendTextCell(row, text, opts = {}) {
+  const cell = document.createElement('td');
+  if (opts.alignRight) cell.style.textAlign = 'right';
+  cell.textContent = text;
+  row.appendChild(cell);
+  return cell;
+}
+
+function appendBadgeCell(row, text, badgeClass) {
+  const cell = document.createElement('td');
+  const badge = document.createElement('span');
+  badge.className = `badge ${badgeClass}`;
+  badge.textContent = text;
+  cell.appendChild(badge);
+  row.appendChild(cell);
+  return cell;
+}
+
+function appendDeviceIdentityCell(row, name, ipAddress) {
+  const cell = document.createElement('td');
+  const title = document.createElement('strong');
+  title.textContent = name;
+  const br = document.createElement('br');
+  const meta = document.createElement('span');
+  meta.className = 'muted';
+  meta.textContent = ipAddress;
+  cell.appendChild(title);
+  cell.appendChild(br);
+  cell.appendChild(meta);
+  row.appendChild(cell);
+  return cell;
 }
 
 async function updateDeviceServer(deviceId, serverId) {
@@ -91,39 +130,54 @@ function renderDevices({ devices = [], servers = [] }) {
   const tbody = document.querySelector('[data-devices-body]');
   if (!tbody) return;
 
+  tbody.textContent = '';
+
   if (!Array.isArray(devices) || devices.length === 0) {
-    tbody.innerHTML =
-      '<tr><td colspan="6">No devices registered yet. Install the app and connect once to register this device automatically.</td></tr>';
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 6;
+    cell.textContent = 'No devices registered yet. Install the app and connect once to register this device automatically.';
+    row.appendChild(cell);
+    tbody.appendChild(row);
     return;
   }
 
-  tbody.innerHTML = devices
-    .map((d) => {
-      const name = d.name || `Device #${d.id}`;
-      const type = d.device_type || '--';
-      const last = d.last_handshake || null;
-      const status = isOnline(last) ? 'Online' : (last ? 'Offline' : 'Not connected yet');
-      const statusBadge = isOnline(last) ? 'badge-primary' : 'badge-muted';
-      const serverId = d.server_id || null;
-      const optionsHtml = buildServerOptions(servers, serverId);
-      return `
-        <tr data-device-row="${d.id}">
-          <td><strong>${name}</strong><br><span class="muted">${d.ip_address || ''}</span></td>
-          <td>${type}</td>
-          <td><span class="badge ${statusBadge}">${status}</span></td>
-          <td>${relativeTime(last)}</td>
-          <td>
-            <select class="form-select" data-device-server="${d.id}">
-              ${optionsHtml}
-            </select>
-          </td>
-          <td style="text-align:right">
-            <button class="btn btn-ghost btn-sm" type="button" data-device-revoke="${d.id}">Revoke</button>
-          </td>
-        </tr>
-      `;
-    })
-    .join('');
+  devices.forEach((d) => {
+    const row = document.createElement('tr');
+    row.setAttribute('data-device-row', String(d.id));
+
+    const name = d.name || `Device #${d.id}`;
+    const type = d.device_type || '--';
+    const last = d.last_handshake || null;
+    const status = isOnline(last) ? 'Online' : (last ? 'Offline' : 'Not connected yet');
+    const statusBadge = isOnline(last) ? 'badge-primary' : 'badge-muted';
+    const serverId = d.server_id || null;
+
+    appendDeviceIdentityCell(row, String(name), String(d.ip_address || ''));
+    appendTextCell(row, String(type));
+    appendBadgeCell(row, status, statusBadge);
+    appendTextCell(row, relativeTime(last));
+
+    const serverCell = document.createElement('td');
+    const selectEl = document.createElement('select');
+    selectEl.className = 'form-select';
+    selectEl.setAttribute('data-device-server', String(d.id));
+    buildServerOptions(selectEl, servers, serverId);
+    serverCell.appendChild(selectEl);
+    row.appendChild(serverCell);
+
+    const actionCell = document.createElement('td');
+    actionCell.style.textAlign = 'right';
+    const button = document.createElement('button');
+    button.className = 'btn btn-ghost btn-sm';
+    button.type = 'button';
+    button.setAttribute('data-device-revoke', String(d.id));
+    button.textContent = 'Revoke';
+    actionCell.appendChild(button);
+    row.appendChild(actionCell);
+
+    tbody.appendChild(row);
+  });
 
   // Bind server preference updates
   tbody.querySelectorAll('[data-device-server]').forEach((selectEl) => {
@@ -222,4 +276,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     setText('[data-backend-fleet]', 'No servers');
   }
 });
-

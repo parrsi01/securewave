@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/services/auth_session.dart';
 import '../../core/state/app_state.dart';
+import '../../debug/automation_keys.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 import '../../ui/widgets/glass_panel.dart';
@@ -19,6 +20,7 @@ class AccountScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      key: AutomationKeys.accountScreenKey,
       appBar: AppBar(
         title: const Text('Account'),
         centerTitle: false,
@@ -59,12 +61,10 @@ class AccountScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.space3),
                       Text(
                         authSession.email ?? 'User',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
                       ),
                       const SizedBox(height: AppSpacing.space2),
                       planAsync.when(
@@ -79,15 +79,14 @@ class AccountScreen extends ConsumerWidget {
                               horizontal: AppSpacing.space3,
                               vertical: AppSpacing.space1),
                           decoration: BoxDecoration(
-                            gradient: plan.isPremium
-                                ? AppColors.brandGradient
-                                : null,
+                            gradient:
+                                plan.isPremium ? AppColors.brandGradient : null,
                             color: plan.isPremium
                                 ? null
                                 : AppColors.primaryBright
                                     .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(
-                                AppSpacing.radiusFull),
+                            borderRadius:
+                                BorderRadius.circular(AppSpacing.radiusFull),
                           ),
                           child: Text(
                             plan.name.toUpperCase(),
@@ -113,11 +112,9 @@ class AccountScreen extends ConsumerWidget {
                   error: (_, __) => const SizedBox.shrink(),
                   data: (plan) => !plan.isPremium && plan.dataCapGb > 0
                       ? GlassPanel(
-                          padding:
-                              const EdgeInsets.all(AppSpacing.space4),
+                          padding: const EdgeInsets.all(AppSpacing.space4),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 mainAxisAlignment:
@@ -138,8 +135,7 @@ class AccountScreen extends ConsumerWidget {
                                     style: Theme.of(context)
                                         .textTheme
                                         .labelMedium
-                                        ?.copyWith(
-                                            fontWeight: FontWeight.w700),
+                                        ?.copyWith(fontWeight: FontWeight.w700),
                                   ),
                                 ],
                               ),
@@ -153,8 +149,7 @@ class AccountScreen extends ConsumerWidget {
                                   backgroundColor: Theme.of(context)
                                       .colorScheme
                                       .outlineVariant,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
                                     plan.usagePercent > 0.8
                                         ? AppColors.error
                                         : AppColors.primaryBright,
@@ -173,8 +168,7 @@ class AccountScreen extends ConsumerWidget {
 
                 // ── Actions ───────────────────────────────────────────────
                 ClipRRect(
-                  borderRadius:
-                      BorderRadius.circular(AppSpacing.radiusL),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusL),
                   child: Material(
                     color: isDark
                         ? AppColors.darkSurface
@@ -196,12 +190,12 @@ class AccountScreen extends ConsumerWidget {
                         ),
                         _divider(context, isDark),
                         _ActionTile(
+                          automationKey: AutomationKeys.accountSignOutButtonKey,
                           icon: Icons.logout_rounded,
                           label: 'Sign Out',
                           isDark: isDark,
                           danger: true,
-                          onTap: () =>
-                              _confirmSignOut(context, ref),
+                          onTap: () => _confirmSignOut(context, ref),
                         ),
                       ],
                     ),
@@ -220,8 +214,7 @@ class AccountScreen extends ConsumerWidget {
     return email[0].toUpperCase();
   }
 
-  Future<void> _confirmSignOut(
-      BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -234,6 +227,7 @@ class AccountScreen extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
+            key: AutomationKeys.accountConfirmSignOutButtonKey,
             child: const Text(
               'Sign Out',
               style: TextStyle(color: AppColors.error),
@@ -250,6 +244,7 @@ class AccountScreen extends ConsumerWidget {
 
 class _ActionTile extends StatelessWidget {
   const _ActionTile({
+    this.automationKey,
     required this.icon,
     required this.label,
     required this.onTap,
@@ -257,6 +252,7 @@ class _ActionTile extends StatelessWidget {
     this.danger = false,
   });
 
+  final Key? automationKey;
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -267,6 +263,7 @@ class _ActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = danger ? AppColors.error : AppColors.primaryBright;
     return ListTile(
+      key: automationKey,
       leading: Icon(icon, color: color, size: AppSpacing.iconM),
       title: Text(
         label,

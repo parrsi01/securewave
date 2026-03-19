@@ -76,6 +76,41 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str,
     )
     response.headers["Cache-Control"] = "no-store"
 
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie("csrf_token", path="/")
+    response.headers["Cache-Control"] = "no-store"
+
+
+def _invalidate_user_sessions(
+    request: Request,
+    response: Response,
+    *,
+    db: Session,
+    user: User,
+    access_reason: str,
+    refresh_reason: str,
+) -> int:
+    sessions_revoked = revoke_all_refresh_tokens(db, user.id)
+    access_token = request.cookies.get("access_token") or (
+        request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or None
+    )
+    if access_token:
+        try:
+            revoke_access_token(db, access_token, reason=access_reason)
+        except Exception:
+            pass
+    _clear_auth_cookies(response)
+    _log_auth_event(
+        "sessions_invalidated",
+        user_id=user.id,
+        reason=refresh_reason,
+        sessions_revoked=sessions_revoked,
+    )
+    return sessions_revoked
+
 is_testing = SETTINGS.testing
 
 # Rate limiter (disabled in tests to avoid hangs)
@@ -178,6 +213,14 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     requires_2fa: bool = False
     csrf_token: Optional[str] = None
+
+
+def _extract_bearer_token(request: Request) -> Optional[str]:
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.lower().startswith("bearer "):
+        return None
+    token = auth_header.split(" ", 1)[1].strip()
+    return token or None
 
 
 # ===========================
@@ -424,9 +467,13 @@ async def refresh(
     payload: Optional[RefreshRequest] = Body(default=None),
     db: Session = Depends(get_db),
 ):
-    """Refresh access token"""
+    """Refresh access token using cookie, Bearer, or request-body refresh token."""
     try:
         refresh_token_value = request.cookies.get("refresh_token")
+        if not refresh_token_value:
+            refresh_token_value = _extract_bearer_token(request)
+        if not refresh_token_value and payload is not None:
+            refresh_token_value = payload.refresh_token.strip() or None
         if not refresh_token_value:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -661,16 +708,6 @@ async def update_email(
                 detail="Email already in use"
             )
 
-        # Revoke the old access token before issuing a new one
-        old_token = request.cookies.get("access_token") or (
-            request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or None
-        )
-        if old_token:
-            try:
-                revoke_access_token(db, old_token, reason="email_change")
-            except Exception:
-                pass
-
         current_user.email = new_email
         current_user.email_verified = False
         db.commit()
@@ -680,14 +717,19 @@ async def update_email(
             auth_service = AuthService(db)
             auth_service.send_verification_email(current_user)
 
-        # Issue new tokens via cookies only — do NOT include in JSON body
-        new_access_token = create_access_token(current_user)
-        import secrets as _secrets
-        csrf_token = _secrets.token_hex(32)
-        response.set_cookie("access_token", new_access_token, httponly=True, samesite="lax", secure=not is_testing, path="/")
-        response.set_cookie("csrf_token", csrf_token, httponly=False, samesite="lax", secure=not is_testing, path="/")
+        sessions_revoked = _invalidate_user_sessions(
+            request,
+            response,
+            db=db,
+            user=current_user,
+            access_reason="email_change",
+            refresh_reason="email_change",
+        )
 
-        return {"message": "Email updated successfully"}
+        return {
+            "message": "Email updated successfully. Please log in again.",
+            "sessions_revoked": sessions_revoked,
+        }
 
     except HTTPException:
         raise
@@ -704,6 +746,7 @@ async def update_email(
 @limiter.limit("5/hour")
 async def update_password(
     request: Request,
+    response: Response,
     payload: UpdatePasswordRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -728,8 +771,18 @@ async def update_password(
         current_user.account_locked_until = None
         db.commit()
 
+        sessions_revoked = _invalidate_user_sessions(
+            request,
+            response,
+            db=db,
+            user=current_user,
+            access_reason="password_change",
+            refresh_reason="password_change",
+        )
+
         return {
-            "message": "Password updated successfully"
+            "message": "Password updated successfully. Please log in again.",
+            "sessions_revoked": sessions_revoked,
         }
 
     except HTTPException:
@@ -761,9 +814,7 @@ async def logout_all(
             revoke_access_token(db, access_token, reason="logout_all")
         except Exception:
             pass
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
-    response.delete_cookie("csrf_token", path="/")
+    _clear_auth_cookies(response)
     _log_auth_event("logout_all", user_id=current_user.id, sessions_revoked=count)
     return {"status": "ok", "sessions_revoked": count}
 

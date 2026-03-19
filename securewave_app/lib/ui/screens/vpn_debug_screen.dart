@@ -26,7 +26,8 @@ class _VpnDebugScreenState extends ConsumerState<VpnDebugScreen> {
         return;
       }
       if (previous.status != next.status) {
-        _appendLog('State changed: ${previous.status.name} -> ${next.status.name}');
+        _appendLog(
+            'State changed: ${previous.status.name} -> ${next.status.name}');
       }
       if (previous.selectedServerId != next.selectedServerId) {
         _appendLog('Server selected: ${next.selectedServerId ?? 'auto'}');
@@ -66,7 +67,9 @@ class _VpnDebugScreenState extends ConsumerState<VpnDebugScreen> {
                       servers: servers,
                       selectedServerId: vpnState.selectedServerId,
                       onChanged: (serverId) {
-                        ref.read(vpnStateProvider.notifier).selectServer(serverId);
+                        ref
+                            .read(vpnStateProvider.notifier)
+                            .selectServer(serverId);
                         _appendLog('Dropdown changed: ${serverId ?? 'auto'}');
                       },
                     ),
@@ -100,10 +103,11 @@ class _VpnDebugScreenState extends ConsumerState<VpnDebugScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: primaryAction == ConnectionPrimaryAction.connect &&
-                            !isBusy
-                        ? connectToVpn
-                        : null,
+                    onPressed:
+                        primaryAction == ConnectionPrimaryAction.connect &&
+                                !isBusy
+                            ? connectToVpn
+                            : null,
                     child: const Text('Connect'),
                   ),
                 ),
@@ -263,8 +267,11 @@ class _StatusDot extends StatelessWidget {
   Color _colorFor(VpnStatus status) {
     switch (status) {
       case VpnStatus.connected:
+      case VpnStatus.degraded:
         return Colors.green;
       case VpnStatus.connecting:
+      case VpnStatus.verifying:
+      case VpnStatus.reconnecting:
       case VpnStatus.disconnecting:
         return Colors.orange;
       case VpnStatus.error:

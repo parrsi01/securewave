@@ -135,7 +135,57 @@ class VpnRuntimeSnapshot {
   final int? timestampMs;
 }
 
+class VpnHealthSnapshot {
+  const VpnHealthSnapshot({
+    required this.nativeStatus,
+    required this.interfaceUp,
+    required this.routePresent,
+    required this.pingReachable,
+    required this.trafficConnected,
+    this.policyRoutingPresent = true,
+    this.fwmarkConfigured = true,
+    this.networkManagerUnmanaged = true,
+    this.handshakeRecent = true,
+    this.watchdogRunning = false,
+    this.handshakeAgeSeconds,
+    this.reconnectAttempts = 0,
+    this.routeResets = 0,
+    this.criticalResets = 0,
+    this.currentDowntimeMs = 0,
+    this.lastDowntimeMs = 0,
+    this.totalDowntimeMs = 0,
+    this.lastWatchdogAction,
+    this.interfaceName,
+    this.timestampMs,
+  });
+
+  final VpnStatus nativeStatus;
+  final bool interfaceUp;
+  final bool routePresent;
+  final bool pingReachable;
+  final bool trafficConnected;
+  final bool policyRoutingPresent;
+  final bool fwmarkConfigured;
+  final bool networkManagerUnmanaged;
+  final bool handshakeRecent;
+  final bool watchdogRunning;
+  final int? handshakeAgeSeconds;
+  final int reconnectAttempts;
+  final int routeResets;
+  final int criticalResets;
+  final int currentDowntimeMs;
+  final int lastDowntimeMs;
+  final int totalDowntimeMs;
+  final String? lastWatchdogAction;
+  final String? interfaceName;
+  final int? timestampMs;
+
+  bool get verifiedTunnel =>
+      interfaceUp && routePresent && policyRoutingPresent && handshakeRecent;
+}
+
 class ChannelVpnService implements VpnService {
+  static const Duration linuxNativeConnectTimeout = Duration(seconds: 35);
   static final bool _simulationEnabled = const String.fromEnvironment(
         'SECUREWAVE_SIM_MODE',
         defaultValue: 'false',
@@ -425,11 +475,185 @@ class ChannelVpnService implements VpnService {
     );
   }
 
+  Future<VpnHealthSnapshot> fetchHealthSnapshot() async {
+    final nativeStatus = await refreshStatus();
+    final stats = await fetchTrafficStats();
+    if (_simulationEnabled) {
+      return VpnHealthSnapshot(
+        nativeStatus: nativeStatus,
+        interfaceUp: nativeStatus == VpnStatus.connected,
+        routePresent: nativeStatus == VpnStatus.connected,
+        pingReachable: nativeStatus == VpnStatus.connected,
+        trafficConnected:
+            stats?.connected ?? nativeStatus == VpnStatus.connected,
+        policyRoutingPresent: nativeStatus == VpnStatus.connected,
+        handshakeRecent: nativeStatus == VpnStatus.connected,
+        interfaceName: stats?.interfaceName ?? 'sim0',
+        timestampMs: DateTime.now().millisecondsSinceEpoch,
+      );
+    }
+
+    if (!_supportsNativeChannel() || _usesAppleBridge()) {
+      return VpnHealthSnapshot(
+        nativeStatus: nativeStatus,
+        interfaceUp: stats?.connected ?? nativeStatus == VpnStatus.connected,
+        routePresent: stats?.connected ?? nativeStatus == VpnStatus.connected,
+        pingReachable: stats?.connected ?? nativeStatus == VpnStatus.connected,
+        trafficConnected:
+            stats?.connected ?? nativeStatus == VpnStatus.connected,
+        policyRoutingPresent:
+            stats?.connected ?? nativeStatus == VpnStatus.connected,
+        handshakeRecent:
+            stats?.connected ?? nativeStatus == VpnStatus.connected,
+        interfaceName: stats?.interfaceName,
+        timestampMs: stats?.timestampMs,
+      );
+    }
+
+    try {
+      final raw = await _channel
+          .invokeMethod<dynamic>('getHealthStatus')
+          .timeout(const Duration(seconds: 2));
+      if (raw is Map) {
+        final data = Map<String, dynamic>.from(raw);
+
+        bool b(String key) {
+          final value = data[key];
+          if (value is bool) return value;
+          if (value is num) return value != 0;
+          return value?.toString().toLowerCase() == 'true';
+        }
+
+        String? s(String key) {
+          final text = data[key]?.toString().trim();
+          if (text == null || text.isEmpty) return null;
+          return text;
+        }
+
+        int i(String key) {
+          final value = data[key];
+          if (value is int) return value;
+          if (value is num) return value.toInt();
+          return int.tryParse(value?.toString() ?? '') ?? 0;
+        }
+
+        final timestamp = data['timestamp_ms'];
+        final timestampMs = switch (timestamp) {
+          int value => value,
+          num value => value.toInt(),
+          String value => int.tryParse(value),
+          _ => null,
+        };
+        return VpnHealthSnapshot(
+          nativeStatus: nativeStatus,
+          interfaceUp: b('interface_up'),
+          routePresent: b('route_present'),
+          pingReachable: b('ping_reachable'),
+          trafficConnected: b('traffic_connected'),
+          policyRoutingPresent: data.containsKey('policy_routing_present')
+              ? b('policy_routing_present')
+              : b('route_present'),
+          fwmarkConfigured: !data.containsKey('fwmark_configured')
+              ? nativeStatus == VpnStatus.connected
+              : b('fwmark_configured'),
+          networkManagerUnmanaged: !data.containsKey('networkmanager_unmanaged')
+              ? true
+              : b('networkmanager_unmanaged'),
+          handshakeRecent: !data.containsKey('handshake_recent')
+              ? nativeStatus == VpnStatus.connected
+              : b('handshake_recent'),
+          watchdogRunning: b('watchdog_running'),
+          handshakeAgeSeconds: data.containsKey('handshake_age_seconds')
+              ? i('handshake_age_seconds')
+              : null,
+          reconnectAttempts: i('reconnect_attempts'),
+          routeResets: i('route_resets'),
+          criticalResets: i('critical_resets'),
+          currentDowntimeMs: i('current_downtime_ms'),
+          lastDowntimeMs: i('last_downtime_ms'),
+          totalDowntimeMs: i('total_downtime_ms'),
+          lastWatchdogAction: s('last_watchdog_action'),
+          interfaceName: s('interface') ?? stats?.interfaceName,
+          timestampMs: timestampMs ?? stats?.timestampMs,
+        );
+      }
+    } on TimeoutException {
+      // Fall through to best-effort inference.
+    } on MissingPluginException {
+      // Fall through to best-effort inference.
+    } on PlatformException {
+      // Fall through to best-effort inference.
+    }
+
+    final connected = stats?.connected ?? nativeStatus == VpnStatus.connected;
+    return VpnHealthSnapshot(
+      nativeStatus: nativeStatus,
+      interfaceUp: connected,
+      routePresent: connected,
+      pingReachable: connected,
+      trafficConnected: connected,
+      policyRoutingPresent: connected,
+      handshakeRecent: connected,
+      interfaceName: stats?.interfaceName,
+      timestampMs: stats?.timestampMs,
+    );
+  }
+
+  bool _linuxWireGuardHealthReady(VpnHealthSnapshot snapshot) {
+    return snapshot.interfaceUp &&
+        snapshot.routePresent &&
+        snapshot.policyRoutingPresent &&
+        snapshot.handshakeRecent;
+  }
+
+  String _linuxWireGuardHealthFailureMessage(VpnHealthSnapshot snapshot) {
+    if (!snapshot.interfaceUp) {
+      return 'WireGuard interface is not up.';
+    }
+    if (!snapshot.routePresent || !snapshot.policyRoutingPresent) {
+      return 'WireGuard policy routing is missing from table 51820.';
+    }
+    final age = snapshot.handshakeAgeSeconds;
+    if (!snapshot.handshakeRecent) {
+      return age == null || age < 0
+          ? 'WireGuard handshake is missing.'
+          : 'WireGuard handshake is stale (${age}s old).';
+    }
+    return 'WireGuard tunnel health verification failed.';
+  }
+
+  Future<void> _verifyLinuxWireGuardHealth() async {
+    final deadline = _clock().add(const Duration(seconds: 5));
+    while (_clock().isBefore(deadline)) {
+      final snapshot = await fetchHealthSnapshot();
+      if (_linuxWireGuardHealthReady(snapshot)) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+    }
+
+    final snapshot = await fetchHealthSnapshot();
+    throw VpnServiceException(
+      'vpn_connect_failed',
+      _linuxWireGuardHealthFailureMessage(snapshot),
+      details: <String, Object?>{
+        'interface_up': snapshot.interfaceUp,
+        'route_present': snapshot.routePresent,
+        'policy_routing_present': snapshot.policyRoutingPresent,
+        'handshake_recent': snapshot.handshakeRecent,
+        'handshake_age_seconds': snapshot.handshakeAgeSeconds,
+        'networkmanager_unmanaged': snapshot.networkManagerUnmanaged,
+        'watchdog_running': snapshot.watchdogRunning,
+      },
+    );
+  }
+
   @override
   Future<VpnStatus> connect(
       {required VpnProtocol protocol, Map<String, dynamic>? profile}) async {
     if (_status == VpnStatus.connected ||
         _status == VpnStatus.connecting ||
+        _status == VpnStatus.verifying ||
         _status == VpnStatus.disconnecting) {
       return _status;
     }
@@ -571,6 +795,10 @@ class ChannelVpnService implements VpnService {
         );
         return _status;
       }
+      final nativeConnectTimeout =
+          platform.operatingSystem.name.toLowerCase() == 'linux'
+              ? linuxNativeConnectTimeout
+              : const Duration(seconds: 30);
       await _channel.invokeMethod('connect', {
         'protocol': vpnProtocolStorageValue(protocol),
         'profile': preparedPayload,
@@ -579,7 +807,7 @@ class ChannelVpnService implements VpnService {
                 .trim()
                 .isNotEmpty)
           'config': preparedPayload['wireguard_config']?.toString(),
-      }).timeout(const Duration(seconds: 30));
+      }).timeout(nativeConnectTimeout);
       if (platform.operatingSystem.name.toLowerCase() == 'linux') {
         final nativeStatus = await _channel
             .invokeMethod<String>('getStatus')
@@ -597,6 +825,15 @@ class ChannelVpnService implements VpnService {
             'vpn_connect_protocol_mismatch',
             await _protocolMismatchMessage(protocol),
           );
+        }
+        if (protocol == VpnProtocol.wireGuard) {
+          _status = VpnStatus.verifying;
+          try {
+            await _verifyLinuxWireGuardHealth();
+          } on VpnServiceException {
+            _status = VpnStatus.disconnected;
+            rethrow;
+          }
         }
       }
       _status = VpnStatus.connected;

@@ -51,6 +51,7 @@ ConnectionVisualState resolveConnectionVisualState(
   }
   switch (state.status) {
     case VpnStatus.connected:
+    case VpnStatus.degraded:
       return ConnectionVisualState.connected;
 
     case VpnStatus.disconnecting:
@@ -60,6 +61,8 @@ ConnectionVisualState resolveConnectionVisualState(
       return ConnectionVisualState.error;
 
     case VpnStatus.connecting:
+    case VpnStatus.verifying:
+    case VpnStatus.reconnecting:
       // Detect reconnecting: if history shows a recent connected->X or
       // error->connecting transition, treat it as a reconnection.
       if (history.isNotEmpty) {
@@ -68,7 +71,10 @@ ConnectionVisualState resolveConnectionVisualState(
         final isRecent = age.inSeconds < 15;
         final wasOnline =
             last.from == VpnStatus.connected || last.from == VpnStatus.error;
-        if (isRecent && wasOnline && last.to == VpnStatus.connecting) {
+        if (isRecent &&
+            wasOnline &&
+            (last.to == VpnStatus.connecting ||
+                last.to == VpnStatus.verifying)) {
           return ConnectionVisualState.reconnecting;
         }
       }
@@ -76,7 +82,9 @@ ConnectionVisualState resolveConnectionVisualState(
       if (state.failoverActive) {
         return ConnectionVisualState.reconnecting;
       }
-      return ConnectionVisualState.connecting;
+      return state.status == VpnStatus.reconnecting
+          ? ConnectionVisualState.reconnecting
+          : ConnectionVisualState.connecting;
 
     case VpnStatus.disconnected:
       return ConnectionVisualState.disconnected;

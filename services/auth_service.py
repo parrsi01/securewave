@@ -7,6 +7,8 @@ import secrets
 import logging
 import json
 import base64
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List
 from sqlalchemy.orm import Session
@@ -48,6 +50,17 @@ class AuthService:
         self.db = db
         self.email_service = EmailService()
         self.fernet = self._load_fernet()
+
+    @staticmethod
+    def hash_password_reset_token(token: str) -> str:
+        """
+        Return a keyed, non-reversible digest for password reset tokens.
+
+        Using HMAC-SHA256 avoids storing the raw bearer credential in the DB
+        while keeping verification deterministic.
+        """
+        secret = SETTINGS.jwt_secret.encode("utf-8")
+        return hmac.new(secret, token.encode("utf-8"), hashlib.sha256).hexdigest()
 
     # ===========================
     # EMAIL VERIFICATION
@@ -163,9 +176,10 @@ class AuthService:
             # Generate reset token
             token = self.generate_verification_token()
             expires_at = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRY_MINUTES)
+            token_hash = self.hash_password_reset_token(token)
 
             # Update user
-            user.password_reset_token = token
+            user.password_reset_token = token_hash
             user.password_reset_token_expires = expires_at
             user.password_reset_requested_at = datetime.utcnow()
             self.db.commit()
@@ -200,11 +214,15 @@ class AuthService:
             Tuple of (success, error_message)
         """
         try:
+            token_hash = self.hash_password_reset_token(token)
             user = self.db.query(User).filter(
-                User.password_reset_token == token
+                User.password_reset_token == token_hash
             ).first()
 
             if not user:
+                return False, "Invalid reset token"
+
+            if not hmac.compare_digest(user.password_reset_token or "", token_hash):
                 return False, "Invalid reset token"
 
             # Check if token expired

@@ -6,10 +6,12 @@ def test_revoked_access_token_is_rejected(client, test_user):
     )
     assert login.status_code == 200, login.text
     access_token = login.json()["access_token"]
+    csrf = login.json()["csrf_token"]
 
     revoke = client.post(
         "/api/auth/revoke-token",
         json={"token": access_token, "token_type": "access", "reason": "test"},
+        headers={"X-CSRF-Token": csrf},
     )
     assert revoke.status_code == 200, revoke.text
 
@@ -24,12 +26,18 @@ def test_revoked_refresh_token_cannot_refresh(client, test_user):
     )
     assert login.status_code == 200, login.text
     refresh_token = login.json()["refresh_token"]
+    csrf = login.json()["csrf_token"]
 
     revoke = client.post(
         "/api/auth/revoke-token",
         json={"token": refresh_token, "token_type": "refresh"},
+        headers={"X-CSRF-Token": csrf},
     )
     assert revoke.status_code == 200, revoke.text
 
-    refreshed = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+    client.cookies.clear()
+    refreshed = client.post(
+        "/api/auth/refresh",
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
     assert refreshed.status_code == 401

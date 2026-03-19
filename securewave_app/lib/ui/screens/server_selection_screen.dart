@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/server_region.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
+import '../../debug/automation_keys.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 import '../widgets/empty_state.dart';
@@ -19,8 +20,7 @@ class ServerSelectionScreen extends ConsumerStatefulWidget {
       _ServerSelectionScreenState();
 }
 
-class _ServerSelectionScreenState
-    extends ConsumerState<ServerSelectionScreen> {
+class _ServerSelectionScreenState extends ConsumerState<ServerSelectionScreen> {
   String _query = '';
 
   @override
@@ -48,7 +48,8 @@ class _ServerSelectionScreenState
               AppSpacing.space3,
             ),
             child: TextField(
-              onChanged: (value) => setState(() => _query = value.toLowerCase()),
+              onChanged: (value) =>
+                  setState(() => _query = value.toLowerCase()),
               decoration: InputDecoration(
                 hintText: 'Search servers, cities, or countries',
                 prefixIcon: const Icon(Icons.search_rounded),
@@ -57,8 +58,7 @@ class _ServerSelectionScreenState
                 fillColor:
                     Theme.of(context).colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(AppSpacing.radiusFull),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -160,8 +160,9 @@ class _ServerSelectionScreenState
   }
 
   Future<void> _selectServer(ServerRegion server, VpnState vpnState) async {
-    final planTier =
-        ref.read(userPlanProvider).valueOrNull?.isPremium == true ? 'premium' : 'free';
+    final planTier = ref.read(userPlanProvider).valueOrNull?.isPremium == true
+        ? 'premium'
+        : 'free';
     if (!server.selectableForPlan(planTier)) return;
 
     final notifier = ref.read(vpnStateProvider.notifier);
@@ -342,6 +343,7 @@ class _ServerListTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppSpacing.radiusL),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
+            key: AutomationKeys.serverTileKey(server.id),
             onTap: enabled ? onTap : null,
             child: Padding(
               padding: const EdgeInsets.symmetric(
@@ -414,7 +416,8 @@ class _ServerListTile extends StatelessWidget {
                     runSpacing: AppSpacing.space2,
                     children: [
                       _InfoChip(
-                        icon: down ? Icons.cloud_off_rounded : Icons.bolt_rounded,
+                        icon:
+                            down ? Icons.cloud_off_rounded : Icons.bolt_rounded,
                         label: down
                             ? 'Region down'
                             : server.regionHealthStatus?.toUpperCase() ?? 'UP',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../debug/automation_keys.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 
@@ -14,6 +15,7 @@ class SettingsScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      key: AutomationKeys.settingsScreenKey,
       appBar: AppBar(
         title: const Text('Settings'),
         centerTitle: false,
@@ -31,10 +33,11 @@ class SettingsScreen extends ConsumerWidget {
                 isDark: isDark,
                 tiles: [
                   _Tile(
+                    automationKey: AutomationKeys.diagnosticsTileKey,
                     icon: Icons.bug_report_outlined,
                     label: 'Diagnostics',
                     isDark: isDark,
-                    onTap: () => context.push('/diagnostics'),
+                    onTap: () => context.push('/settings/diagnostics'),
                   ),
                   _Tile(
                     icon: Icons.devices_rounded,
@@ -138,12 +141,14 @@ class _Section extends StatelessWidget {
 
 class _Tile extends StatelessWidget {
   const _Tile({
+    this.automationKey,
     required this.icon,
     required this.label,
     required this.onTap,
     required this.isDark,
   });
 
+  final Key? automationKey;
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -152,8 +157,9 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon,
-          color: AppColors.primaryBright, size: AppSpacing.iconM),
+      key: automationKey,
+      leading:
+          Icon(icon, color: AppColors.primaryBright, size: AppSpacing.iconM),
       title: Text(
         label,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(

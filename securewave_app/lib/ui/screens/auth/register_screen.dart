@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../debug/automation_keys.dart';
 import '../../../features/auth/auth_controller.dart';
 import '../../../features/auth/auth_widgets.dart';
 import '../../../ui/design/app_colors.dart';
@@ -75,6 +76,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       const AuthFieldLabel('Email'),
                       const SizedBox(height: AppSpacing.space2),
                       TextFormField(
+                        key: AutomationKeys.registerEmailFieldKey,
                         controller: _emailCtrl,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
@@ -88,12 +90,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       const AuthFieldLabel('Password'),
                       const SizedBox(height: AppSpacing.space2),
                       TextFormField(
+                        key: AutomationKeys.registerPasswordFieldKey,
                         controller: _passwordCtrl,
                         obscureText: _obscure,
                         textInputAction: TextInputAction.next,
                         autofillHints: const [AutofillHints.newPassword],
                         decoration: InputDecoration(
-                          hintText: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+                          hintText:
+                              '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
                           prefixIcon: const Icon(Icons.lock_outline_rounded),
                           suffixIcon: IconButton(
                             icon: Icon(_obscure
@@ -108,18 +112,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       const AuthFieldLabel('Confirm Password'),
                       const SizedBox(height: AppSpacing.space2),
                       TextFormField(
+                        key: AutomationKeys.registerConfirmFieldKey,
                         controller: _confirmCtrl,
                         obscureText: _obscure,
                         textInputAction: TextInputAction.done,
                         autofillHints: const [AutofillHints.newPassword],
                         onFieldSubmitted: (_) => _submit(),
                         decoration: const InputDecoration(
-                          hintText: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+                          hintText:
+                              '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
                           prefixIcon: Icon(Icons.lock_outline_rounded),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.space6),
                       FilledButton(
+                        key: AutomationKeys.registerSubmitButtonKey,
                         onPressed: authState.isLoading ? null : _submit,
                         child: authState.isLoading
                             ? const SizedBox(
@@ -141,6 +148,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           TextButton(
+                            key: AutomationKeys.registerBackToLoginButtonKey,
                             onPressed: () => context.go('/login'),
                             style: TextButton.styleFrom(
                               foregroundColor: AppColors.primaryBright,
@@ -149,8 +157,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             ),
                             child: const Text(
                               'Sign In',
-                              style:
-                                  TextStyle(fontWeight: FontWeight.w700),
+                              style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],

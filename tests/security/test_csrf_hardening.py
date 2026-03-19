@@ -7,7 +7,7 @@ Covers:
 - Dual-credential request (cookie + Bearer) is treated as browser — CSRF applies.
 - Correct double-submit pair passes; mismatched pair is rejected.
 - Safe HTTP methods (GET, HEAD, OPTIONS) are always exempt.
-- Exempt paths (login, register, etc.) bypass CSRF unconditionally.
+- Only unauthenticated bootstrap paths (login, register, etc.) bypass CSRF.
 """
 
 import pytest
@@ -27,6 +27,14 @@ _WRONG_CSRF = "wrong-csrf-token-xyz999"
 def _post(client, path, *, cookies=None, headers=None, json=None):
     """Thin wrapper to keep test bodies clean."""
     return client.post(path, cookies=cookies or {}, headers=headers or {}, json=json or {})
+
+
+def _login_cookie_session(client, *, email="testuser@example.com", password="TestPass123"):
+    resp = client.post("/api/auth/login", json={"email": email, "password": password})
+    assert resp.status_code == 200, resp.text
+    csrf = resp.json().get("csrf_token") or resp.cookies.get("csrf_token")
+    assert csrf
+    return resp, csrf
 
 
 # ---------------------------------------------------------------------------
@@ -221,13 +229,11 @@ class TestSafeMethodsExempt:
 # ---------------------------------------------------------------------------
 
 class TestExemptPaths:
-    """Login/register/refresh must work without CSRF tokens even with cookies."""
+    """Only bootstrap auth paths remain CSRF-exempt."""
 
     @pytest.mark.parametrize("path", [
         "/api/auth/login",
         "/api/auth/register",
-        "/api/auth/refresh",
-        "/api/auth/revoke-token",
         # /api/auth/logout is NOT in exempt paths — it enforces CSRF for cookie
         # sessions (forces attacker to also supply CSRF token to force a logout).
         "/api/auth/password-reset/request",
@@ -244,3 +250,61 @@ class TestExemptPaths:
         # Must not be a CSRF rejection.
         if resp.status_code == 403:
             assert resp.json().get("error", {}).get("code") != "csrf_failed"
+
+
+class TestAuthRefreshAndRevokeRequireCSRF:
+    def test_refresh_without_csrf_fails_for_cookie_session(self, client, test_user):
+        login, _ = _login_cookie_session(client)
+        refresh = client.post("/api/auth/refresh")
+        assert refresh.status_code == 403
+        assert refresh.json().get("error", {}).get("code") == "csrf_failed"
+
+    def test_refresh_with_csrf_succeeds_for_cookie_session(self, client, test_user):
+        login, csrf = _login_cookie_session(client)
+        refresh = client.post("/api/auth/refresh", headers={"X-CSRF-Token": csrf})
+        assert refresh.status_code == 200, refresh.text
+        assert "access_token" in refresh.json()
+        assert "refresh_token" in refresh.json()
+
+    def test_refresh_bearer_only_is_not_csrf_blocked(self, client, test_user):
+        login, _ = _login_cookie_session(client)
+        refresh_token = login.json()["refresh_token"]
+        client.cookies.clear()
+        refresh = client.post(
+            "/api/auth/refresh",
+            headers={"Authorization": f"Bearer {refresh_token}"},
+        )
+        assert refresh.status_code == 200, refresh.text
+
+    def test_revoke_token_without_csrf_fails_for_cookie_session(self, client, test_user):
+        login, _ = _login_cookie_session(client)
+        access_token = login.json()["access_token"]
+        revoke = client.post(
+            "/api/auth/revoke-token",
+            json={"token": access_token, "token_type": "access"},
+        )
+        assert revoke.status_code == 403
+        assert revoke.json().get("error", {}).get("code") == "csrf_failed"
+
+    def test_revoke_token_with_csrf_succeeds_for_cookie_session(self, client, test_user):
+        login, csrf = _login_cookie_session(client)
+        access_token = login.json()["access_token"]
+        revoke = client.post(
+            "/api/auth/revoke-token",
+            json={"token": access_token, "token_type": "access"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert revoke.status_code == 200, revoke.text
+
+    def test_revoke_token_bearer_only_is_not_csrf_blocked(self, client, test_user):
+        token = client.post(
+            "/api/auth/login",
+            json={"email": "testuser@example.com", "password": "TestPass123"},
+        ).json()["access_token"]
+        client.cookies.clear()
+        revoke = client.post(
+            "/api/auth/revoke-token",
+            json={"token_type": "access"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert revoke.status_code == 200, revoke.text

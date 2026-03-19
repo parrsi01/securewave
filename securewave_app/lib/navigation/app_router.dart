@@ -131,17 +131,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/diagnostics',
-        pageBuilder: (context, state) => _buildPage(
-          state: state,
-          child: const DiagnosticsScreen(),
-        ),
+        redirect: (context, state) => '/settings/diagnostics',
       ),
       GoRoute(
         path: '/diagnostics/apple',
-        pageBuilder: (context, state) => _buildPage(
-          state: state,
-          child: const AppleVpnDiagnosticsScreen(),
-        ),
+        redirect: (context, state) => '/settings/diagnostics/apple',
       ),
       GoRoute(
         path: '/devices',
@@ -210,6 +204,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   state: state,
                   child: const SettingsScreen(),
                 ),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'diagnostics',
+                    pageBuilder: (context, state) => _buildPage(
+                      state: state,
+                      child: const DiagnosticsScreen(),
+                    ),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'apple',
+                        pageBuilder: (context, state) => _buildPage(
+                          state: state,
+                          child: const AppleVpnDiagnosticsScreen(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),

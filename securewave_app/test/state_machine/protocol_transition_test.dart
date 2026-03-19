@@ -45,8 +45,7 @@ void main() {
     expect(service.lastProfile?['type'], 'openvpn');
   });
 
-  test('unsupported selected protocol falls back to available runtime',
-      () async {
+  test('selecting unavailable protocol produces error state', () async {
     final service = ControlledVpnService(
       capabilities: const VpnCapabilities(
         wireGuard: true,
@@ -57,24 +56,33 @@ void main() {
       disconnectDelay: Duration.zero,
     );
     final fakeApi = FakeApiClient(config: testAppConfig());
-    final container = buildVpnContainer(service: service, apiClient: fakeApi);
+    // autoConnect=false (default) prevents startup auto-connect from
+    // firing before the test selects the protocol.
+    final container = buildVpnContainer(
+      service: service,
+      apiClient: fakeApi,
+    );
     addTearDown(container.dispose);
 
     final notifier = container.read(vpnStateProvider.notifier);
     await settleStateMachine(turns: 8);
+
+    // Select OpenVPN — not available on this service (only wireGuard present).
     await notifier.selectProtocol(VpnProtocol.openVpn);
     await settleStateMachine(turns: 8);
+
+    // Connect should fail immediately with protocol_unavailable.
     await notifier.connect();
     await waitForCondition(
-      () => container.read(vpnStateProvider).status != VpnStatus.connecting,
+      () => container.read(vpnStateProvider).status == VpnStatus.error,
       timeout: const Duration(seconds: 3),
     );
 
     final state = container.read(vpnStateProvider);
-    expect(state.status, VpnStatus.connected);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
     expect(state.desiredOn, isTrue);
-    expect(service.connectCalls, 1);
-    expect(service.lastConnectProtocol, VpnProtocol.wireGuard);
+    expect(service.connectCalls, 0); // service.connect never reached
   });
 
   test('connect timeout moves to terminal failure state for IKEv2', () async {

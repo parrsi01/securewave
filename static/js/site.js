@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (document.querySelector('script[data-sw-assistant]')) return;
     const script = document.createElement('script');
-    script.src = '/js/chat_assistant.js?v=20260316';
+    script.src = '/js/chat_assistant.js?v=20260318';
     script.defer = true;
     script.setAttribute('data-sw-assistant', '1');
     script.addEventListener('load', () => {

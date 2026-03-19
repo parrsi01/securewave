@@ -7,12 +7,23 @@ import '../logging/app_logger.dart';
 
 final appConfigProvider = StateProvider<AppConfig>((_) => AppConfig.defaults());
 
+enum AppConfigSource { dartDefine, envAsset, fallback }
+
+extension on AppConfigSource {
+  String get label => switch (this) {
+        AppConfigSource.dartDefine => 'dart_define',
+        AppConfigSource.envAsset => 'env_asset',
+        AppConfigSource.fallback => 'fallback',
+      };
+}
+
 class AppConfig {
   AppConfig({
     required this.apiBaseUrl,
     required this.portalUrl,
     required this.upgradeUrl,
     required this.resetSessionOnBoot,
+    this.configSource = AppConfigSource.fallback,
     this.httpsPreferred = false,
   });
 
@@ -20,9 +31,11 @@ class AppConfig {
   final String portalUrl;
   final String upgradeUrl;
   final bool resetSessionOnBoot;
+  final AppConfigSource configSource;
   final bool httpsPreferred;
   static AppConfig? _cached;
   static const String _allowLoopbackKey = 'SECUREWAVE_ALLOW_LOCALHOST_API';
+  static const String _defaultEnvFileName = '.env';
 
   factory AppConfig.defaults() {
     return AppConfig(
@@ -30,23 +43,39 @@ class AppConfig {
       portalUrl: AppConstants.portalUrlFallback,
       upgradeUrl: AppConstants.upgradeUrlFallback,
       resetSessionOnBoot: false,
+      configSource: AppConfigSource.fallback,
       httpsPreferred: false,
     );
   }
 
-  static Future<AppConfig> load() async {
-    if (_cached != null) return _cached!;
-    try {
-      if (!dotenv.isInitialized) {
-        await dotenv.load(fileName: '.env');
-      }
-    } catch (error, stackTrace) {
-      AppLogger.warning('Config: .env load failed, using defaults');
-      AppLogger.error('Config: .env load error',
-          error: error, stackTrace: stackTrace);
-    }
+  static Future<AppConfig> load({
+    bool forceReload = false,
+    String envFileName = _defaultEnvFileName,
+  }) async {
+    if (!forceReload && _cached != null) return _cached!;
 
-    final env = dotenv.isInitialized ? dotenv.env : const <String, String>{};
+    var assetEnv = const <String, String>{};
+    var assetEnvLoaded = false;
+    try {
+      if (forceReload || !dotenv.isInitialized) {
+        await dotenv.load(
+          fileName: envFileName,
+          isOptional: true,
+        );
+      }
+      assetEnv = Map<String, String>.from(dotenv.env);
+      assetEnvLoaded = _hasConfiguredBaseUrl(assetEnv);
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Config: asset env load failed for `$envFileName`; '
+        'falling back to dart-defines or defaults.',
+      );
+      AppLogger.error(
+        'Config: asset env load error',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
 
     // Prefer build-time dart-defines for release builds. This avoids shipping a
     // hardcoded `.env` and makes CI/release pipelines deterministic.
@@ -61,79 +90,65 @@ class AppConfig {
     const defineUpgradeUrl =
         String.fromEnvironment('SECUREWAVE_UPGRADE_URL', defaultValue: '');
 
-    final rawBaseUrl = _firstNonEmpty(
-      defineBaseUrl,
-      defineLiveBaseUrl,
-      defineApiBaseUrl,
-      env['SECUREWAVE_API_BASE_URL'],
-      env['LIVE_API_BASE_URL'],
-      env['API_BASE_URL'],
-      AppConstants.baseUrlFallback,
-    );
-    final rawPortalUrl = _firstNonEmpty(
-      definePortalUrl,
-      env['SECUREWAVE_PORTAL_URL'],
-      AppConstants.portalUrlFallback,
-    );
-    final rawUpgradeUrl = _firstNonEmpty(
-      defineUpgradeUrl,
-      env['SECUREWAVE_UPGRADE_URL'],
-      AppConstants.upgradeUrlFallback,
-    );
-    final allowLoopbackApi = _parseBool(
-      env[_allowLoopbackKey] ??
-          const String.fromEnvironment(
-            _allowLoopbackKey,
-            defaultValue: 'false',
-          ),
-    );
-    final baseUrl = _normalizeApiBaseUrl(
-      rawBaseUrl,
-      allowLoopback: allowLoopbackApi && !kReleaseMode,
-    );
-    final portalUrl = _normalizeAbsoluteUrl(
-      rawPortalUrl,
-      fallback: _deriveFromApiBase(baseUrl, '/account'),
-    );
-    final upgradeUrl = _normalizeAbsoluteUrl(
-      rawUpgradeUrl,
-      fallback: _deriveFromApiBase(baseUrl, '/subscription'),
-    );
-    final resetSessionOnBoot = _parseBool(
-      env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
-          const String.fromEnvironment(
-            'SECUREWAVE_RESET_SESSION_ON_BOOT',
-            defaultValue: 'false',
-          ),
-    );
-    final httpsPreferred = _parseBool(
-      env['SECUREWAVE_PREFER_HTTPS'] ??
-          const String.fromEnvironment(
-            'SECUREWAVE_PREFER_HTTPS',
-            defaultValue: 'false',
-          ),
+    final config = _resolveConfig(
+      assetEnv: assetEnv,
+      defineBaseUrl: defineBaseUrl,
+      defineLiveBaseUrl: defineLiveBaseUrl,
+      defineApiBaseUrl: defineApiBaseUrl,
+      definePortalUrl: definePortalUrl,
+      defineUpgradeUrl: defineUpgradeUrl,
     );
 
-    if (kReleaseMode && baseUrl.startsWith('http://')) {
+    if (kReleaseMode && config.apiBaseUrl.startsWith('http://')) {
       AppLogger.error(
         'INSECURE_FALLBACK: apiBaseUrl resolved to plaintext HTTP in release build. '
         'Credentials and tokens will be transmitted unencrypted. '
-        'Set SECUREWAVE_API_BASE_URL dart-define or .env to an HTTPS URL.',
+        'Set SECUREWAVE_API_BASE_URL dart-define or packaged .env to an HTTPS URL.',
       );
     }
 
-    _cached = AppConfig(
-      apiBaseUrl: baseUrl,
-      portalUrl: portalUrl,
-      upgradeUrl: upgradeUrl,
-      resetSessionOnBoot: resetSessionOnBoot,
-      httpsPreferred: httpsPreferred,
+    _logResolvedConfig(
+      config,
+      envFileName: envFileName,
+      assetEnvLoaded: assetEnvLoaded,
     );
+    _cached = config;
     return _cached!;
   }
 
+  @visibleForTesting
+  static AppConfig resolveForTest({
+    Map<String, String> assetEnv = const <String, String>{},
+    String defineBaseUrl = '',
+    String defineLiveBaseUrl = '',
+    String defineApiBaseUrl = '',
+    String definePortalUrl = '',
+    String defineUpgradeUrl = '',
+    String defineResetSessionOnBoot = 'false',
+    String definePreferHttps = 'false',
+    String defineAllowLoopbackApi = 'false',
+  }) {
+    return _resolveConfig(
+      assetEnv: assetEnv,
+      defineBaseUrl: defineBaseUrl,
+      defineLiveBaseUrl: defineLiveBaseUrl,
+      defineApiBaseUrl: defineApiBaseUrl,
+      definePortalUrl: definePortalUrl,
+      defineUpgradeUrl: defineUpgradeUrl,
+      defineResetSessionOnBoot: defineResetSessionOnBoot,
+      definePreferHttps: definePreferHttps,
+      defineAllowLoopbackApi: defineAllowLoopbackApi,
+    );
+  }
+
+  @visibleForTesting
+  static void resetForTest() {
+    _cached = null;
+    dotenv.clean();
+  }
+
   static String _firstNonEmpty(
-    String a, [
+    String? a, [
     String? b,
     String? c,
     String? d,
@@ -150,7 +165,121 @@ class AppConfig {
     return '';
   }
 
-  static String _normalizeApiBaseUrl(
+  static AppConfig _resolveConfig({
+    required Map<String, String> assetEnv,
+    String defineBaseUrl = '',
+    String defineLiveBaseUrl = '',
+    String defineApiBaseUrl = '',
+    String definePortalUrl = '',
+    String defineUpgradeUrl = '',
+    String defineResetSessionOnBoot = const String.fromEnvironment(
+      'SECUREWAVE_RESET_SESSION_ON_BOOT',
+      defaultValue: 'false',
+    ),
+    String definePreferHttps = const String.fromEnvironment(
+      'SECUREWAVE_PREFER_HTTPS',
+      defaultValue: 'false',
+    ),
+    String defineAllowLoopbackApi = const String.fromEnvironment(
+      _allowLoopbackKey,
+      defaultValue: 'false',
+    ),
+  }) {
+    final rawDefinedBaseUrl = _firstNonEmpty(
+      defineBaseUrl,
+      defineLiveBaseUrl,
+      defineApiBaseUrl,
+    );
+    final rawAssetBaseUrl = _firstNonEmpty(
+      assetEnv['SECUREWAVE_API_BASE_URL'],
+      assetEnv['LIVE_API_BASE_URL'],
+      assetEnv['API_BASE_URL'],
+    );
+    final allowLoopbackApi = _parseBool(
+      assetEnv[_allowLoopbackKey] ?? defineAllowLoopbackApi,
+    );
+    final baseResolution = _resolveApiBaseUrl(
+      rawDefinedBaseUrl,
+      rawAssetBaseUrl,
+      allowLoopback: allowLoopbackApi && !kReleaseMode,
+    );
+    final rawPortalUrl = _firstNonEmpty(
+      definePortalUrl,
+      assetEnv['SECUREWAVE_PORTAL_URL'],
+    );
+    final rawUpgradeUrl = _firstNonEmpty(
+      defineUpgradeUrl,
+      assetEnv['SECUREWAVE_UPGRADE_URL'],
+    );
+    final portalUrl = _normalizeAbsoluteUrl(
+      rawPortalUrl,
+      fallback: _deriveFromApiBase(baseResolution.baseUrl, '/account'),
+    );
+    final upgradeUrl = _normalizeAbsoluteUrl(
+      rawUpgradeUrl,
+      fallback: _deriveFromApiBase(baseResolution.baseUrl, '/subscription'),
+    );
+    final resetSessionOnBoot = _parseBool(
+      assetEnv['SECUREWAVE_RESET_SESSION_ON_BOOT'] ?? defineResetSessionOnBoot,
+    );
+    final httpsPreferred = _parseBool(
+      assetEnv['SECUREWAVE_PREFER_HTTPS'] ?? definePreferHttps,
+    );
+
+    return AppConfig(
+      apiBaseUrl: baseResolution.baseUrl,
+      portalUrl: portalUrl,
+      upgradeUrl: upgradeUrl,
+      resetSessionOnBoot: resetSessionOnBoot,
+      configSource: baseResolution.source,
+      httpsPreferred: httpsPreferred,
+    );
+  }
+
+  static _ResolvedApiBaseUrl _resolveApiBaseUrl(
+    String rawDefinedBaseUrl,
+    String rawAssetBaseUrl, {
+    required bool allowLoopback,
+  }) {
+    if (rawDefinedBaseUrl.trim().isNotEmpty) {
+      final normalized = _tryNormalizeApiBaseUrl(
+        rawDefinedBaseUrl,
+        allowLoopback: allowLoopback,
+      );
+      if (normalized != null) {
+        return _ResolvedApiBaseUrl(
+          baseUrl: normalized,
+          source: AppConfigSource.dartDefine,
+        );
+      }
+      AppLogger.warning(
+        'Config: ignoring invalid SECUREWAVE_API_BASE_URL dart-define and using fallback resolution.',
+      );
+    }
+
+    if (rawAssetBaseUrl.trim().isNotEmpty) {
+      final normalized = _tryNormalizeApiBaseUrl(
+        rawAssetBaseUrl,
+        allowLoopback: allowLoopback,
+      );
+      if (normalized != null) {
+        return _ResolvedApiBaseUrl(
+          baseUrl: normalized,
+          source: AppConfigSource.envAsset,
+        );
+      }
+      AppLogger.warning(
+        'Config: ignoring invalid packaged .env API base URL and using fallback defaults.',
+      );
+    }
+
+    return const _ResolvedApiBaseUrl(
+      baseUrl: AppConstants.baseUrlFallback,
+      source: AppConfigSource.fallback,
+    );
+  }
+
+  static String? _tryNormalizeApiBaseUrl(
     String value, {
     bool allowLoopback = false,
   }) {
@@ -158,9 +287,7 @@ class AppConfig {
       value,
       allowLoopback: allowLoopback,
     );
-    if (parsed == null) {
-      return AppConstants.baseUrlFallback;
-    }
+    if (parsed == null) return null;
     final segments =
         parsed.pathSegments.where((item) => item.isNotEmpty).toList();
     if (segments.isEmpty || segments.last.toLowerCase() != 'api') {
@@ -172,6 +299,14 @@ class AppConfig {
       fragment: null,
     );
     return normalized.toString();
+  }
+
+  static bool _hasConfiguredBaseUrl(Map<String, String> env) {
+    return _firstNonEmpty(
+      env['SECUREWAVE_API_BASE_URL'],
+      env['LIVE_API_BASE_URL'],
+      env['API_BASE_URL'],
+    ).isNotEmpty;
   }
 
   static String _normalizeAbsoluteUrl(
@@ -228,4 +363,34 @@ class AppConfig {
         value == '1' ||
         value.toLowerCase() == 'yes';
   }
+
+  static void _logResolvedConfig(
+    AppConfig config, {
+    required String envFileName,
+    required bool assetEnvLoaded,
+  }) {
+    AppLogger.info(
+      'Config loaded source=${config.configSource.label} '
+      'env_asset=$envFileName '
+      'env_asset_loaded=$assetEnvLoaded '
+      'api_origin=${_urlOrigin(config.apiBaseUrl)}',
+    );
+  }
+
+  static String _urlOrigin(String value) {
+    final parsed = Uri.tryParse(value);
+    if (parsed == null) return 'invalid';
+    final port = parsed.hasPort ? ':${parsed.port}' : '';
+    return '${parsed.scheme}://${parsed.host}$port';
+  }
+}
+
+class _ResolvedApiBaseUrl {
+  const _ResolvedApiBaseUrl({
+    required this.baseUrl,
+    required this.source,
+  });
+
+  final String baseUrl;
+  final AppConfigSource source;
 }

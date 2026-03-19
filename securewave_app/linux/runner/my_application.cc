@@ -8,6 +8,8 @@
 #include <glib/gstdio.h>
 #include <errno.h>
 #include <cstdio>
+#include <cstring>
+#include <ctime>
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -32,6 +34,15 @@ const char* kOpenVpnConfigFileName = "securewave-openvpn.ovpn";
 const char* kOpenVpnAuthFileName = "securewave-openvpn.auth";
 const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
+const char* kWireGuardInterfaceName = "sw-wg";
+const guint kWireGuardPolicyTable = 51820;
+const guint kWireGuardFwMark = 51820;
+const guint kWireGuardPolicyRulePriority = 32764;
+const guint kWireGuardMainSuppressPriority = 32765;
+const guint kWireGuardHandshakeFreshSeconds = 30;
+const guint kWireGuardWatchdogIntervalMs = 3000;
+const guint kWireGuardWatchdogSleepSliceMs = 100;
+const guint kWireGuardConnectVerificationTimeoutMs = 30000;
 const guint kWgQuickTimeoutMs = 30000;
 const guint kRuntimeSanityTimeoutMs = 7000;
 const guint kRuntimeSanityPollIntervalMs = 200;
@@ -39,25 +50,65 @@ const char* kSecureWaveWgHelperPath = "/usr/local/libexec/securewave-wg-quick";
 const char* kPkexecDisableInternalAgentArg = "--disable-internal-agent";
 
 typedef struct {
+  gboolean interface_present;
+  gboolean interface_up;
+  gboolean nm_unmanaged;
+  gboolean fwmark_configured;
+  gboolean policy_rule_present;
+  gboolean main_suppress_rule_present;
+  gboolean table_route_present;
+  gboolean policy_routing_present;
+  gboolean handshake_present;
+  gboolean handshake_fresh;
+  gboolean ping_reachable;
+  gboolean traffic_connected;
+  guint64 rx_bytes;
+  guint64 tx_bytes;
+  gint64 handshake_age_seconds;
+  gint64 timestamp_ms;
+} WireGuardHealthSnapshot;
+
+typedef struct {
   FlMethodChannel* channel;
   gchar* wg_config_path;
   gchar* openvpn_config_path;
   gchar* openvpn_auth_path;
   gchar* openvpn_pid_path;
+  gchar* health_log_path;
   gchar* active_protocol;
+  gchar* last_watchdog_action;
+  GMutex lock;
+  GThread* watchdog_thread;
+  gboolean watchdog_enabled;
+  gboolean watchdog_running;
+  gboolean watchdog_stop_requested;
   gboolean last_connected;
+  guint64 route_reset_count;
+  guint64 reconnect_attempts;
+  guint64 critical_reset_count;
+  guint64 last_downtime_ms;
+  guint64 total_downtime_ms;
+  gint64 connected_since_ms;
+  gint64 downtime_started_ms;
+  gint64 last_handshake_age_seconds;
 } VpnChannelState;
+
+static void stop_wireguard_watchdog(VpnChannelState* state);
 
 static void vpn_channel_state_free(VpnChannelState* state) {
   if (!state) {
     return;
   }
+  stop_wireguard_watchdog(state);
   g_clear_object(&state->channel);
   g_clear_pointer(&state->wg_config_path, g_free);
   g_clear_pointer(&state->openvpn_config_path, g_free);
   g_clear_pointer(&state->openvpn_auth_path, g_free);
   g_clear_pointer(&state->openvpn_pid_path, g_free);
+  g_clear_pointer(&state->health_log_path, g_free);
   g_clear_pointer(&state->active_protocol, g_free);
+  g_clear_pointer(&state->last_watchdog_action, g_free);
+  g_mutex_clear(&state->lock);
   g_free(state);
 }
 
@@ -185,6 +236,156 @@ static gchar* build_runtime_path(const gchar* file_name) {
     return nullptr;
   }
   return g_build_filename(config_dir, file_name, nullptr);
+}
+
+static gchar* build_runtime_nested_path(const gchar* relative_dir,
+                                        const gchar* file_name) {
+  if (!relative_dir || *relative_dir == '\0' || !file_name ||
+      *file_name == '\0') {
+    return nullptr;
+  }
+  g_autofree gchar* base_dir =
+      g_build_filename(g_get_user_config_dir(), "securewave", relative_dir, nullptr);
+  if (g_mkdir_with_parents(base_dir, 0700) != 0) {
+    return nullptr;
+  }
+  return g_build_filename(base_dir, file_name, nullptr);
+}
+
+static gint64 current_time_ms() {
+  return static_cast<gint64>(g_get_real_time() / 1000);
+}
+
+static gint64 current_time_seconds() {
+  return static_cast<gint64>(g_get_real_time() / G_USEC_PER_SEC);
+}
+
+static gchar* format_now_iso8601_utc() {
+  g_autoptr(GDateTime) now = g_date_time_new_now_utc();
+  if (!now) {
+    return g_strdup("");
+  }
+  return g_date_time_format(now, "%Y-%m-%dT%H:%M:%SZ");
+}
+
+static void state_set_watchdog_action(VpnChannelState* state,
+                                      const gchar* action) {
+  if (!state) {
+    return;
+  }
+  g_mutex_lock(&state->lock);
+  g_free(state->last_watchdog_action);
+  state->last_watchdog_action = action ? g_strdup(action) : nullptr;
+  g_mutex_unlock(&state->lock);
+}
+
+static void state_note_route_reset(VpnChannelState* state) {
+  if (!state) {
+    return;
+  }
+  g_mutex_lock(&state->lock);
+  state->route_reset_count += 1;
+  g_mutex_unlock(&state->lock);
+}
+
+static void state_note_reconnect_attempt(VpnChannelState* state) {
+  if (!state) {
+    return;
+  }
+  g_mutex_lock(&state->lock);
+  state->reconnect_attempts += 1;
+  g_mutex_unlock(&state->lock);
+}
+
+static void state_note_critical_reset(VpnChannelState* state) {
+  if (!state) {
+    return;
+  }
+  g_mutex_lock(&state->lock);
+  state->critical_reset_count += 1;
+  g_mutex_unlock(&state->lock);
+}
+
+static void state_update_wireguard_health(VpnChannelState* state,
+                                          gboolean healthy,
+                                          gint64 handshake_age_seconds) {
+  if (!state) {
+    return;
+  }
+  const gint64 now_ms = current_time_ms();
+  g_mutex_lock(&state->lock);
+  state->last_handshake_age_seconds = handshake_age_seconds;
+  if (healthy) {
+    if (state->connected_since_ms <= 0) {
+      state->connected_since_ms = now_ms;
+    }
+    if (state->downtime_started_ms > 0) {
+      const gint64 elapsed_ms = now_ms - state->downtime_started_ms;
+      const guint64 downtime_ms =
+          static_cast<guint64>(elapsed_ms > 0 ? elapsed_ms : 0);
+      state->last_downtime_ms = downtime_ms;
+      state->total_downtime_ms += downtime_ms;
+      state->downtime_started_ms = 0;
+    }
+  } else {
+    state->connected_since_ms = 0;
+    if (state->downtime_started_ms <= 0) {
+      state->downtime_started_ms = now_ms;
+    }
+  }
+  g_mutex_unlock(&state->lock);
+}
+
+static void state_copy_watchdog_metrics(VpnChannelState* state,
+                                        gboolean* watchdog_running,
+                                        guint64* route_reset_count,
+                                        guint64* reconnect_attempts,
+                                        guint64* critical_reset_count,
+                                        guint64* last_downtime_ms,
+                                        guint64* total_downtime_ms,
+                                        guint64* current_downtime_ms,
+                                        gint64* last_handshake_age_seconds,
+                                        gchar** last_watchdog_action) {
+  if (!state) {
+    return;
+  }
+  const gint64 now_ms = current_time_ms();
+  g_mutex_lock(&state->lock);
+  if (watchdog_running) {
+    *watchdog_running = state->watchdog_running;
+  }
+  if (route_reset_count) {
+    *route_reset_count = state->route_reset_count;
+  }
+  if (reconnect_attempts) {
+    *reconnect_attempts = state->reconnect_attempts;
+  }
+  if (critical_reset_count) {
+    *critical_reset_count = state->critical_reset_count;
+  }
+  if (last_downtime_ms) {
+    *last_downtime_ms = state->last_downtime_ms;
+  }
+  if (total_downtime_ms) {
+    *total_downtime_ms = state->total_downtime_ms;
+  }
+  if (current_downtime_ms) {
+    *current_downtime_ms = state->downtime_started_ms > 0
+                               ? static_cast<guint64>(
+                                     now_ms > state->downtime_started_ms
+                                         ? now_ms - state->downtime_started_ms
+                                         : 0)
+                               : 0;
+  }
+  if (last_handshake_age_seconds) {
+    *last_handshake_age_seconds = state->last_handshake_age_seconds;
+  }
+  if (last_watchdog_action) {
+    *last_watchdog_action = state->last_watchdog_action
+                                ? g_strdup(state->last_watchdog_action)
+                                : nullptr;
+  }
+  g_mutex_unlock(&state->lock);
 }
 
 static void respond_error(
@@ -315,91 +516,6 @@ static gboolean command_output_contains(gchar** argv, const gchar* needle) {
   return g_strrstr(stdout_text, needle) != nullptr;
 }
 
-static gboolean output_chain_policy_is(const gchar* chain, const gchar* policy) {
-  if (!chain || *chain == '\0' || !policy || *policy == '\0') {
-    return FALSE;
-  }
-  gchar* argv[] = {
-      const_cast<gchar*>("iptables"),
-      const_cast<gchar*>("-S"),
-      const_cast<gchar*>(chain),
-      nullptr};
-  g_autofree gchar* stdout_text = nullptr;
-  if (!run_command_capture_stdout(argv, &stdout_text) || !stdout_text) {
-    return FALSE;
-  }
-  g_auto(GStrv) lines = g_strsplit(stdout_text, "\n", -1);
-  if (!lines) {
-    return FALSE;
-  }
-  for (gint idx = 0; lines[idx] != nullptr; idx++) {
-    g_autofree gchar* line = g_strdup(lines[idx]);
-    g_strstrip(line);
-    if (!line || *line == '\0') {
-      continue;
-    }
-    g_autofree gchar* expected = g_strdup_printf("-P %s %s", chain, policy);
-    return g_strcmp0(line, expected) == 0;
-  }
-  return FALSE;
-}
-
-static gboolean output_accept_rule_exists_for_iface(const gchar* iface) {
-  if (!iface || *iface == '\0') {
-    return FALSE;
-  }
-  gchar* argv[] = {
-      const_cast<gchar*>("iptables"),
-      const_cast<gchar*>("-C"),
-      const_cast<gchar*>("OUTPUT"),
-      const_cast<gchar*>("-o"),
-      const_cast<gchar*>(iface),
-      const_cast<gchar*>("-j"),
-      const_cast<gchar*>("ACCEPT"),
-      nullptr};
-  return run_quiet_command(argv);
-}
-
-static gboolean endpoint_allow_rules_exist(const gchar* iface) {
-  if (!iface || *iface == '\0') {
-    return FALSE;
-  }
-  g_autofree gchar* endpoint_file =
-      g_strdup_printf("/run/securewave/%s.endpoint-ips", iface);
-  g_autofree gchar* contents = nullptr;
-  if (!g_file_get_contents(endpoint_file, &contents, nullptr, nullptr) ||
-      !contents || *contents == '\0') {
-    return FALSE;
-  }
-
-  g_auto(GStrv) lines = g_strsplit(contents, "\n", -1);
-  if (!lines) {
-    return FALSE;
-  }
-  gboolean saw_ip = FALSE;
-  for (gint idx = 0; lines[idx] != nullptr; idx++) {
-    g_autofree gchar* ip = g_strdup(lines[idx]);
-    g_strstrip(ip);
-    if (!ip || *ip == '\0') {
-      continue;
-    }
-    saw_ip = TRUE;
-    gchar* argv[] = {
-        const_cast<gchar*>("iptables"),
-        const_cast<gchar*>("-C"),
-        const_cast<gchar*>("OUTPUT"),
-        const_cast<gchar*>("-d"),
-        ip,
-        const_cast<gchar*>("-j"),
-        const_cast<gchar*>("ACCEPT"),
-        nullptr};
-    if (!run_quiet_command(argv)) {
-      return FALSE;
-    }
-  }
-  return saw_ip;
-}
-
 static gboolean process_is_running(gint pid) {
   if (pid <= 1) {
     return FALSE;
@@ -414,8 +530,41 @@ static void set_active_protocol(VpnChannelState* state, const gchar* protocol) {
   if (!state) {
     return;
   }
+  g_mutex_lock(&state->lock);
   g_free(state->active_protocol);
   state->active_protocol = protocol ? g_strdup(protocol) : nullptr;
+  g_mutex_unlock(&state->lock);
+}
+
+static gchar* copy_active_protocol(VpnChannelState* state) {
+  if (!state) {
+    return nullptr;
+  }
+  g_mutex_lock(&state->lock);
+  gchar* protocol = state->active_protocol ? g_strdup(state->active_protocol) : nullptr;
+  g_mutex_unlock(&state->lock);
+  return protocol;
+}
+
+static gchar* copy_wg_config_path(VpnChannelState* state) {
+  if (!state) {
+    return nullptr;
+  }
+  g_mutex_lock(&state->lock);
+  gchar* path = state->wg_config_path ? g_strdup(state->wg_config_path) : nullptr;
+  g_mutex_unlock(&state->lock);
+  return path;
+}
+
+static gboolean wireguard_watchdog_should_run(VpnChannelState* state) {
+  if (!state) {
+    return FALSE;
+  }
+  g_mutex_lock(&state->lock);
+  const gboolean should_run =
+      state->watchdog_enabled && !state->watchdog_stop_requested;
+  g_mutex_unlock(&state->lock);
+  return should_run;
 }
 
 static gboolean run_command_step(
@@ -472,6 +621,688 @@ static gboolean run_command_step(
   return TRUE;
 }
 
+static gint append_pkexec_prefix(gchar** argv, gchar* pkexec_path) {
+  gint idx = 0;
+  if (pkexec_path) {
+    argv[idx++] = pkexec_path;
+    argv[idx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
+  }
+  return idx;
+}
+
+static gboolean run_wireguard_helper_step(const gchar* action,
+                                          const gchar* argument,
+                                          const gchar* error_code,
+                                          const gchar* fallback_message,
+                                          gchar** out_code,
+                                          gchar** out_message) {
+  if (!action || *action == '\0' || !securewave_wg_helper_available()) {
+    return FALSE;
+  }
+
+  const gboolean needs_elevation = geteuid() != 0;
+  g_autofree gchar* pkexec_path = nullptr;
+  if (needs_elevation) {
+    pkexec_path = g_find_program_in_path("pkexec");
+    if (!pkexec_path) {
+      if (out_code) {
+        *out_code = g_strdup("vpn_permission_required");
+      }
+      if (out_message) {
+        *out_message = g_strdup(elevation_hint_message());
+      }
+      return FALSE;
+    }
+  }
+
+  gchar* argv[8] = {nullptr};
+  gint idx = append_pkexec_prefix(argv, pkexec_path);
+  argv[idx++] = const_cast<gchar*>(kSecureWaveWgHelperPath);
+  argv[idx++] = const_cast<gchar*>(action);
+  if (argument && *argument != '\0') {
+    argv[idx++] = const_cast<gchar*>(argument);
+  }
+  argv[idx] = nullptr;
+  return run_command_step(argv, error_code, fallback_message, out_code, out_message);
+}
+
+static gboolean run_wg_quick_sync(const gchar* action,
+                                  const gchar* config_path,
+                                  const gchar* error_code,
+                                  const gchar* fallback_message,
+                                  gchar** out_code,
+                                  gchar** out_message) {
+  if (!action || *action == '\0' || !config_path || *config_path == '\0') {
+    if (out_code) {
+      *out_code = g_strdup("invalid_config");
+    }
+    if (out_message) {
+      *out_message = g_strdup("WireGuard configuration path is missing.");
+    }
+    return FALSE;
+  }
+
+  if (geteuid() != 0 && securewave_wg_helper_available()) {
+    return run_wireguard_helper_step(
+        action, config_path, error_code, fallback_message, out_code, out_message);
+  }
+
+  g_autofree gchar* wg_quick_path = g_find_program_in_path("wg-quick");
+  if (!wg_quick_path) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_unavailable");
+    }
+    if (out_message) {
+      *out_message = g_strdup(wireguard_install_hint_message());
+    }
+    return FALSE;
+  }
+
+  const gboolean needs_elevation = geteuid() != 0;
+  if (needs_elevation && !has_desktop_auth_session()) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_permission_required");
+    }
+    if (out_message) {
+      *out_message = g_strdup(elevation_hint_message());
+    }
+    return FALSE;
+  }
+
+  g_autofree gchar* pkexec_path = nullptr;
+  if (needs_elevation) {
+    pkexec_path = g_find_program_in_path("pkexec");
+    if (!pkexec_path) {
+      if (out_code) {
+        *out_code = g_strdup("vpn_permission_required");
+      }
+      if (out_message) {
+        *out_message = g_strdup(elevation_hint_message());
+      }
+      return FALSE;
+    }
+  }
+
+  gchar* argv[8] = {nullptr};
+  gint idx = append_pkexec_prefix(argv, pkexec_path);
+  argv[idx++] = wg_quick_path;
+  argv[idx++] = const_cast<gchar*>(action);
+  argv[idx++] = const_cast<gchar*>(config_path);
+  argv[idx] = nullptr;
+  return run_command_step(argv, error_code, fallback_message, out_code, out_message);
+}
+
+static gboolean set_wireguard_nm_unmanaged(const gchar* iface,
+                                           gchar** out_code,
+                                           gchar** out_message) {
+  if (!iface || *iface == '\0' || !nmcli_available()) {
+    return TRUE;
+  }
+
+  if (geteuid() != 0 && securewave_wg_helper_available()) {
+    return run_wireguard_helper_step(
+        "nm-unmanaged",
+        iface,
+        "vpn_setup_failed",
+        "Failed to isolate the WireGuard interface from NetworkManager.",
+        out_code,
+        out_message);
+  }
+
+  const gboolean needs_elevation = geteuid() != 0;
+  if (needs_elevation && !has_desktop_auth_session()) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_permission_required");
+    }
+    if (out_message) {
+      *out_message = g_strdup(elevation_hint_message());
+    }
+    return FALSE;
+  }
+
+  g_autofree gchar* pkexec_path = nullptr;
+  if (needs_elevation) {
+    pkexec_path = g_find_program_in_path("pkexec");
+    if (!pkexec_path) {
+      if (out_code) {
+        *out_code = g_strdup("vpn_permission_required");
+      }
+      if (out_message) {
+        *out_message = g_strdup(elevation_hint_message());
+      }
+      return FALSE;
+    }
+  }
+
+  gchar* argv[12] = {nullptr};
+  gint idx = append_pkexec_prefix(argv, pkexec_path);
+  argv[idx++] = const_cast<gchar*>("nmcli");
+  argv[idx++] = const_cast<gchar*>("device");
+  argv[idx++] = const_cast<gchar*>("set");
+  argv[idx++] = const_cast<gchar*>(iface);
+  argv[idx++] = const_cast<gchar*>("managed");
+  argv[idx++] = const_cast<gchar*>("no");
+  argv[idx] = nullptr;
+  return run_command_step(
+      argv,
+      "vpn_setup_failed",
+      "Failed to isolate the WireGuard interface from NetworkManager.",
+      out_code,
+      out_message);
+}
+
+static gboolean read_wireguard_policy_rule_counts(guint* out_policy_rule_count,
+                                                  guint* out_main_suppress_count) {
+  if (out_policy_rule_count) {
+    *out_policy_rule_count = 0;
+  }
+  if (out_main_suppress_count) {
+    *out_main_suppress_count = 0;
+  }
+
+  gchar* argv[] = {const_cast<gchar*>("ip"), const_cast<gchar*>("rule"),
+                   const_cast<gchar*>("show"), nullptr};
+  g_autofree gchar* stdout_text = nullptr;
+  if (!run_command_capture_stdout(argv, &stdout_text) || !stdout_text) {
+    return FALSE;
+  }
+
+  guint policy_rule_count = 0;
+  guint main_suppress_count = 0;
+  g_auto(GStrv) lines = g_strsplit(stdout_text, "\n", -1);
+  if (!lines) {
+    return FALSE;
+  }
+
+  for (gint i = 0; lines[i] != nullptr; i++) {
+    g_strstrip(lines[i]);
+    if (*lines[i] == '\0') {
+      continue;
+    }
+    if ((g_strrstr(lines[i], "lookup 51820") != nullptr ||
+         g_strrstr(lines[i], "table 51820") != nullptr) &&
+        g_strrstr(lines[i], "fwmark") != nullptr &&
+        g_strrstr(lines[i], "not") != nullptr) {
+      policy_rule_count += 1;
+    }
+    if (g_strrstr(lines[i], "lookup main") != nullptr &&
+        g_strrstr(lines[i], "suppress_prefixlength 0") != nullptr) {
+      main_suppress_count += 1;
+    }
+  }
+
+  if (out_policy_rule_count) {
+    *out_policy_rule_count = policy_rule_count;
+  }
+  if (out_main_suppress_count) {
+    *out_main_suppress_count = main_suppress_count;
+  }
+  return TRUE;
+}
+
+static gboolean wireguard_table_route_exists(const gchar* iface);
+static gboolean clear_wireguard_policy_routing(const gchar* iface,
+                                               gboolean remove_interface,
+                                               gchar** out_code,
+                                               gchar** out_message);
+
+static gboolean apply_wireguard_policy_routing(const gchar* iface,
+                                               gchar** out_code,
+                                               gchar** out_message) {
+  if (!iface || *iface == '\0') {
+    if (out_code) {
+      *out_code = g_strdup("vpn_setup_failed");
+    }
+    if (out_message) {
+      *out_message = g_strdup("WireGuard interface is missing.");
+    }
+    return FALSE;
+  }
+
+  if (geteuid() != 0 && securewave_wg_helper_available()) {
+    return run_wireguard_helper_step(
+        "policy-ensure",
+        iface,
+        "vpn_setup_failed",
+        "Failed to apply SecureWave policy routing for WireGuard.",
+        out_code,
+        out_message);
+  }
+
+  const gboolean needs_elevation = geteuid() != 0;
+  if (needs_elevation && !has_desktop_auth_session()) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_permission_required");
+    }
+    if (out_message) {
+      *out_message = g_strdup(elevation_hint_message());
+    }
+    return FALSE;
+  }
+
+  g_autofree gchar* pkexec_path = nullptr;
+  if (needs_elevation) {
+    pkexec_path = g_find_program_in_path("pkexec");
+    if (!pkexec_path) {
+      if (out_code) {
+        *out_code = g_strdup("vpn_permission_required");
+      }
+      if (out_message) {
+        *out_message = g_strdup(elevation_hint_message());
+      }
+      return FALSE;
+    }
+  }
+
+  gchar mark_arg[16];
+  gchar table_arg[16];
+  gchar policy_priority_arg[16];
+  gchar suppress_priority_arg[16];
+  g_snprintf(mark_arg, sizeof(mark_arg), "%u", kWireGuardFwMark);
+  g_snprintf(table_arg, sizeof(table_arg), "%u", kWireGuardPolicyTable);
+  g_snprintf(policy_priority_arg, sizeof(policy_priority_arg), "%u",
+             kWireGuardPolicyRulePriority);
+  g_snprintf(suppress_priority_arg, sizeof(suppress_priority_arg), "%u",
+             kWireGuardMainSuppressPriority);
+
+  {
+    gchar* argv[12] = {nullptr};
+    gint idx = append_pkexec_prefix(argv, pkexec_path);
+    argv[idx++] = const_cast<gchar*>("wg");
+    argv[idx++] = const_cast<gchar*>("set");
+    argv[idx++] = const_cast<gchar*>(iface);
+    argv[idx++] = const_cast<gchar*>("fwmark");
+    argv[idx++] = mark_arg;
+    argv[idx] = nullptr;
+    if (!run_command_step(
+            argv,
+            "vpn_setup_failed",
+            "Failed to set WireGuard fwmark.",
+            out_code,
+            out_message)) {
+      return FALSE;
+    }
+  }
+
+  if (!wireguard_table_route_exists(iface)) {
+    gchar* flush_v4_argv[12] = {nullptr};
+    gint idx = append_pkexec_prefix(flush_v4_argv, pkexec_path);
+    flush_v4_argv[idx++] = const_cast<gchar*>("ip");
+    flush_v4_argv[idx++] = const_cast<gchar*>("-4");
+    flush_v4_argv[idx++] = const_cast<gchar*>("route");
+    flush_v4_argv[idx++] = const_cast<gchar*>("flush");
+    flush_v4_argv[idx++] = const_cast<gchar*>("table");
+    flush_v4_argv[idx++] = table_arg;
+    flush_v4_argv[idx] = nullptr;
+    run_quiet_command(flush_v4_argv);
+
+    gchar* flush_v6_argv[12] = {nullptr};
+    idx = append_pkexec_prefix(flush_v6_argv, pkexec_path);
+    flush_v6_argv[idx++] = const_cast<gchar*>("ip");
+    flush_v6_argv[idx++] = const_cast<gchar*>("-6");
+    flush_v6_argv[idx++] = const_cast<gchar*>("route");
+    flush_v6_argv[idx++] = const_cast<gchar*>("flush");
+    flush_v6_argv[idx++] = const_cast<gchar*>("table");
+    flush_v6_argv[idx++] = table_arg;
+    flush_v6_argv[idx] = nullptr;
+    run_quiet_command(flush_v6_argv);
+
+    gchar* route_add_argv[14] = {nullptr};
+    idx = append_pkexec_prefix(route_add_argv, pkexec_path);
+    route_add_argv[idx++] = const_cast<gchar*>("ip");
+    route_add_argv[idx++] = const_cast<gchar*>("route");
+    route_add_argv[idx++] = const_cast<gchar*>("add");
+    route_add_argv[idx++] = const_cast<gchar*>("default");
+    route_add_argv[idx++] = const_cast<gchar*>("dev");
+    route_add_argv[idx++] = const_cast<gchar*>(iface);
+    route_add_argv[idx++] = const_cast<gchar*>("table");
+    route_add_argv[idx++] = table_arg;
+    route_add_argv[idx] = nullptr;
+    if (!run_command_step(
+            route_add_argv,
+            "vpn_setup_failed",
+            "Failed to install WireGuard policy table default route.",
+            out_code,
+            out_message)) {
+      return FALSE;
+    }
+  }
+
+  guint policy_rule_count = 0;
+  guint main_suppress_count = 0;
+  if (!read_wireguard_policy_rule_counts(
+          &policy_rule_count, &main_suppress_count)) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_setup_failed");
+    }
+    if (out_message) {
+      *out_message = g_strdup("Failed to inspect existing WireGuard policy rules.");
+    }
+    return FALSE;
+  }
+
+  if (policy_rule_count > 1 || main_suppress_count > 1) {
+    if (!clear_wireguard_policy_routing(iface, FALSE, out_code, out_message)) {
+      return FALSE;
+    }
+    gchar* route_add_argv[14] = {nullptr};
+    gint idx = append_pkexec_prefix(route_add_argv, pkexec_path);
+    route_add_argv[idx++] = const_cast<gchar*>("ip");
+    route_add_argv[idx++] = const_cast<gchar*>("route");
+    route_add_argv[idx++] = const_cast<gchar*>("add");
+    route_add_argv[idx++] = const_cast<gchar*>("default");
+    route_add_argv[idx++] = const_cast<gchar*>("dev");
+    route_add_argv[idx++] = const_cast<gchar*>(iface);
+    route_add_argv[idx++] = const_cast<gchar*>("table");
+    route_add_argv[idx++] = table_arg;
+    route_add_argv[idx] = nullptr;
+    if (!run_command_step(
+            route_add_argv,
+            "vpn_setup_failed",
+            "Failed to restore the WireGuard policy table default route.",
+            out_code,
+            out_message)) {
+      return FALSE;
+    }
+    policy_rule_count = 0;
+    main_suppress_count = 0;
+  }
+
+  if (policy_rule_count == 0) {
+    gchar* add_policy_argv[20] = {nullptr};
+    gint idx = append_pkexec_prefix(add_policy_argv, pkexec_path);
+    add_policy_argv[idx++] = const_cast<gchar*>("ip");
+    add_policy_argv[idx++] = const_cast<gchar*>("rule");
+    add_policy_argv[idx++] = const_cast<gchar*>("add");
+    add_policy_argv[idx++] = const_cast<gchar*>("not");
+    add_policy_argv[idx++] = const_cast<gchar*>("fwmark");
+    add_policy_argv[idx++] = mark_arg;
+    add_policy_argv[idx++] = const_cast<gchar*>("table");
+    add_policy_argv[idx++] = table_arg;
+    add_policy_argv[idx++] = const_cast<gchar*>("priority");
+    add_policy_argv[idx++] = policy_priority_arg;
+    add_policy_argv[idx] = nullptr;
+    if (!run_command_step(
+            add_policy_argv,
+            "vpn_setup_failed",
+            "Failed to install WireGuard policy routing rule.",
+            out_code,
+            out_message)) {
+      return FALSE;
+    }
+  }
+
+  if (main_suppress_count == 0) {
+    gchar* add_suppress_argv[18] = {nullptr};
+    gint idx = append_pkexec_prefix(add_suppress_argv, pkexec_path);
+    add_suppress_argv[idx++] = const_cast<gchar*>("ip");
+    add_suppress_argv[idx++] = const_cast<gchar*>("rule");
+    add_suppress_argv[idx++] = const_cast<gchar*>("add");
+    add_suppress_argv[idx++] = const_cast<gchar*>("table");
+    add_suppress_argv[idx++] = const_cast<gchar*>("main");
+    add_suppress_argv[idx++] = const_cast<gchar*>("suppress_prefixlength");
+    add_suppress_argv[idx++] = const_cast<gchar*>("0");
+    add_suppress_argv[idx++] = const_cast<gchar*>("priority");
+    add_suppress_argv[idx++] = suppress_priority_arg;
+    add_suppress_argv[idx] = nullptr;
+    if (!run_command_step(
+            add_suppress_argv,
+            "vpn_setup_failed",
+            "Failed to install main-table suppression rule for WireGuard.",
+            out_code,
+            out_message)) {
+      return FALSE;
+    }
+  }
+  {
+    gchar* flush_cache_argv[10] = {nullptr};
+    gint idx = append_pkexec_prefix(flush_cache_argv, pkexec_path);
+    flush_cache_argv[idx++] = const_cast<gchar*>("ip");
+    flush_cache_argv[idx++] = const_cast<gchar*>("route");
+    flush_cache_argv[idx++] = const_cast<gchar*>("flush");
+    flush_cache_argv[idx++] = const_cast<gchar*>("cache");
+    flush_cache_argv[idx] = nullptr;
+    run_quiet_command(flush_cache_argv);
+  }
+
+  return TRUE;
+}
+
+static gboolean clear_wireguard_policy_routing(const gchar* iface,
+                                               gboolean remove_interface,
+                                               gchar** out_code,
+                                               gchar** out_message) {
+  const gchar* target_iface =
+      (iface && *iface != '\0') ? iface : kWireGuardInterfaceName;
+  if (geteuid() != 0 && securewave_wg_helper_available()) {
+    return run_wireguard_helper_step(
+        remove_interface ? "policy-clear-link" : "policy-clear",
+        target_iface,
+        "vpn_setup_failed",
+        "Failed to clear SecureWave policy routing state.",
+        out_code,
+        out_message);
+  }
+
+  const gboolean needs_elevation = geteuid() != 0;
+  if (needs_elevation && !has_desktop_auth_session()) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_permission_required");
+    }
+    if (out_message) {
+      *out_message = g_strdup(elevation_hint_message());
+    }
+    return FALSE;
+  }
+
+  g_autofree gchar* pkexec_path = nullptr;
+  if (needs_elevation) {
+    pkexec_path = g_find_program_in_path("pkexec");
+    if (!pkexec_path) {
+      if (out_code) {
+        *out_code = g_strdup("vpn_permission_required");
+      }
+      if (out_message) {
+        *out_message = g_strdup(elevation_hint_message());
+      }
+      return FALSE;
+    }
+  }
+
+  gchar mark_arg[16];
+  gchar table_arg[16];
+  gchar policy_priority_arg[16];
+  gchar suppress_priority_arg[16];
+  g_snprintf(mark_arg, sizeof(mark_arg), "%u", kWireGuardFwMark);
+  g_snprintf(table_arg, sizeof(table_arg), "%u", kWireGuardPolicyTable);
+  g_snprintf(policy_priority_arg, sizeof(policy_priority_arg), "%u",
+             kWireGuardPolicyRulePriority);
+  g_snprintf(suppress_priority_arg, sizeof(suppress_priority_arg), "%u",
+             kWireGuardMainSuppressPriority);
+
+  {
+    gchar* delete_policy_argv[20] = {nullptr};
+    gint idx = append_pkexec_prefix(delete_policy_argv, pkexec_path);
+    delete_policy_argv[idx++] = const_cast<gchar*>("ip");
+    delete_policy_argv[idx++] = const_cast<gchar*>("rule");
+    delete_policy_argv[idx++] = const_cast<gchar*>("del");
+    delete_policy_argv[idx++] = const_cast<gchar*>("not");
+    delete_policy_argv[idx++] = const_cast<gchar*>("fwmark");
+    delete_policy_argv[idx++] = mark_arg;
+    delete_policy_argv[idx++] = const_cast<gchar*>("table");
+    delete_policy_argv[idx++] = table_arg;
+    delete_policy_argv[idx++] = const_cast<gchar*>("priority");
+    delete_policy_argv[idx++] = policy_priority_arg;
+    delete_policy_argv[idx] = nullptr;
+    for (gint attempt = 0; attempt < 8; attempt++) {
+      if (!run_quiet_command(delete_policy_argv)) {
+        break;
+      }
+    }
+  }
+
+  {
+    gchar* delete_suppress_argv[18] = {nullptr};
+    gint idx = append_pkexec_prefix(delete_suppress_argv, pkexec_path);
+    delete_suppress_argv[idx++] = const_cast<gchar*>("ip");
+    delete_suppress_argv[idx++] = const_cast<gchar*>("rule");
+    delete_suppress_argv[idx++] = const_cast<gchar*>("del");
+    delete_suppress_argv[idx++] = const_cast<gchar*>("table");
+    delete_suppress_argv[idx++] = const_cast<gchar*>("main");
+    delete_suppress_argv[idx++] = const_cast<gchar*>("suppress_prefixlength");
+    delete_suppress_argv[idx++] = const_cast<gchar*>("0");
+    delete_suppress_argv[idx++] = const_cast<gchar*>("priority");
+    delete_suppress_argv[idx++] = suppress_priority_arg;
+    delete_suppress_argv[idx] = nullptr;
+    for (gint attempt = 0; attempt < 8; attempt++) {
+      if (!run_quiet_command(delete_suppress_argv)) {
+        break;
+      }
+    }
+  }
+
+  {
+    gchar* flush_v4_argv[12] = {nullptr};
+    gint idx = append_pkexec_prefix(flush_v4_argv, pkexec_path);
+    flush_v4_argv[idx++] = const_cast<gchar*>("ip");
+    flush_v4_argv[idx++] = const_cast<gchar*>("-4");
+    flush_v4_argv[idx++] = const_cast<gchar*>("route");
+    flush_v4_argv[idx++] = const_cast<gchar*>("flush");
+    flush_v4_argv[idx++] = const_cast<gchar*>("table");
+    flush_v4_argv[idx++] = table_arg;
+    flush_v4_argv[idx] = nullptr;
+    run_quiet_command(flush_v4_argv);
+  }
+
+  {
+    gchar* flush_v6_argv[12] = {nullptr};
+    gint idx = append_pkexec_prefix(flush_v6_argv, pkexec_path);
+    flush_v6_argv[idx++] = const_cast<gchar*>("ip");
+    flush_v6_argv[idx++] = const_cast<gchar*>("-6");
+    flush_v6_argv[idx++] = const_cast<gchar*>("route");
+    flush_v6_argv[idx++] = const_cast<gchar*>("flush");
+    flush_v6_argv[idx++] = const_cast<gchar*>("table");
+    flush_v6_argv[idx++] = table_arg;
+    flush_v6_argv[idx] = nullptr;
+    run_quiet_command(flush_v6_argv);
+  }
+
+  if (remove_interface) {
+    gchar* delete_iface_argv[10] = {nullptr};
+    gint idx = append_pkexec_prefix(delete_iface_argv, pkexec_path);
+    delete_iface_argv[idx++] = const_cast<gchar*>("ip");
+    delete_iface_argv[idx++] = const_cast<gchar*>("link");
+    delete_iface_argv[idx++] = const_cast<gchar*>("delete");
+    delete_iface_argv[idx++] = const_cast<gchar*>(target_iface);
+    delete_iface_argv[idx] = nullptr;
+    run_quiet_command(delete_iface_argv);
+  }
+
+  {
+    gchar* flush_cache_argv[10] = {nullptr};
+    gint idx = append_pkexec_prefix(flush_cache_argv, pkexec_path);
+    flush_cache_argv[idx++] = const_cast<gchar*>("ip");
+    flush_cache_argv[idx++] = const_cast<gchar*>("route");
+    flush_cache_argv[idx++] = const_cast<gchar*>("flush");
+    flush_cache_argv[idx++] = const_cast<gchar*>("cache");
+    flush_cache_argv[idx] = nullptr;
+    run_quiet_command(flush_cache_argv);
+  }
+
+  return TRUE;
+}
+
+static gboolean reset_network_manager_for_wireguard(const gchar* iface,
+                                                    gchar** out_code,
+                                                    gchar** out_message) {
+  const gchar* target_iface =
+      (iface && *iface != '\0') ? iface : kWireGuardInterfaceName;
+  if (geteuid() != 0 && securewave_wg_helper_available()) {
+    return run_wireguard_helper_step(
+        "nm-reset",
+        target_iface,
+        "vpn_setup_failed",
+        "Failed to reset NetworkManager for WireGuard recovery.",
+        out_code,
+        out_message);
+  }
+
+  const gboolean needs_elevation = geteuid() != 0;
+  if (needs_elevation && !has_desktop_auth_session()) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_permission_required");
+    }
+    if (out_message) {
+      *out_message = g_strdup(elevation_hint_message());
+    }
+    return FALSE;
+  }
+
+  g_autofree gchar* pkexec_path = nullptr;
+  if (needs_elevation) {
+    pkexec_path = g_find_program_in_path("pkexec");
+    if (!pkexec_path) {
+      if (out_code) {
+        *out_code = g_strdup("vpn_permission_required");
+      }
+      if (out_message) {
+        *out_message = g_strdup(elevation_hint_message());
+      }
+      return FALSE;
+    }
+  }
+
+  gboolean reset_ok = FALSE;
+  g_autofree gchar* last_code = nullptr;
+  g_autofree gchar* last_message = nullptr;
+  g_autofree gchar* systemctl_path = g_find_program_in_path("systemctl");
+  if (systemctl_path) {
+    gchar* argv[10] = {nullptr};
+    gint idx = append_pkexec_prefix(argv, pkexec_path);
+    argv[idx++] = systemctl_path;
+    argv[idx++] = const_cast<gchar*>("restart");
+    argv[idx++] = const_cast<gchar*>("NetworkManager");
+    argv[idx] = nullptr;
+    reset_ok = run_command_step(
+        argv,
+        "vpn_setup_failed",
+        "Failed to restart NetworkManager.",
+        &last_code,
+        &last_message);
+  }
+
+  if (!reset_ok && nmcli_available()) {
+    g_clear_pointer(&last_code, g_free);
+    g_clear_pointer(&last_message, g_free);
+    gchar* argv[10] = {nullptr};
+    gint idx = append_pkexec_prefix(argv, pkexec_path);
+    argv[idx++] = const_cast<gchar*>("nmcli");
+    argv[idx++] = const_cast<gchar*>("general");
+    argv[idx++] = const_cast<gchar*>("reload");
+    argv[idx] = nullptr;
+    reset_ok = run_command_step(
+        argv,
+        "vpn_setup_failed",
+        "Failed to reload NetworkManager.",
+        &last_code,
+        &last_message);
+  }
+
+  if (!reset_ok) {
+    if (out_code) {
+      *out_code = last_code ? g_strdup(last_code) : g_strdup("vpn_setup_failed");
+    }
+    if (out_message) {
+      *out_message = last_message
+                         ? g_strdup(last_message)
+                         : g_strdup("Failed to reset NetworkManager.");
+    }
+    return FALSE;
+  }
+
+  return set_wireguard_nm_unmanaged(target_iface, out_code, out_message);
+}
+
 typedef struct {
   gint ref_count;
   FlMethodCall* method_call;
@@ -488,12 +1319,28 @@ typedef struct {
 } WgQuickSpawnContext;
 
 static void wg_preflight_cleanup(const gchar* config_path);
+static gboolean clear_wireguard_policy_routing(const gchar* iface,
+                                               gboolean remove_interface,
+                                               gchar** out_code,
+                                               gchar** out_message);
 static gboolean interface_exists(const gchar* iface);
+static gboolean wireguard_policy_state_clean(const gchar* iface);
 static gboolean read_pid_file(const gchar* path, gint* out_pid);
-static gboolean verify_wireguard_runtime(gchar** out_error);
+static gboolean sample_wireguard_health(const gchar* iface,
+                                        WireGuardHealthSnapshot* out_snapshot);
+static gboolean verify_wireguard_runtime(VpnChannelState* state, gchar** out_error);
 static gboolean verify_openvpn_runtime(VpnChannelState* state, gchar** out_error);
 static gboolean verify_ikev2_runtime(gchar** out_error);
 static void refresh_runtime_connection_state(VpnChannelState* state);
+static gboolean restart_wireguard_tunnel(VpnChannelState* state,
+                                         const gchar* reason,
+                                         gchar** out_code,
+                                         gchar** out_message);
+static gpointer wireguard_watchdog_thread_main(gpointer user_data);
+static void start_wireguard_watchdog(VpnChannelState* state);
+static void write_wireguard_health_log(VpnChannelState* state,
+                                       const WireGuardHealthSnapshot* snapshot,
+                                       const gchar* action);
 
 static WgQuickSpawnContext* wg_quick_spawn_context_ref(WgQuickSpawnContext* ctx) {
   g_atomic_int_inc(&ctx->ref_count);
@@ -589,7 +1436,7 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
   } else {
     if (ctx->connected_value) {
       g_autofree gchar* sanity_error = nullptr;
-      if (!verify_wireguard_runtime(&sanity_error)) {
+      if (!verify_wireguard_runtime(ctx->state, &sanity_error)) {
         if (ctx->state && ctx->state->wg_config_path) {
           wg_preflight_cleanup(ctx->state->wg_config_path);
         }
@@ -602,21 +1449,40 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
         g_spawn_close_pid(pid);
         return;
       }
-      // Tell NetworkManager not to manage the WireGuard interface.
-      // NM 1.36+ recognises WireGuard interfaces and, without a matching NM
-      // connection profile, marks them "disconnected" and may bring them down
-      // within ~5 seconds of creation.  Marking the device unmanaged prevents
-      // this interference while still allowing ip rule / ip route to work.
-      if (nmcli_available()) {
-        gchar* nmcli_argv[] = {
-            const_cast<gchar*>("nmcli"),
-            const_cast<gchar*>("device"),
-            const_cast<gchar*>("set"),
-            const_cast<gchar*>("sw-wg"),
-            const_cast<gchar*>("managed"),
-            const_cast<gchar*>("no"),
-            nullptr};
-        run_quiet_command(nmcli_argv);
+      g_autofree gchar* nm_code = nullptr;
+      g_autofree gchar* nm_message = nullptr;
+      if (!set_wireguard_nm_unmanaged(
+              kWireGuardInterfaceName, &nm_code, &nm_message)) {
+        wg_quick_respond_error_once(
+            ctx,
+            nm_code ? nm_code : "vpn_setup_failed",
+            nm_message ? nm_message
+                       : "Failed to isolate sw-wg from NetworkManager.");
+        g_spawn_close_pid(pid);
+        return;
+      }
+      start_wireguard_watchdog(ctx->state);
+    } else {
+      g_autofree gchar* cleanup_code = nullptr;
+      g_autofree gchar* cleanup_message = nullptr;
+      if (!clear_wireguard_policy_routing(
+              kWireGuardInterfaceName, TRUE, &cleanup_code, &cleanup_message)) {
+        wg_quick_respond_error_once(
+            ctx,
+            "vpn_disconnect_failed",
+            cleanup_message
+                ? cleanup_message
+                : "WireGuard disconnect cleanup did not complete.");
+        g_spawn_close_pid(pid);
+        return;
+      }
+      if (!wireguard_policy_state_clean(kWireGuardInterfaceName)) {
+        wg_quick_respond_error_once(
+            ctx,
+            "vpn_disconnect_failed",
+            "WireGuard disconnect cleanup left residual policy-routing state.");
+        g_spawn_close_pid(pid);
+        return;
       }
     }
     wg_quick_respond_ok_once(ctx);
@@ -715,38 +1581,10 @@ static void wg_preflight_cleanup(const gchar* config_path) {
     run_quiet_command(argv);
     // Ignore exit code — interface may not have existed.
   }
-  // 2. Force-delete interface if it still lingers.
-  {
-    gchar* argv[] = {const_cast<gchar*>("ip"), const_cast<gchar*>("link"),
-                     const_cast<gchar*>("delete"), const_cast<gchar*>("sw-wg"),
-                     nullptr};
-    run_quiet_command(argv);
-  }
-  // 3. Flush SecureWave-owned policy routing table entries.
-  {
-    gchar* argv[] = {const_cast<gchar*>("ip"), const_cast<gchar*>("-4"),
-                     const_cast<gchar*>("route"), const_cast<gchar*>("flush"),
-                     const_cast<gchar*>("table"), const_cast<gchar*>("51820"),
-                     nullptr};
-    run_quiet_command(argv);
-  }
-  {
-    gchar* argv[] = {const_cast<gchar*>("ip"), const_cast<gchar*>("-6"),
-                     const_cast<gchar*>("route"), const_cast<gchar*>("flush"),
-                     const_cast<gchar*>("table"), const_cast<gchar*>("51820"),
-                     nullptr};
-    run_quiet_command(argv);
-  }
-  // 4. Remove stale policy rules for table 51820 (SecureWave-owned only).
-  {
-    gchar* argv[] = {const_cast<gchar*>("ip"), const_cast<gchar*>("rule"),
-                     const_cast<gchar*>("del"), const_cast<gchar*>("table"),
-                     const_cast<gchar*>("51820"), nullptr};
-    for (int i = 0; i < 8; i++) {
-      if (!run_quiet_command(argv)) break;
-    }
-  }
-  // 5. Best-effort DNS reset for SecureWave interface only.
+  // 2. Remove SecureWave-owned policy rules/routes and drop the link if it
+  // still lingers.
+  clear_wireguard_policy_routing(kWireGuardInterfaceName, TRUE, nullptr, nullptr);
+  // 3. Best-effort DNS reset for SecureWave interface only.
   if (g_find_program_in_path("resolvectl")) {
     gchar* revert_argv[] = {const_cast<gchar*>("resolvectl"),
                             const_cast<gchar*>("revert"),
@@ -904,6 +1742,24 @@ static gboolean interface_exists(const gchar* iface) {
   return g_file_test(path, G_FILE_TEST_IS_DIR);
 }
 
+static gboolean interface_is_up(const gchar* iface) {
+  if (!iface || *iface == '\0' || !interface_exists(iface)) {
+    return FALSE;
+  }
+  g_autofree gchar* path =
+      g_build_filename("/sys/class/net", iface, "operstate", nullptr);
+  g_autofree gchar* contents = nullptr;
+  gsize length = 0;
+  g_autoptr(GError) error = nullptr;
+  if (!g_file_get_contents(path, &contents, &length, &error) || !contents) {
+    return FALSE;
+  }
+  g_strstrip(contents);
+  return *contents != '\0' &&
+         g_strcmp0(contents, "down") != 0 &&
+         g_strcmp0(contents, "dormant") != 0;
+}
+
 static gboolean read_u64_from_file(const gchar* path, guint64* out_value) {
   if (!path || !out_value) {
     return FALSE;
@@ -1015,11 +1871,8 @@ static gchar* detect_active_interface(const gchar* active_protocol) {
   if (active_protocol &&
       (g_strcmp0(active_protocol, "wireguard") == 0 ||
        g_strcmp0(active_protocol, "wg") == 0)) {
-    if (interface_exists("sw-wg")) {
-      return g_strdup("sw-wg");
-    }
-    if (interface_exists("wg0")) {
-      return g_strdup("wg0");
+    if (interface_exists(kWireGuardInterfaceName)) {
+      return g_strdup(kWireGuardInterfaceName);
     }
   }
   if (active_protocol && g_strcmp0(active_protocol, "openvpn") == 0 &&
@@ -1044,11 +1897,8 @@ static gchar* detect_active_interface(const gchar* active_protocol) {
     return g_strdup(routed);
   }
 
-  if (interface_exists("sw-wg")) {
-    return g_strdup("sw-wg");
-  }
-  if (interface_exists("wg0")) {
-    return g_strdup("wg0");
+  if (interface_exists(kWireGuardInterfaceName)) {
+    return g_strdup(kWireGuardInterfaceName);
   }
   if (interface_exists("tun0") && routed && g_strcmp0(routed, "tun0") == 0) {
     return g_strdup("tun0");
@@ -1090,6 +1940,23 @@ static gboolean route_exists_for_interface(const gchar* iface) {
       const_cast<gchar*>(iface),
       nullptr};
   return command_output_has_non_empty_line(ipv6_argv);
+}
+
+static gboolean ping_reachable_via_interface(const gchar* iface) {
+  if (!iface || *iface == '\0' || !interface_is_up(iface)) {
+    return FALSE;
+  }
+  gchar* argv[] = {
+      const_cast<gchar*>("ping"),
+      const_cast<gchar*>("-I"),
+      const_cast<gchar*>(iface),
+      const_cast<gchar*>("-c"),
+      const_cast<gchar*>("1"),
+      const_cast<gchar*>("-W"),
+      const_cast<gchar*>("1"),
+      const_cast<gchar*>("1.1.1.1"),
+      nullptr};
+  return run_quiet_command(argv);
 }
 
 
@@ -1151,40 +2018,358 @@ static gboolean wireguard_table_route_exists(const gchar* iface) {
                    const_cast<gchar*>("51820"),
                    nullptr};
   // The output will contain "default dev <iface>" if the PostUp route is set.
-  g_autofree gchar* needle = g_strdup_printf("dev %s", iface);
+  g_autofree gchar* needle = g_strdup_printf("default dev %s", iface);
   return command_output_contains(argv, needle);
 }
 
-static gboolean verify_wireguard_runtime(gchar** out_error) {
+static gboolean wireguard_policy_state_clean(const gchar* iface) {
+  guint policy_rule_count = 0;
+  guint main_suppress_count = 0;
+  if (!read_wireguard_policy_rule_counts(
+          &policy_rule_count, &main_suppress_count)) {
+    return FALSE;
+  }
+
+  gchar* argv[] = {const_cast<gchar*>("ip"),
+                   const_cast<gchar*>("-4"),
+                   const_cast<gchar*>("route"),
+                   const_cast<gchar*>("show"),
+                   const_cast<gchar*>("table"),
+                   const_cast<gchar*>("51820"),
+                   nullptr};
+  g_autofree gchar* stdout_text = nullptr;
+  if (!run_command_capture_stdout(argv, &stdout_text)) {
+    return FALSE;
+  }
+  const gchar* text = stdout_text ? stdout_text : "";
+  while (g_ascii_isspace(*text)) {
+    text++;
+  }
+  return policy_rule_count == 0 && main_suppress_count == 0 && *text == '\0' &&
+      (!iface || *iface == '\0' || !interface_exists(iface));
+}
+
+static gboolean wireguard_fwmark_configured(const gchar* iface) {
+  if (!iface || *iface == '\0') {
+    return FALSE;
+  }
+  gchar* argv[] = {const_cast<gchar*>("wg"), const_cast<gchar*>("show"),
+                   const_cast<gchar*>(iface), const_cast<gchar*>("fwmark"),
+                   nullptr};
+  g_autofree gchar* stdout_text = nullptr;
+  if (!run_command_capture_stdout(argv, &stdout_text) || !stdout_text) {
+    return FALSE;
+  }
+  g_autofree gchar* line = last_non_empty_line(stdout_text);
+  if (!line || g_strcmp0(line, "off") == 0) {
+    return FALSE;
+  }
+  gchar* end = nullptr;
+  const guint64 value = g_ascii_strtoull(line, &end, 0);
+  if (end == line) {
+    return FALSE;
+  }
+  return value == kWireGuardFwMark;
+}
+
+static gboolean latest_wireguard_handshake_age_seconds(const gchar* iface,
+                                                       gint64* out_age_seconds) {
+  if (out_age_seconds) {
+    *out_age_seconds = -1;
+  }
+  if (!iface || *iface == '\0') {
+    return FALSE;
+  }
+  gchar* argv[] = {const_cast<gchar*>("wg"), const_cast<gchar*>("show"),
+                   const_cast<gchar*>(iface),
+                   const_cast<gchar*>("latest-handshakes"), nullptr};
+  g_autofree gchar* stdout_text = nullptr;
+  if (!run_command_capture_stdout(argv, &stdout_text) || !stdout_text) {
+    return FALSE;
+  }
+  g_auto(GStrv) lines = g_strsplit(stdout_text, "\n", -1);
+  if (!lines) {
+    return FALSE;
+  }
+
+  gint64 latest_epoch = 0;
+  for (gint i = 0; lines[i] != nullptr; i++) {
+    g_strstrip(lines[i]);
+    if (*lines[i] == '\0') {
+      continue;
+    }
+    g_auto(GStrv) tokens = g_strsplit_set(lines[i], "\t ", -1);
+    if (!tokens) {
+      continue;
+    }
+    for (gint j = 0; tokens[j] != nullptr; j++) {
+      if (*tokens[j] == '\0') {
+        continue;
+      }
+      gchar* end = nullptr;
+      const gint64 value = g_ascii_strtoll(tokens[j], &end, 10);
+      if (end != tokens[j] && value > latest_epoch) {
+        latest_epoch = value;
+      }
+    }
+  }
+
+  if (latest_epoch <= 0) {
+    return FALSE;
+  }
+
+  const gint64 age_seconds = current_time_seconds() - latest_epoch;
+  if (out_age_seconds) {
+    *out_age_seconds = age_seconds >= 0 ? age_seconds : 0;
+  }
+  return TRUE;
+}
+
+static gboolean nmcli_device_unmanaged(const gchar* iface) {
+  if (!iface || *iface == '\0' || !nmcli_available()) {
+    return TRUE;
+  }
+  gchar* argv[] = {const_cast<gchar*>("nmcli"), const_cast<gchar*>("-t"),
+                   const_cast<gchar*>("-f"),
+                   const_cast<gchar*>("DEVICE,STATE"),
+                   const_cast<gchar*>("device"),
+                   const_cast<gchar*>("status"), nullptr};
+  g_autofree gchar* stdout_text = nullptr;
+  if (!run_command_capture_stdout(argv, &stdout_text) || !stdout_text) {
+    return FALSE;
+  }
+  g_auto(GStrv) lines = g_strsplit(stdout_text, "\n", -1);
+  if (!lines) {
+    return FALSE;
+  }
+  g_autofree gchar* prefix = g_strdup_printf("%s:", iface);
+  for (gint i = 0; lines[i] != nullptr; i++) {
+    g_strstrip(lines[i]);
+    if (*lines[i] == '\0') {
+      continue;
+    }
+    if (g_str_has_prefix(lines[i], prefix)) {
+      const gchar* state = lines[i] + strlen(prefix);
+      return g_strcmp0(state, "unmanaged") == 0;
+    }
+  }
+  return FALSE;
+}
+
+static gboolean sample_wireguard_health(const gchar* iface,
+                                        WireGuardHealthSnapshot* out_snapshot) {
+  if (!out_snapshot) {
+    return FALSE;
+  }
+
+  *out_snapshot = WireGuardHealthSnapshot{};
+  out_snapshot->timestamp_ms = current_time_ms();
+  if (!iface || *iface == '\0') {
+    return FALSE;
+  }
+
+  out_snapshot->interface_present = interface_exists(iface);
+  out_snapshot->interface_up =
+      out_snapshot->interface_present && interface_is_up(iface);
+  out_snapshot->nm_unmanaged = nmcli_device_unmanaged(iface);
+  out_snapshot->fwmark_configured = wireguard_fwmark_configured(iface);
+  guint policy_rule_count = 0;
+  guint main_suppress_count = 0;
+  if (read_wireguard_policy_rule_counts(
+          &policy_rule_count, &main_suppress_count)) {
+    out_snapshot->policy_rule_present = policy_rule_count > 0;
+    out_snapshot->main_suppress_rule_present = main_suppress_count > 0;
+  }
+  out_snapshot->table_route_present = wireguard_table_route_exists(iface);
+  out_snapshot->policy_routing_present =
+      out_snapshot->fwmark_configured && out_snapshot->policy_rule_present &&
+      out_snapshot->main_suppress_rule_present &&
+      out_snapshot->table_route_present;
+
+  out_snapshot->handshake_present =
+      latest_wireguard_handshake_age_seconds(
+          iface, &out_snapshot->handshake_age_seconds);
+  out_snapshot->handshake_fresh =
+      out_snapshot->handshake_present &&
+      out_snapshot->handshake_age_seconds >= 0 &&
+      out_snapshot->handshake_age_seconds <
+          static_cast<gint64>(kWireGuardHandshakeFreshSeconds);
+
+  const gboolean have_rx =
+      read_interface_counter(iface, "rx_bytes", &out_snapshot->rx_bytes);
+  const gboolean have_tx =
+      read_interface_counter(iface, "tx_bytes", &out_snapshot->tx_bytes);
+  out_snapshot->traffic_connected =
+      have_rx && have_tx &&
+      (out_snapshot->rx_bytes > 0 || out_snapshot->tx_bytes > 0);
+
+  if (!out_snapshot->traffic_connected && out_snapshot->interface_up &&
+      out_snapshot->policy_routing_present) {
+    out_snapshot->ping_reachable = ping_reachable_via_interface(iface);
+    out_snapshot->traffic_connected = out_snapshot->ping_reachable;
+  }
+
+  return TRUE;
+}
+
+static void write_wireguard_health_log(VpnChannelState* state,
+                                       const WireGuardHealthSnapshot* snapshot,
+                                       const gchar* action) {
+  if (!state || !snapshot || !state->health_log_path) {
+    return;
+  }
+
+  gboolean watchdog_running = FALSE;
+  guint64 route_reset_count = 0;
+  guint64 reconnect_attempts = 0;
+  guint64 critical_reset_count = 0;
+  guint64 last_downtime_ms = 0;
+  guint64 total_downtime_ms = 0;
+  guint64 current_downtime_ms = 0;
+  gint64 last_handshake_age_seconds = -1;
+  g_autofree gchar* last_watchdog_action = nullptr;
+  state_copy_watchdog_metrics(
+      state,
+      &watchdog_running,
+      &route_reset_count,
+      &reconnect_attempts,
+      &critical_reset_count,
+      &last_downtime_ms,
+      &total_downtime_ms,
+      &current_downtime_ms,
+      &last_handshake_age_seconds,
+      &last_watchdog_action);
+  g_autofree gchar* timestamp = format_now_iso8601_utc();
+  g_autofree gchar* payload = g_strdup_printf(
+      "{\n"
+      "  \"timestamp\": \"%s\",\n"
+      "  \"interface\": \"%s\",\n"
+      "  \"action\": \"%s\",\n"
+      "  \"interface_present\": %s,\n"
+      "  \"interface_up\": %s,\n"
+      "  \"networkmanager_unmanaged\": %s,\n"
+      "  \"fwmark_configured\": %s,\n"
+      "  \"policy_rule_present\": %s,\n"
+      "  \"main_suppress_rule_present\": %s,\n"
+      "  \"table_route_present\": %s,\n"
+      "  \"policy_routing_present\": %s,\n"
+      "  \"handshake_present\": %s,\n"
+      "  \"handshake_fresh\": %s,\n"
+      "  \"handshake_age_seconds\": %" G_GINT64_FORMAT ",\n"
+      "  \"traffic_connected\": %s,\n"
+      "  \"ping_reachable\": %s,\n"
+      "  \"rx_bytes\": %" G_GUINT64_FORMAT ",\n"
+      "  \"tx_bytes\": %" G_GUINT64_FORMAT ",\n"
+      "  \"watchdog_running\": %s,\n"
+      "  \"reconnect_attempts\": %" G_GUINT64_FORMAT ",\n"
+      "  \"route_resets\": %" G_GUINT64_FORMAT ",\n"
+      "  \"critical_resets\": %" G_GUINT64_FORMAT ",\n"
+      "  \"current_downtime_ms\": %" G_GUINT64_FORMAT ",\n"
+      "  \"last_downtime_ms\": %" G_GUINT64_FORMAT ",\n"
+      "  \"total_downtime_ms\": %" G_GUINT64_FORMAT ",\n"
+      "  \"last_watchdog_action\": \"%s\",\n"
+      "  \"last_handshake_age_seconds\": %" G_GINT64_FORMAT "\n"
+      "}\n",
+      timestamp,
+      kWireGuardInterfaceName,
+      action ? action : "observe",
+      snapshot->interface_present ? "true" : "false",
+      snapshot->interface_up ? "true" : "false",
+      snapshot->nm_unmanaged ? "true" : "false",
+      snapshot->fwmark_configured ? "true" : "false",
+      snapshot->policy_rule_present ? "true" : "false",
+      snapshot->main_suppress_rule_present ? "true" : "false",
+      snapshot->table_route_present ? "true" : "false",
+      snapshot->policy_routing_present ? "true" : "false",
+      snapshot->handshake_present ? "true" : "false",
+      snapshot->handshake_fresh ? "true" : "false",
+      snapshot->handshake_age_seconds,
+      snapshot->traffic_connected ? "true" : "false",
+      snapshot->ping_reachable ? "true" : "false",
+      snapshot->rx_bytes,
+      snapshot->tx_bytes,
+      watchdog_running ? "true" : "false",
+      reconnect_attempts,
+      route_reset_count,
+      critical_reset_count,
+      current_downtime_ms,
+      last_downtime_ms,
+      total_downtime_ms,
+      last_watchdog_action ? last_watchdog_action : "",
+      last_handshake_age_seconds);
+  g_file_set_contents(state->health_log_path, payload, -1, nullptr);
+}
+
+static gboolean verify_wireguard_runtime(VpnChannelState* state, gchar** out_error) {
+  const guint poll_interval_ms = 500;
   const guint attempts =
-      (kRuntimeSanityTimeoutMs / kRuntimeSanityPollIntervalMs) + 1;
+      (kWireGuardConnectVerificationTimeoutMs / poll_interval_ms) + 1;
+
   for (guint i = 0; i < attempts; i++) {
-    const gboolean has_sw_wg = interface_exists("sw-wg");
-    const gboolean has_wg0 = interface_exists("wg0");
-    const gchar* iface = has_sw_wg ? "sw-wg" : (has_wg0 ? "wg0" : nullptr);
-    // Require both the interface AND the policy route in table 51820.
-    // The ip rule alone is not sufficient proof — it may be a stale leftover
-    // from a previous session.  The table route proves PostUp completed.
-    const gboolean has_table_route =
-        iface ? wireguard_table_route_exists(iface) : FALSE;
-    const gboolean has_output_drop =
-        output_chain_policy_is("OUTPUT", "DROP");
-    const gboolean has_iface_allow =
-        iface ? output_accept_rule_exists_for_iface(iface) : FALSE;
-    const gboolean has_endpoint_allow =
-        iface ? endpoint_allow_rules_exist(iface) : FALSE;
-    if (iface && has_table_route && has_output_drop && has_iface_allow &&
-        has_endpoint_allow) {
+    WireGuardHealthSnapshot snapshot{};
+    sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+    state_update_wireguard_health(
+        state,
+        snapshot.interface_up && snapshot.policy_routing_present &&
+            snapshot.handshake_fresh,
+        snapshot.handshake_age_seconds);
+
+    if (snapshot.interface_present && !snapshot.nm_unmanaged) {
+      g_autofree gchar* code = nullptr;
+      g_autofree gchar* message = nullptr;
+      if (set_wireguard_nm_unmanaged(
+              kWireGuardInterfaceName, &code, &message)) {
+        state_set_watchdog_action(state, "networkmanager_isolated");
+        snapshot.nm_unmanaged = TRUE;
+      }
+    }
+
+    if (snapshot.interface_present && !snapshot.policy_routing_present) {
+      g_autofree gchar* code = nullptr;
+      g_autofree gchar* message = nullptr;
+      if (apply_wireguard_policy_routing(
+              kWireGuardInterfaceName, &code, &message)) {
+        state_note_route_reset(state);
+        state_set_watchdog_action(state, "policy_routing_reapplied");
+        sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+      }
+    }
+
+    if (snapshot.interface_up && snapshot.policy_routing_present &&
+        snapshot.handshake_fresh) {
+      write_wireguard_health_log(state, &snapshot, "verified");
       return TRUE;
     }
-    g_usleep(static_cast<gulong>(kRuntimeSanityPollIntervalMs) * 1000);
+
+    if (snapshot.interface_up && snapshot.policy_routing_present &&
+        !snapshot.handshake_fresh) {
+      (void)ping_reachable_via_interface(kWireGuardInterfaceName);
+    }
+
+    write_wireguard_health_log(state, &snapshot, "verifying");
+    g_usleep(static_cast<gulong>(poll_interval_ms) * 1000);
   }
+
   if (out_error) {
-    *out_error = g_strdup(
-        "WireGuard sanity check failed: sw-wg/wg0 interface exists but "
-        "routing or kill-switch hooks did not complete. "
-        "Check that PostUp hooks ran as root and installed the OUTPUT DROP, "
-        "interface allow, and endpoint allow rules.");
+    WireGuardHealthSnapshot snapshot{};
+    sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+    if (!snapshot.interface_present || !snapshot.interface_up) {
+      *out_error = g_strdup(
+          "WireGuard sanity check failed: sw-wg interface is missing or down.");
+    } else if (!snapshot.policy_routing_present) {
+      *out_error = g_strdup(
+          "WireGuard sanity check failed: fwmark/policy-routing rules for table "
+          "51820 were not installed correctly.");
+    } else if (!snapshot.handshake_present) {
+      *out_error = g_strdup(
+          "WireGuard sanity check failed: no peer handshake was observed on sw-wg.");
+    } else {
+      *out_error = g_strdup_printf(
+          "WireGuard sanity check failed: latest handshake age is %" G_GINT64_FORMAT
+          "s, expected < %us.",
+          snapshot.handshake_age_seconds,
+          kWireGuardHandshakeFreshSeconds);
+    }
   }
   return FALSE;
 }
@@ -1235,32 +2420,246 @@ static gboolean verify_ikev2_runtime(gchar** out_error) {
   return FALSE;
 }
 
+static gboolean restart_wireguard_tunnel(VpnChannelState* state,
+                                         const gchar* reason,
+                                         gchar** out_code,
+                                         gchar** out_message) {
+  if (!state) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_connect_failed");
+    }
+    if (out_message) {
+      *out_message = g_strdup("WireGuard state is unavailable.");
+    }
+    return FALSE;
+  }
+
+  g_autofree gchar* config_path = copy_wg_config_path(state);
+  if (!config_path || *config_path == '\0') {
+    if (out_code) {
+      *out_code = g_strdup("invalid_config");
+    }
+    if (out_message) {
+      *out_message = g_strdup("SecureWave WireGuard config path is unavailable.");
+    }
+    return FALSE;
+  }
+
+  state_note_reconnect_attempt(state);
+  state_set_watchdog_action(state, reason ? reason : "wireguard_restart");
+
+  g_autofree gchar* down_code = nullptr;
+  g_autofree gchar* down_message = nullptr;
+  run_wg_quick_sync(
+      "down",
+      config_path,
+      "vpn_disconnect_failed",
+      "Failed to stop the WireGuard tunnel during recovery.",
+      &down_code,
+      &down_message);
+  wg_preflight_cleanup(config_path);
+  ensure_nm_unmanaged_rule();
+
+  if (!run_wg_quick_sync(
+          "up",
+          config_path,
+          "vpn_connect_failed",
+          "Failed to restart the WireGuard tunnel.",
+          out_code,
+          out_message)) {
+    return FALSE;
+  }
+
+  g_autofree gchar* sanity_error = nullptr;
+  if (!verify_wireguard_runtime(state, &sanity_error)) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_connect_failed");
+    }
+    if (out_message) {
+      *out_message = sanity_error
+                         ? g_strdup(sanity_error)
+                         : g_strdup("WireGuard recovery verification failed.");
+    }
+    return FALSE;
+  }
+
+  set_active_protocol(state, "wireguard");
+  return TRUE;
+}
+
+static gpointer wireguard_watchdog_thread_main(gpointer user_data) {
+  VpnChannelState* state = static_cast<VpnChannelState*>(user_data);
+  if (!state) {
+    return nullptr;
+  }
+
+  g_mutex_lock(&state->lock);
+  state->watchdog_running = TRUE;
+  g_mutex_unlock(&state->lock);
+
+  guint consecutive_recovery_failures = 0;
+  while (wireguard_watchdog_should_run(state)) {
+    WireGuardHealthSnapshot snapshot{};
+    sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+    const gboolean healthy =
+        snapshot.interface_up && snapshot.policy_routing_present &&
+        snapshot.handshake_fresh;
+    state_update_wireguard_health(state, healthy, snapshot.handshake_age_seconds);
+
+    if (healthy) {
+      consecutive_recovery_failures = 0;
+      state_set_watchdog_action(state, "healthy");
+      write_wireguard_health_log(state, &snapshot, "healthy");
+    } else {
+      gboolean recovered = FALSE;
+      if (snapshot.interface_present && snapshot.interface_up &&
+          (!snapshot.policy_routing_present || !snapshot.nm_unmanaged)) {
+        g_autofree gchar* code = nullptr;
+        g_autofree gchar* message = nullptr;
+        gboolean soft_ok = TRUE;
+        if (!snapshot.nm_unmanaged) {
+          soft_ok = set_wireguard_nm_unmanaged(
+              kWireGuardInterfaceName, &code, &message);
+          if (soft_ok) {
+            state_set_watchdog_action(state, "networkmanager_isolated");
+          }
+        }
+        if (soft_ok && !snapshot.policy_routing_present) {
+          soft_ok = apply_wireguard_policy_routing(
+              kWireGuardInterfaceName, &code, &message);
+          if (soft_ok) {
+            state_note_route_reset(state);
+            state_set_watchdog_action(state, "policy_routing_reapplied");
+          }
+        }
+        if (soft_ok) {
+          sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+          recovered = snapshot.interface_up && snapshot.policy_routing_present &&
+              snapshot.handshake_fresh;
+          if (recovered) {
+            consecutive_recovery_failures = 0;
+            write_wireguard_health_log(state, &snapshot, "soft_repair");
+          }
+        }
+      }
+
+      if (!recovered) {
+        g_autofree gchar* code = nullptr;
+        g_autofree gchar* message = nullptr;
+        const gchar* restart_reason =
+            (!snapshot.handshake_present || !snapshot.handshake_fresh)
+                ? "handshake_restart"
+                : "hard_restart";
+        if (restart_wireguard_tunnel(
+                state, restart_reason, &code, &message)) {
+          consecutive_recovery_failures = 0;
+          sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+          state_update_wireguard_health(
+              state,
+              snapshot.interface_up && snapshot.policy_routing_present &&
+                  snapshot.handshake_fresh,
+              snapshot.handshake_age_seconds);
+          write_wireguard_health_log(state, &snapshot, restart_reason);
+        } else {
+          consecutive_recovery_failures += 1;
+          write_wireguard_health_log(state, &snapshot, "hard_repair_failed");
+          if (consecutive_recovery_failures >= 2) {
+            state_note_critical_reset(state);
+            g_autofree gchar* reset_code = nullptr;
+            g_autofree gchar* reset_message = nullptr;
+            if (reset_network_manager_for_wireguard(
+                    kWireGuardInterfaceName, &reset_code, &reset_message) &&
+                restart_wireguard_tunnel(
+                    state, "critical_restart", &reset_code, &reset_message)) {
+              consecutive_recovery_failures = 0;
+              sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+              state_update_wireguard_health(
+                  state,
+                  snapshot.interface_up && snapshot.policy_routing_present &&
+                      snapshot.handshake_fresh,
+                  snapshot.handshake_age_seconds);
+              write_wireguard_health_log(state, &snapshot, "critical_repair");
+            } else {
+              write_wireguard_health_log(state, &snapshot, "critical_repair_failed");
+            }
+          }
+        }
+      }
+    }
+
+    guint slept_ms = 0;
+    while (slept_ms < kWireGuardWatchdogIntervalMs &&
+           wireguard_watchdog_should_run(state)) {
+      g_usleep(static_cast<gulong>(kWireGuardWatchdogSleepSliceMs) * 1000);
+      slept_ms += kWireGuardWatchdogSleepSliceMs;
+    }
+  }
+
+  g_mutex_lock(&state->lock);
+  state->watchdog_running = FALSE;
+  g_mutex_unlock(&state->lock);
+  return nullptr;
+}
+
+static void start_wireguard_watchdog(VpnChannelState* state) {
+  if (!state) {
+    return;
+  }
+  g_mutex_lock(&state->lock);
+  if (state->watchdog_thread != nullptr) {
+    state->watchdog_enabled = TRUE;
+    state->watchdog_stop_requested = FALSE;
+    g_mutex_unlock(&state->lock);
+    return;
+  }
+  state->watchdog_enabled = TRUE;
+  state->watchdog_stop_requested = FALSE;
+  state->watchdog_thread =
+      g_thread_new("sw-wg-watchdog", wireguard_watchdog_thread_main, state);
+  g_mutex_unlock(&state->lock);
+}
+
+static void stop_wireguard_watchdog(VpnChannelState* state) {
+  if (!state) {
+    return;
+  }
+  GThread* thread = nullptr;
+  g_mutex_lock(&state->lock);
+  state->watchdog_enabled = FALSE;
+  state->watchdog_stop_requested = TRUE;
+  thread = state->watchdog_thread;
+  state->watchdog_thread = nullptr;
+  g_mutex_unlock(&state->lock);
+  if (thread) {
+    g_thread_join(thread);
+  }
+  g_mutex_lock(&state->lock);
+  state->watchdog_running = FALSE;
+  state->watchdog_stop_requested = FALSE;
+  g_mutex_unlock(&state->lock);
+}
+
 static void refresh_runtime_connection_state(VpnChannelState* state) {
   if (!state) {
     return;
   }
 
-  const gchar* active = state->active_protocol;
+  g_autofree gchar* active = copy_active_protocol(state);
   if (active) {
     if (g_strcmp0(active, "wireguard") == 0 || g_strcmp0(active, "wg") == 0) {
-      const gboolean has_sw_wg = interface_exists("sw-wg");
-      const gboolean has_wg0 = interface_exists("wg0");
-      const gchar* iface =
-          has_sw_wg ? "sw-wg" : (has_wg0 ? "wg0" : nullptr);
-      // Require interface AND the policy routing table entry.  Interface alone
-      // is not sufficient: wg-quick down strips the IP and removes the table
-      // route before deleting the interface — so a half-torn-down interface
-      // will have no table route and must be treated as disconnected.
-      const gboolean has_table_route =
-          iface ? wireguard_table_route_exists(iface) : FALSE;
-      if (iface && has_table_route) {
+      WireGuardHealthSnapshot snapshot{};
+      sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+      const gboolean healthy =
+          snapshot.interface_up && snapshot.policy_routing_present &&
+          snapshot.handshake_fresh;
+      state_update_wireguard_health(state, healthy, snapshot.handshake_age_seconds);
+      if (healthy) {
         state->last_connected = TRUE;
         set_active_protocol(state, "wireguard");
+        start_wireguard_watchdog(state);
         return;
       }
-      // Interface exists but routing is broken — treat as disconnected.
       state->last_connected = FALSE;
-      set_active_protocol(state, nullptr);
       return;
     }
     if (g_strcmp0(active, "openvpn") == 0 &&
@@ -1279,12 +2678,16 @@ static void refresh_runtime_connection_state(VpnChannelState* state) {
   }
 
   {
-    const gboolean has_sw_wg = interface_exists("sw-wg");
-    const gboolean has_wg0 = interface_exists("wg0");
-    const gchar* iface = has_sw_wg ? "sw-wg" : (has_wg0 ? "wg0" : nullptr);
-    if (iface && wireguard_table_route_exists(iface)) {
+    WireGuardHealthSnapshot snapshot{};
+    sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+    const gboolean healthy =
+        snapshot.interface_up && snapshot.policy_routing_present &&
+        snapshot.handshake_fresh;
+    state_update_wireguard_health(state, healthy, snapshot.handshake_age_seconds);
+    if (healthy) {
       state->last_connected = TRUE;
       set_active_protocol(state, "wireguard");
+      start_wireguard_watchdog(state);
       return;
     }
   }
@@ -1404,7 +2807,8 @@ static void handle_vpn_call(FlMethodChannel* channel,
       return;
     }
 
-    g_autofree gchar* iface = detect_active_interface(state->active_protocol);
+    g_autofree gchar* active_protocol = copy_active_protocol(state);
+    g_autofree gchar* iface = detect_active_interface(active_protocol);
     guint64 rx_bytes = 0;
     guint64 tx_bytes = 0;
     if (iface) {
@@ -1417,9 +2821,9 @@ static void handle_vpn_call(FlMethodChannel* channel,
     } else {
       fl_value_set_string_take(map, "interface", fl_value_new_string(""));
     }
-    if (state->active_protocol && *state->active_protocol != '\0') {
+    if (active_protocol && *active_protocol != '\0') {
       fl_value_set_string_take(
-          map, "protocol", fl_value_new_string(state->active_protocol));
+          map, "protocol", fl_value_new_string(active_protocol));
     }
     fl_value_set_string_take(
         map, "rx_bytes",
@@ -1427,6 +2831,160 @@ static void handle_vpn_call(FlMethodChannel* channel,
     fl_value_set_string_take(
         map, "tx_bytes",
         fl_value_new_int(static_cast<gint64>(tx_bytes)));
+    fl_value_set_string_take(
+        map, "timestamp_ms",
+        fl_value_new_int(static_cast<gint64>(g_get_real_time() / 1000)));
+
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(map));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+  if (g_strcmp0(method, "getHealthStatus") == 0) {
+    refresh_runtime_connection_state(state);
+    g_autoptr(FlValue) map = fl_value_new_map();
+    g_autofree gchar* active_protocol = copy_active_protocol(state);
+    g_autofree gchar* iface = detect_active_interface(active_protocol);
+    gboolean interface_up = FALSE;
+    gboolean route_present = FALSE;
+    gboolean policy_routing_present = FALSE;
+    gboolean fwmark_configured = FALSE;
+    gboolean nm_unmanaged = TRUE;
+    gboolean handshake_present = FALSE;
+    gboolean handshake_recent = FALSE;
+    gboolean ping_reachable = FALSE;
+    gboolean traffic_connected = FALSE;
+    gint64 handshake_age_seconds = -1;
+    guint64 rx_bytes = 0;
+    guint64 tx_bytes = 0;
+
+    if (iface &&
+        ((active_protocol &&
+          (g_strcmp0(active_protocol, "wireguard") == 0 ||
+           g_strcmp0(active_protocol, "wg") == 0)) ||
+         g_strcmp0(iface, kWireGuardInterfaceName) == 0)) {
+      WireGuardHealthSnapshot snapshot{};
+      sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
+      interface_up = snapshot.interface_up;
+      route_present = snapshot.table_route_present;
+      policy_routing_present = snapshot.policy_routing_present;
+      fwmark_configured = snapshot.fwmark_configured;
+      nm_unmanaged = snapshot.nm_unmanaged;
+      handshake_present = snapshot.handshake_present;
+      handshake_recent = snapshot.handshake_fresh;
+      handshake_age_seconds = snapshot.handshake_age_seconds;
+      ping_reachable = snapshot.ping_reachable;
+      traffic_connected = snapshot.traffic_connected;
+      rx_bytes = snapshot.rx_bytes;
+      tx_bytes = snapshot.tx_bytes;
+      state_update_wireguard_health(
+          state,
+          snapshot.interface_up && snapshot.policy_routing_present &&
+              snapshot.handshake_fresh,
+          snapshot.handshake_age_seconds);
+      write_wireguard_health_log(state, &snapshot, "sample");
+    } else {
+      interface_up = iface ? interface_is_up(iface) : FALSE;
+      route_present = iface ? route_exists_for_interface(iface) : FALSE;
+      ping_reachable =
+          (iface && interface_up && route_present)
+              ? ping_reachable_via_interface(iface)
+              : FALSE;
+      traffic_connected =
+          state->last_connected &&
+          iface &&
+          read_interface_counter(iface, "rx_bytes", &rx_bytes) &&
+          read_interface_counter(iface, "tx_bytes", &tx_bytes) &&
+          (rx_bytes > 0 || tx_bytes > 0 || ping_reachable);
+    }
+
+    gboolean watchdog_running = FALSE;
+    guint64 route_reset_count = 0;
+    guint64 reconnect_attempts = 0;
+    guint64 critical_reset_count = 0;
+    guint64 last_downtime_ms = 0;
+    guint64 total_downtime_ms = 0;
+    guint64 current_downtime_ms = 0;
+    gint64 last_handshake_age = -1;
+    g_autofree gchar* last_watchdog_action = nullptr;
+    state_copy_watchdog_metrics(
+        state,
+        &watchdog_running,
+        &route_reset_count,
+        &reconnect_attempts,
+        &critical_reset_count,
+        &last_downtime_ms,
+        &total_downtime_ms,
+        &current_downtime_ms,
+        &last_handshake_age,
+        &last_watchdog_action);
+
+    fl_value_set_string_take(
+        map, "connected", fl_value_new_bool(state->last_connected));
+    fl_value_set_string_take(
+        map, "interface_up", fl_value_new_bool(interface_up));
+    fl_value_set_string_take(
+        map, "route_present", fl_value_new_bool(route_present));
+    fl_value_set_string_take(
+        map, "policy_routing_present", fl_value_new_bool(policy_routing_present));
+    fl_value_set_string_take(
+        map, "fwmark_configured", fl_value_new_bool(fwmark_configured));
+    fl_value_set_string_take(
+        map, "networkmanager_unmanaged", fl_value_new_bool(nm_unmanaged));
+    fl_value_set_string_take(
+        map, "handshake_present", fl_value_new_bool(handshake_present));
+    fl_value_set_string_take(
+        map, "handshake_recent", fl_value_new_bool(handshake_recent));
+    fl_value_set_string_take(
+        map,
+        "handshake_age_seconds",
+        fl_value_new_int(handshake_age_seconds));
+    fl_value_set_string_take(
+        map, "ping_reachable", fl_value_new_bool(ping_reachable));
+    fl_value_set_string_take(
+        map, "traffic_connected", fl_value_new_bool(traffic_connected));
+    fl_value_set_string_take(
+        map, "rx_bytes", fl_value_new_int(static_cast<gint64>(rx_bytes)));
+    fl_value_set_string_take(
+        map, "tx_bytes", fl_value_new_int(static_cast<gint64>(tx_bytes)));
+    fl_value_set_string_take(
+        map, "watchdog_running", fl_value_new_bool(watchdog_running));
+    fl_value_set_string_take(
+        map,
+        "reconnect_attempts",
+        fl_value_new_int(static_cast<gint64>(reconnect_attempts)));
+    fl_value_set_string_take(
+        map,
+        "route_resets",
+        fl_value_new_int(static_cast<gint64>(route_reset_count)));
+    fl_value_set_string_take(
+        map,
+        "critical_resets",
+        fl_value_new_int(static_cast<gint64>(critical_reset_count)));
+    fl_value_set_string_take(
+        map,
+        "current_downtime_ms",
+        fl_value_new_int(static_cast<gint64>(current_downtime_ms)));
+    fl_value_set_string_take(
+        map,
+        "last_downtime_ms",
+        fl_value_new_int(static_cast<gint64>(last_downtime_ms)));
+    fl_value_set_string_take(
+        map,
+        "total_downtime_ms",
+        fl_value_new_int(static_cast<gint64>(total_downtime_ms)));
+    fl_value_set_string_take(
+        map,
+        "last_handshake_age_seconds",
+        fl_value_new_int(last_handshake_age));
+    fl_value_set_string_take(
+        map,
+        "last_watchdog_action",
+        fl_value_new_string(last_watchdog_action ? last_watchdog_action : ""));
+    fl_value_set_string_take(
+        map,
+        "interface",
+        fl_value_new_string((iface && *iface != '\0') ? iface : ""));
     fl_value_set_string_take(
         map, "timestamp_ms",
         fl_value_new_int(static_cast<gint64>(g_get_real_time() / 1000)));
@@ -1482,6 +3040,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
         respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
         return;
       }
+      stop_wireguard_watchdog(state);
       // Privileged preflight: bring down any stale tunnel + clear ip rules.
       // wg_preflight_cleanup runs unprivileged (best-effort for what it can
       // reach); the helper down call clears root-owned state (ip rule/route).
@@ -1852,6 +3411,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
   }
   if (g_strcmp0(method, "disconnect") == 0) {
     refresh_runtime_connection_state(state);
+    stop_wireguard_watchdog(state);
     const gchar* active = state->active_protocol;
     if (active && g_strcmp0(active, "openvpn") == 0) {
       if (!elevation_available()) {
@@ -2013,6 +3573,9 @@ static void handle_vpn_call(FlMethodChannel* channel,
     }
 
     if (!wg_quick_available()) {
+      stop_wireguard_watchdog(state);
+      clear_wireguard_policy_routing(
+          kWireGuardInterfaceName, TRUE, nullptr, nullptr);
       state->last_connected = FALSE;
       set_active_protocol(state, nullptr);
       g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
@@ -2028,7 +3591,10 @@ static void handle_vpn_call(FlMethodChannel* channel,
           fl_value_new_map());
       return;
     }
+    stop_wireguard_watchdog(state);
     if (!state->wg_config_path || !g_file_test(state->wg_config_path, G_FILE_TEST_EXISTS)) {
+      clear_wireguard_policy_routing(
+          kWireGuardInterfaceName, TRUE, nullptr, nullptr);
       state->last_connected = FALSE;
       set_active_protocol(state, nullptr);
       g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
@@ -2141,6 +3707,9 @@ static void my_application_activate(GApplication* application) {
 
   FlEngine* engine = fl_view_get_engine(view);
   VpnChannelState* vpn_state = g_new0(VpnChannelState, 1);
+  g_mutex_init(&vpn_state->lock);
+  vpn_state->health_log_path =
+      build_runtime_nested_path("logs", "vpn_health.json");
   vpn_state->last_connected = FALSE;
   vpn_state->channel = fl_method_channel_new(
       fl_engine_get_binary_messenger(engine),

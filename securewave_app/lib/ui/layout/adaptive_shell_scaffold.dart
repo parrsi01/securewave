@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../debug/automation_keys.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 
@@ -51,6 +52,7 @@ class AdaptiveShellScaffold extends StatelessWidget {
     if (width >= AppSpacing.mobileBreakpoint) {
       final wide = width >= AppSpacing.tabletBreakpoint;
       return Scaffold(
+        key: AutomationKeys.shellRootScaffoldKey,
         body: Row(
           children: [
             _DesktopRail(
@@ -68,6 +70,7 @@ class AdaptiveShellScaffold extends StatelessWidget {
     }
 
     return Scaffold(
+      key: AutomationKeys.shellRootScaffoldKey,
       body: child,
       bottomNavigationBar: _BottomBar(
         currentIndex: currentIndex,
@@ -199,12 +202,12 @@ class _RailItem extends StatelessWidget {
         vertical: AppSpacing.space1,
       ),
       child: Material(
-        color: selected
-            ? cs.primary.withValues(alpha: 0.1)
-            : Colors.transparent,
+        color:
+            selected ? cs.primary.withValues(alpha: 0.1) : Colors.transparent,
         borderRadius: BorderRadius.circular(AppSpacing.radiusM),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
+          key: AutomationKeys.navDestinationKey(label),
           onTap: onTap,
           child: SizedBox(
             width: double.infinity,
@@ -226,9 +229,8 @@ class _RailItem extends StatelessWidget {
                           label,
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w400,
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w400,
                             color: selected ? activeColor : inactiveColor,
                           ),
                         ),
@@ -247,9 +249,8 @@ class _RailItem extends StatelessWidget {
                           label,
                           style: TextStyle(
                             fontSize: 10,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w400,
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w400,
                             color: selected ? activeColor : inactiveColor,
                           ),
                         ),
@@ -338,6 +339,7 @@ class _BarItem extends StatelessWidget {
     final inactiveColor = cs.onSurfaceVariant;
 
     return InkWell(
+      key: AutomationKeys.navDestinationKey(label),
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),

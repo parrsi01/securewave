@@ -1,12 +1,16 @@
 enum VpnStatus {
   disconnected,
   connecting,
+  verifying,
+  reconnecting,
+  degraded,
   disconnecting,
   connected,
   error,
 }
 
-/// Sub-phase of the connect flow, set only while [VpnStatus.connecting].
+/// Sub-phase of the connect flow, set while [VpnStatus.connecting] or
+/// [VpnStatus.reconnecting].
 enum ConnectPhase {
   /// Verifying user session / auth token.
   authenticating,

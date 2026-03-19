@@ -39,7 +39,7 @@ class PreferencesController extends StateNotifier<PreferencesState> {
   PreferencesController()
       : super(const PreferencesState(
           language: 'en',
-          autoConnect: true,
+          autoConnect: false,
           killSwitch: false,
           adBlockEnabled: true,
         )) {

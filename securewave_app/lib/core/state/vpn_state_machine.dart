@@ -6,9 +6,12 @@ enum VpnTransitionTrigger {
   userConnectRequested,
   userDisconnectRequested,
   autoReconnectRequested,
+  reconnectBackoffElapsed,
   connectOperationStarted,
   connectOperationCancelled,
   connectOperationSucceeded,
+  connectVerificationStarted,
+  connectVerificationSucceeded,
   connectOperationFailed,
   disconnectOperationStarted,
   disconnectOperationSucceeded,
@@ -16,6 +19,9 @@ enum VpnTransitionTrigger {
   connectivityLost,
   connectivityRestored,
   networkPathChanged,
+  healthMonitorDegraded,
+  healthMonitorRecovered,
+  healthMonitorRecoveryRequested,
   watchdogRecoveryRequested,
   watchdogFailureDetected,
   shutdownRequested,
@@ -25,7 +31,11 @@ enum VpnTransitionTrigger {
 
 class VpnStateMachineConfig {
   const VpnStateMachineConfig({
-    this.connectTimeout = const Duration(seconds: 25),
+    // Linux native bring-up allows up to 30s in the runner while wg-quick
+    // completes and PostUp hooks settle. Keep the state-machine timeout above
+    // that native budget so we surface the native result instead of timing out
+    // first in Dart.
+    this.connectTimeout = const Duration(seconds: 40),
     this.disconnectTimeout = const Duration(seconds: 20),
     this.profileFetchTimeout = const Duration(seconds: 15),
     this.connectOperationGuardTimeout = const Duration(seconds: 45),
@@ -69,21 +79,52 @@ class VpnStateMachine {
   static const Map<VpnStatus, Set<VpnStatus>> _allowedTransitions = {
     VpnStatus.disconnected: {
       VpnStatus.connecting,
+      VpnStatus.reconnecting,
       VpnStatus.error,
     },
     VpnStatus.connecting: {
+      VpnStatus.verifying,
       VpnStatus.connected,
+      VpnStatus.reconnecting,
+      VpnStatus.disconnected,
       VpnStatus.error,
     },
-    VpnStatus.connected: {
+    VpnStatus.verifying: {
+      VpnStatus.connected,
+      VpnStatus.reconnecting,
+      VpnStatus.disconnecting,
+      VpnStatus.disconnected,
+      VpnStatus.error,
+    },
+    VpnStatus.reconnecting: {
+      VpnStatus.connecting,
+      VpnStatus.verifying,
+      VpnStatus.connected,
+      VpnStatus.disconnecting,
+      VpnStatus.disconnected,
+      VpnStatus.error,
+    },
+    VpnStatus.degraded: {
+      VpnStatus.connected,
+      VpnStatus.reconnecting,
       VpnStatus.disconnecting,
       VpnStatus.error,
     },
     VpnStatus.disconnecting: {
       VpnStatus.disconnected,
+      VpnStatus.reconnecting,
       VpnStatus.error,
     },
-    VpnStatus.error: {},
+    VpnStatus.connected: {
+      VpnStatus.degraded,
+      VpnStatus.reconnecting,
+      VpnStatus.disconnecting,
+      VpnStatus.error,
+    },
+    VpnStatus.error: {
+      VpnStatus.disconnected,
+      VpnStatus.reconnecting,
+    },
   };
 
   static bool canTransition(VpnStatus from, VpnStatus to) {

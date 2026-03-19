@@ -14,10 +14,11 @@ psycopg2-binary==2.9.9
 alembic==1.13.1
 
 # Authentication & Security
-python-jose[cryptography]==3.4.0
+PyJWT==2.12.1
 passlib==1.7.4
 bcrypt==3.2.2
 cryptography==44.0.1
+pyasn1==0.6.3
 
 # Payment Processing
 stripe==10.12.0

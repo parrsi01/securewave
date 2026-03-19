@@ -10,6 +10,7 @@
   var _instance = null;
   var _panelEl = null;
   var _fabEl = null;
+  var _stateRef = null;
 
   function safeJsonParse(value, fallback) {
     try { return JSON.parse(value); } catch (e) { return fallback; }
@@ -17,18 +18,48 @@
 
   function loadState() {
     var raw = localStorage.getItem(STORAGE_KEY);
-    var state = safeJsonParse(raw, null);
-    if (!state || typeof state !== 'object') return null;
-    if (!Array.isArray(state.messages)) return null;
-    return state;
+    return normalizeState(safeJsonParse(raw, null));
   }
 
   function saveState(state) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
   }
 
+  function defaultAnswers() {
+    return { useCase: null, devices: null, region: null };
+  }
+
+  function defaultUiState() {
+    return { isOpen: false, draft: '' };
+  }
+
+  function normalizeState(state) {
+    if (!state || typeof state !== 'object') return null;
+    if (!Array.isArray(state.messages)) return null;
+
+    if (!state.answers || typeof state.answers !== 'object') {
+      state.answers = defaultAnswers();
+    } else {
+      if (!Object.prototype.hasOwnProperty.call(state.answers, 'useCase')) state.answers.useCase = null;
+      if (!Object.prototype.hasOwnProperty.call(state.answers, 'devices')) state.answers.devices = null;
+      if (!Object.prototype.hasOwnProperty.call(state.answers, 'region')) state.answers.region = null;
+    }
+
+    if (!state.ui || typeof state.ui !== 'object') {
+      state.ui = defaultUiState();
+    } else {
+      if (typeof state.ui.isOpen !== 'boolean') state.ui.isOpen = false;
+      if (typeof state.ui.draft !== 'string') state.ui.draft = '';
+    }
+
+    if (typeof state.step !== 'number') state.step = 0;
+    if (typeof state.intent !== 'string' || !state.intent) state.intent = 'general';
+    state.version = 2;
+    return state;
+  }
+
   function defaultState(intent) {
-    return { version: 1, intent: intent || 'general', step: 0, answers: { useCase: null, devices: null, region: null }, messages: [] };
+    return { version: 2, intent: intent || 'general', step: 0, answers: defaultAnswers(), messages: [], ui: defaultUiState() };
   }
 
   function computeRecommendation(answers) {
@@ -76,12 +107,20 @@
     if (!_panelEl || !_fabEl) return;
     _panelEl.classList.add('open');
     _fabEl.setAttribute('aria-expanded', 'true');
+    if (_stateRef && _stateRef.ui) {
+      _stateRef.ui.isOpen = true;
+      saveState(_stateRef);
+    }
   }
 
   function closePanel() {
     if (!_panelEl || !_fabEl) return;
     _panelEl.classList.remove('open');
     _fabEl.setAttribute('aria-expanded', 'false');
+    if (_stateRef && _stateRef.ui) {
+      _stateRef.ui.isOpen = false;
+      saveState(_stateRef);
+    }
   }
 
   function togglePanel() {
@@ -101,11 +140,11 @@
     var header = el('div', { class: 'sw-chat-header' });
     var title = el('div', { class: 'sw-chat-title' }, [
       el('div', { class: 'sw-chat-title-name', text: 'SecureWave Assistant' }),
-      el('div', { class: 'sw-chat-title-sub', text: 'Help choosing a plan, locally.' }),
+      el('div', { class: 'sw-chat-title-sub', text: 'Plan help that follows you across pages.' }),
     ]);
 
-    var closeBtn = el('button', { class: 'sw-chat-close', type: 'button', 'aria-label': 'Close assistant' }, [
-      el('span', { 'aria-hidden': 'true', text: '\u00D7' }),
+    var closeBtn = el('button', { class: 'sw-chat-close', type: 'button', 'aria-label': 'Minimize assistant', title: 'Minimize' }, [
+      el('span', { 'aria-hidden': 'true', text: '\u2212' }),
     ]);
 
     header.appendChild(title);
@@ -181,10 +220,12 @@
     var intent = (options && options.intent) || null;
     var state = loadState() || defaultState(intent);
     if (intent && state.intent !== intent) state.intent = intent;
+    _stateRef = state;
 
     var ui = buildUi();
     document.body.appendChild(ui.fab);
     document.body.appendChild(ui.panel);
+    ui.input.value = state.ui.draft || '';
 
     function renderMessages() {
       ui.messages.innerHTML = '';
@@ -219,6 +260,7 @@
     function restart(intentOverride) {
       var nextIntent = intentOverride || state.intent || 'general';
       state = defaultState(nextIntent);
+      _stateRef = state;
       saveState(state);
       push('bot', "Hi. I can help you pick a plan. What's your main use-case?");
       state.step = 0;
@@ -294,6 +336,8 @@
       var text = (ui.input.value || '').trim();
       if (!text) return;
       ui.input.value = '';
+      state.ui.draft = '';
+      saveState(state);
       push('user', text);
       if (state.step < 3) {
         push('bot', 'For the best recommendation, use the quick questions below.');
@@ -308,6 +352,10 @@
     }
 
     ui.send.addEventListener('click', sendFreeform);
+    ui.input.addEventListener('input', function () {
+      state.ui.draft = ui.input.value || '';
+      saveState(state);
+    });
     ui.input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); sendFreeform(); }
       else if (e.key === 'Escape') { closePanel(); }
@@ -340,6 +388,10 @@
       } else {
         setQuickReplies([ { label: 'Compare plans', value: 'go:/subscription.html' }, { label: 'Download', value: 'go:/home.html#download' }, { label: 'Start over', value: 'restart' } ]);
       }
+    }
+
+    if (state.ui.isOpen) {
+      openPanel();
     }
 
     _instance = { open: openPanel, close: closePanel, restart: restart };

@@ -8,7 +8,10 @@ Future<void> testBackend() async {
   try {
     final config = await AppConfig.load();
     if (kDebugMode) {
-      debugPrint('[SW_API] {"event":"runtime_base_url","base_url":"${config.apiBaseUrl}"}');
+      debugPrint(
+        '[SW_API] {"event":"runtime_base_url","source":"${config.configSource.name}",'
+        '"base_url":"${config.apiBaseUrl}"}',
+      );
     }
     final dio = Dio(
       BaseOptions(

@@ -120,21 +120,52 @@ void main() {
       <VpnStatus, Set<VpnStatus>>{
         VpnStatus.disconnected: <VpnStatus>{
           VpnStatus.connecting,
+          VpnStatus.reconnecting,
           VpnStatus.error,
         },
         VpnStatus.connecting: <VpnStatus>{
+          VpnStatus.verifying,
           VpnStatus.connected,
+          VpnStatus.reconnecting,
+          VpnStatus.disconnected,
+          VpnStatus.error,
+        },
+        VpnStatus.verifying: <VpnStatus>{
+          VpnStatus.connected,
+          VpnStatus.reconnecting,
+          VpnStatus.disconnecting,
+          VpnStatus.disconnected,
+          VpnStatus.error,
+        },
+        VpnStatus.reconnecting: <VpnStatus>{
+          VpnStatus.connecting,
+          VpnStatus.verifying,
+          VpnStatus.connected,
+          VpnStatus.disconnecting,
+          VpnStatus.disconnected,
           VpnStatus.error,
         },
         VpnStatus.connected: <VpnStatus>{
+          VpnStatus.degraded,
+          VpnStatus.reconnecting,
+          VpnStatus.disconnecting,
+          VpnStatus.error,
+        },
+        VpnStatus.degraded: <VpnStatus>{
+          VpnStatus.connected,
+          VpnStatus.reconnecting,
           VpnStatus.disconnecting,
           VpnStatus.error,
         },
         VpnStatus.disconnecting: <VpnStatus>{
           VpnStatus.disconnected,
+          VpnStatus.reconnecting,
           VpnStatus.error,
         },
-        VpnStatus.error: <VpnStatus>{},
+        VpnStatus.error: <VpnStatus>{
+          VpnStatus.disconnected,
+          VpnStatus.reconnecting,
+        },
       },
     );
   });

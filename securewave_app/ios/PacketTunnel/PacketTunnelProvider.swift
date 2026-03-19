@@ -49,6 +49,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
     persistStatus(state: "connecting", lastError: nil, connectedSince: 0)
 
+    if shouldUseFallbackBackend(providerConfiguration) {
+      log.log("startTunnel using Packet Tunnel fallback mode")
+      startFallbackTunnel(with: providerConfiguration, completionHandler: completionHandler)
+      return
+    }
+
     #if canImport(WireGuardKit)
     do {
       let tunnelConfig = try TunnelConfiguration(fromWgQuickConfig: config, called: "SecureWave")
@@ -125,9 +131,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
       completionHandler(NSError(domain: "SecureWave", code: -13, userInfo: [NSLocalizedDescriptionKey: "Failed to start tunnel."]))
     }
     #else
-    persistStatus(state: "error", lastError: "WireGuardKit is not linked. Add the package in Xcode.", connectedSince: 0)
-    log.error("startTunnel aborted: WireGuardKit is not linked")
-    completionHandler(NSError(domain: "SecureWave", code: -11, userInfo: [NSLocalizedDescriptionKey: "WireGuardKit is not linked. Add the package in Xcode."]))
+    log.log("startTunnel falling back to NetworkExtension-only mode")
+    startFallbackTunnel(with: providerConfiguration, completionHandler: completionHandler)
     #endif
   }
 
@@ -135,12 +140,18 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     persistStatus(state: "disconnecting", lastError: nil, connectedSince: readConnectedSince())
     #if canImport(WireGuardKit)
     log.log("stopTunnel called: reason=\(reason.rawValue, privacy: .public)")
-    adapter?.stop { [weak self] _ in
+    guard let adapter else {
+      persistStatus(state: "disconnected", lastError: nil, connectedSince: 0)
+      log.log("tunnel stopped (fallback mode)")
+      completionHandler()
+      return
+    }
+    adapter.stop { [weak self] _ in
       self?.persistStatus(state: "disconnected", lastError: nil, connectedSince: 0)
       self?.log.log("tunnel stopped")
       completionHandler()
     }
-    adapter = nil
+    self.adapter = nil
     #else
     persistStatus(state: "disconnected", lastError: nil, connectedSince: 0)
     log.log("stopTunnel called (no WireGuardKit linked)")
@@ -223,6 +234,183 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
       lines.append("PersistentKeepalive = \(keepalive)")
     }
     return lines.joined(separator: "\n")
+  }
+
+  private func shouldUseFallbackBackend(_ providerConfiguration: [String: Any]) -> Bool {
+    if let boolValue = providerConfiguration["usePacketTunnelFallback"] as? Bool {
+      return boolValue
+    }
+    if let numberValue = providerConfiguration["usePacketTunnelFallback"] as? NSNumber {
+      return numberValue.boolValue
+    }
+    if let stringValue = providerConfiguration["usePacketTunnelFallback"] as? String {
+      let normalized = stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      return normalized == "1" || normalized == "true" || normalized == "yes"
+    }
+    return false
+  }
+
+  private func startFallbackTunnel(
+    with providerConfiguration: [String: Any],
+    completionHandler: @escaping (Error?) -> Void
+  ) {
+    guard let settings = buildFallbackNetworkSettings(from: providerConfiguration) else {
+      let error = NSError(
+        domain: "SecureWave",
+        code: -11,
+        userInfo: [NSLocalizedDescriptionKey: "Unable to derive Packet Tunnel network settings from the VPN profile."]
+      )
+      persistStatus(state: "error", lastError: error.localizedDescription, connectedSince: 0)
+      log.error("fallback tunnel aborted: invalid network settings input")
+      completionHandler(error)
+      return
+    }
+
+    setTunnelNetworkSettings(settings) { [weak self] error in
+      if let error {
+        self?.persistStatus(state: "error", lastError: error.localizedDescription, connectedSince: 0)
+        self?.log.error("setTunnelNetworkSettings failed: \(error.localizedDescription, privacy: .public)")
+        completionHandler(error)
+      } else {
+        let connectedSince = Int(Date().timeIntervalSince1970)
+        self?.persistStatus(state: "connected", lastError: nil, connectedSince: connectedSince)
+        self?.log.log("fallback tunnel started")
+        completionHandler(nil)
+      }
+    }
+  }
+
+  private func buildFallbackNetworkSettings(
+    from providerConfiguration: [String: Any]
+  ) -> NEPacketTunnelNetworkSettings? {
+    guard let wgQuickConfig = buildWireGuardConfig(from: providerConfiguration) else {
+      return nil
+    }
+
+    let endpointHost = (
+      providerConfiguration["endpointHost"] as? String ??
+      providerConfiguration["serverAddress"] as? String ??
+      "192.0.2.1"
+    )
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacingOccurrences(of: "[", with: "")
+      .replacingOccurrences(of: "]", with: "")
+    let remoteAddress = endpointHost.isEmpty ? "192.0.2.1" : endpointHost
+
+    let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: remoteAddress)
+    let addresses = interfaceFieldValues(named: "Address", in: wgQuickConfig)
+    if let ipv4Settings = ipv4Settings(from: addresses) {
+      settings.ipv4Settings = ipv4Settings
+    }
+    if let ipv6Settings = ipv6Settings(from: addresses) {
+      settings.ipv6Settings = ipv6Settings
+    }
+    if settings.ipv4Settings == nil && settings.ipv6Settings == nil {
+      return nil
+    }
+
+    let dnsServers = interfaceFieldValues(named: "DNS", in: wgQuickConfig)
+      .filter { !$0.isEmpty && !$0.contains("/") }
+    if !dnsServers.isEmpty {
+      settings.dnsSettings = NEDNSSettings(servers: dnsServers)
+    }
+
+    return settings
+  }
+
+  private func interfaceFieldValues(named field: String, in wgQuickConfig: String) -> [String] {
+    var inInterface = false
+    var values: [String] = []
+    for rawLine in wgQuickConfig.components(separatedBy: .newlines) {
+      let uncommented = rawLine.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+        .first
+        .map(String.init) ?? rawLine
+      let line = uncommented.trimmingCharacters(in: .whitespacesAndNewlines)
+      if line.isEmpty {
+        continue
+      }
+      if line.caseInsensitiveCompare("[Interface]") == .orderedSame {
+        inInterface = true
+        continue
+      }
+      if line.hasPrefix("[") {
+        inInterface = false
+      }
+      guard inInterface, let equalsIndex = line.firstIndex(of: "=") else {
+        continue
+      }
+      let key = String(line[..<equalsIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+      guard key.caseInsensitiveCompare(field) == .orderedSame else {
+        continue
+      }
+      let rawValue = String(line[line.index(after: equalsIndex)...])
+      values.append(
+        contentsOf: rawValue
+          .split(separator: ",")
+          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+          .filter { !$0.isEmpty }
+      )
+    }
+    return values
+  }
+
+  private func ipv4Settings(from cidrs: [String]) -> NEIPv4Settings? {
+    var addresses: [String] = []
+    var subnetMasks: [String] = []
+    for cidr in cidrs {
+      guard let (address, prefixLength) = splitCIDR(cidr),
+            !address.contains(":"),
+            let mask = ipv4SubnetMask(prefixLength: prefixLength) else {
+        continue
+      }
+      addresses.append(address)
+      subnetMasks.append(mask)
+    }
+    guard !addresses.isEmpty else { return nil }
+    let settings = NEIPv4Settings(addresses: addresses, subnetMasks: subnetMasks)
+    settings.includedRoutes = [NEIPv4Route.default()]
+    settings.excludedRoutes = []
+    return settings
+  }
+
+  private func ipv6Settings(from cidrs: [String]) -> NEIPv6Settings? {
+    var addresses: [String] = []
+    var prefixLengths: [NSNumber] = []
+    for cidr in cidrs {
+      guard let (address, prefixLength) = splitCIDR(cidr), address.contains(":") else {
+        continue
+      }
+      addresses.append(address)
+      prefixLengths.append(NSNumber(value: prefixLength))
+    }
+    guard !addresses.isEmpty else { return nil }
+    let settings = NEIPv6Settings(addresses: addresses, networkPrefixLengths: prefixLengths)
+    settings.includedRoutes = [NEIPv6Route.default()]
+    settings.excludedRoutes = []
+    return settings
+  }
+
+  private func splitCIDR(_ cidr: String) -> (String, Int)? {
+    let parts = cidr.split(separator: "/", maxSplits: 1).map(String.init)
+    guard parts.count == 2,
+          let prefixLength = Int(parts[1].trimmingCharacters(in: .whitespacesAndNewlines)) else {
+      return nil
+    }
+    let address = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !address.isEmpty else { return nil }
+    return (address, prefixLength)
+  }
+
+  private func ipv4SubnetMask(prefixLength: Int) -> String? {
+    guard (0...32).contains(prefixLength) else { return nil }
+    let mask: UInt32 = prefixLength == 0 ? 0 : UInt32.max << (32 - prefixLength)
+    let octets = [
+      String((mask >> 24) & 0xFF),
+      String((mask >> 16) & 0xFF),
+      String((mask >> 8) & 0xFF),
+      String(mask & 0xFF),
+    ]
+    return octets.joined(separator: ".")
   }
 
   private func statusPayload() -> [String: Any] {

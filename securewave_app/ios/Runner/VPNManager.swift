@@ -21,6 +21,7 @@ private enum SecureWaveAppleKeys {
   static let fieldKeepaliveSeconds = "keepaliveSeconds"
   static let fieldPresharedKey = "presharedKey"
   static let fieldServerPublicKey = "serverPublicKey"
+  static let fieldUsePacketTunnelFallback = "usePacketTunnelFallback"
 }
 
 private struct SecureWaveSharedTunnelSnapshot {
@@ -93,6 +94,7 @@ private struct SecureWaveWireGuardRequest {
   let keepaliveSeconds: Int
   let presharedKey: String?
   let serverPublicKey: String
+  let usePacketTunnelFallback: Bool
 
   init(arguments: [String: Any]) throws {
     func requiredString(_ key: String) throws -> String {
@@ -162,6 +164,17 @@ private struct SecureWaveWireGuardRequest {
       .trimmingCharacters(in: .whitespacesAndNewlines)
     self.presharedKey = preshared?.isEmpty == true ? nil : preshared
     self.serverPublicKey = try requiredString(SecureWaveAppleKeys.fieldServerPublicKey)
+    if let value = arguments[SecureWaveAppleKeys.fieldUsePacketTunnelFallback] as? Bool {
+      self.usePacketTunnelFallback = value
+    } else if let value = arguments[SecureWaveAppleKeys.fieldUsePacketTunnelFallback] as? NSNumber {
+      self.usePacketTunnelFallback = value.boolValue
+    } else if let value = arguments[SecureWaveAppleKeys.fieldUsePacketTunnelFallback] as? String {
+      let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      self.usePacketTunnelFallback =
+        normalized == "1" || normalized == "true" || normalized == "yes"
+    } else {
+      self.usePacketTunnelFallback = false
+    }
   }
 
   func providerConfiguration(appGroupIdentifier: String) -> [String: Any] {
@@ -175,6 +188,7 @@ private struct SecureWaveWireGuardRequest {
       SecureWaveAppleKeys.fieldAllowedIps: allowedIps,
       SecureWaveAppleKeys.fieldKeepaliveSeconds: keepaliveSeconds,
       SecureWaveAppleKeys.fieldServerPublicKey: serverPublicKey,
+      SecureWaveAppleKeys.fieldUsePacketTunnelFallback: usePacketTunnelFallback,
       SecureWaveAppleKeys.appGroupInfoKey: appGroupIdentifier,
       SecureWaveAppleKeys.fieldPresharedKey: presharedKey as Any
     ]
@@ -382,6 +396,10 @@ final class SecureWaveVPNManager {
     }
   }
 
+  func startVPN(arguments: [String: Any], completion: @escaping (Error?) -> Void) {
+    connectWireGuard(arguments: arguments, completion: completion)
+  }
+
   func disconnect(completion: @escaping (Error?) -> Void) {
     stateStore.record(state: "disconnecting", lastError: nil, connectedSince: stateStore.snapshot().connectedSince)
     loadManager { [weak self] manager, loadError in
@@ -412,6 +430,10 @@ final class SecureWaveVPNManager {
       }
       completion(nil)
     }
+  }
+
+  func stopVPN(completion: @escaping (Error?) -> Void) {
+    disconnect(completion: completion)
   }
 
   private func loadManager(completion: @escaping (NETunnelProviderManager?, Error?) -> Void) {

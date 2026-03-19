@@ -252,8 +252,9 @@ class TestPasswordResetFlow:
     def test_reset_with_valid_token(self, client, db, test_user):
         """Valid reset token allows password change."""
         import secrets
+        from services.auth_service import AuthService
         token = secrets.token_urlsafe(32)
-        test_user.password_reset_token = token
+        test_user.password_reset_token = AuthService.hash_password_reset_token(token)
         test_user.password_reset_token_expires = datetime.utcnow() + timedelta(minutes=15)
         test_user.password_reset_requested_at = datetime.utcnow()
         db.commit()
@@ -274,8 +275,9 @@ class TestPasswordResetFlow:
     def test_expired_reset_token_rejected(self, client, db, test_user):
         """Expired reset token must be rejected."""
         import secrets
+        from services.auth_service import AuthService
         token = secrets.token_urlsafe(32)
-        test_user.password_reset_token = token
+        test_user.password_reset_token = AuthService.hash_password_reset_token(token)
         test_user.password_reset_token_expires = datetime.utcnow() - timedelta(hours=1)
         db.commit()
 

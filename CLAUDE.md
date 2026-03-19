@@ -48,3 +48,13 @@ Do not ask for scope contracts on LOW risk tasks. Read → fix → done.
 - Auth flow: `lib/features/auth/` — HIGH risk.
 - UI/theme changes: LOW risk unless touching state wiring.
 - Backend routes: `routes/` — MEDIUM risk.
+
+## RUNNING THE FLUTTER APP
+
+**Always use the launch script — never call `flutter run` directly:**
+
+```bash
+bash securewave_app/scripts/run_dev.sh
+```
+
+This script kills any existing instance first, preventing double-launch. Never run `flutter run -d linux` (or any platform variant) directly from a tool call — always go through `run_dev.sh`.

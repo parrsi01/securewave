@@ -132,10 +132,37 @@ class VpnPlatformBridgeDiagnostics {
 
 class VpnPlatformBridge {
   VpnPlatformBridge({MethodChannel? channel})
-      : _channel =
-            channel ?? const MethodChannel('securewave/vpn_platform_bridge');
+      : _channel = channel ?? const MethodChannel('securewave/vpn');
 
   final MethodChannel _channel;
+
+  Future<void> startVPN({
+    required String serverId,
+    required String endpointHost,
+    required int endpointPort,
+    required String clientPrivateKey,
+    required String addressCidr,
+    required List<String> dns,
+    required List<String> allowedIps,
+    required int keepaliveSeconds,
+    String? presharedKey,
+    required String serverPublicKey,
+    bool usePacketTunnelFallback = false,
+  }) async {
+    await _channel.invokeMethod<void>('startVPN', <String, Object?>{
+      'serverId': serverId,
+      'endpointHost': endpointHost,
+      'endpointPort': endpointPort,
+      'clientPrivateKey': clientPrivateKey,
+      'addressCidr': addressCidr,
+      'dns': dns,
+      'allowedIps': allowedIps,
+      'keepaliveSeconds': keepaliveSeconds,
+      'presharedKey': presharedKey,
+      'serverPublicKey': serverPublicKey,
+      'usePacketTunnelFallback': usePacketTunnelFallback,
+    });
+  }
 
   Future<void> connectWireGuard({
     required String serverId,
@@ -148,23 +175,29 @@ class VpnPlatformBridge {
     required int keepaliveSeconds,
     String? presharedKey,
     required String serverPublicKey,
+    bool usePacketTunnelFallback = false,
   }) async {
-    await _channel.invokeMethod<void>('connectWireGuard', <String, Object?>{
-      'serverId': serverId,
-      'endpointHost': endpointHost,
-      'endpointPort': endpointPort,
-      'clientPrivateKey': clientPrivateKey,
-      'addressCidr': addressCidr,
-      'dns': dns,
-      'allowedIps': allowedIps,
-      'keepaliveSeconds': keepaliveSeconds,
-      'presharedKey': presharedKey,
-      'serverPublicKey': serverPublicKey,
-    });
+    await startVPN(
+      serverId: serverId,
+      endpointHost: endpointHost,
+      endpointPort: endpointPort,
+      clientPrivateKey: clientPrivateKey,
+      addressCidr: addressCidr,
+      dns: dns,
+      allowedIps: allowedIps,
+      keepaliveSeconds: keepaliveSeconds,
+      presharedKey: presharedKey,
+      serverPublicKey: serverPublicKey,
+      usePacketTunnelFallback: usePacketTunnelFallback,
+    );
+  }
+
+  Future<void> stopVPN() async {
+    await _channel.invokeMethod<void>('stopVPN');
   }
 
   Future<void> disconnect() async {
-    await _channel.invokeMethod<void>('disconnect');
+    await stopVPN();
   }
 
   Future<VpnPlatformBridgeStatus> status() async {

@@ -187,8 +187,10 @@ class TestTokenRefresh:
 
     def test_refresh_with_valid_token(self, client, test_user, refresh_token):
         """A valid refresh token should return new access and refresh tokens."""
+        client.cookies.set("access_token", "browser.session.token")
         client.cookies.set("refresh_token", refresh_token)
-        response = client.post("/api/auth/refresh")
+        client.cookies.set("csrf_token", "csrf-ok")
+        response = client.post("/api/auth/refresh", headers={"X-CSRF-Token": "csrf-ok"})
         client.cookies.clear()
         assert response.status_code == 200
         data = response.json()
@@ -197,7 +199,8 @@ class TestTokenRefresh:
 
     def test_refresh_with_invalid_token(self, client):
         """An invalid refresh token should be rejected."""
-        response = client.post("/api/auth/refresh", json={
-            "refresh_token": "invalid.token.here",
-        })
+        response = client.post(
+            "/api/auth/refresh",
+            headers={"Authorization": "Bearer invalid.token.here"},
+        )
         assert response.status_code == 401

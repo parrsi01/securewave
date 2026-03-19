@@ -321,6 +321,7 @@ body{padding-top:var(--sw-nav-height)}
   font-size:1.25rem;
 }
 .card-icon-lg{width:56px;height:56px;font-size:1.5rem;border-radius:var(--sw-radius-lg)}
+.card-icon i{display:inline-flex;line-height:1;font-size:inherit}
 
 /* --- Forms --- */
 .form-group{margin-bottom:var(--sw-space-5)}
@@ -544,6 +545,10 @@ td{
 }
 tr:last-child td{border-bottom:none}
 tr:hover td{background:var(--sw-gray-50)}
+td[aria-label="Included"],td[aria-label="Not included"]{text-align:center}
+.comparison-icon{display:inline-flex;line-height:1;font-size:1.125rem}
+.comparison-icon-positive{color:var(--sw-success)}
+.comparison-icon-negative{color:var(--sw-danger)}
 
 /* --- Tabs --- */
 .tabs{
@@ -621,6 +626,9 @@ tr:hover td{background:var(--sw-gray-50)}
 .footer-brand{max-width:280px}
 .footer-brand .nav-brand span{color:var(--sw-white)}
 .footer-brand p{margin-top:var(--sw-space-4);font-size:.875rem;line-height:1.7;color:var(--sw-gray-400)}
+.footer-attribution{margin-top:var(--sw-space-3);font-size:.75rem;line-height:1.6;color:var(--sw-gray-500)}
+.footer-attribution a{color:var(--sw-gray-300)}
+.footer-attribution a:hover{color:var(--sw-white)}
 
 .footer-col h5{color:var(--sw-white);font-weight:600;margin-bottom:var(--sw-space-4);font-size:.9375rem}
 .footer-col a{

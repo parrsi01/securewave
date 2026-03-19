@@ -87,11 +87,15 @@ def run_harness(*, output_dir: Path) -> dict:
 
         body = login.json() if login.status_code == 200 else {}
         access_token = body.get("access_token", "")
+        csrf_token = body.get("csrf_token") or client.cookies.get("csrf_token", "")
         # refresh_token is set as HttpOnly cookie by login — capture it for replay attempt
         original_refresh_cookie = client.cookies.get("refresh_token", "")
 
-        # First refresh: cookie sent automatically by client
-        first_refresh = client.post("/api/auth/refresh")
+        # First refresh: browser session must include a valid CSRF token.
+        first_refresh = client.post(
+            "/api/auth/refresh",
+            headers={"X-CSRF-Token": csrf_token},
+        )
         steps.append(
             StepResult(
                 name="refresh_once",
@@ -101,10 +105,12 @@ def run_harness(*, output_dir: Path) -> dict:
             )
         )
 
-        # Replay: force the original (now-rotated/revoked) token to test replay protection
+        # Replay: present the original rotated token via Bearer-only flow so the
+        # result exercises replay protection rather than the browser CSRF gate.
+        client.cookies.clear()
         replay_refresh = client.post(
             "/api/auth/refresh",
-            cookies={"refresh_token": original_refresh_cookie},
+            headers={"Authorization": f"Bearer {original_refresh_cookie}"},
         )
         replay_ok = replay_refresh.status_code == 401
         steps.append(
@@ -116,7 +122,11 @@ def run_harness(*, output_dir: Path) -> dict:
             )
         )
 
-        revoke = client.post("/api/auth/revoke-token", json={"token": access_token, "token_type": "access"})
+        revoke = client.post(
+            "/api/auth/revoke-token",
+            json={"token_type": "access"},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
         revoke_ok = revoke.status_code == 200
         steps.append(
             StepResult(

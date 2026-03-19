@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../debug/automation_keys.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 import '../widgets/vpn_ui_bindings.dart';
@@ -66,6 +68,14 @@ class _ConnectButtonState extends State<ConnectButton>
   }
 
   void _updateAnimation() {
+    if (kDebugMode) {
+      final enabled = !_isBusy(widget.visualState);
+      final reason =
+          enabled ? 'ready_for_user_action' : 'transition_in_progress';
+      debugPrint(
+        '[VPN_UI] {"event":"connect_button_interaction_state","visual_state":"${widget.visualState.name}","enabled":$enabled,"reason":"$reason"}',
+      );
+    }
     if (widget.visualState == ConnectionVisualState.connected) {
       _pulse.repeat(reverse: true);
       _spin.stop();
@@ -116,6 +126,7 @@ class _ConnectButtonState extends State<ConnectButton>
             );
           },
           child: GestureDetector(
+            key: AutomationKeys.connectionRingButtonKey,
             onTap: busy ? null : widget.onTap,
             child: Stack(
               alignment: Alignment.center,
@@ -177,26 +188,33 @@ class _ConnectButtonState extends State<ConnectButton>
                   duration: const Duration(milliseconds: 250),
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
-                  child: Column(
-                    key: ValueKey('${widget.visualState}_${widget.connectPhaseLabel}'),
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _icon(widget.visualState),
-                        color: Colors.white,
-                        size: 40,
+                  child: KeyedSubtree(
+                    key: AutomationKeys.connectionStateKey(
+                      widget.visualState.name,
+                    ),
+                    child: Column(
+                      key: ValueKey(
+                        '${widget.visualState}_${widget.connectPhaseLabel}',
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _label(widget.visualState),
-                        style: const TextStyle(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _icon(widget.visualState),
                           color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          letterSpacing: 0.5,
+                          size: 40,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          _label(widget.visualState),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

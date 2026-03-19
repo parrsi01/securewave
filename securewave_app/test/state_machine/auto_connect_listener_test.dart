@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:securewave_app/core/config/runtime_flags.dart';
 import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/state/preferences_state.dart';
@@ -51,6 +52,69 @@ void main() {
 
     expect(container.read(vpnStateProvider).status, VpnStatus.connected);
     expect(service.connectCalls, greaterThanOrEqualTo(1));
+  });
+
+  test('auth session availability triggers connect flow when automation defer is off',
+      () async {
+    final config = testAppConfig();
+    final service = ControlledVpnService(
+      nativeAvailable: true,
+      connectDelay: Duration.zero,
+    );
+    final api = FakeApiClient(config: config);
+
+    final container = buildVpnContainer(
+      service: service,
+      apiClient: api,
+      authenticated: false,
+    );
+    addTearDown(container.dispose);
+
+    // Enable auto-connect so the test can verify the trigger fires.
+    await container.read(preferencesProvider.notifier).setAutoConnect(true);
+    await settleStateMachine(turns: 5);
+
+    await container
+        .read(authSessionProvider)
+        .setSession(accessToken: 'opaque-token');
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.connected,
+      timeout: const Duration(seconds: 3),
+    );
+    await settleStateMachine(turns: 20);
+
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+    expect(service.connectCalls, greaterThanOrEqualTo(1));
+  });
+
+  test('linux automation defers post-auth auto-connect until user taps connect',
+      () async {
+    final config = testAppConfig();
+    final service = ControlledVpnService(
+      nativeAvailable: true,
+      connectDelay: Duration.zero,
+    );
+    final api = FakeApiClient(config: config);
+
+    final container = buildVpnContainer(
+      service: service,
+      apiClient: api,
+      authenticated: false,
+      overrides: [
+        deferPostAuthAutoConnectProvider.overrideWithValue(true),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await settleStateMachine(turns: 20);
+    await container
+        .read(authSessionProvider)
+        .setSession(accessToken: 'opaque-token');
+    await settleStateMachine(turns: 30);
+
+    expect(service.connectCalls, 0);
+    expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
+    expect(container.read(vpnStateProvider).desiredOn, isFalse);
   });
 
   test('auto-connect is skipped when token is near expiry', () async {

@@ -7,6 +7,7 @@ import '../../core/models/vpn_protocol.dart';
 import '../../core/models/vpn_readiness.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
+import '../../debug/automation_keys.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 import '../widgets/glass_panel.dart';
@@ -44,6 +45,7 @@ class DiagnosticsScreen extends ConsumerWidget {
           constraints:
               const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
           child: ListView(
+            key: AutomationKeys.diagnosticsRootScrollKey,
             padding: const EdgeInsets.all(AppSpacing.pagePadding),
             children: [
               _SectionLabel('Connection', isDark: isDark),

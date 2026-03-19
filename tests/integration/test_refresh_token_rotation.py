@@ -9,12 +9,13 @@ def test_refresh_token_rotation_marks_previous_session_revoked(client, test_user
     assert login.status_code == 200, login.text
     body = login.json()
     old_refresh = body["refresh_token"]
+    csrf = body["csrf_token"]
 
     sessions_before = db.query(AuthRefreshToken).filter(AuthRefreshToken.user_id == test_user.id).all()
     assert len(sessions_before) == 1
     assert sessions_before[0].revoked_at is None
 
-    refreshed = client.post("/api/auth/refresh", json={"refresh_token": old_refresh})
+    refreshed = client.post("/api/auth/refresh", headers={"X-CSRF-Token": csrf})
     assert refreshed.status_code == 200, refreshed.text
     new_refresh = refreshed.json()["refresh_token"]
     assert new_refresh != old_refresh

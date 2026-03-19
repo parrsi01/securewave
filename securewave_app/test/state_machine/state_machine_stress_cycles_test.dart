@@ -72,6 +72,7 @@ void main() {
         () {
           final status = container.read(vpnStateProvider).status;
           return status != VpnStatus.connecting &&
+              status != VpnStatus.verifying &&
               status != VpnStatus.disconnecting;
         },
         timeout: const Duration(seconds: 1),
@@ -79,6 +80,7 @@ void main() {
 
       final state = container.read(vpnStateProvider);
       expect(state.status, isNot(VpnStatus.connecting));
+      expect(state.status, isNot(VpnStatus.verifying));
       expect(state.status, isNot(VpnStatus.disconnecting));
       expect(
         state.status == VpnStatus.connected ||
