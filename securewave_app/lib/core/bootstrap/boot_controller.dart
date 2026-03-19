@@ -126,25 +126,19 @@ class BootController extends ChangeNotifier {
         'Resetting saved session',
         detail: 'Clearing old credentials because reset-on-boot is enabled.',
       );
-      final resetDone = (await _withStepTimeout(
-            'Reading reset-session flag',
-            const Duration(seconds: 2),
-            () => storage.getBool(SecureStorage.resetSessionDoneKey),
-          )) ??
-          false;
-      if (!resetDone) {
-        await _withStepTimeout(
-          'Clearing saved session',
-          const Duration(seconds: 4),
-          () => _ref.read(authSessionProvider).clearSession(),
-        );
-        await _withStepTimeout(
-          'Saving reset-session flag',
-          const Duration(seconds: 2),
-          () => storage.saveBool(SecureStorage.resetSessionDoneKey, true),
-        );
-        AppLogger.info('[BOOT] {"event":"session_reset"}');
-      }
+      // Reset-on-boot is used for deterministic environment switching and UI
+      // automation; apply it on every launch instead of only once.
+      await _withStepTimeout(
+        'Clearing saved session',
+        const Duration(seconds: 4),
+        () => _ref.read(authSessionProvider).clearSession(),
+      );
+      await _withStepTimeout(
+        'Clearing reset-session marker',
+        const Duration(seconds: 2),
+        () => storage.delete(SecureStorage.resetSessionDoneKey),
+      );
+      AppLogger.info('[BOOT] {"event":"session_reset"}');
     }
 
     // Step 2: Restore VPN server selection (can fail gracefully)

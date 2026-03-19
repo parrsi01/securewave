@@ -79,9 +79,9 @@ export EMAIL_PROVIDER="smtp"
 export APP_URL="$BASE_URL"
 export DEFAULT_DOMAIN="localhost"
 export WG_ENDPOINT="127.0.0.1:51820"
-export SECRET_KEY=[REDACTED]
-export ACCESS_TOKEN_SECRET="sim-access-secret-stable"
-export REFRESH_TOKEN_SECRET="sim-refresh-secret-stable"
+export SECRET_KEY="${SECRET_KEY:-simdev}"
+export ACCESS_TOKEN_SECRET="${ACCESS_TOKEN_SECRET:-simacc}"
+export REFRESH_TOKEN_SECRET="${REFRESH_TOKEN_SECRET:-simref}"
 
 # Seed a single fake Hetzner server so /api/vpn/profile can return a usable config.
 set +e

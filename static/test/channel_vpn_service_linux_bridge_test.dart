@@ -63,6 +63,30 @@ void main() {
             'tx_bytes': 512,
             'timestamp_ms': 1,
           };
+        case 'getHealthStatus':
+          return <String, Object?>{
+            'connected': nativeConnected,
+            'interface': interfaceFor(activeProtocol),
+            'interface_up': nativeConnected,
+            'route_present': nativeConnected,
+            'policy_routing_present': nativeConnected,
+            'fwmark_configured': nativeConnected,
+            'networkmanager_unmanaged': nativeConnected,
+            'ping_reachable': nativeConnected,
+            'traffic_connected': nativeConnected,
+            'handshake_present': nativeConnected,
+            'handshake_recent': nativeConnected,
+            'handshake_age_seconds': nativeConnected ? 5 : -1,
+            'watchdog_running': nativeConnected,
+            'reconnect_attempts': 0,
+            'route_resets': 0,
+            'critical_resets': 0,
+            'current_downtime_ms': 0,
+            'last_downtime_ms': 0,
+            'total_downtime_ms': 0,
+            'last_watchdog_action': nativeConnected ? 'healthy' : '',
+            'timestamp_ms': 1,
+          };
       }
       return null;
     }
@@ -154,6 +178,23 @@ Endpoint = vpn.securewave.example:51820
             'tx_bytes': 1024,
             'timestamp_ms': 1,
           };
+        case 'getHealthStatus':
+          return <String, Object?>{
+            'connected': nativeConnected,
+            'interface': interfaceFor(activeProtocol),
+            'interface_up': nativeConnected,
+            'route_present': nativeConnected,
+            'policy_routing_present': nativeConnected,
+            'fwmark_configured': true,
+            'networkmanager_unmanaged': true,
+            'ping_reachable': nativeConnected,
+            'traffic_connected': nativeConnected,
+            'handshake_present': true,
+            'handshake_recent': true,
+            'handshake_age_seconds': 5,
+            'watchdog_running': nativeConnected,
+            'timestamp_ms': 1,
+          };
       }
       return null;
     }
@@ -176,6 +217,75 @@ Endpoint = vpn.securewave.example:51820
     );
     expect(status, VpnStatus.connected);
     expect(connectCalls, 0);
+  });
+
+  testWidgets('parses Linux WireGuard health metadata from native bridge',
+      (tester) async {
+    Future<Object?> handler(MethodCall call) async {
+      switch (call.method) {
+        case 'isAvailable':
+          return true;
+        case 'getStatus':
+          return 'connected';
+        case 'getTrafficStats':
+          return <String, Object?>{
+            'connected': true,
+            'protocol': 'wireguard',
+            'interface': 'sw-wg',
+            'rx_bytes': 8192,
+            'tx_bytes': 4096,
+            'timestamp_ms': 1,
+          };
+        case 'getHealthStatus':
+          return <String, Object?>{
+            'connected': true,
+            'interface': 'sw-wg',
+            'interface_up': true,
+            'route_present': true,
+            'policy_routing_present': true,
+            'fwmark_configured': true,
+            'networkmanager_unmanaged': true,
+            'ping_reachable': true,
+            'traffic_connected': true,
+            'handshake_present': true,
+            'handshake_recent': true,
+            'handshake_age_seconds': 7,
+            'watchdog_running': true,
+            'reconnect_attempts': 2,
+            'route_resets': 3,
+            'critical_resets': 1,
+            'current_downtime_ms': 250,
+            'last_downtime_ms': 500,
+            'total_downtime_ms': 750,
+            'last_watchdog_action': 'policy_routing_reapplied',
+            'timestamp_ms': 1,
+          };
+      }
+      return null;
+    }
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, handler);
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final service = ChannelVpnService();
+    await tester.pump();
+
+    final snapshot = await service.fetchHealthSnapshot();
+    expect(snapshot.interfaceUp, isTrue);
+    expect(snapshot.routePresent, isTrue);
+    expect(snapshot.policyRoutingPresent, isTrue);
+    expect(snapshot.handshakeRecent, isTrue);
+    expect(snapshot.handshakeAgeSeconds, 7);
+    expect(snapshot.watchdogRunning, isTrue);
+    expect(snapshot.routeResets, 3);
+    expect(snapshot.reconnectAttempts, 2);
+    expect(snapshot.currentDowntimeMs, 250);
+    expect(snapshot.lastWatchdogAction, 'policy_routing_reapplied');
+    expect(snapshot.verifiedTunnel, isTrue);
   });
 
   testWidgets('reconnects when native tunnel protocol does not match request',
@@ -228,6 +338,23 @@ Endpoint = vpn.securewave.example:51820
             'interface': interfaceFor(activeProtocol),
             'rx_bytes': 4096,
             'tx_bytes': 2048,
+            'timestamp_ms': 1,
+          };
+        case 'getHealthStatus':
+          return <String, Object?>{
+            'connected': nativeConnected,
+            'interface': interfaceFor(activeProtocol),
+            'interface_up': nativeConnected,
+            'route_present': nativeConnected,
+            'policy_routing_present': nativeConnected,
+            'fwmark_configured': true,
+            'networkmanager_unmanaged': true,
+            'ping_reachable': nativeConnected,
+            'traffic_connected': nativeConnected,
+            'handshake_present': true,
+            'handshake_recent': true,
+            'handshake_age_seconds': 5,
+            'watchdog_running': nativeConnected,
             'timestamp_ms': 1,
           };
       }
@@ -305,6 +432,23 @@ Endpoint = vpn.securewave.example:51820
             'interface': interfaceFor(activeProtocol),
             'rx_bytes': 1024,
             'tx_bytes': 512,
+            'timestamp_ms': 1,
+          };
+        case 'getHealthStatus':
+          return <String, Object?>{
+            'connected': nativeConnected,
+            'interface': interfaceFor(activeProtocol),
+            'interface_up': nativeConnected,
+            'route_present': nativeConnected,
+            'policy_routing_present': nativeConnected,
+            'fwmark_configured': true,
+            'networkmanager_unmanaged': true,
+            'ping_reachable': nativeConnected,
+            'traffic_connected': nativeConnected,
+            'handshake_present': true,
+            'handshake_recent': true,
+            'handshake_age_seconds': 5,
+            'watchdog_running': nativeConnected,
             'timestamp_ms': 1,
           };
       }

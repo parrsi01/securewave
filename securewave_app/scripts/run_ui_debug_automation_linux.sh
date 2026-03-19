@@ -12,6 +12,7 @@ ACCOUNT_FILE="$ARTIFACT_DIR/latest-account.env"
 mkdir -p "$ARTIFACT_DIR"
 
 CREATE_ACCOUNT="${SECUREWAVE_E2E_CREATE_ACCOUNT:-}"
+MOCK_VPN="${SECUREWAVE_MOCK_VPN:-true}"
 
 if [[ -n "${SECUREWAVE_E2E_EMAIL:-}" && -n "${SECUREWAVE_E2E_PASSWORD:-}" ]]; then
   EMAIL="$SECUREWAVE_E2E_EMAIL"
@@ -43,6 +44,7 @@ flutter test integration_test/ui_debug_smoke_test.dart \
   -d linux \
   --reporter expanded \
   --dart-define=SECUREWAVE_UI_AUTOMATION=true \
+  --dart-define=SECUREWAVE_MOCK_VPN="$MOCK_VPN" \
   --dart-define=SECUREWAVE_E2E_CREATE_ACCOUNT="$CREATE_ACCOUNT" \
   --dart-define=SECUREWAVE_E2E_EMAIL="$EMAIL" \
   --dart-define=SECUREWAVE_E2E_PASSWORD="$PASSWORD" | tee "$LOG_FILE"

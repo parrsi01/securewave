@@ -76,7 +76,7 @@ class ConnectionScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.space4),
 
               // ── Traffic stats ──────────────────────────────────────────
-              TrafficStatsCard(vpnState: vpnState),
+              const TrafficStatsCard(),
               const SizedBox(height: AppSpacing.space4),
               const TrafficGraphCard(),
               const SizedBox(height: AppSpacing.space4),

@@ -11,8 +11,10 @@ from typing import Mapping, Optional, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
 from cryptography.fernet import Fernet
-from dotenv import dotenv_values, load_dotenv
+from dotenv import dotenv_values
 from sqlalchemy.engine.url import make_url
+
+from config.security_config import load_security_environment_files
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -99,9 +101,7 @@ def _load_environment_files() -> None:
     global _ENV_FILES_LOADED
     if _ENV_FILES_LOADED:
         return
-    for path in (PROJECT_ROOT / ".env", PROJECT_ROOT / ".env.production"):
-        if path.exists():
-            load_dotenv(path, override=False)
+    load_security_environment_files(project_root=PROJECT_ROOT)
     _ENV_FILES_LOADED = True
 
 
@@ -412,10 +412,7 @@ def _build_settings(environ: Mapping[str, str]) -> tuple[Settings, list[str]]:
 
     redis_url = _clean(environ.get("REDIS_URL")) or "memory://"
     if is_production and not testing and redis_url == "memory://":
-        warnings.append(
-            "REDIS_URL missing in production — memory-based rate limiting is per-process "
-            "and ineffective with multiple Gunicorn workers"
-        )
+        errors.append("REDIS_URL missing or unsafe in production")
     app_version = _clean(environ.get("APP_VERSION")) or "dev"
     git_sha = _clean(environ.get("GIT_SHA")) or ""
     admin_email = _clean(environ.get("ADMIN_EMAIL"))

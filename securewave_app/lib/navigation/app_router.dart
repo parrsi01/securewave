@@ -69,8 +69,14 @@ String? resolveAppRedirect({
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authSession = ref.watch(authSessionProvider);
-  final boot = ref.watch(bootControllerProvider);
+  final authSession = ref.read(authSessionProvider);
+  final boot = ref.read(bootControllerProvider);
+  final isAuthenticated = ref.watch(
+    authSessionProvider.select((session) => session.isAuthenticated),
+  );
+  final bootStatus = ref.watch(
+    bootControllerProvider.select((controller) => controller.state.status),
+  );
   final refreshListenable = Listenable.merge(<Listenable>[authSession, boot]);
 
   return GoRouter(
@@ -78,8 +84,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refreshListenable,
     redirect: (context, state) {
       return resolveAppRedirect(
-        bootStatus: boot.state.status,
-        isAuthenticated: authSession.isAuthenticated,
+        bootStatus: bootStatus,
+        isAuthenticated: isAuthenticated,
         matchedLocation: state.matchedLocation,
       );
     },

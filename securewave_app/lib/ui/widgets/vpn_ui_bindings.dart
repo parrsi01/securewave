@@ -134,8 +134,9 @@ ConnectionPrimaryAction resolveConnectionPrimaryAction(
 ///
 /// Returns null when no server is selected or the server list hasn't loaded.
 final selectedServerProvider = Provider<ServerRegion?>((ref) {
-  final vpnState = ref.watch(vpnStateProvider);
-  final serverId = vpnState.selectedServerId;
+  final serverId = ref.watch(
+    vpnStateProvider.select((state) => state.selectedServerId),
+  );
   if (serverId == null || serverId.isEmpty) return null;
 
   final serversAsync = ref.watch(serversProvider);
@@ -150,9 +151,26 @@ final selectedServerProvider = Provider<ServerRegion?>((ref) {
 });
 
 final connectionVisualStateProvider = Provider<ConnectionVisualState>((ref) {
-  final vpnState = ref.watch(vpnStateProvider);
+  final visualStateFields = ref.watch(
+    vpnStateProvider.select(
+      (state) => (
+        status: state.status,
+        desiredOn: state.desiredOn,
+        reconnectPending: state.reconnectPending,
+        failoverActive: state.failoverActive,
+      ),
+    ),
+  );
   final history = ref.read(vpnStateProvider.notifier).recentTransitions;
-  return resolveConnectionVisualState(vpnState, history);
+  return resolveConnectionVisualState(
+    VpnState(
+      status: visualStateFields.status,
+      desiredOn: visualStateFields.desiredOn,
+      reconnectPending: visualStateFields.reconnectPending,
+      failoverActive: visualStateFields.failoverActive,
+    ),
+    history,
+  );
 });
 
 final connectionPrimaryActionProvider =

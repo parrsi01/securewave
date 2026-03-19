@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show ChangeNotifier;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
@@ -128,12 +128,12 @@ class AuthSession extends ChangeNotifier {
       _email = normalizedEmail;
     }
     _isAuthenticated = true;
-    if (kDebugMode) {
-      debugPrint(
-        '[AUTH_DIAG] {"event":"session_set_start","email":"${email ?? ""}",'
-        '"has_refresh":${refreshToken != null && refreshToken.isNotEmpty}}',
-      );
-    }
+    AppLogger.debug(
+      '[AUTH_DIAG] {"event":"session_set_start","has_email":'
+      '${normalizedEmail != null && normalizedEmail.isNotEmpty},'
+      '"has_refresh":${refreshToken != null && refreshToken.isNotEmpty}}',
+      tag: 'SecureWave.Auth',
+    );
     try {
       final writes = <Future<void>>[
         _storage.saveTokens(
@@ -162,10 +162,10 @@ class AuthSession extends ChangeNotifier {
         stackTrace: stackTrace,
       );
     }
-    if (kDebugMode) {
-      debugPrint(
-          '[AUTH_DIAG] {"event":"session_set_done","authenticated":true}');
-    }
+    AppLogger.debug(
+      '[AUTH_DIAG] {"event":"session_set_done","authenticated":true}',
+      tag: 'SecureWave.Auth',
+    );
     notifyListeners();
   }
 
@@ -179,16 +179,18 @@ class AuthSession extends ChangeNotifier {
   }
 
   Future<void> clearSession() async {
-    if (kDebugMode) {
-      debugPrint('[AUTH_DIAG] {"event":"session_clear_start"}');
-    }
+    AppLogger.debug(
+      '[AUTH_DIAG] {"event":"session_clear_start"}',
+      tag: 'SecureWave.Auth',
+    );
     _accessToken = null;
     _email = null;
     _isAuthenticated = false;
     await _clearPersistedSessionArtifacts();
-    if (kDebugMode) {
-      debugPrint('[AUTH_DIAG] {"event":"session_clear_done"}');
-    }
+    AppLogger.debug(
+      '[AUTH_DIAG] {"event":"session_clear_done"}',
+      tag: 'SecureWave.Auth',
+    );
     notifyListeners();
   }
 

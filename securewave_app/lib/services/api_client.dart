@@ -19,7 +19,10 @@ import '../core/models/vpn_protocol_catalog.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final config = ref.watch(appConfigProvider);
-  final session = ref.watch(authSessionProvider);
+  // ApiClient reads auth tokens dynamically from the AuthSession instance.
+  // Recreating Dio on every auth notify causes avoidable churn and can close
+  // adapters while requests are still in flight.
+  final session = ref.read(authSessionProvider);
   final client = ApiClient(config, session: session);
   ref.onDispose(client.dispose);
   return client;
@@ -74,6 +77,12 @@ class ApiClient {
   DateTime? _serversFetchedAt;
   UserPlan? _cachedPlan;
   DateTime? _planFetchedAt;
+  Future<List<ServerRegion>>? _serversInFlight;
+  Future<UserPlan>? _planInFlight;
+  Future<Map<String, dynamic>>? _profileInFlight;
+  Future<DeviceListResult>? _deviceListInFlight;
+  final Map<String, Future<VpnProtocolCatalog>> _protocolCatalogInFlight =
+      <String, Future<VpnProtocolCatalog>>{};
   final Map<Object, ControlPlaneReconnectHook> _reconnectHooks =
       <Object, ControlPlaneReconnectHook>{};
   Future<void> _reinitializeQueue = Future<void>.value();
@@ -136,6 +145,7 @@ class ApiClient {
 
   void dispose() {
     _reconnectHooks.clear();
+    _protocolCatalogInFlight.clear();
     _dio.close(force: true);
   }
 
@@ -197,12 +207,15 @@ class ApiClient {
           try {
             final refreshToken = await session.getRefreshToken();
             if (refreshToken == null || refreshToken.isEmpty) {
-              debugPrint('[AUTH_REFRESH] no refresh token — clearing session');
+              _debugAuthRefresh(
+                '[AUTH_REFRESH] no refresh token — clearing session',
+              );
               await session.clearSession();
               return handler.next(error);
             }
-            debugPrint(
-                '[AUTH_REFRESH] 401 received — attempting token refresh');
+            _debugAuthRefresh(
+              '[AUTH_REFRESH] 401 received — attempting token refresh',
+            );
             final refreshDio = _buildRefreshDio();
             final refreshResp = await refreshDio.post<Map<String, dynamic>>(
               '/auth/refresh',
@@ -211,8 +224,9 @@ class ApiClient {
             final newAccess = refreshResp.data?['access_token']?.toString();
             final newRefresh = refreshResp.data?['refresh_token']?.toString();
             if (newAccess == null || newAccess.isEmpty) {
-              debugPrint(
-                  '[AUTH_REFRESH] refresh response missing access_token');
+              _debugAuthRefresh(
+                '[AUTH_REFRESH] refresh response missing access_token',
+              );
               await session.clearSession();
               return handler.next(error);
             }
@@ -220,7 +234,9 @@ class ApiClient {
               accessToken: newAccess,
               refreshToken: newRefresh,
             );
-            debugPrint('[AUTH_REFRESH] tokens refreshed — retrying request');
+            _debugAuthRefresh(
+              '[AUTH_REFRESH] tokens refreshed — retrying request',
+            );
             // Retry the original request with the new token.
             final opts = error.requestOptions;
             opts.headers['Authorization'] = 'Bearer $newAccess';
@@ -228,7 +244,7 @@ class ApiClient {
             final retryResp = await _dio.fetch(opts);
             return handler.resolve(retryResp);
           } catch (refreshError) {
-            debugPrint(
+            _debugAuthRefresh(
               '[AUTH_REFRESH] refresh failed: $refreshError — clearing session',
             );
             await session.clearSession();
@@ -259,13 +275,44 @@ class ApiClient {
     return refreshDio;
   }
 
+  void _debugAuthRefresh(String message) {
+    AppLogger.debug(message, tag: 'SecureWave.Auth');
+  }
+
   void _debugLog(String event, Map<String, Object?> payload) {
     if (!kDebugMode) return;
     final data = <String, Object?>{
       'event': event,
-      ...payload,
+      ..._sanitizeDebugPayload(payload),
     };
-    debugPrint('[SW_API] ${jsonEncode(data)}');
+    AppLogger.debug('[SW_API] ${jsonEncode(data)}', tag: 'SecureWave.API');
+  }
+
+  Map<String, Object?> _sanitizeDebugPayload(Map<String, Object?> payload) {
+    final sanitized = <String, Object?>{};
+    for (final entry in payload.entries) {
+      sanitized[entry.key] = _sanitizeDebugValue(entry.key, entry.value);
+    }
+    return sanitized;
+  }
+
+  Object? _sanitizeDebugValue(String key, Object? value) {
+    final normalized = key.trim().toLowerCase();
+    if (normalized == 'email' || normalized.endsWith('_email')) {
+      return '[REDACTED_EMAIL]';
+    }
+    if (normalized.contains('password') ||
+        normalized.contains('token') ||
+        normalized.contains('secret') ||
+        normalized.contains('authorization') ||
+        normalized.contains('cookie') ||
+        normalized.contains('private_key')) {
+      return '[REDACTED]';
+    }
+    if (value is Map<String, Object?>) {
+      return _sanitizeDebugPayload(value);
+    }
+    return value;
   }
 
   Never _contractViolation(String endpoint, String detail) {
@@ -536,6 +583,23 @@ class ApiClient {
   }
 
   Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
+    if (!forceRefresh && _serversInFlight != null) {
+      return _serversInFlight!;
+    }
+    final future = _fetchServersInternal(forceRefresh: forceRefresh);
+    _serversInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_serversInFlight, future)) {
+        _serversInFlight = null;
+      }
+    }
+  }
+
+  Future<List<ServerRegion>> _fetchServersInternal({
+    required bool forceRefresh,
+  }) async {
     if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
       final age = DateTime.now().difference(_serversFetchedAt!);
       if (age < _serversCacheTtl) {
@@ -696,6 +760,21 @@ class ApiClient {
   }
 
   Future<UserPlan> fetchUserPlan({bool forceRefresh = false}) async {
+    if (!forceRefresh && _planInFlight != null) {
+      return _planInFlight!;
+    }
+    final future = _fetchUserPlanInternal(forceRefresh: forceRefresh);
+    _planInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_planInFlight, future)) {
+        _planInFlight = null;
+      }
+    }
+  }
+
+  Future<UserPlan> _fetchUserPlanInternal({required bool forceRefresh}) async {
     if (!forceRefresh && _cachedPlan != null && _planFetchedAt != null) {
       final age = DateTime.now().difference(_planFetchedAt!);
       if (age < _planCacheTtl) {
@@ -922,6 +1001,35 @@ class ApiClient {
     required String deviceType,
     CancelToken? cancelToken,
   }) async {
+    final requestKey = deviceType.trim().toLowerCase();
+    if (cancelToken == null) {
+      final existing = _protocolCatalogInFlight[requestKey];
+      if (existing != null) {
+        return existing;
+      }
+      final future = _fetchVpnProtocolsInternal(
+        deviceType: deviceType,
+        cancelToken: cancelToken,
+      );
+      _protocolCatalogInFlight[requestKey] = future;
+      try {
+        return await future;
+      } finally {
+        if (identical(_protocolCatalogInFlight[requestKey], future)) {
+          _protocolCatalogInFlight.remove(requestKey);
+        }
+      }
+    }
+    return _fetchVpnProtocolsInternal(
+      deviceType: deviceType,
+      cancelToken: cancelToken,
+    );
+  }
+
+  Future<VpnProtocolCatalog> _fetchVpnProtocolsInternal({
+    required String deviceType,
+    CancelToken? cancelToken,
+  }) async {
     try {
       _debugLog('protocols_start', <String, Object?>{
         'device_type': deviceType,
@@ -1012,6 +1120,21 @@ class ApiClient {
 
   /// Fetch current user profile from /auth/me.
   Future<Map<String, dynamic>> fetchProfile() async {
+    if (_profileInFlight != null) {
+      return _profileInFlight!;
+    }
+    final future = _fetchProfileInternal();
+    _profileInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_profileInFlight, future)) {
+        _profileInFlight = null;
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchProfileInternal() async {
     try {
       final response = await _dio.get<Map<String, dynamic>>('/auth/me');
       return response.data ?? <String, dynamic>{};
@@ -1065,6 +1188,21 @@ class ApiClient {
 
   /// List registered devices for the current user.
   Future<DeviceListResult> listDevices() async {
+    if (_deviceListInFlight != null) {
+      return _deviceListInFlight!;
+    }
+    final future = _listDevicesInternal();
+    _deviceListInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_deviceListInFlight, future)) {
+        _deviceListInFlight = null;
+      }
+    }
+  }
+
+  Future<DeviceListResult> _listDevicesInternal() async {
     try {
       final response = await _dio.get<Map<String, dynamic>>('/vpn/devices');
       final data = response.data ?? <String, dynamic>{};

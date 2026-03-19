@@ -54,6 +54,7 @@ dependency_overrides:
 flutter:
   uses-material-design: true
   assets:
+    - .env
     - assets/
 
 flutter_launcher_icons:

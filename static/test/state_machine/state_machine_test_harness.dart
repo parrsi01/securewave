@@ -90,6 +90,7 @@ ProviderContainer buildVpnContainer({
     reconnectDelayAfterDisconnect: Duration.zero,
   ),
   bool authenticated = true,
+  List<Override> overrides = const <Override>[],
 }) {
   final authSession =
       authenticated ? HarnessAuthenticatedSession() : AuthSession();
@@ -100,6 +101,7 @@ ProviderContainer buildVpnContainer({
       apiClientProvider.overrideWithValue(apiClient),
       vpnStateMachineConfigProvider.overrideWithValue(config),
       authSessionProvider.overrideWith((ref) => authSession),
+      ...overrides,
     ],
   );
 }
@@ -185,7 +187,9 @@ class ControlledVpnService implements VpnService {
     connectCalls += 1;
     lastConnectProtocol = protocol;
     lastProfile = profile;
-    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
+    if (_status == VpnStatus.connected ||
+        _status == VpnStatus.connecting ||
+        _status == VpnStatus.verifying) {
       return _status;
     }
     _status = VpnStatus.connecting;

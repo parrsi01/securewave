@@ -22,6 +22,22 @@ if ! command -v appimage-builder >/dev/null 2>&1; then
   exit 1
 fi
 
+ensure_release_mock_vpn_disabled() {
+  local violations=()
+  [[ "${SECUREWAVE_MOCK_VPN:-false}" == "true" ]] && violations+=("SECUREWAVE_MOCK_VPN")
+  [[ "${SECUREWAVE_MOCK_VPN_FORCE_FAILURE:-false}" == "true" ]] && violations+=("SECUREWAVE_MOCK_VPN_FORCE_FAILURE")
+  [[ "${SECUREWAVE_MOCK_VPN_UNSTABLE:-false}" == "true" ]] && violations+=("SECUREWAVE_MOCK_VPN_UNSTABLE")
+  if [[ -n "${SECUREWAVE_MOCK_VPN_LATENCY_MS:-}" && "${SECUREWAVE_MOCK_VPN_LATENCY_MS}" != "300" ]]; then
+    violations+=("SECUREWAVE_MOCK_VPN_LATENCY_MS")
+  fi
+  if [[ "${#violations[@]}" -gt 0 ]]; then
+    echo "ERROR: refusing release build with mock VPN settings enabled: ${violations[*]}" >&2
+    exit 1
+  fi
+}
+
+ensure_release_mock_vpn_disabled
+
 flutter pub get
 flutter build linux --release
 

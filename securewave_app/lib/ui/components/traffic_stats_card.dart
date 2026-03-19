@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/state/vpn_state.dart';
 import '../design/app_colors.dart';
@@ -7,13 +8,20 @@ import '../widgets/glass_panel.dart';
 import '../widgets/ui_helpers.dart';
 
 /// Glass card showing download / upload rates and session total.
-class TrafficStatsCard extends StatelessWidget {
-  const TrafficStatsCard({super.key, required this.vpnState});
-
-  final VpnState vpnState;
+class TrafficStatsCard extends ConsumerWidget {
+  const TrafficStatsCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(
+      vpnStateProvider.select(
+        (state) => (
+          down: state.dataRateDown,
+          up: state.dataRateUp,
+          usedBytes: state.sessionTransferredBytes,
+        ),
+      ),
+    );
     return GlassPanel(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space5,
@@ -25,21 +33,21 @@ class TrafficStatsCard extends StatelessWidget {
           _Stat(
             icon: Icons.arrow_downward_rounded,
             label: 'Download',
-            value: formatDataRate(vpnState.dataRateDown),
+            value: formatDataRate(stats.down),
             color: AppColors.secondary,
           ),
           _Divider(),
           _Stat(
             icon: Icons.arrow_upward_rounded,
             label: 'Upload',
-            value: formatDataRate(vpnState.dataRateUp),
+            value: formatDataRate(stats.up),
             color: AppColors.primaryBright,
           ),
           _Divider(),
           _Stat(
             icon: Icons.data_usage_rounded,
             label: 'Used',
-            value: formatBytesCompact(vpnState.sessionTransferredBytes),
+            value: formatBytesCompact(stats.usedBytes),
             color: AppColors.darkInkMuted,
           ),
         ],

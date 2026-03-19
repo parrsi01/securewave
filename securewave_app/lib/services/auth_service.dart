@@ -5,6 +5,11 @@ import '../core/services/auth_session.dart';
 import '../core/services/secure_storage.dart';
 import 'api_client.dart';
 
+enum RegistrationOutcome {
+  authenticated,
+  loginRequired,
+}
+
 final authServiceProvider = Provider<AuthService>((ref) {
   final api = ref.read(apiClientProvider);
   final session = ref.read(authSessionProvider);
@@ -32,12 +37,13 @@ class AuthService {
     await _storage.saveRecentLoginEmail(email);
   }
 
-  Future<void> register(
+  Future<RegistrationOutcome> register(
       {required String email, required String password}) async {
     final tokens = await _api.register(email: email, password: password);
     if (tokens == null) {
       AppLogger.warning('Registration completed without token payload.');
-      return;
+      await _storage.saveRecentLoginEmail(email);
+      return RegistrationOutcome.loginRequired;
     }
     await _session.setSession(
       accessToken: tokens.accessToken,
@@ -45,5 +51,6 @@ class AuthService {
       email: email,
     );
     await _storage.saveRecentLoginEmail(email);
+    return RegistrationOutcome.authenticated;
   }
 }

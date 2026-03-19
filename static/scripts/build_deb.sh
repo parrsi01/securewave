@@ -21,6 +21,22 @@ if ! command -v dpkg-deb >/dev/null 2>&1; then
   exit 1
 fi
 
+ensure_release_mock_vpn_disabled() {
+  local violations=()
+  [[ "${SECUREWAVE_MOCK_VPN:-false}" == "true" ]] && violations+=("SECUREWAVE_MOCK_VPN")
+  [[ "${SECUREWAVE_MOCK_VPN_FORCE_FAILURE:-false}" == "true" ]] && violations+=("SECUREWAVE_MOCK_VPN_FORCE_FAILURE")
+  [[ "${SECUREWAVE_MOCK_VPN_UNSTABLE:-false}" == "true" ]] && violations+=("SECUREWAVE_MOCK_VPN_UNSTABLE")
+  if [[ -n "${SECUREWAVE_MOCK_VPN_LATENCY_MS:-}" && "${SECUREWAVE_MOCK_VPN_LATENCY_MS}" != "300" ]]; then
+    violations+=("SECUREWAVE_MOCK_VPN_LATENCY_MS")
+  fi
+  if [[ "${#violations[@]}" -gt 0 ]]; then
+    echo "ERROR: refusing release build with mock VPN settings enabled: ${violations[*]}" >&2
+    exit 1
+  fi
+}
+
+ensure_release_mock_vpn_disabled
+
 flutter pub get
 flutter build linux --release
 
@@ -94,39 +110,77 @@ WRAPPER
 chmod 0755 "$staging_dir/usr/bin/securewave-vpn"
 
 # postinst: install a scoped WireGuard helper + polkit rule so SecureWave
-# reconnect/reset operations do not require repetitive password prompts.
+# uses the helper-only production elevation path for WireGuard operations.
 cat <<'POSTINST' > "$staging_dir/DEBIAN/postinst"
 #!/bin/bash
 set -e
 HELPER_DIR=/usr/local/libexec
 HELPER=$HELPER_DIR/securewave-wg-quick
+HELPER_CONTRACT=$HELPER_DIR/securewave-wg-quick.contract
+HELPER_CONTRACT_VERSION=2
 install -d -m 0755 "$HELPER_DIR"
 cat > "$HELPER" <<'HELPER_SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
-  echo "Usage: securewave-wg-quick <up|down> <config-path>" >&2
+  echo "Usage: securewave-wg-quick <up|down|policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset> <config-path|iface>" >&2
   exit 64
 fi
 
 action="$1"
-config="$2"
+target="$2"
 case "$action" in
-  up|down) ;;
+  up|down|policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset) ;;
   *)
     echo "securewave-wg-quick: invalid action '$action'" >&2
     exit 64
     ;;
 esac
 
-case "$config" in
-  /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf) ;;
-  *)
-    echo "securewave-wg-quick: refusing unsafe config path '$config'" >&2
-    exit 64
+case "$action" in
+  up|down)
+    config="$target"
+    case "$config" in
+      /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf) ;;
+      *)
+        echo "securewave-wg-quick: refusing unsafe config path '$config'" >&2
+        exit 64
+        ;;
+    esac
+    ;;
+  policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset)
+    iface="$target"
+    if [[ "$iface" != "sw-wg" ]]; then
+      echo "securewave-wg-quick: refusing unsafe interface '$iface'" >&2
+      exit 64
+    fi
     ;;
 esac
+
+policy_rule_count() {
+  ip rule show | awk '/lookup 51820/ && /fwmark/ && /not/ { count++ } END { print count + 0 }'
+}
+
+main_suppress_count() {
+  ip rule show | awk '/lookup main/ && /suppress_prefixlength 0/ { count++ } END { print count + 0 }'
+}
+
+table_route_present() {
+  ip -4 route show table 51820 | grep -q "^default dev ${iface}( |$)"
+}
+
+clear_policy_state() {
+  local remove_link="${1:-0}"
+  while ip rule del not fwmark 51820 table 51820 priority 32764 >/dev/null 2>&1; do :; done
+  while ip rule del table main suppress_prefixlength 0 priority 32765 >/dev/null 2>&1; do :; done
+  ip -4 route flush table 51820 >/dev/null 2>&1 || true
+  ip -6 route flush table 51820 >/dev/null 2>&1 || true
+  if [[ "$remove_link" == "1" ]]; then
+    ip link delete "$iface" >/dev/null 2>&1 || true
+  fi
+  ip route flush cache >/dev/null 2>&1 || true
+}
 
 if [[ "$action" == "up" ]]; then
   STATE_DIR=/run/securewave
@@ -149,10 +203,49 @@ if [[ "$action" == "up" ]]; then
   fi
   rm -f "$POLICY_FILE" "$ENDPOINT_FILE"
   wg-quick down "$config" >/dev/null 2>&1 || true
-  ip link delete sw-wg >/dev/null 2>&1 || true
-  for _ in 1 2 3 4 5 6 7 8; do
-    ip rule del table 51820 >/dev/null 2>&1 || break
-  done
+  iface="sw-wg"
+  clear_policy_state 1
+fi
+
+if [[ "$action" == "policy-ensure" ]]; then
+  wg set "$iface" fwmark 51820
+  if ! table_route_present; then
+    ip -4 route flush table 51820 >/dev/null 2>&1 || true
+    ip -6 route flush table 51820 >/dev/null 2>&1 || true
+    ip route add default dev "$iface" table 51820
+  fi
+  if (( $(policy_rule_count) > 1 || $(main_suppress_count) > 1 )); then
+    clear_policy_state 0
+  fi
+  if (( $(policy_rule_count) == 0 )); then
+    ip rule add not fwmark 51820 table 51820 priority 32764
+  fi
+  if (( $(main_suppress_count) == 0 )); then
+    ip rule add table main suppress_prefixlength 0 priority 32765
+  fi
+  ip route flush cache >/dev/null 2>&1 || true
+  exit 0
+fi
+
+if [[ "$action" == "policy-clear" ]]; then
+  clear_policy_state 0
+  exit 0
+fi
+
+if [[ "$action" == "policy-clear-link" ]]; then
+  clear_policy_state 1
+  exit 0
+fi
+
+if [[ "$action" == "nm-unmanaged" ]]; then
+  nmcli device set "$iface" managed no
+  exit 0
+fi
+
+if [[ "$action" == "nm-reset" ]]; then
+  systemctl restart NetworkManager >/dev/null 2>&1 || nmcli general reload >/dev/null 2>&1 || true
+  nmcli device set "$iface" managed no >/dev/null 2>&1 || true
+  exit 0
 fi
 
 exec wg-quick "$action" "$config"
@@ -172,6 +265,8 @@ polkit.addRule(function(action, subject) {
 });
 RULE
 chmod 0644 "$POLKIT_RULE"
+printf '%s\n' "$HELPER_CONTRACT_VERSION" > "$HELPER_CONTRACT"
+chmod 0644 "$HELPER_CONTRACT"
 POSTINST
 chmod 0755 "$staging_dir/DEBIAN/postinst"
 
@@ -180,6 +275,7 @@ cat <<'POSTRM' > "$staging_dir/DEBIAN/postrm"
 #!/bin/bash
 set -e
 rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
+rm -f /usr/local/libexec/securewave-wg-quick.contract
 rm -f /usr/local/libexec/securewave-wg-quick
 POSTRM
 chmod 0755 "$staging_dir/DEBIAN/postrm"
@@ -187,6 +283,6 @@ chmod 0755 "$staging_dir/DEBIAN/postrm"
 mkdir -p "$output_dir"
 output_file="$output_dir/${package_name}_${version}_${arch}.deb"
 
-dpkg-deb --build "$staging_dir" "$output_file" >/dev/null
+dpkg-deb --build --root-owner-group "$staging_dir" "$output_file" >/dev/null
 
 echo "OK: Built $output_file"

@@ -86,4 +86,27 @@ void main() {
     expect(visual, ConnectionVisualState.reconnecting);
     expect(connectionVisualStateIsBusy(visual), isTrue);
   });
+
+  test('UI binding treats degraded tunnel as connected presentation', () {
+    final visual = resolveConnectionVisualState(
+      const VpnState(status: VpnStatus.degraded),
+    );
+
+    expect(visual, ConnectionVisualState.connected);
+    expect(connectionVisualStateHasActiveTunnel(visual), isTrue);
+  });
+
+  test('UI binding treats reconnecting status as reconnecting presentation',
+      () {
+    final visual = resolveConnectionVisualState(
+      const VpnState(
+        status: VpnStatus.reconnecting,
+        desiredOn: true,
+      ),
+      const [],
+    );
+
+    expect(visual, ConnectionVisualState.reconnecting);
+    expect(connectionVisualStateIsBusy(visual), isTrue);
+  });
 }

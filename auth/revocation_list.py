@@ -13,15 +13,16 @@ Design:
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from config.settings import get_settings
 from models.jwt_blacklist_token import JWTBlacklistToken
 
 logger = logging.getLogger(__name__)
+SETTINGS = get_settings()
 
 # ── Redis optional bootstrap ───────────────────────────────────────────────────
 _redis_client = None
@@ -34,7 +35,7 @@ def _get_redis():
     if _redis_client is not None:
         return _redis_client
 
-    redis_url = os.getenv("REDIS_URL", "")
+    redis_url = SETTINGS.redis_url
     if not redis_url or redis_url == "memory://":
         return None
 
@@ -44,7 +45,7 @@ def _get_redis():
         client = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=2)
         client.ping()
         _redis_client = client
-        logger.info("revocation_list: Redis cache enabled at %s", redis_url)
+        logger.info("revocation_list: Redis cache enabled", extra={"redis_configured": True})
     except Exception as exc:
         logger.warning("revocation_list: Redis unavailable (%s) — DB-only mode", exc)
         _redis_client = None

@@ -11,7 +11,6 @@ class MetricsDisplay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final vpnState = ref.watch(vpnStateProvider);
-    return TrafficStatsCard(vpnState: vpnState);
+    return const TrafficStatsCard();
   }
 }

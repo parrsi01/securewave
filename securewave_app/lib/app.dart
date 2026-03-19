@@ -49,9 +49,23 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     _handleConnectivityEvent(results);
   }
 
+  bool _sameConfig(AppConfig a, AppConfig b) {
+    return a.apiBaseUrl == b.apiBaseUrl &&
+        a.portalUrl == b.portalUrl &&
+        a.upgradeUrl == b.upgradeUrl &&
+        a.resetSessionOnBoot == b.resetSessionOnBoot &&
+        a.configSource == b.configSource &&
+        a.httpsPreferred == b.httpsPreferred;
+  }
+
   void _handleConnectivityEvent(List<ConnectivityResult> results) {
     final nextPath = networkPathKindFromResults(results);
     final previousPath = _lastNetworkPath;
+    final pathChanged = previousPath != nextPath;
+    final onlineChanged = previousPath.isOnline != nextPath.isOnline;
+    if (!pathChanged && !onlineChanged) {
+      return;
+    }
     _lastNetworkPath = nextPath;
 
     AppLogger.vpn(
@@ -65,10 +79,12 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     );
 
     final notifier = ref.read(vpnStateProvider.notifier);
-    unawaited(
-      notifier.handleConnectivityChange(hasNetwork: nextPath.isOnline),
-    );
-    if (previousPath != nextPath) {
+    if (onlineChanged) {
+      unawaited(
+        notifier.handleConnectivityChange(hasNetwork: nextPath.isOnline),
+      );
+    }
+    if (pathChanged) {
       unawaited(
         notifier.handleNetworkPathChange(
           previous: previousPath,
@@ -80,9 +96,12 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
 
   Future<void> _handleLifecycle(AppLifecycleState state) async {
     if (state == AppLifecycleState.resumed) {
+      final currentConfig = ref.read(appConfigProvider);
       final config = await AppConfig.load();
       if (!mounted) return;
-      ref.read(appConfigProvider.notifier).state = config;
+      if (!_sameConfig(currentConfig, config)) {
+        ref.read(appConfigProvider.notifier).state = config;
+      }
       ref.read(vpnStateProvider.notifier).resumeRateUpdates();
       return;
     }

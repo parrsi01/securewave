@@ -166,6 +166,17 @@ class ProtocolSelector {
     if (reason == 'protocol_temporarily_unavailable') {
       return '${vpnProtocolLabel(protocol)} is temporarily unavailable.';
     }
+    if (reason == 'openvpn_server_misconfigured' ||
+        reason == 'ikev2_server_misconfigured') {
+      return '${vpnProtocolLabel(protocol)} is not provisioned correctly on the server.';
+    }
+    if (reason == 'openvpn_healthcheck_fail' ||
+        reason == 'ikev2_healthcheck_fail') {
+      return '${vpnProtocolLabel(protocol)} is currently failing server health checks.';
+    }
+    if (reason == 'ikev2_auth_mode_mismatch_linux') {
+      return 'IKEv2 is not configured with a Linux-compatible auth mode.';
+    }
     return '${vpnProtocolLabel(protocol)} is unavailable on the backend for '
         'this device, plan, or server.';
   }

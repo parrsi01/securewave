@@ -13,6 +13,13 @@ from models.auth_refresh_token import AuthRefreshToken
 from models.jwt_blacklist_token import JWTBlacklistToken
 from models.user import User
 from config.settings import get_settings
+from services.shared_security_state import (
+    get_refresh_session,
+    is_token_revoked,
+    register_refresh_session,
+    remember_revoked_token,
+    revoke_refresh_session as cache_revoke_refresh_session,
+)
 
 logger = logging.getLogger(__name__)
 SETTINGS = get_settings()
@@ -86,6 +93,14 @@ def _persist_refresh_session(
     )
     db.add(session)
     db.commit()
+    register_refresh_session(
+        token_jti=jti,
+        user_id=user_id,
+        expires_at=expires_at,
+        issued_at=session.issued_at,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
 
 
 def create_refresh_token(
@@ -127,12 +142,23 @@ def decode_token(token: str, secret: str) -> dict:
 def is_token_jti_revoked(db: Session, token_jti: Optional[str]) -> bool:
     if not token_jti:
         return False
-    return (
+    if is_token_revoked(token_jti):
+        return True
+    existing = (
         db.query(JWTBlacklistToken)
         .filter(JWTBlacklistToken.token_jti == token_jti)
         .first()
-        is not None
     )
+    if existing:
+        remember_revoked_token(
+            token_jti=existing.token_jti,
+            token_type=existing.token_type,
+            expires_at=existing.expires_at,
+            user_id=existing.user_id,
+            reason=existing.reason,
+        )
+        return True
+    return False
 
 
 def blacklist_token_jti(
@@ -150,6 +176,13 @@ def blacklist_token_jti(
         .first()
     )
     if existing:
+        remember_revoked_token(
+            token_jti=existing.token_jti,
+            token_type=existing.token_type,
+            expires_at=existing.expires_at,
+            user_id=existing.user_id,
+            reason=existing.reason,
+        )
         return
 
     db.add(
@@ -162,6 +195,13 @@ def blacklist_token_jti(
         )
     )
     db.commit()
+    remember_revoked_token(
+        token_jti=token_jti,
+        token_type=token_type,
+        expires_at=expires_at,
+        user_id=user_id,
+        reason=reason,
+    )
 
 
 def revoke_access_token(db: Session, token: str, *, reason: str = "manual") -> dict:
@@ -198,6 +238,14 @@ def verify_refresh_token(token: str, db: Optional[Session] = None) -> dict:
     if is_token_jti_revoked(db, jti):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token was revoked")
 
+    cached_session = get_refresh_session(jti)
+    if cached_session is not None:
+        if cached_session.get("revoked_at"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token was revoked")
+        if _coerce_expiration(cached_session.get("expires_at")) <= _utcnow():
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
+        return payload
+
     session = db.query(AuthRefreshToken).filter(AuthRefreshToken.token_jti == jti).first()
     if not session:
         if REFRESH_SESSION_REQUIRED:
@@ -207,6 +255,16 @@ def verify_refresh_token(token: str, db: Optional[Session] = None) -> dict:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token was revoked")
     if session.expires_at <= _utcnow():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
+    register_refresh_session(
+        token_jti=session.token_jti,
+        user_id=session.user_id,
+        expires_at=session.expires_at,
+        issued_at=session.issued_at,
+        ip_address=session.ip_address,
+        user_agent=session.user_agent,
+        revoked_at=session.revoked_at,
+        replaced_by_jti=session.replaced_by_jti,
+    )
     return payload
 
 
@@ -230,6 +288,13 @@ def revoke_refresh_token(db: Session, token_jti: str, *, replaced_by_jti: Option
         reason="rotated" if replaced_by_jti else "revoked",
     )
     db.commit()
+    cache_revoke_refresh_session(
+        token_jti=token_jti,
+        user_id=session.user_id,
+        expires_at=session.expires_at,
+        revoked_at=session.revoked_at,
+        replaced_by_jti=session.replaced_by_jti,
+    )
 
 
 def purge_expired_blacklist_tokens(db: Session) -> int:

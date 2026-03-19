@@ -47,6 +47,11 @@ const guint kWgQuickTimeoutMs = 30000;
 const guint kRuntimeSanityTimeoutMs = 7000;
 const guint kRuntimeSanityPollIntervalMs = 200;
 const char* kSecureWaveWgHelperPath = "/usr/local/libexec/securewave-wg-quick";
+const char* kSecureWaveWgHelperContractPath =
+    "/usr/local/libexec/securewave-wg-quick.contract";
+const char* kSecureWavePolkitRulePath =
+    "/etc/polkit-1/rules.d/50-securewave-wg.rules";
+const char* kSecureWaveWgHelperContractVersion = "2";
 const char* kPkexecDisableInternalAgentArg = "--disable-internal-agent";
 
 typedef struct {
@@ -174,38 +179,65 @@ static gboolean securewave_wg_helper_available() {
   return g_file_test(kSecureWaveWgHelperPath, G_FILE_TEST_IS_EXECUTABLE);
 }
 
-static gboolean has_desktop_auth_session() {
-  const gchar* display = g_getenv("DISPLAY");
-  if (display && *display != '\0') {
-    return TRUE;
+static gboolean file_contents_equal_trimmed(const gchar* path,
+                                            const gchar* expected) {
+  if (!path || !expected || !g_file_test(path, G_FILE_TEST_IS_REGULAR)) {
+    return FALSE;
   }
-  const gchar* wayland_display = g_getenv("WAYLAND_DISPLAY");
-  if (wayland_display && *wayland_display != '\0') {
-    return TRUE;
+  g_autofree gchar* contents = nullptr;
+  gsize length = 0;
+  if (!g_file_get_contents(path, &contents, &length, nullptr) || !contents) {
+    return FALSE;
   }
-  return FALSE;
+  return g_strcmp0(g_strstrip(contents), expected) == 0;
 }
 
-static gboolean elevation_available() {
+static gboolean file_contains_text(const gchar* path, const gchar* needle) {
+  if (!path || !needle || !g_file_test(path, G_FILE_TEST_IS_REGULAR)) {
+    return FALSE;
+  }
+  g_autofree gchar* contents = nullptr;
+  gsize length = 0;
+  if (!g_file_get_contents(path, &contents, &length, nullptr) || !contents) {
+    return FALSE;
+  }
+  return g_strstr_len(contents, static_cast<gssize>(length), needle) !=
+         nullptr;
+}
+
+static gboolean securewave_wg_helper_contract_ready() {
+  return file_contents_equal_trimmed(kSecureWaveWgHelperContractPath,
+                                     kSecureWaveWgHelperContractVersion);
+}
+
+static gboolean securewave_polkit_rule_ready() {
+  return file_contains_text(kSecureWavePolkitRulePath,
+                            kSecureWaveWgHelperPath);
+}
+
+static gboolean securewave_wg_helper_install_ready() {
+  return securewave_wg_helper_available() &&
+         securewave_wg_helper_contract_ready() &&
+         securewave_polkit_rule_ready();
+}
+
+static gboolean wireguard_elevation_available() {
   if (geteuid() == 0) {
     return TRUE;
   }
-  // Preferred path: scoped helper + polkit rule allows tunnel resets without
-  // repetitive password prompts while preserving OS authorization controls.
-  if (pkexec_available() && securewave_wg_helper_available()) {
-    return TRUE;
-  }
-  // Fallback path: pkexec with a desktop auth agent.
-  return pkexec_available() && has_desktop_auth_session();
+  return pkexec_available() && securewave_wg_helper_install_ready();
+}
+
+static gboolean elevation_available() {
+  return wireguard_elevation_available();
 }
 
 static gboolean native_vpn_available() {
-  const gboolean can_elevate = elevation_available();
-  if (!can_elevate) {
-    return FALSE;
-  }
-  return wg_quick_available() || openvpn_available() ||
-         (nmcli_available() && ipsec_available());
+  const gboolean wireguard_ready =
+      wg_quick_available() && wireguard_elevation_available();
+  const gboolean root_runtime = geteuid() == 0;
+  return wireguard_ready || (root_runtime && openvpn_available()) ||
+         (root_runtime && nmcli_available() && ipsec_available());
 }
 
 static const gchar* wireguard_install_hint_message() {
@@ -222,9 +254,28 @@ static const gchar* ikev2_install_hint_message() {
 }
 
 static const gchar* elevation_hint_message() {
+  if (geteuid() != 0 && !pkexec_available()) {
+    return "Administrator elevation is unavailable because pkexec is missing. "
+           "Install policykit-1 and retry.";
+  }
+  if (geteuid() != 0 && !securewave_wg_helper_available()) {
+    return "Administrator privileges are required. Reinstall SecureWave so the "
+           "scoped WireGuard helper is installed, or run SecureWave as root.";
+  }
+  if (geteuid() != 0 && !securewave_wg_helper_contract_ready()) {
+    return "Administrator privileges are required. The installed SecureWave "
+           "WireGuard helper is outdated or incomplete. Reinstall or upgrade "
+           "SecureWave to refresh the helper.";
+  }
+  if (geteuid() != 0 && !securewave_polkit_rule_ready()) {
+    return "Administrator privileges are required. The SecureWave polkit rule "
+           "is missing or stale. Reinstall or upgrade SecureWave to restore "
+           "/etc/polkit-1/rules.d/50-securewave-wg.rules, or run SecureWave "
+           "as root.";
+  }
   return "Administrator privileges are required. Install the SecureWave "
-         "helper/polkit setup (preferred) or PolicyKit (pkexec) with a desktop "
-         "authentication agent.";
+         "helper/polkit setup so the app can invoke the scoped WireGuard helper, "
+         "or run SecureWave as root.";
 }
 
 static gchar* build_runtime_path(const gchar* file_name) {
@@ -636,7 +687,7 @@ static gboolean run_wireguard_helper_step(const gchar* action,
                                           const gchar* fallback_message,
                                           gchar** out_code,
                                           gchar** out_message) {
-  if (!action || *action == '\0' || !securewave_wg_helper_available()) {
+  if (!action || *action == '\0' || !securewave_wg_helper_install_ready()) {
     return FALSE;
   }
 
@@ -682,9 +733,19 @@ static gboolean run_wg_quick_sync(const gchar* action,
     return FALSE;
   }
 
-  if (geteuid() != 0 && securewave_wg_helper_available()) {
+  if (geteuid() != 0 && wireguard_elevation_available()) {
     return run_wireguard_helper_step(
         action, config_path, error_code, fallback_message, out_code, out_message);
+  }
+
+  if (geteuid() != 0) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_permission_required");
+    }
+    if (out_message) {
+      *out_message = g_strdup(elevation_hint_message());
+    }
+    return FALSE;
   }
 
   g_autofree gchar* wg_quick_path = g_find_program_in_path("wg-quick");
@@ -698,33 +759,8 @@ static gboolean run_wg_quick_sync(const gchar* action,
     return FALSE;
   }
 
-  const gboolean needs_elevation = geteuid() != 0;
-  if (needs_elevation && !has_desktop_auth_session()) {
-    if (out_code) {
-      *out_code = g_strdup("vpn_permission_required");
-    }
-    if (out_message) {
-      *out_message = g_strdup(elevation_hint_message());
-    }
-    return FALSE;
-  }
-
-  g_autofree gchar* pkexec_path = nullptr;
-  if (needs_elevation) {
-    pkexec_path = g_find_program_in_path("pkexec");
-    if (!pkexec_path) {
-      if (out_code) {
-        *out_code = g_strdup("vpn_permission_required");
-      }
-      if (out_message) {
-        *out_message = g_strdup(elevation_hint_message());
-      }
-      return FALSE;
-    }
-  }
-
   gchar* argv[8] = {nullptr};
-  gint idx = append_pkexec_prefix(argv, pkexec_path);
+  gint idx = 0;
   argv[idx++] = wg_quick_path;
   argv[idx++] = const_cast<gchar*>(action);
   argv[idx++] = const_cast<gchar*>(config_path);
@@ -739,7 +775,7 @@ static gboolean set_wireguard_nm_unmanaged(const gchar* iface,
     return TRUE;
   }
 
-  if (geteuid() != 0 && securewave_wg_helper_available()) {
+  if (geteuid() != 0 && wireguard_elevation_available()) {
     return run_wireguard_helper_step(
         "nm-unmanaged",
         iface,
@@ -749,8 +785,7 @@ static gboolean set_wireguard_nm_unmanaged(const gchar* iface,
         out_message);
   }
 
-  const gboolean needs_elevation = geteuid() != 0;
-  if (needs_elevation && !has_desktop_auth_session()) {
+  if (geteuid() != 0) {
     if (out_code) {
       *out_code = g_strdup("vpn_permission_required");
     }
@@ -760,22 +795,8 @@ static gboolean set_wireguard_nm_unmanaged(const gchar* iface,
     return FALSE;
   }
 
-  g_autofree gchar* pkexec_path = nullptr;
-  if (needs_elevation) {
-    pkexec_path = g_find_program_in_path("pkexec");
-    if (!pkexec_path) {
-      if (out_code) {
-        *out_code = g_strdup("vpn_permission_required");
-      }
-      if (out_message) {
-        *out_message = g_strdup(elevation_hint_message());
-      }
-      return FALSE;
-    }
-  }
-
   gchar* argv[12] = {nullptr};
-  gint idx = append_pkexec_prefix(argv, pkexec_path);
+  gint idx = 0;
   argv[idx++] = const_cast<gchar*>("nmcli");
   argv[idx++] = const_cast<gchar*>("device");
   argv[idx++] = const_cast<gchar*>("set");
@@ -859,7 +880,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
     return FALSE;
   }
 
-  if (geteuid() != 0 && securewave_wg_helper_available()) {
+  if (geteuid() != 0 && wireguard_elevation_available()) {
     return run_wireguard_helper_step(
         "policy-ensure",
         iface,
@@ -869,8 +890,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
         out_message);
   }
 
-  const gboolean needs_elevation = geteuid() != 0;
-  if (needs_elevation && !has_desktop_auth_session()) {
+  if (geteuid() != 0) {
     if (out_code) {
       *out_code = g_strdup("vpn_permission_required");
     }
@@ -878,20 +898,6 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
       *out_message = g_strdup(elevation_hint_message());
     }
     return FALSE;
-  }
-
-  g_autofree gchar* pkexec_path = nullptr;
-  if (needs_elevation) {
-    pkexec_path = g_find_program_in_path("pkexec");
-    if (!pkexec_path) {
-      if (out_code) {
-        *out_code = g_strdup("vpn_permission_required");
-      }
-      if (out_message) {
-        *out_message = g_strdup(elevation_hint_message());
-      }
-      return FALSE;
-    }
   }
 
   gchar mark_arg[16];
@@ -907,7 +913,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
 
   {
     gchar* argv[12] = {nullptr};
-    gint idx = append_pkexec_prefix(argv, pkexec_path);
+    gint idx = 0;
     argv[idx++] = const_cast<gchar*>("wg");
     argv[idx++] = const_cast<gchar*>("set");
     argv[idx++] = const_cast<gchar*>(iface);
@@ -926,7 +932,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
 
   if (!wireguard_table_route_exists(iface)) {
     gchar* flush_v4_argv[12] = {nullptr};
-    gint idx = append_pkexec_prefix(flush_v4_argv, pkexec_path);
+    gint idx = 0;
     flush_v4_argv[idx++] = const_cast<gchar*>("ip");
     flush_v4_argv[idx++] = const_cast<gchar*>("-4");
     flush_v4_argv[idx++] = const_cast<gchar*>("route");
@@ -937,7 +943,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
     run_quiet_command(flush_v4_argv);
 
     gchar* flush_v6_argv[12] = {nullptr};
-    idx = append_pkexec_prefix(flush_v6_argv, pkexec_path);
+    idx = 0;
     flush_v6_argv[idx++] = const_cast<gchar*>("ip");
     flush_v6_argv[idx++] = const_cast<gchar*>("-6");
     flush_v6_argv[idx++] = const_cast<gchar*>("route");
@@ -948,7 +954,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
     run_quiet_command(flush_v6_argv);
 
     gchar* route_add_argv[14] = {nullptr};
-    idx = append_pkexec_prefix(route_add_argv, pkexec_path);
+    idx = 0;
     route_add_argv[idx++] = const_cast<gchar*>("ip");
     route_add_argv[idx++] = const_cast<gchar*>("route");
     route_add_argv[idx++] = const_cast<gchar*>("add");
@@ -986,7 +992,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
       return FALSE;
     }
     gchar* route_add_argv[14] = {nullptr};
-    gint idx = append_pkexec_prefix(route_add_argv, pkexec_path);
+    gint idx = 0;
     route_add_argv[idx++] = const_cast<gchar*>("ip");
     route_add_argv[idx++] = const_cast<gchar*>("route");
     route_add_argv[idx++] = const_cast<gchar*>("add");
@@ -1010,7 +1016,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
 
   if (policy_rule_count == 0) {
     gchar* add_policy_argv[20] = {nullptr};
-    gint idx = append_pkexec_prefix(add_policy_argv, pkexec_path);
+    gint idx = 0;
     add_policy_argv[idx++] = const_cast<gchar*>("ip");
     add_policy_argv[idx++] = const_cast<gchar*>("rule");
     add_policy_argv[idx++] = const_cast<gchar*>("add");
@@ -1034,7 +1040,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
 
   if (main_suppress_count == 0) {
     gchar* add_suppress_argv[18] = {nullptr};
-    gint idx = append_pkexec_prefix(add_suppress_argv, pkexec_path);
+    gint idx = 0;
     add_suppress_argv[idx++] = const_cast<gchar*>("ip");
     add_suppress_argv[idx++] = const_cast<gchar*>("rule");
     add_suppress_argv[idx++] = const_cast<gchar*>("add");
@@ -1056,7 +1062,7 @@ static gboolean apply_wireguard_policy_routing(const gchar* iface,
   }
   {
     gchar* flush_cache_argv[10] = {nullptr};
-    gint idx = append_pkexec_prefix(flush_cache_argv, pkexec_path);
+    gint idx = 0;
     flush_cache_argv[idx++] = const_cast<gchar*>("ip");
     flush_cache_argv[idx++] = const_cast<gchar*>("route");
     flush_cache_argv[idx++] = const_cast<gchar*>("flush");
@@ -1074,7 +1080,7 @@ static gboolean clear_wireguard_policy_routing(const gchar* iface,
                                                gchar** out_message) {
   const gchar* target_iface =
       (iface && *iface != '\0') ? iface : kWireGuardInterfaceName;
-  if (geteuid() != 0 && securewave_wg_helper_available()) {
+  if (geteuid() != 0 && wireguard_elevation_available()) {
     return run_wireguard_helper_step(
         remove_interface ? "policy-clear-link" : "policy-clear",
         target_iface,
@@ -1084,8 +1090,7 @@ static gboolean clear_wireguard_policy_routing(const gchar* iface,
         out_message);
   }
 
-  const gboolean needs_elevation = geteuid() != 0;
-  if (needs_elevation && !has_desktop_auth_session()) {
+  if (geteuid() != 0) {
     if (out_code) {
       *out_code = g_strdup("vpn_permission_required");
     }
@@ -1093,20 +1098,6 @@ static gboolean clear_wireguard_policy_routing(const gchar* iface,
       *out_message = g_strdup(elevation_hint_message());
     }
     return FALSE;
-  }
-
-  g_autofree gchar* pkexec_path = nullptr;
-  if (needs_elevation) {
-    pkexec_path = g_find_program_in_path("pkexec");
-    if (!pkexec_path) {
-      if (out_code) {
-        *out_code = g_strdup("vpn_permission_required");
-      }
-      if (out_message) {
-        *out_message = g_strdup(elevation_hint_message());
-      }
-      return FALSE;
-    }
   }
 
   gchar mark_arg[16];
@@ -1122,7 +1113,7 @@ static gboolean clear_wireguard_policy_routing(const gchar* iface,
 
   {
     gchar* delete_policy_argv[20] = {nullptr};
-    gint idx = append_pkexec_prefix(delete_policy_argv, pkexec_path);
+    gint idx = 0;
     delete_policy_argv[idx++] = const_cast<gchar*>("ip");
     delete_policy_argv[idx++] = const_cast<gchar*>("rule");
     delete_policy_argv[idx++] = const_cast<gchar*>("del");
@@ -1143,7 +1134,7 @@ static gboolean clear_wireguard_policy_routing(const gchar* iface,
 
   {
     gchar* delete_suppress_argv[18] = {nullptr};
-    gint idx = append_pkexec_prefix(delete_suppress_argv, pkexec_path);
+    gint idx = 0;
     delete_suppress_argv[idx++] = const_cast<gchar*>("ip");
     delete_suppress_argv[idx++] = const_cast<gchar*>("rule");
     delete_suppress_argv[idx++] = const_cast<gchar*>("del");
@@ -1163,7 +1154,7 @@ static gboolean clear_wireguard_policy_routing(const gchar* iface,
 
   {
     gchar* flush_v4_argv[12] = {nullptr};
-    gint idx = append_pkexec_prefix(flush_v4_argv, pkexec_path);
+    gint idx = 0;
     flush_v4_argv[idx++] = const_cast<gchar*>("ip");
     flush_v4_argv[idx++] = const_cast<gchar*>("-4");
     flush_v4_argv[idx++] = const_cast<gchar*>("route");
@@ -1176,7 +1167,7 @@ static gboolean clear_wireguard_policy_routing(const gchar* iface,
 
   {
     gchar* flush_v6_argv[12] = {nullptr};
-    gint idx = append_pkexec_prefix(flush_v6_argv, pkexec_path);
+    gint idx = 0;
     flush_v6_argv[idx++] = const_cast<gchar*>("ip");
     flush_v6_argv[idx++] = const_cast<gchar*>("-6");
     flush_v6_argv[idx++] = const_cast<gchar*>("route");
@@ -1189,7 +1180,7 @@ static gboolean clear_wireguard_policy_routing(const gchar* iface,
 
   if (remove_interface) {
     gchar* delete_iface_argv[10] = {nullptr};
-    gint idx = append_pkexec_prefix(delete_iface_argv, pkexec_path);
+    gint idx = 0;
     delete_iface_argv[idx++] = const_cast<gchar*>("ip");
     delete_iface_argv[idx++] = const_cast<gchar*>("link");
     delete_iface_argv[idx++] = const_cast<gchar*>("delete");
@@ -1200,7 +1191,7 @@ static gboolean clear_wireguard_policy_routing(const gchar* iface,
 
   {
     gchar* flush_cache_argv[10] = {nullptr};
-    gint idx = append_pkexec_prefix(flush_cache_argv, pkexec_path);
+    gint idx = 0;
     flush_cache_argv[idx++] = const_cast<gchar*>("ip");
     flush_cache_argv[idx++] = const_cast<gchar*>("route");
     flush_cache_argv[idx++] = const_cast<gchar*>("flush");
@@ -1217,7 +1208,7 @@ static gboolean reset_network_manager_for_wireguard(const gchar* iface,
                                                     gchar** out_message) {
   const gchar* target_iface =
       (iface && *iface != '\0') ? iface : kWireGuardInterfaceName;
-  if (geteuid() != 0 && securewave_wg_helper_available()) {
+  if (geteuid() != 0 && wireguard_elevation_available()) {
     return run_wireguard_helper_step(
         "nm-reset",
         target_iface,
@@ -1227,8 +1218,7 @@ static gboolean reset_network_manager_for_wireguard(const gchar* iface,
         out_message);
   }
 
-  const gboolean needs_elevation = geteuid() != 0;
-  if (needs_elevation && !has_desktop_auth_session()) {
+  if (geteuid() != 0) {
     if (out_code) {
       *out_code = g_strdup("vpn_permission_required");
     }
@@ -1238,27 +1228,13 @@ static gboolean reset_network_manager_for_wireguard(const gchar* iface,
     return FALSE;
   }
 
-  g_autofree gchar* pkexec_path = nullptr;
-  if (needs_elevation) {
-    pkexec_path = g_find_program_in_path("pkexec");
-    if (!pkexec_path) {
-      if (out_code) {
-        *out_code = g_strdup("vpn_permission_required");
-      }
-      if (out_message) {
-        *out_message = g_strdup(elevation_hint_message());
-      }
-      return FALSE;
-    }
-  }
-
   gboolean reset_ok = FALSE;
   g_autofree gchar* last_code = nullptr;
   g_autofree gchar* last_message = nullptr;
   g_autofree gchar* systemctl_path = g_find_program_in_path("systemctl");
   if (systemctl_path) {
     gchar* argv[10] = {nullptr};
-    gint idx = append_pkexec_prefix(argv, pkexec_path);
+    gint idx = 0;
     argv[idx++] = systemctl_path;
     argv[idx++] = const_cast<gchar*>("restart");
     argv[idx++] = const_cast<gchar*>("NetworkManager");
@@ -1275,7 +1251,7 @@ static gboolean reset_network_manager_for_wireguard(const gchar* iface,
     g_clear_pointer(&last_code, g_free);
     g_clear_pointer(&last_message, g_free);
     gchar* argv[10] = {nullptr};
-    gint idx = append_pkexec_prefix(argv, pkexec_path);
+    gint idx = 0;
     argv[idx++] = const_cast<gchar*>("nmcli");
     argv[idx++] = const_cast<gchar*>("general");
     argv[idx++] = const_cast<gchar*>("reload");
@@ -1517,6 +1493,10 @@ static void ensure_nm_unmanaged_rule() {
   if (done) return;
   done = TRUE;
 
+  if (geteuid() != 0) {
+    return;
+  }
+
   const gchar* conf_path = "/etc/NetworkManager/conf.d/securewave-unmanaged.conf";
   const gchar* expected = "[keyfile]\nunmanaged-devices=interface-name:sw-wg\n";
 
@@ -1528,33 +1508,10 @@ static void ensure_nm_unmanaged_rule() {
     }
   }
 
-  // Needs root to write to /etc — use pkexec + tee.
-  if (!pkexec_available()) return;
-  g_autofree gchar* pkexec = g_find_program_in_path("pkexec");
-  if (!pkexec) return;
-  g_autofree gchar* tee = g_find_program_in_path("tee");
-  if (!tee) return;
-
-  // pkexec tee /etc/NetworkManager/conf.d/securewave-unmanaged.conf
-  gint stdin_fd = -1;
-  GPid pid = 0;
-  gchar* argv[] = {pkexec, tee, const_cast<gchar*>(conf_path), nullptr};
   g_autoptr(GError) error = nullptr;
-  if (!g_spawn_async_with_pipes(
-          nullptr, argv, nullptr,
-          static_cast<GSpawnFlags>(G_SPAWN_DO_NOT_REAP_CHILD),
-          nullptr, nullptr, &pid, &stdin_fd,
-          nullptr, nullptr, &error)) {
+  if (!g_file_set_contents(conf_path, expected, -1, &error)) {
     return;
   }
-  if (stdin_fd >= 0) {
-    // Write the rule content and close stdin so tee completes.
-    (void)write(stdin_fd, expected, strlen(expected));
-    close(stdin_fd);
-  }
-  gint wait_status = 0;
-  (void)waitpid(pid, &wait_status, 0);
-  g_spawn_close_pid(pid);
 
   // Reload NM so the new rule takes effect immediately.
   g_autofree gchar* nmcli = g_find_program_in_path("nmcli");
@@ -1618,13 +1575,12 @@ static void spawn_wg_quick_async(
   }
 
   const bool needs_elevation = geteuid() != 0;
-  const bool helper_ready = securewave_wg_helper_available();
-  if (needs_elevation && !helper_ready && !has_desktop_auth_session()) {
+  const bool helper_ready = wireguard_elevation_available();
+  if (needs_elevation && !helper_ready) {
     respond_error(
         method_call,
         "vpn_permission_required",
-        "No desktop authentication session detected for privilege escalation. "
-        "Start a polkit agent or run SecureWave as root.",
+        elevation_hint_message(),
         nullptr);
     return;
   }
@@ -2212,6 +2168,17 @@ static gboolean sample_wireguard_health(const gchar* iface,
   return TRUE;
 }
 
+static gboolean wireguard_watchdog_considers_healthy(
+    const WireGuardHealthSnapshot& snapshot) {
+  if (!snapshot.interface_up || !snapshot.policy_routing_present) {
+    return FALSE;
+  }
+  if (snapshot.handshake_fresh) {
+    return TRUE;
+  }
+  return snapshot.traffic_connected || snapshot.ping_reachable;
+}
+
 static void write_wireguard_health_log(VpnChannelState* state,
                                        const WireGuardHealthSnapshot* snapshot,
                                        const gchar* action) {
@@ -2501,9 +2468,7 @@ static gpointer wireguard_watchdog_thread_main(gpointer user_data) {
   while (wireguard_watchdog_should_run(state)) {
     WireGuardHealthSnapshot snapshot{};
     sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
-    const gboolean healthy =
-        snapshot.interface_up && snapshot.policy_routing_present &&
-        snapshot.handshake_fresh;
+    const gboolean healthy = wireguard_watchdog_considers_healthy(snapshot);
     state_update_wireguard_health(state, healthy, snapshot.handshake_age_seconds);
 
     if (healthy) {
@@ -2534,8 +2499,7 @@ static gpointer wireguard_watchdog_thread_main(gpointer user_data) {
         }
         if (soft_ok) {
           sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
-          recovered = snapshot.interface_up && snapshot.policy_routing_present &&
-              snapshot.handshake_fresh;
+          recovered = wireguard_watchdog_considers_healthy(snapshot);
           if (recovered) {
             consecutive_recovery_failures = 0;
             write_wireguard_health_log(state, &snapshot, "soft_repair");
@@ -2556,8 +2520,7 @@ static gpointer wireguard_watchdog_thread_main(gpointer user_data) {
           sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
           state_update_wireguard_health(
               state,
-              snapshot.interface_up && snapshot.policy_routing_present &&
-                  snapshot.handshake_fresh,
+              wireguard_watchdog_considers_healthy(snapshot),
               snapshot.handshake_age_seconds);
           write_wireguard_health_log(state, &snapshot, restart_reason);
         } else {
@@ -2575,8 +2538,7 @@ static gpointer wireguard_watchdog_thread_main(gpointer user_data) {
               sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
               state_update_wireguard_health(
                   state,
-                  snapshot.interface_up && snapshot.policy_routing_present &&
-                      snapshot.handshake_fresh,
+                  wireguard_watchdog_considers_healthy(snapshot),
                   snapshot.handshake_age_seconds);
               write_wireguard_health_log(state, &snapshot, "critical_repair");
             } else {
@@ -2733,19 +2695,31 @@ static void handle_vpn_call(FlMethodChannel* channel,
     const gboolean nmcli_installed = nmcli_available();
     const gboolean ipsec_installed = ipsec_available();
     const gboolean can_elevate = elevation_available();
-    const gboolean has_auth_session = has_desktop_auth_session();
+    const gboolean root_runtime = geteuid() == 0;
     g_autoptr(FlValue) map = fl_value_new_map();
     fl_value_set_string_take(map, "wireguard", fl_value_new_bool(wg_installed && can_elevate));
-    fl_value_set_string_take(map, "openvpn", fl_value_new_bool(ovpn_installed && can_elevate));
+    fl_value_set_string_take(map, "openvpn", fl_value_new_bool(ovpn_installed && root_runtime));
     fl_value_set_string_take(
         map,
         "ikev2",
-        fl_value_new_bool(nmcli_installed && ipsec_installed && can_elevate));
+        fl_value_new_bool(nmcli_installed && ipsec_installed && root_runtime));
     fl_value_set_string_take(map, "windows_thread_safe", fl_value_new_bool(FALSE));
     fl_value_set_string_take(map, "android_vpnservice_based", fl_value_new_bool(FALSE));
     fl_value_set_string_take(map, "macos_entitlements_ready", fl_value_new_bool(TRUE));
     fl_value_set_string_take(map, "linux_wg_installed", fl_value_new_bool(wg_installed));
     fl_value_set_string_take(map, "linux_elevation_available", fl_value_new_bool(can_elevate));
+    fl_value_set_string_take(
+        map,
+        "linux_helper_contract_ready",
+        fl_value_new_bool(securewave_wg_helper_contract_ready()));
+    fl_value_set_string_take(
+        map,
+        "linux_polkit_rule_present",
+        fl_value_new_bool(securewave_polkit_rule_ready()));
+    fl_value_set_string_take(
+        map,
+        "linux_helper_install_ready",
+        fl_value_new_bool(securewave_wg_helper_install_ready()));
     if (!wg_installed || !can_elevate) {
       const gchar* hint = !wg_installed
                               ? wireguard_install_hint_message()
@@ -2755,19 +2729,21 @@ static void handle_vpn_call(FlMethodChannel* channel,
           "wireguard_install_hint",
           fl_value_new_string(hint));
     }
-    if (!ovpn_installed || !can_elevate) {
+    if (!ovpn_installed || !root_runtime) {
       const gchar* hint = !ovpn_installed
                               ? openvpn_install_hint_message()
-                              : elevation_hint_message();
+                              : "OpenVPN automation on Linux requires running SecureWave as root. "
+                                "The scoped SecureWave helper only supports WireGuard.";
       fl_value_set_string_take(
           map,
           "openvpn_install_hint",
           fl_value_new_string(hint));
     }
-    if (!nmcli_installed || !ipsec_installed || !can_elevate) {
+    if (!nmcli_installed || !ipsec_installed || !root_runtime) {
       const gchar* hint = nullptr;
-      if (!can_elevate) {
-        hint = elevation_hint_message();
+      if (!root_runtime) {
+        hint = "IKEv2 automation on Linux requires running SecureWave as root. "
+               "The scoped SecureWave helper only supports WireGuard.";
       } else if (!nmcli_installed || !ipsec_installed) {
         hint = ikev2_install_hint_message();
       }
@@ -2778,7 +2754,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
             fl_value_new_string(hint));
       }
     }
-    if (!can_elevate || !has_auth_session) {
+    if (!can_elevate) {
       fl_value_set_string_take(
           map,
           "linux_elevation_hint",
@@ -3045,7 +3021,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       // wg_preflight_cleanup runs unprivileged (best-effort for what it can
       // reach); the helper down call clears root-owned state (ip rule/route).
       wg_preflight_cleanup(state->wg_config_path);
-      if (geteuid() != 0 && securewave_wg_helper_available()) {
+      if (geteuid() != 0 && wireguard_elevation_available()) {
         g_autofree gchar* pkexec_pre = g_find_program_in_path("pkexec");
         if (pkexec_pre) {
           gchar* pre_argv[] = {pkexec_pre,
@@ -3080,11 +3056,12 @@ static void handle_vpn_call(FlMethodChannel* channel,
             nullptr);
         return;
       }
-      if (!elevation_available()) {
+      if (geteuid() != 0) {
         respond_error(
             method_call,
-            "vpn_permission_required",
-            elevation_hint_message(),
+            "protocol_unavailable",
+            "OpenVPN automation on Linux requires running SecureWave as root. "
+            "The scoped SecureWave helper only supports WireGuard.",
             nullptr);
         return;
       }
@@ -3144,27 +3121,10 @@ static void handle_vpn_call(FlMethodChannel* channel,
         }
       }
 
-      const gboolean needs_elevation = geteuid() != 0;
       g_autofree gchar* openvpn_path = g_find_program_in_path("openvpn");
-      g_autofree gchar* pkexec_path = nullptr;
-      if (needs_elevation) {
-        pkexec_path = g_find_program_in_path("pkexec");
-        if (!pkexec_path) {
-          respond_error(
-              method_call,
-              "vpn_permission_required",
-              elevation_hint_message(),
-              nullptr);
-          return;
-        }
-      }
 
       gchar* argv[16] = {nullptr};
       int idx = 0;
-      if (needs_elevation) {
-        argv[idx++] = pkexec_path;
-        argv[idx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
-      }
       argv[idx++] = openvpn_path;
       argv[idx++] = const_cast<gchar*>("--config");
       argv[idx++] = state->openvpn_config_path;
@@ -3221,11 +3181,12 @@ static void handle_vpn_call(FlMethodChannel* channel,
             nullptr);
         return;
       }
-      if (!elevation_available()) {
+      if (geteuid() != 0) {
         respond_error(
             method_call,
-            "vpn_permission_required",
-            elevation_hint_message(),
+            "protocol_unavailable",
+            "IKEv2 automation on Linux requires running SecureWave as root. "
+            "The scoped SecureWave helper only supports WireGuard.",
             nullptr);
         return;
       }
@@ -3275,26 +3236,8 @@ static void handle_vpn_call(FlMethodChannel* channel,
       }
       g_autofree gchar* vpn_secrets = g_strdup_printf("password=%s", password);
 
-      const gboolean needs_elevation = geteuid() != 0;
-      g_autofree gchar* pkexec_path = nullptr;
-      if (needs_elevation) {
-        pkexec_path = g_find_program_in_path("pkexec");
-        if (!pkexec_path) {
-          respond_error(
-              method_call,
-              "vpn_permission_required",
-              elevation_hint_message(),
-              nullptr);
-          return;
-        }
-      }
-
       gchar* delete_argv[8] = {nullptr};
       int didx = 0;
-      if (needs_elevation) {
-        delete_argv[didx++] = pkexec_path;
-        delete_argv[didx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
-      }
       delete_argv[didx++] = const_cast<gchar*>("nmcli");
       delete_argv[didx++] = const_cast<gchar*>("connection");
       delete_argv[didx++] = const_cast<gchar*>("delete");
@@ -3312,10 +3255,6 @@ static void handle_vpn_call(FlMethodChannel* channel,
 
       gchar* add_argv[20] = {nullptr};
       int aidx = 0;
-      if (needs_elevation) {
-        add_argv[aidx++] = pkexec_path;
-        add_argv[aidx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
-      }
       add_argv[aidx++] = const_cast<gchar*>("nmcli");
       add_argv[aidx++] = const_cast<gchar*>("connection");
       add_argv[aidx++] = const_cast<gchar*>("add");
@@ -3347,10 +3286,6 @@ static void handle_vpn_call(FlMethodChannel* channel,
 
       gchar* up_argv[10] = {nullptr};
       int uidx = 0;
-      if (needs_elevation) {
-        up_argv[uidx++] = pkexec_path;
-        up_argv[uidx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
-      }
       up_argv[uidx++] = const_cast<gchar*>("nmcli");
       up_argv[uidx++] = const_cast<gchar*>("connection");
       up_argv[uidx++] = const_cast<gchar*>("up");
@@ -3374,10 +3309,6 @@ static void handle_vpn_call(FlMethodChannel* channel,
       if (!verify_ikev2_runtime(&sanity_error)) {
         gchar* down_argv[10] = {nullptr};
         int didx = 0;
-        if (needs_elevation) {
-          down_argv[didx++] = pkexec_path;
-          down_argv[didx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
-        }
         down_argv[didx++] = const_cast<gchar*>("nmcli");
         down_argv[didx++] = const_cast<gchar*>("connection");
         down_argv[didx++] = const_cast<gchar*>("down");
@@ -3414,11 +3345,12 @@ static void handle_vpn_call(FlMethodChannel* channel,
     stop_wireguard_watchdog(state);
     const gchar* active = state->active_protocol;
     if (active && g_strcmp0(active, "openvpn") == 0) {
-      if (!elevation_available()) {
+      if (geteuid() != 0) {
         respond_error(
             method_call,
-            "vpn_permission_required",
-            elevation_hint_message(),
+            "protocol_unavailable",
+            "OpenVPN automation on Linux requires running SecureWave as root. "
+            "The scoped SecureWave helper only supports WireGuard.",
             nullptr);
         return;
       }
@@ -3431,27 +3363,10 @@ static void handle_vpn_call(FlMethodChannel* channel,
         fl_method_call_respond(method_call, response, nullptr);
         return;
       }
-      const gboolean needs_elevation = geteuid() != 0;
-      g_autofree gchar* pkexec_path = nullptr;
-      if (needs_elevation) {
-        pkexec_path = g_find_program_in_path("pkexec");
-        if (!pkexec_path) {
-          respond_error(
-              method_call,
-              "vpn_permission_required",
-              elevation_hint_message(),
-              nullptr);
-          return;
-        }
-      }
       gchar pid_arg[32];
       g_snprintf(pid_arg, sizeof(pid_arg), "%d", openvpn_pid);
       gchar* argv[8] = {nullptr};
       int idx = 0;
-      if (needs_elevation) {
-        argv[idx++] = pkexec_path;
-        argv[idx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
-      }
       argv[idx++] = const_cast<gchar*>("kill");
       argv[idx++] = const_cast<gchar*>("-TERM");
       argv[idx++] = pid_arg;
@@ -3487,33 +3402,17 @@ static void handle_vpn_call(FlMethodChannel* channel,
             nullptr);
         return;
       }
-      if (!elevation_available()) {
+      if (geteuid() != 0) {
         respond_error(
             method_call,
-            "vpn_permission_required",
-            elevation_hint_message(),
+            "protocol_unavailable",
+            "IKEv2 automation on Linux requires running SecureWave as root. "
+            "The scoped SecureWave helper only supports WireGuard.",
             nullptr);
         return;
       }
-      const gboolean needs_elevation = geteuid() != 0;
-      g_autofree gchar* pkexec_path = nullptr;
-      if (needs_elevation) {
-        pkexec_path = g_find_program_in_path("pkexec");
-        if (!pkexec_path) {
-          respond_error(
-              method_call,
-              "vpn_permission_required",
-              elevation_hint_message(),
-              nullptr);
-          return;
-        }
-      }
       gchar* argv[10] = {nullptr};
       int idx = 0;
-      if (needs_elevation) {
-        argv[idx++] = pkexec_path;
-        argv[idx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
-      }
       argv[idx++] = const_cast<gchar*>("nmcli");
       argv[idx++] = const_cast<gchar*>("connection");
       argv[idx++] = const_cast<gchar*>("down");
@@ -3539,10 +3438,6 @@ static void handle_vpn_call(FlMethodChannel* channel,
 
       gchar* delete_argv[10] = {nullptr};
       int didx = 0;
-      if (needs_elevation) {
-        delete_argv[didx++] = pkexec_path;
-        delete_argv[didx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
-      }
       delete_argv[didx++] = const_cast<gchar*>("nmcli");
       delete_argv[didx++] = const_cast<gchar*>("connection");
       delete_argv[didx++] = const_cast<gchar*>("delete");

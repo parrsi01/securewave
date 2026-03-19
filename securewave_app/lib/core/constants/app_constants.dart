@@ -4,8 +4,8 @@ class AppConstants {
   static const String appTagline = 'Private Internet, One Tap Away';
   static const String baseUrlFallback = 'https://api.securewaveapp.com/api';
   static const String portalUrlFallback =
-      'https://api.securewaveapp.com/account';
+      'https://securewaveapp.com/account';
   static const String upgradeUrlFallback =
-      'https://api.securewaveapp.com/subscription';
+      'https://securewaveapp.com/subscription';
   static const Duration vpnTestDuration = Duration(seconds: 75);
 }

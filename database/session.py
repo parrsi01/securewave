@@ -3,7 +3,7 @@ import logging
 import tempfile
 from typing import Generator
 
-from sqlalchemy import create_engine, event, pool, text
+from sqlalchemy import create_engine, event, inspect, pool, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import Engine
 
@@ -191,8 +191,10 @@ def create_tables():
         vpn_server,
         vpn_server_rtt_sample,
         vpn_connection,
+        vpn_credential,
         wireguard_peer,
         jwt_blacklist_token,
+        used_totp_code,
         gdpr,
         support_ticket,
         usage_analytics,
@@ -204,10 +206,47 @@ def create_tables():
     logger.info("Creating database tables...")
     try:
         base.Base.metadata.create_all(bind=engine)
+        _ensure_sqlite_compat_columns()
         logger.info("✓ Database tables created successfully")
     except Exception as e:
         logger.error(f"Failed to create tables: {e}")
         raise
+
+
+def _ensure_sqlite_compat_columns() -> None:
+    """
+    Backfill a small set of model columns for existing local SQLite databases.
+
+    `create_all()` creates missing tables but does not alter old ones. Production
+    uses Alembic; this keeps preview/dev SQLite databases aligned enough for
+    local validation without changing the production migration path.
+    """
+    if not DATABASE_URL.startswith("sqlite:///"):
+        return
+
+    compat_columns = {
+        "wireguard_peers": {
+            "device_state": "ALTER TABLE wireguard_peers ADD COLUMN device_state VARCHAR(16) NOT NULL DEFAULT 'active'",
+            "profile_expires_at": "ALTER TABLE wireguard_peers ADD COLUMN profile_expires_at DATETIME",
+        },
+        "vpn_servers": {
+            "load_score": "ALTER TABLE vpn_servers ADD COLUMN load_score FLOAT NOT NULL DEFAULT 0.0",
+        },
+    }
+
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table_name, columns in compat_columns.items():
+            existing = {column["name"] for column in inspector.get_columns(table_name)}
+            for column_name, ddl in columns.items():
+                if column_name in existing:
+                    continue
+                logger.warning(
+                    "SQLite compatibility migration: adding %s.%s",
+                    table_name,
+                    column_name,
+                )
+                conn.execute(text(ddl))
 
 
 def check_database_connection() -> bool:

@@ -129,7 +129,7 @@ if ! "${PYTEST_CMD[@]}"; then
   echo ""
   echo "Common fixes:"
   echo "  - Missing DATABASE_URL: export DATABASE_URL=sqlite:///:memory:"
-  echo "  - Missing SECRET_KEY: export SECRET_KEY=test-secret-key"
+  echo "  - Missing JWT_SECRET: export JWT_SECRET=testdev"
   echo "  - Database connection issues: Ensure PostgreSQL/Redis are running"
   echo ""
   exit 1

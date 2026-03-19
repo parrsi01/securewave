@@ -213,11 +213,11 @@ class AppConfig {
     );
     final portalUrl = _normalizeAbsoluteUrl(
       rawPortalUrl,
-      fallback: _deriveFromApiBase(baseResolution.baseUrl, '/account'),
+      fallback: AppConstants.portalUrlFallback,
     );
     final upgradeUrl = _normalizeAbsoluteUrl(
       rawUpgradeUrl,
-      fallback: _deriveFromApiBase(baseResolution.baseUrl, '/subscription'),
+      fallback: AppConstants.upgradeUrlFallback,
     );
     final resetSessionOnBoot = _parseBool(
       assetEnv['SECUREWAVE_RESET_SESSION_ON_BOOT'] ?? defineResetSessionOnBoot,
@@ -347,15 +347,6 @@ class AppConfig {
         normalized == '127.0.0.1' ||
         normalized == '::1' ||
         normalized == '[::1]';
-  }
-
-  static String _deriveFromApiBase(String apiBaseUrl, String path) {
-    final parsed = _parseAbsoluteHttpUri(apiBaseUrl);
-    if (parsed == null) return path;
-    final normalizedPath = path.startsWith('/') ? path : '/$path';
-    return parsed
-        .replace(path: normalizedPath, query: null, fragment: null)
-        .toString();
   }
 
   static bool _parseBool(String value) {

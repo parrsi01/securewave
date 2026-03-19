@@ -27,6 +27,11 @@ from auth.token import ALGORITHM, blacklist_jti, _utcnow, _coerce_exp
 from config.settings import get_settings
 from models.auth_refresh_token import AuthRefreshToken
 from models.user import User
+from services.shared_security_state import (
+    get_refresh_session,
+    register_refresh_session,
+    revoke_refresh_session as cache_revoke_refresh_session,
+)
 
 logger = logging.getLogger(__name__)
 SETTINGS = get_settings()
@@ -75,6 +80,14 @@ def create_refresh_token(
         )
     )
     db.commit()
+    register_refresh_session(
+        token_jti=jti,
+        user_id=user.id,
+        expires_at=exp,
+        issued_at=now,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
     return token
 
 
@@ -98,6 +111,19 @@ def _decode_refresh_token(token: str) -> dict:
 
 def _load_session(db: Session, jti: str) -> AuthRefreshToken:
     """Load the DB session record for a JTI, enforcing all validity checks."""
+    cached = get_refresh_session(jti)
+    if cached is not None:
+        cached_exp = cached.get("expires_at")
+        if isinstance(cached_exp, str):
+            try:
+                exp_dt = datetime.fromisoformat(cached_exp)
+            except ValueError:
+                exp_dt = None
+            if exp_dt is not None and exp_dt.tzinfo is not None:
+                exp_dt = exp_dt.astimezone().replace(tzinfo=None)
+            if exp_dt is not None and exp_dt <= _utcnow():
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
+
     session = db.query(AuthRefreshToken).filter(AuthRefreshToken.token_jti == jti).first()
 
     if not session:
@@ -114,6 +140,17 @@ def _load_session(db: Session, jti: str) -> AuthRefreshToken:
 
     if session.expires_at <= _utcnow():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
+
+    register_refresh_session(
+        token_jti=session.token_jti,
+        user_id=session.user_id,
+        expires_at=session.expires_at,
+        issued_at=session.issued_at,
+        ip_address=session.ip_address,
+        user_agent=session.user_agent,
+        revoked_at=session.revoked_at,
+        replaced_by_jti=session.replaced_by_jti,
+    )
 
     return session
 
@@ -158,6 +195,13 @@ def _invalidate_replacement_chain(db: Session, root: AuthRefreshToken) -> None:
             expires_at=s.expires_at,
             user_id=s.user_id,
             reason="replay_detected",
+        )
+        cache_revoke_refresh_session(
+            token_jti=s.token_jti,
+            user_id=s.user_id,
+            expires_at=s.expires_at,
+            revoked_at=s.revoked_at,
+            replaced_by_jti=s.replaced_by_jti,
         )
 
     db.commit()
@@ -216,6 +260,13 @@ def rotate_refresh_token(
         reason="rotated",
     )
     db.commit()
+    cache_revoke_refresh_session(
+        token_jti=old_jti,
+        user_id=session.user_id,
+        expires_at=session.expires_at,
+        revoked_at=session.revoked_at,
+        replaced_by_jti=session.replaced_by_jti,
+    )
 
     return new_access, new_refresh
 
@@ -237,6 +288,13 @@ def revoke_refresh_token_by_value(db: Session, token: str, *, reason: str = "log
             reason=reason,
         )
         db.commit()
+        cache_revoke_refresh_session(
+            token_jti=session.token_jti,
+            user_id=session.user_id,
+            expires_at=session.expires_at,
+            revoked_at=session.revoked_at,
+            replaced_by_jti=session.replaced_by_jti,
+        )
 
 
 def revoke_all_refresh_tokens(db: Session, user_id: int) -> int:
@@ -264,6 +322,13 @@ def revoke_all_refresh_tokens(db: Session, user_id: int) -> int:
             expires_at=s.expires_at,
             user_id=user_id,
             reason="logout_all",
+        )
+        cache_revoke_refresh_session(
+            token_jti=s.token_jti,
+            user_id=s.user_id,
+            expires_at=s.expires_at,
+            revoked_at=s.revoked_at,
+            replaced_by_jti=s.replaced_by_jti,
         )
 
     db.commit()

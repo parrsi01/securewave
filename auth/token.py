@@ -27,6 +27,7 @@ from config.settings import get_settings
 from database.session import get_db
 from models.jwt_blacklist_token import JWTBlacklistToken
 from models.user import User
+from services.shared_security_state import is_token_revoked, remember_revoked_token
 
 logger = logging.getLogger(__name__)
 SETTINGS = get_settings()
@@ -139,12 +140,23 @@ def decode_access_token(token: str) -> dict:
 
 def is_jti_revoked(db: Session, jti: str) -> bool:
     """Single indexed query; constant-time at the DB layer."""
-    return (
-        db.query(JWTBlacklistToken.id)
+    if is_token_revoked(jti):
+        return True
+    existing = (
+        db.query(JWTBlacklistToken)
         .filter(JWTBlacklistToken.token_jti == jti)
         .first()
-        is not None
     )
+    if existing:
+        remember_revoked_token(
+            token_jti=jti,
+            token_type=existing.token_type,
+            expires_at=existing.expires_at,
+            user_id=existing.user_id,
+            reason=existing.reason,
+        )
+        return True
+    return False
 
 
 def blacklist_jti(
@@ -163,6 +175,13 @@ def blacklist_jti(
         .first()
     )
     if exists:
+        remember_revoked_token(
+            token_jti=jti,
+            token_type=token_type,
+            expires_at=expires_at,
+            user_id=user_id,
+            reason=reason,
+        )
         return
     db.add(
         JWTBlacklistToken(
@@ -174,6 +193,13 @@ def blacklist_jti(
         )
     )
     db.commit()
+    remember_revoked_token(
+        token_jti=jti,
+        token_type=token_type,
+        expires_at=expires_at,
+        user_id=user_id,
+        reason=reason,
+    )
 
 
 def revoke_access_token(db: Session, token: str, *, reason: str = "logout") -> None:

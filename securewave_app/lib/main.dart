@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/config/app_config.dart';
+import 'core/config/runtime_config.dart';
 import 'core/logging/app_logger.dart';
 import 'debug/api_runtime_test.dart';
 
@@ -18,6 +19,7 @@ void main() {
       FlutterError.onError = AppLogger.captureFlutterError;
       PlatformDispatcher.instance.onError = AppLogger.capturePlatformError;
 
+      validateProductionRuntimeConfig();
       await AppConfig.load();
       AppLogger.info('SecureWave booting');
       if (kDebugMode) {

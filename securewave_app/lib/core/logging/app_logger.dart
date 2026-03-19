@@ -36,6 +36,11 @@ class AppLogger {
     _record(message, level: 500, tag: tag);
   }
 
+  static void debug(String message, {String tag = 'SecureWave'}) {
+    if (!_debugLoggingEnabled) return;
+    _record(message, level: 500, tag: tag);
+  }
+
   static void warning(String message, {String tag = 'SecureWave'}) {
     _record(message, level: 900, tag: tag);
   }
@@ -110,11 +115,23 @@ class AppLogger {
     for (final entry in fields.entries) {
       final key = entry.key.trim();
       if (key.isEmpty) continue;
-      final value = entry.value;
+      final value = _shouldRedactField(key) ? '[REDACTED]' : entry.value;
       final text = value == null ? 'null' : value.toString().replaceAll(' ', '_');
       parts.add('$key=$text');
     }
     return parts.join(' ');
+  }
+
+  static bool _shouldRedactField(String key) {
+    final normalized = key.trim().toLowerCase();
+    return normalized == 'email' ||
+        normalized.endsWith('_email') ||
+        normalized.contains('password') ||
+        normalized.contains('token') ||
+        normalized.contains('secret') ||
+        normalized.contains('authorization') ||
+        normalized.contains('cookie') ||
+        normalized.contains('private_key');
   }
 }
 

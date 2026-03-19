@@ -2,11 +2,8 @@ import os
 import shutil
 import asyncio
 import logging
-import json
 import re
-import time
 import uuid
-import contextvars
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -29,6 +26,7 @@ from database.session import SessionLocal
 from models import user, subscription, payment_idempotency_key, webhook_event_receipt, audit_log, vpn_server, vpn_server_rtt_sample, vpn_connection, vpn_credential, auth_refresh_token, jwt_blacklist_token, used_totp_code  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
 from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user, vpn_metrics
+from config.security_config import enforce_permission_policy, secret_file_candidates
 from services.wireguard_service import WireGuardService
 from services.email_service import EmailService
 from services.runtime_metrics import get_runtime_metrics
@@ -44,10 +42,12 @@ from utils.env_validation import (
     validate_fernet_key,
     is_production,
 )
-from utils.structured_logging import log_security_event, sanitize_for_log
-
-# Request ID context
-request_id_ctx = contextvars.ContextVar("request_id", default="-")
+from utils.structured_logging import (
+    configure_structured_logging,
+    log_security_event,
+    request_id_ctx,
+    sanitize_for_log,
+)
 
 
 class RedactFilter(logging.Filter):
@@ -58,6 +58,7 @@ class RedactFilter(logging.Filter):
     _stripe_whsec_re = re.compile(r"\bwhsec_[A-Za-z0-9]+\b")
     _wg_priv_re = re.compile(r"(PrivateKey\s*=\s*)([^\s]+)")
     _wg_psk_re = re.compile(r"(PresharedKey\s*=\s*)([^\s]+)")
+    _jwt_secret_re = re.compile(r"((?:JWT_SECRET|SECRET_KEY|ACCESS_TOKEN_SECRET|REFRESH_TOKEN_SECRET)=)([^\s]+)")
 
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
@@ -68,30 +69,14 @@ class RedactFilter(logging.Filter):
         # Defensive: never emit WireGuard secrets if a config blob is accidentally logged.
         message = self._wg_priv_re.sub(r"\1[redacted-wg-privatekey]", message)
         message = self._wg_psk_re.sub(r"\1[redacted-wg-psk]", message)
+        message = self._jwt_secret_re.sub(r"\1[redacted-secret]", message)
         record.msg = message
         record.args = ()
         record.request_id = request_id_ctx.get("-")
         return True
 
-class JsonFormatter(logging.Formatter):
-    """Minimal JSON formatter for logs."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        payload = {
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.created)),
-            "level": record.levelname,
-            "logger": record.name,
-            "request_id": getattr(record, "request_id", request_id_ctx.get("-")),
-            "message": record.getMessage(),
-        }
-        return json.dumps(payload)
-
-
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-handler = logging.StreamHandler()
-handler.setFormatter(JsonFormatter())
-handler.addFilter(RedactFilter())
-logging.basicConfig(level=LOG_LEVEL, handlers=[handler])
+configure_structured_logging(LOG_LEVEL)
 
 # NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD
 # base.Base.metadata.create_all(bind=engine)  # Commented out to avoid conflicts with migrations
@@ -114,6 +99,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not create data directory: {e}")
 
+    apply_runtime_permission_policy(logger)
     require_encryption_keys(logger)
     require_production_config(logger)
     ensure_tunnel_mode_allowed()
@@ -468,6 +454,18 @@ def require_production_config(logger: logging.Logger) -> None:
         logger.error(message)
         raise RuntimeError(message)
 
+
+def apply_runtime_permission_policy(logger: logging.Logger) -> None:
+    permission_targets = list(secret_file_candidates())
+    runtime_dirs = [Path.home() / ".config" / "securewave", Path.home() / ".local" / "state" / "securewave"]
+    permission_targets.extend(path for path in runtime_dirs if path.exists())
+    if not permission_targets:
+        return
+
+    permission_result = enforce_permission_policy(permission_targets)
+    for warning in permission_result.warnings:
+        logger.warning(warning, extra={"event": "permission_policy"})
+
 def _reconcile_wg_pubkeys(logger: logging.Logger) -> None:
     """Compare running wg0 public key against DB and auto-correct mismatches."""
     import subprocess
@@ -529,10 +527,9 @@ async def initialize_app_background():
 
     # Initialize database tables
     try:
-        from database import base
-        from database.session import engine
+        from database.session import create_tables
         logger.info("Creating database tables...")
-        base.Base.metadata.create_all(bind=engine)
+        create_tables()
         logger.info("Database tables created successfully")
     except Exception as e:
         logger.warning(f"Database initialization failed: {e}")

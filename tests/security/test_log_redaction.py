@@ -20,8 +20,8 @@ def _apply_filter(message: str) -> str:
 def test_redact_filter_redacts_bearer_tokens_and_wireguard_keys():
     token = "Bearer abcDEF.123-_XYZ"
     token2 = "bearer zzzYYY.456-_WWW"
-    sk = "sk_test_[REDACTED]"
-    whsec = "whsec_[REDACTED]"
+    sk = "sk_test_fixture1"
+    whsec = "whsec_fixture1"
     priv = "PrivateKey = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     psk = "PresharedKey = yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
     msg = f"auth={token} auth2={token2} stripe={sk} webhook={whsec} cfg: {priv} {psk}"

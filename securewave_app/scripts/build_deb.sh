@@ -21,6 +21,22 @@ if ! command -v dpkg-deb >/dev/null 2>&1; then
   exit 1
 fi
 
+ensure_release_mock_vpn_disabled() {
+  local violations=()
+  [[ "${SECUREWAVE_MOCK_VPN:-false}" == "true" ]] && violations+=("SECUREWAVE_MOCK_VPN")
+  [[ "${SECUREWAVE_MOCK_VPN_FORCE_FAILURE:-false}" == "true" ]] && violations+=("SECUREWAVE_MOCK_VPN_FORCE_FAILURE")
+  [[ "${SECUREWAVE_MOCK_VPN_UNSTABLE:-false}" == "true" ]] && violations+=("SECUREWAVE_MOCK_VPN_UNSTABLE")
+  if [[ -n "${SECUREWAVE_MOCK_VPN_LATENCY_MS:-}" && "${SECUREWAVE_MOCK_VPN_LATENCY_MS}" != "300" ]]; then
+    violations+=("SECUREWAVE_MOCK_VPN_LATENCY_MS")
+  fi
+  if [[ "${#violations[@]}" -gt 0 ]]; then
+    echo "ERROR: refusing release build with mock VPN settings enabled: ${violations[*]}" >&2
+    exit 1
+  fi
+}
+
+ensure_release_mock_vpn_disabled
+
 flutter pub get
 flutter build linux --release
 
@@ -94,12 +110,14 @@ WRAPPER
 chmod 0755 "$staging_dir/usr/bin/securewave-vpn"
 
 # postinst: install a scoped WireGuard helper + polkit rule so SecureWave
-# reconnect/reset operations do not require repetitive password prompts.
+# uses the helper-only production elevation path for WireGuard operations.
 cat <<'POSTINST' > "$staging_dir/DEBIAN/postinst"
 #!/bin/bash
 set -e
 HELPER_DIR=/usr/local/libexec
 HELPER=$HELPER_DIR/securewave-wg-quick
+HELPER_CONTRACT=$HELPER_DIR/securewave-wg-quick.contract
+HELPER_CONTRACT_VERSION=2
 install -d -m 0755 "$HELPER_DIR"
 cat > "$HELPER" <<'HELPER_SCRIPT'
 #!/usr/bin/env bash
@@ -247,6 +265,8 @@ polkit.addRule(function(action, subject) {
 });
 RULE
 chmod 0644 "$POLKIT_RULE"
+printf '%s\n' "$HELPER_CONTRACT_VERSION" > "$HELPER_CONTRACT"
+chmod 0644 "$HELPER_CONTRACT"
 POSTINST
 chmod 0755 "$staging_dir/DEBIAN/postinst"
 
@@ -255,6 +275,7 @@ cat <<'POSTRM' > "$staging_dir/DEBIAN/postrm"
 #!/bin/bash
 set -e
 rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
+rm -f /usr/local/libexec/securewave-wg-quick.contract
 rm -f /usr/local/libexec/securewave-wg-quick
 POSTRM
 chmod 0755 "$staging_dir/DEBIAN/postrm"
@@ -262,6 +283,6 @@ chmod 0755 "$staging_dir/DEBIAN/postrm"
 mkdir -p "$output_dir"
 output_file="$output_dir/${package_name}_${version}_${arch}.deb"
 
-dpkg-deb --build "$staging_dir" "$output_file" >/dev/null
+dpkg-deb --build --root-owner-group "$staging_dir" "$output_file" >/dev/null
 
 echo "OK: Built $output_file"

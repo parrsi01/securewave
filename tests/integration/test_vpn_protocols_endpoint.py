@@ -128,9 +128,9 @@ def test_protocols_endpoint_marks_misconfigured_openvpn(client, auth_headers, db
 
     assert items["openvpn"]["enabled"] is False
     assert items["openvpn"]["server_enabled"] is False
-    assert items["openvpn"]["reason"] == "unavailable_region"
+    assert items["openvpn"]["reason"] == "openvpn_server_misconfigured"
     assert items["openvpn"]["health_status"] == "unavailable"
-    assert items["openvpn"]["health_reason"] == "unavailable_region"
+    assert items["openvpn"]["health_reason"] == "openvpn_server_misconfigured"
 
 
 def test_protocols_endpoint_disables_ikev2_linux_when_auth_mode_mismatch(
@@ -207,9 +207,9 @@ def test_protocols_endpoint_disables_openvpn_and_ikev2_when_runtime_material_mis
     items = {item["protocol"]: item for item in payload["protocols"]}
 
     assert items["openvpn"]["enabled"] is False
-    assert items["openvpn"]["reason"] == "unavailable_region"
+    assert items["openvpn"]["reason"] == "openvpn_server_misconfigured"
     assert items["ikev2"]["enabled"] is False
-    assert items["ikev2"]["reason"] == "unavailable_region"
+    assert items["ikev2"]["reason"] == "ikev2_server_misconfigured"
 
 
 def test_protocol_health_endpoint_returns_protocol_region_matrix(client, auth_headers, db):

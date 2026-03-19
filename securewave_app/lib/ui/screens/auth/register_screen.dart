@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../debug/automation_keys.dart';
 import '../../../features/auth/auth_controller.dart';
 import '../../../features/auth/auth_widgets.dart';
+import '../../../services/auth_service.dart';
 import '../../../ui/design/app_colors.dart';
 import '../../../ui/design/app_spacing.dart';
 
@@ -38,10 +39,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
     setState(() => _localError = null);
     final auth = ref.read(authControllerProvider.notifier);
-    await auth.register(
+    final outcome = await auth.register(
       email: _emailCtrl.text.trim(),
       password: _passwordCtrl.text,
     );
+    if (!mounted || outcome == null) return;
+    if (outcome == RegistrationOutcome.loginRequired) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account created. Sign in to continue.')),
+      );
+      context.go('/login');
+    }
   }
 
   @override

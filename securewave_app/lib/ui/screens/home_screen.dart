@@ -24,7 +24,18 @@ class HomeScreen extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final vpnState = ref.watch(vpnStateProvider);
+    final homeVpn = ref.watch(
+      vpnStateProvider.select(
+        (state) => (
+          selectedServerId: state.selectedServerId,
+          protocol: state.protocol,
+          effectiveProtocol: state.effectiveProtocol,
+          connectPhaseLabel: state.connectPhaseLabel,
+          stabilityPct: (state.stabilityScore * 100).round(),
+          recoveryMessage: state.recoveryMessage,
+        ),
+      ),
+    );
     final visualState = ref.watch(connectionVisualStateProvider);
     final primaryAction = ref.watch(connectionPrimaryActionProvider);
     final selectedServer = ref.watch(selectedServerProvider);
@@ -44,7 +55,7 @@ class HomeScreen extends HookConsumerWidget {
           'UI',
           'CONNECT_BUTTON_PRESSED',
           fields: <String, Object?>{
-            'server_id': vpnState.selectedServerId ?? 'auto',
+            'server_id': homeVpn.selectedServerId ?? 'auto',
           },
         );
         notifier.connect();
@@ -91,8 +102,12 @@ class HomeScreen extends HookConsumerWidget {
 
                   // ── Connection Hero ─────────────────────────────────────
                   _ConnectionHero(
-                    vpnState: vpnState,
                     visualState: visualState,
+                    protocol: homeVpn.protocol,
+                    effectiveProtocol: homeVpn.effectiveProtocol,
+                    connectPhaseLabel: homeVpn.connectPhaseLabel,
+                    stabilityPct: homeVpn.stabilityPct,
+                    recoveryMessage: homeVpn.recoveryMessage,
                     selectedServerLabel: selectedServer?.name,
                     latencyMs: selectedServer?.latencyMs,
                     onServerTap: () => context.go('/servers'),
@@ -106,13 +121,13 @@ class HomeScreen extends HookConsumerWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
+                        const Expanded(
                           flex: 6,
                           child: Column(
-                            children: [
-                              TrafficStatsCard(vpnState: vpnState),
-                              const SizedBox(height: AppSpacing.space4),
-                              const TrafficGraphCard(),
+                            children: <Widget>[
+                              TrafficStatsCard(),
+                              SizedBox(height: AppSpacing.space4),
+                              TrafficGraphCard(),
                             ],
                           ),
                         ),
@@ -126,7 +141,6 @@ class HomeScreen extends HookConsumerWidget {
                               const ProtocolSelectorCard(),
                               const SizedBox(height: AppSpacing.space4),
                               _QuickActionPanel(
-                                vpnState: vpnState,
                                 onServersTap: () => context.go('/servers'),
                                 onConnectionTap: () =>
                                     context.go('/connection'),
@@ -141,7 +155,7 @@ class HomeScreen extends HookConsumerWidget {
                   else
                     Column(
                       children: [
-                        TrafficStatsCard(vpnState: vpnState),
+                        const TrafficStatsCard(),
                         const SizedBox(height: AppSpacing.space4),
                         const UsageMeterCard(),
                         const SizedBox(height: AppSpacing.space4),
@@ -150,7 +164,6 @@ class HomeScreen extends HookConsumerWidget {
                         const TrafficGraphCard(),
                         const SizedBox(height: AppSpacing.space4),
                         _QuickActionPanel(
-                          vpnState: vpnState,
                           onServersTap: () => context.go('/servers'),
                           onConnectionTap: () => context.go('/connection'),
                           onDiagnosticsTap: () => context.go('/diagnostics'),
@@ -211,16 +224,24 @@ class _DashboardHeader extends StatelessWidget {
 
 class _ConnectionHero extends StatelessWidget {
   const _ConnectionHero({
-    required this.vpnState,
     required this.visualState,
+    required this.protocol,
+    required this.effectiveProtocol,
+    required this.connectPhaseLabel,
+    required this.stabilityPct,
+    required this.recoveryMessage,
     required this.selectedServerLabel,
     required this.latencyMs,
     required this.onServerTap,
     required this.onConnectTap,
   });
 
-  final VpnState vpnState;
   final ConnectionVisualState visualState;
+  final VpnProtocol protocol;
+  final VpnProtocol? effectiveProtocol;
+  final String? connectPhaseLabel;
+  final int stabilityPct;
+  final String? recoveryMessage;
   final String? selectedServerLabel;
   final int? latencyMs;
   final VoidCallback onServerTap;
@@ -229,7 +250,7 @@ class _ConnectionHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final protocolLabel =
-        vpnProtocolLabel(vpnState.effectiveProtocol ?? vpnState.protocol);
+        vpnProtocolLabel(effectiveProtocol ?? protocol);
 
     return GlassPanel(
       padding: const EdgeInsets.symmetric(
@@ -246,7 +267,7 @@ class _ConnectionHero extends StatelessWidget {
           // ── Hero connect button (dominant visual) ────────────────────
           ConnectButton(
             visualState: visualState,
-            connectPhaseLabel: vpnState.connectPhaseLabel,
+            connectPhaseLabel: connectPhaseLabel,
             onTap: onConnectTap,
           ),
 
@@ -256,8 +277,8 @@ class _ConnectionHero extends StatelessWidget {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             child: Text(
-              _headlineFor(visualState, vpnState.connectPhaseLabel),
-              key: ValueKey('${visualState}_${vpnState.connectPhaseLabel}'),
+              _headlineFor(visualState, connectPhaseLabel),
+              key: ValueKey('${visualState}_$connectPhaseLabel'),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
@@ -267,7 +288,7 @@ class _ConnectionHero extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.space1),
           Text(
-            _subtitleFor(visualState, vpnState),
+            _subtitleFor(visualState, recoveryMessage),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -281,7 +302,7 @@ class _ConnectionHero extends StatelessWidget {
             serverLabel: selectedServerLabel,
             latencyMs: latencyMs,
             protocolLabel: protocolLabel,
-            stabilityPct: (vpnState.stabilityScore * 100).round(),
+            stabilityPct: stabilityPct,
             onServerTap: onServerTap,
           ),
         ],
@@ -303,17 +324,17 @@ class _ConnectionHero extends StatelessWidget {
         ConnectionVisualState.disconnected => 'Ready to protect traffic',
       };
 
-  String _subtitleFor(ConnectionVisualState state, VpnState vpnState) =>
+  String _subtitleFor(ConnectionVisualState state, String? recoveryMessage) =>
       switch (state) {
         ConnectionVisualState.connected =>
           'Traffic is flowing through the current SecureWave route.',
         ConnectionVisualState.connecting =>
           'Authenticating, fetching profile, and bringing the tunnel online.',
-        ConnectionVisualState.reconnecting => vpnState.recoveryMessage ??
+        ConnectionVisualState.reconnecting => recoveryMessage ??
             'Recovering the session after a network or region change.',
         ConnectionVisualState.disconnecting =>
           'Closing the active session and clearing route state.',
-        ConnectionVisualState.error => vpnState.recoveryMessage ??
+        ConnectionVisualState.error => recoveryMessage ??
             'Diagnostics are available if the tunnel could not be established.',
         ConnectionVisualState.disconnected =>
           'Pick a region or protocol and connect when ready.',
@@ -434,21 +455,27 @@ class _InfoChip extends StatelessWidget {
 
 // ── Quick Action Panel ────────────────────────────────────────────────────────
 
-class _QuickActionPanel extends StatelessWidget {
+class _QuickActionPanel extends ConsumerWidget {
   const _QuickActionPanel({
-    required this.vpnState,
     required this.onServersTap,
     required this.onConnectionTap,
     required this.onDiagnosticsTap,
   });
 
-  final VpnState vpnState;
   final VoidCallback onServersTap;
   final VoidCallback onConnectionTap;
   final VoidCallback onDiagnosticsTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final panelState = ref.watch(
+      vpnStateProvider.select(
+        (state) => (
+          sessionTransferredBytes: state.sessionTransferredBytes,
+          errorMessage: state.errorMessage,
+        ),
+      ),
+    );
     return GlassPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -495,17 +522,17 @@ class _QuickActionPanel extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.space2),
               Text(
-                'Session: ${formatBytesCompact(vpnState.sessionTransferredBytes)}',
+                'Session: ${formatBytesCompact(panelState.sessionTransferredBytes)}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
               ),
             ],
           ),
-          if (vpnState.errorMessage?.trim().isNotEmpty == true) ...[
+          if (panelState.errorMessage?.trim().isNotEmpty == true) ...[
             const SizedBox(height: AppSpacing.space2),
             Text(
-              vpnState.errorMessage!,
+              panelState.errorMessage!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.error,
                   ),

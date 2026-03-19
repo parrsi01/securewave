@@ -5,7 +5,7 @@ Complete authentication system with email verification, password reset, and 2FA
 
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Response, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -32,6 +32,10 @@ from services.jwt_service import (
 from services.auth_service import AuthService
 from auth.refresh_tokens import revoke_refresh_token_by_value, revoke_all_refresh_tokens
 from services.runtime_metrics import get_runtime_metrics
+from services.shared_security_state import (
+    clear_shared_security_state_for_tests,
+    increment_rate_limit_window,
+)
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from utils.structured_logging import log_event, log_auth_failure, log_admin_action, sanitize_for_log
@@ -114,7 +118,7 @@ def _invalidate_user_sessions(
 is_testing = SETTINGS.testing
 
 # Rate limiter (disabled in tests to avoid hangs)
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_remote_address, storage_uri=SETTINGS.redis_url)
 
 def rate_limit(rule: str):
     if is_testing:
@@ -122,6 +126,26 @@ def rate_limit(rule: str):
             return func
         return decorator
     return limiter.limit(rule)
+
+
+_PASSWORD_RESET_WINDOW = timedelta(hours=1)
+_PASSWORD_RESET_MAX_REQUESTS = 3
+
+
+def _password_reset_request_is_throttled(request: Request) -> bool:
+    forwarded_for = request.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
+    client_host = forwarded_for or (request.client.host if request.client else "") or "unknown"
+    client_key = sanitize_for_log(client_host, max_len=128)
+    count = increment_rate_limit_window(
+        "password_reset_request",
+        client_key,
+        window_seconds=int(_PASSWORD_RESET_WINDOW.total_seconds()),
+    )
+    return count > _PASSWORD_RESET_MAX_REQUESTS
+
+
+def _clear_password_reset_request_limits_for_tests() -> None:
+    clear_shared_security_state_for_tests()
 
 
 def record_login_success(user_id: int, ip_address: Optional[str]) -> None:
@@ -824,28 +848,39 @@ async def logout_all(
 # ===========================
 
 @router.post("/password-reset/request")
-@limiter.limit("3/hour")  # Prevent abuse
 async def request_password_reset(
     request: Request,
     payload: PasswordResetRequestModel,
     db: Session = Depends(get_db)
 ):
     """Request password reset email"""
+    generic_response = {
+        "message": "If the email exists, a password reset link has been sent"
+    }
     try:
+        if _password_reset_request_is_throttled(request):
+            get_runtime_metrics().record_rate_limited()
+            _log_auth_event(
+                "password_reset_request_throttled",
+                level=logging.WARNING,
+                ip_address=sanitize_for_log(
+                    request.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
+                    or (request.client.host if request.client else "unknown"),
+                    128,
+                ),
+            )
+            return generic_response
+
         auth_service = AuthService(db)
         # Always returns success to prevent email enumeration
         auth_service.request_password_reset(payload.email)
 
-        return {
-            "message": "If the email exists, a password reset link has been sent"
-        }
+        return generic_response
 
     except Exception as e:
         logger.error("Password reset request error: %s", sanitize_for_log(str(e)))
         # Don't reveal errors to prevent enumeration
-        return {
-            "message": "If the email exists, a password reset link has been sent"
-        }
+        return generic_response
 
 
 @router.post("/password-reset/confirm")

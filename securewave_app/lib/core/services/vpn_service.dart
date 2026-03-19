@@ -1238,8 +1238,8 @@ class ChannelVpnService implements VpnService {
 
   String _linuxElevationGuide() {
     return 'Administrator elevation is unavailable on Linux. '
-        'Install SecureWave helper/polkit setup (or PolicyKit pkexec with a '
-        'desktop agent) to allow non-interactive tunnel resets.';
+        'Install SecureWave helper/polkit setup so SecureWave can invoke the '
+        'scoped WireGuard helper, or run the app as root.';
   }
 
   String _protocolUnavailableMessage(

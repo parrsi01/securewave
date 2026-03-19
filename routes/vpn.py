@@ -75,8 +75,8 @@ from utils.structured_logging import log_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn", tags=["vpn"])
-limiter = Limiter(key_func=get_remote_address)
 SETTINGS = get_settings()
+limiter = Limiter(key_func=get_remote_address, storage_uri=SETTINGS.redis_url)
 IS_TESTING = SETTINGS.testing
 
 
@@ -1438,17 +1438,26 @@ def _effective_protocol_reason(
     servers: list[VPNServer],
     health_map: dict[str, dict[str, Any]],
 ) -> Optional[str]:
+    normalized = normalize_vpn_protocol(protocol)
     up_servers = [server for server in servers if _region_health_status(server, health_map=health_map) == "up"]
     if not up_servers:
         return "no_servers_available"
 
     supporting_up = [server for server in up_servers if _server_supports_protocol(server, protocol)]
     if supporting_up:
+        if normalized in {"openvpn", "ikev2"} and not _protocol_health_ready(normalized):
+            return f"{normalized}_healthcheck_fail"
         return None
 
+    protocol_flags = [server for server in servers if _server_flag_supports_protocol(server, normalized)]
     supporting_any = [server for server in servers if _server_supports_protocol(server, protocol)]
+    if normalized in {"openvpn", "ikev2"} and protocol_flags and not supporting_any:
+        return f"{normalized}_server_misconfigured"
     if not supporting_any:
         return "unavailable_region"
+
+    if normalized in {"openvpn", "ikev2"} and not _protocol_health_ready(normalized):
+        return f"{normalized}_healthcheck_fail"
 
     down_supporting = [
         server

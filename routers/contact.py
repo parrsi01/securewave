@@ -1,4 +1,5 @@
 from datetime import datetime
+import html
 import os
 import logging
 
@@ -26,6 +27,8 @@ class ContactRequest(BaseModel):
             raise ValueError('Name must be at least 2 characters')
         if len(v) > 100:
             raise ValueError('Name must be less than 100 characters')
+        if "\r" in v or "\n" in v:
+            raise ValueError('Name must not contain line breaks')
         return v.strip()
 
     @field_validator('subject')
@@ -35,6 +38,8 @@ class ContactRequest(BaseModel):
             raise ValueError('Subject must be at least 3 characters')
         if len(v) > 200:
             raise ValueError('Subject must be less than 200 characters')
+        if "\r" in v or "\n" in v:
+            raise ValueError('Subject must not contain line breaks')
         return v.strip()
 
     @field_validator('message')
@@ -69,15 +74,18 @@ def submit_contact_form(payload: ContactRequest):
     try:
         email_service = EmailService()
         if email_service.enabled:
+            safe_name = html.escape(payload.name, quote=True)
+            safe_email = html.escape(str(payload.email), quote=True)
+            safe_message_html = html.escape(payload.message, quote=True).replace("\n", "<br>")
             support_subject = f"[SecureWave] {payload.subject}"
             support_html = f"""
             <html>
               <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1F2937;">
                 <h2>New Contact Request</h2>
-                <p><strong>Name:</strong> {payload.name}</p>
-                <p><strong>Email:</strong> {payload.email}</p>
+                <p><strong>Name:</strong> {safe_name}</p>
+                <p><strong>Email:</strong> {safe_email}</p>
                 <p><strong>Message:</strong></p>
-                <p>{payload.message}</p>
+                <p>{safe_message_html}</p>
               </body>
             </html>
             """
@@ -94,10 +102,10 @@ def submit_contact_form(payload: ContactRequest):
             <html>
               <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1F2937;">
                 <h2>Thanks for reaching out</h2>
-                <p>Hi {payload.name},</p>
+                <p>Hi {safe_name},</p>
                 <p>We received your message and a SecureWave specialist will respond within 24 hours.</p>
                 <p><strong>Your message:</strong></p>
-                <p>{payload.message}</p>
+                <p>{safe_message_html}</p>
               </body>
             </html>
             """

@@ -49,7 +49,7 @@ class ConnectionOverviewDeck extends ConsumerWidget {
           },
         ),
         const SizedBox(height: 24),
-        TrafficStatsCard(vpnState: vpnState),
+        const TrafficStatsCard(),
         if (selectedServer != null) ...[
           const SizedBox(height: 16),
           ServerLocationCard(server: selectedServer),

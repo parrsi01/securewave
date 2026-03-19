@@ -40,23 +40,16 @@ git tag "backup/pre-filter-repo-$(date -u +%Y%m%dT%H%M%SZ)"
 
 args=(--force --replace-text "$REPLACEMENTS_FILE")
 
-if [[ -s "$TARGETS_FILE" ]]; then
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    [[ "$path" =~ ^# ]] && continue
-    args+=(--path "$path")
-  done < "$TARGETS_FILE"
-  args+=(--invert-paths)
-fi
-
 git filter-repo "${args[@]}"
 
 cat <<'TXT'
 History rewrite completed locally.
 Next steps:
 1) Verify refs and app behavior locally.
-2) Force-push all rewritten branches/tags:
+2) Review candidate paths in artifacts/secret_filter_targets.txt and remove
+   them separately only if they contain non-redactable binary/private material.
+3) Force-push all rewritten branches/tags:
    git push --force --all
    git push --force --tags
-3) Invalidate old clones and rotate any impacted credentials.
+4) Invalidate old clones and rotate any impacted credentials.
 TXT

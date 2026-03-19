@@ -24,6 +24,14 @@ require_var() {
   fi
 }
 
+require_false_flag() {
+  local name="$1"
+  local fix="$2"
+  if [[ "${!name:-false}" =~ ^([Tt][Rr][Uu][Ee]|1|yes|on)$ ]]; then
+    fail_with_fix "$name must be false for release." "$fix"
+  fi
+}
+
 # Guard against misconfigured SMTP, which breaks password reset and billing flows.
 require_var "SMTP_HOST" 'export SMTP_HOST="smtp.example.com"'
 require_var "SMTP_PORT" 'export SMTP_PORT="587"'
@@ -97,16 +105,18 @@ PY
 validate_fernet "AUTH_ENCRYPTION_KEY"
 validate_fernet "WG_ENCRYPTION_KEY"
 
-# Guard against accidentally releasing with test-mode enabled.
-if [[ "${TESTING:-false}" =~ ^([Tt][Rr][Uu][Ee])$ ]]; then
-  fail_with_fix "TESTING must be false for release." "unset TESTING"
-fi
-
-for flag in PAYMENTS_MOCK DEMO_MODE WG_MOCK_MODE; do
-  if [[ "${!flag:-false}" =~ ^([Tt][Rr][Uu][Ee]|1|yes|on)$ ]]; then
-    fail_with_fix "$flag must be false for release." "export ${flag}=false"
-  fi
+# Guard against accidentally releasing with test/mock runtime enabled.
+require_false_flag "TESTING" "unset TESTING"
+for flag in PAYMENTS_MOCK DEMO_MODE WG_MOCK_MODE SECUREWAVE_SIM_MODE \
+  SECUREWAVE_MOCK_VPN SECUREWAVE_MOCK_VPN_FORCE_FAILURE SECUREWAVE_MOCK_VPN_UNSTABLE; do
+  require_false_flag "$flag" "export ${flag}=false"
 done
+if [[ -n "${SECUREWAVE_MOCK_VPN_LATENCY_MS:-}" &&
+      "${SECUREWAVE_MOCK_VPN_LATENCY_MS}" != "300" ]]; then
+  fail_with_fix \
+    "SECUREWAVE_MOCK_VPN_LATENCY_MS must be unset or 300 for release." \
+    "unset SECUREWAVE_MOCK_VPN_LATENCY_MS"
+fi
 
 require_var "DATABASE_URL" 'export DATABASE_URL="postgresql+psycopg2://securewave:password@localhost:5432/securewave"'
 if [[ "${ALLOW_SQLITE_PRODUCTION:-false}" != "true" && "${DATABASE_URL:-}" == sqlite* ]]; then

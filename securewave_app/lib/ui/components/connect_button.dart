@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/logging/app_logger.dart';
 import '../../debug/automation_keys.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
@@ -72,8 +73,9 @@ class _ConnectButtonState extends State<ConnectButton>
       final enabled = !_isBusy(widget.visualState);
       final reason =
           enabled ? 'ready_for_user_action' : 'transition_in_progress';
-      debugPrint(
+      AppLogger.debug(
         '[VPN_UI] {"event":"connect_button_interaction_state","visual_state":"${widget.visualState.name}","enabled":$enabled,"reason":"$reason"}',
+        tag: 'SecureWave.UI',
       );
     }
     if (widget.visualState == ConnectionVisualState.connected) {

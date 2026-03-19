@@ -32,8 +32,8 @@ from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
-limiter = Limiter(key_func=get_remote_address)
 SETTINGS = get_settings()
+limiter = Limiter(key_func=get_remote_address, storage_uri=SETTINGS.redis_url)
 IS_TESTING = SETTINGS.testing
 
 

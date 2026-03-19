@@ -17,6 +17,7 @@ PATTERNS=(
   'sk_test_[0-9A-Za-z]{16,}'
   'pk_live_[0-9A-Za-z]{16,}'
   'pk_test_[0-9A-Za-z]{16,}'
+  'whsec_[0-9A-Za-z]{16,}'
   'SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}'
   'xox[baprs]-[0-9A-Za-z-]{10,}'
   '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'
@@ -35,6 +36,18 @@ RG_EXCLUDES=(
   --glob '!securewave_app/.dart_tool/**'
   --glob '!securewave_app/ios/ThirdParty/**'
   --glob '!artifacts/**'
+  --glob '!scripts/secret_scan.sh'
+  --glob '!scripts/scan_git_history_for_secrets.sh'
+  --glob '!scripts/pre-commit-hook.sh'
+)
+
+HISTORY_PATH_EXCLUDES=(
+  --
+  .
+  ':(exclude)artifacts/*'
+  ':(exclude)scripts/secret_scan.sh'
+  ':(exclude)scripts/scan_git_history_for_secrets.sh'
+  ':(exclude)scripts/pre-commit-hook.sh'
 )
 
 scan_tree() {
@@ -46,7 +59,7 @@ scan_tree() {
 
 scan_history() {
   local pattern="$1"
-  git -C "$ROOT" log --all -G "$pattern" --oneline --decorate 2>/dev/null \
+  git -C "$ROOT" log --all -G "$pattern" --oneline --decorate "${HISTORY_PATH_EXCLUDES[@]}" 2>/dev/null \
     | sed 's/[[:space:]]\+$//' \
     | head -200
 }

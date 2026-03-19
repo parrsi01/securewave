@@ -11,8 +11,10 @@ class _FailingAuthService implements AuthService {
   }
 
   @override
-  Future<void> register(
-      {required String email, required String password}) async {}
+  Future<RegistrationOutcome> register(
+      {required String email, required String password}) async {
+    return RegistrationOutcome.loginRequired;
+  }
 }
 
 void main() {

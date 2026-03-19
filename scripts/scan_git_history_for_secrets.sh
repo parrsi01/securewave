@@ -7,6 +7,14 @@ TARGETS_FILE="${ROOT_DIR}/artifacts/secret_filter_targets.txt"
 REPLACE_FILE="${ROOT_DIR}/artifacts/secret_replace_rules.txt"
 TIMESTAMP_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
+HISTORY_SCAN_EXCLUDES=(
+  -- .
+  ':(exclude)artifacts/*'
+  ':(exclude)scripts/secret_scan.sh'
+  ':(exclude)scripts/scan_git_history_for_secrets.sh'
+  ':(exclude)scripts/pre-commit-hook.sh'
+)
+
 mkdir -p "$(dirname "$OUT_FILE")"
 
 declare -a finding_rows=()
@@ -29,13 +37,16 @@ scan_head() {
   git -C "$ROOT_DIR" grep -nIE "$regex" -- . \
     ':(exclude)artifacts/*' \
     ':(exclude)securewave_app/ios/ThirdParty/*' \
+    ':(exclude)scripts/secret_scan.sh' \
+    ':(exclude)scripts/scan_git_history_for_secrets.sh' \
+    ':(exclude)scripts/pre-commit-hook.sh' \
     2>/dev/null || true
 }
 
 scan_history() {
   local regex="$1"
   git -C "$ROOT_DIR" log --all -G "$regex" --date=short \
-    --pretty=format:'%H|%h|%ad|%s' 2>/dev/null || true
+    --pretty=format:'%H|%h|%ad|%s' "${HISTORY_SCAN_EXCLUDES[@]}" 2>/dev/null || true
 }
 
 collect_paths_from_commits() {
@@ -43,7 +54,7 @@ collect_paths_from_commits() {
   local commit
   local tmp_file
   tmp_file="$(mktemp)"
-  git -C "$ROOT_DIR" log --all -G "$regex" --pretty=format:'%H' | head -n 50 >"$tmp_file" || true
+  git -C "$ROOT_DIR" log --all -G "$regex" --pretty=format:'%H' "${HISTORY_SCAN_EXCLUDES[@]}" | head -n 50 >"$tmp_file" || true
   while IFS= read -r commit; do
     [[ -z "$commit" ]] && continue
     git -C "$ROOT_DIR" show --pretty='' --name-only "$commit" \
@@ -59,6 +70,7 @@ AWS Access Key|critical|AKIA[0-9A-Z]{16}|Rotate AWS access keys and disable old 
 Stripe Live Secret|critical|sk_live_[0-9A-Za-z]{16,}|Rotate Stripe live secret keys and webhook signing secret.|yes
 Stripe Test Secret|low|sk_test_[0-9A-Za-z]{16,}|Confirm test-only fixture use; rotate if ever used outside tests.|no
 Stripe Live Publishable|medium|pk_live_[0-9A-Za-z]{16,}|Verify publishable key ownership and regenerate if uncertain.|yes
+Stripe Webhook Secret|critical|whsec_[0-9A-Za-z]{16,}|Rotate Stripe webhook endpoint secret and invalidate previous signing credentials.|yes
 SendGrid API Key|critical|SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}|Rotate SendGrid API key and revoke old key IDs.|yes
 Slack Token|high|xox[baprs]-[0-9A-Za-z-]{10,}|Revoke Slack tokens and reissue with least privilege scopes.|yes
 Private Key Block|critical|-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----|Rotate corresponding private/public keypairs immediately.|yes
@@ -118,13 +130,15 @@ fi
 
 cat >"$REPLACE_FILE" <<'EOF'
 regex:sk_live_[0-9A-Za-z]{16,}==>sk_live_[REDACTED]
+regex:sk_test_[0-9A-Za-z]{16,}==>sk_test_[REDACTED]
 regex:pk_live_[0-9A-Za-z]{16,}==>pk_live_[REDACTED]
+regex:pk_test_[0-9A-Za-z]{16,}==>pk_test_[REDACTED]
 regex:whsec_[0-9A-Za-z]{16,}==>whsec_[REDACTED]
 regex:AKIA[0-9A-Z]{16}==>AKIA[REDACTED]
 regex:SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}==>SG.[REDACTED].[REDACTED]
 regex:xox[baprs]-[0-9A-Za-z-]{10,}==>xox[REDACTED]
-regex:(HETZNER_API_TOKEN|HCLOUD_TOKEN)[[:space:]]*=[[:space:]]*[A-Za-z0-9_-]{24,}==>\1=[REDACTED]
-regex:(JWT_SECRET(_KEY)?|SECRET_KEY)[[:space:]]*=[[:space:]]*["\047]?[A-Za-z0-9_-]{16,}["\047]?==>\1=[REDACTED]
+regex:(HETZNER_API_TOKEN|HCLOUD_TOKEN)\s*=\s*[A-Za-z0-9_-]{24,}==>\1=[REDACTED]
+regex:(JWT_SECRET(?:_KEY)?|SECRET_KEY)\s*=\s*["']?[A-Za-z0-9_-]{16,}["']?==>\1=[REDACTED]
 EOF
 
 risk_classification="clean"

@@ -4,14 +4,19 @@ import contextvars
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from config.security_config import enforce_permission_policy
 
-LOG_PATH = Path("/var/log/securewave/backend.log")
+
+_DEFAULT_LOG_DIR = Path.home() / ".local" / "state" / "securewave" / "logs"
+LOG_DIR = Path(os.getenv("SECUREWAVE_LOG_DIR", str(_DEFAULT_LOG_DIR))).expanduser()
+LOG_PATH = LOG_DIR / os.getenv("SECUREWAVE_LOG_FILE", "backend.log")
 request_id_ctx = contextvars.ContextVar("request_id", default="-")
 user_id_ctx = contextvars.ContextVar("user_id", default=None)
 
@@ -44,11 +49,13 @@ _SENSITIVE_FIELD_SUFFIXES = (
 _STANDARD_LOG_ATTRS = set(logging.makeLogRecord({}).__dict__.keys())
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[mGKHFABCDEJsu]|\x1b[()][AB012]")
 _STRING_REDACTIONS = (
+    (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "[redacted-email]"),
     (re.compile(r"(Bearer\s+)[A-Za-z0-9._\-]+", re.IGNORECASE), r"\1[redacted]"),
     (re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9]+\b"), "[redacted-stripe-secret]"),
     (re.compile(r"\bwhsec_[A-Za-z0-9]+\b"), "[redacted-stripe-webhook-secret]"),
     (re.compile(r"(PrivateKey\s*=\s*)([^\s]+)", re.IGNORECASE), r"\1[redacted]"),
     (re.compile(r"(PresharedKey\s*=\s*)([^\s]+)", re.IGNORECASE), r"\1[redacted]"),
+    (re.compile(r"((?:JWT_SECRET|SECRET_KEY|ACCESS_TOKEN_SECRET|REFRESH_TOKEN_SECRET)=)([^&\s]+)", re.IGNORECASE), r"\1[redacted]"),
     # Redact NEW_KEY='...' patterns used in SSH key rotation commands
     (re.compile(r"(NEW_KEY\s*=\s*')[^']+'", re.IGNORECASE), r"\1[redacted]'"),
     (re.compile(r"((?:access|refresh|csrf)?_?token=)([^&\s]+)", re.IGNORECASE), r"\1[redacted]"),
@@ -174,17 +181,18 @@ def configure_structured_logging(log_level: str) -> None:
     setup_warnings: list[str] = []
 
     try:
-        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(
-            _build_handler(
-                RotatingFileHandler(
-                    LOG_PATH,
-                    maxBytes=10 * 1024 * 1024,
-                    backupCount=5,
-                    encoding="utf-8",
-                )
-            )
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        permission_result = enforce_permission_policy((LOG_DIR,), dir_mode=0o700)
+        setup_warnings.extend(permission_result.warnings)
+        file_handler = RotatingFileHandler(
+            LOG_PATH,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
         )
+        permission_result = enforce_permission_policy((LOG_PATH,), file_mode=0o600)
+        setup_warnings.extend(permission_result.warnings)
+        handlers.append(_build_handler(file_handler))
     except OSError as exc:
         setup_warnings.append(f"File logging unavailable at {LOG_PATH}: {exc}")
 

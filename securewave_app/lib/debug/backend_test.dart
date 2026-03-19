@@ -5,7 +5,7 @@ import '../core/logging/app_logger.dart';
 Future<void> testBackend() async {
   try {
     final response = await http.get(
-      Uri.parse('https://138.199.204.139.nip.io/api/health'),
+      Uri.parse('https://api.securewaveapp.com/api/health'),
     );
     AppLogger.info('BACKEND STATUS: ${response.statusCode}');
     AppLogger.info('BACKEND BODY: ${response.body}');

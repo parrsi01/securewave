@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/state/app_state.dart';
@@ -47,11 +46,12 @@ class AuthController extends StateNotifier<AuthState> {
       _ref.invalidate(serversProvider);
       _ref.invalidate(userPlanProvider);
       _ref.invalidate(vpnProtocolCatalogProvider);
-      debugPrint(
+      AppLogger.debug(
         '[AUTH_VERIFY] login ok — serversProvider+userPlanProvider+vpnProtocolCatalogProvider invalidated',
+        tag: 'SecureWave.Auth',
       );
     } catch (error, stackTrace) {
-      debugPrint('[AUTH_VERIFY] login failed: $error');
+      AppLogger.debug('[AUTH_VERIFY] login failed', tag: 'SecureWave.Auth');
       AppLogger.error('Login failed', error: error, stackTrace: stackTrace);
       state = state.copyWith(
         errorMessage: ApiError.messageFrom(
@@ -65,21 +65,26 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> register(
+  Future<RegistrationOutcome?> register(
       {required String email, required String password}) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      await _ref
+      final outcome = await _ref
           .read(authServiceProvider)
           .register(email: email, password: password);
       _ref.invalidate(serversProvider);
       _ref.invalidate(userPlanProvider);
       _ref.invalidate(vpnProtocolCatalogProvider);
-      debugPrint(
+      AppLogger.debug(
         '[AUTH_VERIFY] register ok — serversProvider+userPlanProvider+vpnProtocolCatalogProvider invalidated',
+        tag: 'SecureWave.Auth',
       );
+      return outcome;
     } catch (error, stackTrace) {
-      debugPrint('[AUTH_VERIFY] register failed: $error');
+      AppLogger.debug(
+        '[AUTH_VERIFY] register failed',
+        tag: 'SecureWave.Auth',
+      );
       AppLogger.error('Registration failed', error: error, stackTrace: stackTrace);
       state = state.copyWith(
         errorMessage: ApiError.messageFrom(
@@ -87,6 +92,7 @@ class AuthController extends StateNotifier<AuthState> {
           fallback: 'We could not create your account. Please try again.',
         ),
       );
+      return null;
     } finally {
       state = state.copyWith(isLoading: false);
     }
