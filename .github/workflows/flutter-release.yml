@@ -20,14 +20,16 @@ jobs:
           python-version: "3.11"
       - name: Install preflight system deps
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
       - name: Install preflight Python deps
         run: python3 -m pip install --disable-pip-version-check cryptography
       - name: Log preflight runtime
         run: |
+          set -euo pipefail
           echo "[CI] Python version:" && python3 --version
-          echo "[CI] Pip packages:" && pip list
+          echo "[CI] Pip packages:" && python3 -m pip list
       - name: Verify version sync
         run: bash scripts/verify_version_sync.sh
       - name: Release preflight checks

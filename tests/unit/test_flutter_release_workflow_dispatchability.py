@@ -23,4 +23,4 @@ def test_flutter_release_preflight_job_is_pinned_and_hardened():
     assert 'python-version: "3.11"' in workflow
     assert "sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev" in workflow
     assert 'echo "[CI] Python version:" && python3 --version' in workflow
-    assert 'echo "[CI] Pip packages:" && pip list' in workflow
+    assert 'echo "[CI] Pip packages:" && python3 -m pip list' in workflow

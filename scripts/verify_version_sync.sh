@@ -48,10 +48,20 @@ if [[ ! -f windows_installer/version.iss ]]; then
   fail "windows_installer/version.iss missing. Run scripts/sync_versions.py."
 fi
 
-if ! rg -q "#define MyAppVersion \"${app_version}\"" windows_installer/version.iss; then
+match_file_contains() {
+  local needle="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q --fixed-strings "$needle" "$file"
+  else
+    grep -F -q "$needle" "$file"
+  fi
+}
+
+if ! match_file_contains "#define MyAppVersion \"${app_version}\"" windows_installer/version.iss; then
   fail "windows_installer/version.iss MyAppVersion mismatch (expected ${app_version})."
 fi
-if ! rg -q "#define MyAppVersionInfo \"${info_version}\"" windows_installer/version.iss; then
+if ! match_file_contains "#define MyAppVersionInfo \"${info_version}\"" windows_installer/version.iss; then
   fail "windows_installer/version.iss MyAppVersionInfo mismatch (expected ${info_version})."
 fi
 
