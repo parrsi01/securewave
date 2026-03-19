@@ -12,13 +12,22 @@ env:
 jobs:
   release-preflight:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5.6.0
         with:
-          python-version: "3.x"
+          python-version: "3.11"
+      - name: Install preflight system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
       - name: Install preflight Python deps
-        run: python3 -m pip install cryptography
+        run: python3 -m pip install --disable-pip-version-check cryptography
+      - name: Log preflight runtime
+        run: |
+          echo "[CI] Python version:" && python3 --version
+          echo "[CI] Pip packages:" && pip list
       - name: Verify version sync
         run: bash scripts/verify_version_sync.sh
       - name: Release preflight checks
@@ -126,19 +135,34 @@ jobs:
 
   build-android-aab:
     runs-on: ubuntu-latest
-    if: secrets.ANDROID_KEYSTORE_BASE64 != '' && startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: release-preflight
     steps:
       - uses: actions/checkout@v4
+      - name: Check Android signing secrets
+        id: android_secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "${ANDROID_KEYSTORE_BASE64}" ]; then
+            echo "[CI] Android signing secrets absent; skipping Android release build."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Verify version sync
+        if: steps.android_secrets.outputs.enabled == 'true'
         run: bash scripts/verify_version_sync.sh
       - uses: subosito/flutter-action@v2
+        if: steps.android_secrets.outputs.enabled == 'true'
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
       - name: Decode keystore
+        if: steps.android_secrets.outputs.enabled == 'true'
         run: |
           echo \"${{ secrets.ANDROID_KEYSTORE_BASE64 }}\" | base64 -d > securewave_app/android/app/keystore.jks
       - name: Build Android AAB (release)
+        if: steps.android_secrets.outputs.enabled == 'true'
         env:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/securewave_app/android/app/keystore.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -149,38 +173,57 @@ jobs:
           flutter pub get
           flutter build appbundle --release
       - uses: actions/upload-artifact@v4
+        if: steps.android_secrets.outputs.enabled == 'true'
         with:
           name: securewave-android-aab
           path: securewave_app/build/app/outputs/bundle/release/*.aab
 
   build-ios:
     runs-on: macos-latest
-    if: secrets.APPLE_TEAM_ID != '' && startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: release-preflight
     steps:
       - uses: actions/checkout@v4
+      - name: Check iOS signing secrets
+        id: ios_secrets
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "${APPLE_TEAM_ID}" ]; then
+            echo "[CI] Apple signing secrets absent; skipping iOS release build."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Verify version sync
+        if: steps.ios_secrets.outputs.enabled == 'true'
         run: bash scripts/verify_version_sync.sh
       - name: Verify iOS store compliance
+        if: steps.ios_secrets.outputs.enabled == 'true'
         # Guard against App Store blockers before running Xcode builds.
         run: bash scripts/verify_ios_store_compliance.sh
       - uses: subosito/flutter-action@v2
+        if: steps.ios_secrets.outputs.enabled == 'true'
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
       - name: Install CocoaPods
+        if: steps.ios_secrets.outputs.enabled == 'true'
         run: |
           cd securewave_app
           flutter pub get
           cd ios && pod install --repo-update
       - name: Verify workspace
+        if: steps.ios_secrets.outputs.enabled == 'true'
         run: |
           bash securewave_app/ios/scripts/ensure_workspace.sh
           bash securewave_app/scripts/verify_ios_build.sh
       - name: Build iOS (no codesign via workspace)
+        if: steps.ios_secrets.outputs.enabled == 'true'
         run: |
           cd securewave_app
           flutter build ios --release --no-codesign
       - uses: actions/upload-artifact@v4
+        if: steps.ios_secrets.outputs.enabled == 'true'
         with:
           name: securewave-ios
           path: securewave_app/build/ios/iphoneos/

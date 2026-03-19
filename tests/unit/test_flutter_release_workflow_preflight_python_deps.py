@@ -21,4 +21,5 @@ def test_flutter_release_workflow_installs_preflight_python_dependencies():
     job_text = preflight_job.group(1)
 
     assert "actions/setup-python" in job_text
-    assert "python3 -m pip install cryptography" in job_text
+    assert "python3 -m pip install" in job_text
+    assert "cryptography" in job_text
