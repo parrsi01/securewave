@@ -25,3 +25,13 @@ def test_flutter_release_workflow_passes_required_preflight_env():
 
     assert required.issubset(provided)
     assert expected_extra.issubset(provided)
+    assert "RELEASE_PREFLIGHT_ALLOW_NON_TAG" in provided
+
+
+def test_flutter_release_workflow_uses_production_environment_for_preflight():
+    workflow = Path(".github/workflows/flutter-release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "release-preflight:" in workflow
+    assert "environment: production" in workflow

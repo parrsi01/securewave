@@ -156,8 +156,11 @@ elif [[ "${GITHUB_REF_TYPE:-}" == "tag" && "${GITHUB_REF_NAME:-}" == v* ]]; then
 elif command -v git >/dev/null 2>&1; then
   release_tag="$(git tag --points-at HEAD --list 'v*' | head -n 1)"
 fi
-if [[ -z "$release_tag" ]]; then
+allow_non_tag="${RELEASE_PREFLIGHT_ALLOW_NON_TAG:-false}"
+if [[ -z "$release_tag" && ! "$allow_non_tag" =~ ^([Tt][Rr][Uu][Ee]|1|yes|on)$ ]]; then
   fail_with_fix "Release must be built from a v* tag." "git tag vX.Y.Z && git push origin vX.Y.Z"
+elif [[ -z "$release_tag" ]]; then
+  echo "INFO: skipping v* tag enforcement for manual workflow_dispatch preflight validation."
 fi
 
 if [[ $errors -gt 0 ]]; then

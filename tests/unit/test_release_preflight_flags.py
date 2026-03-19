@@ -52,3 +52,33 @@ def test_release_preflight_rejects_non_default_mock_latency():
 
     assert result.returncode != 0
     assert "SECUREWAVE_MOCK_VPN_LATENCY_MS must be unset or 300 for release." in result.stderr
+
+
+def test_release_preflight_allows_manual_non_tag_validation_when_opted_in():
+    script = Path("scripts/release_preflight.sh")
+    env = _valid_release_env()
+    env["GITHUB_REF"] = "refs/heads/release-preflight-validation-20260319"
+    env["RELEASE_PREFLIGHT_ALLOW_NON_TAG"] = "true"
+    for flag in (
+        "TESTING",
+        "PAYMENTS_MOCK",
+        "DEMO_MODE",
+        "WG_MOCK_MODE",
+        "SECUREWAVE_SIM_MODE",
+        "SECUREWAVE_MOCK_VPN",
+        "SECUREWAVE_MOCK_VPN_FORCE_FAILURE",
+        "SECUREWAVE_MOCK_VPN_UNSTABLE",
+        "SECUREWAVE_MOCK_VPN_LATENCY_MS",
+    ):
+        env.pop(flag, None)
+
+    result = subprocess.run(
+        ["/bin/bash", str(script)],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "skipping v* tag enforcement" in result.stdout

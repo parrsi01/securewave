@@ -12,6 +12,7 @@ env:
 jobs:
   release-preflight:
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +36,7 @@ jobs:
       - name: Release preflight checks
         # Guard against misconfigured release tags and missing production secrets.
         env:
+          RELEASE_PREFLIGHT_ALLOW_NON_TAG: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
