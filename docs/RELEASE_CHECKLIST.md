@@ -15,6 +15,18 @@ bash scripts/release_preflight.sh
 OK: Release preflight checks passed.
 ```
 
+**GitHub production secret readiness:**
+```bash
+# Audit which required names are present in GitHub
+bash scripts/audit_github_release_secrets.sh
+
+# After exporting real values locally, preview the sync plan
+bash scripts/sync_github_release_secrets.sh --dry-run
+
+# Apply the sync into the GitHub production environment
+bash scripts/sync_github_release_secrets.sh
+```
+
 ---
 
 ## 1) SMTP / Email Provider
