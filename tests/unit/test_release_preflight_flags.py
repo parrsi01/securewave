@@ -82,3 +82,21 @@ def test_release_preflight_allows_manual_non_tag_validation_when_opted_in():
 
     assert result.returncode == 0, result.stderr
     assert "skipping v* tag enforcement" in result.stdout
+
+
+def test_release_preflight_missing_fernet_key_prints_generation_command_only():
+    script = Path("scripts/release_preflight.sh")
+    env = _valid_release_env()
+    env.pop("AUTH_ENCRYPTION_KEY", None)
+
+    result = subprocess.run(
+        ["/bin/bash", str(script)],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "AUTH_ENCRYPTION_KEY is required for release." in result.stderr
+    assert "Fernet.generate_key().decode()" in result.stderr
