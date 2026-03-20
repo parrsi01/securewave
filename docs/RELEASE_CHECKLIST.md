@@ -29,6 +29,9 @@ bash scripts/sync_github_release_secrets.sh
 # Run the full operator flow end-to-end
 bash scripts/run_release_ops.sh --dispatch --ref <branch-or-tag>
 
+# After filling in ~/.config/securewave/release.env, run the happy path in one command
+bash scripts/run_release_ops_from_env.sh --dispatch --ref <branch-or-tag>
+
 # Write a single readiness artifact with exact blockers
 bash scripts/generate_release_readiness_report.sh
 ```
@@ -88,6 +91,7 @@ OK: Production environment variables validated.
 ```bash
 bash scripts/setup_production_env.sh --write-env-file ~/.config/securewave/release.env
 set -a && source ~/.config/securewave/release.env && set +a
+bash scripts/run_release_ops_from_env.sh --dry-run
 ```
 
 ---
