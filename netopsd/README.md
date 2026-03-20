@@ -2,6 +2,12 @@
 
 `securewave-netd` is the privileged Linux-side networking daemon for SecureWave.
 
+Build it from the repo root with:
+
+```bash
+bash ./scripts/build_netopsd.sh
+```
+
 Responsibilities:
 
 - Unix domain socket JSON RPC server
