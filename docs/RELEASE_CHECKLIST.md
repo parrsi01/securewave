@@ -28,6 +28,9 @@ bash scripts/sync_github_release_secrets.sh
 
 # Run the full operator flow end-to-end
 bash scripts/run_release_ops.sh --dispatch --ref <branch-or-tag>
+
+# Write a single readiness artifact with exact blockers
+bash scripts/generate_release_readiness_report.sh
 ```
 
 ---
