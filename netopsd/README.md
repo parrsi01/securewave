@@ -8,6 +8,10 @@ Build it from the repo root with:
 bash ./scripts/build_netopsd.sh
 ```
 
+For non-root execution, the daemon binary must carry `cap_net_admin+eip` so
+the daemon can raise `CAP_NET_ADMIN` into ambient capabilities for its child
+`ip`, `wg`, `iptables`, and `sysctl` commands.
+
 Responsibilities:
 
 - Unix domain socket JSON RPC server

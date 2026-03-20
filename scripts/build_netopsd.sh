@@ -66,12 +66,12 @@ go build -o "${BINARY_PATH}" ./cmd/securewave-netd
 
 echo "[8] Setting capabilities..."
 if command -v setcap >/dev/null 2>&1; then
-    if run_as_root setcap cap_net_admin+ep "${BINARY_PATH}"; then
-        echo "[INFO] Applied cap_net_admin to ${BINARY_PATH}"
+    if run_as_root setcap cap_net_admin+eip "${BINARY_PATH}"; then
+        echo "[INFO] Applied cap_net_admin+eip to ${BINARY_PATH}"
         command -v getcap >/dev/null 2>&1 && getcap "${BINARY_PATH}" || true
     else
         echo "[WARN] setcap requires root; run manually if needed:"
-        echo "       sudo setcap cap_net_admin+ep ${BINARY_PATH}"
+        echo "       sudo setcap cap_net_admin+eip ${BINARY_PATH}"
     fi
 else
     echo "[WARN] setcap not installed; install libcap2-bin if capabilities are required."
