@@ -81,6 +81,12 @@ ENVIRONMENT=production \
 OK: Production environment variables validated.
 ```
 
+**Write a sourceable release env template:**
+```bash
+bash scripts/setup_production_env.sh --write-env-file ~/.config/securewave/release.env
+set -a && source ~/.config/securewave/release.env && set +a
+```
+
 ---
 
 ## 3) Production Env Validation (CI-safe)
