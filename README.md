@@ -1,6 +1,6 @@
 # SecureWave
 
-SecureWave is a full-stack VPN platform repository that combines a Python/FastAPI backend, a Flutter client app, VPN provisioning logic, payment flows, and infrastructure automation.
+SecureWave is a full-stack VPN platform repository that combines a Python/FastAPI business backend, a Go privileged netops daemon for Linux networking operations, a Flutter client app, VPN provisioning logic, payment flows, and infrastructure automation.
 
 The repository now targets **Hetzner Cloud only**. Older Azure-era assumptions have been removed from the public deployment story; provisioning and production operations are centered on the Terraform module in `infrastructure/hetzner/` and the Hetzner runbook in `docs/HETZNER_RUNBOOK.md`.
 
@@ -10,7 +10,7 @@ If you encounter legacy Azure-named files elsewhere in the repository or older h
 
 This project demonstrates work across:
 
-- **Backend engineering:** FastAPI, SQLAlchemy, Alembic, auth flows, rate limiting, structured logging, and production config validation
+- **Backend engineering:** FastAPI, SQLAlchemy, Alembic, auth flows, rate limiting, structured logging, production config validation, and a Unix-socket boundary to a privileged Go daemon
 - **Client development:** Flutter/Dart app with Riverpod, GoRouter, Dio, secure storage, and native VPN integration hooks
 - **Payments and account systems:** Stripe and PayPal service integrations, subscription logic, and webhook handling
 - **Networking and VPN operations:** WireGuard profile generation and peer lifecycle management, plus multiprotocol provisioning/validation paths for OpenVPN and IKEv2
@@ -19,8 +19,8 @@ This project demonstrates work across:
 
 ## Core Stack
 
-- **Languages:** Python, Dart, Shell, Terraform, SQL
-- **Backend:** FastAPI, Uvicorn, Gunicorn, SQLAlchemy, Alembic, PostgreSQL, Redis
+- **Languages:** Python, Go, Dart, Shell, Terraform, SQL
+- **Backend:** FastAPI, Uvicorn, Gunicorn, SQLAlchemy, Alembic, PostgreSQL, Redis, Go netops daemon
 - **Frontend/App:** Flutter, Riverpod, Dio, GoRouter, flutter_secure_storage
 - **Payments:** Stripe, PayPal
 - **VPN/Infra:** WireGuard, OpenVPN/IKEv2 support code, Terraform, Docker, systemd, Nginx
@@ -37,6 +37,7 @@ This project demonstrates work across:
 ## Repository Map
 
 - `main.py`, `routes/`, `routers/`, `services/`, `models/`: backend API and business logic
+- `netopsd/`: privileged Go daemon for Linux networking and WireGuard interface operations
 - `securewave_app/`: Flutter client app
 - `static/`: website/static assets
 - `infrastructure/hetzner/`: Terraform for Hetzner provisioning
