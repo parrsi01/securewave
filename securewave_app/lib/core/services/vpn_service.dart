@@ -559,9 +559,11 @@ class ChannelVpnService implements VpnService {
           networkManagerUnmanaged: !data.containsKey('networkmanager_unmanaged')
               ? true
               : b('networkmanager_unmanaged'),
-          handshakeRecent: !data.containsKey('handshake_recent')
-              ? nativeStatus == VpnStatus.connected
-              : b('handshake_recent'),
+          handshakeRecent: data.containsKey('handshake_recent')
+              ? b('handshake_recent')
+              : data.containsKey('handshake_fresh')
+                  ? b('handshake_fresh')
+                  : nativeStatus == VpnStatus.connected,
           watchdogRunning: b('watchdog_running'),
           handshakeAgeSeconds: data.containsKey('handshake_age_seconds')
               ? i('handshake_age_seconds')
@@ -603,7 +605,9 @@ class ChannelVpnService implements VpnService {
     return snapshot.interfaceUp &&
         snapshot.routePresent &&
         snapshot.policyRoutingPresent &&
-        snapshot.handshakeRecent;
+        (snapshot.handshakeRecent ||
+            snapshot.trafficConnected ||
+            snapshot.pingReachable);
   }
 
   String _linuxWireGuardHealthFailureMessage(VpnHealthSnapshot snapshot) {
@@ -614,10 +618,13 @@ class ChannelVpnService implements VpnService {
       return 'WireGuard policy routing is missing from table 51820.';
     }
     final age = snapshot.handshakeAgeSeconds;
-    if (!snapshot.handshakeRecent) {
+    if (!snapshot.handshakeRecent &&
+        !snapshot.trafficConnected &&
+        !snapshot.pingReachable) {
       return age == null || age < 0
-          ? 'WireGuard handshake is missing.'
-          : 'WireGuard handshake is stale (${age}s old).';
+          ? 'WireGuard handshake and traffic validation are both missing.'
+          : 'WireGuard handshake is stale (${age}s old) and no traffic '
+              'fallback was observed.';
     }
     return 'WireGuard tunnel health verification failed.';
   }
@@ -633,6 +640,18 @@ class ChannelVpnService implements VpnService {
     }
 
     final snapshot = await fetchHealthSnapshot();
+    AppLogger.warning(
+      'Linux WireGuard health verification failed: '
+      'interface_up=${snapshot.interfaceUp} '
+      'route_present=${snapshot.routePresent} '
+      'policy_routing_present=${snapshot.policyRoutingPresent} '
+      'handshake_recent=${snapshot.handshakeRecent} '
+      'traffic_connected=${snapshot.trafficConnected} '
+      'ping_reachable=${snapshot.pingReachable} '
+      'handshake_age_seconds=${snapshot.handshakeAgeSeconds} '
+      'watchdog_running=${snapshot.watchdogRunning}',
+      tag: 'SecureWave.VPN',
+    );
     throw VpnServiceException(
       'vpn_connect_failed',
       _linuxWireGuardHealthFailureMessage(snapshot),
@@ -813,6 +832,11 @@ class ChannelVpnService implements VpnService {
             .invokeMethod<String>('getStatus')
             .timeout(const Duration(seconds: 3));
         if ((nativeStatus ?? '').toLowerCase().trim() != 'connected') {
+          AppLogger.warning(
+            'Linux native connect rejected after getStatus: '
+            'status=${nativeStatus ?? 'null'}',
+            tag: 'SecureWave.VPN',
+          );
           _status = VpnStatus.disconnected;
           throw VpnServiceException(
             'vpn_connect_failed',
@@ -820,6 +844,15 @@ class ChannelVpnService implements VpnService {
           );
         }
         if (!await _hasMatchingConnectedTunnel(protocol)) {
+          final stats = await fetchTrafficStats();
+          AppLogger.warning(
+            'Linux native connect protocol mismatch after connect: '
+            'expected=${vpnProtocolStorageValue(protocol)} '
+            'reported_protocol=${stats?.protocol ?? 'null'} '
+            'interface=${stats?.interfaceName ?? 'null'} '
+            'connected=${stats?.connected ?? false}',
+            tag: 'SecureWave.VPN',
+          );
           _status = VpnStatus.disconnected;
           throw VpnServiceException(
             'vpn_connect_protocol_mismatch',

@@ -2137,8 +2137,8 @@ static gboolean sample_wireguard_health(const gchar* iface,
     out_snapshot->main_suppress_rule_present = main_suppress_count > 0;
   }
   out_snapshot->table_route_present = wireguard_table_route_exists(iface);
-  out_snapshot->policy_routing_present =
-      out_snapshot->fwmark_configured && out_snapshot->policy_rule_present &&
+  const gboolean policy_rules_present =
+      out_snapshot->policy_rule_present &&
       out_snapshot->main_suppress_rule_present &&
       out_snapshot->table_route_present;
 
@@ -2160,10 +2160,15 @@ static gboolean sample_wireguard_health(const gchar* iface,
       (out_snapshot->rx_bytes > 0 || out_snapshot->tx_bytes > 0);
 
   if (!out_snapshot->traffic_connected && out_snapshot->interface_up &&
-      out_snapshot->policy_routing_present) {
+      policy_rules_present) {
     out_snapshot->ping_reachable = ping_reachable_via_interface(iface);
     out_snapshot->traffic_connected = out_snapshot->ping_reachable;
   }
+
+  out_snapshot->policy_routing_present =
+      policy_rules_present &&
+      (out_snapshot->fwmark_configured || out_snapshot->traffic_connected ||
+       out_snapshot->ping_reachable);
 
   return TRUE;
 }
@@ -2303,7 +2308,8 @@ static gboolean verify_wireguard_runtime(VpnChannelState* state, gchar** out_err
     }
 
     if (snapshot.interface_up && snapshot.policy_routing_present &&
-        snapshot.handshake_fresh) {
+        (snapshot.handshake_fresh || snapshot.traffic_connected ||
+         snapshot.ping_reachable)) {
       write_wireguard_health_log(state, &snapshot, "verified");
       return TRUE;
     }
@@ -2327,13 +2333,16 @@ static gboolean verify_wireguard_runtime(VpnChannelState* state, gchar** out_err
       *out_error = g_strdup(
           "WireGuard sanity check failed: fwmark/policy-routing rules for table "
           "51820 were not installed correctly.");
-    } else if (!snapshot.handshake_present) {
+    } else if (!snapshot.handshake_present && !snapshot.traffic_connected &&
+               !snapshot.ping_reachable) {
       *out_error = g_strdup(
-          "WireGuard sanity check failed: no peer handshake was observed on sw-wg.");
+          "WireGuard sanity check failed: no peer handshake or tunnel traffic "
+          "was observed on sw-wg.");
     } else {
       *out_error = g_strdup_printf(
           "WireGuard sanity check failed: latest handshake age is %" G_GINT64_FORMAT
-          "s, expected < %us.",
+          "s and no validated traffic fallback was available (expected handshake "
+          "< %us or live traffic).",
           snapshot.handshake_age_seconds,
           kWireGuardHandshakeFreshSeconds);
     }
@@ -2611,9 +2620,7 @@ static void refresh_runtime_connection_state(VpnChannelState* state) {
     if (g_strcmp0(active, "wireguard") == 0 || g_strcmp0(active, "wg") == 0) {
       WireGuardHealthSnapshot snapshot{};
       sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
-      const gboolean healthy =
-          snapshot.interface_up && snapshot.policy_routing_present &&
-          snapshot.handshake_fresh;
+      const gboolean healthy = wireguard_watchdog_considers_healthy(snapshot);
       state_update_wireguard_health(state, healthy, snapshot.handshake_age_seconds);
       if (healthy) {
         state->last_connected = TRUE;
@@ -2642,9 +2649,7 @@ static void refresh_runtime_connection_state(VpnChannelState* state) {
   {
     WireGuardHealthSnapshot snapshot{};
     sample_wireguard_health(kWireGuardInterfaceName, &snapshot);
-    const gboolean healthy =
-        snapshot.interface_up && snapshot.policy_routing_present &&
-        snapshot.handshake_fresh;
+    const gboolean healthy = wireguard_watchdog_considers_healthy(snapshot);
     state_update_wireguard_health(state, healthy, snapshot.handshake_age_seconds);
     if (healthy) {
       state->last_connected = TRUE;

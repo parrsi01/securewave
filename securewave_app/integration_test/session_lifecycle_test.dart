@@ -98,6 +98,9 @@ void main() {
       await _waitForAuthenticatedHome(tester, requiredState: 'connected');
       await _disconnectFromHomeAndVerify(tester);
       await _reconnectDuringRouteChangeAndVerify(tester);
+      await _openNavigation(tester, 'Home');
+      await _waitForAuthenticatedHome(tester, requiredState: 'connected');
+      await _disconnectFromHomeAndVerify(tester);
     },
     timeout: const Timeout(Duration(minutes: 6)),
   );

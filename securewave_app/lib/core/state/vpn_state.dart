@@ -1717,7 +1717,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     while (DateTime.now().isBefore(deadline)) {
       _throwIfCancelled(op);
       lastSnapshot = await service.fetchHealthSnapshot();
-      if (lastSnapshot.verifiedTunnel) {
+      if (lastSnapshot.interfaceUp &&
+          lastSnapshot.routePresent &&
+          lastSnapshot.policyRoutingPresent &&
+          (lastSnapshot.handshakeRecent ||
+              lastSnapshot.trafficConnected ||
+              lastSnapshot.pingReachable)) {
         return;
       }
       await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -1744,9 +1749,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     throw VpnServiceException(
       'connect_verification_failed',
-      failure.handshakeAgeSeconds == null || failure.handshakeAgeSeconds! < 0
-          ? 'Tunnel verification failed because the WireGuard handshake is missing.'
-          : 'Tunnel verification failed because the WireGuard handshake is stale (${failure.handshakeAgeSeconds}s).',
+      (failure.handshakeAgeSeconds == null || failure.handshakeAgeSeconds! < 0)
+          ? 'Tunnel verification failed because the WireGuard handshake and '
+              'traffic fallback are both missing.'
+          : 'Tunnel verification failed because the WireGuard handshake is '
+              'stale (${failure.handshakeAgeSeconds}s) and no traffic '
+              'fallback was observed.',
     );
   }
 
