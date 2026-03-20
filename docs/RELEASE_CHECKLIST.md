@@ -25,6 +25,9 @@ bash scripts/sync_github_release_secrets.sh --dry-run
 
 # Apply the sync into the GitHub production environment
 bash scripts/sync_github_release_secrets.sh
+
+# Run the full operator flow end-to-end
+bash scripts/run_release_ops.sh --dispatch --ref <branch-or-tag>
 ```
 
 ---
