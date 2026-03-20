@@ -20,7 +20,7 @@ type Config struct {
 func Load() (Config, error) {
 	socketPath := strings.TrimSpace(os.Getenv("SECUREWAVE_NETOPSD_SOCKET_PATH"))
 	if socketPath == "" {
-		socketPath = "/run/securewave/netops.sock"
+		socketPath = defaultSocketPath()
 	}
 
 	socketModeRaw := strings.TrimSpace(os.Getenv("SECUREWAVE_NETOPSD_SOCKET_MODE"))
@@ -51,6 +51,16 @@ func Load() (Config, error) {
 		ShutdownTimeout: shutdownTimeout,
 		LogLevel:        logLevel,
 	}, nil
+}
+
+func defaultSocketPath() string {
+	if os.Geteuid() == 0 {
+		return "/run/securewave/netops.sock"
+	}
+	if runtimeDir := strings.TrimSpace(os.Getenv("XDG_RUNTIME_DIR")); runtimeDir != "" {
+		return filepath.Join(runtimeDir, "securewave", "netops.sock")
+	}
+	return filepath.Join(os.TempDir(), "securewave-"+strconv.Itoa(os.Geteuid()), "netops.sock")
 }
 
 func durationFromEnv(name string, fallback time.Duration) time.Duration {
