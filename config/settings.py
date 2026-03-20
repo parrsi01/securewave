@@ -264,6 +264,15 @@ def _resolve_value(
     return None, None
 
 
+def _default_privileged_netops_socket_path(environ: Mapping[str, str]) -> str:
+    if os.geteuid() == 0:
+        return "/run/securewave/netops.sock"
+    runtime_dir = _clean(environ.get("XDG_RUNTIME_DIR"))
+    if runtime_dir:
+        return str(Path(runtime_dir) / "securewave" / "netops.sock")
+    return f"/tmp/securewave-{os.geteuid()}/netops.sock"
+
+
 def _build_settings(environ: Mapping[str, str]) -> tuple[Settings, list[str]]:
     warnings: list[str] = []
     errors: list[str] = []
@@ -434,7 +443,8 @@ def _build_settings(environ: Mapping[str, str]) -> tuple[Settings, list[str]]:
         _parse_bool(_clean(environ.get("SECUREWAVE_NETOPSD_REQUIRED"))) is True
     )
     privileged_netops_socket_path = (
-        _clean(environ.get("SECUREWAVE_NETOPSD_SOCKET_PATH")) or "/run/securewave/netops.sock"
+        _clean(environ.get("SECUREWAVE_NETOPSD_SOCKET_PATH"))
+        or _default_privileged_netops_socket_path(environ)
     )
     privileged_netops_timeout_ms = _parse_int(
         "SECUREWAVE_NETOPSD_TIMEOUT_MS",

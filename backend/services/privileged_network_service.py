@@ -45,6 +45,12 @@ class PrivilegedNetworkService:
             raise PrivilegedNetopsUnavailableError("privileged netops daemon is disabled")
         return client.health_ping().status
 
+    def is_enabled(self) -> bool:
+        return self.settings.privileged_netops_enabled
+
+    def is_required(self) -> bool:
+        return self.settings.privileged_netops_required
+
     def setup_protocol(
         self,
         *,
