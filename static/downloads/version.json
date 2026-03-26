@@ -1,7 +1,7 @@
 {
   "version": "4.0.0+1",
-  "build_date": "2026-03-26T03:19:14Z",
-  "generated_at": "2026-03-26T03:19:14Z",
+  "build_date": "2026-03-26T03:42:58Z",
+  "generated_at": "2026-03-26T03:42:58Z",
   "provider": "hetzner",
   "artifacts": [
     {
@@ -15,10 +15,10 @@
       "signed": false,
       "notes": "Primary Linux package for Ubuntu/Debian systems.",
       "signing_notes": "Unsigned .deb: distribute with SHA256 verification and signed release notes.",
-      "sha256": "549bfa6f2ed8d594a9513846fa018c94387df6275f296e6938aa27fc2ca2378b",
-      "size_bytes": 16277360,
+      "sha256": "b56cc95ea08767499272ce22bcf4227f7ec00d5dc9102b70cbe7c95f2ad1c141",
+      "size_bytes": 16275824,
       "version": "4.0.0+1",
-      "build_date": "2026-03-26T03:19:14Z"
+      "build_date": "2026-03-26T03:42:58Z"
     },
     {
       "platform": "windows",
@@ -34,7 +34,7 @@
       "sha256": null,
       "size_bytes": null,
       "version": "4.0.0+1",
-      "build_date": "2026-03-26T03:19:14Z"
+      "build_date": "2026-03-26T03:42:58Z"
     },
     {
       "platform": "macos",
@@ -50,7 +50,7 @@
       "sha256": null,
       "size_bytes": null,
       "version": "4.0.0+1",
-      "build_date": "2026-03-26T03:19:14Z"
+      "build_date": "2026-03-26T03:42:58Z"
     },
     {
       "platform": "android",
@@ -66,7 +66,7 @@
       "sha256": null,
       "size_bytes": null,
       "version": "4.0.0+1",
-      "build_date": "2026-03-26T03:19:14Z"
+      "build_date": "2026-03-26T03:42:58Z"
     },
     {
       "platform": "ios",
@@ -82,7 +82,7 @@
       "sha256": null,
       "size_bytes": null,
       "version": "4.0.0+1",
-      "build_date": "2026-03-26T03:19:14Z"
+      "build_date": "2026-03-26T03:42:58Z"
     }
   ],
   "platform_urls": {
