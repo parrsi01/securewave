@@ -85,18 +85,28 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── Scroll reveal animations ── */
   const revealEls = document.querySelectorAll('.reveal');
   if (revealEls.length > 0 && 'IntersectionObserver' in window) {
+    const makeVisible = (el) => el.classList.add('visible');
     const revealObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
+            makeVisible(entry.target);
             revealObserver.unobserve(entry.target);
           }
         });
       },
       { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
     );
-    revealEls.forEach((el) => revealObserver.observe(el));
+    revealEls.forEach((el) => {
+      if (el.getBoundingClientRect().top <= window.innerHeight * 0.95) {
+        makeVisible(el);
+        return;
+      }
+      revealObserver.observe(el);
+    });
+    window.setTimeout(() => revealEls.forEach(makeVisible), 1200);
+  } else if (revealEls.length > 0) {
+    revealEls.forEach((el) => el.classList.add('visible'));
   }
 
   /* ── Accordion ── */
