@@ -48,9 +48,9 @@ body {
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(circle at 16% 12%, rgba(255, 43, 214, 0.12), transparent 18%),
-    radial-gradient(circle at 84% 14%, rgba(76, 201, 255, 0.12), transparent 20%),
-    radial-gradient(circle at 52% -6%, rgba(122, 92, 255, 0.12), transparent 30%),
+    radial-gradient(circle at 16% 12%, rgba(216, 135, 245, 0.07), transparent 18%),
+    radial-gradient(circle at 84% 14%, rgba(142, 197, 255, 0.07), transparent 20%),
+    radial-gradient(circle at 52% -6%, rgba(140, 116, 230, 0.08), transparent 30%),
     linear-gradient(180deg, var(--color-bg-0) 0%, var(--color-bg-1) 100%);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
@@ -62,8 +62,8 @@ body::before {
   inset: -10% -20% auto;
   height: 420px;
   background:
-    radial-gradient(circle at 30% 20%, rgba(255, 43, 214, 0.12) 0%, rgba(122, 92, 255, 0.08) 30%, transparent 72%),
-    radial-gradient(circle at 70% 24%, rgba(76, 201, 255, 0.1) 0%, transparent 40%);
+    radial-gradient(circle at 30% 20%, rgba(216, 135, 245, 0.08) 0%, rgba(140, 116, 230, 0.06) 30%, transparent 72%),
+    radial-gradient(circle at 70% 24%, rgba(142, 197, 255, 0.08) 0%, transparent 40%);
   pointer-events: none;
   z-index: -2;
 }
@@ -140,7 +140,7 @@ a:hover {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 0 20px var(--theme-accent-secondary-soft);
+  text-shadow: 0 0 14px var(--theme-accent-secondary-soft);
 }
 
 .nav-links a,
@@ -153,7 +153,7 @@ a:hover {
 .nav-mobile a:hover,
 .nav-mobile a.active {
   color: var(--color-text-primary);
-  background: linear-gradient(135deg, rgba(255, 43, 214, 0.14), rgba(76, 201, 255, 0.12));
+  background: linear-gradient(135deg, var(--theme-accent-secondary-soft), var(--theme-accent-primary-soft));
   box-shadow: inset 0 0 0 1px var(--theme-accent-secondary-border);
 }
 
@@ -189,7 +189,7 @@ a:hover {
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--theme-accent-secondary-border);
-  background: linear-gradient(135deg, rgba(255, 43, 214, 0.1), rgba(76, 201, 255, 0.08));
+  background: linear-gradient(135deg, var(--theme-accent-secondary-soft), var(--theme-accent-primary-soft));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
@@ -197,13 +197,13 @@ a:hover {
   background: linear-gradient(135deg, var(--color-accent-secondary) 0%, var(--color-accent-tertiary) 52%, var(--color-accent-primary) 100%);
   color: var(--sw-text-inverse);
   border-color: transparent;
-  box-shadow: 0 18px 38px rgba(255, 43, 214, 0.2), 0 10px 28px rgba(76, 201, 255, 0.14);
+  box-shadow: 0 12px 24px var(--theme-accent-secondary-glow-soft), 0 8px 20px var(--theme-accent-primary-glow-soft);
 }
 
 .btn-primary:hover,
 .btn-primary:focus-visible {
   color: var(--sw-text-inverse);
-  box-shadow: 0 22px 46px rgba(255, 43, 214, 0.28), 0 12px 32px rgba(76, 201, 255, 0.18);
+  box-shadow: 0 16px 30px var(--theme-accent-secondary-glow-strong), 0 10px 24px var(--theme-accent-primary-glow-strong);
   transform: translateY(-2px);
 }
 
@@ -366,9 +366,9 @@ textarea::placeholder {
 
 .hero {
   background:
-    radial-gradient(circle at 18% 20%, rgba(255, 43, 214, 0.14), transparent 18%),
-    radial-gradient(circle at 78% 12%, rgba(76, 201, 255, 0.14), transparent 18%),
-    radial-gradient(circle at 56% 68%, rgba(122, 92, 255, 0.08), transparent 26%),
+    radial-gradient(circle at 18% 20%, rgba(216, 135, 245, 0.1), transparent 18%),
+    radial-gradient(circle at 78% 12%, rgba(142, 197, 255, 0.1), transparent 18%),
+    radial-gradient(circle at 56% 68%, rgba(140, 116, 230, 0.06), transparent 26%),
     linear-gradient(180deg, rgba(5, 5, 8, 0.98) 0%, rgba(11, 11, 15, 0.94) 52%, rgba(5, 5, 8, 0.98) 100%);
 }
 
@@ -379,7 +379,7 @@ h1.hero-title,
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 0 0 28px rgba(122, 92, 255, 0.12);
+  text-shadow: 0 0 18px rgba(140, 116, 230, 0.08);
 }
 
 .highlight {
@@ -421,7 +421,7 @@ kbd {
 .feature-icon,
 .card-icon,
 .testimonial-avatar {
-  background: linear-gradient(135deg, rgba(255, 43, 214, 0.12), rgba(76, 201, 255, 0.1));
+  background: linear-gradient(135deg, var(--theme-accent-secondary-soft), var(--theme-accent-primary-soft));
   border: 1px solid var(--theme-accent-secondary-border);
   color: var(--color-accent-primary);
   box-shadow: inset 0 1px 0 var(--theme-overlay-hairline-subtle);
@@ -429,7 +429,7 @@ kbd {
 
 .cta-banner {
   background:
-    linear-gradient(135deg, rgba(255, 43, 214, 0.08) 0%, rgba(122, 92, 255, 0.08) 42%, rgba(76, 201, 255, 0.06) 100%),
+    linear-gradient(135deg, rgba(216, 135, 245, 0.06) 0%, rgba(140, 116, 230, 0.06) 42%, rgba(142, 197, 255, 0.05) 100%),
     linear-gradient(180deg, rgba(17, 17, 23, 0.94), rgba(5, 5, 8, 0.98));
   border: 1px solid var(--color-border-default);
   box-shadow: var(--shadow-card), 0 0 0 1px var(--theme-accent-primary-hairline);
@@ -445,8 +445,8 @@ kbd {
 }
 
 .pricing-card.popular {
-  border-color: rgba(255, 43, 214, 0.34);
-  box-shadow: var(--shadow-card), 0 0 0 1px rgba(255, 43, 214, 0.16), 0 0 34px rgba(122, 92, 255, 0.12);
+  border-color: rgba(216, 135, 245, 0.26);
+  box-shadow: var(--shadow-card), 0 0 0 1px rgba(216, 135, 245, 0.12), 0 0 24px rgba(140, 116, 230, 0.08);
 }
 
 .pricing-card .pricing-name {
@@ -455,7 +455,7 @@ kbd {
 
 .pricing-card .pricing-price {
   color: var(--color-text-primary);
-  text-shadow: 0 0 24px rgba(255, 43, 214, 0.08);
+  text-shadow: 0 0 16px rgba(216, 135, 245, 0.05);
 }
 
 .pricing-card .pricing-price span,
@@ -465,7 +465,7 @@ kbd {
 }
 
 .pricing-card .pricing-features li::before {
-  box-shadow: 0 0 16px rgba(255, 43, 214, 0.12);
+  box-shadow: 0 0 12px rgba(216, 135, 245, 0.08);
 }
 
 .table-wrapper {
@@ -497,14 +497,14 @@ kbd {
 .nav-brand img,
 .shield-visual img,
 .shield-visual svg {
-  filter: drop-shadow(0 0 18px var(--theme-accent-primary-strong))
-    drop-shadow(0 0 30px var(--theme-accent-secondary-soft));
+  filter: drop-shadow(0 0 10px var(--theme-accent-primary-strong))
+    drop-shadow(0 0 16px var(--theme-accent-secondary-soft));
 }
 
 .shield-visual {
   background: linear-gradient(135deg, var(--theme-accent-primary-soft), var(--theme-accent-secondary-soft));
   border: 1px solid var(--theme-accent-primary-strong);
-  box-shadow: var(--shadow-card), 0 0 30px var(--theme-accent-primary-soft);
+  box-shadow: var(--shadow-card), 0 0 18px var(--theme-accent-primary-soft);
 }
 
 .badge-premium,

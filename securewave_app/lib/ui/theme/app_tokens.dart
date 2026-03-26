@@ -78,18 +78,18 @@ class AppTokens {
     ),
   ];
 
-  // ── Glow Effects — neon BoxShadow lists ───────────────────────────────────
+  // ── Glow Effects — softened BoxShadow lists ───────────────────────────────
 
   /// Primary accent glow for CTA surfaces and connected state chrome.
   static const List<BoxShadow> glowPrimary = [
     BoxShadow(
       color: HtbColors.glowPrimarySoft,
-      blurRadius: 24,
-      spreadRadius: 2,
+      blurRadius: 18,
+      spreadRadius: 1,
     ),
     BoxShadow(
       color: HtbColors.glowPrimary,
-      blurRadius: 8,
+      blurRadius: 6,
       spreadRadius: 0,
     ),
   ];
@@ -98,12 +98,12 @@ class AppTokens {
   static const List<BoxShadow> glowPrimaryIntense = [
     BoxShadow(
       color: HtbColors.glowPrimary,
-      blurRadius: 40,
-      spreadRadius: 4,
+      blurRadius: 26,
+      spreadRadius: 2,
     ),
     BoxShadow(
       color: HtbColors.accentPrimary,
-      blurRadius: 12,
+      blurRadius: 8,
       spreadRadius: 0,
     ),
   ];
@@ -112,7 +112,7 @@ class AppTokens {
   static const List<BoxShadow> glowPrimarySoft = [
     BoxShadow(
       color: HtbColors.glowPrimarySoft,
-      blurRadius: 16,
+      blurRadius: 12,
       spreadRadius: 0,
     ),
   ];
@@ -121,8 +121,8 @@ class AppTokens {
   static const List<BoxShadow> glowSecondary = [
     BoxShadow(
       color: HtbColors.glowSecondary,
-      blurRadius: 20,
-      spreadRadius: 1,
+      blurRadius: 14,
+      spreadRadius: 0,
     ),
   ];
 
@@ -130,8 +130,8 @@ class AppTokens {
   static const List<BoxShadow> glowRed = [
     BoxShadow(
       color: HtbColors.glowRed,
-      blurRadius: 20,
-      spreadRadius: 1,
+      blurRadius: 14,
+      spreadRadius: 0,
     ),
   ];
 
@@ -139,8 +139,8 @@ class AppTokens {
   static const List<BoxShadow> glowAmber = [
     BoxShadow(
       color: HtbColors.glowAmber,
-      blurRadius: 20,
-      spreadRadius: 1,
+      blurRadius: 14,
+      spreadRadius: 0,
     ),
   ];
 
@@ -183,10 +183,10 @@ class AppTokens {
   // ── Misc ──────────────────────────────────────────────────────────────────
 
   /// Backdrop blur sigma used on glass panels
-  static const double blurSigma = 16;
+  static const double blurSigma = 14;
 
   /// Border width for neon-lit containers
-  static const double neonBorderWidth = 1.5;
+  static const double neonBorderWidth = 1.25;
 
   /// Default border width
   static const double borderWidth = 1;

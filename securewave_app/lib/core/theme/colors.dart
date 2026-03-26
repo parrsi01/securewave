@@ -4,27 +4,27 @@ import 'package:flutter/material.dart';
 ///
 /// New global palette:
 /// - near-black foundations
-/// - neon blue primary accent
-/// - neon pink and purple secondary accents
-/// - no legacy accent drift in the visual system
+/// - softened blue primary accent
+/// - muted orchid / iris secondary accents
+/// - calmer contrast and glow for long-session readability
 class AppColors {
   AppColors._();
 
   // ── Accent Colors ────────────────────────────────────────────────────────
 
-  static const Color primary = Color(0xFF2E9FE8);
-  static const Color primaryDark = Color(0xFF1E6BB3);
-  static const Color primaryDeep = Color(0xFF0D2A52);
-  static const Color primaryBright = Color(0xFF4CC9FF);
-  static const Color primaryLight = Color(0xFFD8F5FF);
+  static const Color primary = Color(0xFF6E9FDD);
+  static const Color primaryDark = Color(0xFF4B72B7);
+  static const Color primaryDeep = Color(0xFF16243D);
+  static const Color primaryBright = Color(0xFF8EC5FF);
+  static const Color primaryLight = Color(0xFFE2EEFF);
 
-  static const Color primaryGhost = Color(0x164CC9FF);
-  static const Color primaryWash = Color(0x124CC9FF);
+  static const Color primaryGhost = Color(0x148EC5FF);
+  static const Color primaryWash = Color(0x108EC5FF);
 
-  static const Color secondary = Color(0xFFFF2BD6);
-  static const Color secondaryDark = Color(0xFF7A5CFF);
-  static const Color secondaryLight = Color(0xFFF6DEFF);
-  static const Color secondaryWash = Color(0x127A5CFF);
+  static const Color secondary = Color(0xFFD887F5);
+  static const Color secondaryDark = Color(0xFF8C74E6);
+  static const Color secondaryLight = Color(0xFFF0E7FF);
+  static const Color secondaryWash = Color(0x108C74E6);
 
   // ── Semantic / Status ────────────────────────────────────────────────────
 
@@ -76,13 +76,13 @@ class AppColors {
 
   static const Color darkBorder = Color(0xFF2A2737);
   static const Color darkBorderFocus = primaryBright;
-  static const Color darkGridLine = Color(0x107A5CFF);
+  static const Color darkGridLine = Color(0x0D8C74E6);
 
   // ── Ambient Glows ────────────────────────────────────────────────────────
 
-  static const Color ambientGlowPrimary = Color(0x1C4CC9FF);
-  static const Color ambientGlowSecondary = Color(0x18FF2BD6);
-  static const Color ambientGlowTertiary = Color(0x147A5CFF);
+  static const Color ambientGlowPrimary = Color(0x148EC5FF);
+  static const Color ambientGlowSecondary = Color(0x12D887F5);
+  static const Color ambientGlowTertiary = Color(0x108C74E6);
 
   // ── Glass Tokens ─────────────────────────────────────────────────────────
 
@@ -96,7 +96,7 @@ class AppColors {
       const Color(0xFFFFFFFF).withValues(alpha: 0.38);
 
   static Color get glassBorderDark =>
-      const Color(0xFF7A5CFF).withValues(alpha: 0.22);
+      const Color(0xFF8C74E6).withValues(alpha: 0.18);
 
   // ── Gradient Presets ─────────────────────────────────────────────────────
 
@@ -117,19 +117,19 @@ class AppColors {
   static const Gradient brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [primaryBright, secondary],
+    colors: [secondary, secondaryDark, primaryBright],
   );
 
   static const Gradient authHeaderGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [secondaryDark, primaryBright],
+    colors: [secondaryDark, secondary, primaryBright],
   );
 
   static const Gradient connectedGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [primaryBright, secondaryDark],
+    colors: [secondaryDark, primary, primaryBright],
   );
 
   static const Gradient navyGradient = LinearGradient(

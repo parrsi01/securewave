@@ -4,10 +4,10 @@ import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../theme/app_typography.dart';
 
-/// Primary neon CTA button with glow effect.
+/// Primary accent CTA button with a softened glow effect.
 ///
 /// States:
-///   - Normal: neon pink -> purple -> blue gradient + dark text
+///   - Normal: softened orchid -> iris -> blue gradient + dark text
 ///   - Hover/pressed: glow ring amplified via AnimatedContainer BoxShadow
 ///   - Connecting: slow pulse animation on the outer glow ring
 ///   - Disabled: ghosted neon fill, no glow
@@ -100,8 +100,8 @@ class _NeonButtonState extends State<NeonButton>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            HtbColors.accentSecondary,
             HtbColors.accentSecondaryMuted,
+            HtbColors.accentSecondary,
             HtbColors.accentPrimary,
           ],
         );
@@ -113,21 +113,21 @@ class _NeonButtonState extends State<NeonButton>
           widget.isConnecting ? pulseValue : (_pressed ? 1.0 : 0.6);
       return [
         BoxShadow(
-          color: _glowBase.withValues(alpha: 0.5 * intensity),
-          blurRadius: 30,
-          spreadRadius: 2,
+          color: _glowBase.withValues(alpha: 0.3 * intensity),
+          blurRadius: 20,
+          spreadRadius: 1,
         ),
         BoxShadow(
-          color: _accentColor.withValues(alpha: 0.3 * intensity),
-          blurRadius: 14,
+          color: _accentColor.withValues(alpha: 0.16 * intensity),
+          blurRadius: 10,
           spreadRadius: 0,
         ),
       ];
     }
     return [
       BoxShadow(
-        color: _glowBase.withValues(alpha: 0.2),
-        blurRadius: 12,
+        color: _glowBase.withValues(alpha: 0.12),
+        blurRadius: 8,
         spreadRadius: 0,
       ),
     ];
