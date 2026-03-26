@@ -180,6 +180,9 @@ class ControlledVpnService implements VpnService {
   }
 
   @override
+  void clearCapabilitiesCache() {}
+
+  @override
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     Map<String, dynamic>? profile,

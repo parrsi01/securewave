@@ -1,0 +1,118 @@
+# `services/auth_service.py`
+
+Purpose: This service module implements the business logic for auth service operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L21`: Imports the dependencies used later in this module, including secrets, logging, json, base64, hashlib, hmac, datetime, typing, ....
+- `L23-L29`: Imports the dependencies used later in this module, including config, models, services, utils.
+- `L31-L32`: Initializes module-level state or configuration such as `logger, SETTINGS`.
+- `L34-L39`: Implements this section of logic starting with `# Security configuration`.
+- `L42-L46`: Defines `AuthService`. Production-grade authentication service Handles email verification, password reset, 2FA, and security features.
+- `L48-L52`: Defines `__init__`. Initialize authentication service.
+- `L54-L57`: Applies decorators and defines `hash_password_reset_token` with the wrapped behavior declared above it.
+- `L59-L63`: Implements this section of logic starting with `Using HMAC-SHA256 avoids storing the raw bearer credential in the DB`.
+- `L65-L67`: Comment block that explains the next section: ===========================.
+- `L69-L71`: Defines `generate_verification_token`. Generate secure verification token.
+- `L73-L75`: Defines the `send_verification_email` function and the logic it executes.
+- `L77-L78`: Implements this section of logic starting with `Args:`.
+- `L80-L86`: Implements this section of logic starting with `Returns:`.
+- `L88-L91`: Implements this section of logic starting with `# Update user`.
+- `L93-L97`: Implements this section of logic starting with `# Send email`.
+- `L99-L102`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L104`: Returns a value from the current function.
+- `L106-L109`: Handles a failure from the preceding `try` block.
+- `L111-L113`: Defines the `verify_email` function and the logic it executes.
+- `L115-L116`: Implements this section of logic starting with `Args:`.
+- `L118-L124`: Implements this section of logic starting with `Returns:`.
+- `L126-L127`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L129-L131`: Implements this section of logic starting with `# Check if token expired`.
+- `L133-L137`: Implements this section of logic starting with `# Verify email`.
+- `L139-L140`: Implements this section of logic starting with `logger.info(f"✓ Email verified for user: {user.email}")`.
+- `L142-L145`: Handles a failure from the preceding `try` block.
+- `L147-L149`: Comment block that explains the next section: ===========================.
+- `L151-L153`: Defines the `request_password_reset` function and the logic it executes.
+- `L155-L156`: Implements this section of logic starting with `Args:`.
+- `L158-L162`: Implements this section of logic starting with `Returns:`.
+- `L164-L167`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L169-L174`: Implements this section of logic starting with `# Check rate limiting (prevent abuse)`.
+- `L176-L179`: Implements this section of logic starting with `# Generate reset token`.
+- `L181-L185`: Implements this section of logic starting with `# Update user`.
+- `L187-L191`: Implements this section of logic starting with `# Send email`.
+- `L193-L196`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L198`: Returns a value from the current function.
+- `L200-L203`: Handles a failure from the preceding `try` block.
+- `L205-L207`: Defines the `reset_password` function and the logic it executes.
+- `L209-L211`: Implements this section of logic starting with `Args:`.
+- `L213-L220`: Implements this section of logic starting with `Returns:`.
+- `L222-L223`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L225-L226`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L228-L230`: Implements this section of logic starting with `# Check if token expired`.
+- `L232-L235`: Implements this section of logic starting with `# Validate password strength`.
+- `L237-L244`: Implements this section of logic starting with `# Update password`.
+- `L246-L247`: Implements this section of logic starting with `logger.info(f"✓ Password reset successfully for user: {user.email}")`.
+- `L249-L252`: Handles a failure from the preceding `try` block.
+- `L254-L259`: Implements this section of logic starting with `# ===========================`.
+- `L261-L282`: Implements this section of logic starting with `SECURITY: This method validates that the encryption key is a valid`.
+- `L284-L294`: Defines the `_encrypt_value` function and the logic it executes.
+- `L296-L307`: Defines the `_decrypt_value` function and the logic it executes.
+- `L309-L311`: Defines `generate_totp_secret`. Generate TOTP secret for 2FA.
+- `L313-L315`: Defines the `generate_backup_codes` function and the logic it executes.
+- `L317-L318`: Implements this section of logic starting with `Args:`.
+- `L320-L330`: Implements this section of logic starting with `Returns:`.
+- `L332-L334`: Defines the `setup_2fa` function and the logic it executes.
+- `L336-L337`: Implements this section of logic starting with `Args:`.
+- `L339-L344`: Implements this section of logic starting with `Returns:`.
+- `L346-L351`: Implements this section of logic starting with `# Generate provisioning URI for QR code`.
+- `L353-L354`: Implements this section of logic starting with `# Generate backup codes`.
+- `L356-L360`: Implements this section of logic starting with `# Store secret and backup codes (not enabled yet)`.
+- `L362-L363`: Implements this section of logic starting with `logger.info(f"✓ 2FA setup initiated for user: {user.email}")`.
+- `L365-L368`: Handles a failure from the preceding `try` block.
+- `L370-L372`: Defines the `generate_qr_code` function and the logic it executes.
+- `L374-L375`: Implements this section of logic starting with `Args:`.
+- `L377-L382`: Implements this section of logic starting with `Returns:`.
+- `L384-L387`: Initializes module-level state or configuration such as `img, buffer, format`.
+- `L389-L391`: Defines the `verify_and_enable_2fa` function and the logic it executes.
+- `L393-L395`: Implements this section of logic starting with `Args:`.
+- `L397-L402`: Implements this section of logic starting with `Returns:`.
+- `L404-L410`: Implements this section of logic starting with `# Verify TOTP code`.
+- `L412-L416`: Implements this section of logic starting with `# L-3: Reject replayed codes even during 2FA setup verification`.
+- `L418-L420`: Implements this section of logic starting with `# Enable 2FA`.
+- `L422-L423`: Implements this section of logic starting with `# Send confirmation email`.
+- `L425-L426`: Implements this section of logic starting with `logger.info(f"✓ 2FA enabled for user: {user.email}")`.
+- `L428-L431`: Handles a failure from the preceding `try` block.
+- `L433-L445`: Defines `_is_totp_code_used`. Return True if this TOTP code was already used within the last 90 seconds.
+- `L447-L456`: Defines `_record_totp_code_used`. Persist a used TOTP code to prevent replay within the 90s window.
+- `L458-L460`: Defines the `verify_totp` function and the logic it executes.
+- `L462-L463`: Implements this section of logic starting with `L-3: Checks that the code has not already been used within the current`.
+- `L465-L467`: Implements this section of logic starting with `Args:`.
+- `L469-L473`: Implements this section of logic starting with `Returns:`.
+- `L475-L480`: Initializes module-level state or configuration such as `decrypted_secret`.
+- `L482-L485`: Implements this section of logic starting with `# L-3: Reject replayed codes`.
+- `L487-L488`: Implements this section of logic starting with `self._record_totp_code_used(user.id, totp_code)`.
+- `L490-L492`: Defines the `verify_backup_code` function and the logic it executes.
+- `L494-L496`: Implements this section of logic starting with `Args:`.
+- `L498-L503`: Implements this section of logic starting with `Returns:`.
+- `L505-L506`: Initializes module-level state or configuration such as `decrypted_codes, backup_codes`.
+- `L508-L512`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L514-L515`: Implements this section of logic starting with `logger.info(f"✓ Backup code used for user: {user.email}")`.
+- `L517`: Returns a value from the current function.
+- `L519-L521`: Handles a failure from the preceding `try` block.
+- `L523-L525`: Defines the `disable_2fa` function and the logic it executes.
+- `L527-L528`: Implements this section of logic starting with `Args:`.
+- `L530-L537`: Implements this section of logic starting with `Returns:`.
+- `L539-L540`: Implements this section of logic starting with `logger.info(f"✓ 2FA disabled for user: {user.email}")`.
+- `L542-L545`: Handles a failure from the preceding `try` block.
+- `L547-L549`: Comment block that explains the next section: ===========================.
+- `L551-L558`: Defines the `record_login_attempt` function and the logic it executes.
+- `L560-L574`: Implements this section of logic starting with `Args:`.
+- `L576-L583`: Implements this section of logic starting with `# Lock account if too many failed attempts`.
+- `L585`: Implements this section of logic starting with `self.db.commit()`.
+- `L587-L589`: Handles a failure from the preceding `try` block.
+- `L591-L593`: Defines `is_account_locked`. Check if account is locked.
+- `L595-L597`: Defines the `unlock_account` function and the logic it executes.
+- `L599-L600`: Implements this section of logic starting with `Args:`.
+- `L602-L608`: Implements this section of logic starting with `Returns:`.
+- `L610-L611`: Implements this section of logic starting with `logger.info(f"✓ Account unlocked: {user.email}")`.
+- `L613-L616`: Handles a failure from the preceding `try` block.

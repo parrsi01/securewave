@@ -1,0 +1,132 @@
+# `main.py`
+
+Purpose: This module bootstraps the SecureWave FastAPI application and its startup, middleware, and route registration.
+
+## Line Walkthrough
+
+- `L1`: Module or block docstring that describes the responsibility of this section.
+- `L3-L5`: Implements this section of logic starting with `This module bootstraps the SecureWave FastAPI application and its startup, middleware, and route ...`.
+- `L7-L15`: Imports the dependencies used later in this module, including os, shutil, asyncio, logging, re, uuid, datetime, contextlib, ....
+- `L17-L28`: Imports the dependencies used later in this module, including fastapi, sqlalchemy, slowapi.
+- `L30-L56`: Implements this section of logic starting with `from database.session import SessionLocal`.
+- `L59-L67`: Defines `RedactFilter`. Redact emails and obvious secrets from log messages.
+- `L69-L82`: Defines the `filter` function and the logic it executes.
+- `L84-L85`: Initializes module-level state or configuration such as `LOG_LEVEL`.
+- `L87-L88`: Comment block that explains the next section: NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD.
+- `L90`: Initializes module-level state or configuration such as `docs_enabled`.
+- `L93-L96`: Applies decorators and defines `lifespan` with the wrapped behavior declared above it.
+- `L98-L99`: Implements this section of logic starting with `# Startup`.
+- `L101-L106`: Implements this section of logic starting with `# Create data directory if needed (fast operation)`.
+- `L108-L111`: Implements this section of logic starting with `apply_runtime_permission_policy(logger)`.
+- `L113-L122`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L124-L128`: Implements this section of logic starting with `# Schedule background initialization to run after startup completes`.
+- `L130`: Implements this section of logic starting with `logger.info("FastAPI startup complete - background initialization scheduled")`.
+- `L132`: Implements this section of logic starting with `yield  # Application runs here`.
+- `L134-L144`: Implements this section of logic starting with `# Shutdown`.
+- `L147-L165`: Initializes module-level state or configuration such as `app, title, version, docs_url, redoc_url, openapi_url`.
+- `L167-L168`: Implements this section of logic starting with `is_testing = os.getenv("TESTING", "").lower() == "true"`.
+- `L170-L190`: Implements this section of logic starting with `# Rate Limiting Configuration`.
+- `L193-L198`: Registers `rate_limit_handler` as a custom exception handler for this application.
+- `L200-L203`: Implements this section of logic starting with `# CORS Configuration - enable only when explicitly set`.
+- `L205-L210`: Implements this section of logic starting with `# Security check: No wildcards in production`.
+- `L212-L219`: Implements this section of logic starting with `app.add_middleware(`.
+- `L221-L247`: Implements this section of logic starting with `# Security Headers Middleware`.
+- `L250-L271`: Registers `enforce_https_forwarded_proto` as application middleware so each HTTP request passes through this handler.
+- `L274-L282`: Registers `add_request_id` as application middleware so each HTTP request passes through this handler.
+- `L285-L290`: Initializes module-level state or configuration such as `REVOCATION_EXEMPT_PATHS`.
+- `L293-L296`: Registers `enforce_revoked_access_token` as application middleware so each HTTP request passes through this handler.
+- `L298-L303`: Initializes module-level state or configuration such as `token, auth_header`.
+- `L305-L307`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L309-L321`: Initializes module-level state or configuration such as `payload`.
+- `L323`: Returns a value from the current function.
+- `L326-L331`: Initializes module-level state or configuration such as `CSRF_SAFE_METHODS, CSRF_EXEMPT_PATHS`.
+- `L334-L369`: Registers `enforce_csrf` as application middleware so each HTTP request passes through this handler.
+- `L372-L377`: Defines the `get_db` function and the logic it executes.
+- `L380-L386`: Defines the `sync_static_assets` function and the logic it executes.
+- `L389-L392`: Defines `validate_wireguard_production_config`. Log warnings for missing WireGuard production configuration.
+- `L394-L399`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L402-L405`: Defines `validate_production_env`. Log warnings for missing production environment settings.
+- `L407-L410`: Initializes module-level state or configuration such as `required`.
+- `L412-L414`: Initializes module-level state or configuration such as `cors_origins`.
+- `L416-L420`: Initializes module-level state or configuration such as `db_url`.
+- `L422-L424`: Initializes module-level state or configuration such as `admin_email`.
+- `L427-L441`: Defines `require_encryption_keys`. Fail fast if encryption keys are missing in production.
+- `L444-L447`: Defines `require_production_config`. Fail fast on production config that must be explicit.
+- `L449-L456`: Initializes module-level state or configuration such as `errors`.
+- `L458-L461`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L464-L469`: Defines the `apply_runtime_permission_policy` function and the logic it executes.
+- `L471-L473`: Initializes module-level state or configuration such as `permission_result`.
+- `L475-L491`: Defines `_reconcile_wg_pubkeys`. Compare running wg0 public key against DB and auto-correct mismatches.
+- `L493-L494`: Imports the dependencies used later in this module, including database, models.
+- `L496-L518`: Initializes module-level state or configuration such as `db`.
+- `L521-L523`: Defines `initialize_app_background`. Background initialization that happens AFTER the app starts responding to health checks.
+- `L525-L527`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L529-L530`: Implements this section of logic starting with `# Wait a bit to ensure app is fully started`.
+- `L532`: Implements this section of logic starting with `logger.info("Starting background initialization...")`.
+- `L534-L541`: Implements this section of logic starting with `# Initialize database tables`.
+- `L543-L547`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L549-L553`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L555-L557`: Implements this section of logic starting with `# Initialize VPN optimizer with database servers (auto-detects ML availability)`.
+- `L559-L560`: Initializes module-level state or configuration such as `optimizer, db`.
+- `L562-L566`: Implements this section of logic starting with `# Load servers from database`.
+- `L568-L570`: Implements this section of logic starting with `# If no servers in database, log warning`.
+- `L572-L574`: Implements this section of logic starting with `validate_wireguard_production_config(logger, server_count)`.
+- `L576-L578`: Implements this section of logic starting with `db.close()`.
+- `L580-L586`: Implements this section of logic starting with `# Self-heal stale WireGuard public keys: compare runtime wg0 key`.
+- `L588-L591`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L593-L595`: Implements this section of logic starting with `# Start background tasks`.
+- `L597-L603`: Initializes module-level state or configuration such as `task_manager`.
+- `L605`: Implements this section of logic starting with `logger.info("Background initialization completed")`.
+- `L610-L612`: Implements this section of logic starting with `# New enhanced routes with email verification, 2FA, password reset`.
+- `L614-L619`: Implements this section of logic starting with `# New VPN routes (real WireGuard support)`.
+- `L621-L633`: Implements this section of logic starting with `# Supporting routes`.
+- `L636-L649`: Initializes module-level state or configuration such as `HTTP_STATUS_TO_CODE`.
+- `L652-L659`: Defines the `api_error` function and the logic it executes.
+- `L662-L664`: Registers the `healthcheck` endpoint with the API router.
+- `L667-L669`: Registers the `api_healthcheck` endpoint with the API router.
+- `L672-L678`: Registers the `email_healthcheck` endpoint with the API router.
+- `L681-L691`: Registers the `readiness` endpoint with the API router.
+- `L694-L696`: Registers the `version` endpoint with the API router.
+- `L699-L710`: Registers the `prometheus_metrics` endpoint with the API router.
+- `L712-L723`: Initializes module-level state or configuration such as `active_sessions, active_tunnels, total_servers`.
+- `L725-L735`: Initializes module-level state or configuration such as `fleet`.
+- `L737-L740`: Returns a value from the current function.
+- `L743-L753`: Registers the `api_vpn_metrics` endpoint with the API router.
+- `L755-L767`: Implements this section of logic starting with `total = db.query(WireGuardPeer).filter(WireGuardPeer.is_revoked == False).count()`.
+- `L769-L773`: Initializes module-level state or configuration such as `classification`.
+- `L775-L785`: Returns a value from the current function.
+- `L788-L796`: Registers the `api_system_metrics` endpoint with the API router.
+- `L798-L803`: Initializes module-level state or configuration such as `peer_total, peer_active`.
+- `L805-L809`: Implements this section of logic starting with `# "Zombie peers": inconsistent DB state that should not exist long-term.`.
+- `L811-L820`: Returns a value from the current function.
+- `L823-L829`: Registers the `api_fleet_metrics` endpoint with the API router.
+- `L831-L834`: Implements this section of logic starting with `Returns fleet-wide operational gauges for monitoring dashboards.`.
+- `L836-L841`: Implements this section of logic starting with `# Active VPN sessions (connections with no disconnected_at).`.
+- `L843-L851`: Implements this section of logic starting with `# Active WireGuard tunnels (non-revoked, active peers).`.
+- `L853-L867`: Implements this section of logic starting with `# Server fleet metrics.`.
+- `L869`: Initializes module-level state or configuration such as `runtime`.
+- `L871-L884`: Returns a value from the current function.
+- `L887`: Initializes module-level state or configuration such as `static_directory`.
+- `L889-L917`: Initializes module-level state or configuration such as `page_routes`.
+- `L919-L925`: Initializes module-level state or configuration such as `html_pages`.
+- `L928-L933`: Defines the `make_page_handler` function and the logic it executes.
+- `L936-L937`: Loops over a collection to apply the same work to each item.
+- `L940-L941`: Loops over a collection to apply the same work to each item.
+- `L944-L947`: Implements this section of logic starting with `# SEO / crawler files served from static root`.
+- `L950-L952`: Registers the `sitemap_xml` endpoint with the API router.
+- `L955-L959`: Implements this section of logic starting with `# Redirect legacy/missing routes to nearest equivalent pages`.
+- `L962-L965`: Registers the `features_redirect` endpoint with the API router.
+- `L968-L971`: Registers the `downloads_redirect` endpoint with the API router.
+- `L974-L977`: Registers the `account_redirect` endpoint with the API router.
+- `L980-L983`: Registers the `profile_redirect` endpoint with the API router.
+- `L985-L991`: Implements this section of logic starting with `# Mount static assets (CSS, JS, images, etc.) under /static and root`.
+- `L993-L1009`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L1012-L1017`: Registers the `root` endpoint with the API router.
+- `L1020-L1024`: Registers `not_found_handler` as a custom exception handler for this application.
+- `L1026-L1030`: Implements this section of logic starting with `# For web requests, show custom 404 page`.
+- `L1033-L1035`: Registers `internal_error_handler` as a custom exception handler for this application.
+- `L1037-L1039`: Implements this section of logic starting with `# For API requests, return JSON`.
+- `L1041-L1045`: Implements this section of logic starting with `# For web requests, show error page`.
+- `L1048-L1060`: Registers `http_exception_handler` as a custom exception handler for this application.
+- `L1063-L1071`: Registers `validation_exception_handler` as a custom exception handler for this application.
+- `L1074-L1077`: Module or block docstring that describes the responsibility of this section.

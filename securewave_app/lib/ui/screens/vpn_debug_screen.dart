@@ -269,7 +269,7 @@ class _StatusDot extends StatelessWidget {
     switch (status) {
       case VpnStatus.connected:
       case VpnStatus.degraded:
-        return htb.HtbColors.neonGreen;
+        return htb.HtbColors.accentPrimary;
       case VpnStatus.connecting:
       case VpnStatus.verifying:
       case VpnStatus.reconnecting:

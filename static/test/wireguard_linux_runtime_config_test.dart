@@ -24,6 +24,7 @@ Endpoint = vpn.securewave.example:51820
     final rendered = buildLinuxWireGuardRuntimeConfig(
       config,
       apiBaseUrl: 'https://api.securewave.example/api',
+      uiAutomationEnabled: false,
     );
 
     expect(rendered, isNot(contains(secureWaveRouteGuardStartMarker)));
@@ -56,6 +57,7 @@ Endpoint = vpn.securewave.example:51820
     final first = buildLinuxWireGuardRuntimeConfig(
       config,
       apiBaseUrl: 'https://api.securewave.example/api',
+      uiAutomationEnabled: false,
     );
 
     expect(first, isNot(contains(secureWaveRouteGuardStartMarker)));
@@ -98,8 +100,34 @@ AllowedIPs = 0.0.0.0/0
     final rendered = buildLinuxWireGuardRuntimeConfig(
       config,
       apiBaseUrl: 'http://127.0.0.1:8000/api',
+      uiAutomationEnabled: false,
     );
 
     expect(rendered.trimRight(), config.trimRight());
+  });
+
+  test('adds an automation route guard for the API host when enabled', () {
+    const config = '''
+[Interface]
+PrivateKey = test-private
+Address = 10.0.0.2/32
+Table = off
+
+[Peer]
+PublicKey = server-public
+AllowedIPs = 0.0.0.0/0
+Endpoint = vpn.securewave.example:51820
+''';
+
+    final rendered = buildLinuxWireGuardRuntimeConfig(
+      config,
+      apiBaseUrl: 'https://api.securewave.example/api',
+      uiAutomationEnabled: true,
+    );
+
+    expect(rendered, contains(secureWaveRouteGuardStartMarker));
+    expect(rendered, contains('API_HOST=\\"api.securewave.example\\"'));
+    expect(rendered, contains('ip route replace \\"\\\$ip/32\\" via'));
+    expect(rendered, contains('ip route del \\"\\\$ip/32\\" 2>/dev/null || true'));
   });
 }

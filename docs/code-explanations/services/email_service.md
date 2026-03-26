@@ -1,0 +1,64 @@
+# `services/email_service.py`
+
+Purpose: This service module implements the business logic for email service operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L10`: Imports the dependencies used later in this module, including logging, smtplib, email, typing.
+- `L12`: Imports the dependencies used later in this module, including config.
+- `L14`: Initializes module-level state or configuration such as `logger`.
+- `L17-L21`: Defines `EmailService`. Production-grade email service Sends transactional emails with proper error handling and logging.
+- `L23-L38`: Defines `__init__`. Initialize email service.
+- `L40-L43`: Defines `config_status`. Return provider configuration status without sending email.
+- `L45-L47`: Defines the `require` function and the logic it executes.
+- `L49-L62`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L64-L72`: Returns a value from the current function.
+- `L74-L82`: Defines the `send_email` function and the logic it executes.
+- `L84-L88`: Implements this section of logic starting with `Args:`.
+- `L90-L95`: Implements this section of logic starting with `Returns:`.
+- `L97-L106`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L108-L112`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L114-L116`: Handles a failure from the preceding `try` block.
+- `L118-L126`: Defines the `_provider_ready` function and the logic it executes.
+- `L128-L138`: Defines the `_send_via_smtp` function and the logic it executes.
+- `L140-L142`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L144-L148`: Opens a managed context so resources are cleaned up automatically after use.
+- `L150-L165`: Defines the `_send_via_sendgrid` function and the logic it executes.
+- `L167-L174`: Initializes module-level state or configuration such as `mail, from_email, to_emails, subject, html_content`.
+- `L176-L178`: Initializes module-level state or configuration such as `client, response`.
+- `L180-L191`: Defines the `_send_via_ses` function and the logic it executes.
+- `L193-L205`: Initializes module-level state or configuration such as `client, body`.
+- `L207-L214`: Defines the `send_verification_email` function and the logic it executes.
+- `L216-L219`: Implements this section of logic starting with `Args:`.
+- `L221-L224`: Implements this section of logic starting with `Returns:`.
+- `L226-L261`: Initializes module-level state or configuration such as `html_content`.
+- `L263-L264`: Initializes module-level state or configuration such as `text_content`.
+- `L266`: Implements this section of logic starting with `Hi{' ' + user_name if user_name else ''},`.
+- `L268`: Implements this section of logic starting with `Thank you for registering with SecureWave VPN. Please verify your email address to activate your ...`.
+- `L270-L271`: Implements this section of logic starting with `Verification Link:`.
+- `L273`: Implements this section of logic starting with `This link will expire in 24 hours.`.
+- `L275`: Implements this section of logic starting with `If you didn't create an account with SecureWave VPN, please ignore this email.`.
+- `L277-L279`: Implements this section of logic starting with `---`.
+- `L281-L286`: Returns a value from the current function.
+- `L288-L295`: Defines the `send_password_reset_email` function and the logic it executes.
+- `L297-L300`: Implements this section of logic starting with `Args:`.
+- `L302-L305`: Implements this section of logic starting with `Returns:`.
+- `L307-L349`: Initializes module-level state or configuration such as `html_content`.
+- `L351-L352`: Initializes module-level state or configuration such as `text_content`.
+- `L354`: Implements this section of logic starting with `Hi{' ' + user_name if user_name else ''},`.
+- `L356`: Implements this section of logic starting with `We received a request to reset your password for your SecureWave VPN account.`.
+- `L358-L359`: Implements this section of logic starting with `Reset Link:`.
+- `L361-L364`: Implements this section of logic starting with `IMPORTANT:`.
+- `L366-L368`: Implements this section of logic starting with `---`.
+- `L370-L375`: Returns a value from the current function.
+- `L377-L383`: Defines the `send_2fa_enabled_email` function and the logic it executes.
+- `L385-L387`: Implements this section of logic starting with `Args:`.
+- `L389-L421`: Implements this section of logic starting with `Returns:`.
+- `L423-L427`: Returns a value from the current function.
+- `L429-L436`: Defines the `send_subscription_notification` function and the logic it executes.
+- `L438-L441`: Implements this section of logic starting with `Args:`.
+- `L443-L452`: Implements this section of logic starting with `Returns:`.
+- `L454`: Initializes module-level state or configuration such as `subject`.
+- `L456-L467`: Implements this section of logic starting with `# Build content based on notification type`.
+- `L469-L473`: Returns a value from the current function.

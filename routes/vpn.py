@@ -1208,12 +1208,28 @@ def _probe_udp_listener(host: str, port: int, timeout_s: float) -> str:
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(timeout_s)
-        sock.sendto(b"\x00", (host, int(port)))
-        return "sent"
+        sock.connect((host, int(port)))
+        sock.send(b"\x00")
+        try:
+            sock.recv(1)
+        except socket.timeout:
+            # Most UDP VPN listeners do not send an application-level reply.
+            # A quiet, reachable host is the best available success signal here.
+            return "open_or_filtered"
+        except OSError as exc:
+            code = getattr(exc, "errno", None)
+            if code in {errno.ECONNREFUSED}:
+                return "closed"
+            if code in {errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EADDRNOTAVAIL}:
+                return "host_unreachable"
+            return "error"
+        return "open"
     except socket.timeout:
         return "timeout"
     except OSError as exc:
         code = getattr(exc, "errno", None)
+        if code in {errno.ECONNREFUSED}:
+            return "closed"
         if code in {errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EADDRNOTAVAIL}:
             return "host_unreachable"
         return "error"
@@ -1325,12 +1341,19 @@ def _probe_region_health(server: VPNServer) -> tuple[str, str]:
 
     if "open" in tcp_results:
         return "up", "listener_up"
+    if "open" in udp_results:
+        return "up", "udp_listener_reachable"
     if "host_unreachable" in tcp_results or "host_unreachable" in udp_results:
         return "down", "host_unreachable"
     if "timeout" in tcp_results or "timeout" in udp_results:
         return "down", "timeout"
 
     icmp_probe = _probe_host_icmp(host, timeout_s)
+    if "open_or_filtered" in udp_results:
+        if icmp_probe == "up":
+            return "up", "udp_listener_reachable"
+        if icmp_probe == "timeout":
+            return "down", "timeout"
     if icmp_probe == "up":
         return "down", "listener_down"
     if icmp_probe == "timeout":
@@ -1340,7 +1363,9 @@ def _probe_region_health(server: VPNServer) -> tuple[str, str]:
 
     if "closed" in tcp_results:
         return "down", "listener_down"
-    if "sent" in udp_results:
+    if "closed" in udp_results:
+        return "down", "listener_down"
+    if "open_or_filtered" in udp_results:
         return "unknown", "udp_probe_inconclusive"
 
     return "unknown", "probe_inconclusive"
@@ -2053,6 +2078,36 @@ def _read_optional_pem_from_env(*, pem_env: str, path_env: str) -> Optional[str]
         return None
 
 
+def _openvpn_ca_cert_for_server(server: VPNServer) -> str:
+    return (
+        (getattr(server, "openvpn_ca_cert_pem", None) or "").strip()
+        or _read_optional_pem_from_env(
+            pem_env="SECUREWAVE_OPENVPN_CA_CERT_PEM",
+            path_env="SECUREWAVE_OPENVPN_CA_CERT_PATH",
+        )
+        or ""
+    )
+
+
+def _ikev2_remote_id_for_server(server: VPNServer) -> Optional[str]:
+    return (
+        (getattr(server, "ikev2_remote_id", None) or "").strip()
+        or os.getenv("SECUREWAVE_IKEV2_REMOTE_ID", "").strip()
+        or None
+    )
+
+
+def _ikev2_ca_cert_for_server(server: VPNServer) -> str:
+    return (
+        (getattr(server, "ikev2_ca_cert_pem", None) or "").strip()
+        or _read_optional_pem_from_env(
+            pem_env="SECUREWAVE_IKEV2_CA_CERT_PEM",
+            path_env="SECUREWAVE_IKEV2_CA_CERT_PATH",
+        )
+        or ""
+    )
+
+
 def _build_openvpn_profile(
     server: VPNServer,
     *,
@@ -2091,12 +2146,7 @@ def _build_openvpn_profile(
             details={"server_id": server.server_id, "reason": str(exc)},
         )
 
-    ca_cert = (getattr(server, "openvpn_ca_cert_pem", None) or "").strip()
-    if not ca_cert:
-        ca_cert = _read_optional_pem_from_env(
-            pem_env="SECUREWAVE_OPENVPN_CA_CERT_PEM",
-            path_env="SECUREWAVE_OPENVPN_CA_CERT_PATH",
-        ) or ""
+    ca_cert = _openvpn_ca_cert_for_server(server)
     if not ca_cert:
         raise ApiException(
             status_code=500,
@@ -2167,14 +2217,8 @@ def _build_ikev2_profile(
     username: str,
     password: str,
 ) -> VpnIkev2ProfilePayload:
-    ca_cert = (getattr(server, "ikev2_ca_cert_pem", None) or "").strip()
-    if not ca_cert:
-        ca_cert = _read_optional_pem_from_env(
-            pem_env="SECUREWAVE_IKEV2_CA_CERT_PEM",
-            path_env="SECUREWAVE_IKEV2_CA_CERT_PATH",
-        ) or ""
-
-    remote_id = (getattr(server, "ikev2_remote_id", None) or "").strip() or None
+    ca_cert = _ikev2_ca_cert_for_server(server)
+    remote_id = _ikev2_remote_id_for_server(server)
     server_host = remote_id or (server.public_ip or "").strip()
     if not server_host:
         raise ApiException(
@@ -2222,14 +2266,19 @@ def _server_supported_protocols(server: VPNServer) -> list[str]:
     if getattr(server, "supports_wireguard", True):
         out.append("wireguard")
     # OpenVPN requires CA cert material to be provisioned on the server.
-    if getattr(server, "supports_openvpn", False) and (
-        getattr(server, "openvpn_ca_cert_pem", None) or ""
-    ).strip() and _protocol_material_ready("openvpn"):
+    if (
+        getattr(server, "supports_openvpn", False)
+        and _openvpn_ca_cert_for_server(server)
+        and _protocol_material_ready("openvpn")
+    ):
         out.append("openvpn")
-    # IKEv2 requires CA cert + remote_id to be provisioned.
-    if getattr(server, "supports_ikev2", False) and (
-        getattr(server, "ikev2_ca_cert_pem", None) or ""
-    ).strip() and (getattr(server, "ikev2_remote_id", None) or "").strip() and _protocol_material_ready("ikev2"):
+    # IKEv2 requires CA trust material plus either a remote identity or a routable host.
+    if (
+        getattr(server, "supports_ikev2", False)
+        and _ikev2_ca_cert_for_server(server)
+        and (_ikev2_remote_id_for_server(server) or (server.public_ip or "").strip())
+        and _protocol_material_ready("ikev2")
+    ):
         out.append("ikev2")
     return out
 

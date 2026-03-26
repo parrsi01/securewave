@@ -1,0 +1,78 @@
+# `services/backup_service.py`
+
+Purpose: This service module implements the business logic for backup service operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L14`: Imports the dependencies used later in this module, including os, logging, shutil, subprocess  # nosec B404 - controlled subprocess usage with validated args, tempfile, typing, datetime, pathlib, ....
+- `L16`: Initializes module-level state or configuration such as `logger`.
+- `L18-L20`: Implements this section of logic starting with `# Configuration`.
+- `L23-L27`: Defines `BackupService`. Backup Service Handles automated backups of database, configurations, and VPN settings.
+- `L29-L33`: Defines `__init__`. Initialize backup service.
+- `L35-L39`: Defines the `_resolve_executable` function and the logic it executes.
+- `L41-L44`: Defines the `_ensure_dir` function and the logic it executes.
+- `L46-L48`: Comment block that explains the next section: ===========================.
+- `L50-L52`: Defines the `create_database_backup` function and the logic it executes.
+- `L54-L55`: Implements this section of logic starting with `Args:`.
+- `L57-L62`: Implements this section of logic starting with `Returns:`.
+- `L64-L66`: Initializes module-level state or configuration such as `db_url`.
+- `L68-L69`: Initializes module-level state or configuration such as `backup_dir, output_path`.
+- `L71-L79`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L81-L88`: Implements this section of logic starting with `logger.info("Database backup created successfully: %s", output_path)`.
+- `L90-L92`: Handles a failure from the preceding `try` block.
+- `L94-L96`: Defines the `export_database_to_file` function and the logic it executes.
+- `L98-L99`: Implements this section of logic starting with `Args:`.
+- `L101-L107`: Implements this section of logic starting with `Returns:`.
+- `L109-L112`: Implements this section of logic starting with `import urllib.parse`.
+- `L114-L123`: Initializes module-level state or configuration such as `pg_dump_path, cmd`.
+- `L125-L126`: Initializes module-level state or configuration such as `env`.
+- `L128`: Initializes module-level state or configuration such as `result`.
+- `L130-L141`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L143-L145`: Handles a failure from the preceding `try` block.
+- `L147-L149`: Defines the `list_database_backups` function and the logic it executes.
+- `L151-L167`: Implements this section of logic starting with `Returns:`.
+- `L169-L171`: Comment block that explains the next section: ===========================.
+- `L173-L175`: Defines the `backup_application_config` function and the logic it executes.
+- `L177-L183`: Implements this section of logic starting with `Returns:`.
+- `L185-L189`: Initializes module-level state or configuration such as `config_files`.
+- `L191-L194`: Opens a managed context so resources are cleaned up automatically after use.
+- `L196-L203`: Implements this section of logic starting with `logger.info("Application config backed up: %s", output_path)`.
+- `L205-L207`: Handles a failure from the preceding `try` block.
+- `L209-L211`: Comment block that explains the next section: ===========================.
+- `L213-L218`: Defines `backup_vpn_configurations`. Backup VPN server configurations.
+- `L220-L221`: Initializes module-level state or configuration such as `db, servers`.
+- `L223-L226`: Initializes module-level state or configuration such as `backup_data`.
+- `L228-L239`: Loops over a collection to apply the same work to each item.
+- `L241-L244`: Initializes module-level state or configuration such as `backup_dir, output_path`.
+- `L246`: Implements this section of logic starting with `logger.info("VPN configurations backed up: %s servers", len(servers))`.
+- `L248-L254`: Returns a value from the current function.
+- `L256-L258`: Handles a failure from the preceding `try` block.
+- `L260-L265`: Defines `backup_wireguard_peers`. Backup WireGuard peer configurations.
+- `L267-L268`: Initializes module-level state or configuration such as `db`.
+- `L270-L273`: Initializes module-level state or configuration such as `backup_data`.
+- `L275-L285`: Loops over a collection to apply the same work to each item.
+- `L287-L290`: Initializes module-level state or configuration such as `backup_dir, output_path`.
+- `L292`: Implements this section of logic starting with `logger.info("WireGuard peers backed up: %s peers", len(peers))`.
+- `L294-L300`: Returns a value from the current function.
+- `L302-L304`: Handles a failure from the preceding `try` block.
+- `L306-L308`: Comment block that explains the next section: ===========================.
+- `L310-L317`: Defines `run_full_backup`. Run comprehensive backup of all systems.
+- `L319-L322`: Initializes module-level state or configuration such as `db_backup`.
+- `L324-L327`: Initializes module-level state or configuration such as `app_backup`.
+- `L329-L332`: Initializes module-level state or configuration such as `vpn_backup`.
+- `L334-L337`: Initializes module-level state or configuration such as `peers_backup`.
+- `L339-L340`: Initializes module-level variables and configuration used by later code.
+- `L342-L346`: Implements this section of logic starting with `logger.info(`.
+- `L348`: Returns a value from the current function.
+- `L350-L352`: Comment block that explains the next section: ===========================.
+- `L354-L358`: Defines `cleanup_old_backups`. Remove backups older than retention period.
+- `L360-L367`: Loops over a collection to apply the same work to each item.
+- `L369`: Implements this section of logic starting with `logger.info("Cleaned up %s old backups", deleted_count)`.
+- `L371-L376`: Returns a value from the current function.
+- `L378-L380`: Handles a failure from the preceding `try` block.
+- `L382-L384`: Comment block that explains the next section: ===========================.
+- `L386-L395`: Defines `verify_backup`. Verify backup integrity (placeholder).
+- `L397-L399`: Handles a failure from the preceding `try` block.
+- `L402`: Initializes module-level variables and configuration used by later code.
+- `L405-L410`: Defines `get_backup_service`. Get backup service instance.

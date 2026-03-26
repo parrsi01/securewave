@@ -58,14 +58,14 @@ function renderDetails(entry) {
     return '';
   }
 
-  return `<p class="muted" style="margin-top: var(--space-2); margin-bottom: 0">${details.join('<br>')}</p>`;
+  return `<p class="muted mt-2 mb-0">${details.join('<br>')}</p>`;
 }
 
 function renderCard(entry) {
   const title = formatLabel(entry);
   const status = entry.status === 'available' ? 'Available' : 'Unavailable';
   const badgeClass = entry.status === 'available' ? 'badge-primary' : 'badge-muted';
-  const notes = entry.notes ? `<p class="muted" style="margin-top: var(--space-2)">${escapeHtml(entry.notes)}</p>` : '';
+  const notes = entry.notes ? `<p class="muted mt-2">${escapeHtml(entry.notes)}</p>` : '';
 
   const action = entry.status === 'available' && entry.url
     ? `<a class="btn btn-primary btn-block" href="${escapeHtml(entry.url)}" rel="nofollow">Download</a>`
@@ -74,16 +74,16 @@ function renderCard(entry) {
   return `
     <div class="card card-elevated">
       <div class="card-body">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--space-3)">
-          <h4 style="margin:0">${escapeHtml(title)}</h4>
+        <div class="split-center">
+          <h4 class="heading-reset">${escapeHtml(title)}</h4>
           <span class="badge ${badgeClass}">${escapeHtml(status)}</span>
         </div>
-        <p class="muted" style="margin-top: var(--space-2); margin-bottom: 0">
+        <p class="muted mt-2 mb-0">
           v${escapeHtml(entry.version || '--')}
         </p>
         ${renderDetails(entry)}
         ${notes}
-        <div style="margin-top: var(--space-3)">
+        <div class="mt-3">
           ${action}
         </div>
       </div>
@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const data = await safeJson(res);
     if (res.ok && data.recommended_download) {
       if (recoCard) {
-        recoCard.style.display = '';
+        recoCard.hidden = false;
       }
       const link = document.querySelector('[data-reco-link]');
       const platformEl = document.querySelector('[data-reco-platform]');

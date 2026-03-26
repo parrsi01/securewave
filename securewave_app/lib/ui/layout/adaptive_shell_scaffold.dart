@@ -51,13 +51,21 @@ class AdaptiveShellScaffold extends StatelessWidget {
         key: AutomationKeys.shellRootScaffoldKey,
         body: Row(
           children: [
-            _DesktopRail(
-              currentIndex: currentIndex,
-              onDestinationSelected: onDestinationSelected,
-              labels: _labels,
-              icons: _icons,
-              activeIcons: _activeIcons,
-              showLabels: wide,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.space3,
+                AppSpacing.space3,
+                0,
+                AppSpacing.space3,
+              ),
+              child: _DesktopRail(
+                currentIndex: currentIndex,
+                onDestinationSelected: onDestinationSelected,
+                labels: _labels,
+                icons: _icons,
+                activeIcons: _activeIcons,
+                showLabels: wide,
+              ),
             ),
             Expanded(child: child),
           ],
@@ -109,25 +117,66 @@ class _DesktopRail extends StatelessWidget {
       width: w,
       decoration: BoxDecoration(
         color: bgColor,
-        border: Border(
-          right: BorderSide(
-            color: isDark ? htb.HtbColors.divider : cs.outlineVariant,
-            width: 1,
-          ),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
+        border: Border.all(
+          color: isDark ? htb.HtbColors.divider : cs.outlineVariant,
+          width: 1,
         ),
+        boxShadow: isDark
+            ? const [
+                BoxShadow(
+                  color: htb.HtbColors.accentSecondaryGhost,
+                  blurRadius: 26,
+                  offset: Offset(0, 18),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: AppSpacing.space6),
+          const SizedBox(height: AppSpacing.space5),
           Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: showLabels ? AppSpacing.space4 : 0,
+            padding: EdgeInsets.fromLTRB(
+              showLabels ? AppSpacing.space4 : 0,
+              0,
+              showLabels ? AppSpacing.space4 : 0,
+              0,
             ),
             child: showLabels
-                ? const Padding(
-                    padding: EdgeInsets.only(left: AppSpacing.space1),
-                    child: BrandMark(size: 24, textSize: 16),
+                ? Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppSpacing.space3),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: <Color>[
+                          htb.HtbColors.accentSecondaryGhost,
+                          htb.HtbColors.accentPrimaryGhost,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+                      border: Border.all(
+                        color: htb.HtbColors.glassBorderDefault,
+                      ),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        BrandMark(size: 20, textSize: 14),
+                        SizedBox(height: AppSpacing.space2),
+                        Text(
+                          'CONTROL MESH',
+                          style: TextStyle(
+                            color: htb.HtbColors.textMono,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ],
+                    ),
                   )
                 : const Center(child: BrandMark(size: 28, showText: false)),
           ),
@@ -168,11 +217,11 @@ class _RailItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
-    final activeColor = isDark ? htb.HtbColors.neonGreen : cs.primary;
+    final activeColor = isDark ? htb.HtbColors.accentPrimary : cs.primary;
     final inactiveColor =
         isDark ? htb.HtbColors.textSecondary : cs.onSurfaceVariant;
     final activeBg = isDark
-        ? htb.HtbColors.neonGreenGhost
+        ? htb.HtbColors.accentPrimaryGhost
         : cs.primary.withValues(alpha: 0.1);
 
     return Padding(
@@ -180,82 +229,137 @@ class _RailItem extends StatelessWidget {
         horizontal: AppSpacing.space2,
         vertical: AppSpacing.space1,
       ),
-      child: Material(
-        color: selected ? activeBg : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          key: AutomationKeys.navDestinationKey(label),
-          onTap: onTap,
-          child: SizedBox(
-            width: double.infinity,
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: showLabel ? AppSpacing.space3 : 0,
-                vertical: AppSpacing.space3,
-              ),
-              child: showLabel
-                  ? Row(
-                      children: [
-                        // Active indicator bar on left edge
-                        if (selected)
-                          Container(
-                            width: 3,
-                            height: 16,
-                            margin: const EdgeInsets.only(right: 8),
+      child: AnimatedContainer(
+        duration: AppTokens.durationNormal,
+        curve: AppTokens.curveDefault,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+          gradient: selected
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    activeBg,
+                    htb.HtbColors.accentSecondaryGhost.withValues(alpha: 0.22),
+                  ],
+                )
+              : null,
+          boxShadow: selected && isDark
+              ? const [
+                  BoxShadow(
+                    color: htb.HtbColors.accentSecondaryGhost,
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            key: AutomationKeys.navDestinationKey(label),
+            onTap: onTap,
+            child: SizedBox(
+              width: double.infinity,
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: showLabel ? AppSpacing.space3 : 0,
+                  vertical: AppSpacing.space3,
+                ),
+                child: showLabel
+                    ? Row(
+                        children: [
+                          AnimatedContainer(
+                            duration: AppTokens.durationNormal,
+                            curve: AppTokens.curveDefault,
+                            width: 4,
+                            height: selected ? 30 : 14,
+                            margin: const EdgeInsets.only(right: 10),
                             decoration: BoxDecoration(
-                              color: htb.HtbColors.neonGreen,
+                              gradient: selected
+                                  ? const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        htb.HtbColors.accentSecondary,
+                                        htb.HtbColors.accentPrimary,
+                                      ],
+                                    )
+                                  : null,
+                              color: selected ? null : Colors.transparent,
                               borderRadius: AppTokens.brSmall,
-                              boxShadow: isDark
+                              boxShadow: selected && isDark
                                   ? const <BoxShadow>[
                                       BoxShadow(
-                                        color: htb.HtbColors.glowGreenSoft,
-                                        blurRadius: 6,
+                                        color: htb.HtbColors.glowSecondary,
+                                        blurRadius: 10,
                                       ),
                                     ]
                                   : null,
                             ),
-                          )
-                        else
-                          const SizedBox(width: 11),
-                        Icon(
-                          selected ? activeIcon : icon,
-                          color: selected ? activeColor : inactiveColor,
-                          size: 20,
-                        ),
-                        const SizedBox(width: AppSpacing.space3),
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight:
-                                selected ? FontWeight.w700 : FontWeight.w400,
-                            color: selected ? activeColor : inactiveColor,
-                            letterSpacing: selected ? 0.3 : 0,
                           ),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          selected ? activeIcon : icon,
-                          color: selected ? activeColor : inactiveColor,
-                          size: 22,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight:
-                                selected ? FontWeight.w700 : FontWeight.w400,
+                          Icon(
+                            selected ? activeIcon : icon,
                             color: selected ? activeColor : inactiveColor,
+                            size: 20,
                           ),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: AppSpacing.space3),
+                          Expanded(
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: selected ? activeColor : inactiveColor,
+                                letterSpacing: selected ? 0.3 : 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedContainer(
+                            duration: AppTokens.durationNormal,
+                            curve: AppTokens.curveDefault,
+                            padding: const EdgeInsets.all(AppSpacing.space2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: selected
+                                  ? const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: <Color>[
+                                        htb.HtbColors.accentSecondaryGhost,
+                                        htb.HtbColors.accentPrimaryGhost,
+                                      ],
+                                    )
+                                  : null,
+                            ),
+                            child: Icon(
+                              selected ? activeIcon : icon,
+                              color: selected ? activeColor : inactiveColor,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight:
+                                  selected ? FontWeight.w700 : FontWeight.w500,
+                              color: selected ? activeColor : inactiveColor,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),
@@ -286,31 +390,47 @@ class _BottomBar extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? htb.HtbColors.bg1 : cs.surface,
-        border: Border(
-          top: BorderSide(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.space3,
+        0,
+        AppSpacing.space3,
+        AppSpacing.space3,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? htb.HtbColors.bg1 : cs.surface,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
+          border: Border.all(
             color: isDark ? htb.HtbColors.divider : cs.outlineVariant,
             width: 1,
           ),
+          boxShadow: isDark
+              ? const [
+                  BoxShadow(
+                    color: htb.HtbColors.accentSecondaryGhost,
+                    blurRadius: 24,
+                    offset: Offset(0, 12),
+                  ),
+                ]
+              : null,
         ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            for (var i = 0; i < labels.length; i++)
-              Expanded(
-                child: _BarItem(
-                  icon: icons[i],
-                  activeIcon: activeIcons[i],
-                  label: labels[i],
-                  selected: currentIndex == i,
-                  onTap: () => onDestinationSelected(i),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              for (var i = 0; i < labels.length; i++)
+                Expanded(
+                  child: _BarItem(
+                    icon: icons[i],
+                    activeIcon: activeIcons[i],
+                    label: labels[i],
+                    selected: currentIndex == i,
+                    onTap: () => onDestinationSelected(i),
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -336,33 +456,67 @@ class _BarItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
-    final activeColor = isDark ? htb.HtbColors.neonGreen : cs.primary;
+    final activeColor = isDark ? htb.HtbColors.accentPrimary : cs.primary;
     final inactiveColor =
         isDark ? htb.HtbColors.textSecondary : cs.onSurfaceVariant;
 
-    return InkWell(
-      key: AutomationKeys.navDestinationKey(label),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              selected ? activeIcon : icon,
-              color: selected ? activeColor : inactiveColor,
-              size: 22,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: AutomationKeys.navDestinationKey(label),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.space1,
+            vertical: AppSpacing.space2,
+          ),
+          child: AnimatedContainer(
+            duration: AppTokens.durationNormal,
+            curve: AppTokens.curveDefault,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+              gradient: selected
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        htb.HtbColors.accentSecondaryGhost,
+                        htb.HtbColors.accentPrimaryGhost,
+                      ],
+                    )
+                  : null,
+              boxShadow: selected && isDark
+                  ? const [
+                      BoxShadow(
+                        color: htb.HtbColors.accentSecondaryGhost,
+                        blurRadius: 14,
+                        offset: Offset(0, 6),
+                      ),
+                    ]
+                  : null,
             ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-                color: selected ? activeColor : inactiveColor,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  selected ? activeIcon : icon,
+                  color: selected ? activeColor : inactiveColor,
+                  size: 22,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? activeColor : inactiveColor,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

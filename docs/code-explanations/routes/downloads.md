@@ -1,0 +1,69 @@
+# `routes/downloads.py`
+
+Purpose: This module exposes API handlers for downloads features in the SecureWave backend.
+
+## Line Walkthrough
+
+- `L1-L2`: Module or block docstring that describes the responsibility of this section.
+- `L4-L5`: Implements this section of logic starting with `Manifest source of truth:`.
+- `L7-L13`: Implements this section of logic starting with `Provides:`.
+- `L15`: Imports the dependencies used later in this module, including __future__.
+- `L17-L21`: Imports the dependencies used later in this module, including json, logging, os, pathlib, typing.
+- `L23-L25`: Imports the dependencies used later in this module, including fastapi, pydantic.
+- `L27`: Initializes module-level state or configuration such as `logger`.
+- `L29`: Initializes module-level state or configuration such as `router`.
+- `L32-L34`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L36-L42`: Defines the `_load_version_file` function and the logic it executes.
+- `L45-L49`: Initializes module-level state or configuration such as `APP_VERSION, DOWNLOADS_DIR, MANIFEST_PATH`.
+- `L52-L54`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L56-L71`: Defines the `DownloadEntry` class and the behavior it groups together.
+- `L74-L78`: Defines the `DownloadListResponse` class and the behavior it groups together.
+- `L81-L84`: Defines the `PlatformDetectResponse` class and the behavior it groups together.
+- `L87-L92`: Defines the `ReleaseManifestResponse` class and the behavior it groups together.
+- `L95-L97`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L99-L101`: Defines `detect_platform`. Parse User-Agent to determine platform and architecture.
+- `L103-L105`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L107-L111`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L113-L115`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L117-L119`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L121`: Returns a value from the current function.
+- `L124-L132`: Defines `_format_size`. Format byte count into human-readable string.
+- `L135-L137`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L139-L146`: Defines the `_empty_manifest` function and the logic it executes.
+- `L149-L152`: Defines the `_load_release_manifest` function and the logic it executes.
+- `L154-L158`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L160-L162`: Initializes module-level state or configuration such as `artifacts`.
+- `L164-L166`: Initializes module-level state or configuration such as `provider`.
+- `L168-L174`: Returns a value from the current function.
+- `L177-L178`: Defines the `_artifact_is_local` function and the logic it executes.
+- `L181-L184`: Defines the `_resolve_availability` function and the logic it executes.
+- `L186`: Initializes module-level variables and configuration used by later code.
+- `L188-L193`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L195-L202`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L204-L210`: Initializes module-level state or configuration such as `file_path`.
+- `L212-L217`: Initializes module-level state or configuration such as `resolved_size`.
+- `L219-L225`: Implements this section of logic starting with `# External URL path (e.g., App Store/TestFlight) may still be available.`.
+- `L227-L231`: Returns a value from the current function.
+- `L234-L235`: Defines the `_build_download_entries` function and the logic it executes.
+- `L237-L239`: Loops over a collection to apply the same work to each item.
+- `L241-L245`: Initializes module-level state or configuration such as `platform, architecture, filename, url`.
+- `L247-L250`: Initializes module-level state or configuration such as `resolved, available, size_bytes, size_display`.
+- `L252-L253`: Initializes module-level state or configuration such as `status, effective_url`.
+- `L255-L273`: Implements this section of logic starting with `entries.append(`.
+- `L275`: Returns a value from the current function.
+- `L278-L290`: Defines the `_pick_recommended_download` function and the logic it executes.
+- `L292-L299`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L301-L302`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L304-L311`: Implements this section of logic starting with `candidates.sort(`.
+- `L314-L316`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L318-L323`: Registers the `list_downloads` endpoint with the API router.
+- `L325-L326`: Initializes module-level state or configuration such as `manifest, entries`.
+- `L328-L333`: Returns a value from the current function.
+- `L336-L340`: Registers the `get_release_manifest` endpoint with the API router.
+- `L342-L348`: Returns a value from the current function.
+- `L351-L355`: Registers the `detect_user_platform` endpoint with the API router.
+- `L357-L363`: Initializes module-level state or configuration such as `manifest, entries, recommended, detected_platform, detected_architecture`.
+- `L365-L369`: Returns a value from the current function.
+- `L372-L381`: Registers the `serve_download` endpoint with the API router.
+- `L383-L388`: Initializes module-level state or configuration such as `file_path`.
+- `L390-L395`: Returns a value from the current function.

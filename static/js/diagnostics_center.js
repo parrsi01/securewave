@@ -9,10 +9,18 @@
     return { ok: res.ok, status: res.status, data };
   }
 
+  function applyTone(el, tone) {
+    if (!el) return;
+    el.classList.remove('text-success', 'text-warning', 'text-danger', 'text-default');
+    if (tone) {
+      el.classList.add(tone);
+    }
+  }
+
   function setStatus(el, okText, badText, ok) {
     if (!el) return;
     el.textContent = ok ? okText : badText;
-    el.style.color = ok ? 'var(--success)' : 'var(--warning)';
+    applyTone(el, ok ? 'text-success' : 'text-warning');
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -46,10 +54,10 @@
       const s = sub.data?.subscription;
       if (!s) {
         subEl.textContent = 'Free tier';
-        subEl.style.color = 'var(--sw-text)';
+        applyTone(subEl, 'text-default');
       } else {
         subEl.textContent = `${s.plan_name || s.plan_id || 'Plan'} (${s.status || '--'})`;
-        subEl.style.color = s.is_active ? 'var(--success)' : 'var(--warning)';
+        applyTone(subEl, s.is_active ? 'text-success' : 'text-warning');
       }
     } else {
       setStatus(subEl, 'OK', 'Unknown', false);
@@ -59,10 +67,9 @@
       const configured = !!stripe.data?.configured;
       const mode = stripe.data?.mode || '--';
       stripeEl.textContent = configured ? `Configured (${mode})` : 'Not configured';
-      stripeEl.style.color = configured ? 'var(--success)' : 'var(--warning)';
+      applyTone(stripeEl, configured ? 'text-success' : 'text-warning');
     } else {
       setStatus(stripeEl, 'OK', 'Unknown', false);
     }
   });
 }());
-

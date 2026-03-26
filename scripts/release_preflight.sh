@@ -21,6 +21,8 @@ require_var() {
   local fix="$2"
   if [[ -z "$value" ]]; then
     fail_with_fix "$name is required for release." "$fix"
+  elif [[ "$value" == REPLACE_WITH_REAL_* ]]; then
+    fail_with_fix "$name must be replaced with a real release value." "$fix"
   fi
 }
 
@@ -41,6 +43,8 @@ require_var "SMTP_PASSWORD" 'export SMTP_PASSWORD="smtp-password"'
 from_email="${FROM_EMAIL:-${SMTP_FROM_EMAIL:-}}"
 if [[ -z "$from_email" ]]; then
   fail_with_fix "FROM_EMAIL is required for SMTP." 'export FROM_EMAIL="noreply@securewave.app"'
+elif [[ "$from_email" == REPLACE_WITH_REAL_* ]]; then
+  fail_with_fix "FROM_EMAIL must be replaced with a real release value." 'export FROM_EMAIL="noreply@securewave.app"'
 fi
 
 ensure_python() {
@@ -149,14 +153,14 @@ fi
 
 # Guard against non-versioned releases by enforcing v* tags.
 release_tag=""
+allow_non_tag="${RELEASE_PREFLIGHT_ALLOW_NON_TAG:-false}"
 if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
   release_tag="${GITHUB_REF#refs/tags/}"
 elif [[ "${GITHUB_REF_TYPE:-}" == "tag" && "${GITHUB_REF_NAME:-}" == v* ]]; then
   release_tag="${GITHUB_REF_NAME}"
-elif command -v git >/dev/null 2>&1; then
+elif [[ ! "$allow_non_tag" =~ ^([Tt][Rr][Uu][Ee]|1|yes|on)$ ]] && command -v git >/dev/null 2>&1; then
   release_tag="$(git tag --points-at HEAD --list 'v*' | head -n 1)"
 fi
-allow_non_tag="${RELEASE_PREFLIGHT_ALLOW_NON_TAG:-false}"
 if [[ -z "$release_tag" && ! "$allow_non_tag" =~ ^([Tt][Rr][Uu][Ee]|1|yes|on)$ ]]; then
   fail_with_fix "Release must be built from a v* tag." "git tag vX.Y.Z && git push origin vX.Y.Z"
 elif [[ -z "$release_tag" ]]; then

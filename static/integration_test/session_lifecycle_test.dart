@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:securewave_app/app.dart';
 import 'package:securewave_app/core/config/app_config.dart';
+import 'package:securewave_app/core/logging/app_logger.dart';
+import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/debug/automation_keys.dart';
 import 'package:securewave_app/features/auth/auth_widgets.dart';
 import 'package:securewave_app/features/bootstrap/boot_screen.dart';
@@ -25,6 +28,8 @@ const String _configuredPassword = String.fromEnvironment(
 const Duration _pollInterval = Duration(milliseconds: 100);
 
 AppConfig? _runtimeConfig;
+const MethodChannel _vpnChannel = MethodChannel('securewave/vpn');
+VoidCallback? _detachAppLogMirror;
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -52,24 +57,36 @@ void main() {
       final config = await _loadAndValidateConfig();
       _runtimeConfig = config;
       debugPrint('[E2E][lifecycle] mock_vpn=$_mockVpnEnabled');
+      _attachAppLogMirror();
+      _logLifecycleStep('reset persisted auth state');
       await _resetPersistedLifecycleAuthState();
+      _logLifecycleStep('run app');
       runApp(const ProviderScope(child: SecureWaveApp()));
       await tester.pump();
 
+      _logLifecycleStep('wait for app ready');
       await _waitForAppReady(tester, config);
+      _logLifecycleStep('wait for settled entry surface');
       await _waitForSettledEntrySurface(tester);
+      _logLifecycleStep('ensure signed out');
       await _ensureSignedOutForDeterministicLogin(tester);
+      _logLifecycleStep('login');
       await _login(
         tester,
         email: _configuredEmail.trim(),
         password: _configuredPassword,
       );
+      _logLifecycleStep('wait for authenticated home');
       await _waitForAuthenticatedHome(tester);
+      _logLifecycleStep('ensure disconnected baseline');
       await _ensureDisconnectedBaselineAfterLogin(tester);
+      _logLifecycleStep('assert connection control actionable');
       await _assertConnectionControlActionable(tester);
 
+      _logLifecycleStep('connect from home');
       await _connectFromHomeAndVerify(tester);
 
+      _logLifecycleStep('navigate settings');
       await _openNavigation(tester, 'Settings');
       await _waitForSettingsSurface(tester);
       await _assertShellConnectionState(
@@ -78,6 +95,7 @@ void main() {
         reason: 'VPN state did not persist after navigating to Settings.',
       );
 
+      _logLifecycleStep('navigate diagnostics');
       await _openDiagnostics(tester);
       await _waitForDiagnosticsSurface(tester);
       await _assertShellConnectionState(
@@ -86,6 +104,7 @@ void main() {
         reason: 'VPN state did not persist after opening Diagnostics.',
       );
 
+      _logLifecycleStep('navigate account');
       await _openNavigation(tester, 'Account');
       await _waitForAccountSurface(tester);
       await _assertShellConnectionState(
@@ -94,16 +113,189 @@ void main() {
         reason: 'VPN state did not persist after navigating to Account.',
       );
 
+      _logLifecycleStep('return home');
       await _openNavigation(tester, 'Home');
       await _waitForAuthenticatedHome(tester, requiredState: 'connected');
+      _logLifecycleStep('disconnect from home');
       await _disconnectFromHomeAndVerify(tester);
+      _logLifecycleStep('reconnect during route change');
       await _reconnectDuringRouteChangeAndVerify(tester);
+      _logLifecycleStep('return home after reconnect');
       await _openNavigation(tester, 'Home');
       await _waitForAuthenticatedHome(tester, requiredState: 'connected');
+      _logLifecycleStep('final disconnect');
       await _disconnectFromHomeAndVerify(tester);
     },
     timeout: const Timeout(Duration(minutes: 6)),
   );
+
+  testWidgets('vpn validation scenarios classify deterministically',
+      (tester) async {
+    const scenarios = <String, Map<String, Object?>>{
+      'high_latency': <String, Object?>{
+        'latency_ms': 420,
+        'packet_loss_bps': 0,
+        'dns_ok': true,
+        'route_present': true,
+        'policy_routing_present': true,
+        'traffic_connected': true,
+        'ping_reachable': true,
+        'https_probe_ok': true,
+        'handshake_recent': false,
+        'handshake_age_seconds': 45,
+        'expected_failure': 'highLatency',
+        'expected_status': 'degraded',
+      },
+      'packet_loss': <String, Object?>{
+        'latency_ms': 120,
+        'packet_loss_bps': 4200,
+        'dns_ok': true,
+        'route_present': true,
+        'policy_routing_present': true,
+        'traffic_connected': true,
+        'ping_reachable': true,
+        'https_probe_ok': true,
+        'handshake_recent': false,
+        'handshake_age_seconds': 45,
+        'expected_failure': 'packetLoss',
+        'expected_status': 'unhealthy',
+      },
+      'dns_failure': <String, Object?>{
+        'latency_ms': 85,
+        'packet_loss_bps': 0,
+        'dns_ok': false,
+        'route_present': true,
+        'policy_routing_present': true,
+        'traffic_connected': true,
+        'ping_reachable': true,
+        'https_probe_ok': true,
+        'handshake_recent': false,
+        'handshake_age_seconds': 45,
+        'expected_failure': 'dnsLeak',
+        'expected_status': 'unhealthy',
+      },
+      'route_corruption': <String, Object?>{
+        'latency_ms': 85,
+        'packet_loss_bps': 0,
+        'dns_ok': true,
+        'route_present': false,
+        'policy_routing_present': false,
+        'traffic_connected': false,
+        'ping_reachable': false,
+        'https_probe_ok': false,
+        'handshake_recent': false,
+        'handshake_age_seconds': 45,
+        'expected_failure': 'noRoute',
+        'expected_status': 'unhealthy',
+      },
+      'partial_connectivity': <String, Object?>{
+        'latency_ms': 95,
+        'packet_loss_bps': 0,
+        'dns_ok': true,
+        'route_present': true,
+        'policy_routing_present': true,
+        'traffic_connected': true,
+        'ping_reachable': false,
+        'https_probe_ok': true,
+        'handshake_recent': true,
+        'handshake_age_seconds': 8,
+        'expected_failure': 'partialConnectivity',
+        'expected_status': 'degraded',
+      },
+    };
+
+    for (final entry in scenarios.entries) {
+      Future<Object?> handler(MethodCall call) async {
+        switch (call.method) {
+          case 'getStatus':
+            return 'connected';
+          case 'getTrafficStats':
+            return <String, Object?>{
+              'connected': true,
+              'protocol': 'wireguard',
+              'interface': 'sw-wg',
+              'rx_bytes': 2048,
+              'tx_bytes': 1024,
+              'timestamp_ms': 1,
+            };
+          case 'getHealthStatus':
+            return <String, Object?>{
+              'connected': true,
+              'interface': 'sw-wg',
+              'interface_up': true,
+              'route_present': entry.value['route_present']!,
+              'policy_routing_present':
+                  entry.value['policy_routing_present']!,
+              'fwmark_configured': true,
+              'networkmanager_unmanaged': true,
+              'ping_reachable': entry.value['ping_reachable']!,
+              'traffic_connected': entry.value['traffic_connected']!,
+              'https_probe_ok': entry.value['https_probe_ok']!,
+              'dns_ok': entry.value['dns_ok']!,
+              'latency_ms': entry.value['latency_ms']!,
+              'packet_loss_bps': entry.value['packet_loss_bps']!,
+              'probe_successes': 2,
+              'probe_attempts': 3,
+              'handshake_present': entry.value['handshake_recent'] as bool,
+              'handshake_recent': entry.value['handshake_recent'] as bool,
+              'handshake_age_seconds': entry.value['handshake_age_seconds']!,
+              'watchdog_running': true,
+              'timestamp_ms': 1,
+            };
+        }
+        return null;
+      }
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(_vpnChannel, handler);
+      final service = ChannelVpnService();
+      await tester.pump();
+      final snapshot = await service.fetchHealthSnapshot();
+
+      expect(
+        snapshot.validationStatus.name,
+        entry.value['expected_status'],
+        reason: 'scenario=${entry.key}',
+      );
+      expect(
+        snapshot.failureType?.name,
+        entry.value['expected_failure'],
+        reason: 'scenario=${entry.key}',
+      );
+    }
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_vpnChannel, null);
+  });
+}
+
+void _logLifecycleStep(String step) {
+  debugPrint('[E2E][lifecycle] step=$step');
+}
+
+void _attachAppLogMirror() {
+  _detachAppLogMirror?.call();
+  var cursor = AppLogger.logStream.value.length;
+  void listener() {
+    final logs = AppLogger.logStream.value;
+    if (cursor > logs.length) {
+      cursor = 0;
+    }
+    for (var index = cursor; index < logs.length; index++) {
+      final entry = logs[index];
+      debugPrint(
+        '[E2E][applog][${entry.level}] ${entry.timestamp.toIso8601String()} '
+        '${entry.message}',
+      );
+    }
+    cursor = logs.length;
+  }
+
+  AppLogger.logStream.addListener(listener);
+  listener();
+  _detachAppLogMirror = () {
+    AppLogger.logStream.removeListener(listener);
+  };
 }
 
 Future<AppConfig> _loadAndValidateConfig() async {
@@ -359,6 +551,7 @@ Future<void> _ensureDisconnectedBaselineAfterLogin(WidgetTester tester) async {
 }
 
 Future<void> _connectFromHomeAndVerify(WidgetTester tester) async {
+  _logLifecycleStep('connect:assert_disconnected');
   await _assertShellConnectionState(
     tester,
     'disconnected',
@@ -372,6 +565,7 @@ Future<void> _connectFromHomeAndVerify(WidgetTester tester) async {
   );
 
   await _tap(tester, _connectionRingFinder);
+  _logLifecycleStep('connect:tap');
   await _waitForConnectionTransition(
     tester,
     fromState: 'disconnected',
@@ -380,9 +574,11 @@ Future<void> _connectFromHomeAndVerify(WidgetTester tester) async {
     actionLabel: 'connect',
   );
   await _assertConnectionControlActionable(tester);
+  _logLifecycleStep('connect:verified');
 }
 
 Future<void> _disconnectFromHomeAndVerify(WidgetTester tester) async {
+  _logLifecycleStep('disconnect:assert_connected');
   await _assertShellConnectionState(
     tester,
     'connected',
@@ -396,6 +592,7 @@ Future<void> _disconnectFromHomeAndVerify(WidgetTester tester) async {
   );
 
   await _tap(tester, _connectionRingFinder);
+  _logLifecycleStep('disconnect:tap');
   await _waitForConnectionTransition(
     tester,
     fromState: 'connected',
@@ -404,9 +601,11 @@ Future<void> _disconnectFromHomeAndVerify(WidgetTester tester) async {
     actionLabel: 'disconnect',
   );
   await _assertConnectionControlActionable(tester);
+  _logLifecycleStep('disconnect:verified');
 }
 
 Future<void> _reconnectDuringRouteChangeAndVerify(WidgetTester tester) async {
+  _logLifecycleStep('reconnect:assert_disconnected');
   await _assertShellConnectionState(
     tester,
     'disconnected',
@@ -420,6 +619,7 @@ Future<void> _reconnectDuringRouteChangeAndVerify(WidgetTester tester) async {
   );
 
   await _tap(tester, _connectionRingFinder);
+  _logLifecycleStep('reconnect:tap');
   await _waitForConnectionState(
     tester,
     _connectionStateFinder('connecting'),
@@ -432,9 +632,11 @@ Future<void> _reconnectDuringRouteChangeAndVerify(WidgetTester tester) async {
     timeout: const Duration(seconds: 40),
     debugLabel: 'shell state connecting during reconnect',
   );
+  _logLifecycleStep('reconnect:connecting_visible');
 
   await _openNavigation(tester, 'Settings');
   await _waitForSettingsSurface(tester);
+  _logLifecycleStep('reconnect:settings_after_route_change');
   await _assertShellConnectionState(
     tester,
     'connected',
@@ -450,6 +652,7 @@ Future<void> _reconnectDuringRouteChangeAndVerify(WidgetTester tester) async {
     isTrue,
     reason: 'Connected state was not stable after reconnect and route change.',
   );
+  _logLifecycleStep('reconnect:verified');
 }
 
 Future<void> _waitForConnectionTransition(

@@ -16,7 +16,7 @@ function setFieldError(input, text) {
   const hint = input?.parentElement.querySelector('.field-hint');
   if (hint && text) {
     hint.textContent = text;
-    hint.style.color = 'var(--sw-danger)';
+    hint.classList.add('error');
   }
   if (input) input.setAttribute('aria-invalid', 'true');
 }
@@ -26,7 +26,7 @@ function clearFieldStates(form) {
     input.removeAttribute('aria-invalid');
     const hint = input.parentElement.querySelector('.field-hint');
     if (hint) {
-      hint.style.color = '';
+      hint.classList.remove('error');
       hint.textContent = hint.getAttribute('data-default') || '';
     }
   });
@@ -66,8 +66,8 @@ async function handleAuth(event) {
       window.clearTimeout(timeoutId);
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        form.querySelector('.form-group').style.display = 'none';
-        button.style.display = 'none';
+        form.querySelector('.form-group').hidden = true;
+        button.hidden = true;
         setMessage(form, 'Check your email for a password reset link.', 'success');
         return;
       }
@@ -113,9 +113,9 @@ async function handleAuth(event) {
       window.clearTimeout(timeoutId);
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        form.querySelectorAll('.form-group').forEach(g => g.style.display = 'none');
-        form.querySelector('#resetToken').style.display = 'none';
-        button.style.display = 'none';
+        form.querySelectorAll('.form-group').forEach(g => { g.hidden = true; });
+        form.querySelector('#resetToken').hidden = true;
+        button.hidden = true;
         setMessage(form, 'Password reset successfully. You can now sign in.', 'success');
         return;
       }

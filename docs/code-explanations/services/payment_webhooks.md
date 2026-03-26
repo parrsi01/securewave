@@ -1,0 +1,148 @@
+# `services/payment_webhooks.py`
+
+Purpose: This service module implements the business logic for payment webhooks operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L11`: Imports the dependencies used later in this module, including logging, hashlib, typing, datetime, sqlalchemy.
+- `L13-L21`: Imports the dependencies used later in this module, including models, services.
+- `L23`: Initializes module-level state or configuration such as `logger`.
+- `L26-L30`: Defines `PaymentWebhookHandler`. Handles webhook events from payment providers Updates subscription status, processes payments, sends notifications.
+- `L32-L34`: Defines the `__init__` function and the logic it executes.
+- `L36-L44`: Implements this section of logic starting with `Args:`.
+- `L46-L49`: Defines the `_get_user_for_subscription` function and the logic it executes.
+- `L51-L71`: Defines `_send_simple_billing_email`. <html> <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1F2937;"> <h2>{heading}</h2> <p>{message}</p> {html_action} <p>SecureWave Billing</p> </body> </html>.
+- `L73-L75`: Comment block that explains the next section: ===========================.
+- `L77-L86`: Defines the `_get_or_create_webhook_receipt` function and the logic it executes.
+- `L88-L117`: Implements this section of logic starting with `A duplicate means we've already marked the event as processed/ignored and`.
+- `L119-L128`: Initializes module-level state or configuration such as `receipt.attempt_count, receipt.event_type`.
+- `L130-L133`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L135-L140`: Implements this section of logic starting with `# Allow re-processing after failures.`.
+- `L142-L153`: Defines the `_finalize_webhook_receipt` function and the logic it executes.
+- `L155-L156`: Defines the `_event_created_ts` function and the logic it executes.
+- `L158-L186`: Defines the `_resolve_user_for_stripe_event` function and the logic it executes.
+- `L188-L190`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L192-L197`: Defines the `_set_user_subscription_status` function and the logic it executes.
+- `L199-L201`: Defines the `handle_stripe_event` function and the logic it executes.
+- `L203-L204`: Implements this section of logic starting with `Args:`.
+- `L206-L212`: Implements this section of logic starting with `Returns:`.
+- `L214-L218`: Initializes module-level state or configuration such as `raw_created`.
+- `L220-L229`: Initializes module-level state or configuration such as `receipt, is_duplicate, provider, event_id, event_type, payload_hash`.
+- `L231-L232`: Initializes module-level state or configuration such as `event_data`.
+- `L234-L239`: Implements this section of logic starting with `# Map event types to handlers`.
+- `L241-L246`: Implements this section of logic starting with `# Subscription events`.
+- `L248-L253`: Implements this section of logic starting with `# Payment events`.
+- `L255-L257`: Implements this section of logic starting with `# Payment intent events`.
+- `L259-L263`: Implements this section of logic starting with `# Charge events`.
+- `L265`: Initializes module-level state or configuration such as `handler`.
+- `L267-L271`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L273-L279`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L281-L284`: Initializes module-level state or configuration such as `status`.
+- `L286-L292`: Defines `_stripe_checkout_session_completed`. Handle checkout.session.completed for better subscription creation reliability.
+- `L294-L300`: Initializes module-level state or configuration such as `user, customer_id, metadata, client_reference_id`.
+- `L302-L303`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L305-L311`: Initializes module-level state or configuration such as `existing`.
+- `L313-L317`: Initializes module-level state or configuration such as `plan_id, billing_cycle, plan, plan_name, amount`.
+- `L319-L320`: Initializes module-level state or configuration such as `payment_status, status`.
+- `L322-L349`: Initializes module-level state or configuration such as `subscription, user_id, plan_id, plan_name, provider, status`.
+- `L351-L355`: Defines the `_upsert_stripe_subscription_record` function and the logic it executes.
+- `L357-L364`: Initializes module-level state or configuration such as `metadata, user, customer_id`.
+- `L366-L376`: Implements this section of logic starting with `# Resolve plan/billing cycle from Stripe price ID first (authoritative),`.
+- `L378-L382`: Initializes module-level state or configuration such as `mapping, plan_id, billing_cycle`.
+- `L384-L386`: Initializes module-level state or configuration such as `plan, plan_name, amount`.
+- `L388`: Initializes module-level state or configuration such as `status`.
+- `L390-L412`: Initializes module-level state or configuration such as `subscription, created`.
+- `L414-L420`: Implements this section of logic starting with `# Update mutable fields`.
+- `L422-L426`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L428-L430`: Initializes module-level state or configuration such as `subscription.cancel_at_period_end`.
+- `L432-L436`: Implements this section of logic starting with `# Trial timestamps (if present)`.
+- `L438-L449`: Initializes module-level state or configuration such as `transition, source, event_created, force`.
+- `L451-L457`: Implements this section of logic starting with `self.db.add(subscription)`.
+- `L459-L464`: Defines `_stripe_subscription_created`. Handle customer.subscription.created.
+- `L466-L472`: Defines `_stripe_subscription_updated`. Handle customer.subscription.updated.
+- `L474-L479`: Defines `_stripe_subscription_deleted`. Handle customer.subscription.deleted.
+- `L481-L503`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L505`: Returns a value from the current function.
+- `L507-L509`: Defines `_stripe_trial_ending`. Handle trial ending (send notification 3 days before).
+- `L511-L513`: Initializes module-level state or configuration such as `subscription, stripe_subscription_id`.
+- `L515-L525`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L527`: Returns a value from the current function.
+- `L529-L531`: Defines `_stripe_invoice_created`. Handle invoice.created event.
+- `L533-L535`: Defines `_stripe_invoice_finalized`. Handle invoice.finalized event.
+- `L537-L541`: Defines `_stripe_invoice_paid`. Handle invoice.paid event (payment succeeded).
+- `L543-L548`: Implements this section of logic starting with `# Find subscription`.
+- `L550-L553`: Implements this section of logic starting with `# Create/update invoice record`.
+- `L555-L581`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L583-L600`: Implements this section of logic starting with `# Update subscription payment tracking`.
+- `L602`: Implements this section of logic starting with `self.db.commit()`.
+- `L604-L605`: Implements this section of logic starting with `logger.info(f"✓ Invoice paid: {stripe_invoice_id}")`.
+- `L607-L610`: Defines `_stripe_invoice_payment_failed`. Handle invoice.payment_failed event.
+- `L612-L616`: Initializes module-level state or configuration such as `subscription`.
+- `L618-L639`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L641`: Implements this section of logic starting with `self.db.commit()`.
+- `L643-L650`: Initializes module-level state or configuration such as `invoice, stripe_invoice_id`.
+- `L652-L657`: Implements this section of logic starting with `logger.warning(f"⚠ Invoice payment failed: {stripe_invoice_id}")`.
+- `L659-L686`: Defines `_stripe_invoice_action_required`. Handle invoice.payment_action_required (3D Secure).
+- `L688-L690`: Defines `_stripe_payment_succeeded`. Handle payment_intent.succeeded event.
+- `L692-L698`: Defines `_stripe_payment_failed`. Handle payment_intent.payment_failed event.
+- `L700-L702`: Initializes module-level state or configuration such as `metadata, stripe_sub_id, invoice_ref`.
+- `L704-L710`: Initializes module-level state or configuration such as `subscription`.
+- `L712-L733`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L735`: Returns a value from the current function.
+- `L737-L739`: Defines `_stripe_charge_succeeded`. Handle charge.succeeded event.
+- `L741-L743`: Defines `_stripe_charge_failed`. Handle charge.failed event.
+- `L745-L748`: Defines `_stripe_charge_refunded`. Handle charge.refunded event.
+- `L750-L756`: Initializes module-level state or configuration such as `invoice`.
+- `L758-L768`: Initializes module-level state or configuration such as `subscription`.
+- `L770-L779`: Initializes module-level state or configuration such as `user`.
+- `L781-L783`: Defines `_stripe_customer_created`. Handle customer.created event.
+- `L785-L787`: Defines `_stripe_customer_updated`. Handle customer.updated event.
+- `L789-L791`: Defines `_stripe_customer_deleted`. Handle customer.deleted event.
+- `L793-L797`: Implements this section of logic starting with `# Update user record`.
+- `L799`: Returns a value from the current function.
+- `L801-L803`: Comment block that explains the next section: ===========================.
+- `L805-L807`: Defines the `handle_paypal_event` function and the logic it executes.
+- `L809-L810`: Implements this section of logic starting with `Args:`.
+- `L812-L816`: Implements this section of logic starting with `Returns:`.
+- `L818`: Implements this section of logic starting with `logger.info(f"Processing PayPal event: {event_type}")`.
+- `L820-L829`: Implements this section of logic starting with `# Map event types to handlers`.
+- `L831-L834`: Implements this section of logic starting with `# Payment events`.
+- `L836`: Initializes module-level state or configuration such as `handler`.
+- `L838-L848`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L850-L852`: Defines `_paypal_subscription_created`. Handle subscription created event.
+- `L854-L856`: Defines `_paypal_subscription_activated`. Handle subscription activated event (user approved).
+- `L858-L860`: Initializes module-level state or configuration such as `subscription, paypal_subscription_id`.
+- `L862-L865`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L867-L868`: Implements this section of logic starting with `logger.info(f"✓ PayPal subscription activated: {paypal_sub_id}")`.
+- `L870-L872`: Defines `_paypal_subscription_updated`. Handle subscription updated event.
+- `L874-L876`: Initializes module-level state or configuration such as `subscription, paypal_subscription_id`.
+- `L878-L887`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L889`: Returns a value from the current function.
+- `L891-L893`: Defines `_paypal_subscription_expired`. Handle subscription expired event.
+- `L895-L897`: Initializes module-level state or configuration such as `subscription, paypal_subscription_id`.
+- `L899-L902`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L904`: Returns a value from the current function.
+- `L906-L908`: Defines `_paypal_subscription_cancelled`. Handle subscription cancelled event.
+- `L910-L912`: Initializes module-level state or configuration such as `subscription, paypal_subscription_id`.
+- `L914-L917`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L919`: Returns a value from the current function.
+- `L921-L923`: Defines `_paypal_subscription_suspended`. Handle subscription suspended event (payment failure).
+- `L925-L927`: Initializes module-level state or configuration such as `subscription, paypal_subscription_id`.
+- `L929-L931`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L933`: Returns a value from the current function.
+- `L935-L937`: Defines `_paypal_payment_failed`. Handle payment failed event.
+- `L939-L941`: Initializes module-level state or configuration such as `subscription, paypal_subscription_id`.
+- `L943-L955`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L957-L958`: Implements this section of logic starting with `logger.warning(f"⚠ PayPal payment failed for subscription: {paypal_sub_id}")`.
+- `L960-L963`: Defines `_paypal_payment_completed`. Handle payment completed event.
+- `L965-L966`: Implements this section of logic starting with `# Try to find subscription from billing agreement ID`.
+- `L968-L971`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L973-L1002`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1004-L1012`: Initializes module-level state or configuration such as `user`.
+- `L1014-L1015`: Implements this section of logic starting with `logger.info(f"✓ PayPal payment completed: {sale_id} (${amount})")`.
+- `L1017-L1020`: Defines `_paypal_payment_refunded`. Handle payment refunded event.
+- `L1022-L1028`: Initializes module-level state or configuration such as `invoice`.
+- `L1030-L1034`: Initializes module-level state or configuration such as `subscription`.
+- `L1036-L1043`: Initializes module-level state or configuration such as `user`.
+- `L1045-L1046`: Implements this section of logic starting with `logger.info(f"✓ PayPal payment refunded: {sale_id} (${amount})")`.

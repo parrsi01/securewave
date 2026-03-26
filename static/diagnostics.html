@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Network Diagnostics | SecureWave</title>
   <meta name="description" content="Run network diagnostics to test your VPN connection, detect DNS leaks, and monitor performance.">
-  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260316">
-  <link rel="stylesheet" href="/css/htb_theme.css?v=20260326d">
+  
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/theme_tokens.css?v=20260326i">
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260326i">
+  <link rel="stylesheet" href="/css/htb_theme.css?v=20260326i">
 </head>
 <body>
 
@@ -47,7 +49,7 @@
         <p>Test your connection, detect leaks, and monitor network performance in real time.</p>
       </div>
 
-      <div class="card" style="margin-top: var(--space-4)">
+      <div class="card mt-4">
         <div class="card-header">
           <h3>Account Diagnostics</h3>
         </div>
@@ -70,7 +72,7 @@
               <span class="vpn-info-value" data-diag-stripe>Checking…</span>
             </div>
           </div>
-          <p class="muted" style="margin-top: var(--space-3)">VPN tunnels run in the apps; this page checks backend reachability and billing status only.</p>
+          <p class="muted mt-3">VPN tunnels run in the apps; this page checks backend reachability and billing status only.</p>
         </div>
       </div>
 
@@ -102,7 +104,7 @@
             <p>Run a full diagnostic scan to measure latency, throughput, and connection stability.</p>
             <button class="btn btn-primary" type="button" data-run-diagnostics>Run Diagnostics</button>
             <div class="progress-bar" data-diagnostics-progress>
-              <div class="progress-bar-fill" style="width: 0%"></div>
+              <div class="progress-bar-fill progress-fill-0"></div>
             </div>
             <div class="diagnostics-results" data-diagnostics-results></div>
           </div>

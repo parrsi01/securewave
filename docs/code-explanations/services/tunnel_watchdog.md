@@ -1,0 +1,61 @@
+# `services/tunnel_watchdog.py`
+
+Purpose: This service module implements the business logic for tunnel watchdog operations.
+
+## Line Walkthrough
+
+- `L1-L2`: Module or block docstring that describes the responsibility of this section.
+- `L4-L7`: Implements this section of logic starting with `This is a backend-side reliability layer that monitors:`.
+- `L9-L12`: Implements this section of logic starting with `When a stuck/unhealthy condition is detected, it attempts a best-effort restart`.
+- `L14`: Imports the dependencies used later in this module, including __future__.
+- `L16-L26`: Imports the dependencies used later in this module, including asyncio, json, logging, os, random, time, collections, dataclasses, ....
+- `L28`: Imports the dependencies used later in this module, including sqlalchemy.
+- `L30-L33`: Imports the dependencies used later in this module, including database, models, services.
+- `L35`: Initializes module-level state or configuration such as `logger`.
+- `L38-L43`: Defines the `_env_int` function and the logic it executes.
+- `L46-L51`: Defines the `_env_float` function and the logic it executes.
+- `L54-L58`: Defines the `_env_bool` function and the logic it executes.
+- `L61-L62`: Defines the `_utc_now_iso` function and the logic it executes.
+- `L65-L69`: Defines the `WatchdogEventWriter` class and the behavior it groups together.
+- `L71-L76`: Defines the `write` function and the logic it executes.
+- `L79-L85`: Applies decorators and defines `_ServerState` with the wrapped behavior declared above it.
+- `L88-L92`: Defines the `TunnelWatchdog` class and the behavior it groups together.
+- `L94-L96`: Implements this section of logic starting with `# Staleness thresholds (reuse the same env vars as the health monitor).`.
+- `L98-L103`: Implements this section of logic starting with `# Retry storm protection.`.
+- `L105`: Initializes module-level state or configuration such as `self.stuck_required_cycles`.
+- `L107-L109`: Initializes module-level state or configuration such as `self.is_running, self._rng`.
+- `L111-L112`: Initializes module-level state or configuration such as `out_path, self._events`.
+- `L114-L117`: Defines the `start` function and the logic it executes.
+- `L119-L130`: Initializes module-level state or configuration such as `self.is_running`.
+- `L132-L142`: Repeats work until the loop condition changes.
+- `L144-L145`: Implements this section of logic starting with `await self._events.write({"timestamp": _utc_now_iso(), "event": "watchdog_stop"})`.
+- `L147-L148`: Defines the `stop` function and the logic it executes.
+- `L150-L155`: Defines the `_state_for` function and the logic it executes.
+- `L157-L164`: Defines the `_check_servers` function and the logic it executes.
+- `L166`: Initializes module-level state or configuration such as `manager`.
+- `L168-L171`: Implements this section of logic starting with `# Avoid thundering herd across multiple servers within a single loop.`.
+- `L173-L176`: Defines the `_check_one` function and the logic it executes.
+- `L178-L188`: Implements this section of logic starting with `# DB-side handshake staleness signal.`.
+- `L190-L200`: Initializes module-level state or configuration such as `stale_peers`.
+- `L202-L206`: Initializes module-level state or configuration such as `handshake_state`.
+- `L208-L218`: Implements this section of logic starting with `# Remote-side interface health.`.
+- `L220-L221`: Initializes module-level state or configuration such as `needs_restart, reason`.
+- `L223-L225`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L227-L239`: Implements this section of logic starting with `# Only do heavier "stuck" checks when something already looks wrong.`.
+- `L241-L244`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L246`: Initializes module-level state or configuration such as `state.last_total_transfer`.
+- `L248-L250`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L252-L265`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L267-L270`: Defines the `_prune_attempts` function and the logic it executes.
+- `L272-L274`: Defines the `_compute_backoff` function and the logic it executes.
+- `L276-L292`: Defines the `_maybe_restart` function and the logic it executes.
+- `L294-L306`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L308-L319`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L321`: Implements this section of logic starting with `state.attempts.append(now_mono)`.
+- `L323-L339`: Implements this section of logic starting with `await self._events.write(`.
+- `L341-L348`: Initializes module-level state or configuration such as `success, message`.
+- `L350-L357`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L359-L362`: Initializes module-level state or configuration such as `backoff, jitter, delay, state.next_allowed_at`.
+- `L364-L375`: Implements this section of logic starting with `await self._events.write(`.
+- `L378`: Initializes module-level variables and configuration used by later code.
+- `L381-L385`: Defines the `get_tunnel_watchdog` function and the logic it executes.

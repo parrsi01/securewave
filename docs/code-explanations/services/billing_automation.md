@@ -1,0 +1,151 @@
+# `services/billing_automation.py`
+
+Purpose: This service module implements the business logic for billing automation operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L9`: Imports the dependencies used later in this module, including logging, typing, datetime, sqlalchemy.
+- `L11-L16`: Imports the dependencies used later in this module, including models, services.
+- `L18`: Initializes module-level state or configuration such as `logger`.
+- `L21-L25`: Defines `BillingAutomationService`. Automated billing operations service Handles subscription renewals, failed payments, and lifecycle management.
+- `L27-L30`: Implements this section of logic starting with `# Retry schedule for failed payments (in days)`.
+- `L32-L34`: Defines the `__init__` function and the logic it executes.
+- `L36-L42`: Implements this section of logic starting with `Args:`.
+- `L44-L46`: Comment block that explains the next section: ===========================.
+- `L48-L51`: Defines the `process_upcoming_renewals` function and the logic it executes.
+- `L53-L54`: Implements this section of logic starting with `Args:`.
+- `L56-L60`: Implements this section of logic starting with `Returns:`.
+- `L62-L69`: Implements this section of logic starting with `# Get subscriptions renewing soon`.
+- `L71-L77`: Initializes module-level state or configuration such as `results`.
+- `L79-L81`: Loops over a collection to apply the same work to each item.
+- `L83-L86`: Implements this section of logic starting with `# Send renewal reminder at 7 days, 3 days, and 1 day`.
+- `L88-L94`: Implements this section of logic starting with `# Verify payment method`.
+- `L96-L98`: Handles a failure from the preceding `try` block.
+- `L100-L101`: Implements this section of logic starting with `logger.info(f"✓ Processed {results['total']} upcoming renewals")`.
+- `L103-L105`: Handles a failure from the preceding `try` block.
+- `L107-L110`: Defines the `process_trial_expirations` function and the logic it executes.
+- `L112-L113`: Implements this section of logic starting with `Args:`.
+- `L115-L119`: Implements this section of logic starting with `Returns:`.
+- `L121-L126`: Implements this section of logic starting with `# Get trials expiring soon`.
+- `L128-L132`: Initializes module-level state or configuration such as `results`.
+- `L134-L136`: Loops over a collection to apply the same work to each item.
+- `L138-L141`: Implements this section of logic starting with `# Send reminders at 3 days and 1 day`.
+- `L143-L145`: Handles a failure from the preceding `try` block.
+- `L147-L148`: Implements this section of logic starting with `logger.info(f"✓ Processed {results['total']} expiring trials")`.
+- `L150-L152`: Handles a failure from the preceding `try` block.
+- `L154-L156`: Comment block that explains the next section: ===========================.
+- `L158-L161`: Defines the `process_failed_payments` function and the logic it executes.
+- `L163-L171`: Implements this section of logic starting with `Returns:`.
+- `L173-L180`: Initializes module-level state or configuration such as `results`.
+- `L182-L184`: Loops over a collection to apply the same work to each item.
+- `L186-L189`: Implements this section of logic starting with `# Check if we should retry payment`.
+- `L191-L197`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L199-L202`: Implements this section of logic starting with `# Check if grace period is ending`.
+- `L204-L207`: Implements this section of logic starting with `# Cancel after threshold`.
+- `L209`: Implements this section of logic starting with `self.db.commit()`.
+- `L211-L214`: Handles a failure from the preceding `try` block.
+- `L216-L217`: Implements this section of logic starting with `logger.info(f"✓ Processed {results['total']} failed payments")`.
+- `L219-L221`: Handles a failure from the preceding `try` block.
+- `L223-L225`: Defines the `_retry_failed_payment` function and the logic it executes.
+- `L227-L228`: Implements this section of logic starting with `Args:`.
+- `L230-L234`: Implements this section of logic starting with `Returns:`.
+- `L236-L241`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L243-L245`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L247-L252`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L254-L257`: Continues the conditional branch for the surrounding decision tree.
+- `L259-L261`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L263`: Returns a value from the current function.
+- `L265-L267`: Handles a failure from the preceding `try` block.
+- `L269-L271`: Defines the `_cancel_for_non_payment` function and the logic it executes.
+- `L273-L277`: Implements this section of logic starting with `Args:`.
+- `L279-L284`: Implements this section of logic starting with `# Cancel with provider`.
+- `L286-L287`: Implements this section of logic starting with `# Send cancellation notice`.
+- `L289`: Implements this section of logic starting with `logger.info(f"✓ Subscription {subscription.id} cancelled for non-payment")`.
+- `L291-L293`: Handles a failure from the preceding `try` block.
+- `L295-L297`: Comment block that explains the next section: ===========================.
+- `L299-L302`: Defines the `process_subscription_lifecycle` function and the logic it executes.
+- `L304-L314`: Implements this section of logic starting with `Returns:`.
+- `L316-L320`: Implements this section of logic starting with `# Process expired trials`.
+- `L322-L332`: Loops over a collection to apply the same work to each item.
+- `L334`: Initializes module-level variables and configuration used by later code.
+- `L336-L338`: Handles a failure from the preceding `try` block.
+- `L340-L344`: Implements this section of logic starting with `# Process subscriptions set to cancel at period end`.
+- `L346-L350`: Loops over a collection to apply the same work to each item.
+- `L352-L353`: Implements this section of logic starting with `self._send_cancellation_confirmation(subscription)`.
+- `L355-L358`: Handles a failure from the preceding `try` block.
+- `L360-L365`: Implements this section of logic starting with `# Process expired subscriptions (past period end, not auto-renew)`.
+- `L367-L371`: Loops over a collection to apply the same work to each item.
+- `L373-L374`: Implements this section of logic starting with `self._send_expiration_notice(subscription)`.
+- `L376-L379`: Handles a failure from the preceding `try` block.
+- `L381-L382`: Implements this section of logic starting with `logger.info(f"✓ Processed subscription lifecycle: {results}")`.
+- `L384-L386`: Handles a failure from the preceding `try` block.
+- `L388-L390`: Comment block that explains the next section: ===========================.
+- `L392-L395`: Defines the `sync_all_active_subscriptions` function and the logic it executes.
+- `L397-L403`: Implements this section of logic starting with `Returns:`.
+- `L405-L410`: Initializes module-level state or configuration such as `results`.
+- `L412-L418`: Loops over a collection to apply the same work to each item.
+- `L420-L424`: Continues the conditional branch for the surrounding decision tree.
+- `L426-L428`: Handles a failure from the preceding `try` block.
+- `L430-L431`: Implements this section of logic starting with `logger.info(f"✓ Synced {results['total']} active subscriptions")`.
+- `L433-L435`: Handles a failure from the preceding `try` block.
+- `L437-L439`: Comment block that explains the next section: ===========================.
+- `L441-L444`: Defines the `process_overdue_invoices` function and the logic it executes.
+- `L446-L453`: Implements this section of logic starting with `Returns:`.
+- `L455-L459`: Initializes module-level state or configuration such as `results`.
+- `L461-L463`: Loops over a collection to apply the same work to each item.
+- `L465-L468`: Implements this section of logic starting with `# Send reminders at specific intervals`.
+- `L470-L471`: Implements this section of logic starting with `# Update attempt counter`.
+- `L473-L476`: Implements this section of logic starting with `# Set next payment attempt`.
+- `L478`: Implements this section of logic starting with `self.db.commit()`.
+- `L480-L483`: Handles a failure from the preceding `try` block.
+- `L485-L486`: Implements this section of logic starting with `logger.info(f"✓ Processed {results['total']} overdue invoices")`.
+- `L488-L490`: Handles a failure from the preceding `try` block.
+- `L492-L494`: Defines the `_get_next_retry_date` function and the logic it executes.
+- `L496-L497`: Implements this section of logic starting with `Args:`.
+- `L499-L504`: Implements this section of logic starting with `Returns:`.
+- `L506-L507`: Implements this section of logic starting with `# If past all scheduled retries, try in 7 days`.
+- `L509-L511`: Comment block that explains the next section: ===========================.
+- `L513-L515`: Defines the `generate_billing_health_report` function and the logic it executes.
+- `L517-L526`: Implements this section of logic starting with `Returns:`.
+- `L528-L532`: Implements this section of logic starting with `# Get revenue metrics`.
+- `L534-L537`: Initializes module-level state or configuration such as `yearly_revenue`.
+- `L539-L540`: Initializes module-level state or configuration such as `total_mrr, total_arr`.
+- `L542-L546`: Implements this section of logic starting with `# Get churn metrics`.
+- `L548-L555`: Implements this section of logic starting with `# Get invoice statistics`.
+- `L557-L558`: Implements this section of logic starting with `# Calculate payment success rate`.
+- `L560-L561`: Implements this section of logic starting with `# Calculate churn rate`.
+- `L563-L590`: Initializes module-level state or configuration such as `report`.
+- `L592-L593`: Implements this section of logic starting with `logger.info(f"✓ Generated billing health report")`.
+- `L595-L597`: Handles a failure from the preceding `try` block.
+- `L599-L601`: Comment block that explains the next section: ===========================.
+- `L603-L605`: Defines the `_verify_stripe_payment_method` function and the logic it executes.
+- `L607-L608`: Implements this section of logic starting with `Args:`.
+- `L610-L615`: Implements this section of logic starting with `Returns:`.
+- `L617-L619`: Initializes module-level state or configuration such as `payment_method`.
+- `L621-L622`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L624-L628`: Implements this section of logic starting with `# Check if card is expiring in next 30 days`.
+- `L630-L632`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L634`: Returns a value from the current function.
+- `L636-L638`: Handles a failure from the preceding `try` block.
+- `L640-L642`: Comment block that explains the next section: ===========================.
+- `L644-L647`: Defines `_send_renewal_reminder`. Send renewal reminder email.
+- `L649-L651`: Defines `_send_trial_ending_reminder`. Send trial ending reminder.
+- `L653-L655`: Defines `_send_payment_method_issue_alert`. Send payment method issue alert.
+- `L657-L659`: Defines `_send_grace_period_ending_notice`. Send grace period ending notice.
+- `L661-L663`: Defines `_send_cancellation_notice`. Send cancellation notice.
+- `L665-L667`: Defines `_send_cancellation_confirmation`. Send cancellation confirmation.
+- `L669-L671`: Defines `_send_expiration_notice`. Send expiration notice.
+- `L673-L675`: Defines `_send_overdue_invoice_reminder`. Send overdue invoice reminder.
+- `L678-L680`: Comment block that explains the next section: ===========================.
+- `L682-L686`: Defines `BillingScheduler`. Orchestrates scheduled billing tasks To be called by cron jobs or background workers.
+- `L688-L691`: Defines `__init__`. Initialize billing scheduler.
+- `L693-L695`: Defines `run_hourly_tasks`. Run tasks that should execute hourly.
+- `L697-L700`: Initializes module-level state or configuration such as `results`.
+- `L702-L703`: Implements this section of logic starting with `logger.info("✓ Hourly billing tasks completed")`.
+- `L705-L707`: Defines `run_daily_tasks`. Run tasks that should execute daily.
+- `L709-L715`: Initializes module-level state or configuration such as `results`.
+- `L717-L718`: Implements this section of logic starting with `logger.info("✓ Daily billing tasks completed")`.
+- `L720-L722`: Defines `run_weekly_tasks`. Run tasks that should execute weekly.
+- `L724-L727`: Initializes module-level state or configuration such as `results`.
+- `L729-L730`: Implements this section of logic starting with `logger.info("✓ Weekly billing tasks completed")`.

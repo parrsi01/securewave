@@ -1,0 +1,489 @@
+# `routes/vpn.py`
+
+Purpose: This module exposes API handlers for vpn features in the SecureWave backend.
+
+## Line Walkthrough
+
+- `L1-L2`: Module or block docstring that describes the responsibility of this section.
+- `L4-L9`: Implements this section of logic starting with `This module provides endpoints for:`.
+- `L11-L24`: Imports the dependencies used later in this module, including os, logging, json, time, base64, subprocess, socket, errno, ....
+- `L26-L29`: Imports the dependencies used later in this module, including fastapi, pydantic, sqlalchemy.
+- `L31-L74`: Implements this section of logic starting with `from config.settings import get_settings`.
+- `L76-L80`: Initializes module-level state or configuration such as `logger, router, SETTINGS, limiter, IS_TESTING`.
+- `L83-L88`: Defines the `rate_limit` function and the logic it executes.
+- `L91-L99`: Defines the `_dev_diagnostics_enabled` function and the logic it executes.
+- `L102-L106`: Defines the `_provisioning_mode` function and the logic it executes.
+- `L108-L112`: Implements this section of logic starting with `AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"`.
+- `L114-L115`: Initializes module-level state or configuration such as `CANONICAL_PROTOCOLS, SUPPORTED_PROTOCOLS`.
+- `L117-L120`: Initializes module-level variables and configuration used by later code.
+- `L123-L138`: Defines the `normalize_vpn_protocol` function and the logic it executes.
+- `L141-L154`: Defines the `_parse_protocol_csv` function and the logic it executes.
+- `L157-L160`: Defines the `_enabled_protocols` function and the logic it executes.
+- `L163-L179`: Defines the `_plan_allowed_protocols` function and the logic it executes.
+- `L181-L190`: Initializes module-level state or configuration such as `VPN_ERROR_RESPONSES`.
+- `L193-L195`: Comment block that explains the next section: =============================================================================.
+- `L197-L220`: Defines `ServerInfo`. Public server information for client display.
+- `L223-L233`: Defines `AllocateConfigRequest`. Request to allocate a VPN configuration.
+- `L235-L240`: Applies decorators and defines `_validate_server_id` with the wrapped behavior declared above it.
+- `L242-L247`: Applies decorators and defines `_validate_device_name` with the wrapped behavior declared above it.
+- `L250-L257`: Defines `VPNConnectRequest`. Compatibility request to initiate a VPN connection.
+- `L259-L264`: Applies decorators and defines `_validate_region` with the wrapped behavior declared above it.
+- `L266-L271`: Applies decorators and defines `_validate_server_id` with the wrapped behavior declared above it.
+- `L273-L278`: Applies decorators and defines `_validate_protocol` with the wrapped behavior declared above it.
+- `L281-L285`: Defines `DeviceCreateRequest`. Compatibility request to create a VPN device.
+- `L287-L290`: Applies decorators and defines `_validate_name` with the wrapped behavior declared above it.
+- `L292-L297`: Applies decorators and defines `_validate_server_id` with the wrapped behavior declared above it.
+- `L300-L302`: Defines `DeviceRevokeRequest`. Compatibility request to revoke a VPN device.
+- `L305-L316`: Defines `AllocateConfigResponse`. Response containing the allocated VPN configuration.
+- `L319-L328`: Defines `ConnectionStatusResponse`. VPN connection status response.
+- `L331-L335`: Defines `ServerListResponse`. List of available VPN servers.
+- `L338-L342`: Defines `RegionListResponse`. Compatibility list payload for clients expecting `regions`.
+- `L345-L354`: Defines the `RecommendedServerCandidate` class and the behavior it groups together.
+- `L357-L364`: Defines the `RecommendedServerResponse` class and the behavior it groups together.
+- `L367-L369`: Defines the `VpnProtocolRequirement` class and the behavior it groups together.
+- `L372-L382`: Defines the `VpnProtocolAvailability` class and the behavior it groups together.
+- `L385-L388`: Defines the `VpnProtocolsResponse` class and the behavior it groups together.
+- `L391-L398`: Defines the `VpnProtocolRegionHealth` class and the behavior it groups together.
+- `L401-L409`: Defines the `VpnProtocolHealth` class and the behavior it groups together.
+- `L412-L415`: Defines the `VpnProtocolHealthResponse` class and the behavior it groups together.
+- `L418-L421`: Defines the `DevRegionHealthOverride` class and the behavior it groups together.
+- `L424-L426`: Defines the `DevRegionHealthOverrideRequest` class and the behavior it groups together.
+- `L429-L434`: Defines the `SimulatedTrafficRequest` class and the behavior it groups together.
+- `L437-L440`: Defines the `SimulatedFailureRequest` class and the behavior it groups together.
+- `L443-L447`: Defines the `StartMeterRequest` class and the behavior it groups together.
+- `L450-L451`: Defines the `StopMeterRequest` class and the behavior it groups together.
+- `L454-L459`: Defines the `StartShapingRequest` class and the behavior it groups together.
+- `L462-L463`: Defines the `StopShapingRequest` class and the behavior it groups together.
+- `L466-L475`: Defines the `RegionResolutionResponse` class and the behavior it groups together.
+- `L478-L484`: Defines the `VpnCredentialProvisionRequest` class and the behavior it groups together.
+- `L486-L492`: Applies decorators and defines `_validate_protocol` with the wrapped behavior declared above it.
+- `L494-L499`: Applies decorators and defines `_validate_device_name` with the wrapped behavior declared above it.
+- `L501-L506`: Applies decorators and defines `_validate_server_id` with the wrapped behavior declared above it.
+- `L508-L519`: Applies decorators and defines `_validate_device_type` with the wrapped behavior declared above it.
+- `L522-L536`: Defines the `VpnCredentialSummary` class and the behavior it groups together.
+- `L539-L542`: Defines the `VpnCredentialProvisionResponse` class and the behavior it groups together.
+- `L545-L547`: Defines the `VpnCredentialListResponse` class and the behavior it groups together.
+- `L550-L552`: Defines the `VpnCredentialLifecycleResponse` class and the behavior it groups together.
+- `L555-L571`: Defines `VpnProfileRequest`. Provision an app-consumable VPN tunnel profile (no downloadable files).
+- `L573-L578`: Applies decorators and defines `_validate_device_name` with the wrapped behavior declared above it.
+- `L580-L585`: Applies decorators and defines `_validate_server_id` with the wrapped behavior declared above it.
+- `L587-L598`: Applies decorators and defines `_validate_device_type` with the wrapped behavior declared above it.
+- `L601-L605`: Defines the `VpnProfileDns` class and the behavior it groups together.
+- `L608-L611`: Defines the `VpnProfileKillSwitch` class and the behavior it groups together.
+- `L614-L616`: Defines the `VpnWireGuardProfilePayload` class and the behavior it groups together.
+- `L619-L626`: Defines the `VpnOpenVpnProfilePayload` class and the behavior it groups together.
+- `L629-L642`: Defines the `VpnIkev2ProfilePayload` class and the behavior it groups together.
+- `L645-L649`: Initializes module-level state or configuration such as `VpnProtocolProfilePayload`.
+- `L652-L657`: Defines `FailoverEndpoint`. Backup VPN server the client should try when the primary handshake fails.
+- `L660-L681`: Defines the `VpnProfileResponse` class and the behavior it groups together.
+- `L684-L686`: Comment block that explains the next section: =============================================================================.
+- `L688-L689`: Defines the `get_user_tier` function and the logic it executes.
+- `L691-L695`: Implements this section of logic starting with `Centralized wrapper around the canonical tier service.`.
+- `L698-L704`: Defines the `register_peer_on_server` function and the logic it executes.
+- `L706-L711`: Implements this section of logic starting with `Returns:`.
+- `L713-L715`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L717-L721`: Initializes module-level state or configuration such as `success, message`.
+- `L724-L726`: Defines the `_sh_quote` function and the logic it executes.
+- `L729-L743`: Defines the `_parse_script_json_result` function and the logic it executes.
+- `L746-L754`: Defines the `provision_protocol_credentials_on_server` function and the logic it executes.
+- `L756-L761`: Implements this section of logic starting with `Requires the VM provisioning script to install the helper scripts:`.
+- `L763-L764`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L766-L768`: Initializes module-level state or configuration such as `normalized`.
+- `L770-L774`: Initializes module-level state or configuration such as `script`.
+- `L776-L777`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L779`: Initializes module-level state or configuration such as `password_b64`.
+- `L781-L821`: Initializes module-level state or configuration such as `cmd`.
+- `L823-L829`: Defines `_profile_dns_servers`. Always-on secure DNS for tunnel profiles (ads/malware blocking via DNS).
+- `L832`: Initializes module-level state or configuration such as `MAX_FAILOVER_ENDPOINTS`.
+- `L835-L843`: Defines the `select_failover_servers` function and the logic it executes.
+- `L845-L846`: Implements this section of logic starting with `Ranking uses ``server_ranker.rank_servers`` so backup ordering matches the`.
+- `L848-L850`: Implements this section of logic starting with `Returns a list of ``FailoverEndpoint`` ready to embed in the profile response.`.
+- `L852-L854`: Initializes module-level state or configuration such as `others`.
+- `L856-L857`: Initializes module-level state or configuration such as `ranked, selected_ids`.
+- `L859-L873`: Initializes module-level state or configuration such as `by_id`.
+- `L876-L882`: Defines the `_profile_keepalive_seconds` function and the logic it executes.
+- `L885-L896`: Defines the `_profile_mtu` function and the logic it executes.
+- `L899-L915`: Defines the `_resolve_wireguard_tuning` function and the logic it executes.
+- `L918-L919`: Defines the `_log_vpn_event` function and the logic it executes.
+- `L922-L932`: Defines the `_resolve_traffic_manager_dependency` function and the logic it executes.
+- `L935-L945`: Defines the `_resolve_traffic_shaper_dependency` function and the logic it executes.
+- `L948-L951`: Defines the `_utc_iso` function and the logic it executes.
+- `L954-L958`: Defines the `_bool_env` function and the logic it executes.
+- `L961-L972`: Defines the `_sync_simulated_usage_for_user` function and the logic it executes.
+- `L974-L998`: Initializes module-level state or configuration such as `usage`.
+- `L1000-L1012`: Initializes module-level state or configuration such as `active_connection`.
+- `L1014-L1026`: Initializes module-level state or configuration such as `peers`.
+- `L1028`: Implements this section of logic starting with `db.commit()`.
+- `L1031-L1037`: Defines the `_region_health_cache_ttl_seconds` function and the logic it executes.
+- `L1040-L1042`: Defines the `_region_health_probe_enabled` function and the logic it executes.
+- `L1045-L1051`: Defines the `_region_health_probe_timeout_seconds` function and the logic it executes.
+- `L1054-L1060`: Defines the `_region_probe_failure_threshold` function and the logic it executes.
+- `L1063-L1069`: Defines the `_region_probe_cooldown_seconds` function and the logic it executes.
+- `L1072-L1082`: Defines the `_region_probe_circuit_state` function and the logic it executes.
+- `L1085-L1095`: Defines the `_record_region_probe_outcome` function and the logic it executes.
+- `L1097-L1107`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1109-L1116`: Initializes module-level variables and configuration used by later code.
+- `L1119-L1131`: Defines the `_server_probe_host` function and the logic it executes.
+- `L1134-L1144`: Defines the `_wireguard_listener_port` function and the logic it executes.
+- `L1147-L1151`: Defines the `_server_listener_targets` function and the logic it executes.
+- `L1153-L1155`: Implements this section of logic starting with `# WireGuard is UDP-only.`.
+- `L1157-L1166`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1168-L1170`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1172-L1179`: Initializes module-level state or configuration such as `int`.
+- `L1182-L1203`: Defines the `_probe_tcp_port` function and the logic it executes.
+- `L1206-L1225`: Defines the `_probe_udp_listener` function and the logic it executes.
+- `L1228-L1259`: Defines the `_probe_http_health_endpoint` function and the logic it executes.
+- `L1262-L1281`: Defines the `_probe_host_icmp` function and the logic it executes.
+- `L1284-L1297`: Defines the `_stored_region_health` function and the logic it executes.
+- `L1300-L1304`: Defines the `_probe_region_health` function and the logic it executes.
+- `L1306-L1312`: Initializes module-level state or configuration such as `endpoint_probe`.
+- `L1314-L1316`: Initializes module-level state or configuration such as `ssh_probe`.
+- `L1318-L1324`: Initializes module-level variables and configuration used by later code.
+- `L1326-L1331`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1333-L1339`: Initializes module-level state or configuration such as `icmp_probe`.
+- `L1341-L1344`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1346`: Returns a value from the current function.
+- `L1349-L1360`: Defines the `_region_health_override` function and the logic it executes.
+- `L1363-L1370`: Defines the `_region_health_for_server` function and the logic it executes.
+- `L1372-L1385`: Initializes module-level state or configuration such as `now, cache_key`.
+- `L1387-L1400`: Initializes module-level state or configuration such as `ttl, cached`.
+- `L1402-L1414`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1416-L1422`: Initializes module-level state or configuration such as `payload`.
+- `L1425-L1426`: Defines the `_region_health_map` function and the logic it executes.
+- `L1429-L1432`: Defines the `_region_health_status` function and the logic it executes.
+- `L1435-L1444`: Defines the `_effective_protocol_reason` function and the logic it executes.
+- `L1446-L1450`: Initializes module-level state or configuration such as `supporting_up`.
+- `L1452-L1457`: Initializes module-level state or configuration such as `protocol_flags, supporting_any`.
+- `L1459-L1460`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1462-L1469`: Initializes module-level state or configuration such as `down_supporting`.
+- `L1472-L1477`: Defines the `_protocol_unavailable_status_code` function and the logic it executes.
+- `L1480-L1485`: Defines the `_protocol_unavailable_error_code` function and the logic it executes.
+- `L1488-L1494`: Defines the `_resolve_cache_ttl_seconds` function and the logic it executes.
+- `L1497-L1516`: Defines the `_normalize_geo_group` function and the logic it executes.
+- `L1519-L1532`: Defines the `_infer_geo_group_from_server` function and the logic it executes.
+- `L1535-L1539`: Defines the `_normalize_country_code` function and the logic it executes.
+- `L1542-L1557`: Defines the `_resolve_user_geo_group` function and the logic it executes.
+- `L1560-L1580`: Defines the `_lightweight_geoip_cidr_map` function and the logic it executes.
+- `L1583-L1595`: Defines the `_request_client_ip` function and the logic it executes.
+- `L1598-L1611`: Defines the `_country_code_from_ip` function and the logic it executes.
+- `L1614-L1626`: Defines the `_country_code_to_geo_group` function and the logic it executes.
+- `L1629-L1637`: Defines the `_resolve_user_country_code` function and the logic it executes.
+- `L1639-L1648`: Initializes module-level state or configuration such as `header_candidates`.
+- `L1650`: Returns a value from the current function.
+- `L1653-L1661`: Defines the `_geo_group_priority_order` function and the logic it executes.
+- `L1663`: Initializes module-level variables and configuration used by later code.
+- `L1665-L1672`: Defines the `push` function and the logic it executes.
+- `L1674-L1677`: Initializes module-level state or configuration such as `cc`.
+- `L1679-L1685`: Implements this section of logic starting with `push(user_geo_group)`.
+- `L1688-L1698`: Defines the `_matches_preferred_region` function and the logic it executes.
+- `L1701-L1712`: Defines the `_region_order_key` function and the logic it executes.
+- `L1714-L1726`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L1729-L1747`: Defines the `_resolve_region_cache_key` function and the logic it executes.
+- `L1750-L1768`: Defines the `_select_best_region` function and the logic it executes.
+- `L1770`: Initializes module-level state or configuration such as `healthy_sorted`.
+- `L1772-L1777`: Initializes module-level state or configuration such as `preferred`.
+- `L1779-L1781`: Initializes module-level variables and configuration used by later code.
+- `L1783-L1788`: Initializes module-level state or configuration such as `ordered_groups, user_country_code, user_geo_group, healthy_groups, had_preferred`.
+- `L1790-L1795`: Loops over a collection to apply the same work to each item.
+- `L1797-L1802`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1804-L1807`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1809`: Returns a value from the current function.
+- `L1811`: Returns a value from the current function.
+- `L1814-L1836`: Defines the `_resolve_region_with_cache` function and the logic it executes.
+- `L1838-L1846`: Initializes module-level state or configuration such as `now, ttl, cached`.
+- `L1848-L1887`: Initializes module-level state or configuration such as `protocol_servers`.
+- `L1890-L1899`: Defines `run_region_health_watchdog_cycle`. Periodic control-plane watchdog: - force-refreshes regional health probes - marks repeated failures as unreachable - applies cooldown-based circuit guardrails.
+- `L1901-L1903`: Initializes module-level state or configuration such as `now, threshold, counts`.
+- `L1905-L1909`: Loops over a collection to apply the same work to each item.
+- `L1911-L1925`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1927-L1928`: Initializes module-level state or configuration such as `server.last_health_check`.
+- `L1930-L1932`: Implements this section of logic starting with `db.commit()`.
+- `L1935-L1937`: Defines the `_linux_route_snippet` function and the logic it executes.
+- `L1939-L1942`: Initializes module-level variables and configuration used by later code.
+- `L1944-L1948`: Initializes module-level variables and configuration used by later code.
+- `L1950-L1951`: Implements this section of logic starting with `This keeps NetworkManager's view of the WiFi interface intact while still`.
+- `L1953-L1982`: Implements this section of logic starting with `Note: PostUp/PostDown run as root (via wg-quick). The %i token expands to`.
+- `L1985-L2006`: Defines the `_build_wireguard_profile_config` function and the logic it executes.
+- `L2008`: Implements this section of logic starting with `is_linux = (device_type or "").lower() == "linux"`.
+- `L2010-L2017`: Initializes module-level state or configuration such as `interface_lines`.
+- `L2019-L2027`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L2029-L2037`: Initializes module-level state or configuration such as `peer_lines`.
+- `L2039`: Returns a value from the current function.
+- `L2042-L2053`: Defines the `_read_optional_pem_from_env` function and the logic it executes.
+- `L2056-L2071`: Defines the `_build_openvpn_profile` function and the logic it executes.
+- `L2073-L2081`: Initializes module-level state or configuration such as `port, host`.
+- `L2083-L2092`: Implements this section of logic starting with `# Validate host:port string for basic safety.`.
+- `L2094-L2106`: Initializes module-level state or configuration such as `ca_cert`.
+- `L2108-L2122`: Initializes module-level state or configuration such as `tls_crypt_key`.
+- `L2124`: Implements this section of logic starting with `proto_line = "proto tcp-client" if transport == "tcp" else "proto udp"`.
+- `L2126-L2129`: Initializes module-level variables and configuration used by later code.
+- `L2131-L2154`: Initializes module-level state or configuration such as `ovpn_lines`.
+- `L2156-L2161`: Returns a value from the current function.
+- `L2164-L2175`: Defines the `_build_ikev2_profile` function and the logic it executes.
+- `L2177-L2185`: Initializes module-level state or configuration such as `remote_id, server_host`.
+- `L2187-L2201`: Returns a value from the current function.
+- `L2204-L2217`: Defines the `_safe_server_peer_values` function and the logic it executes.
+- `L2220-L2234`: Defines the `_server_supported_protocols` function and the logic it executes.
+- `L2237-L2242`: Defines the `_server_supports_protocol` function and the logic it executes.
+- `L2245-L2253`: Defines the `_server_flag_supports_protocol` function and the logic it executes.
+- `L2256-L2260`: Defines the `_classify_protocol_provision_error` function and the logic it executes.
+- `L2262-L2279`: Initializes module-level state or configuration such as `misconfigured_hints`.
+- `L2281-L2296`: Initializes module-level state or configuration such as `health_hints`.
+- `L2298-L2299`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L2301`: Returns a value from the current function.
+- `L2304-L2311`: Defines the `_provisioning_failure_should_block` function and the logic it executes.
+- `L2314-L2328`: Defines the `_protocol_runtime_checks_enabled` function and the logic it executes.
+- `L2331-L2345`: Defines the `_protocol_required_scripts` function and the logic it executes.
+- `L2348-L2362`: Defines the `_protocol_service_units` function and the logic it executes.
+- `L2365-L2378`: Defines the `_service_is_active` function and the logic it executes.
+- `L2381-L2390`: Defines the `_protocol_material_ready` function and the logic it executes.
+- `L2393-L2404`: Defines the `_protocol_health_ready` function and the logic it executes.
+- `L2407-L2411`: Defines the `_protocol_temporarily_unavailable_code` function and the logic it executes.
+- `L2414-L2419`: Defines the `_normalized_protocol_runtime_health` function and the logic it executes.
+- `L2422-L2434`: Defines the `_protocol_health_summary` function and the logic it executes.
+- `L2436-L2441`: Initializes module-level state or configuration such as `reason, servers, health_map, status`.
+- `L2443-L2452`: Initializes module-level variables and configuration used by later code.
+- `L2454-L2486`: Initializes module-level variables and configuration used by later code.
+- `L2488-L2498`: Implements this section of logic starting with `region_rows.append(`.
+- `L2500-L2509`: Returns a value from the current function.
+- `L2512-L2521`: Defines the `_protocol_health_matrix` function and the logic it executes.
+- `L2524-L2535`: Defines the `_server_is_usable_for_protocol` function and the logic it executes.
+- `L2538-L2557`: Defines the `_auto_protocol_order` function and the logic it executes.
+- `L2560-L2567`: Defines the `_platform_supported_protocols` function and the logic it executes.
+- `L2570-L2600`: Defines the `_protocol_requirements` function and the logic it executes.
+- `L2603-L2609`: Defines the `_debug_client_label` function and the logic it executes.
+- `L2612-L2623`: Defines the `_log_vpn_catalog_debug` function and the logic it executes.
+- `L2625-L2642`: Initializes module-level state or configuration such as `sample_locations, supported_counts, protocol_summary`.
+- `L2644-L2654`: Implements this section of logic starting with `logger.info(`.
+- `L2657-L2688`: Defines the `choose_effective_protocol` function and the logic it executes.
+- `L2690-L2702`: Initializes module-level state or configuration such as `preferred_raw`.
+- `L2704-L2710`: Loops over a collection to apply the same work to each item.
+- `L2712-L2722`: Implements this section of logic starting with `# Defensive fallback to preserve backward compatibility.`.
+- `L2725-L2729`: Defines the `_openvpn_auth_mode` function and the logic it executes.
+- `L2732-L2738`: Defines the `_openvpn_allow_userpass_fallback` function and the logic it executes.
+- `L2741-L2745`: Defines the `_ikev2_auth_mode` function and the logic it executes.
+- `L2748-L2754`: Defines the `_ikev2_allow_userpass_fallback` function and the logic it executes.
+- `L2757-L2763`: Defines `_effective_ikev2_auth_mode`. Resolve runtime IKEv2 auth mode for a given platform.
+- `L2766-L2782`: Defines the `_credential_summary` function and the logic it executes.
+- `L2785-L2807`: Defines the `_select_server_for_protocol` function and the logic it executes.
+- `L2809-L2845`: Initializes module-level variables and configuration used by later code.
+- `L2847-L2863`: Initializes module-level state or configuration such as `all_servers, health_map, candidates`.
+- `L2865-L2878`: Initializes module-level state or configuration such as `latency_optimizer, scored, user_region_hint, score_map, key, reverse`.
+- `L2881-L2903`: Defines the `_resolve_or_create_peer` function and the logic it executes.
+- `L2905-L2912`: Initializes module-level state or configuration such as `resolved_name, peer`.
+- `L2914-L2927`: Implements this section of logic starting with `from services.subscription_access import get_effective_device_limit`.
+- `L2929-L2934`: Returns a value from the current function.
+- `L2937-L2939`: Comment block that explains the next section: =============================================================================.
+- `L2941-L2961`: Registers the `None` endpoint with the API router.
+- `L2963-L2965`: Initializes module-level state or configuration such as `enabled_protocols, plan_allowed, platform_supported`.
+- `L2967-L2973`: Initializes module-level state or configuration such as `servers, health_map, protocol_health, any_up_servers`.
+- `L2975-L2987`: Initializes module-level variables and configuration used by later code.
+- `L2989-L3005`: Initializes module-level state or configuration such as `reason`.
+- `L3007-L3021`: Implements this section of logic starting with `transports = ["udp", "tcp"] if protocol == "openvpn" else None`.
+- `L3023-L3030`: Implements this section of logic starting with `_log_vpn_catalog_debug(`.
+- `L3032-L3036`: Returns a value from the current function.
+- `L3039-L3057`: Registers the `None` endpoint with the API router.
+- `L3060-L3093`: Registers the `None` endpoint with the API router.
+- `L3096-L3107`: Registers the `start_meter` endpoint with the API router.
+- `L3110-L3116`: Registers the `stop_meter` endpoint with the API router.
+- `L3119-L3126`: Registers the `meter_usage` endpoint with the API router.
+- `L3129-L3140`: Registers the `start_shaping` endpoint with the API router.
+- `L3143-L3148`: Registers the `stop_shaping` endpoint with the API router.
+- `L3151-L3163`: Registers the `None` endpoint with the API router.
+- `L3165-L3166`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L3168-L3177`: Initializes module-level state or configuration such as `now_iso`.
+- `L3179-L3183`: Returns a value from the current function.
+- `L3186-L3207`: Registers the `None` endpoint with the API router.
+- `L3209-L3215`: Initializes module-level state or configuration such as `runtime`.
+- `L3217-L3223`: Initializes module-level state or configuration such as `session_id`.
+- `L3225-L3236`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L3238-L3249`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L3251-L3260`: Implements this section of logic starting with `_sync_simulated_usage_for_user(db, current_user.id)`.
+- `L3263-L3300`: Registers the `None` endpoint with the API router.
+- `L3303-L3316`: Registers the `None` endpoint with the API router.
+- `L3318-L3325`: Implements this section of logic starting with `Filters servers based on user's subscription tier and optionally by region.`.
+- `L3327-L3328`: Initializes module-level state or configuration such as `user_tier`.
+- `L3330-L3331`: Implements this section of logic starting with `# Backend enforces premium gating for the catalog response.`.
+- `L3333-L3335`: Implements this section of logic starting with `# Filter by region if specified`.
+- `L3337-L3344`: Initializes module-level state or configuration such as `servers, key, health_map`.
+- `L3346-L3352`: Implements this section of logic starting with `# Convert to response format`.
+- `L3354-L3357`: Loops over a collection to apply the same work to each item.
+- `L3359-L3382`: Initializes module-level state or configuration such as `server_info, server_id, location, country, country_code, city`.
+- `L3384-L3392`: Implements this section of logic starting with `# Track best server for recommendation using geo RTT weighting.`.
+- `L3394-L3400`: Implements this section of logic starting with `_log_vpn_catalog_debug(`.
+- `L3402-L3406`: Returns a value from the current function.
+- `L3409-L3432`: Registers the `None` endpoint with the API router.
+- `L3435-L3482`: Registers the `None` endpoint with the API router.
+- `L3485-L3511`: Registers the `None` endpoint with the API router.
+- `L3513-L3514`: Initializes module-level state or configuration such as `user_tier`.
+- `L3516-L3522`: Initializes module-level state or configuration such as `payload, user_tier, user_region_hint, include_candidates`.
+- `L3525-L3531`: Registers the `list_available_servers` endpoint with the API router.
+- `L3533-L3537`: Implements this section of logic starting with `Returns active servers filtered by subscription tier, ordered by load_score`.
+- `L3539-L3568`: Initializes module-level variables and configuration used by later code.
+- `L3571-L3580`: Registers the `get_server` endpoint with the API router.
+- `L3582-L3583`: Initializes module-level state or configuration such as `load_percent, region_health`.
+- `L3585-L3607`: Returns a value from the current function.
+- `L3610-L3626`: Registers the `None` endpoint with the API router.
+- `L3628-L3649`: Implements this section of logic starting with `peer_total = db.query(WireGuardPeer).filter(WireGuardPeer.is_revoked == False).count()`.
+- `L3651-L3655`: Initializes module-level state or configuration such as `avg_handshake`.
+- `L3657-L3661`: Initializes module-level state or configuration such as `overall_health`.
+- `L3663-L3676`: Returns a value from the current function.
+- `L3679-L3681`: Comment block that explains the next section: =============================================================================.
+- `L3683-L3692`: Registers the `allocate_config` endpoint with the API router.
+- `L3694-L3699`: Implements this section of logic starting with `This endpoint:`.
+- `L3701-L3707`: Implements this section of logic starting with `The configuration can be imported into the WireGuard app on any platform.`.
+- `L3709-L3713`: Implements this section of logic starting with `# Select server`.
+- `L3715-L3728`: Implements this section of logic starting with `# Check tier restriction`.
+- `L3730-L3736`: Implements this section of logic starting with `# Resolve or create a peer device for this user`.
+- `L3738-L3766`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L3768-L3770`: Initializes module-level state or configuration such as `peer.server_id`.
+- `L3772-L3773`: Initializes module-level state or configuration such as `private_key, public_key`.
+- `L3775-L3776`: Implements this section of logic starting with `# Allocate IP address`.
+- `L3778-L3784`: Implements this section of logic starting with `# Generate client configuration for this specific server`.
+- `L3786-L3793`: Initializes module-level state or configuration such as `interface_lines`.
+- `L3795-L3804`: Initializes module-level state or configuration such as `server_public_key, server_endpoint, server_allowed_ips, peer_lines`.
+- `L3806`: Initializes module-level state or configuration such as `config_content`.
+- `L3808-L3811`: Implements this section of logic starting with `# Save config file`.
+- `L3813-L3814`: Implements this section of logic starting with `# Generate QR code`.
+- `L3816-L3861`: Implements this section of logic starting with `# Register peer on the WireGuard server (optional)`.
+- `L3863-L3867`: Implements this section of logic starting with `# Sync legacy keys for compatibility`.
+- `L3869-L3871`: Implements this section of logic starting with `# Commit user changes`.
+- `L3873-L3875`: Implements this section of logic starting with `# Generate download filename`.
+- `L3877-L3881`: Initializes module-level state or configuration such as `instructions`.
+- `L3883-L3893`: Implements this section of logic starting with `_log_vpn_event(`.
+- `L3895-L3909`: Initializes module-level state or configuration such as `response_payload, status, server_id, server_location, client_ip, client_public_key`.
+- `L3912-L3925`: Registers the `None` endpoint with the API router.
+- `L3927-L3933`: Implements this section of logic starting with `This endpoint is the primary control-plane API used by native apps:`.
+- `L3935-L3939`: Initializes module-level state or configuration such as `requested_protocol, user_tier, enabled_protocols, plan_allowed_protocols, requested_explicit`.
+- `L3941-L3954`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L3956-L3957`: Initializes module-level state or configuration such as `peer_manager, device_service`.
+- `L3959-L3979`: Implements this section of logic starting with `# Resolve device/peer`.
+- `L3981-L3995`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L3997-L4003`: Initializes module-level state or configuration such as `device_type, peer, user, server, device_name`.
+- `L4005-L4006`: Initializes module-level state or configuration such as `device_type, platform_supported_protocols`.
+- `L4008-L4014`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4016-L4030`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4032-L4041`: Initializes module-level state or configuration such as `allowed_protocols`.
+- `L4043-L4078`: Implements this section of logic starting with `# Resolve server`.
+- `L4080-L4087`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4089-L4111`: Initializes module-level state or configuration such as `all_servers, protocol, health_map, candidates`.
+- `L4113-L4119`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4121-L4158`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4160`: Initializes module-level state or configuration such as `region_hint`.
+- `L4162-L4167`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4169`: Imports the dependencies used later in this module, including services.
+- `L4171-L4180`: Initializes module-level state or configuration such as `server`.
+- `L4182-L4199`: Implements this section of logic starting with `assert server is not None`.
+- `L4201`: Implements this section of logic starting with `device_service.expire_if_due(peer)`.
+- `L4203-L4210`: Implements this section of logic starting with `# Optional key rotation`.
+- `L4212-L4223`: Implements this section of logic starting with `# Ensure peer is associated with selected server.`.
+- `L4225-L4230`: Initializes module-level state or configuration such as `peer.server_id, peer.is_active, peer.device_state`.
+- `L4232-L4236`: Initializes module-level state or configuration such as `peer_registered, dns_servers`.
+- `L4238-L4249`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4251-L4469`: Initializes module-level state or configuration such as `wireguard_config, device_type, profile_payload`.
+- `L4471-L4477`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4479-L4481`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4483-L4485`: Initializes module-level state or configuration such as `dns_enforcement, dns_mode, ad_malware_blocking`.
+- `L4487-L4496`: Initializes module-level state or configuration such as `ks_mode, ks_enforcement, ks_notes`.
+- `L4498-L4502`: Initializes module-level state or configuration such as `kill_switch, mode, enforcement, notes`.
+- `L4504-L4509`: Initializes module-level state or configuration such as `ttl_seconds`.
+- `L4511-L4513`: Initializes module-level state or configuration such as `failover_eps, candidates, server, region_hint`.
+- `L4515-L4551`: Initializes module-level state or configuration such as `response_payload, device_id, device_name, device_type, protocol, server_id`.
+- `L4554-L4574`: Registers the `None` endpoint with the API router.
+- `L4576-L4592`: Initializes module-level state or configuration such as `user_tier, enabled, allowed_by_plan`.
+- `L4594-L4611`: Initializes module-level state or configuration such as `peer_manager, device_service, peer, db, current_user`.
+- `L4613-L4627`: Initializes module-level state or configuration such as `server, db, user_tier, protocol, preferred_server_id, region_hint`.
+- `L4629`: Initializes module-level state or configuration such as `creds_service`.
+- `L4631-L4653`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L4655-L4846`: Initializes module-level state or configuration such as `status_message`.
+- `L4848-L4865`: Initializes module-level state or configuration such as `record`.
+- `L4867-L4868`: Initializes module-level state or configuration such as `profile_expires_at`.
+- `L4870-L4874`: Returns a value from the current function.
+- `L4877-L4899`: Registers the `None` endpoint with the API router.
+- `L4901-L4908`: Initializes module-level state or configuration such as `service, rows, user_id, device_id, protocol, summaries`.
+- `L4911-L4939`: Registers the `None` endpoint with the API router.
+- `L4941-L4956`: Initializes module-level state or configuration such as `ok, message, credential, server, reason`.
+- `L4959-L4987`: Registers the `None` endpoint with the API router.
+- `L4989-L4996`: Implements this section of logic starting with `server = db.query(VPNServer).filter(VPNServer.id == credential.server_id).first()`.
+- `L4998-L5007`: Initializes module-level state or configuration such as `user_tier, enabled, allowed_by_plan`.
+- `L5009-L5019`: Initializes module-level state or configuration such as `ok, message, credential, server`.
+- `L5021-L5156`: Initializes module-level variables and configuration used by later code.
+- `L5158-L5171`: Initializes module-level state or configuration such as `record`.
+- `L5174-L5181`: Registers the `download_config` endpoint with the API router.
+- `L5183-L5186`: Implements this section of logic starting with `Returns the .conf file as a downloadable attachment.`.
+- `L5188-L5193`: Implements this section of logic starting with `# Check if config exists for this server`.
+- `L5195-L5201`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L5203-L5209`: Implements this section of logic starting with `# Get server info for filename`.
+- `L5211-L5217`: Returns a value from the current function.
+- `L5220-L5227`: Registers the `get_qr_code` endpoint with the API router.
+- `L5229-L5232`: Implements this section of logic starting with `Returns a base64-encoded PNG image of the QR code.`.
+- `L5234-L5238`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5240-L5246`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L5248`: Initializes module-level state or configuration such as `qr_base64`.
+- `L5250-L5253`: Returns a value from the current function.
+- `L5256-L5258`: Comment block that explains the next section: =============================================================================.
+- `L5260-L5266`: Registers the `get_connection_status` endpoint with the API router.
+- `L5268-L5300`: Implements this section of logic starting with `Note: This checks if the user has an active configuration allocated.`.
+- `L5302-L5306`: Implements this section of logic starting with `# Check for active VPN connections (if tracking)`.
+- `L5308-L5319`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5321`: Returns a value from the current function.
+- `L5324-L5332`: Registers the `connect_vpn` endpoint with the API router.
+- `L5334-L5363`: Implements this section of logic starting with `Note: This does not establish a tunnel on the client device. The WireGuard`.
+- `L5365-L5406`: Initializes module-level variables and configuration used by later code.
+- `L5408-L5418`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5420-L5450`: Initializes module-level state or configuration such as `runtime`.
+- `L5452-L5471`: Initializes module-level state or configuration such as `active_connection`.
+- `L5473-L5481`: Implements this section of logic starting with `get_runtime_metrics().record_peer_connect()`.
+- `L5483-L5491`: Returns a value from the current function.
+- `L5493`: Initializes module-level state or configuration such as `wg_service`.
+- `L5495-L5502`: Implements this section of logic starting with `# Ensure keys/config exist`.
+- `L5504-L5508`: Initializes module-level state or configuration such as `client_ip, config_path`.
+- `L5510-L5517`: Initializes module-level state or configuration such as `interface_lines`.
+- `L5519-L5528`: Initializes module-level state or configuration such as `server_public_key, server_endpoint, server_allowed_ips, peer_lines`.
+- `L5530-L5532`: Initializes module-level state or configuration such as `config_content`.
+- `L5534-L5541`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5543-L5554`: Initializes module-level state or configuration such as `active_connection`.
+- `L5556-L5565`: Implements this section of logic starting with `db.add(current_user)`.
+- `L5567-L5573`: Returns a value from the current function.
+- `L5576-L5582`: Registers the `disconnect_vpn` endpoint with the API router.
+- `L5584-L5613`: Implements this section of logic starting with `Note: This does not terminate a WireGuard tunnel on the client device.`.
+- `L5615-L5618`: Initializes module-level state or configuration such as `active_connection`.
+- `L5620-L5630`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5632-L5636`: Returns a value from the current function.
+- `L5639-L5651`: Registers the `get_vpn_config` endpoint with the API router.
+- `L5653-L5664`: Initializes module-level state or configuration such as `wg_service, configs, key, reverse`.
+- `L5666`: Returns a value from the current function.
+- `L5669-L5678`: Registers the `list_my_configs` endpoint with the API router.
+- `L5680-L5682`: Implements this section of logic starting with `# Find all config files for this user`.
+- `L5684-L5691`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5693-L5697`: Implements this section of logic starting with `configs.append({`.
+- `L5699-L5706`: Implements this section of logic starting with `# Also check for default config (without server_id)`.
+- `L5708-L5713`: Returns a value from the current function.
+- `L5716-L5718`: Comment block that explains the next section: =============================================================================.
+- `L5720-L5728`: Registers the `create_device` endpoint with the API router.
+- `L5730-L5739`: Implements this section of logic starting with `# Enforce device limits`.
+- `L5741-L5745`: Initializes module-level state or configuration such as `server`.
+- `L5747-L5752`: Initializes module-level state or configuration such as `peer, user, server, device_name, device_type`.
+- `L5754-L5760`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5762-L5768`: Returns a value from the current function.
+- `L5771-L5783`: Registers the `revoke_device` endpoint with the API router.
+- `L5785-L5786`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5788-L5790`: Initializes module-level state or configuration such as `device_service, reason`.
+- `L5793-L5802`: Registers the `download_config_alias` endpoint with the API router.
+- `L5804-L5814`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5816-L5817`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5819-L5823`: Initializes module-level state or configuration such as `server`.
+- `L5825-L5826`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L5828-L5833`: Initializes module-level state or configuration such as `filename, config`.
+- `L5836-L5844`: Registers the `get_usage` endpoint with the API router.
+- `L5846-L5851`: Initializes module-level state or configuration such as `query`.
+- `L5853-L5855`: Initializes module-level state or configuration such as `peers`.
+- `L5857-L5861`: Initializes module-level state or configuration such as `sent, received, total_gb, free_cap_gb`.
+- `L5863-L5874`: Returns a value from the current function.
+- `L5877-L5893`: Registers the `vpn_health` endpoint with the API router.
+- `L5896-L5898`: Comment block that explains the next section: =============================================================================.
+- `L5900-L5907`: Registers the `check_server_health` endpoint with the API router.
+- `L5909-L5912`: Implements this section of logic starting with `Admin-only endpoint for debugging server connectivity.`.
+- `L5914-L5916`: Initializes module-level state or configuration such as `server`.
+- `L5918-L5921`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L5923-L5935`: Returns a value from the current function.

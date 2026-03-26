@@ -1,7 +1,23 @@
 polkit.addRule(function(action, subject) {
-    if (action.id == "org.freedesktop.policykit.exec" &&
-        action.lookup("program") == "/usr/local/libexec/securewave-wg-quick" &&
-        subject.isInGroup("sudo")) {
+    if (action.id != "org.freedesktop.policykit.exec") {
+        return polkit.Result.NOT_HANDLED;
+    }
+
+    if (!(subject.user == "securewave" || subject.isInGroup("sudo"))) {
+        return polkit.Result.NOT_HANDLED;
+    }
+
+    var program = action.lookup("program");
+    var commandLine = action.lookup("command_line") || "";
+
+    if (program == "/usr/local/libexec/securewave-wg-quick") {
         return polkit.Result.YES;
     }
+
+    if ((program == "/usr/bin/wg" || program == "/bin/wg") &&
+        commandLine.indexOf(" show ") >= 0) {
+        return polkit.Result.YES;
+    }
+
+    return polkit.Result.NOT_HANDLED;
 });

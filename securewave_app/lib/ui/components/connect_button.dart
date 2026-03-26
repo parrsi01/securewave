@@ -4,9 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/logging/app_logger.dart';
+import '../../core/theme/app_theme.dart';
 import '../../debug/automation_keys.dart';
-import '../design/app_colors.dart';
-import '../design/app_spacing.dart';
 import '../widgets/vpn_ui_bindings.dart';
 
 /// Central connect/disconnect button with animated states.
@@ -160,7 +159,7 @@ class _ConnectButtonState extends State<ConnectButton>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.15),
+                      color: AppTheme.ringOutlineColor,
                       width: 2,
                     ),
                   ),
@@ -177,7 +176,7 @@ class _ConnectButtonState extends State<ConnectButton>
                         height: _size - 20,
                         child: CustomPaint(
                           painter: _ArcPainter(
-                            color: Colors.white.withValues(alpha: 0.6),
+                            color: AppTheme.ringSpinnerColor,
                             strokeWidth: AppSpacing.connectionRingStroke,
                           ),
                         ),
@@ -202,14 +201,14 @@ class _ConnectButtonState extends State<ConnectButton>
                       children: [
                         Icon(
                           _icon(widget.visualState),
-                          color: Colors.white,
+                          color: AppTheme.ringForegroundColor,
                           size: 40,
                         ),
                         const SizedBox(height: 8),
                         Text(
                           _label(widget.visualState),
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: AppTheme.ringForegroundColor,
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
                             letterSpacing: 0.5,
@@ -228,19 +227,15 @@ class _ConnectButtonState extends State<ConnectButton>
   }
 
   Gradient _gradient(ConnectionVisualState s) => switch (s) {
-        ConnectionVisualState.connected => AppColors.connectedGradient,
-        ConnectionVisualState.error => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFFF5252), Color(0xFFB3261E)],
-          ),
-        _ => AppColors.brandGradient,
+        ConnectionVisualState.connected => AppTheme.connectionGradient(s),
+        ConnectionVisualState.error => AppTheme.connectionGradient(s),
+        _ => AppTheme.connectionGradient(s),
       };
 
   Color _glowColor(ConnectionVisualState s) => switch (s) {
-        ConnectionVisualState.connected => AppColors.success,
-        ConnectionVisualState.error => AppColors.error,
-        _ => AppColors.primaryBright,
+        ConnectionVisualState.connected => AppTheme.connectionColor(s),
+        ConnectionVisualState.error => AppTheme.connectionColor(s),
+        _ => AppTheme.connectionColor(s),
       };
 
   IconData _icon(ConnectionVisualState s) => switch (s) {

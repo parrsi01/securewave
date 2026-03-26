@@ -1,0 +1,94 @@
+# `services/gdpr_service.py`
+
+Purpose: This service module implements the business logic for gdpr service operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L10`: Imports the dependencies used later in this module, including os, json, logging, typing, datetime.
+- `L12`: Initializes module-level state or configuration such as `logger`.
+- `L14-L15`: Implements this section of logic starting with `# Configuration`.
+- `L18-L22`: Defines `GDPRComplianceService`. GDPR Compliance Service Implements data subject rights and GDPR requirements.
+- `L24-L26`: Defines `__init__`. Initialize GDPR service.
+- `L28-L30`: Comment block that explains the next section: ===========================.
+- `L32-L39`: Defines the `create_access_request` function and the logic it executes.
+- `L41-L44`: Implements this section of logic starting with `Args:`.
+- `L46-L51`: Implements this section of logic starting with `Returns:`.
+- `L53`: Initializes module-level state or configuration such as `db`.
+- `L55-L56`: Implements this section of logic starting with `# Generate request number`.
+- `L58-L59`: Implements this section of logic starting with `# Calculate due date (30 days)`.
+- `L61-L70`: Initializes module-level state or configuration such as `request, request_number, user_id, request_type, status, description`.
+- `L72-L74`: Implements this section of logic starting with `db.add(request)`.
+- `L76`: Implements this section of logic starting with `logger.info(f"Created GDPR access request {request_number} for user {user_id}")`.
+- `L78`: Returns a value from the current function.
+- `L80-L82`: Handles a failure from the preceding `try` block.
+- `L84-L86`: Defines the `export_user_data` function and the logic it executes.
+- `L88-L90`: Implements this section of logic starting with `Args:`.
+- `L92-L103`: Implements this section of logic starting with `Returns:`.
+- `L105`: Initializes module-level state or configuration such as `db`.
+- `L107-L110`: Implements this section of logic starting with `# Get user`.
+- `L112-L129`: Implements this section of logic starting with `# Collect all user data`.
+- `L131-L140`: Implements this section of logic starting with `# Subscriptions`.
+- `L142-L151`: Implements this section of logic starting with `# VPN Connections`.
+- `L153-L162`: Implements this section of logic starting with `# WireGuard Peers`.
+- `L164-L173`: Implements this section of logic starting with `# Support Tickets`.
+- `L175-L182`: Implements this section of logic starting with `# Usage Statistics`.
+- `L184-L192`: Implements this section of logic starting with `# Audit Logs (last 100 entries)`.
+- `L194`: Returns a value from the current function.
+- `L196-L198`: Handles a failure from the preceding `try` block.
+- `L200-L202`: Comment block that explains the next section: ===========================.
+- `L204-L210`: Defines the `create_deletion_request` function and the logic it executes.
+- `L212-L214`: Implements this section of logic starting with `Args:`.
+- `L216-L221`: Implements this section of logic starting with `Returns:`.
+- `L223`: Initializes module-level state or configuration such as `db`.
+- `L225-L226`: Initializes module-level state or configuration such as `request_number, due_date`.
+- `L228-L235`: Initializes module-level state or configuration such as `request, request_number, user_id, request_type, status, description`.
+- `L237-L239`: Implements this section of logic starting with `db.add(request)`.
+- `L241`: Implements this section of logic starting with `logger.info(f"Created GDPR deletion request {request_number} for user {user_id}")`.
+- `L243`: Returns a value from the current function.
+- `L245-L247`: Handles a failure from the preceding `try` block.
+- `L249-L251`: Defines the `delete_user_data` function and the logic it executes.
+- `L253-L255`: Implements this section of logic starting with `Args:`.
+- `L257-L262`: Implements this section of logic starting with `Returns:`.
+- `L264`: Initializes module-level state or configuration such as `db`.
+- `L266-L272`: Initializes module-level state or configuration such as `summary`.
+- `L274-L282`: Implements this section of logic starting with `# If retention required (e.g., tax records), anonymize instead of delete`.
+- `L284`: Initializes module-level variables and configuration used by later code.
+- `L286-L295`: Implements this section of logic starting with `# Keep audit logs, payment records for legal retention`.
+- `L297`: Implements this section of logic starting with `db.commit()`.
+- `L299`: Implements this section of logic starting with `logger.info(f"Deleted data for user {user_id}")`.
+- `L301`: Returns a value from the current function.
+- `L303-L306`: Handles a failure from the preceding `try` block.
+- `L308-L310`: Comment block that explains the next section: ===========================.
+- `L312-L322`: Defines the `record_consent` function and the logic it executes.
+- `L324-L330`: Implements this section of logic starting with `Args:`.
+- `L332-L337`: Implements this section of logic starting with `Returns:`.
+- `L339`: Initializes module-level state or configuration such as `db`.
+- `L341-L351`: Initializes module-level state or configuration such as `consent, user_id, consent_type, consent_version, is_granted, granted_at`.
+- `L353-L355`: Implements this section of logic starting with `db.add(consent)`.
+- `L357`: Implements this section of logic starting with `logger.info(f"Recorded {consent_type} consent for user {user_id}: {is_granted}")`.
+- `L359`: Returns a value from the current function.
+- `L361-L363`: Handles a failure from the preceding `try` block.
+- `L365-L369`: Defines `get_user_consents`. Get all consents for a user.
+- `L371`: Initializes module-level state or configuration such as `db`.
+- `L373-L375`: Initializes module-level state or configuration such as `consents`.
+- `L377`: Returns a value from the current function.
+- `L379-L381`: Handles a failure from the preceding `try` block.
+- `L383-L385`: Comment block that explains the next section: ===========================.
+- `L387-L390`: Defines `_generate_request_number`. Generate GDPR request number.
+- `L392-L394`: Initializes module-level state or configuration such as `timestamp, random_part`.
+- `L396-L400`: Defines `get_pending_requests`. Get pending GDPR requests.
+- `L402`: Initializes module-level state or configuration such as `db`.
+- `L404-L406`: Initializes module-level state or configuration such as `requests`.
+- `L408`: Returns a value from the current function.
+- `L410-L412`: Handles a failure from the preceding `try` block.
+- `L414-L418`: Defines `check_sla_breaches`. Check for SLA breaches on GDPR requests.
+- `L420`: Initializes module-level state or configuration such as `db`.
+- `L422`: Initializes module-level state or configuration such as `now`.
+- `L424-L429`: Implements this section of logic starting with `# Find overdue requests`.
+- `L431-L433`: Implements this section of logic starting with `# Mark as breached`.
+- `L435`: Implements this section of logic starting with `db.commit()`.
+- `L437`: Returns a value from the current function.
+- `L439-L441`: Handles a failure from the preceding `try` block.
+- `L444-L445`: Implements this section of logic starting with `# Singleton instance`.
+- `L448-L453`: Defines `get_gdpr_service`. Get GDPR compliance service instance.

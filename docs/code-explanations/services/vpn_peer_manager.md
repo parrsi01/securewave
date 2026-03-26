@@ -1,0 +1,119 @@
+# `services/vpn_peer_manager.py`
+
+Purpose: This service module implements the business logic for vpn peer manager operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L15`: Imports the dependencies used later in this module, including logging, os, secrets, base64, ipaddress, datetime, typing, io, ....
+- `L17-L24`: Implements this section of logic starting with `from models.user import User`.
+- `L26`: Initializes module-level state or configuration such as `logger`.
+- `L28-L29`: Implements this section of logic starting with `# Configuration`.
+- `L32-L36`: Defines `VPNPeerManager`. Production-grade VPN peer management service Handles peer lifecycle, key rotation, and config generation.
+- `L38-L42`: Defines `__init__`. Initialize peer manager.
+- `L44-L46`: Comment block that explains the next section: ===========================.
+- `L48-L56`: Defines the `create_peer` function and the logic it executes.
+- `L58-L62`: Implements this section of logic starting with `Args:`.
+- `L64-L69`: Implements this section of logic starting with `Returns:`.
+- `L71-L72`: Implements this section of logic starting with `# Encrypt private key`.
+- `L74-L75`: Implements this section of logic starting with `# Allocate IP address`.
+- `L77-L78`: Implements this section of logic starting with `# Calculate next rotation date`.
+- `L80-L94`: Implements this section of logic starting with `# Create peer`.
+- `L96-L98`: Implements this section of logic starting with `self.db.add(peer)`.
+- `L100-L101`: Implements this section of logic starting with `logger.info(f"✓ WireGuard peer created for user {user.id} (IP: {ipv4_address})")`.
+- `L103-L106`: Handles a failure from the preceding `try` block.
+- `L108-L115`: Defines the `get_or_create_peer` function and the logic it executes.
+- `L117-L120`: Implements this section of logic starting with `Args:`.
+- `L122-L130`: Implements this section of logic starting with `Returns:`.
+- `L132-L135`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L137`: Initializes module-level state or configuration such as `peer`.
+- `L139-L141`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L143-L144`: Implements this section of logic starting with `# Create new peer`.
+- `L146-L148`: Defines the `list_user_peers` function and the logic it executes.
+- `L150-L152`: Implements this section of logic starting with `Args:`.
+- `L154-L157`: Implements this section of logic starting with `Returns:`.
+- `L159-L160`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L162`: Returns a value from the current function.
+- `L164-L166`: Defines the `revoke_peer` function and the logic it executes.
+- `L168-L169`: Implements this section of logic starting with `Args:`.
+- `L171-L175`: Implements this section of logic starting with `Returns:`.
+- `L177-L178`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L180-L184`: Initializes module-level state or configuration such as `peer.is_revoked, peer.is_active, peer.device_state, peer.revoked_at`.
+- `L186-L187`: Implements this section of logic starting with `logger.info(f"✓ Peer {peer_id} revoked")`.
+- `L189-L192`: Handles a failure from the preceding `try` block.
+- `L194-L196`: Defines the `delete_peer` function and the logic it executes.
+- `L198-L199`: Implements this section of logic starting with `Args:`.
+- `L201-L205`: Implements this section of logic starting with `Returns:`.
+- `L207-L208`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L210-L211`: Implements this section of logic starting with `self.db.delete(peer)`.
+- `L213-L214`: Implements this section of logic starting with `logger.info(f"✓ Peer {peer_id} deleted")`.
+- `L216-L219`: Handles a failure from the preceding `try` block.
+- `L221-L223`: Comment block that explains the next section: ===========================.
+- `L225-L231`: Defines the `generate_config` function and the logic it executes.
+- `L233-L235`: Implements this section of logic starting with `Args:`.
+- `L237-L241`: Implements this section of logic starting with `Returns:`.
+- `L243-L244`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L246-L247`: Implements this section of logic starting with `# Decrypt private key`.
+- `L249-L260`: Implements this section of logic starting with `# Generate config`.
+- `L262`: Returns a value from the current function.
+- `L264-L270`: Defines the `generate_config_qr_code` function and the logic it executes.
+- `L272-L274`: Implements this section of logic starting with `Args:`.
+- `L276-L279`: Implements this section of logic starting with `Returns:`.
+- `L281-L289`: Implements this section of logic starting with `# Generate QR code`.
+- `L291`: Initializes module-level state or configuration such as `img`.
+- `L293-L296`: Implements this section of logic starting with `# Convert to bytes`.
+- `L298-L305`: Defines the `generate_config_file` function and the logic it executes.
+- `L307-L310`: Implements this section of logic starting with `Args:`.
+- `L312-L315`: Implements this section of logic starting with `Returns:`.
+- `L317-L319`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L321`: Returns a value from the current function.
+- `L323-L325`: Comment block that explains the next section: ===========================.
+- `L327-L329`: Defines the `rotate_peer_keys` function and the logic it executes.
+- `L331-L332`: Implements this section of logic starting with `Args:`.
+- `L334-L338`: Implements this section of logic starting with `Returns:`.
+- `L340-L341`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L343-L344`: Implements this section of logic starting with `# Generate new keypair`.
+- `L346-L347`: Implements this section of logic starting with `# Encrypt private key`.
+- `L349-L354`: Implements this section of logic starting with `# Update peer`.
+- `L356-L357`: Implements this section of logic starting with `self.db.commit()`.
+- `L359-L360`: Implements this section of logic starting with `logger.info(f"✓ Keys rotated for peer {peer_id} (version {peer.key_version})")`.
+- `L362-L365`: Handles a failure from the preceding `try` block.
+- `L367-L369`: Defines the `rotate_all_due_keys` function and the logic it executes.
+- `L371-L380`: Implements this section of logic starting with `Returns:`.
+- `L382-L389`: Initializes module-level state or configuration such as `count`.
+- `L391-L392`: Implements this section of logic starting with `logger.info(f"✓ Rotated keys for {count} peers")`.
+- `L394-L396`: Handles a failure from the preceding `try` block.
+- `L398-L400`: Comment block that explains the next section: ===========================.
+- `L402-L408`: Applies decorators and defines `_env_int` with the wrapped behavior declared above it.
+- `L410-L422`: Defines `_pool_settings`. Return allocator settings: - base /22 network - maximum number of /22 blocks - reserved hosts per block - alert threshold percent.
+- `L424-L426`: Implements this section of logic starting with `# Requirement: dynamic /22 expansion.`.
+- `L428-L431`: Initializes module-level state or configuration such as `max_blocks, reserved_hosts, alert_threshold_pct`.
+- `L433-L441`: Defines the `_iter_pool_blocks` function and the logic it executes.
+- `L443-L457`: Defines the `_active_ipv4_addresses` function and the logic it executes.
+- `L459-L477`: Defines the `_emit_pool_alert` function and the logic it executes.
+- `L479-L483`: Defines `get_ip_pool_stats`. Return capacity and utilization stats for all configured /22 blocks.
+- `L485-L489`: Initializes module-level state or configuration such as `per_block_capacity, total_capacity, allocated, utilization_pct`.
+- `L491-L500`: Returns a value from the current function.
+- `L502-L504`: Defines the `_allocate_ip_address` function and the logic it executes.
+- `L506-L507`: Implements this section of logic starting with `Args:`.
+- `L509-L515`: Implements this section of logic starting with `Returns:`.
+- `L517-L523`: Loops over a collection to apply the same work to each item.
+- `L525-L529`: Implements this section of logic starting with `# Emit high-utilization alerts before returning.`.
+- `L531-L539`: Implements this section of logic starting with `# Exhaustion alert (critical).`.
+- `L541-L543`: Defines the `get_allocated_ips` function and the logic it executes.
+- `L545-L551`: Implements this section of logic starting with `Returns:`.
+- `L553`: Returns a value from the current function.
+- `L555-L557`: Comment block that explains the next section: ===========================.
+- `L559-L561`: Defines the `get_peer_stats` function and the logic it executes.
+- `L563-L564`: Implements this section of logic starting with `Args:`.
+- `L566-L569`: Implements this section of logic starting with `Returns:`.
+- `L571-L572`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L574-L586`: Returns a value from the current function.
+- `L588-L590`: Defines the `get_system_peer_stats` function and the logic it executes.
+- `L592-L599`: Implements this section of logic starting with `Returns:`.
+- `L601-L603`: Initializes module-level state or configuration such as `revoked_peers`.
+- `L605-L609`: Initializes module-level state or configuration such as `due_rotation`.
+- `L611`: Initializes module-level state or configuration such as `pool_stats`.
+- `L613-L622`: Returns a value from the current function.
+- `L625-L626`: Implements this section of logic starting with `# Singleton instance`.
+- `L629-L631`: Defines `get_peer_manager`. Get peer manager instance.

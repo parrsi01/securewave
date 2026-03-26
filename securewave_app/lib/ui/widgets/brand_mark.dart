@@ -24,8 +24,6 @@ class BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolvedTextColor = textColor ?? htb.HtbColors.textPrimary;
-    final resolvedAccentColor = accentColor ?? htb.HtbColors.neonGreen;
     final logo = SvgPicture.asset(
       'assets/securewave_logo.svg',
       width: size,
@@ -41,31 +39,30 @@ class BrandMark extends StatelessWidget {
       children: [
         logo,
         const SizedBox(width: 12),
-        RichText(
-          maxLines: 1,
-          overflow: TextOverflow.fade,
-          softWrap: false,
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: 'Secure',
-                style: TextStyle(
-                  color: resolvedTextColor,
-                  fontSize: textSize,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.6,
-                ),
+        Flexible(
+          child: ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (bounds) => LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                textColor ?? htb.HtbColors.accentSecondary,
+                accentColor ?? htb.HtbColors.accentSecondaryMuted,
+                htb.HtbColors.accentPrimary,
+              ],
+            ).createShader(bounds),
+            child: Text(
+              'SecureWave',
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
+              style: TextStyle(
+                color: htb.HtbColors.textPrimary,
+                fontSize: textSize,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
               ),
-              TextSpan(
-                text: 'Wave',
-                style: TextStyle(
-                  color: resolvedAccentColor,
-                  fontSize: textSize,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.6,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ],

@@ -1,39 +1,116 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
+import '../design/app_colors.dart';
+import '../design/app_spacing.dart';
+import '../theme/app_colors.dart' as htb;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HtbBackground
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Static SecureWave ambient background for use as the bottom layer in a Stack.
+/// Lightweight animated SecureWave ambient background for use as the bottom
+/// layer in a Stack.
 class HtbBackground extends StatelessWidget {
   const HtbBackground({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Soft ambient glow.
-        Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(-0.6, -1.0),
-              radius: 1.2,
-              colors: [
-                Color(0x1E7BB8FF),
-                Color(0x12FF5CF4),
-                Color(0x0F9B6BFF),
-                Colors.transparent,
-              ],
-              stops: [0.0, 0.18, 0.38, 0.78],
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.86, end: 1),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) {
+        final drift = 1 - value;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.darkBackground,
+                    AppColors.darkBackgroundWarm,
+                    AppColors.darkSurface,
+                  ],
+                  stops: [0.0, 0.52, 1.0],
+                ),
+              ),
             ),
-          ),
-        ),
-
-        // Fine technical grid.
-        const Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-      ],
+            Transform.translate(
+              offset: Offset(-42 * drift, -56 * drift),
+              child: const Opacity(
+                opacity: 0.78,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(-0.72, -0.96),
+                      radius: 1.08,
+                      colors: [
+                        AppColors.ambientGlowPrimary,
+                        AppColors.ambientGlowSecondary,
+                        Colors.transparent,
+                      ],
+                      stops: [0.0, 0.26, 0.82],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Transform.translate(
+              offset: Offset(48 * drift, 76 * drift),
+              child: const Opacity(
+                opacity: 0.54,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(0.92, 1.08),
+                      radius: 0.92,
+                      colors: [
+                        AppColors.ambientGlowSecondary,
+                        AppColors.ambientGlowTertiary,
+                        Colors.transparent,
+                      ],
+                      stops: [0.0, 0.22, 0.74],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: IgnorePointer(
+                child: Container(
+                  height: 220,
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.space6,
+                    vertical: AppSpacing.space4,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        htb.HtbColors.accentSecondaryGhost.withValues(
+                          alpha: 0.16 * value,
+                        ),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const Positioned.fill(
+              child: RepaintBoundary(
+                child: CustomPaint(painter: _GridPainter()),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -50,7 +127,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0x0BAAB5D6)
+      ..color = AppColors.darkGridLine
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
 
@@ -88,7 +165,8 @@ class HtbScaffoldBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const ColoredBox(color: HtbColors.bg0, child: SizedBox.expand()),
+        const ColoredBox(
+            color: AppColors.darkBackground, child: SizedBox.expand()),
         const HtbBackground(),
         child,
       ],

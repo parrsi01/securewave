@@ -1,0 +1,112 @@
+# `routes/devices.py`
+
+Purpose: This module exposes API handlers for devices features in the SecureWave backend.
+
+## Line Walkthrough
+
+- `L1-L2`: Module or block docstring that describes the responsibility of this section.
+- `L4-L11`: Implements this section of logic starting with `User-facing endpoints for managing VPN devices:`.
+- `L13-L17`: Imports the dependencies used later in this module, including base64, logging, os, datetime, typing.
+- `L19-L22`: Imports the dependencies used later in this module, including fastapi, pydantic, sqlalchemy.
+- `L24-L38`: Implements this section of logic starting with `from database.session import get_db`.
+- `L40-L41`: Initializes module-level state or configuration such as `logger, router`.
+- `L44-L46`: Comment block that explains the next section: =============================================================================.
+- `L48-L51`: Initializes module-level state or configuration such as `DEVICE_LIMITS`.
+- `L53`: Initializes module-level state or configuration such as `DEFAULT_DEVICE_LIMIT`.
+- `L56-L62`: Defines `get_device_limit`. Get device limit for user based on subscription.
+- `L64-L65`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L67-L70`: Initializes module-level state or configuration such as `plan_name`.
+- `L73-L75`: Comment block that explains the next section: =============================================================================.
+- `L77-L84`: Defines `DeviceCreate`. Request to add a new device.
+- `L86-L89`: Applies decorators and defines `_validate_name` with the wrapped behavior declared above it.
+- `L92-L94`: Defines `DeviceRename`. Request to rename a device.
+- `L96-L99`: Applies decorators and defines `_validate_name` with the wrapped behavior declared above it.
+- `L102-L119`: Defines `DeviceResponse`. Device information response.
+- `L121`: Initializes module-level state or configuration such as `model_config`.
+- `L124-L129`: Defines `DeviceListResponse`. List of devices response.
+- `L132-L140`: Defines `DeviceConfigResponse`. Device configuration response.
+- `L143-L145`: Defines `DeviceServerPreference`. Update a device's preferred server (null = auto).
+- `L148-L157`: Defines `DeviceUsageResponse`. Device usage statistics.
+- `L160-L162`: Comment block that explains the next section: =============================================================================.
+- `L164-L168`: Defines the `_device_response` function and the logic it executes.
+- `L170-L187`: Returns a value from the current function.
+- `L190-L192`: Comment block that explains the next section: =============================================================================.
+- `L194-L200`: Registers the `list_devices` endpoint with the API router.
+- `L202-L205`: Implements this section of logic starting with `Returns active and revoked devices with usage statistics.`.
+- `L207-L208`: Initializes module-level state or configuration such as `device_limit, active_count`.
+- `L210`: Initializes module-level state or configuration such as `devices`.
+- `L212-L221`: Implements this section of logic starting with `logger.info(`.
+- `L224-L231`: Registers the `add_device` endpoint with the API router.
+- `L233-L237`: Implements this section of logic starting with `Generates WireGuard keys and allocates an IP address.`.
+- `L239-L242`: Implements this section of logic starting with `# M-WG-1: Lock the user row first to prevent TOCTOU race on device limit check.`.
+- `L244-L247`: Implements this section of logic starting with `# Check device limit (inside the lock)`.
+- `L249-L253`: Implements this section of logic starting with `# L-8: Sanitize device name before any use (strip injection characters)`.
+- `L255-L267`: Implements this section of logic starting with `logger.info(`.
+- `L269-L275`: Implements this section of logic starting with `# Check for duplicate name`.
+- `L277-L288`: Implements this section of logic starting with `# Get server if specified`.
+- `L290-L294`: Implements this section of logic starting with `# Validate device type`.
+- `L296-L303`: Implements this section of logic starting with `# Create peer`.
+- `L305-L315`: Implements this section of logic starting with `logger.info(`.
+- `L317`: Returns a value from the current function.
+- `L319-L324`: Handles a failure from the preceding `try` block.
+- `L327-L337`: Registers the `get_device` endpoint with the API router.
+- `L339-L343`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L345`: Returns a value from the current function.
+- `L348-L359`: Applies decorators and defines `rename_device` with the wrapped behavior declared above it.
+- `L361-L365`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L367-L372`: Implements this section of logic starting with `# Check for duplicate name`.
+- `L374-L378`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L380-L382`: Initializes module-level state or configuration such as `peer.device_name`.
+- `L384`: Returns a value from the current function.
+- `L387-L395`: Registers the `set_device_server_preference` endpoint with the API router.
+- `L397-L400`: Implements this section of logic starting with `- ``server_id``: WireGuard server identifier (e.g. "us-east-1-001")`.
+- `L402-L408`: Initializes module-level state or configuration such as `peer`.
+- `L410-L417`: Initializes module-level state or configuration such as `server`.
+- `L419-L425`: Implements this section of logic starting with `# Enforce tier restriction for free users.`.
+- `L427-L438`: Implements this section of logic starting with `# Best-effort cleanup on old server to avoid stale peers.`.
+- `L440-L444`: Initializes module-level state or configuration such as `peer.server_id`.
+- `L447-L454`: Registers the `revoke_device` endpoint with the API router.
+- `L456-L461`: Implements this section of logic starting with `The device's WireGuard keys will be invalidated and it will no longer be able to connect.`.
+- `L463-L467`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L469-L473`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L475-L480`: Implements this section of logic starting with `logger.info(`.
+- `L482`: Returns a value from the current function.
+- `L485-L493`: Registers the `revoke_device_alias` endpoint with the API router.
+- `L496-L504`: Registers the `get_device_config` endpoint with the API router.
+- `L506-L512`: Implements this section of logic starting with `Returns the .conf file content and QR code for mobile setup.`.
+- `L514-L518`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L520-L524`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L526-L539`: Implements this section of logic starting with `# Get server`.
+- `L541-L545`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L547`: Initializes module-level state or configuration such as `peer_manager`.
+- `L549-L561`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L563-L565`: Initializes module-level state or configuration such as `peer.server_id`.
+- `L567-L572`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L574-L576`: Initializes module-level state or configuration such as `config, qr_bytes, qr_base64`.
+- `L578`: Initializes module-level state or configuration such as `location`.
+- `L580-L588`: Returns a value from the current function.
+- `L590-L595`: Handles a failure from the preceding `try` block.
+- `L598-L611`: Registers the `download_device_config` endpoint with the API router.
+- `L613-L617`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L619-L628`: Implements this section of logic starting with `# Get server`.
+- `L630-L634`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L636-L648`: Initializes module-level state or configuration such as `peer_manager`.
+- `L650-L653`: Initializes module-level state or configuration such as `peer.server_id, filename, config`.
+- `L655-L661`: Returns a value from the current function.
+- `L664-L674`: Registers the `get_device_usage` endpoint with the API router.
+- `L676-L680`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L682-L686`: Initializes module-level state or configuration such as `days_since_rotation`.
+- `L688-L697`: Returns a value from the current function.
+- `L700-L707`: Registers the `rotate_device_keys` endpoint with the API router.
+- `L709-L717`: Implements this section of logic starting with `Generates new keypair and invalidates old configuration.`.
+- `L719-L723`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L725-L726`: Initializes module-level state or configuration such as `peer_manager, old_public_key`.
+- `L728-L729`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L731-L740`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L742`: Returns a value from the current function.
+- `L744-L749`: Handles a failure from the preceding `try` block.
+- `L752-L754`: Comment block that explains the next section: =============================================================================.
+- `L756-L765`: Registers the `get_device_limits` endpoint with the API router.
+- `L767-L771`: Implements this section of logic starting with `# Get subscription info`.
+- `L773-L775`: Initializes module-level state or configuration such as `tier`.
+- `L777-L785`: Returns a value from the current function.

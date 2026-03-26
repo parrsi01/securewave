@@ -1,0 +1,102 @@
+# `services/stripe_service.py`
+
+Purpose: This service module implements the business logic for stripe service operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L11`: Imports the dependencies used later in this module, including os, uuid, logging, time, typing, datetime.
+- `L13`: Imports the dependencies used later in this module, including stripe.
+- `L15`: Initializes module-level state or configuration such as `logger`.
+- `L17`: Initializes module-level state or configuration such as `STRIPE_API_VERSION`.
+- `L20-L21`: Defines the `_stripe_secret_key` function and the logic it executes.
+- `L24-L28`: Defines the `_configure_stripe` function and the logic it executes.
+- `L31-L34`: Defines `_is_test_mode`. Check if Stripe is configured with test keys.
+- `L37-L40`: Defines `_is_live_mode`. Check if Stripe is configured with live keys.
+- `L43-L45`: Defines `_idempotency_key`. Generate a unique idempotency key for Stripe API calls.
+- `L48-L54`: Defines `stripe_mode_label`. Return 'test' or 'live' for logging/UI display.
+- `L57-L61`: Defines `StripeService`. Production-grade Stripe integration service Handles customers, subscriptions, payments, and webhooks.
+- `L63-L123`: Implements this section of logic starting with `# Subscription plans configuration`.
+- `L125-L131`: Defines `__init__`. Initialize Stripe service.
+- `L133-L137`: Applies decorators and defines `_ensure_configured` with the wrapped behavior declared above it.
+- `L139-L145`: Applies decorators and defines `get_plan_details` with the wrapped behavior declared above it.
+- `L147-L158`: Implements this section of logic starting with `# Price IDs must be read from the environment at runtime so tests can`.
+- `L160-L163`: Applies decorators and defines `get_all_plans` with the wrapped behavior declared above it.
+- `L165-L168`: Applies decorators and defines `resolve_plan_from_price_id` with the wrapped behavior declared above it.
+- `L170-L179`: Implements this section of logic starting with `Returns {"plan_id": ..., "billing_cycle": ...} when a match is found.`.
+- `L181-L183`: Comment block that explains the next section: ===========================.
+- `L185-L194`: Defines the `create_customer` function and the logic it executes.
+- `L196-L200`: Implements this section of logic starting with `Args:`.
+- `L202-L213`: Implements this section of logic starting with `Returns:`.
+- `L215-L216`: Implements this section of logic starting with `logger.info("Stripe customer created: %s", customer.id)`.
+- `L218-L220`: Handles a failure from the preceding `try` block.
+- `L222-L229`: Defines `get_customer`. Get customer by ID.
+- `L231-L250`: Defines `update_customer`. Update customer information.
+- `L252-L254`: Initializes module-level state or configuration such as `customer`.
+- `L256-L258`: Handles a failure from the preceding `try` block.
+- `L260-L269`: Defines `delete_customer`. Delete customer (GDPR compliance).
+- `L271-L273`: Comment block that explains the next section: ===========================.
+- `L275-L286`: Defines `attach_payment_method`. Attach payment method to customer.
+- `L288-L292`: Implements this section of logic starting with `# Set as default payment method`.
+- `L294-L295`: Implements this section of logic starting with `logger.info(f"✓ Payment method attached: {payment_method_id}")`.
+- `L297-L299`: Handles a failure from the preceding `try` block.
+- `L301-L310`: Defines `detach_payment_method`. Detach payment method from customer.
+- `L312-L323`: Defines `list_payment_methods`. List customer's payment methods.
+- `L325-L327`: Comment block that explains the next section: ===========================.
+- `L329-L340`: Defines the `create_subscription` function and the logic it executes.
+- `L342-L348`: Implements this section of logic starting with `Args:`.
+- `L350-L357`: Implements this section of logic starting with `Returns:`.
+- `L359-L361`: Implements this section of logic starting with `# Get price ID based on billing cycle`.
+- `L363-L364`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L366-L372`: Implements this section of logic starting with `# Prepare subscription data`.
+- `L374-L377`: Implements this section of logic starting with `# Add trial period`.
+- `L379-L381`: Implements this section of logic starting with `# Add payment method`.
+- `L383-L384`: Implements this section of logic starting with `# Automatic tax calculation (if configured)`.
+- `L386-L388`: Implements this section of logic starting with `# Create subscription with idempotency`.
+- `L390-L391`: Implements this section of logic starting with `logger.info(f"✓ Subscription created: {subscription.id} ({plan_id}/{billing_cycle})")`.
+- `L393-L395`: Handles a failure from the preceding `try` block.
+- `L397-L404`: Defines `get_subscription`. Get subscription by ID.
+- `L406-L416`: Defines the `update_subscription` function and the logic it executes.
+- `L418-L423`: Implements this section of logic starting with `Args:`.
+- `L425-L432`: Implements this section of logic starting with `Returns:`.
+- `L434-L438`: Implements this section of logic starting with `# Update plan`.
+- `L440-L445`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L447-L449`: Implements this section of logic starting with `# Update payment method`.
+- `L451-L457`: Initializes module-level state or configuration such as `subscription, idempotency_key`.
+- `L459-L461`: Handles a failure from the preceding `try` block.
+- `L463-L471`: Defines the `cancel_subscription` function and the logic it executes.
+- `L473-L476`: Implements this section of logic starting with `Args:`.
+- `L478-L501`: Implements this section of logic starting with `Returns:`.
+- `L503`: Returns a value from the current function.
+- `L505-L507`: Handles a failure from the preceding `try` block.
+- `L509-L522`: Defines `reactivate_subscription`. Reactivate a canceled subscription (before period end).
+- `L524-L526`: Comment block that explains the next section: ===========================.
+- `L528-L535`: Defines `get_invoice`. Get invoice by ID.
+- `L537-L552`: Defines `list_invoices`. List customer invoices.
+- `L554-L575`: Defines `create_invoice_item`. Create one-time invoice item (for additional charges).
+- `L577-L579`: Comment block that explains the next section: ===========================.
+- `L581-L587`: Applies decorators and defines `construct_webhook_event` with the wrapped behavior declared above it.
+- `L589-L591`: Implements this section of logic starting with `Args:`.
+- `L593-L594`: Implements this section of logic starting with `Returns:`.
+- `L596-L632`: Implements this section of logic starting with `Raises:`.
+- `L634-L636`: Comment block that explains the next section: ===========================.
+- `L638-L647`: Defines the `create_payment_intent` function and the logic it executes.
+- `L649-L654`: Implements this section of logic starting with `Args:`.
+- `L656-L661`: Implements this section of logic starting with `Returns:`.
+- `L663-L671`: Initializes module-level state or configuration such as `payment_intent, amount, currency, customer, description, metadata`.
+- `L673-L674`: Implements this section of logic starting with `logger.info(f"✓ Payment intent created: {payment_intent.id} (${amount})")`.
+- `L676-L678`: Handles a failure from the preceding `try` block.
+- `L680-L682`: Comment block that explains the next section: ===========================.
+- `L684-L690`: Defines the `create_billing_portal_session` function and the logic it executes.
+- `L692-L696`: Implements this section of logic starting with `Allows customers to:`.
+- `L698-L700`: Implements this section of logic starting with `Args:`.
+- `L702-L715`: Implements this section of logic starting with `Returns:`.
+- `L717-L719`: Comment block that explains the next section: ===========================.
+- `L721-L734`: Defines the `create_checkout_session` function and the logic it executes.
+- `L736-L745`: Implements this section of logic starting with `Args:`.
+- `L747-L758`: Implements this section of logic starting with `Returns:`.
+- `L760-L768`: Initializes module-level state or configuration such as `base_metadata, merged_meta`.
+- `L770-L781`: Initializes module-level state or configuration such as `session_data`.
+- `L783-L787`: Implements this section of logic starting with `# Ensure subscription metadata is present for reliable webhook mapping.`.
+- `L789-L794`: Initializes module-level state or configuration such as `session, idempotency_key`.
+- `L796-L798`: Handles a failure from the preceding `try` block.

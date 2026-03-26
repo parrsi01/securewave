@@ -32,14 +32,14 @@
 
   function showAlert(el, message, variant) {
     if (!el) return;
-    el.style.display = 'flex';
+    el.hidden = false;
     el.className = `alert alert-${variant || 'info'}`;
     el.textContent = message;
   }
 
   function hideAlert(el) {
     if (!el) return;
-    el.style.display = 'none';
+    el.hidden = true;
     el.textContent = '';
   }
 
@@ -141,7 +141,7 @@
           <td>${escapeHtml(date)}</td>
           <td>${escapeHtml(amount)}</td>
           <td><span class="badge badge-muted">${status}</span></td>
-          <td style="text-align:right">${linkHtml}</td>
+          <td class="text-right">${linkHtml}</td>
         </tr>`;
       })
       .join('');

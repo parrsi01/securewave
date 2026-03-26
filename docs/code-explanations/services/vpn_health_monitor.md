@@ -1,0 +1,77 @@
+# `services/vpn_health_monitor.py`
+
+Purpose: This service module implements the business logic for vpn health monitor operations.
+
+## Line Walkthrough
+
+- `L1`: Module or block docstring that describes the responsibility of this section.
+- `L3-L5`: Implements this section of logic starting with `This service module implements the business logic for vpn health monitor operations.`.
+- `L7-L15`: Imports the dependencies used later in this module, including asyncio, logging, os, socket, subprocess  # nosec B404 - controlled subprocess usage, shutil, time, datetime, ....
+- `L17`: Imports the dependencies used later in this module, including sqlalchemy.
+- `L19-L24`: Imports the dependencies used later in this module, including database, models, services.
+- `L26`: Initializes module-level state or configuration such as `logger`.
+- `L29-L30`: Initializes module-level state or configuration such as `DEGRADED_HANDSHAKE_SECONDS, UNSTABLE_HANDSHAKE_SECONDS`.
+- `L32-L33`: Implements this section of logic starting with `# After this many consecutive probe failures a node transitions to "offline".`.
+- `L35-L36`: Implements this section of logic starting with `# Health check interval in seconds.`.
+- `L38-L39`: Implements this section of logic starting with `# WireGuard port probe timeout in seconds.`.
+- `L42-L43`: Defines `VPNHealthMonitor`. Background service to monitor VPN server health.
+- `L45-L48`: Defines the `__init__` function and the logic it executes.
+- `L50-L53`: Defines `start`. Start the health monitoring loop.
+- `L55-L61`: Repeats work until the loop condition changes.
+- `L63-L66`: Defines `stop`. Stop the health monitoring loop.
+- `L68-L73`: Defines `check_all_servers`. Check health of all active servers.
+- `L75-L79`: Initializes module-level state or configuration such as `servers`.
+- `L81`: Implements this section of logic starting with `logger.debug(f"Checking health of {len(servers)} servers")`.
+- `L83-L88`: Loops over a collection to apply the same work to each item.
+- `L90-L93`: Implements this section of logic starting with `# Determine effective health from combined probes`.
+- `L95`: Implements this section of logic starting with `await self.refresh_peer_handshake_health(server)`.
+- `L97-L99`: Implements this section of logic starting with `# Update optimizer with fresh metrics`.
+- `L101-L104`: Initializes module-level state or configuration such as `optimizer`.
+- `L106-L109`: Handles a failure from the preceding `try` block.
+- `L111-L112`: Implements this section of logic starting with `self.db.commit()`.
+- `L114-L117`: Handles a failure from the preceding `try` block.
+- `L119-L121`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L123-L130`: Defines the `_apply_health_transition` function and the logic it executes.
+- `L132-L135`: Implements this section of logic starting with `Statuses:`.
+- `L137-L141`: Implements this section of logic starting with `When a previously-offline server passes both probes, it recovers to`.
+- `L143-L153`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L155-L156`: Implements this section of logic starting with `# At least one probe failed — increment failure counter.`.
+- `L158-L171`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L173-L175`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L177-L179`: Defines the `probe_server` function and the logic it executes.
+- `L181-L188`: Implements this section of logic starting with `Returns a dict with latency, cpu, memory, packet_loss, and a`.
+- `L190-L200`: Initializes module-level state or configuration such as `metrics`.
+- `L202`: Returns a value from the current function.
+- `L204-L206`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L208-L215`: Applies decorators and defines `check_wg_port` with the wrapped behavior declared above it.
+- `L217-L219`: Implements this section of logic starting with `Sends a single empty UDP datagram and waits for an ICMP`.
+- `L221-L231`: Implements this section of logic starting with `Returns True if the port appears open, False otherwise.`.
+- `L233-L235`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L237-L240`: Applies decorators and defines `classify_handshake_freshness` with the wrapped behavior declared above it.
+- `L242-L252`: Implements this section of logic starting with `Returns "pending" for peers that have never completed a handshake`.
+- `L254-L257`: Applies decorators and defines `classify_server_health` with the wrapped behavior declared above it.
+- `L259-L264`: Implements this section of logic starting with `Peers with status "pending" (never connected) are excluded from`.
+- `L266-L268`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L270-L272`: Initializes module-level state or configuration such as `total`.
+- `L274-L275`: Initializes module-level state or configuration such as `unstable_ratio, degraded_ratio`.
+- `L277-L281`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L283-L297`: Defines `refresh_peer_handshake_health`. Pull latest handshake data from the WireGuard node and update peer health.
+- `L299-L305`: Initializes module-level state or configuration such as `now, manager, conn, start, success, remote_peers`.
+- `L307-L309`: Initializes module-level state or configuration such as `remote_by_key`.
+- `L311-L332`: Initializes module-level variables and configuration used by later code.
+- `L334-L336`: Initializes module-level state or configuration such as `peer.health_status`.
+- `L338-L344`: Implements this section of logic starting with `# Only override server health from peer stats when server is not already`.
+- `L346-L348`: Defines the `ping_server` function and the logic it executes.
+- `L350-L355`: Implements this section of logic starting with `Returns latency in milliseconds (999.0 if unreachable).`.
+- `L357-L366`: Initializes module-level state or configuration such as `result, stdout, stderr`.
+- `L368`: Initializes module-level state or configuration such as `stdout, stderr`.
+- `L370-L378`: Initializes module-level state or configuration such as `output`.
+- `L380`: Returns a value from the current function.
+- `L382-L387`: Handles a failure from the preceding `try` block.
+- `L389-L391`: Defines the `_get_cpu_load` function and the logic it executes.
+- `L393-L399`: Implements this section of logic starting with `In production, this should query a monitoring agent on the server.`.
+- `L402-L404`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L406-L408`: Defines the `_udp_port_probe` function and the logic it executes.
+- `L410-L434`: Implements this section of logic starting with `If the OS returns ECONNREFUSED (Linux) the port is explicitly closed.`.
+- `L437-L438`: Implements this section of logic starting with `# Singleton instance`.
+- `L441-L446`: Defines `get_health_monitor`. Get singleton health monitor instance.

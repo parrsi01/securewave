@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../ui/design/app_animations.dart';
-import '../../ui/design/app_colors.dart';
-import '../../ui/design/app_spacing.dart';
 
 /// Onboarding screen — v2.
 ///
@@ -23,21 +22,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   static const _pages = [
     _PageData(
       icon: Icons.shield_rounded,
-      gradient: [Color(0xFF1B6B68), Color(0xFF093837)],
+      toneIndex: 0,
       title: 'Encrypted by default',
       description:
           'Your traffic is end-to-end encrypted. Browse, stream, and communicate without anyone watching.',
     ),
     _PageData(
       icon: Icons.public_rounded,
-      gradient: [Color(0xFF1A5276), Color(0xFF0D2840)],
+      toneIndex: 1,
       title: 'Choose your location',
       description:
           'Connect to 35+ countries. Pick the fastest server automatically or choose by region.',
     ),
     _PageData(
       icon: Icons.check_circle_rounded,
-      gradient: [Color(0xFF1F6B3C), Color(0xFF0B3D1E)],
+      toneIndex: 2,
       title: "You're all set",
       description:
           'Start browsing privately. Your settings can be changed any time from the app.',
@@ -90,6 +89,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 itemCount: _pages.length,
                 itemBuilder: (context, index) {
                   final data = _pages[index];
+                  final gradient = AppTheme.onboardingGradient(data.toneIndex);
                   return AnimatedBuilder(
                     animation: _controller,
                     builder: (context, child) {
@@ -112,14 +112,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 height: 128,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: data.gradient,
-                                  ),
+                                  gradient: gradient,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: data.gradient[0]
+                                      color: gradient.colors.first
                                           .withValues(alpha: 0.35),
                                       blurRadius: 28,
                                       offset: const Offset(0, 8),
@@ -153,8 +149,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 width: 300,
                                 child: Text(
                                   data.description,
-                                  style:
-                                      Theme.of(context).textTheme.bodyMedium,
+                                  style: Theme.of(context).textTheme.bodyMedium,
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -183,9 +178,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
                     color: active
                         ? (isDark ? AppColors.primaryBright : AppColors.primary)
-                        : (isDark
-                            ? AppColors.darkInkSoft
-                            : AppColors.inkSoft)
+                        : (isDark ? AppColors.darkInkSoft : AppColors.inkSoft)
                             .withValues(alpha: 0.3),
                   ),
                 );
@@ -196,8 +189,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             // ── CTA button ─────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.space5),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
               child: SizedBox(
                 width: double.infinity,
                 child: AnimatedSwitcher(
@@ -227,13 +220,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 class _PageData {
   const _PageData({
     required this.icon,
-    required this.gradient,
+    required this.toneIndex,
     required this.title,
     required this.description,
   });
 
   final IconData icon;
-  final List<Color> gradient;
+  final int toneIndex;
   final String title;
   final String description;
 }

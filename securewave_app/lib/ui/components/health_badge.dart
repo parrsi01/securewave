@@ -7,6 +7,7 @@ import '../../core/services/diagnostic_service.dart';
 import '../../core/services/vpn_service.dart';
 import '../../core/state/vpn_state.dart';
 import '../../debug/automation_keys.dart';
+import 'neon_button.dart';
 import '../design/app_spacing.dart';
 import '../theme/app_colors.dart' as htb;
 import '../theme/app_tokens.dart';
@@ -187,198 +188,294 @@ class _HealthBadgeViewState extends State<_HealthBadgeView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final surfaceGlow = switch (widget.validationStatus) {
+      VpnValidationStatus.healthy => htb.HtbColors.glowPrimarySoft,
+      VpnValidationStatus.degraded => htb.HtbColors.glowAmber,
+      VpnValidationStatus.unhealthy => htb.HtbColors.glowRed,
+    };
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Primary badge row ─────────────────────────────────────────────
-        GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: AnimatedContainer(
+    return AnimatedContainer(
+      duration: AppTokens.durationNormal,
+      curve: AppTokens.curveDefault,
+      padding: const EdgeInsets.all(AppSpacing.space3),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            widget.color.withValues(alpha: 0.12),
+            htb.HtbColors.bg1,
+            htb.HtbColors.bg3,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+        border: Border.all(
+          color: widget.color.withValues(alpha: _expanded ? 0.48 : 0.34),
+          width: AppTokens.neonBorderWidth,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: surfaceGlow.withValues(alpha: _expanded ? 0.34 : 0.22),
+            blurRadius: _expanded ? 22 : 16,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: AutomationKeys.healthBadgeKey,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.space1,
+                  vertical: AppSpacing.space1,
+                ),
+                child: Row(
+                  children: [
+                    _StatusBeacon(
+                      color: widget.color,
+                      validationStatus: widget.validationStatus,
+                    ),
+                    const SizedBox(width: AppSpacing.space3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              AnimatedSwitcher(
+                                duration: AppTokens.durationNormal,
+                                child: Text(
+                                  widget.label,
+                                  key: ValueKey('label_${widget.label}'),
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    color: widget.color,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.space2),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.space2,
+                                  vertical: AppSpacing.space1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: widget.color.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.radiusFull,
+                                  ),
+                                  border: Border.all(
+                                    color: widget.color.withValues(alpha: 0.26),
+                                  ),
+                                ),
+                                child: Text(
+                                  'VALIDATION',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: htb.HtbColors.textMono,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.9,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.space1),
+                          Text(
+                            widget.reason?.isNotEmpty == true
+                                ? widget.reason!
+                                : 'Tunnel checks are currently clear.',
+                            key: widget.reason != null &&
+                                    widget.reason!.isNotEmpty
+                                ? AutomationKeys.healthFailureReasonKey
+                                : null,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: widget.reason?.isNotEmpty == true
+                                  ? widget.color
+                                  : htb.HtbColors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.space3),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.space3,
+                        vertical: AppSpacing.space2,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            widget.color.withValues(alpha: 0.12),
+                            htb.HtbColors.bg0.withValues(alpha: 0.82),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+                        border: Border.all(
+                          color: htb.HtbColors.glassBorderDefault,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.color.withValues(alpha: 0.12),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'SCORE',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: htb.HtbColors.textMono,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.9,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.space1),
+                          Text(
+                            '${widget.score}',
+                            key: AutomationKeys.healthScoreKey,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: htb.HtbColors.textPrimary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.space2),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: AppTokens.durationNormal,
+                      curve: AppTokens.curveDefault,
+                      child: const Icon(
+                        Icons.expand_more_rounded,
+                        size: AppSpacing.iconM,
+                        color: htb.HtbColors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (widget.onRetryChecks != null ||
+              widget.onReconnect != null ||
+              widget.onRunDiagnostic != null) ...[
+            const SizedBox(height: AppSpacing.space3),
+            _ActionRow(
+              isLoading: _actionInFlight,
+              onRetryChecks: widget.onRetryChecks != null
+                  ? () => unawaited(_handleRetryChecks())
+                  : null,
+              onReconnect: widget.onReconnect != null
+                  ? () => unawaited(_handleReconnect())
+                  : null,
+              onRunDiagnostic: widget.onRunDiagnostic != null
+                  ? () => unawaited(_handleRunDiagnostic())
+                  : null,
+            ),
+          ],
+          AnimatedSize(
             duration: AppTokens.durationNormal,
             curve: AppTokens.curveDefault,
-            key: AutomationKeys.healthBadgeKey,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.space3,
-              vertical: AppSpacing.space2,
-            ),
-            decoration: BoxDecoration(
-              color: widget.color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-              border: Border.all(
-                color: widget.color.withValues(alpha: 0.45),
-                width: AppTokens.neonBorderWidth,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.color.withValues(alpha: 0.25),
-                  blurRadius: 12,
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Pulsing dot
-                AnimatedSwitcher(
-                  duration: AppTokens.durationNormal,
-                  child: Container(
-                    key: ValueKey(widget.validationStatus),
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: widget.color,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: widget.color.withValues(alpha: 0.6),
-                          blurRadius: 6,
-                          spreadRadius: 1,
+            child: !_expanded
+                ? const SizedBox.shrink()
+                : Padding(
+                    key: AutomationKeys.healthDetailsPanelKey,
+                    padding: const EdgeInsets.only(top: AppSpacing.space3),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSpacing.space4),
+                      decoration: BoxDecoration(
+                        color: htb.HtbColors.bg0.withValues(alpha: 0.58),
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+                        border: Border.all(
+                          color: htb.HtbColors.glassBorderDefault,
                         ),
-                      ],
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.color.withValues(alpha: 0.08),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: AppSpacing.space2,
+                            runSpacing: AppSpacing.space2,
+                            children: [
+                              _MetricTile(
+                                label: 'Latency',
+                                value: widget.latencyMs != null
+                                    ? '${widget.latencyMs} ms'
+                                    : '—',
+                                accent: widget.color,
+                              ),
+                              _MetricTile(
+                                label: 'Packet loss',
+                                value:
+                                    '${(widget.packetLoss * 100).toStringAsFixed(1)}%',
+                                accent: htb.HtbColors.statusConnecting,
+                              ),
+                              _MetricTile(
+                                label: 'IP verified',
+                                value: widget.ipVerified ? 'Yes' : 'No',
+                                accent: widget.ipVerified
+                                    ? htb.HtbColors.statusConnected
+                                    : htb.HtbColors.statusConnecting,
+                              ),
+                              _MetricTile(
+                                label: 'DNS secured',
+                                value: widget.dnsOk ? 'Yes' : 'No',
+                                accent: widget.dnsOk
+                                    ? htb.HtbColors.statusConnected
+                                    : htb.HtbColors.statusDisconnected,
+                              ),
+                            ],
+                          ),
+                          if (_lastCheckAt != null ||
+                              widget.failureType != null)
+                            const SizedBox(height: AppSpacing.space3),
+                          if (_lastCheckAt != null)
+                            _DetailRow(
+                              key: AutomationKeys.healthLastCheckTimestampKey,
+                              label: 'Last check',
+                              value: _formatTimestamp(_lastCheckAt!),
+                            ),
+                          if (widget.failureType != null)
+                            _DetailRow(
+                              label: 'Failure type',
+                              value: _failureMessage(widget.failureType),
+                              valueColor: widget.color,
+                            ),
+                          if (_lastDiagnosticReport != null)
+                            _DiagnosticSummaryPanel(
+                              report: _lastDiagnosticReport!,
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.space2),
-                AnimatedSwitcher(
-                  duration: AppTokens.durationNormal,
-                  child: Text(
-                    widget.label,
-                    key: ValueKey('label_${widget.label}'),
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: widget.color,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.space2),
-                Text(
-                  key: AutomationKeys.healthScoreKey,
-                  '${widget.score}',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: htb.HtbColors.textTertiary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.space1),
-                Icon(
-                  _expanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  size: AppSpacing.iconXS,
-                  color: htb.HtbColors.textTertiary,
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // ── Failure reason ────────────────────────────────────────────────
-        if (widget.reason != null && widget.reason!.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.space1),
-          Text(
-            key: AutomationKeys.healthFailureReasonKey,
-            widget.reason!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: widget.color,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-
-        // ── Action buttons ─────────────────────────────────────────────────
-        if (widget.onRetryChecks != null ||
-            widget.onReconnect != null ||
-            widget.onRunDiagnostic != null) ...[
-          const SizedBox(height: AppSpacing.space2),
-          _ActionRow(
-            isLoading: _actionInFlight,
-            onRetryChecks: widget.onRetryChecks != null
-                ? () => unawaited(_handleRetryChecks())
-                : null,
-            onReconnect: widget.onReconnect != null
-                ? () => unawaited(_handleReconnect())
-                : null,
-            onRunDiagnostic: widget.onRunDiagnostic != null
-                ? () => unawaited(_handleRunDiagnostic())
-                : null,
           ),
         ],
-
-        // ── Expandable details panel ──────────────────────────────────────
-        if (_expanded)
-          Padding(
-            key: AutomationKeys.healthDetailsPanelKey,
-            padding: const EdgeInsets.only(top: AppSpacing.space3),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppSpacing.space4),
-              decoration: BoxDecoration(
-                color: htb.HtbColors.bg2,
-                borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-                border: Border.all(
-                  color: htb.HtbColors.glassBorderDefault,
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Last check timestamp ────────────────────────────────
-                  if (_lastCheckAt != null) ...[
-                    _DetailRow(
-                      key: AutomationKeys.healthLastCheckTimestampKey,
-                      label: 'Last check',
-                      value: _formatTimestamp(_lastCheckAt!),
-                    ),
-                    const SizedBox(height: AppSpacing.space1),
-                  ],
-
-                  _DetailRow(
-                    label: 'Latency',
-                    value: widget.latencyMs != null
-                        ? '${widget.latencyMs} ms'
-                        : '—',
-                  ),
-                  _DetailRow(
-                    label: 'Packet loss',
-                    value:
-                        '${(widget.packetLoss * 100).toStringAsFixed(1)}%',
-                  ),
-                  _DetailRow(
-                    label: 'IP verified',
-                    value: widget.ipVerified ? 'Yes' : 'No',
-                    valueColor: widget.ipVerified
-                        ? htb.HtbColors.statusConnected
-                        : htb.HtbColors.statusConnecting,
-                  ),
-                  _DetailRow(
-                    label: 'DNS secured',
-                    value: widget.dnsOk ? 'Yes' : 'No',
-                    valueColor: widget.dnsOk
-                        ? htb.HtbColors.statusConnected
-                        : htb.HtbColors.statusDisconnected,
-                  ),
-                  if (widget.failureType != null)
-                    _DetailRow(
-                      label: 'Failure type',
-                      value: _failureMessage(widget.failureType),
-                      valueColor: widget.color,
-                    ),
-
-                  // ── Diagnostic report (if available) ───────────────────
-                  if (_lastDiagnosticReport != null)
-                    _DiagnosticSummaryPanel(
-                      report: _lastDiagnosticReport!,
-                    ),
-                ],
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 
@@ -389,6 +486,61 @@ class _HealthBadgeViewState extends State<_HealthBadgeView> {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     return '${ts.hour.toString().padLeft(2, '0')}:'
         '${ts.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _StatusBeacon extends StatelessWidget {
+  const _StatusBeacon({
+    required this.color,
+    required this.validationStatus,
+  });
+
+  final Color color;
+  final VpnValidationStatus validationStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      key: ValueKey<VpnValidationStatus>(validationStatus),
+      tween: Tween<double>(begin: 0.82, end: 1),
+      duration: AppTokens.durationXSlow,
+      curve: AppTokens.curveDefault,
+      builder: (context, value, _) {
+        return Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: color.withValues(alpha: 0.34),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.18 * value),
+                blurRadius: 18 * value,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Container(
+              width: 12 + (4 * value),
+              height: 12 + (4 * value),
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.56),
+                    blurRadius: 10 * value,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -409,8 +561,6 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Wrap(
       spacing: AppSpacing.space2,
       runSpacing: AppSpacing.space2,
@@ -424,7 +574,6 @@ class _ActionRow extends StatelessWidget {
             color: htb.HtbColors.statusConnecting,
             isLoading: isLoading,
             onPressed: isLoading ? null : onRetryChecks,
-            theme: theme,
           ),
         if (onReconnect != null)
           _ActionButton(
@@ -434,19 +583,16 @@ class _ActionRow extends StatelessWidget {
             color: htb.HtbColors.statusDisconnected,
             isLoading: isLoading,
             onPressed: isLoading ? null : onReconnect,
-            theme: theme,
           ),
         if (onRunDiagnostic != null)
           _ActionButton(
             key: AutomationKeys.healthRunDiagnosticButtonKey,
             label: 'Run Full Diagnostic',
             icon: Icons.biotech_rounded,
-            color: htb.HtbColors.neonCyan,
+            color: htb.HtbColors.accentSecondary,
             isLoading: isLoading,
             onPressed: isLoading ? null : onRunDiagnostic,
-            theme: theme,
           ),
-
       ],
     );
   }
@@ -459,7 +605,6 @@ class _ActionButton extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.isLoading,
-    required this.theme,
     this.onPressed,
   });
 
@@ -467,45 +612,69 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool isLoading;
-  final ThemeData theme;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return TextButton.icon(
-      style: TextButton.styleFrom(
-        foregroundColor: color,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.space3,
-          vertical: AppSpacing.space2,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusS),
-          side: BorderSide(color: color.withValues(alpha: 0.4)),
-        ),
-        backgroundColor: color.withValues(alpha: 0.06),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
+    return NeonOutlinedButton(
+      label: isLoading ? 'Working…' : label,
+      icon: isLoading ? Icons.hourglass_top_rounded : icon,
+      accentColor: color,
+      height: 40,
       onPressed: onPressed,
-      icon: isLoading
-          ? SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: color,
-              ),
-            )
-          : Icon(icon, size: AppSpacing.iconXS),
-      label: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: onPressed == null
-              ? color.withValues(alpha: 0.4)
-              : color,
-          fontWeight: FontWeight.w600,
-        ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    required this.accent,
+  });
+
+  final String label;
+  final String value;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 132),
+      padding: const EdgeInsets.all(AppSpacing.space3),
+      decoration: BoxDecoration(
+        color: htb.HtbColors.bg2.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+        border: Border.all(color: accent.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.1),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: htb.HtbColors.textMono,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.space2),
+          Text(
+            value,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: accent,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

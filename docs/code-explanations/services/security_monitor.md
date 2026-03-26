@@ -1,0 +1,77 @@
+# `services/security_monitor.py`
+
+Purpose: This service module implements the business logic for security monitor operations.
+
+## Line Walkthrough
+
+- `L1-L2`: Module or block docstring that describes the responsibility of this section.
+- `L4-L6`: Implements this section of logic starting with `Integrates the MARL policy engine and XGBoost risk/QoS scorers into a`.
+- `L8-L13`: Implements this section of logic starting with `Responsibilities:`.
+- `L15-L21`: Imports the dependencies used later in this module, including logging, threading, time, collections, dataclasses, enum, typing.
+- `L23-L30`: Implements this section of logic starting with `from services.marl_policy import (`.
+- `L32`: Initializes module-level state or configuration such as `logger`.
+- `L34-L36`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L38-L42`: Defines the `ThreatLevel` class and the behavior it groups together.
+- `L45-L49`: Defines the `AlertSeverity` class and the behavior it groups together.
+- `L52-L60`: Applies decorators and defines `SecurityAlert` with the wrapped behavior declared above it.
+- `L62-L70`: Defines the `to_dict` function and the logic it executes.
+- `L73-L88`: Applies decorators and defines `ConnectionMetrics` with the wrapped behavior declared above it.
+- `L91-L93`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L95-L101`: Initializes module-level state or configuration such as `_AI_AGENT_DEFAULTS`.
+- `L103-L105`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L107-L110`: Defines the `SecurityMonitor` class and the behavior it groups together.
+- `L112-L114`: Implements this section of logic starting with `Thread-safety is guaranteed via a ``threading.Lock`` around all mutable`.
+- `L116`: Initializes module-level state or configuration such as `_MAX_ALERTS`.
+- `L118-L122`: Defines the `__init__` function and the logic it executes.
+- `L124-L126`: Implements this section of logic starting with `# Per-user request tracking for AI-agent detection`.
+- `L128-L129`: Implements this section of logic starting with `# Reference to shared MARL engine`.
+- `L131`: Implements this section of logic starting with `logger.info("SecurityMonitor initialised")`.
+- `L133-L135`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L137-L144`: Defines the `evaluate_connection` function and the logic it executes.
+- `L146-L155`: Implements this section of logic starting with `This is the primary integration point for per-request security`.
+- `L157-L165`: Implements this section of logic starting with `# 2. Risk scoring`.
+- `L167-L179`: Implements this section of logic starting with `# 3. Build MARL state vector`.
+- `L181-L182`: Implements this section of logic starting with `# 4. MARL policy decision`.
+- `L184-L198`: Implements this section of logic starting with `# 5. Record alert if action is non-trivial`.
+- `L200-L201`: Implements this section of logic starting with `# 6. Possibly escalate global threat level`.
+- `L203-L214`: Returns a value from the current function.
+- `L216-L218`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L220-L225`: Defines the `detect_anomalies` function and the logic it executes.
+- `L227-L230`: Implements this section of logic starting with `Accepts a list of dicts, each containing at minimum:`.
+- `L232-L236`: Implements this section of logic starting with `Returns a summary with per-connection verdicts and an aggregate`.
+- `L238-L266`: Loops over a collection to apply the same work to each item.
+- `L268-L273`: Returns a value from the current function.
+- `L275-L277`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L279-L284`: Defines the `check_ai_agent_attack` function and the logic it executes.
+- `L286-L293`: Implements this section of logic starting with `Expected keys in ``request_patterns``:`.
+- `L295-L304`: Implements this section of logic starting with `Returns a verdict dict with ``is_attack``, ``confidence``, and`.
+- `L306-L307`: Initializes module-level state or configuration such as `score`.
+- `L309-L316`: Implements this section of logic starting with `# Rapid-fire requests`.
+- `L318-L325`: Implements this section of logic starting with `# Endpoint enumeration`.
+- `L327-L334`: Implements this section of logic starting with `# Sequential ID probing (classic scraper/fuzzer)`.
+- `L336-L343`: Implements this section of logic starting with `# Unusually large payloads (prompt-injection / LLM-style attacks)`.
+- `L345-L348`: Implements this section of logic starting with `# Unusual headers (e.g. missing Accept, odd User-Agent patterns)`.
+- `L350-L351`: Initializes module-level state or configuration such as `score, is_attack`.
+- `L353-L366`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L368-L372`: Implements this section of logic starting with `# Track request timestamps for user`.
+- `L374-L380`: Returns a value from the current function.
+- `L382-L384`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L386-L392`: Defines `get_threat_summary`. Return the current threat level, recent alert counts by severity, and the last N alerts.
+- `L394-L395`: Initializes module-level state or configuration such as `now, one_hour_ago`.
+- `L397-L400`: Initializes module-level state or configuration such as `recent`.
+- `L402`: Initializes module-level state or configuration such as `last_20`.
+- `L404-L411`: Returns a value from the current function.
+- `L413-L415`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L417-L421`: Defines `get_recent_alerts`. Return the most recent ``limit`` alerts as dicts.
+- `L423-L425`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L427-L454`: Defines `report_suspicious_activity`. Accept a user-submitted or system-submitted suspicious activity report and store it as an alert.
+- `L456-L458`: Comment block that explains the next section: ------------------------------------------------------------------.
+- `L460-L477`: Defines the `_record_alert` function and the logic it executes.
+- `L479-L485`: Implements this section of logic starting with `logger.warning(`.
+- `L487-L494`: Defines the `_action_to_severity` function and the logic it executes.
+- `L496-L509`: Defines `_maybe_update_threat_level`. Heuristic: if recent alerts are accumulating or risk scores are climbing, escalate the global threat level.
+- `L511-L518`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L520-L527`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L530-L532`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L534-L535`: Initializes module-level state or configuration such as `_singleton_lock`.
+- `L538-L546`: Defines `get_security_monitor`. Return the process-wide SecurityMonitor singleton (thread-safe).

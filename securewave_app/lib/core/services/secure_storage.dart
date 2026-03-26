@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../logging/app_logger.dart';
+
 class SecureStorage {
   static const _storage = FlutterSecureStorage();
 
@@ -78,7 +80,13 @@ class SecureStorage {
           .map((item) => item.toString().trim())
           .where((item) => item.isNotEmpty && item.contains('@'))
           .toList();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'SecureStorage: failed to read recent login emails',
+        error: error,
+        stackTrace: stackTrace,
+        tag: 'SecureWave.Auth',
+      );
       return const <String>[];
     }
   }

@@ -20,6 +20,7 @@ abstract class VpnService {
   bool get isNativeAvailable;
   String? get availabilityMessage;
   Future<VpnCapabilities> getCapabilities();
+  void clearCapabilitiesCache() {}
 }
 
 class VpnServiceException implements Exception {
@@ -135,6 +136,36 @@ class VpnRuntimeSnapshot {
   final int? timestampMs;
 }
 
+enum VpnValidationStatus {
+  healthy,
+  degraded,
+  unhealthy,
+}
+
+enum VpnValidationFailureType {
+  noTunnel,
+  noRoute,
+  trafficBlocked,
+  highLatency,
+  packetLoss,
+  dnsLeak,
+  partialConnectivity,
+}
+
+class VpnHealthAssessment {
+  const VpnHealthAssessment({
+    required this.status,
+    required this.score,
+    this.failureType,
+    required this.ipVerified,
+  });
+
+  final VpnValidationStatus status;
+  final int score;
+  final VpnValidationFailureType? failureType;
+  final bool ipVerified;
+}
+
 class VpnHealthSnapshot {
   const VpnHealthSnapshot({
     required this.nativeStatus,
@@ -157,6 +188,16 @@ class VpnHealthSnapshot {
     this.lastWatchdogAction,
     this.interfaceName,
     this.timestampMs,
+    this.httpsProbeOk = false,
+    this.dnsOk = true,
+    this.probeSuccesses = 0,
+    this.probeAttempts = 0,
+    this.packetLoss = 0.0,
+    this.latencyMs,
+    this.ipVerified = false,
+    this.validationStatus = VpnValidationStatus.healthy,
+    this.validationScore = 100,
+    this.failureType,
   });
 
   final VpnStatus nativeStatus;
@@ -179,9 +220,207 @@ class VpnHealthSnapshot {
   final String? lastWatchdogAction;
   final String? interfaceName;
   final int? timestampMs;
+  final bool httpsProbeOk;
+  final bool dnsOk;
+  final int probeSuccesses;
+  final int probeAttempts;
+  final double packetLoss;
+  final int? latencyMs;
+  final bool ipVerified;
+  final VpnValidationStatus validationStatus;
+  final int validationScore;
+  final VpnValidationFailureType? failureType;
 
   bool get verifiedTunnel =>
-      interfaceUp && routePresent && policyRoutingPresent && handshakeRecent;
+      interfaceUp &&
+      routePresent &&
+      policyRoutingPresent &&
+      (handshakeRecent || trafficConnected || pingReachable || httpsProbeOk);
+
+  VpnHealthSnapshot copyWith({
+    VpnStatus? nativeStatus,
+    bool? interfaceUp,
+    bool? routePresent,
+    bool? pingReachable,
+    bool? trafficConnected,
+    bool? policyRoutingPresent,
+    bool? fwmarkConfigured,
+    bool? networkManagerUnmanaged,
+    bool? handshakeRecent,
+    bool? watchdogRunning,
+    int? handshakeAgeSeconds,
+    int? reconnectAttempts,
+    int? routeResets,
+    int? criticalResets,
+    int? currentDowntimeMs,
+    int? lastDowntimeMs,
+    int? totalDowntimeMs,
+    String? lastWatchdogAction,
+    String? interfaceName,
+    int? timestampMs,
+    bool? httpsProbeOk,
+    bool? dnsOk,
+    int? probeSuccesses,
+    int? probeAttempts,
+    double? packetLoss,
+    int? latencyMs,
+    bool? ipVerified,
+    VpnValidationStatus? validationStatus,
+    int? validationScore,
+    VpnValidationFailureType? failureType,
+    bool clearFailureType = false,
+  }) {
+    return VpnHealthSnapshot(
+      nativeStatus: nativeStatus ?? this.nativeStatus,
+      interfaceUp: interfaceUp ?? this.interfaceUp,
+      routePresent: routePresent ?? this.routePresent,
+      pingReachable: pingReachable ?? this.pingReachable,
+      trafficConnected: trafficConnected ?? this.trafficConnected,
+      policyRoutingPresent:
+          policyRoutingPresent ?? this.policyRoutingPresent,
+      fwmarkConfigured: fwmarkConfigured ?? this.fwmarkConfigured,
+      networkManagerUnmanaged:
+          networkManagerUnmanaged ?? this.networkManagerUnmanaged,
+      handshakeRecent: handshakeRecent ?? this.handshakeRecent,
+      watchdogRunning: watchdogRunning ?? this.watchdogRunning,
+      handshakeAgeSeconds: handshakeAgeSeconds ?? this.handshakeAgeSeconds,
+      reconnectAttempts: reconnectAttempts ?? this.reconnectAttempts,
+      routeResets: routeResets ?? this.routeResets,
+      criticalResets: criticalResets ?? this.criticalResets,
+      currentDowntimeMs: currentDowntimeMs ?? this.currentDowntimeMs,
+      lastDowntimeMs: lastDowntimeMs ?? this.lastDowntimeMs,
+      totalDowntimeMs: totalDowntimeMs ?? this.totalDowntimeMs,
+      lastWatchdogAction: lastWatchdogAction ?? this.lastWatchdogAction,
+      interfaceName: interfaceName ?? this.interfaceName,
+      timestampMs: timestampMs ?? this.timestampMs,
+      httpsProbeOk: httpsProbeOk ?? this.httpsProbeOk,
+      dnsOk: dnsOk ?? this.dnsOk,
+      probeSuccesses: probeSuccesses ?? this.probeSuccesses,
+      probeAttempts: probeAttempts ?? this.probeAttempts,
+      packetLoss: packetLoss ?? this.packetLoss,
+      latencyMs: latencyMs ?? this.latencyMs,
+      ipVerified: ipVerified ?? this.ipVerified,
+      validationStatus: validationStatus ?? this.validationStatus,
+      validationScore: validationScore ?? this.validationScore,
+      failureType:
+          clearFailureType ? null : (failureType ?? this.failureType),
+    );
+  }
+}
+
+class VpnHealthAssessmentEngine {
+  const VpnHealthAssessmentEngine._();
+
+  static VpnHealthSnapshot assess(
+    VpnHealthSnapshot snapshot, {
+    String? baselineIp,
+    String? currentPublicIp,
+    String? expectedExitIp,
+  }) {
+    final normalizedCurrentIp = currentPublicIp?.trim();
+    final normalizedBaselineIp = baselineIp?.trim();
+    final normalizedExpectedExitIp = expectedExitIp?.trim();
+    final ipVerified = normalizedCurrentIp != null &&
+        normalizedCurrentIp.isNotEmpty &&
+        ((normalizedExpectedExitIp != null &&
+                normalizedExpectedExitIp.isNotEmpty &&
+                normalizedCurrentIp == normalizedExpectedExitIp) ||
+            (normalizedBaselineIp != null &&
+                normalizedBaselineIp.isNotEmpty &&
+                normalizedCurrentIp != normalizedBaselineIp));
+
+    var score = 0;
+    if (snapshot.interfaceUp) {
+      score += 10;
+    }
+    if (snapshot.routePresent && snapshot.policyRoutingPresent) {
+      score += 15;
+    } else if (snapshot.routePresent || snapshot.policyRoutingPresent) {
+      score += 7;
+    }
+    if (snapshot.trafficConnected) {
+      score += 10;
+    }
+    if (snapshot.pingReachable) {
+      score += 10;
+    }
+    if (snapshot.httpsProbeOk) {
+      score += 10;
+    }
+    if (snapshot.probeAttempts > 0) {
+      if (snapshot.packetLoss <= 0.10) {
+        score += 10;
+      } else if (snapshot.packetLoss <= 0.25) {
+        score += 5;
+      }
+    } else if (snapshot.trafficConnected) {
+      score += 5;
+    }
+    final latencyMs = snapshot.latencyMs;
+    final probeSignalCount = (snapshot.pingReachable ? 1 : 0) +
+        (snapshot.httpsProbeOk ? 1 : 0) +
+        (snapshot.trafficConnected ? 1 : 0);
+    if (latencyMs != null && latencyMs >= 0) {
+      if (latencyMs <= 150) {
+        score += 10;
+      } else if (latencyMs <= 300) {
+        score += 5;
+      }
+    } else if (snapshot.pingReachable) {
+      score += 5;
+    }
+    if (snapshot.dnsOk) {
+      score += 10;
+    }
+    if (ipVerified) {
+      score += 10;
+    }
+    if (snapshot.handshakeRecent) {
+      score += 5;
+    }
+
+    VpnValidationFailureType? failureType;
+    if (!snapshot.interfaceUp) {
+      failureType = VpnValidationFailureType.noTunnel;
+      score = score.clamp(0, 20);
+    } else if (!snapshot.routePresent || !snapshot.policyRoutingPresent) {
+      failureType = VpnValidationFailureType.noRoute;
+      score = score.clamp(0, 35);
+    } else if (!snapshot.trafficConnected &&
+        !snapshot.pingReachable &&
+        !snapshot.httpsProbeOk) {
+      failureType = VpnValidationFailureType.trafficBlocked;
+      score = score.clamp(0, 30);
+    } else if (!snapshot.dnsOk) {
+      failureType = VpnValidationFailureType.dnsLeak;
+      score = score.clamp(0, 60);
+    } else if (snapshot.probeAttempts > 0 && snapshot.packetLoss >= 0.35) {
+      failureType = VpnValidationFailureType.packetLoss;
+      score = score.clamp(0, 65);
+    } else if (latencyMs != null && latencyMs > 300) {
+      failureType = VpnValidationFailureType.highLatency;
+      score = score.clamp(0, 78);
+    } else if (probeSignalCount < 3) {
+      failureType = VpnValidationFailureType.partialConnectivity;
+      score = score.clamp(0, 82);
+    } else if (snapshot.probeAttempts > 0 && snapshot.packetLoss >= 0.15) {
+      failureType = VpnValidationFailureType.packetLoss;
+      score = score.clamp(0, 75);
+    }
+
+    final status = switch (score) {
+      >= 90 => VpnValidationStatus.healthy,
+      >= 70 => VpnValidationStatus.degraded,
+      _ => VpnValidationStatus.unhealthy,
+    };
+
+    return snapshot.copyWith(
+      ipVerified: ipVerified,
+      validationStatus: status,
+      validationScore: score,
+      failureType: failureType,
+    );
+  }
 }
 
 class ChannelVpnService implements VpnService {
@@ -414,7 +653,9 @@ class ChannelVpnService implements VpnService {
         _status = _mapBridgeState(native.state);
         return _status;
       }
-      final raw = await _channel.invokeMethod<String>('getStatus');
+      final raw = await _channel
+          .invokeMethod<String>('getStatus')
+          .timeout(const Duration(seconds: 4));
       final normalized = (raw ?? '').toLowerCase().trim();
       if (normalized == 'connected') {
         _status = VpnStatus.connected;
@@ -427,6 +668,9 @@ class ChannelVpnService implements VpnService {
       } else if (normalized == 'disconnected') {
         _status = VpnStatus.disconnected;
       }
+    } on TimeoutException {
+      // getStatus can block for several seconds on Linux due to ICMP health
+      // probes inside refresh_runtime_connection_state. Return cached status.
     } on MissingPluginException {
       // No native implementation for this platform/build.
     } on PlatformException catch (error) {
@@ -476,40 +720,51 @@ class ChannelVpnService implements VpnService {
   }
 
   Future<VpnHealthSnapshot> fetchHealthSnapshot() async {
-    final nativeStatus = await refreshStatus();
-    final stats = await fetchTrafficStats();
     if (_simulationEnabled) {
-      return VpnHealthSnapshot(
+      final nativeStatus = await refreshStatus();
+      final stats = await fetchTrafficStats();
+      final connected = nativeStatus == VpnStatus.connected;
+      return VpnHealthAssessmentEngine.assess(VpnHealthSnapshot(
         nativeStatus: nativeStatus,
-        interfaceUp: nativeStatus == VpnStatus.connected,
-        routePresent: nativeStatus == VpnStatus.connected,
-        pingReachable: nativeStatus == VpnStatus.connected,
-        trafficConnected:
-            stats?.connected ?? nativeStatus == VpnStatus.connected,
-        policyRoutingPresent: nativeStatus == VpnStatus.connected,
-        handshakeRecent: nativeStatus == VpnStatus.connected,
+        interfaceUp: connected,
+        routePresent: connected,
+        pingReachable: connected,
+        trafficConnected: stats?.connected ?? connected,
+        policyRoutingPresent: connected,
+        handshakeRecent: connected,
         interfaceName: stats?.interfaceName ?? 'sim0',
         timestampMs: DateTime.now().millisecondsSinceEpoch,
-      );
+        httpsProbeOk: connected,
+        dnsOk: true,
+        probeSuccesses: connected ? 1 : 0,
+        probeAttempts: connected ? 1 : 0,
+        packetLoss: connected ? 0.0 : 1.0,
+      ));
     }
 
     if (!_supportsNativeChannel() || _usesAppleBridge()) {
-      return VpnHealthSnapshot(
+      final nativeStatus = await refreshStatus();
+      final stats = await fetchTrafficStats();
+      final connected = stats?.connected ?? nativeStatus == VpnStatus.connected;
+      return VpnHealthAssessmentEngine.assess(VpnHealthSnapshot(
         nativeStatus: nativeStatus,
-        interfaceUp: stats?.connected ?? nativeStatus == VpnStatus.connected,
-        routePresent: stats?.connected ?? nativeStatus == VpnStatus.connected,
-        pingReachable: stats?.connected ?? nativeStatus == VpnStatus.connected,
-        trafficConnected:
-            stats?.connected ?? nativeStatus == VpnStatus.connected,
-        policyRoutingPresent:
-            stats?.connected ?? nativeStatus == VpnStatus.connected,
-        handshakeRecent:
-            stats?.connected ?? nativeStatus == VpnStatus.connected,
+        interfaceUp: connected,
+        routePresent: connected,
+        pingReachable: connected,
+        trafficConnected: connected,
+        policyRoutingPresent: connected,
+        handshakeRecent: connected,
         interfaceName: stats?.interfaceName,
         timestampMs: stats?.timestampMs,
-      );
+        httpsProbeOk: connected,
+        dnsOk: true,
+        probeSuccesses: connected ? 1 : 0,
+        probeAttempts: connected ? 1 : 0,
+        packetLoss: connected ? 0.0 : 1.0,
+      ));
     }
 
+    final stopwatch = kDebugMode ? (Stopwatch()..start()) : null;
     try {
       final raw = await _channel
           .invokeMethod<dynamic>('getHealthStatus')
@@ -537,6 +792,13 @@ class ChannelVpnService implements VpnService {
           return int.tryParse(value?.toString() ?? '') ?? 0;
         }
 
+        double d(String key, {double fallback = 0.0}) {
+          final value = data[key];
+          if (value is double) return value;
+          if (value is num) return value.toDouble();
+          return double.tryParse(value?.toString() ?? '') ?? fallback;
+        }
+
         final timestamp = data['timestamp_ms'];
         final timestampMs = switch (timestamp) {
           int value => value,
@@ -544,7 +806,33 @@ class ChannelVpnService implements VpnService {
           String value => int.tryParse(value),
           _ => null,
         };
-        return VpnHealthSnapshot(
+        final reportsConnected = data.containsKey('connected')
+            ? b('connected')
+            : b('interface_up') ||
+                b('route_present') ||
+                b('traffic_connected') ||
+                b('ping_reachable') ||
+                b('handshake_recent') ||
+                b('https_probe_ok');
+        final nativeStatus = reportsConnected
+            ? VpnStatus.connected
+            : switch (_status) {
+                VpnStatus.connecting => VpnStatus.connecting,
+                VpnStatus.disconnecting => VpnStatus.disconnecting,
+                VpnStatus.error => VpnStatus.error,
+                _ => VpnStatus.disconnected,
+              };
+        _status = nativeStatus;
+        if (kDebugMode &&
+            stopwatch != null &&
+            stopwatch.elapsedMilliseconds >= 750) {
+          AppLogger.debug(
+            'Health snapshot succeeded in '
+            '${stopwatch.elapsedMilliseconds}ms via native health payload.',
+            tag: 'SecureWave.VPN',
+          );
+        }
+        return VpnHealthAssessmentEngine.assess(VpnHealthSnapshot(
           nativeStatus: nativeStatus,
           interfaceUp: b('interface_up'),
           routePresent: b('route_present'),
@@ -575,9 +863,18 @@ class ChannelVpnService implements VpnService {
           lastDowntimeMs: i('last_downtime_ms'),
           totalDowntimeMs: i('total_downtime_ms'),
           lastWatchdogAction: s('last_watchdog_action'),
-          interfaceName: s('interface') ?? stats?.interfaceName,
-          timestampMs: timestampMs ?? stats?.timestampMs,
-        );
+          interfaceName: s('interface'),
+          timestampMs: timestampMs,
+          httpsProbeOk: b('https_probe_ok'),
+          dnsOk: !data.containsKey('dns_ok') ? true : b('dns_ok'),
+          probeSuccesses: i('probe_successes'),
+          probeAttempts: i('probe_attempts'),
+          packetLoss: data.containsKey('packet_loss_bps')
+              ? d('packet_loss_bps') / 10000.0
+              : d('packet_loss'),
+          latencyMs:
+              data.containsKey('latency_ms') ? i('latency_ms') : null,
+        ));
       }
     } on TimeoutException {
       // Fall through to best-effort inference.
@@ -587,8 +884,17 @@ class ChannelVpnService implements VpnService {
       // Fall through to best-effort inference.
     }
 
+    if (kDebugMode && stopwatch != null) {
+      AppLogger.debug(
+        'Health snapshot fell back to status/traffic inference after '
+        '${stopwatch.elapsedMilliseconds}ms.',
+        tag: 'SecureWave.VPN',
+      );
+    }
+    final nativeStatus = await refreshStatus();
+    final stats = await fetchTrafficStats();
     final connected = stats?.connected ?? nativeStatus == VpnStatus.connected;
-    return VpnHealthSnapshot(
+    return VpnHealthAssessmentEngine.assess(VpnHealthSnapshot(
       nativeStatus: nativeStatus,
       interfaceUp: connected,
       routePresent: connected,
@@ -598,7 +904,12 @@ class ChannelVpnService implements VpnService {
       handshakeRecent: connected,
       interfaceName: stats?.interfaceName,
       timestampMs: stats?.timestampMs,
-    );
+      httpsProbeOk: connected,
+      dnsOk: true,
+      probeSuccesses: connected ? 1 : 0,
+      probeAttempts: connected ? 1 : 0,
+      packetLoss: connected ? 0.0 : 1.0,
+    ));
   }
 
   bool _linuxWireGuardHealthReady(VpnHealthSnapshot snapshot) {
@@ -647,6 +958,13 @@ class ChannelVpnService implements VpnService {
       'policy_routing_present=${snapshot.policyRoutingPresent} '
       'handshake_recent=${snapshot.handshakeRecent} '
       'traffic_connected=${snapshot.trafficConnected} '
+      'https_probe_ok=${snapshot.httpsProbeOk} '
+      'dns_ok=${snapshot.dnsOk} '
+      'latency_ms=${snapshot.latencyMs} '
+      'packet_loss=${snapshot.packetLoss.toStringAsFixed(3)} '
+      'validation_score=${snapshot.validationScore} '
+      'validation_status=${snapshot.validationStatus.name} '
+      'failure_type=${snapshot.failureType?.name ?? 'none'} '
       'ping_reachable=${snapshot.pingReachable} '
       'handshake_age_seconds=${snapshot.handshakeAgeSeconds} '
       'watchdog_running=${snapshot.watchdogRunning}',
@@ -663,8 +981,35 @@ class ChannelVpnService implements VpnService {
         'handshake_age_seconds': snapshot.handshakeAgeSeconds,
         'networkmanager_unmanaged': snapshot.networkManagerUnmanaged,
         'watchdog_running': snapshot.watchdogRunning,
+        'https_probe_ok': snapshot.httpsProbeOk,
+        'dns_ok': snapshot.dnsOk,
+        'latency_ms': snapshot.latencyMs,
+        'packet_loss': snapshot.packetLoss,
+        'validation_status': snapshot.validationStatus.name,
+        'validation_score': snapshot.validationScore,
+        'failure_type': snapshot.failureType?.name,
       },
     );
+  }
+
+  Future<void> refreshDnsPath() async {
+    if (!_supportsNativeChannel() || _usesAppleBridge()) {
+      return;
+    }
+    try {
+      await _channel
+          .invokeMethod<void>('refreshDns')
+          .timeout(const Duration(seconds: 2));
+    } on TimeoutException {
+      AppLogger.warning('Native DNS refresh timed out', tag: 'SecureWave.VPN');
+    } on MissingPluginException {
+      return;
+    } on PlatformException catch (error) {
+      AppLogger.warning(
+        'Native DNS refresh failed: ${error.code}',
+        tag: 'SecureWave.VPN',
+      );
+    }
   }
 
   @override
@@ -1241,6 +1586,9 @@ class ChannelVpnService implements VpnService {
     _cachedCapabilities = null;
     _capabilitiesCachedAt = null;
   }
+
+  @override
+  void clearCapabilitiesCache() => _invalidateCapabilitiesCache();
 
   String _defaultUnavailableMessage(String os) {
     switch (os) {

@@ -1,0 +1,113 @@
+# `routes/billing.py`
+
+Purpose: This module exposes API handlers for billing features in the SecureWave backend.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L14`: Imports the dependencies used later in this module, including logging, os, hashlib, datetime, typing, fastapi, sqlalchemy, pydantic.
+- `L16-L31`: Imports the dependencies used later in this module, including config, database, services, models, utils, slowapi.
+- `L33-L37`: Initializes module-level state or configuration such as `logger, router, SETTINGS, limiter, IS_TESTING`.
+- `L40-L45`: Defines the `rate_limit` function and the logic it executes.
+- `L48-L53`: Defines the `_missing_provider_config` function and the logic it executes.
+- `L56-L60`: Defines the `_base_url` function and the logic it executes.
+- `L63-L65`: Comment block that explains the next section: ===========================.
+- `L67-L75`: Defines `CreateSubscriptionRequest`. Request model for creating a subscription.
+- `L78-L81`: Defines `UpgradeSubscriptionRequest`. Request model for upgrading a subscription.
+- `L84-L87`: Defines `CancelSubscriptionRequest`. Request model for canceling a subscription.
+- `L90-L103`: Defines `SubscriptionResponse`. Response model for subscription data.
+- `L106-L108`: Comment block that explains the next section: ===========================.
+- `L110-L119`: Registers the `create_subscription` endpoint with the API router.
+- `L121-L125`: Implements this section of logic starting with `For Stripe: Immediately creates subscription with payment method`.
+- `L127-L134`: Implements this section of logic starting with `# Check if user already has active subscription`.
+- `L136-L142`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L144-L157`: Initializes module-level state or configuration such as `base_url, safe_return_url, safe_cancel_url`.
+- `L159-L167`: Initializes module-level state or configuration such as `idempotency_payload`.
+- `L169-L184`: Defines the `_execute` function and the logic it executes.
+- `L186-L201`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L203-L206`: Implements this section of logic starting with `raise HTTPException(`.
+- `L208-L218`: Initializes module-level state or configuration such as `outcome, provider, operation, user_id, request_payload, execute`.
+- `L220-L229`: Handles a failure from the preceding `try` block.
+- `L232-L240`: Registers the `get_current_subscription` endpoint with the API router.
+- `L242-L243`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L245-L260`: Returns a value from the current function.
+- `L262-L267`: Handles a failure from the preceding `try` block.
+- `L270-L278`: Registers the `get_subscription_history` endpoint with the API router.
+- `L280-L294`: Returns a value from the current function.
+- `L296-L301`: Handles a failure from the preceding `try` block.
+- `L304-L315`: Registers the `upgrade_subscription` endpoint with the API router.
+- `L317-L320`: Implements this section of logic starting with `# Verify subscription belongs to user`.
+- `L322-L328`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L330-L334`: Initializes module-level state or configuration such as `idempotency_payload`.
+- `L336-L351`: Defines the `_execute` function and the logic it executes.
+- `L353-L363`: Initializes module-level state or configuration such as `outcome, provider, operation, user_id, request_payload, execute`.
+- `L365-L374`: Handles a failure from the preceding `try` block.
+- `L377-L388`: Registers the `cancel_subscription` endpoint with the API router.
+- `L390-L393`: Implements this section of logic starting with `# Verify subscription belongs to user`.
+- `L395-L401`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L403-L407`: Initializes module-level state or configuration such as `idempotency_payload`.
+- `L409-L415`: Defines the `_execute` function and the logic it executes.
+- `L417-L421`: Initializes module-level state or configuration such as `message`.
+- `L423-L431`: Returns a value from the current function.
+- `L433-L443`: Initializes module-level state or configuration such as `outcome, provider, operation, user_id, request_payload, execute`.
+- `L445-L454`: Handles a failure from the preceding `try` block.
+- `L457-L467`: Registers the `reactivate_subscription` endpoint with the API router.
+- `L469-L472`: Implements this section of logic starting with `# Verify subscription belongs to user`.
+- `L474-L480`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L482`: Initializes module-level state or configuration such as `idempotency_payload`.
+- `L484-L496`: Defines the `_execute` function and the logic it executes.
+- `L498-L508`: Initializes module-level state or configuration such as `outcome, provider, operation, user_id, request_payload, execute`.
+- `L510-L519`: Handles a failure from the preceding `try` block.
+- `L522-L524`: Comment block that explains the next section: ===========================.
+- `L526-L539`: Registers the `create_billing_portal_session` endpoint with the API router.
+- `L541-L546`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L548-L553`: Initializes module-level state or configuration such as `base_url, safe_return_url, candidate, field_name`.
+- `L555-L558`: Initializes module-level state or configuration such as `portal_url, user_id, return_url`.
+- `L560-L565`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L567`: Returns a value from the current function.
+- `L569-L576`: Handles a failure from the preceding `try` block.
+- `L579-L581`: Comment block that explains the next section: ===========================.
+- `L583-L592`: Registers the `get_invoices` endpoint with the API router.
+- `L594-L596`: Returns a value from the current function.
+- `L598-L603`: Handles a failure from the preceding `try` block.
+- `L606-L615`: Registers the `get_invoice` endpoint with the API router.
+- `L617-L618`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L620`: Returns a value from the current function.
+- `L622-L627`: Handles a failure from the preceding `try` block.
+- `L630-L632`: Comment block that explains the next section: ===========================.
+- `L634-L638`: Registers the `get_available_plans` endpoint with the API router.
+- `L640-L647`: Initializes module-level state or configuration such as `plans`.
+- `L649-L659`: Implements this section of logic starting with `plans.append({`.
+- `L661`: Returns a value from the current function.
+- `L663-L668`: Handles a failure from the preceding `try` block.
+- `L671-L673`: Comment block that explains the next section: ===========================.
+- `L675-L681`: Defines `CheckoutRequest`. Request for creating a Stripe Checkout session.
+- `L684-L697`: Registers the `create_checkout_session` endpoint with the API router.
+- `L699-L704`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L706-L713`: Implements this section of logic starting with `# Verify plan exists`.
+- `L715-L721`: Initializes module-level state or configuration such as `price_key`.
+- `L723-L731`: Implements this section of logic starting with `# Check existing active subscription`.
+- `L733-L745`: Implements this section of logic starting with `# Ensure user has a Stripe customer ID`.
+- `L747-L757`: Initializes module-level state or configuration such as `base, success_url, base_url, candidate, field_name, cancel_url`.
+- `L759-L765`: Initializes module-level state or configuration such as `idempotency_payload`.
+- `L767-L783`: Defines the `_execute` function and the logic it executes.
+- `L785-L792`: Initializes module-level state or configuration such as `outcome, provider, operation, user_id, request_payload, execute`.
+- `L794-L802`: Initializes module-level state or configuration such as `response`.
+- `L804-L808`: Handles a failure from the preceding `try` block.
+- `L811-L821`: Registers the `get_stripe_status` endpoint with the API router.
+- `L824-L829`: Comment block that explains the next section: ===========================.
+- `L832-L850`: Registers the `paypal_webhook` endpoint with the API router.
+- `L852-L855`: Implements this section of logic starting with `# Verify webhook signature`.
+- `L857-L859`: Implements this section of logic starting with `# Parse event`.
+- `L861-L863`: Implements this section of logic starting with `# Process event`.
+- `L865-L866`: Implements this section of logic starting with `logger.info(f"✓ Processed PayPal webhook: {event.get('event_type')}")`.
+- `L868-L876`: Handles a failure from the preceding `try` block.
+- `L879-L881`: Comment block that explains the next section: ===========================.
+- `L883-L898`: Registers the `get_billing_health_report` endpoint with the API router.
+- `L900-L902`: Initializes module-level state or configuration such as `billing_service, report`.
+- `L904`: Returns a value from the current function.
+- `L906-L914`: Handles a failure from the preceding `try` block.
+- `L917-L929`: Registers the `sync_all_subscriptions` endpoint with the API router.
+- `L931-L933`: Initializes module-level state or configuration such as `billing_service, result`.
+- `L935`: Returns a value from the current function.
+- `L937-L945`: Handles a failure from the preceding `try` block.

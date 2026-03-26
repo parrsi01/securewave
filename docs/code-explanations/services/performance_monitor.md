@@ -1,0 +1,106 @@
+# `services/performance_monitor.py`
+
+Purpose: This service module implements the business logic for performance monitor operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L11`: Imports the dependencies used later in this module, including logging, time, psutil, typing, datetime, functools.
+- `L13`: Imports the dependencies used later in this module, including config.
+- `L15-L16`: Initializes module-level state or configuration such as `logger, SETTINGS`.
+- `L18-L21`: Implements this section of logic starting with `# Configuration`.
+- `L24-L28`: Defines `PerformanceMonitorService`. Performance Monitoring Service Tracks and analyzes application performance.
+- `L30-L34`: Defines `__init__`. Initialize performance monitor.
+- `L36-L38`: Comment block that explains the next section: ===========================.
+- `L40-L53`: Defines the `track_metric` function and the logic it executes.
+- `L55-L67`: Implements this section of logic starting with `Args:`.
+- `L69-L71`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L73-L75`: Implements this section of logic starting with `# Get system metrics`.
+- `L77`: Initializes module-level state or configuration such as `db`.
+- `L79-L91`: Initializes module-level state or configuration such as `metric, metric_type, endpoint, response_time_ms, database_time_ms, external_api_time_ms`.
+- `L93-L94`: Implements this section of logic starting with `db.add(metric)`.
+- `L96-L101`: Implements this section of logic starting with `# Log slow operations`.
+- `L103-L104`: Handles a failure from the preceding `try` block.
+- `L106-L108`: Defines the `measure_api_request` function and the logic it executes.
+- `L110-L119`: Implements this section of logic starting with `Usage:`.
+- `L121-L124`: Initializes module-level state or configuration such as `start_time, status_code, user_id, request_id`.
+- `L126-L128`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L130-L132`: Implements this section of logic starting with `# Extract status code from response`.
+- `L134-L137`: Implements this section of logic starting with `# Extract user ID from request if available`.
+- `L139`: Returns a value from the current function.
+- `L141-L143`: Handles a failure from the preceding `try` block.
+- `L145-L147`: Runs cleanup code whether the earlier block succeeds or fails.
+- `L149-L160`: Implements this section of logic starting with `# Track metric`.
+- `L162-L165`: Applies decorators and defines `sync_wrapper` with the wrapped behavior declared above it.
+- `L167-L169`: Initializes module-level state or configuration such as `start_time, status_code, user_id`.
+- `L171-L173`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L175-L177`: Handles a failure from the preceding `try` block.
+- `L179-L180`: Runs cleanup code whether the earlier block succeeds or fails.
+- `L182-L189`: Implements this section of logic starting with `self.track_metric(`.
+- `L191-L196`: Implements this section of logic starting with `# Return appropriate wrapper based on function type`.
+- `L198`: Returns a value from the current function.
+- `L200-L202`: Defines the `measure_database_query` function and the logic it executes.
+- `L204-L205`: Implements this section of logic starting with `Args:`.
+- `L207-L216`: Implements this section of logic starting with `Usage:`.
+- `L218`: Initializes module-level state or configuration such as `start_time`.
+- `L220-L222`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L224-L225`: Runs cleanup code whether the earlier block succeeds or fails.
+- `L227-L236`: Implements this section of logic starting with `self.track_metric(`.
+- `L238-L243`: Implements this section of logic starting with `# Log slow queries`.
+- `L245-L246`: Returns a value from the current function.
+- `L248-L250`: Comment block that explains the next section: ===========================.
+- `L252-L254`: Defines the `get_api_performance_stats` function and the logic it executes.
+- `L256-L258`: Implements this section of logic starting with `Args:`.
+- `L260-L266`: Implements this section of logic starting with `Returns:`.
+- `L268`: Initializes module-level state or configuration such as `db`.
+- `L270-L271`: Implements this section of logic starting with `# Calculate start time`.
+- `L273-L277`: Implements this section of logic starting with `# Build query`.
+- `L279-L280`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L282`: Initializes module-level state or configuration such as `metrics`.
+- `L284-L295`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L297-L298`: Implements this section of logic starting with `# Calculate statistics`.
+- `L300-L301`: Initializes module-level state or configuration such as `total_requests, avg_response_time`.
+- `L303-L310`: Implements this section of logic starting with `# Calculate percentiles`.
+- `L312-L314`: Initializes module-level state or configuration such as `median, p95, p99`.
+- `L316-L320`: Implements this section of logic starting with `# Status code breakdown`.
+- `L322-L323`: Implements this section of logic starting with `# Slow requests`.
+- `L325-L338`: Returns a value from the current function.
+- `L340-L342`: Handles a failure from the preceding `try` block.
+- `L344-L346`: Defines the `get_database_performance_stats` function and the logic it executes.
+- `L348-L349`: Implements this section of logic starting with `Args:`.
+- `L351-L356`: Implements this section of logic starting with `Returns:`.
+- `L358`: Initializes module-level state or configuration such as `db`.
+- `L360`: Initializes module-level state or configuration such as `start_time`.
+- `L362-L365`: Initializes module-level state or configuration such as `metrics`.
+- `L367-L372`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L374`: Initializes module-level state or configuration such as `query_times`.
+- `L376-L377`: Initializes module-level state or configuration such as `total_queries, avg_query_time`.
+- `L379-L380`: Implements this section of logic starting with `# Slow queries`.
+- `L382-L389`: Implements this section of logic starting with `# Group by endpoint`.
+- `L391-L404`: Implements this section of logic starting with `# Find slowest queries`.
+- `L406-L415`: Returns a value from the current function.
+- `L417-L419`: Handles a failure from the preceding `try` block.
+- `L421-L423`: Defines the `get_system_resource_stats` function and the logic it executes.
+- `L425-L426`: Implements this section of logic starting with `Args:`.
+- `L428-L433`: Implements this section of logic starting with `Returns:`.
+- `L435`: Initializes module-level state or configuration such as `db`.
+- `L437`: Initializes module-level state or configuration such as `start_time`.
+- `L439-L441`: Initializes module-level state or configuration such as `metrics`.
+- `L443-L448`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L450-L452`: Implements this section of logic starting with `# Filter out None values`.
+- `L454-L456`: Implements this section of logic starting with `# Get current system stats`.
+- `L458-L472`: Returns a value from the current function.
+- `L474-L476`: Handles a failure from the preceding `try` block.
+- `L478-L480`: Comment block that explains the next section: ===========================.
+- `L482-L484`: Defines the `check_performance_thresholds` function and the logic it executes.
+- `L486-L489`: Implements this section of logic starting with `Returns:`.
+- `L491-L493`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L495-L501`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L503-L504`: Implements this section of logic starting with `# Check database performance`.
+- `L506-L512`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L514-L522`: Implements this section of logic starting with `# Check system resources`.
+- `L524-L531`: Initializes module-level state or configuration such as `disk`.
+- `L533-L534`: Handles a failure from the preceding `try` block.
+- `L536`: Returns a value from the current function.
+- `L539-L540`: Implements this section of logic starting with `# Singleton instance`.
+- `L543-L548`: Defines `get_performance_monitor`. Get performance monitor instance.

@@ -117,6 +117,61 @@ if __name__ == "__main__":
 PY
 chmod 700 /usr/local/bin/securewave-validate-provisioning-token
 
+cat > /usr/local/bin/securewave-openvpn-upsert-user <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+USERNAME=""
+PASSWORD_B64=""
+OUTPUT="json"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --username) USERNAME="$2"; shift 2 ;;
+    --password-b64) PASSWORD_B64="$2"; shift 2 ;;
+    --output) OUTPUT="$2"; shift 2 ;;
+    *) echo "unknown_arg:$1" >&2; exit 2 ;;
+  esac
+done
+
+if [[ "${OUTPUT}" != "json" ]]; then
+  echo "unsupported_output_format" >&2
+  exit 3
+fi
+if [[ -z "${USERNAME}" || -z "${PASSWORD_B64}" ]]; then
+  jq -n --arg code "openvpn_invalid_input" --arg message "username and password-b64 are required" \
+    '{ok:false,code:$code,message:$message,artifact_path:null}'
+  exit 4
+fi
+if [[ ! "${USERNAME}" =~ ^[A-Za-z0-9._@-]{3,96}$ ]]; then
+  jq -n --arg code "openvpn_invalid_username" --arg message "invalid username" \
+    '{ok:false,code:$code,message:$message,artifact_path:null}'
+  exit 5
+fi
+
+DB_FILE="/etc/securewave/openvpn/users.db"
+LOCK_DIR="/var/lib/securewave/pki/openvpn"
+LOCK_FILE="${LOCK_DIR}/.users.lock"
+install -d -m 700 "${LOCK_DIR}"
+touch "${DB_FILE}"
+chmod 600 "${DB_FILE}"
+
+exec 9>"${LOCK_FILE}"
+flock -w 20 9
+
+tmp="$(mktemp)"
+if [[ -s "${DB_FILE}" ]]; then
+  grep -v "^${USERNAME}:" "${DB_FILE}" > "${tmp}" || true
+fi
+printf "%s:%s\n" "${USERNAME}" "${PASSWORD_B64}" >> "${tmp}"
+install -m 600 "${tmp}" "${DB_FILE}"
+rm -f "${tmp}"
+
+jq -n --arg code "openvpn_user_upserted" --arg message "user credential record stored" --arg artifact_path "${DB_FILE}" \
+  '{ok:true,code:$code,message:$message,artifact_path:$artifact_path}'
+SCRIPT
+chmod 700 /usr/local/bin/securewave-openvpn-upsert-user
+
 EASYRSA_DIR="/etc/securewave/secrets/openvpn/easy-rsa"
 if [[ ! -x "${EASYRSA_DIR}/easyrsa" ]]; then
   cp -a /usr/share/easy-rsa "${EASYRSA_DIR}"
@@ -375,6 +430,7 @@ ufw --force reload || true
 echo "OpenVPN provisioned successfully."
 echo "- UDP port: ${OPENVPN_UDP_PORT}"
 echo "- Secrets: /etc/securewave/secrets/openvpn (root-only)"
+echo "- User upsert script: /usr/local/bin/securewave-openvpn-upsert-user"
 echo "- Issue script: /usr/local/bin/securewave-openvpn-issue-client"
 echo "- Revoke script: /usr/local/bin/securewave-openvpn-revoke-client"
 echo "IMPORTANT: Configure Hetzner firewall to allow UDP ${OPENVPN_UDP_PORT} only from required sources, plus existing HTTPS/WireGuard ports."

@@ -1,0 +1,113 @@
+# `services/enhanced_email_service.py`
+
+Purpose: This service module implements the business logic for enhanced email service operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L12`: Imports the dependencies used later in this module, including logging, smtplib, email, typing, datetime, jinja2.
+- `L14`: Imports the dependencies used later in this module, including config.
+- `L16-L17`: Initializes module-level state or configuration such as `logger, SETTINGS`.
+- `L19-L29`: Implements this section of logic starting with `# Email configuration`.
+- `L32-L36`: Defines `EnhancedEmailService`. Production-grade multi-provider email service Supports SMTP, SendGrid, and AWS SES with comprehensive tracking.
+- `L38-L42`: Defines `__init__`. Initialize email service.
+- `L44-L45`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L47-L61`: Defines `_check_provider_config`. Check if provider is properly configured.
+- `L63-L65`: Comment block that explains the next section: ===========================.
+- `L67-L79`: Defines the `send_email` function and the logic it executes.
+- `L81-L89`: Implements this section of logic starting with `Args:`.
+- `L91-L96`: Implements this section of logic starting with `Returns:`.
+- `L98-L108`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L110-L121`: Implements this section of logic starting with `# Log email`.
+- `L123-L126`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L128`: Returns a value from the current function.
+- `L130-L143`: Handles a failure from the preceding `try` block.
+- `L145-L147`: Comment block that explains the next section: ===========================.
+- `L149-L161`: Defines `_send_via_smtp`. Send email via SMTP.
+- `L163-L165`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L167-L168`: Initializes module-level state or configuration such as `part2`.
+- `L170-L173`: Opens a managed context so resources are cleaned up automatically after use.
+- `L175`: Returns a value from the current function.
+- `L177-L179`: Handles a failure from the preceding `try` block.
+- `L181-L191`: Defines `_send_via_sendgrid`. Send email via SendGrid.
+- `L193-L198`: Initializes module-level state or configuration such as `message, from_email, to_emails, subject, html_content`.
+- `L200-L201`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L203-L204`: Initializes module-level state or configuration such as `sg, response`.
+- `L206-L207`: Implements this section of logic starting with `# Extract message ID from headers`.
+- `L209`: Returns a value from the current function.
+- `L211-L216`: Handles a failure from the preceding `try` block.
+- `L218-L227`: Defines `_send_via_ses`. Send email via AWS SES.
+- `L229`: Initializes module-level state or configuration such as `client`.
+- `L231-L233`: Initializes module-level state or configuration such as `body`.
+- `L235-L242`: Initializes module-level state or configuration such as `response, Source, Destination, Message`.
+- `L244-L245`: Initializes module-level state or configuration such as `message_id`.
+- `L247-L252`: Handles a failure from the preceding `try` block.
+- `L254-L256`: Comment block that explains the next section: ===========================.
+- `L258-L272`: Defines `_log_email`. Log email to database.
+- `L274-L289`: Initializes module-level state or configuration such as `log, user_id, to_email, from_email, subject, template_name`.
+- `L291-L292`: Implements this section of logic starting with `self.db.add(log)`.
+- `L294-L296`: Handles a failure from the preceding `try` block.
+- `L298-L300`: Comment block that explains the next section: ===========================.
+- `L302-L305`: Defines `render_template`. Render Jinja2 template.
+- `L307-L309`: Comment block that explains the next section: ===========================.
+- `L311-L318`: Defines `send_welcome_email`. Send welcome email to new user.
+- `L320-L321`: Initializes module-level state or configuration such as `html_content, text_content`.
+- `L323-L331`: Returns a value from the current function.
+- `L333-L349`: Defines `send_subscription_expiring_email`. Send subscription expiration notice.
+- `L351-L352`: Initializes module-level state or configuration such as `html_content, text_content`.
+- `L354-L362`: Returns a value from the current function.
+- `L364-L378`: Defines `send_subscription_expired_email`. Send subscription expired notice.
+- `L380-L381`: Initializes module-level state or configuration such as `html_content, text_content`.
+- `L383-L391`: Returns a value from the current function.
+- `L393-L410`: Defines `send_subscription_renewed_email`. Send subscription renewal confirmation.
+- `L412-L413`: Initializes module-level state or configuration such as `html_content, text_content`.
+- `L415-L423`: Returns a value from the current function.
+- `L425-L427`: Comment block that explains the next section: ===========================.
+- `L429-L453`: Defines `_get_welcome_email_html`. Welcome email HTML template.
+- `L455-L469`: Initializes module-level variables and configuration used by later code.
+- `L471-L473`: Initializes module-level variables and configuration used by later code.
+- `L475-L483`: Implements this section of logic starting with `<p>If you have any questions, our support team is here to help!</p>`.
+- `L485-L488`: Defines `_get_welcome_email_text`. Welcome email plain text template.
+- `L490`: Implements this section of logic starting with `Hi {vars['user_name']},`.
+- `L492`: Implements this section of logic starting with `Thank you for joining SecureWave VPN! We're excited to help you browse securely and privately.`.
+- `L494`: Implements this section of logic starting with `What's Next?`.
+- `L496-L497`: Implements this section of logic starting with `1. Download Configuration`.
+- `L499-L500`: Implements this section of logic starting with `2. Connect to a Server`.
+- `L502-L503`: Implements this section of logic starting with `3. Browse Securely`.
+- `L505`: Implements this section of logic starting with `Get Started: {vars['dashboard_url']}`.
+- `L507`: Implements this section of logic starting with `If you have any questions, our support team is here to help!`.
+- `L509-L512`: Implements this section of logic starting with `---`.
+- `L514-L537`: Defines `_get_subscription_expiring_html`. Subscription expiring HTML template.
+- `L539-L542`: Initializes module-level variables and configuration used by later code.
+- `L544-L546`: Initializes module-level variables and configuration used by later code.
+- `L548-L556`: Implements this section of logic starting with `<p>Need help? Contact our support team anytime.</p>`.
+- `L558-L561`: Defines `_get_subscription_expiring_text`. Subscription expiring plain text template.
+- `L563`: Implements this section of logic starting with `Hi {vars['user_name']},`.
+- `L565`: Implements this section of logic starting with `Your {vars['subscription_plan']} subscription will expire in {vars['days_remaining']} days.`.
+- `L567`: Implements this section of logic starting with `Don't lose access! Renew now to continue enjoying secure, private browsing without interruption.`.
+- `L569`: Implements this section of logic starting with `Renew Now: {vars['renewal_url']}`.
+- `L571`: Implements this section of logic starting with `Need help? Contact our support team anytime.`.
+- `L573-L576`: Implements this section of logic starting with `---`.
+- `L578-L601`: Defines `_get_subscription_expired_html`. Subscription expired HTML template.
+- `L603-L606`: Initializes module-level variables and configuration used by later code.
+- `L608-L610`: Initializes module-level variables and configuration used by later code.
+- `L612-L620`: Implements this section of logic starting with `<p>Questions? Our support team is ready to assist you.</p>`.
+- `L622-L625`: Defines `_get_subscription_expired_text`. Subscription expired plain text template.
+- `L627`: Implements this section of logic starting with `Hi {vars['user_name']},`.
+- `L629`: Implements this section of logic starting with `Your {vars['subscription_plan']} subscription has expired.`.
+- `L631`: Implements this section of logic starting with `Your VPN access has been suspended. Renew your subscription to restore full access to SecureWave ...`.
+- `L633`: Implements this section of logic starting with `Renew Now: {vars['renewal_url']}`.
+- `L635`: Implements this section of logic starting with `Questions? Our support team is ready to assist you.`.
+- `L637-L640`: Implements this section of logic starting with `---`.
+- `L642-L665`: Defines `_get_subscription_renewed_html`. Subscription renewed HTML template.
+- `L667-L670`: Initializes module-level variables and configuration used by later code.
+- `L672`: Implements this section of logic starting with `<p>Thank you for continuing to trust SecureWave VPN for your online security and privacy.</p>`.
+- `L674-L684`: Initializes module-level variables and configuration used by later code.
+- `L686-L689`: Defines `_get_subscription_renewed_text`. Subscription renewed plain text template.
+- `L691`: Implements this section of logic starting with `Hi {vars['user_name']},`.
+- `L693`: Implements this section of logic starting with `Your {vars['subscription_plan']} subscription has been successfully renewed.`.
+- `L695-L696`: Implements this section of logic starting with `Payment Confirmed: {vars['amount']}`.
+- `L698`: Implements this section of logic starting with `Thank you for continuing to trust SecureWave VPN for your online security and privacy.`.
+- `L700`: Implements this section of logic starting with `Dashboard: {vars['dashboard_url']}`.
+- `L702-L705`: Implements this section of logic starting with `---`.
+- `L708-L710`: Defines `get_enhanced_email_service`. Get enhanced email service instance.

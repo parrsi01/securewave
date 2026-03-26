@@ -73,3 +73,22 @@ def test_region_watchdog_marks_server_unreachable_after_threshold(db, monkeypatc
     assert refreshed is not None
     assert refreshed.health_status == "unreachable"
     assert int(refreshed.consecutive_health_failures or 0) >= 2
+
+
+def test_probe_region_health_treats_reachable_udp_listener_as_up(db, monkeypatch):
+    server = _create_server(db, "udp-probe-up-1")
+    server.supports_openvpn = True
+    server.supports_ikev2 = True
+    db.add(server)
+    db.commit()
+    db.refresh(server)
+
+    monkeypatch.setattr(vpn_routes, "_probe_http_health_endpoint", lambda *_args, **_kwargs: "not_configured")
+    monkeypatch.setattr(vpn_routes, "_probe_tcp_port", lambda *_args, **_kwargs: "closed")
+    monkeypatch.setattr(vpn_routes, "_probe_udp_listener", lambda *_args, **_kwargs: "open_or_filtered")
+    monkeypatch.setattr(vpn_routes, "_probe_host_icmp", lambda *_args, **_kwargs: "up")
+
+    status, reason = vpn_routes._probe_region_health(server)
+
+    assert status == "up"
+    assert reason == "udp_listener_reachable"

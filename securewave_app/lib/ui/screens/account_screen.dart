@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/services/auth_session.dart';
 import '../../core/state/app_state.dart';
 import '../../debug/automation_keys.dart';
+import '../../ui/components/htb_background.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
+import '../../ui/theme/app_colors.dart' as htb;
 import '../../ui/widgets/glass_panel.dart';
 
 /// Account / profile screen.
@@ -21,158 +23,172 @@ class AccountScreen extends ConsumerWidget {
 
     return Scaffold(
       key: AutomationKeys.accountScreenKey,
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: const Text('Account'),
         centerTitle: false,
       ),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints:
-              const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.pagePadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── Profile card ──────────────────────────────────────────
-                GlassPanel(
-                  child: Column(
-                    children: [
-                      // Avatar
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: const BoxDecoration(
-                          gradient: AppColors.brandGradient,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            _initials(authSession.email),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 22,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.space3),
-                      Text(
-                        authSession.email ?? 'User',
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                      ),
-                      const SizedBox(height: AppSpacing.space2),
-                      planAsync.when(
-                        loading: () => const SizedBox(
-                          width: 80,
-                          height: 4,
-                          child: LinearProgressIndicator(),
-                        ),
-                        error: (_, __) => const SizedBox.shrink(),
-                        data: (plan) => Container(
+      body: HtbScaffoldBackground(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints:
+                const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(AppSpacing.pagePadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  GlassPanel(
+                    glowColor: htb.HtbColors.accentSecondaryMuted,
+                    borderColor: htb.HtbColors.accentSecondaryGhost,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        htb.HtbColors.accentSecondaryGhost,
+                        htb.HtbColors.bg1.withValues(alpha: 0.92),
+                        htb.HtbColors.bg3.withValues(alpha: 0.96),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.space3,
-                              vertical: AppSpacing.space1),
+                            horizontal: AppSpacing.space3,
+                            vertical: AppSpacing.space2,
+                          ),
                           decoration: BoxDecoration(
-                            gradient:
-                                plan.isPremium ? AppColors.brandGradient : null,
-                            color: plan.isPremium
-                                ? null
-                                : AppColors.primaryBright
-                                    .withValues(alpha: 0.12),
+                            color: htb.HtbColors.accentSecondaryGhost,
                             borderRadius:
                                 BorderRadius.circular(AppSpacing.radiusFull),
-                          ),
-                          child: Text(
-                            plan.name.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                              color: plan.isPremium
-                                  ? Colors.white
-                                  : AppColors.primaryBright,
+                            border: Border.all(
+                              color: htb.HtbColors.accentSecondaryGhost,
                             ),
                           ),
+                          child: Text(
+                            'IDENTITY NODE',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: htb.HtbColors.textMono,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.9,
+                                ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space5),
-
-                // ── Plan usage ────────────────────────────────────────────
-                planAsync.when(
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                  data: (plan) => !plan.isPremium && plan.dataCapGb > 0
-                      ? GlassPanel(
-                          padding: const EdgeInsets.all(AppSpacing.space4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                        const SizedBox(height: AppSpacing.space3),
+                        Text(
+                          'Profile & plan',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        const SizedBox(height: AppSpacing.space2),
+                        Text(
+                          'Manage your SecureWave identity, devices, and subscription status from one place.',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: htb.HtbColors.textSecondary,
+                                  ),
+                        ),
+                        const SizedBox(height: AppSpacing.space5),
+                        Row(
+                          children: [
+                            Container(
+                              width: 72,
+                              height: 72,
+                              decoration: const BoxDecoration(
+                                gradient: AppColors.brandGradient,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  _initials(authSession.email),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 24,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.space4),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Data used',
+                                    authSession.email ?? 'User',
                                     style: Theme.of(context)
                                         .textTheme
-                                        .labelMedium
-                                        ?.copyWith(
-                                            color: isDark
-                                                ? AppColors.darkInkMuted
-                                                : AppColors.inkMuted),
-                                  ),
-                                  Text(
-                                    '${plan.usedGb.toStringAsFixed(1)} / ${plan.dataCapGb.toStringAsFixed(0)} GB',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
+                                        .titleMedium
                                         ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: AppSpacing.space1),
+                                  Text(
+                                    'SecureWave ID',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: htb.HtbColors.textSecondary,
+                                        ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: AppSpacing.space2),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(
-                                    AppSpacing.radiusFull),
-                                child: LinearProgressIndicator(
-                                  value: plan.usagePercent,
-                                  minHeight: 6,
-                                  backgroundColor: Theme.of(context)
-                                      .colorScheme
-                                      .outlineVariant,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    plan.usagePercent > 0.8
-                                        ? AppColors.error
-                                        : AppColors.primaryBright,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.space4),
+                        planAsync.when(
+                          loading: () => const SizedBox(
+                            width: 80,
+                            height: 4,
+                            child: LinearProgressIndicator(),
                           ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-                if (planAsync.hasValue &&
-                    !planAsync.value!.isPremium &&
-                    planAsync.value!.dataCapGb > 0)
+                          error: (_, __) => const SizedBox.shrink(),
+                          data: (plan) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.space3,
+                              vertical: AppSpacing.space1,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: plan.isPremium
+                                  ? AppColors.brandGradient
+                                  : null,
+                              color: plan.isPremium
+                                  ? null
+                                  : AppColors.primaryBright
+                                      .withValues(alpha: 0.12),
+                              borderRadius:
+                                  BorderRadius.circular(AppSpacing.radiusFull),
+                            ),
+                            child: Text(
+                              plan.name.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                color: plan.isPremium
+                                    ? Colors.white
+                                    : AppColors.primaryBright,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: AppSpacing.space5),
-
-                // ── Actions ───────────────────────────────────────────────
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-                  child: Material(
-                    color: isDark
-                        ? AppColors.darkSurface
-                        : Theme.of(context).colorScheme.surface,
+                  GlassPanel(
+                    glowColor: htb.HtbColors.accentPrimary,
+                    padding: EdgeInsets.zero,
                     child: Column(
                       children: [
                         _ActionTile(
@@ -200,8 +216,70 @@ class AccountScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: AppSpacing.space5),
+                  planAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                    data: (plan) => !plan.isPremium && plan.dataCapGb > 0
+                        ? GlassPanel(
+                            padding: const EdgeInsets.all(AppSpacing.space4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Data used',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: isDark
+                                                ? AppColors.darkInkMuted
+                                                : AppColors.inkMuted,
+                                          ),
+                                    ),
+                                    Text(
+                                      '${plan.usedGb.toStringAsFixed(1)} / ${plan.dataCapGb.toStringAsFixed(0)} GB',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w700),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.space2),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.radiusFull,
+                                  ),
+                                  child: LinearProgressIndicator(
+                                    value: plan.usagePercent,
+                                    minHeight: 6,
+                                    backgroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .outlineVariant,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      plan.usagePercent > 0.8
+                                          ? AppColors.error
+                                          : AppColors.primaryBright,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  if (planAsync.hasValue &&
+                      !planAsync.value!.isPremium &&
+                      planAsync.value!.dataCapGb > 0)
+                    const SizedBox(height: AppSpacing.space1),
+                ],
+              ),
             ),
           ),
         ),
@@ -264,19 +342,37 @@ class _ActionTile extends StatelessWidget {
     final color = danger ? AppColors.error : AppColors.primaryBright;
     return ListTile(
       key: automationKey,
-      leading: Icon(icon, color: color, size: AppSpacing.iconM),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+          border: Border.all(color: color.withValues(alpha: 0.26)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Icon(icon, color: color, size: AppSpacing.iconS),
+      ),
       title: Text(
         label,
         style: TextStyle(
           color: danger ? AppColors.error : null,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
         ),
       ),
       trailing: danger
           ? null
-          : Icon(Icons.chevron_right_rounded,
+          : Icon(
+              Icons.chevron_right_rounded,
               size: AppSpacing.iconS,
-              color: isDark ? AppColors.darkInkSoft : AppColors.inkSoft),
+              color: isDark ? AppColors.darkInkSoft : AppColors.inkSoft,
+            ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space4,
         vertical: AppSpacing.space1,

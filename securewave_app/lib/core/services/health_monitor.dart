@@ -3,9 +3,13 @@ import 'dart:async';
 import 'vpn_service.dart';
 
 enum VpnHealthFailureType {
-  softFailure,
-  hardFailure,
-  handshakeFailure,
+  noTunnel,
+  noRoute,
+  trafficBlocked,
+  highLatency,
+  packetLoss,
+  dnsLeak,
+  partialConnectivity,
 }
 
 class VpnHealthIssue {
@@ -20,6 +24,11 @@ class VpnHealthIssue {
   final VpnHealthSnapshot snapshot;
   final String reason;
   final int consecutiveFailures;
+
+  bool get isDegraded =>
+      type == VpnHealthFailureType.highLatency ||
+      type == VpnHealthFailureType.packetLoss ||
+      type == VpnHealthFailureType.partialConnectivity;
 }
 
 typedef VpnHealthSampler = Future<VpnHealthSnapshot?> Function();
@@ -33,9 +42,8 @@ class HealthMonitorService {
     required VpnHealthIssueHandler onIssue,
     this.onRecovered,
     this.interval = const Duration(seconds: 3),
-    this.softFailureThreshold = 2,
-    this.hardFailureThreshold = 1,
-    this.handshakeFailureThreshold = 1,
+    this.degradedFailureThreshold = 2,
+    this.unhealthyFailureThreshold = 1,
   })  : _sample = sample,
         _onIssue = onIssue;
 
@@ -43,16 +51,14 @@ class HealthMonitorService {
   final VpnHealthIssueHandler _onIssue;
   final VpnHealthRecoveredHandler? onRecovered;
   final Duration interval;
-  final int softFailureThreshold;
-  final int hardFailureThreshold;
-  final int handshakeFailureThreshold;
+  final int degradedFailureThreshold;
+  final int unhealthyFailureThreshold;
 
   Timer? _timer;
   bool _running = false;
   bool _pollInFlight = false;
-  int _softFailures = 0;
-  int _hardFailures = 0;
-  int _handshakeFailures = 0;
+  VpnHealthFailureType? _lastFailureType;
+  int _failureCount = 0;
   bool _reportedDegraded = false;
 
   bool get isRunning => _running;
@@ -76,9 +82,8 @@ class HealthMonitorService {
   }
 
   void _resetCounters() {
-    _softFailures = 0;
-    _hardFailures = 0;
-    _handshakeFailures = 0;
+    _lastFailureType = null;
+    _failureCount = 0;
     _reportedDegraded = false;
   }
 
@@ -91,18 +96,14 @@ class HealthMonitorService {
 
       final issue = _classifyIssue(snapshot);
       if (issue == null) {
-        final healthy =
-            _softFailures == 0 && _hardFailures == 0 && _handshakeFailures == 0;
-        if (healthy && _reportedDegraded && onRecovered != null) {
+        if (_reportedDegraded && onRecovered != null) {
           await onRecovered!(snapshot);
         }
-        if (healthy) {
-          _reportedDegraded = false;
-        }
+        _reportedDegraded = false;
         return;
       }
 
-      if (issue.type == VpnHealthFailureType.softFailure) {
+      if (issue.isDegraded) {
         _reportedDegraded = true;
       }
       await _onIssue(issue);
@@ -112,63 +113,80 @@ class HealthMonitorService {
   }
 
   VpnHealthIssue? _classifyIssue(VpnHealthSnapshot snapshot) {
-    if (!snapshot.interfaceUp ||
-        !snapshot.routePresent ||
-        !snapshot.policyRoutingPresent) {
-      _hardFailures += 1;
-      _softFailures = 0;
-      _handshakeFailures = 0;
-      if (_hardFailures < hardFailureThreshold) {
-        return null;
-      }
-      return VpnHealthIssue(
-        type: VpnHealthFailureType.hardFailure,
-        snapshot: snapshot,
-        reason: !snapshot.interfaceUp
-            ? 'VPN interface is no longer up.'
-            : !snapshot.policyRoutingPresent
-                ? 'WireGuard policy routing is no longer installed.'
-                : 'VPN route is no longer installed.',
-        consecutiveFailures: _hardFailures,
-      );
+    final failureType = _mapFailureType(snapshot);
+    if (failureType == null) {
+      _lastFailureType = null;
+      _failureCount = 0;
+      return null;
     }
 
-    _hardFailures = 0;
-
-    if (!snapshot.handshakeRecent) {
-      _handshakeFailures += 1;
-      _softFailures = 0;
-      if (_handshakeFailures < handshakeFailureThreshold) {
-        return null;
-      }
-      return VpnHealthIssue(
-        type: VpnHealthFailureType.handshakeFailure,
-        snapshot: snapshot,
-        reason: snapshot.handshakeAgeSeconds == null ||
-                snapshot.handshakeAgeSeconds! < 0
-            ? 'WireGuard handshake is missing.'
-            : 'WireGuard handshake is stale (${snapshot.handshakeAgeSeconds}s).',
-        consecutiveFailures: _handshakeFailures,
-      );
+    if (_lastFailureType == failureType) {
+      _failureCount += 1;
+    } else {
+      _lastFailureType = failureType;
+      _failureCount = 1;
     }
 
-    _handshakeFailures = 0;
-
-    if (!snapshot.pingReachable) {
-      _softFailures += 1;
-      if (_softFailures < softFailureThreshold) {
-        return null;
-      }
-      return VpnHealthIssue(
-        type: VpnHealthFailureType.softFailure,
-        snapshot: snapshot,
-        reason:
-            'Health probe via ${snapshot.interfaceName ?? "vpn"} lost reachability while the tunnel remained up.',
-        consecutiveFailures: _softFailures,
-      );
+    final threshold = _isDegradedFailure(failureType)
+        ? degradedFailureThreshold
+        : unhealthyFailureThreshold;
+    if (_failureCount < threshold) {
+      return null;
     }
 
-    _softFailures = 0;
-    return null;
+    return VpnHealthIssue(
+      type: failureType,
+      snapshot: snapshot,
+      reason: _failureReason(snapshot, failureType),
+      consecutiveFailures: _failureCount,
+    );
+  }
+
+  static bool _isDegradedFailure(VpnHealthFailureType type) {
+    return type == VpnHealthFailureType.highLatency ||
+        type == VpnHealthFailureType.packetLoss ||
+        type == VpnHealthFailureType.partialConnectivity;
+  }
+
+  static VpnHealthFailureType? _mapFailureType(VpnHealthSnapshot snapshot) {
+    return switch (snapshot.failureType) {
+      VpnValidationFailureType.noTunnel => VpnHealthFailureType.noTunnel,
+      VpnValidationFailureType.noRoute => VpnHealthFailureType.noRoute,
+      VpnValidationFailureType.trafficBlocked =>
+        VpnHealthFailureType.trafficBlocked,
+      VpnValidationFailureType.highLatency =>
+        VpnHealthFailureType.highLatency,
+      VpnValidationFailureType.packetLoss => VpnHealthFailureType.packetLoss,
+      VpnValidationFailureType.dnsLeak => VpnHealthFailureType.dnsLeak,
+      VpnValidationFailureType.partialConnectivity =>
+        VpnHealthFailureType.partialConnectivity,
+      null => snapshot.validationStatus == VpnValidationStatus.unhealthy
+          ? VpnHealthFailureType.trafficBlocked
+          : snapshot.validationStatus == VpnValidationStatus.degraded
+              ? VpnHealthFailureType.partialConnectivity
+              : null,
+    };
+  }
+
+  static String _failureReason(
+    VpnHealthSnapshot snapshot,
+    VpnHealthFailureType type,
+  ) {
+    switch (type) {
+      case VpnHealthFailureType.noTunnel:
+        return 'VPN interface is no longer up.';
+      case VpnHealthFailureType.noRoute:
+        return 'VPN policy routing is no longer installed.';
+      case VpnHealthFailureType.trafficBlocked:
+        return 'Tunnel traffic probes failed over both ICMP and HTTPS.';
+      case VpnHealthFailureType.highLatency:
+        return 'Tunnel latency is elevated (${snapshot.latencyMs ?? -1}ms).';
+      case VpnHealthFailureType.packetLoss:
+        return 'Tunnel packet loss reached ${(snapshot.packetLoss * 100).toStringAsFixed(0)}%.';
+      case VpnHealthFailureType.dnsLeak:
+        return 'Tunnel DNS path is not isolated to the VPN interface.';
+      case VpnHealthFailureType.partialConnectivity:
+        return 'Tunnel connectivity is only partially available.';
+    }
   }
 }

@@ -27,6 +27,8 @@ class _FixedStatusVpnService implements VpnService {
 
   @override
   Future<VpnCapabilities> getCapabilities() async => VpnCapabilities.none;
+  @override
+  void clearCapabilitiesCache() {}
 
   @override
   VpnStatus getStatus() => _status;

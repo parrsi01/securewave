@@ -21,7 +21,7 @@ import random
 import time
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Deque, Dict, Optional
 
@@ -58,8 +58,25 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def _utc_now_iso() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return _utc_now().isoformat().replace("+00:00", "Z")
+
+
+def _coerce_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _classify_watchdog_failure(message: str) -> str:
+    normalized = (message or "").strip().lower()
+    if any(token in normalized for token in ("privilege_failure:", "pkexec", "permission denied", "not authorized")):
+        return "privilege_failure"
+    return "tunnel_failure"
 
 
 class WatchdogEventWriter:
@@ -176,7 +193,7 @@ class TunnelWatchdog:
         state = self._state_for(server_id)
 
         # DB-side handshake staleness signal.
-        now = datetime.utcnow()
+        now = _utc_now()
         peers = (
             db.query(WireGuardPeer)
             .filter(
@@ -194,7 +211,7 @@ class TunnelWatchdog:
                 stale_peers += 1
                 max_age_s = max(max_age_s or 0.0, float(self.unstable_handshake_seconds) + 1.0)
                 continue
-            age = max(0.0, (now - peer.last_handshake_at).total_seconds())
+            age = max(0.0, (now - _coerce_utc(peer.last_handshake_at)).total_seconds())
             if age > self.unstable_handshake_seconds:
                 stale_peers += 1
             max_age_s = age if max_age_s is None else max(max_age_s, age)
@@ -235,7 +252,11 @@ class TunnelWatchdog:
                         # Never log peer keys; aggregate only.
                         total_transfer += int(item.get("transfer_rx", 0) or 0)
                         total_transfer += int(item.get("transfer_tx", 0) or 0)
-            except Exception:
+            except Exception as exc:
+                logger.debug(
+                    "watchdog transfer probe failed",
+                    extra={"server_id": server.server_id, "error": str(exc)},
+                )
                 total_transfer = state.last_total_transfer
 
             if total_transfer <= state.last_total_transfer and peers and handshake_state == "unstable":
@@ -350,9 +371,18 @@ class TunnelWatchdog:
         if success:
             state.consecutive_failures = 0
             state.stuck_cycles = 0
-            server.last_reboot_at = datetime.utcnow()
+            server.last_reboot_at = _utc_now().replace(tzinfo=None)
             db.add(server)
             db.commit()
+            logger.info(
+                "watchdog restart succeeded",
+                extra={
+                    "server_id": server.server_id,
+                    "reason": reason,
+                    "health_status": health_status,
+                    "handshake_state": handshake_state,
+                },
+            )
         else:
             state.consecutive_failures += 1
 
@@ -360,6 +390,19 @@ class TunnelWatchdog:
         jitter = backoff * self._rng.uniform(0.0, self.jitter_fraction)
         delay = backoff + jitter
         state.next_allowed_at = now_mono + delay
+        failure_class = None if success else _classify_watchdog_failure(message)
+
+        if not success:
+            logger.warning(
+                "watchdog restart failed",
+                extra={
+                    "server_id": server.server_id,
+                    "reason": reason,
+                    "failure_class": failure_class,
+                    "failure_message": message,
+                    "consecutive_failures": state.consecutive_failures,
+                },
+            )
 
         await self._events.write(
             {
@@ -369,6 +412,7 @@ class TunnelWatchdog:
                 "action": "restart_wireguard_interface",
                 "success": bool(success),
                 "message": message,
+                "failure_class": failure_class,
                 "consecutive_failures": state.consecutive_failures,
                 "next_allowed_in_seconds": round(delay, 3),
             }
@@ -383,4 +427,3 @@ def get_tunnel_watchdog() -> TunnelWatchdog:
     if _watchdog is None:
         _watchdog = TunnelWatchdog()
     return _watchdog
-

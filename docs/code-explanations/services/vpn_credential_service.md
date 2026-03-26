@@ -1,0 +1,98 @@
+# `services/vpn_credential_service.py`
+
+Purpose: This service module implements the business logic for vpn credential service operations.
+
+## Line Walkthrough
+
+- `L1`: Module or block docstring that describes the responsibility of this section.
+- `L3-L5`: Implements this section of logic starting with `This service module implements the business logic for vpn credential service operations.`.
+- `L7`: Imports the dependencies used later in this module, including __future__.
+- `L9-L22`: Imports the dependencies used later in this module, including base64, hashlib, hmac, json, logging, os, re, secrets, ....
+- `L24-L25`: Imports the dependencies used later in this module, including cryptography, sqlalchemy.
+- `L27-L30`: Imports the dependencies used later in this module, including config, models, services, utils.
+- `L32-L34`: Initializes module-level state or configuration such as `logger, _REMOTE_EXIT_MARKER, _REMOTE_OUTPUT_LIMIT`.
+- `L37-L41`: Applies decorators and defines `VpnProtocolCredentials` with the wrapped behavior declared above it.
+- `L44-L54`: Applies decorators and defines `ProvisionedOpenVpnProfile` with the wrapped behavior declared above it.
+- `L57-L71`: Applies decorators and defines `ProvisionedIkev2Profile` with the wrapped behavior declared above it.
+- `L74-L81`: Applies decorators and defines `RemoteScriptExecution` with the wrapped behavior declared above it.
+- `L84-L99`: Defines the `RemoteScriptError` class and the behavior it groups together.
+- `L101-L111`: Initializes module-level state or configuration such as `parts`.
+- `L114-L116`: Defines the `VpnCredentialService` class and the behavior it groups together.
+- `L118-L121`: Implements this section of logic starting with `Supported modes:`.
+- `L123-L125`: Implements this section of logic starting with `Private profile material is never persisted in plaintext; certificate private`.
+- `L127-L130`: Defines the `__init__` function and the logic it executes.
+- `L132-L140`: Defines the `_load_fernet` function and the logic it executes.
+- `L142-L150`: Defines the `_encrypt` function and the logic it executes.
+- `L152-L164`: Defines the `_decrypt` function and the logic it executes.
+- `L166-L171`: Applies decorators and defines `_truncate_diagnostic_output` with the wrapped behavior declared above it.
+- `L173-L183`: Applies decorators and defines `_filter_known_host_warnings` with the wrapped behavior declared above it.
+- `L185-L197`: Applies decorators and defines `_redact_command_summary` with the wrapped behavior declared above it.
+- `L199-L207`: Applies decorators and defines `_wrap_remote_command` with the wrapped behavior declared above it.
+- `L209-L220`: Applies decorators and defines `_extract_remote_exit_code` with the wrapped behavior declared above it.
+- `L222-L225`: Applies decorators and defines `_generate_username` with the wrapped behavior declared above it.
+- `L227-L230`: Applies decorators and defines `_generate_password` with the wrapped behavior declared above it.
+- `L232-L234`: Applies decorators and defines `_local_host_aliases` with the wrapped behavior declared above it.
+- `L236-L244`: Loops over a collection to apply the same work to each item.
+- `L246-L253`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L255`: Returns a value from the current function.
+- `L257-L264`: Applies decorators and defines `_should_run_local` with the wrapped behavior declared above it.
+- `L266-L276`: Implements this section of logic starting with `Local shell execution must never run in production.`.
+- `L278-L283`: Applies decorators and defines `_parse_bool_env` with the wrapped behavior declared above it.
+- `L285-L292`: Applies decorators and defines `_parse_valid_days` with the wrapped behavior declared above it.
+- `L294-L296`: Applies decorators and defines `_utc_now` with the wrapped behavior declared above it.
+- `L298-L302`: Applies decorators and defines `_to_naive_utc` with the wrapped behavior declared above it.
+- `L304-L315`: Applies decorators and defines `_parse_iso8601` with the wrapped behavior declared above it.
+- `L317-L319`: Applies decorators and defines `_b64url_encode` with the wrapped behavior declared above it.
+- `L321-L324`: Applies decorators and defines `_b64url_decode` with the wrapped behavior declared above it.
+- `L326-L338`: Defines the `_provisioning_secret` function and the logic it executes.
+- `L340-L367`: Defines the `_mint_provisioning_token` function and the logic it executes.
+- `L369-L373`: Applies decorators and defines `_parse_json_from_stdout` with the wrapped behavior declared above it.
+- `L375-L384`: Implements this section of logic starting with `# Prefer explicit JSON line when scripts emit progress logs.`.
+- `L386-L389`: Initializes module-level state or configuration such as `parsed`.
+- `L391-L397`: Applies decorators and defines `_payload_failure_message` with the wrapped behavior declared above it.
+- `L399-L407`: Defines the `_resolve_script_payload` function and the logic it executes.
+- `L409-L410`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L412-L416`: Initializes module-level state or configuration such as `artifact_path`.
+- `L418-L430`: Initializes module-level state or configuration such as `cmd, ok, stdout, stderr`.
+- `L432-L434`: Initializes module-level state or configuration such as `merged`.
+- `L436-L437`: Defines the `_common_name` function and the logic it executes.
+- `L439-L479`: Defines the `_upsert_certificate_record` function and the logic it executes.
+- `L481-L491`: Initializes module-level state or configuration such as `record.credential_type, record.username, record.cert_serial, record.cert_fingerprint_sha256, record.profile_expires_at, record.last_provisioned_at`.
+- `L493-L496`: Implements this section of logic starting with `self.db.add(record)`.
+- `L498-L533`: Defines the `_upsert_userpass_record` function and the logic it executes.
+- `L535-L547`: Initializes module-level state or configuration such as `record.username, record.password_encrypted, record.credential_type, record.last_provisioned_at, record.profile_expires_at, record.cert_serial`.
+- `L549-L557`: Defines the `_run_remote_script` function and the logic it executes.
+- `L559-L578`: Defines the `_run_remote_script_detailed` function and the logic it executes.
+- `L580-L601`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L603-L623`: Initializes module-level state or configuration such as `manager, conn, started, transport_ok, stdout, stderr`.
+- `L625-L672`: Defines the `_openvpn_testing_payload` function and the logic it executes.
+- `L674-L692`: Defines the `_ikev2_testing_payload` function and the logic it executes.
+- `L694-L706`: Defines the `list_user_credentials` function and the logic it executes.
+- `L708-L713`: Defines the `get_user_credential` function and the logic it executes.
+- `L715-L737`: Defines the `issue_openvpn_certificate_profile` function and the logic it executes.
+- `L739-L746`: Initializes module-level state or configuration such as `common_name, provisioning_secret, token, token_hash, token_expires, subject`.
+- `L748-L778`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L780-L783`: Initializes module-level state or configuration such as `ovpn_b64`.
+- `L785-L787`: Initializes module-level state or configuration such as `cert_serial, fingerprint, expires_at`.
+- `L789-L803`: Initializes module-level state or configuration such as `record, protocol, user_id, device_id, server_id, common_name`.
+- `L805-L815`: Returns a value from the current function.
+- `L817-L839`: Defines the `issue_ikev2_certificate_profile` function and the logic it executes.
+- `L841-L848`: Initializes module-level state or configuration such as `common_name, provisioning_secret, token, token_hash, token_expires, subject`.
+- `L850-L853`: Initializes module-level state or configuration such as `remote_id, server_host`.
+- `L855-L902`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L904-L906`: Initializes module-level state or configuration such as `pkcs12_b64`.
+- `L908-L910`: Initializes module-level state or configuration such as `pkcs12_password`.
+- `L912-L913`: Initializes module-level state or configuration such as `ca_b64, ca_cert_pem`.
+- `L915-L917`: Initializes module-level state or configuration such as `cert_serial, fingerprint, expires_at`.
+- `L919-L933`: Initializes module-level state or configuration such as `record, protocol, user_id, device_id, server_id, common_name`.
+- `L935-L949`: Returns a value from the current function.
+- `L951-L959`: Defines the `revoke_certificate` function and the logic it executes.
+- `L961-L962`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L964-L969`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L971-L987`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L989-L994`: Initializes module-level state or configuration such as `credential.revoked_at, credential.revoke_reason`.
+- `L996-L1009`: Defines the `rotate_certificate` function and the logic it executes.
+- `L1011-L1021`: Defines the `get_or_create` function and the logic it executes.
+- `L1023-L1039`: Initializes module-level state or configuration such as `existing`.
+- `L1041-L1050`: Initializes module-level state or configuration such as `username, password, protocol, user_id, device_id, server_id`.
+- `L1052`: Returns a value from the current function.

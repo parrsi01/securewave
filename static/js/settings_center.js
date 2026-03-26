@@ -242,14 +242,14 @@
     // Step 2: Show modal with QR + verification input
     const backupList = (backup_codes || []).map((c) => `<code>${escapeHtml(c)}</code>`).join(' ');
     const bodyHtml = `
-      <p style="margin-bottom:var(--sw-space-3)">Scan the QR code with your authenticator app:</p>
-      <div style="text-align:center;margin-bottom:var(--sw-space-4)">
-        <img src="${escapeHtml(qr_code_url)}" alt="2FA QR Code" width="200" height="200" style="border-radius:var(--sw-radius-md);background:#fff;padding:8px">
+      <p class="mb-3">Scan the QR code with your authenticator app:</p>
+      <div class="qr-wrap">
+        <img class="qr-image" src="${escapeHtml(qr_code_url)}" alt="2FA QR Code" width="200" height="200">
       </div>
-      <p style="font-size:.85rem;margin-bottom:var(--sw-space-2)">Or enter manually: <code>${escapeHtml(secret)}</code></p>
-      <div style="margin-bottom:var(--sw-space-4)">
-        <p style="font-size:.85rem;margin-bottom:var(--sw-space-2)"><strong>Backup codes</strong> (save these):</p>
-        <div style="font-size:.8rem;line-height:1.8;word-break:break-all">${backupList}</div>
+      <p class="code-note">Or enter manually: <code>${escapeHtml(secret)}</code></p>
+      <div class="mb-4">
+        <p class="code-note"><strong>Backup codes</strong> (save these):</p>
+        <div class="code-list">${backupList}</div>
       </div>
       <form data-2fa-verify-form>
         <div class="form-group">
@@ -313,7 +313,7 @@
   async function disable2FA(toggle) {
     // Prompt for current TOTP code before disabling
     const bodyHtml = `
-      <p style="margin-bottom:var(--sw-space-3)">Enter your current authenticator code or a backup code to disable 2FA.</p>
+      <p class="mb-3">Enter your current authenticator code or a backup code to disable 2FA.</p>
       <form data-2fa-disable-form>
         <div class="form-group">
           <label class="form-label" for="totp-disable-code">Verification code</label>

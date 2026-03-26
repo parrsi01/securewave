@@ -17,9 +17,9 @@ import uuid
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import jwt
 import pytest
 from fastapi import status
-from jose import jwt
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers shared by multiple test classes
@@ -111,7 +111,7 @@ class TestAccessTokenDecoding:
 
     def test_wrong_secret_raises_401(self, db):
         from auth.token import create_access_token
-        from jose import jwt as jose_jwt
+        import jwt as jose_jwt
         from fastapi import HTTPException
         user = _make_user(db)
         # Sign with wrong secret

@@ -1,0 +1,15 @@
+{
+  "captured_at": "2026-03-25T23:51:30Z",
+  "cycle": 1,
+  "patch_plan": {
+    "generated_at": "2026-03-25T23:51:30Z",
+    "recommendations": [],
+    "repeated_offline_with_vpn": 0,
+    "repeated_wifi_disabled": 0
+  },
+  "training": {
+    "ml_mode": "unavailable",
+    "record_count": 3,
+    "trained": false
+  }
+}

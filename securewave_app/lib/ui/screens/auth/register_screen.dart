@@ -6,8 +6,11 @@ import '../../../debug/automation_keys.dart';
 import '../../../features/auth/auth_controller.dart';
 import '../../../features/auth/auth_widgets.dart';
 import '../../../services/auth_service.dart';
+import '../../../ui/components/neon_button.dart';
+import '../../../ui/components/htb_background.dart';
 import '../../../ui/design/app_spacing.dart';
 import '../../../ui/theme/app_colors.dart' as htb;
+import '../../../ui/widgets/glass_panel.dart';
 
 /// Registration screen.
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -58,22 +61,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final errorMsg = _localError ?? authState.errorMessage;
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            const AuthHeader(
-              headline: 'Create account',
-              subline: 'Join SecureWave',
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.pagePadding,
-                  vertical: AppSpacing.space5,
-                ),
-                child: ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(maxWidth: AppSpacing.authMaxWidth),
+      backgroundColor: htb.HtbColors.bg0,
+      body: Stack(
+        children: [
+          const HtbBackground(),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 980;
+                final formCard = GlassPanel(
+                  glowColor: htb.HtbColors.accentSecondaryMuted,
+                  borderColor: htb.HtbColors.accentSecondaryGhost,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -108,9 +106,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
                           prefixIcon: const Icon(Icons.lock_outline_rounded),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscure
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined),
+                            icon: Icon(
+                              _obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
                             onPressed: () =>
                                 setState(() => _obscure = !_obscure),
                           ),
@@ -133,25 +133,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.space6),
-                      FilledButton(
+                      NeonButton(
                         key: AutomationKeys.registerSubmitButtonKey,
+                        width: double.infinity,
+                        label: 'Create Account',
+                        icon: Icons.arrow_outward_rounded,
+                        isConnecting: authState.isLoading,
                         onPressed: authState.isLoading ? null : _submit,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: htb.HtbColors.neonCyan,
-                          foregroundColor: htb.HtbColors.textInverse,
-                          disabledBackgroundColor: htb.HtbColors.neonCyanGhost,
-                          disabledForegroundColor: htb.HtbColors.textTertiary,
-                        ),
-                        child: authState.isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: htb.HtbColors.textInverse,
-                                ),
-                              )
-                            : const Text('Create Account'),
                       ),
                       const SizedBox(height: AppSpacing.space4),
                       Wrap(
@@ -166,9 +154,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             key: AutomationKeys.registerBackToLoginButtonKey,
                             onPressed: () => context.go('/login'),
                             style: TextButton.styleFrom(
-                              foregroundColor: htb.HtbColors.neonCyan,
+                              foregroundColor: htb.HtbColors.accentSecondary,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.space2),
+                                horizontal: AppSpacing.space2,
+                              ),
                             ),
                             child: const Text(
                               'Sign In',
@@ -179,11 +168,82 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                     ],
                   ),
-                ),
-              ),
+                );
+
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.pagePadding,
+                      vertical: AppSpacing.space5,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isWide ? 1080 : AppSpacing.authMaxWidth,
+                      ),
+                      child: isWide
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Expanded(
+                                  flex: 11,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      AuthHeader(
+                                        headline: 'Create account',
+                                        subline: 'Join SecureWave',
+                                      ),
+                                      SizedBox(height: AppSpacing.space4),
+                                      AuthFeaturePanel(
+                                        kicker: 'ONBOARDING NODE',
+                                        title:
+                                            'Launch a cleaner security workspace',
+                                        description:
+                                            'Create your SecureWave identity and move straight into connection controls, diagnostics, and account management.',
+                                        items: [
+                                          'Unified control surfaces across mobile and desktop',
+                                          'Fast auth flow with minimal visual noise',
+                                          'Built-in diagnostics and health monitoring after sign-in',
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.space5),
+                                Expanded(flex: 9, child: formCard),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const AuthHeader(
+                                  headline: 'Create account',
+                                  subline: 'Join SecureWave',
+                                ),
+                                const SizedBox(height: AppSpacing.space4),
+                                const AuthFeaturePanel(
+                                  kicker: 'ONBOARDING NODE',
+                                  title: 'Launch a cleaner security workspace',
+                                  description:
+                                      'Create your SecureWave identity and move straight into connection controls, diagnostics, and account management.',
+                                  items: [
+                                    'Unified control surfaces across mobile and desktop',
+                                    'Built-in diagnostics and health monitoring after sign-in',
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.space4),
+                                formCard,
+                              ],
+                            ),
+                    ),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

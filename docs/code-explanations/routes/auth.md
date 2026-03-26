@@ -1,0 +1,136 @@
+# `routes/auth.py`
+
+Purpose: This module exposes API handlers for auth features in the SecureWave backend.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L15`: Imports the dependencies used later in this module, including logging, secrets, datetime, typing, fastapi, starlette, pydantic, sqlalchemy, ....
+- `L17-L41`: Implements this section of logic starting with `from config.settings import get_settings`.
+- `L43-L46`: Initializes module-level state or configuration such as `logger, router, SETTINGS, COOKIE_SAMESITE`.
+- `L49-L50`: Defines the `_cookie_secure` function and the logic it executes.
+- `L53-L81`: Defines the `_set_auth_cookies` function and the logic it executes.
+- `L84-L88`: Defines the `_clear_auth_cookies` function and the logic it executes.
+- `L91-L116`: Defines the `_invalidate_user_sessions` function and the logic it executes.
+- `L118`: Initializes module-level state or configuration such as `is_testing`.
+- `L120-L121`: Implements this section of logic starting with `# Rate limiter (disabled in tests to avoid hangs)`.
+- `L123-L128`: Defines the `rate_limit` function and the logic it executes.
+- `L131-L132`: Initializes module-level state or configuration such as `_PASSWORD_RESET_WINDOW, _PASSWORD_RESET_MAX_REQUESTS`.
+- `L135-L144`: Defines the `_password_reset_request_is_throttled` function and the logic it executes.
+- `L147-L148`: Defines the `_clear_password_reset_request_limits_for_tests` function and the logic it executes.
+- `L151-L159`: Defines the `record_login_success` function and the logic it executes.
+- `L162-L171`: Defines the `_log_auth_event` function and the logic it executes.
+- `L174-L176`: Comment block that explains the next section: ===========================.
+- `L178-L181`: Defines the `RegisterRequest` class and the behavior it groups together.
+- `L184-L187`: Defines the `LoginRequest` class and the behavior it groups together.
+- `L190-L191`: Defines the `RefreshRequest` class and the behavior it groups together.
+- `L194-L197`: Defines the `TokenRevokeRequest` class and the behavior it groups together.
+- `L200-L202`: Defines the `UpdateEmailRequest` class and the behavior it groups together.
+- `L205-L207`: Defines the `UpdatePasswordRequest` class and the behavior it groups together.
+- `L210-L211`: Defines the `VerifyEmailRequest` class and the behavior it groups together.
+- `L214-L215`: Defines the `PasswordResetRequestModel` class and the behavior it groups together.
+- `L218-L220`: Defines the `PasswordResetConfirmModel` class and the behavior it groups together.
+- `L223-L227`: Defines the `Setup2FAResponse` class and the behavior it groups together.
+- `L230-L231`: Defines the `Verify2FARequest` class and the behavior it groups together.
+- `L234-L239`: Defines the `TokenResponse` class and the behavior it groups together.
+- `L242-L247`: Defines the `_extract_bearer_token` function and the logic it executes.
+- `L250-L252`: Comment block that explains the next section: ===========================.
+- `L254-L272`: Registers the `register` endpoint with the API router.
+- `L274-L280`: Implements this section of logic starting with `# Validate password strength`.
+- `L282-L286`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L288-L298`: Implements this section of logic starting with `# Create user`.
+- `L300-L304`: Implements this section of logic starting with `# Send verification email (skipped in tests)`.
+- `L306-L307`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L309-L314`: Implements this section of logic starting with `_log_auth_event(`.
+- `L316-L328`: Implements this section of logic starting with `# Always issue tokens so clients can proceed without a separate login step.`.
+- `L330-L341`: Initializes module-level state or configuration such as `message`.
+- `L343-L351`: Handles a failure from the preceding `try` block.
+- `L354-L368`: Registers the `login` endpoint with the API router.
+- `L370-L378`: Implements this section of logic starting with `# Check lockout BEFORE password verification to prevent timing-based enumeration.`.
+- `L380-L386`: Initializes module-level state or configuration such as `is_valid`.
+- `L388-L399`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L401-L404`: Implements this section of logic starting with `raise HTTPException(`.
+- `L406-L411`: Comment block that explains the next section: Check if email is verified (optional - can be enforced).
+- `L413-L421`: Implements this section of logic starting with `# Check 2FA`.
+- `L423-L424`: Implements this section of logic starting with `# Verify TOTP code`.
+- `L426-L428`: Implements this section of logic starting with `# If TOTP fails, try backup code`.
+- `L430-L444`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L446-L447`: Initializes module-level state or configuration such as `ip_address`.
+- `L449`: Comment block that explains the next section: Admin status is managed via DB only — use management CLI to promote users.
+- `L451-L457`: Implements this section of logic starting with `_log_auth_event(`.
+- `L459-L468`: Initializes module-level state or configuration such as `access_token, user_agent, refresh_token, ip_address, csrf_token`.
+- `L470-L475`: Returns a value from the current function.
+- `L477-L484`: Handles a failure from the preceding `try` block.
+- `L487-L505`: Registers the `refresh` endpoint with the API router.
+- `L507-L508`: Initializes module-level state or configuration such as `token_data`.
+- `L510-L514`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L516-L530`: Initializes module-level state or configuration such as `access_token, ip_address, user_agent, refresh_token`.
+- `L532-L536`: Returns a value from the current function.
+- `L538-L545`: Handles a failure from the preceding `try` block.
+- `L548-L568`: Registers the `logout` endpoint with the API router.
+- `L571-L582`: Registers the `revoke_token` endpoint with the API router.
+- `L584-L587`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L589-L593`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L595-L596`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L598-L599`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L601-L608`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L610-L616`: Implements this section of logic starting with `_log_auth_event(`.
+- `L619-L633`: Registers the `get_current_user_info` endpoint with the API router.
+- `L636-L638`: Comment block that explains the next section: ===========================.
+- `L640-L645`: Registers the `verify_email` endpoint with the API router.
+- `L647-L651`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L653-L656`: Returns a value from the current function.
+- `L658-L665`: Handles a failure from the preceding `try` block.
+- `L668-L678`: Registers the `resend_verification_email` endpoint with the API router.
+- `L680-L681`: Initializes module-level state or configuration such as `auth_service, email_sent`.
+- `L683-L687`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L689`: Returns a value from the current function.
+- `L691-L698`: Handles a failure from the preceding `try` block.
+- `L701-L719`: Registers the `update_email` endpoint with the API router.
+- `L721-L726`: Initializes module-level state or configuration such as `new_email`.
+- `L728-L733`: Implements this section of logic starting with `existing = db.query(User).filter(User.email == new_email).first()`.
+- `L735-L738`: Initializes module-level state or configuration such as `current_user.email, current_user.email_verified`.
+- `L740-L742`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L744-L751`: Initializes module-level state or configuration such as `sessions_revoked, db, user, access_reason, refresh_reason`.
+- `L753-L756`: Returns a value from the current function.
+- `L758-L766`: Handles a failure from the preceding `try` block.
+- `L769-L784`: Registers the `update_password` endpoint with the API router.
+- `L786-L791`: Initializes module-level state or configuration such as `password_error`.
+- `L793-L796`: Initializes module-level state or configuration such as `current_user.hashed_password, current_user.failed_login_attempts, current_user.account_locked_until`.
+- `L798-L805`: Initializes module-level state or configuration such as `sessions_revoked, db, user, access_reason, refresh_reason`.
+- `L807-L810`: Returns a value from the current function.
+- `L812-L820`: Handles a failure from the preceding `try` block.
+- `L823-L843`: Registers the `logout_all` endpoint with the API router.
+- `L846-L848`: Comment block that explains the next section: ===========================.
+- `L850-L872`: Registers the `request_password_reset` endpoint with the API router.
+- `L874-L876`: Initializes module-level state or configuration such as `auth_service`.
+- `L878`: Returns a value from the current function.
+- `L880-L883`: Handles a failure from the preceding `try` block.
+- `L886-L899`: Registers the `confirm_password_reset` endpoint with the API router.
+- `L901-L905`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L907-L910`: Returns a value from the current function.
+- `L912-L919`: Handles a failure from the preceding `try` block.
+- `L922-L924`: Comment block that explains the next section: ===========================.
+- `L926-L937`: Registers the `setup_2fa` endpoint with the API router.
+- `L939-L940`: Initializes module-level state or configuration such as `auth_service, secret, provisioning_uri, backup_codes`.
+- `L942-L947`: Returns a value from the current function.
+- `L949-L956`: Handles a failure from the preceding `try` block.
+- `L959-L970`: Registers the `get_2fa_qr_code` endpoint with the API router.
+- `L972`: Initializes module-level state or configuration such as `auth_service`.
+- `L974-L986`: Implements this section of logic starting with `# Generate provisioning URI`.
+- `L988-L989`: Implements this section of logic starting with `# Generate QR code`.
+- `L991-L994`: Returns a value from the current function.
+- `L996-L1003`: Handles a failure from the preceding `try` block.
+- `L1006-L1018`: Registers the `verify_and_enable_2fa` endpoint with the API router.
+- `L1020-L1024`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1026-L1029`: Returns a value from the current function.
+- `L1031-L1038`: Handles a failure from the preceding `try` block.
+- `L1041-L1053`: Registers the `disable_2fa` endpoint with the API router.
+- `L1055`: Initializes module-level state or configuration such as `auth_service`.
+- `L1057-L1060`: Implements this section of logic starting with `# Verify code before disabling`.
+- `L1062-L1066`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1068-L1069`: Implements this section of logic starting with `# Disable 2FA`.
+- `L1071-L1075`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L1077-L1080`: Returns a value from the current function.
+- `L1082-L1089`: Handles a failure from the preceding `try` block.
+- `L1092-L1098`: Registers the `get_2fa_status` endpoint with the API router.

@@ -467,10 +467,27 @@ class ApiClient {
 
   bool _isTransientNetworkError(Object error) {
     if (error is! DioException) return false;
-    return error.type == DioExceptionType.connectionError ||
+    if (error.type == DioExceptionType.connectionError ||
         error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout ||
-        error.type == DioExceptionType.sendTimeout;
+        error.type == DioExceptionType.sendTimeout) {
+      return true;
+    }
+    if (error.type != DioExceptionType.unknown) {
+      return false;
+    }
+    final raw = error.error;
+    if (raw is SocketException) {
+      return true;
+    }
+    if (raw is HttpException) {
+      final message = raw.message.toLowerCase();
+      if (message.contains('connection closed before full header was received')) {
+        return true;
+      }
+    }
+    final message = error.toString().toLowerCase();
+    return message.contains('connection closed before full header was received');
   }
 
   Future<T> _withNetworkRetry<T>(
@@ -525,8 +542,12 @@ class ApiClient {
         SecureStorage.serversCatalogCacheKey,
         jsonEncode(payload),
       );
-    } catch (_) {
-      // Cache persistence is best-effort only.
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Server cache persistence failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -545,22 +566,34 @@ class ApiClient {
         if (item is! Map) continue;
         try {
           parsed.add(ServerRegion.fromJson(Map<String, dynamic>.from(item)));
-        } catch (_) {
-          // Tolerate malformed cached entries.
+        } catch (error, stackTrace) {
+          AppLogger.error(
+            'Malformed cached server entry skipped',
+            error: error,
+            stackTrace: stackTrace,
+          );
         }
       }
       return parsed;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Loading cached servers failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
       return const <ServerRegion>[];
     }
   }
 
   Future<Map<String, dynamic>> fetchHealth({CancelToken? cancelToken}) async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/health',
-        cancelToken: cancelToken,
-      );
+      final response =
+          await _withNetworkRetry<Response<Map<String, dynamic>>>(() {
+        return _dio.get<Map<String, dynamic>>(
+          '/health',
+          cancelToken: cancelToken,
+        );
+      });
       final payload = response.data ?? const <String, dynamic>{};
       _debugLog('health_ok', <String, Object?>{
         'base_url': _effectiveApiBaseUrl,

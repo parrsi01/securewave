@@ -204,6 +204,44 @@ for item in manifest.get("artifacts", []):
 PY
 }
 
+check_linux_download_artifact_contract() {
+  log "Published Linux download contract checks"
+  require_file "static/downloads/version.json"
+  require_file "securewave_app/scripts/verify_linux_package_artifact.sh"
+
+  mapfile -t linux_debs < <(
+    python3 - <<'PY'
+import json
+import pathlib
+
+root = pathlib.Path(".")
+manifest = json.loads((root / "static" / "downloads" / "version.json").read_text(encoding="utf-8"))
+for item in manifest.get("artifacts", []):
+    if not isinstance(item, dict):
+        continue
+    if str(item.get("platform", "")).lower() != "linux":
+        continue
+    if str(item.get("status", "")).lower() != "available":
+        continue
+    if str(item.get("format", "")).lower() != "deb":
+        continue
+    filename = str(item.get("filename") or "").strip()
+    if not filename:
+        continue
+    print((root / "static" / "downloads" / filename).resolve())
+PY
+  )
+
+  if [[ "${#linux_debs[@]}" -eq 0 ]]; then
+    fail "No published Linux .deb artifacts found in static/downloads/version.json"
+  fi
+
+  for package_path in "${linux_debs[@]}"; do
+    [[ -f "${package_path}" ]] || fail "Published Linux package missing: ${package_path}"
+    bash securewave_app/scripts/verify_linux_package_artifact.sh "${package_path}"
+  done
+}
+
 check_hetzner_cost_guardrails() {
   log "Hetzner cost guardrail checks"
   require_file "scripts/check_cost_guardrails.sh"
@@ -238,6 +276,7 @@ case "$MODE" in
   all)
     run_lint_bundle
     check_artifact_checksums
+    check_linux_download_artifact_contract
     ;;
   lint)
     run_lint_bundle
@@ -254,6 +293,7 @@ case "$MODE" in
   artifact)
     check_manifest_versioning
     check_artifact_checksums
+    check_linux_download_artifact_contract
     ;;
   cost)
     check_hetzner_cost_guardrails

@@ -1,0 +1,93 @@
+# `routes/servers.py`
+
+Purpose: This module exposes API handlers for servers features in the SecureWave backend.
+
+## Line Walkthrough
+
+- `L1-L2`: Module or block docstring that describes the responsibility of this section.
+- `L4-L9`: Implements this section of logic starting with `Admin endpoints for managing WireGuard VPN servers:`.
+- `L11-L15`: Imports the dependencies used later in this module, including os, json, logging, datetime, typing.
+- `L17`: Imports the dependencies used later in this module, including hmac.
+- `L19-L22`: Imports the dependencies used later in this module, including fastapi, pydantic, sqlalchemy.
+- `L24-L33`: Implements this section of logic starting with `from database.session import get_db`.
+- `L35-L36`: Initializes module-level state or configuration such as `logger, router`.
+- `L38-L40`: Comment block that explains the next section: ---------------------------------------------------------------------------.
+- `L42`: Initializes module-level state or configuration such as `_api_key_header`.
+- `L45-L48`: Defines `_get_admin_api_key`. Return the configured ADMIN_API_KEY, or None if not set.
+- `L51-L53`: Comment block that explains the next section: =============================================================================.
+- `L55-L75`: Defines `CreateServerRequest`. Request to create/register a new VPN server.
+- `L78-L86`: Defines `UpdateServerRequest`. Request to update server configuration.
+- `L89-L110`: Defines `ServerResponse`. Full server information response.
+- `L113-L118`: Defines `PeerSyncResult`. Result of peer synchronization.
+- `L121-L123`: Comment block that explains the next section: =============================================================================.
+- `L125-L132`: Defines `_get_current_user_or_none`. Try JWT auth, return None instead of raising on failure.
+- `L135-L141`: Defines the `require_admin` function and the logic it executes.
+- `L143-L145`: Implements this section of logic starting with `Accepts either:`.
+- `L147-L161`: Implements this section of logic starting with `Server-to-server calls (e.g. Hetzner bootstrap scripts) use option 1.`.
+- `L163-L175`: Implements this section of logic starting with `# Fall back to JWT-based admin auth.`.
+- `L178-L180`: Comment block that explains the next section: =============================================================================.
+- `L182-L189`: Registers the `create_server` endpoint with the API router.
+- `L191-L200`: Implements this section of logic starting with `This endpoint registers an already-provisioned WireGuard server.`.
+- `L202`: Initializes module-level state or configuration such as `wg_service`.
+- `L204-L207`: Implements this section of logic starting with `# Encrypt private key if provided`.
+- `L209-L235`: Implements this section of logic starting with `# Create server record`.
+- `L237-L239`: Implements this section of logic starting with `db.add(server)`.
+- `L241`: Implements this section of logic starting with `logger.info(f"Server {request.server_id} registered by admin {admin.email if admin else 'api-key'}")`.
+- `L243-L264`: Returns a value from the current function.
+- `L267-L273`: Registers the `list_all_servers` endpoint with the API router.
+- `L275-L299`: Returns a value from the current function.
+- `L302-L311`: Registers the `get_server_details` endpoint with the API router.
+- `L313-L334`: Returns a value from the current function.
+- `L337-L347`: Applies decorators and defines `update_server` with the wrapped behavior declared above it.
+- `L349-L363`: Implements this section of logic starting with `# Update fields`.
+- `L365`: Implements this section of logic starting with `db.commit()`.
+- `L367`: Implements this section of logic starting with `logger.info(f"Server {server_id} updated by admin {admin.email if admin else 'api-key'}")`.
+- `L369`: Returns a value from the current function.
+- `L372-L379`: Registers the `delete_server` endpoint with the API router.
+- `L381-L386`: Implements this section of logic starting with `This only removes the database record. The actual VM should be`.
+- `L388-L389`: Implements this section of logic starting with `db.delete(server)`.
+- `L391`: Implements this section of logic starting with `logger.info(f"Server {server_id} deleted by admin {admin.email if admin else 'api-key'}")`.
+- `L393`: Returns a value from the current function.
+- `L396-L398`: Comment block that explains the next section: =============================================================================.
+- `L400-L407`: Registers the `run_health_check` endpoint with the API router.
+- `L409-L413`: Implements this section of logic starting with `Connects to the server and verifies WireGuard is running.`.
+- `L415-L418`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L420-L430`: Implements this section of logic starting with `# Update server record`.
+- `L432`: Implements this section of logic starting with `db.commit()`.
+- `L434-L440`: Returns a value from the current function.
+- `L442-L447`: Handles a failure from the preceding `try` block.
+- `L449-L454`: Returns a value from the current function.
+- `L457-L464`: Registers the `run_health_check_all` endpoint with the API router.
+- `L466-L470`: Implements this section of logic starting with `Runs asynchronously in the background.`.
+- `L472-L473`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L475-L481`: Implements this section of logic starting with `# In a real implementation, you'd queue these as background tasks`.
+- `L484-L486`: Comment block that explains the next section: =============================================================================.
+- `L488-L499`: Registers the `get_server_metrics` endpoint with the API router.
+- `L501-L504`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L506-L513`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L515`: Implements this section of logic starting with `db.commit()`.
+- `L517-L525`: Returns a value from the current function.
+- `L527-L532`: Handles a failure from the preceding `try` block.
+- `L535-L537`: Comment block that explains the next section: =============================================================================.
+- `L539-L550`: Registers the `list_server_peers` endpoint with the API router.
+- `L552-L555`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L557-L568`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L570-L576`: Handles a failure from the preceding `try` block.
+- `L579-L586`: Registers the `sync_server_peers` endpoint with the API router.
+- `L588-L592`: Implements this section of logic starting with `This adds any missing peers that should be on this server.`.
+- `L594`: Initializes module-level state or configuration such as `wg_service`.
+- `L596-L600`: Implements this section of logic starting with `# Get all users with WireGuard keys who should be on this server`.
+- `L602-L603`: Initializes module-level state or configuration such as `manager, conn`.
+- `L605-L607`: Initializes module-level state or configuration such as `synced, failed, errors`.
+- `L609-L622`: Loops over a collection to apply the same work to each item.
+- `L624`: Implements this section of logic starting with `db.commit()`.
+- `L626`: Implements this section of logic starting with `logger.info(f"Peer sync for {server_id}: {synced} synced, {failed} failed")`.
+- `L628-L633`: Returns a value from the current function.
+- `L636-L649`: Registers the `add_peer_to_server` endpoint with the API router.
+- `L651-L654`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L656-L660`: Returns a value from the current function.
+- `L662-L668`: Handles a failure from the preceding `try` block.
+- `L671-L683`: Registers the `remove_peer_from_server` endpoint with the API router.
+- `L685-L688`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L690-L694`: Returns a value from the current function.
+- `L696-L702`: Handles a failure from the preceding `try` block.

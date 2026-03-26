@@ -150,4 +150,43 @@ void main() {
     expect(resolution.isConnectable, isFalse);
     expect(resolution.error, contains('No supported VPN runtime'));
   });
+
+  test('surfaces backend misconfiguration reason for protocol-specific disable', () {
+    const caps = VpnCapabilities(
+      wireGuard: true,
+      openVpn: true,
+      ikev2: false,
+    );
+    final catalog = VpnProtocolCatalog.fromJson({
+      'user_tier': 'free',
+      'device_type': 'linux',
+      'protocols': [
+        {
+          'protocol': 'wireguard',
+          'enabled': true,
+          'server_enabled': true,
+          'plan_enabled': true,
+          'platform_supported': true,
+        },
+        {
+          'protocol': 'openvpn',
+          'enabled': false,
+          'server_enabled': false,
+          'plan_enabled': true,
+          'platform_supported': true,
+          'reason': 'openvpn_server_misconfigured',
+        },
+      ],
+    });
+
+    final resolution = selector.resolve(
+      selected: VpnProtocol.openVpn,
+      capabilities: caps,
+      catalog: catalog,
+    );
+
+    expect(resolution.isConnectable, isFalse);
+    expect(resolution.backendBlocked, isTrue);
+    expect(resolution.error, contains('not provisioned correctly'));
+  });
 }

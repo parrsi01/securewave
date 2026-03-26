@@ -25,6 +25,8 @@ import '../vpn/protocol_capabilities.dart';
 import 'vpn_state_machine.dart';
 import '../../services/api_client.dart';
 import '../services/auth_session.dart';
+import '../services/diagnostic_service.dart';
+import '../services/health_log_service.dart';
 import '../services/vpn_service.dart';
 import 'app_state.dart';
 import 'preferences_state.dart';
@@ -42,6 +44,13 @@ class VpnState {
     this.sessionTransferredBytes = 0,
     this.lifetimeTransferredBytes = 0,
     this.stabilityScore = 1.0,
+    this.validationStatus = VpnValidationStatus.healthy,
+    this.validationScore = 100,
+    this.validationLatencyMs,
+    this.validationPacketLoss = 0.0,
+    this.validationIpVerified = false,
+    this.validationDnsOk = true,
+    this.validationFailureType,
     this.errorMessage,
     this.errorKind,
     this.effectiveProtocol,
@@ -70,6 +79,13 @@ class VpnState {
   final int sessionTransferredBytes;
   final int lifetimeTransferredBytes;
   final double stabilityScore;
+  final VpnValidationStatus validationStatus;
+  final int validationScore;
+  final int? validationLatencyMs;
+  final double validationPacketLoss;
+  final bool validationIpVerified;
+  final bool validationDnsOk;
+  final VpnValidationFailureType? validationFailureType;
   final String? errorMessage;
   final VpnErrorKind? errorKind;
   final VpnProtocol? effectiveProtocol;
@@ -99,6 +115,13 @@ class VpnState {
     int? sessionTransferredBytes,
     int? lifetimeTransferredBytes,
     double? stabilityScore,
+    VpnValidationStatus? validationStatus,
+    int? validationScore,
+    int? validationLatencyMs,
+    double? validationPacketLoss,
+    bool? validationIpVerified,
+    bool? validationDnsOk,
+    VpnValidationFailureType? validationFailureType,
     String? errorMessage,
     VpnErrorKind? errorKind,
     VpnProtocol? effectiveProtocol,
@@ -136,6 +159,16 @@ class VpnState {
       lifetimeTransferredBytes:
           lifetimeTransferredBytes ?? this.lifetimeTransferredBytes,
       stabilityScore: stabilityScore ?? this.stabilityScore,
+      validationStatus: validationStatus ?? this.validationStatus,
+      validationScore: validationScore ?? this.validationScore,
+      validationLatencyMs: validationLatencyMs ?? this.validationLatencyMs,
+      validationPacketLoss:
+          validationPacketLoss ?? this.validationPacketLoss,
+      validationIpVerified:
+          validationIpVerified ?? this.validationIpVerified,
+      validationDnsOk: validationDnsOk ?? this.validationDnsOk,
+      validationFailureType:
+          validationFailureType ?? this.validationFailureType,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       errorKind: clearError ? null : (errorKind ?? this.errorKind),
       effectiveProtocol: clearEffectiveProtocol
@@ -191,7 +224,8 @@ final vpnStateMachineConfigProvider = Provider<VpnStateMachineConfig>((ref) {
 });
 
 class VpnStateNotifier extends StateNotifier<VpnState> {
-  static final Uri _ipInfoIpUri = Uri.parse('https://ipinfo.io/ip');
+  static final Uri _ipInfoIpUri = Uri.parse('https://api.ipify.org');
+  static const Duration _publicIpProbeTtl = Duration(seconds: 15);
   static const Set<String> _allowedDesiredOnSources = <String>{
     'connect',
     'disconnect',
@@ -319,6 +353,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   int _recoverySuccessCount = 0;
   DateTime? _scheduledReconnectAt;
   VpnHealthFailureType? _lastRecoveryFailureType;
+  String? _baselinePublicIp;
+  String? _currentTunnelPublicIp;
+  String? _expectedTunnelExitIp;
+  DateTime? _lastPublicIpProbeAt;
+  bool _degradedRecoveryInFlight = false;
 
   @visibleForTesting
   bool get debugHasRateTimer => _rateTimer?.isActive ?? false;
@@ -780,6 +819,174 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
+  // ── Health action API (called from UI) ──────────────────────────────────
+
+  /// Re-runs the health snapshot poll immediately.
+  ///
+  /// Used by the "Retry Checks" action in the HealthBadge (degraded state).
+  /// Does NOT initiate reconnect — just refreshes validation state.
+  /// No-op if tunnel is not desired-on.
+  Future<void> retryValidation() async {
+    if (!mounted || _disposed || !state.desiredOn) return;
+    AppLogger.vpn(
+      'HEALTH',
+      'RETRY_VALIDATION_REQUESTED',
+      fields: <String, Object?>{
+        'status': state.status.name,
+        'validation_status': state.validationStatus.name,
+      },
+    );
+    try {
+      final snapshot = await _sampleHealthSnapshot();
+      if (snapshot == null || !mounted || _disposed) return;
+      _applyValidationSnapshot(snapshot);
+      AppLogger.vpn(
+        'HEALTH',
+        'RETRY_VALIDATION_COMPLETE',
+        fields: <String, Object?>{
+          'new_status': snapshot.validationStatus.name,
+          'score': snapshot.validationScore,
+        },
+      );
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'retryValidation failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  /// Runs the full diagnostic pipeline and returns a [DiagnosticReport].
+  ///
+  /// Uses the current health snapshot if available; non-blocking with respect
+  /// to VPN state. Always safe to call regardless of tunnel state.
+  Future<DiagnosticReport> triggerDiagnostic() async {
+    AppLogger.vpn(
+      'HEALTH',
+      'DIAGNOSTIC_REQUESTED',
+      fields: <String, Object?>{
+        'status': state.status.name,
+        'validation_status': state.validationStatus.name,
+      },
+    );
+    try {
+      // Re-sample to get a fresh snapshot for the diagnostic.
+      VpnHealthSnapshot? snapshot;
+      if (state.desiredOn && mounted && !_disposed) {
+        snapshot = await _sampleHealthSnapshot();
+      }
+      final svc = DiagnosticService();
+      final report = await svc.runDiagnostics(snapshot: snapshot);
+
+      // Log to local health log.
+      _safeFireAndForget(
+        _logHealthEvent(report: report, snapshot: snapshot),
+        context: 'health_log_diagnostic',
+      );
+
+      return report;
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'triggerDiagnostic failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      // Return a failure report rather than propagating.
+      return DiagnosticReport(
+        timestamp: DateTime.now(),
+        summary: 'Diagnostic failed: ${error.runtimeType}.',
+        failures: ['Diagnostic service threw: $error'],
+        recommendations: ['Restart the app and try again.'],
+        checks: const [],
+        validationSnapshot: null,
+      );
+    }
+  }
+
+  /// Forces a full VPN reconnect — disconnect then connect.
+  ///
+  /// Used by the "Reconnect VPN" action in HealthBadge (unhealthy state).
+  /// Respects existing backoff guards and desiredOn invariant.
+  /// No-op if desiredOn is false (user has manually disconnected).
+  Future<void> forceReconnect() async {
+    if (!mounted || _disposed) return;
+    if (!state.desiredOn) {
+      AppLogger.vpn(
+        'HEALTH',
+        'FORCE_RECONNECT_SKIPPED',
+        fields: <String, Object?>{'reason': 'desired_on_false'},
+      );
+      return;
+    }
+    AppLogger.vpn(
+      'HEALTH',
+      'FORCE_RECONNECT_REQUESTED',
+      fields: <String, Object?>{
+        'status': state.status.name,
+        'validation_status': state.validationStatus.name,
+      },
+      level: 900,
+    );
+    try {
+      await _restartTunnelAfterRuntimeChange(
+        trigger: VpnTransitionTrigger.userConnectRequested,
+        source: 'ui_force_reconnect',
+        reason: 'User-initiated reconnect from health badge.',
+        failureType: state.validationFailureType != null
+            ? _mapValidationFailureToHealthFailure(state.validationFailureType!)
+            : VpnHealthFailureType.trafficBlocked,
+      );
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'forceReconnect failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  /// Maps [VpnValidationFailureType] → [VpnHealthFailureType] for recovery.
+  static VpnHealthFailureType _mapValidationFailureToHealthFailure(
+    VpnValidationFailureType type,
+  ) {
+    return switch (type) {
+      VpnValidationFailureType.noTunnel => VpnHealthFailureType.noTunnel,
+      VpnValidationFailureType.noRoute => VpnHealthFailureType.noRoute,
+      VpnValidationFailureType.trafficBlocked =>
+        VpnHealthFailureType.trafficBlocked,
+      VpnValidationFailureType.highLatency => VpnHealthFailureType.highLatency,
+      VpnValidationFailureType.packetLoss => VpnHealthFailureType.packetLoss,
+      VpnValidationFailureType.dnsLeak => VpnHealthFailureType.dnsLeak,
+      VpnValidationFailureType.partialConnectivity =>
+        VpnHealthFailureType.partialConnectivity,
+    };
+  }
+
+  Future<void> _logHealthEvent({
+    DiagnosticReport? report,
+    VpnHealthSnapshot? snapshot,
+  }) async {
+    try {
+      final logSvc = HealthLogService();
+      final entry = HealthLogEntry(
+        timestamp: DateTime.now(),
+        validationStatus: state.validationStatus,
+        validationScore: state.validationScore,
+        failureType: state.validationFailureType,
+        latencyMs: state.validationLatencyMs,
+        packetLoss: state.validationPacketLoss,
+      );
+      await logSvc.append(entry);
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        '_logHealthEvent failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
   Future<void> handleConnectivityChange({required bool hasNetwork}) async {
     _debugTrace(
       '[VPN_DIAG] handleConnectivityChange hasNetwork=$hasNetwork '
@@ -868,7 +1075,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       source: 'network_path_change',
       reason:
           'Network changed from ${previous.label} to ${current.label}. Re-establishing the tunnel on the new path.',
-      failureType: VpnHealthFailureType.hardFailure,
+      failureType: VpnHealthFailureType.noRoute,
     );
   }
 
@@ -1047,11 +1254,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
-  Future<String> _fetchPublicIp() async {
+  Future<String> _fetchPublicIp({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
     final dio = Dio(
       BaseOptions(
-        connectTimeout: const Duration(seconds: 8),
-        receiveTimeout: const Duration(seconds: 8),
+        connectTimeout: timeout,
+        receiveTimeout: timeout,
         responseType: ResponseType.plain,
       ),
     );
@@ -1059,7 +1268,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final response = await dio.get<String>(_ipInfoIpUri.toString());
       final ip = (response.data ?? '').trim();
       if (ip.isEmpty) {
-        throw StateError('ipinfo.io returned an empty IP response.');
+        throw StateError('Public IP probe returned an empty response.');
       }
       return ip;
     } finally {
@@ -1108,6 +1317,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         _lastDisconnectCompletedAt = null;
       }
       _resetRecoveryBackoff(logReason: 'manual_or_clean_disconnect');
+      _currentTunnelPublicIp = null;
+      _expectedTunnelExitIp = null;
+      _lastPublicIpProbeAt = null;
     }
     state = state.copyWith(
       clearError: true,
@@ -1169,10 +1381,99 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
   }
 
+  void _applyValidationSnapshot(VpnHealthSnapshot snapshot) {
+    if (!mounted || _disposed) {
+      return;
+    }
+    state = state.copyWith(
+      stabilityScore: snapshot.validationScore.clamp(0, 100) / 100.0,
+      validationStatus: snapshot.validationStatus,
+      validationScore: snapshot.validationScore,
+      validationLatencyMs: snapshot.latencyMs,
+      validationPacketLoss: snapshot.packetLoss,
+      validationIpVerified: snapshot.ipVerified,
+      validationDnsOk: snapshot.dnsOk,
+      validationFailureType: snapshot.failureType,
+    );
+  }
+
+  Future<String?> _captureCurrentPublicIp({
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
+    try {
+      return await _fetchPublicIp(timeout: timeout);
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Capture current public IP failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+
+  Future<void> _rememberBaselinePublicIp() async {
+    _baselinePublicIp ??=
+        await _captureCurrentPublicIp(timeout: const Duration(seconds: 3));
+  }
+
+  String? _extractWireGuardEndpointIp(String? configText) {
+    final config = configText?.trim();
+    if (config == null || config.isEmpty) {
+      return null;
+    }
+    final match = RegExp(
+      r'^Endpoint\s*=\s*(?:\[)?([A-Fa-f0-9:.]+|(?:\d{1,3}\.){3}\d{1,3})(?:\])?:\d+\s*$',
+      multiLine: true,
+    ).firstMatch(config);
+    final host = match?.group(1)?.trim();
+    if (host == null || host.isEmpty) {
+      return null;
+    }
+    return Uri.tryParse('http://$host')?.host ?? host;
+  }
+
+  Future<String?> _resolveExpectedTunnelExitIp(VpnProfile profile) async {
+    final direct = _extractWireGuardEndpointIp(profile.wireguardConfig);
+    if (direct != null) {
+      return direct;
+    }
+    final stored =
+        await _storage.getString(SecureStorage.vpnProfileConfigKey) ?? '';
+    return _extractWireGuardEndpointIp(stored);
+  }
+
+  Future<VpnHealthSnapshot> _assessHealthSnapshot(
+    VpnHealthSnapshot snapshot,
+  ) async {
+    var currentIp = _currentTunnelPublicIp;
+    final shouldProbeIp = snapshot.interfaceUp &&
+        snapshot.routePresent &&
+        snapshot.policyRoutingPresent &&
+        (_lastPublicIpProbeAt == null ||
+            DateTime.now().difference(_lastPublicIpProbeAt!) >
+                _publicIpProbeTtl ||
+            snapshot.validationStatus != VpnValidationStatus.healthy);
+    if (shouldProbeIp) {
+      currentIp =
+          await _captureCurrentPublicIp(timeout: const Duration(seconds: 3));
+      if (currentIp != null && currentIp.isNotEmpty) {
+        _currentTunnelPublicIp = currentIp;
+      }
+      _lastPublicIpProbeAt = DateTime.now();
+    }
+    return VpnHealthAssessmentEngine.assess(
+      snapshot,
+      baselineIp: _baselinePublicIp,
+      currentPublicIp: currentIp,
+      expectedExitIp: _expectedTunnelExitIp,
+    );
+  }
+
   Future<VpnHealthSnapshot?> _sampleHealthSnapshot() async {
     if (isMockVpn) {
       final connected = _statusIsConnectedLike(_lastAdapterStatus);
-      return VpnHealthSnapshot(
+      final snapshot = VpnHealthAssessmentEngine.assess(VpnHealthSnapshot(
         nativeStatus: _lastAdapterStatus,
         interfaceUp: connected,
         routePresent: connected,
@@ -1180,15 +1481,26 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         trafficConnected: connected,
         policyRoutingPresent: connected,
         handshakeRecent: connected,
+        httpsProbeOk: connected,
+        dnsOk: true,
+        probeSuccesses: connected ? 3 : 0,
+        probeAttempts: connected ? 3 : 0,
+        packetLoss: connected ? 0.0 : 1.0,
+        latencyMs: connected ? 45 : null,
         interfaceName: connected ? 'mock0' : null,
         timestampMs: DateTime.now().millisecondsSinceEpoch,
-      );
+      ));
+      _applyValidationSnapshot(snapshot);
+      return snapshot;
     }
     final service = _ref.read(vpnServiceProvider);
     if (service is! ChannelVpnService) {
       return null;
     }
-    return service.fetchHealthSnapshot();
+    final raw = await service.fetchHealthSnapshot();
+    final assessed = await _assessHealthSnapshot(raw);
+    _applyValidationSnapshot(assessed);
+    return assessed;
   }
 
   Future<void> _handleHealthMonitorIssue(VpnHealthIssue issue) async {
@@ -1196,12 +1508,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       return;
     }
 
-    final event = switch (issue.type) {
-      VpnHealthFailureType.softFailure => 'SOFT_FAILURE',
-      VpnHealthFailureType.hardFailure => 'HARD_FAILURE',
-      VpnHealthFailureType.handshakeFailure => 'HANDSHAKE_FAILURE',
-    };
+    final event = issue.type.name.toUpperCase();
     final snapshot = issue.snapshot;
+    _applyValidationSnapshot(snapshot);
 
     AppLogger.vpn(
       'HEALTH',
@@ -1211,14 +1520,22 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         'interface_up': snapshot.interfaceUp,
         'route_present': snapshot.routePresent,
         'ping_reachable': snapshot.pingReachable,
+        'https_probe_ok': snapshot.httpsProbeOk,
         'traffic_connected': snapshot.trafficConnected,
+        'validation_status': snapshot.validationStatus.name,
+        'validation_score': snapshot.validationScore,
+        'packet_loss': snapshot.packetLoss,
+        'latency_ms': snapshot.latencyMs,
+        'dns_ok': snapshot.dnsOk,
+        'ip_verified': snapshot.ipVerified,
+        'failure_type': snapshot.failureType?.name,
         'interface': snapshot.interfaceName ?? '-',
         'consecutive_failures': issue.consecutiveFailures,
       },
       level: 900,
     );
 
-    if (issue.type == VpnHealthFailureType.softFailure) {
+    if (issue.isDegraded) {
       if (state.status == VpnStatus.connected) {
         _transitionTo(
           VpnStatus.degraded,
@@ -1226,6 +1543,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         );
       }
       state = state.copyWith(clearReconnect: true);
+      _safeFireAndForget(
+        _retryDegradedValidation(issue),
+        context: 'health_degraded_retry',
+      );
       return;
     }
 
@@ -1239,6 +1560,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   Future<void> _handleHealthRecovered(VpnHealthSnapshot snapshot) async {
     if (!mounted || _disposed) return;
+    _applyValidationSnapshot(snapshot);
     if (state.status == VpnStatus.degraded) {
       _transitionTo(
         VpnStatus.connected,
@@ -1246,6 +1568,45 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       );
       state = state.copyWith(clearReconnect: true);
       _resetRecoveryBackoff(logReason: 'health_restored');
+    }
+  }
+
+  Future<void> _retryDegradedValidation(VpnHealthIssue issue) async {
+    if (_degradedRecoveryInFlight || !mounted || _disposed || !state.desiredOn) {
+      return;
+    }
+    _degradedRecoveryInFlight = true;
+    try {
+      final service = _ref.read(vpnServiceProvider);
+      if (issue.type == VpnHealthFailureType.dnsLeak &&
+          service is ChannelVpnService) {
+        await service.refreshDnsPath();
+      }
+      await Future<void>.delayed(
+        Duration(milliseconds: 900 * issue.consecutiveFailures.clamp(1, 2)),
+      );
+      if (!mounted || _disposed || !state.desiredOn) {
+        return;
+      }
+      final snapshot = await _sampleHealthSnapshot();
+      if (snapshot == null) {
+        return;
+      }
+      if (snapshot.validationStatus == VpnValidationStatus.healthy) {
+        await _handleHealthRecovered(snapshot);
+        return;
+      }
+      if (snapshot.validationStatus == VpnValidationStatus.unhealthy) {
+        await _restartTunnelAfterRuntimeChange(
+          trigger: VpnTransitionTrigger.healthMonitorRecoveryRequested,
+          source: 'health_${issue.type.name}_retry_failed',
+          reason:
+              'Tunnel health stayed ${snapshot.validationStatus.name} after retry.',
+          failureType: issue.type,
+        );
+      }
+    } finally {
+      _degradedRecoveryInFlight = false;
     }
   }
 
@@ -1819,7 +2180,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       try {
         await api.fetchHealth().timeout(const Duration(seconds: 4));
         _updateReadiness(backendReachable: VpnReadinessGateState.ready);
-      } catch (_) {
+      } catch (error, stackTrace) {
+        AppLogger.error(
+          'Backend health check failed during connect preflight',
+          error: error,
+          stackTrace: stackTrace,
+        );
         _updateReadiness(
           backendReachable: VpnReadinessGateState.notReady,
           lastErrorCode: 'healthcheck_failed',
@@ -1846,7 +2212,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
                 ? VpnReadinessGateState.ready
                 : VpnReadinessGateState.notReady,
           );
-        } catch (_) {
+        } catch (error, stackTrace) {
+          AppLogger.error(
+            'Server catalog refresh failed during connect preflight',
+            error: error,
+            stackTrace: stackTrace,
+          );
           _updateReadiness(
             serverCatalogReady: VpnReadinessGateState.notReady,
           );
@@ -1900,6 +2271,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           );
         }
       }
+      _ref.read(vpnServiceProvider).clearCapabilitiesCache();
+      _ref.invalidate(vpnCapabilitiesProvider);
       final capabilities = await _ref.read(vpnCapabilitiesProvider.future);
       final plan = const ProtocolSelector().resolve(
         selected: selectedProtocol,
@@ -1989,6 +2362,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         }
       }
       _updateReadiness(profileReady: VpnReadinessGateState.ready);
+      await _rememberBaselinePublicIp();
+      _expectedTunnelExitIp =
+          await _resolveExpectedTunnelExitIp(resolvedProfile.profile);
+      _currentTunnelPublicIp = null;
+      _lastPublicIpProbeAt = null;
 
       // ── Phase: establishingTunnel ──────────────────────────────────────
       state = state.copyWith(connectPhase: ConnectPhase.establishingTunnel);
@@ -3241,7 +3619,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         trigger: VpnTransitionTrigger.watchdogRecoveryRequested,
         source: 'data_plane_failover',
         reason: 'Tunnel health degraded ($reason). Restarting the tunnel.',
-        failureType: VpnHealthFailureType.handshakeFailure,
+        failureType: VpnHealthFailureType.partialConnectivity,
       );
     } catch (error, stackTrace) {
       AppLogger.error(

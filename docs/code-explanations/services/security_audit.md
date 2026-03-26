@@ -1,0 +1,81 @@
+# `services/security_audit.py`
+
+Purpose: This service module implements the business logic for security audit operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L10`: Imports the dependencies used later in this module, including os, logging, typing, datetime, enum.
+- `L12`: Initializes module-level state or configuration such as `logger`.
+- `L15-L26`: Defines `EventType`. Security event types.
+- `L28-L31`: Implements this section of logic starting with `# Authorization`.
+- `L33-L37`: Implements this section of logic starting with `# Data Access`.
+- `L39-L44`: Implements this section of logic starting with `# VPN Operations`.
+- `L46-L51`: Implements this section of logic starting with `# Account Management`.
+- `L53-L58`: Implements this section of logic starting with `# Payment & Billing`.
+- `L60-L64`: Implements this section of logic starting with `# Security Events`.
+- `L66-L69`: Implements this section of logic starting with `# Configuration`.
+- `L71-L74`: Implements this section of logic starting with `# Admin Actions`.
+- `L77-L85`: Defines `EventCategory`. Event categories.
+- `L88-L93`: Defines `Severity`. Event severity levels.
+- `L96-L100`: Defines `SecurityAuditService`. Security Audit Logging Service Logs all security-relevant events for compliance and investigation.
+- `L102-L104`: Defines `__init__`. Initialize security audit service.
+- `L106-L108`: Comment block that explains the next section: ===========================.
+- `L110-L132`: Defines the `log_event` function and the logic it executes.
+- `L134-L151`: Implements this section of logic starting with `Args:`.
+- `L153-L157`: Implements this section of logic starting with `Returns:`.
+- `L159-L161`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L163`: Initializes module-level state or configuration such as `db`.
+- `L165-L176`: Implements this section of logic starting with `# Determine actor type`.
+- `L178-L198`: Initializes module-level state or configuration such as `audit_log, event_type, event_category, action, user_id, actor_type`.
+- `L200-L201`: Implements this section of logic starting with `db.add(audit_log)`.
+- `L203-L209`: Implements this section of logic starting with `# Log to application logger`.
+- `L211-L220`: Implements this section of logic starting with `logger.log(`.
+- `L222`: Returns a value from the current function.
+- `L224-L226`: Handles a failure from the preceding `try` block.
+- `L228-L230`: Comment block that explains the next section: ===========================.
+- `L232-L244`: Defines `log_login`. Log login attempt.
+- `L246-L260`: Returns a value from the current function.
+- `L262-L274`: Defines `log_logout`. Log logout.
+- `L276-L284`: Defines `log_password_reset`. Log password reset.
+- `L286-L296`: Implements this section of logic starting with `self.log_event(`.
+- `L298-L311`: Defines `log_2fa_event`. Log 2FA event.
+- `L313`: Implements this section of logic starting with `severity = Severity.WARNING if action == "failed" else Severity.INFO`.
+- `L315-L326`: Implements this section of logic starting with `self.log_event(`.
+- `L328-L330`: Comment block that explains the next section: ===========================.
+- `L332-L348`: Defines `log_data_access`. Log data access event.
+- `L350`: Initializes module-level state or configuration such as `severity`.
+- `L352-L366`: Returns a value from the current function.
+- `L368-L370`: Comment block that explains the next section: ===========================.
+- `L372-L384`: Defines `log_vpn_connection`. Log VPN connection attempt.
+- `L386-L401`: Implements this section of logic starting with `self.log_event(`.
+- `L403-L425`: Defines `log_vpn_config_generation`. Log VPN configuration generation.
+- `L427-L429`: Comment block that explains the next section: ===========================.
+- `L431-L454`: Defines `log_suspicious_activity`. Log suspicious activity.
+- `L456-L482`: Defines `log_rate_limit_exceeded`. Log rate limit exceeded.
+- `L484-L499`: Defines `log_abuse_detected`. Log abuse detection.
+- `L501-L512`: Implements this section of logic starting with `self.log_event(`.
+- `L514-L516`: Comment block that explains the next section: ===========================.
+- `L518-L531`: Defines `log_payment_event`. Log payment event.
+- `L533-L549`: Implements this section of logic starting with `self.log_event(`.
+- `L551-L553`: Comment block that explains the next section: ===========================.
+- `L555-L581`: Defines `log_admin_action`. Log admin action.
+- `L583-L585`: Comment block that explains the next section: ===========================.
+- `L587-L595`: Defines the `get_user_audit_log` function and the logic it executes.
+- `L597-L601`: Implements this section of logic starting with `Args:`.
+- `L603-L608`: Implements this section of logic starting with `Returns:`.
+- `L610`: Initializes module-level state or configuration such as `db`.
+- `L612`: Initializes module-level state or configuration such as `start_date`.
+- `L614-L617`: Initializes module-level state or configuration such as `query`.
+- `L619-L620`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L622`: Initializes module-level state or configuration such as `logs`.
+- `L624`: Returns a value from the current function.
+- `L626-L628`: Handles a failure from the preceding `try` block.
+- `L630-L634`: Defines `get_suspicious_events`. Get suspicious events.
+- `L636`: Initializes module-level state or configuration such as `db`.
+- `L638`: Initializes module-level state or configuration such as `start_time`.
+- `L640-L643`: Initializes module-level state or configuration such as `logs`.
+- `L645`: Returns a value from the current function.
+- `L647-L649`: Handles a failure from the preceding `try` block.
+- `L652-L653`: Implements this section of logic starting with `# Singleton instance`.
+- `L656-L661`: Defines `get_security_audit`. Get security audit service instance.

@@ -8,6 +8,7 @@ import '../../core/models/vpn_readiness.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
 import '../../debug/automation_keys.dart';
+import '../components/htb_background.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 import '../theme/app_colors.dart' as htb;
@@ -29,6 +30,7 @@ class DiagnosticsScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: const Text('Diagnostics'),
         centerTitle: false,
@@ -41,188 +43,206 @@ class DiagnosticsScreen extends ConsumerWidget {
             ),
         ],
       ),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints:
-              const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
-          child: ListView(
-            key: AutomationKeys.diagnosticsRootScrollKey,
-            padding: const EdgeInsets.all(AppSpacing.pagePadding),
-            children: [
-              _SectionLabel('Connection', isDark: isDark),
-              GlassPanel(
-                child: Column(
-                  children: [
-                    _DiagRow(
-                      icon: Icons.circle,
-                      iconColor: _statusColor(visualState),
-                      label: 'Status',
-                      value: _statusLabel(visualState),
-                      valueColor: _statusColor(visualState),
+      body: HtbScaffoldBackground(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints:
+                const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
+            child: SingleChildScrollView(
+              key: AutomationKeys.diagnosticsRootScrollKey,
+              padding: const EdgeInsets.all(AppSpacing.pagePadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _DiagnosticsOverviewCard(
+                    visualState: visualState,
+                    protocolLabel: vpnProtocolLabel(
+                      vpnState.effectiveProtocol ?? vpnState.protocol,
                     ),
-                    _divider(),
-                    _DiagRow(
-                      icon: Icons.lock_rounded,
-                      label: 'Protocol',
-                      value: vpnProtocolLabel(
-                        vpnState.effectiveProtocol ?? vpnState.protocol,
+                    serverLabel: selectedServer?.name ??
+                        vpnState.selectedServerId ??
+                        'Auto',
+                    lastErrorCode: vpnState.readiness.lastErrorCode,
+                  ),
+                  const SizedBox(height: AppSpacing.space5),
+                  _SectionLabel('Connection', isDark: isDark),
+                  GlassPanel(
+                    child: Column(
+                      children: [
+                        _DiagRow(
+                          icon: Icons.circle,
+                          iconColor: _statusColor(visualState),
+                          label: 'Status',
+                          value: _statusLabel(visualState),
+                          valueColor: _statusColor(visualState),
+                        ),
+                        _divider(),
+                        _DiagRow(
+                          icon: Icons.lock_rounded,
+                          label: 'Protocol',
+                          value: vpnProtocolLabel(
+                            vpnState.effectiveProtocol ?? vpnState.protocol,
+                          ),
+                        ),
+                        _divider(),
+                        _DiagRow(
+                          icon: Icons.dns_rounded,
+                          label: 'Server',
+                          value: selectedServer?.name ??
+                              vpnState.selectedServerId ??
+                              'Auto',
+                        ),
+                        _divider(),
+                        _DiagRow(
+                          icon: Icons.error_outline_rounded,
+                          label: 'Last error code',
+                          value: vpnState.readiness.lastErrorCode ?? 'None',
+                          valueColor: vpnState.readiness.lastErrorCode == null
+                              ? null
+                              : AppColors.warning,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.space5),
+                  _SectionLabel('Pipeline', isDark: isDark),
+                  _PipelinePanel(readiness: vpnState.readiness),
+                  const SizedBox(height: AppSpacing.space5),
+                  _SectionLabel('Traffic', isDark: isDark),
+                  GlassPanel(
+                    child: Column(
+                      children: [
+                        _DiagRow(
+                          icon: Icons.arrow_downward_rounded,
+                          iconColor: AppColors.secondary,
+                          label: 'Download',
+                          value: formatDataRate(vpnState.dataRateDown),
+                        ),
+                        _divider(),
+                        _DiagRow(
+                          icon: Icons.arrow_upward_rounded,
+                          iconColor: AppColors.primaryBright,
+                          label: 'Upload',
+                          value: formatDataRate(vpnState.dataRateUp),
+                        ),
+                        _divider(),
+                        _DiagRow(
+                          icon: Icons.data_usage_rounded,
+                          label: 'Session transferred',
+                          value: formatBytesCompact(
+                            vpnState.sessionTransferredBytes,
+                          ),
+                        ),
+                        _divider(),
+                        _DiagRow(
+                          icon: Icons.timeline_rounded,
+                          label: 'Stability',
+                          value: '${(vpnState.stabilityScore * 100).round()}%',
+                          valueColor: _stabilityColor(vpnState.stabilityScore),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.space5),
+                  _SectionLabel('Protocols', isDark: isDark),
+                  protocolCatalogAsync.when(
+                    loading: () => const GlassPanel(
+                      child: SizedBox(
+                        height: 120,
+                        child: Center(child: CircularProgressIndicator()),
                       ),
                     ),
-                    _divider(),
-                    _DiagRow(
-                      icon: Icons.dns_rounded,
-                      label: 'Server',
-                      value: selectedServer?.name ??
-                          vpnState.selectedServerId ??
-                          'Auto',
-                    ),
-                    _divider(),
-                    _DiagRow(
-                      icon: Icons.error_outline_rounded,
-                      label: 'Last error code',
-                      value: vpnState.readiness.lastErrorCode ?? 'None',
-                      valueColor: vpnState.readiness.lastErrorCode == null
-                          ? null
-                          : AppColors.warning,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.space5),
-              _SectionLabel('Pipeline', isDark: isDark),
-              _PipelinePanel(readiness: vpnState.readiness),
-              const SizedBox(height: AppSpacing.space5),
-              _SectionLabel('Traffic', isDark: isDark),
-              GlassPanel(
-                child: Column(
-                  children: [
-                    _DiagRow(
-                      icon: Icons.arrow_downward_rounded,
-                      iconColor: AppColors.secondary,
-                      label: 'Download',
-                      value: formatDataRate(vpnState.dataRateDown),
-                    ),
-                    _divider(),
-                    _DiagRow(
-                      icon: Icons.arrow_upward_rounded,
-                      iconColor: AppColors.primaryBright,
-                      label: 'Upload',
-                      value: formatDataRate(vpnState.dataRateUp),
-                    ),
-                    _divider(),
-                    _DiagRow(
-                      icon: Icons.data_usage_rounded,
-                      label: 'Session transferred',
-                      value: formatBytesCompact(
-                        vpnState.sessionTransferredBytes,
+                    error: (error, _) => GlassPanel(
+                      child: Text(
+                        'Protocol catalog unavailable.\n$error',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.warning,
+                            ),
                       ),
                     ),
-                    _divider(),
-                    _DiagRow(
-                      icon: Icons.timeline_rounded,
-                      label: 'Stability',
-                      value: '${(vpnState.stabilityScore * 100).round()}%',
-                      valueColor: _stabilityColor(vpnState.stabilityScore),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.space5),
-              _SectionLabel('Protocols', isDark: isDark),
-              protocolCatalogAsync.when(
-                loading: () => const GlassPanel(
-                  child: SizedBox(
-                    height: 120,
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                ),
-                error: (error, _) => GlassPanel(
-                  child: Text(
-                    'Protocol catalog unavailable.\n$error',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.warning,
-                        ),
-                  ),
-                ),
-                data: (catalog) => GlassPanel(
-                  child: Wrap(
-                    spacing: AppSpacing.space2,
-                    runSpacing: AppSpacing.space2,
-                    children: catalog.protocols.map((entry) {
-                      final available = entry.isAvailable;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.space3,
-                          vertical: AppSpacing.space2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: (available
-                                  ? AppColors.success
-                                  : AppColors.warning)
-                              .withValues(alpha: 0.12),
-                          borderRadius:
-                              BorderRadius.circular(AppSpacing.radiusFull),
-                        ),
-                        child: Text(
-                          '${vpnProtocolLabel(entry.protocol)}${available ? '' : ' • ${entry.reason ?? 'blocked'}'}',
-                          style:
-                              Theme.of(context).textTheme.labelMedium?.copyWith(
+                    data: (catalog) => GlassPanel(
+                      child: Wrap(
+                        spacing: AppSpacing.space2,
+                        runSpacing: AppSpacing.space2,
+                        children: catalog.protocols.map((entry) {
+                          final available = entry.isAvailable;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.space3,
+                              vertical: AppSpacing.space2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: (available
+                                      ? AppColors.success
+                                      : AppColors.warning)
+                                  .withValues(alpha: 0.12),
+                              borderRadius:
+                                  BorderRadius.circular(AppSpacing.radiusFull),
+                            ),
+                            child: Text(
+                              '${vpnProtocolLabel(entry.protocol)}${available ? '' : ' • ${entry.reason ?? 'blocked'}'}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
                                     color: available
                                         ? AppColors.success
                                         : AppColors.warning,
                                     fontWeight: FontWeight.w700,
                                   ),
-                        ),
-                      );
-                    }).toList(),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: AppSpacing.space5),
+                  _SectionLabel('Logs', isDark: isDark),
+                  _LogFeed(errorMessage: vpnState.errorMessage),
+                  if (vpnState.killSwitchActive) ...[
+                    const SizedBox(height: AppSpacing.space4),
+                    _Banner(
+                      icon: Icons.gpp_bad_rounded,
+                      color: AppColors.error,
+                      bgColor: AppColors.error.withValues(alpha: 0.12),
+                      message: vpnState.recoveryMessage ??
+                          'Kill switch active. Traffic remains blocked.',
+                    ),
+                  ],
+                  if (vpnState.reconnectPending) ...[
+                    const SizedBox(height: AppSpacing.space4),
+                    _Banner(
+                      icon: Icons.sync_rounded,
+                      color: AppColors.warning,
+                      bgColor: AppColors.warning.withValues(alpha: 0.12),
+                      message: vpnState.recoveryMessage ??
+                          'SecureWave is reconnecting automatically.',
+                    ),
+                  ],
+                  if (vpnState.failoverActive) ...[
+                    const SizedBox(height: AppSpacing.space4),
+                    _Banner(
+                      icon: Icons.swap_horiz_rounded,
+                      color: AppColors.warning,
+                      bgColor: AppColors.warning.withValues(alpha: 0.12),
+                      message:
+                          'Failover active: ${vpnState.failoverReason ?? 'unknown reason'}',
+                    ),
+                  ],
+                  if (vpnState.errorMessage != null) ...[
+                    const SizedBox(height: AppSpacing.space4),
+                    _Banner(
+                      icon: Icons.error_outline_rounded,
+                      color: AppColors.error,
+                      bgColor: AppColors.error.withValues(alpha: 0.12),
+                      message: 'Error: ${vpnState.errorMessage}',
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.space6),
+                ],
               ),
-              const SizedBox(height: AppSpacing.space5),
-              _SectionLabel('Logs', isDark: isDark),
-              _LogFeed(errorMessage: vpnState.errorMessage),
-              if (vpnState.killSwitchActive) ...[
-                const SizedBox(height: AppSpacing.space4),
-                _Banner(
-                  icon: Icons.gpp_bad_rounded,
-                  color: AppColors.error,
-                  bgColor: AppColors.error.withValues(alpha: 0.12),
-                  message: vpnState.recoveryMessage ??
-                      'Kill switch active. Traffic remains blocked.',
-                ),
-              ],
-              if (vpnState.reconnectPending) ...[
-                const SizedBox(height: AppSpacing.space4),
-                _Banner(
-                  icon: Icons.sync_rounded,
-                  color: AppColors.warning,
-                  bgColor: AppColors.warning.withValues(alpha: 0.12),
-                  message: vpnState.recoveryMessage ??
-                      'SecureWave is reconnecting automatically.',
-                ),
-              ],
-              if (vpnState.failoverActive) ...[
-                const SizedBox(height: AppSpacing.space4),
-                _Banner(
-                  icon: Icons.swap_horiz_rounded,
-                  color: AppColors.warning,
-                  bgColor: AppColors.warning.withValues(alpha: 0.12),
-                  message:
-                      'Failover active: ${vpnState.failoverReason ?? 'unknown reason'}',
-                ),
-              ],
-              if (vpnState.errorMessage != null) ...[
-                const SizedBox(height: AppSpacing.space4),
-                _Banner(
-                  icon: Icons.error_outline_rounded,
-                  color: AppColors.error,
-                  bgColor: AppColors.error.withValues(alpha: 0.12),
-                  message: 'Error: ${vpnState.errorMessage}',
-                ),
-              ],
-              const SizedBox(height: AppSpacing.space6),
-            ],
+            ),
           ),
         ),
       ),
@@ -264,6 +284,181 @@ class DiagnosticsScreen extends ConsumerWidget {
     if (score >= 0.8) return AppColors.success;
     if (score >= 0.5) return AppColors.warning;
     return AppColors.error;
+  }
+}
+
+class _DiagnosticsOverviewCard extends StatelessWidget {
+  const _DiagnosticsOverviewCard({
+    required this.visualState,
+    required this.protocolLabel,
+    required this.serverLabel,
+    required this.lastErrorCode,
+  });
+
+  final ConnectionVisualState visualState;
+  final String protocolLabel;
+  final String serverLabel;
+  final String? lastErrorCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = switch (visualState) {
+      ConnectionVisualState.connected => AppColors.success,
+      ConnectionVisualState.connecting ||
+      ConnectionVisualState.reconnecting =>
+        AppColors.warning,
+      ConnectionVisualState.error => AppColors.error,
+      _ => AppColors.darkInkSoft,
+    };
+
+    return GlassPanel(
+      glowColor: statusColor,
+      borderColor: statusColor.withValues(alpha: 0.26),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          statusColor.withValues(alpha: 0.12),
+          htb.HtbColors.bg1.withValues(alpha: 0.9),
+          htb.HtbColors.bg3.withValues(alpha: 0.96),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space3,
+              vertical: AppSpacing.space2,
+            ),
+            decoration: BoxDecoration(
+              color: htb.HtbColors.accentSecondaryGhost,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              border: Border.all(
+                color: htb.HtbColors.accentSecondary.withValues(alpha: 0.24),
+              ),
+            ),
+            child: Text(
+              'RUNTIME INSPECTOR',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: htb.HtbColors.textMono,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.9,
+                  ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.space3),
+          Text(
+            'Diagnostics center',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.space2),
+          Text(
+            'Inspect tunnel readiness, runtime health, and protocol availability without leaving the app.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: htb.HtbColors.textSecondary,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.space4),
+          Wrap(
+            spacing: AppSpacing.space2,
+            runSpacing: AppSpacing.space2,
+            children: [
+              _DiagnosticsChip(
+                icon: Icons.radar_rounded,
+                label: _statusLabelStatic(visualState),
+                color: statusColor,
+              ),
+              _DiagnosticsChip(
+                icon: Icons.lock_rounded,
+                label: protocolLabel,
+                color: AppColors.primaryBright,
+              ),
+              _DiagnosticsChip(
+                icon: Icons.dns_rounded,
+                label: serverLabel,
+                color: AppColors.secondaryDark,
+              ),
+              _DiagnosticsChip(
+                icon: Icons.error_outline_rounded,
+                label:
+                    lastErrorCode == null ? 'No active error' : lastErrorCode!,
+                color: lastErrorCode == null
+                    ? AppColors.primary
+                    : AppColors.warning,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiagnosticsChip extends StatelessWidget {
+  const _DiagnosticsChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.space3,
+        vertical: AppSpacing.space2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: AppSpacing.iconXS, color: color),
+          const SizedBox(width: AppSpacing.space2),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _statusLabelStatic(ConnectionVisualState state) {
+  switch (state) {
+    case ConnectionVisualState.connected:
+      return 'Connected';
+    case ConnectionVisualState.connecting:
+      return 'Connecting';
+    case ConnectionVisualState.reconnecting:
+      return 'Reconnecting';
+    case ConnectionVisualState.disconnecting:
+      return 'Disconnecting';
+    case ConnectionVisualState.error:
+      return 'Error';
+    case ConnectionVisualState.disconnected:
+      return 'Disconnected';
   }
 }
 
@@ -337,9 +532,12 @@ class _PipelineStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = switch (step.state) {
-      VpnReadinessGateState.ready => isDark ? htb.HtbColors.statusConnected : AppColors.success,
-      VpnReadinessGateState.notReady => isDark ? htb.HtbColors.statusConnecting : AppColors.warning,
-      VpnReadinessGateState.unknown => isDark ? htb.HtbColors.textTertiary : AppColors.darkInkSoft,
+      VpnReadinessGateState.ready =>
+        isDark ? htb.HtbColors.statusConnected : AppColors.success,
+      VpnReadinessGateState.notReady =>
+        isDark ? htb.HtbColors.statusConnecting : AppColors.warning,
+      VpnReadinessGateState.unknown =>
+        isDark ? htb.HtbColors.textTertiary : AppColors.darkInkSoft,
     };
     final label = switch (step.state) {
       VpnReadinessGateState.ready => 'ready',
@@ -362,7 +560,7 @@ class _PipelineStep extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: color.withValues(alpha: 0.28),
-                  blurRadius: 6,
+                  blurRadius: 10,
                 ),
               ],
             ),
@@ -420,23 +618,14 @@ class _LogFeed extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      decoration: isDark
-          ? BoxDecoration(
-              color: htb.HtbColors.bg1,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-              border: Border.all(
-                color: htb.HtbColors.glassBorderDefault,
-                width: 1,
-              ),
-            )
-          : null,
-      child: isDark
-          ? Padding(
-              padding: const EdgeInsets.all(AppSpacing.space4),
-              child: _logContent(context, isDark),
-            )
-          : GlassPanel(child: _logContent(context, isDark)),
+    return GlassPanel(
+      glowColor: htb.HtbColors.accentSecondaryMuted,
+      borderColor: htb.HtbColors.glassBorderDefault,
+      color: isDark ? htb.HtbColors.bg1.withValues(alpha: 0.8) : null,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.space4),
+        child: _logContent(context, isDark),
+      ),
     );
   }
 
@@ -445,8 +634,7 @@ class _LogFeed extends StatelessWidget {
       valueListenable: AppLogger.logStream,
       builder: (context, entries, _) {
         final recent = entries.reversed.take(8).toList(growable: false);
-        if (recent.isEmpty &&
-            (errorMessage == null || errorMessage!.isEmpty)) {
+        if (recent.isEmpty && (errorMessage == null || errorMessage!.isEmpty)) {
           return Text(
             isDark
                 ? '> no_logs_captured — waiting for events...'
@@ -543,7 +731,7 @@ class _SectionLabel extends StatelessWidget {
         '// ${title.toUpperCase()}',
         style: isDark
             ? AppTypography.monoSmall.copyWith(
-                color: htb.HtbColors.neonCyan,
+                color: htb.HtbColors.accentSecondary,
                 letterSpacing: 1.2,
                 fontWeight: FontWeight.w700,
               )
@@ -634,6 +822,13 @@ class _Banner extends StatelessWidget {
         color: bgColor,
         borderRadius: BorderRadius.circular(AppSpacing.radiusL),
         border: Border.all(color: color.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         children: [

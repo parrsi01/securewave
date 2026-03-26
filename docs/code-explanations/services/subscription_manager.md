@@ -1,0 +1,104 @@
+# `services/subscription_manager.py`
+
+Purpose: This service module implements the business logic for subscription manager operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L9`: Imports the dependencies used later in this module, including logging, typing, datetime, sqlalchemy.
+- `L11-L16`: Imports the dependencies used later in this module, including models, services.
+- `L18`: Initializes module-level state or configuration such as `logger`.
+- `L21-L25`: Defines `SubscriptionManager`. High-level subscription management service Handles subscription operations across multiple payment providers.
+- `L27-L29`: Defines the `__init__` function and the logic it executes.
+- `L31-L36`: Implements this section of logic starting with `Args:`.
+- `L38-L40`: Comment block that explains the next section: ===========================.
+- `L42-L52`: Defines the `create_subscription_stripe` function and the logic it executes.
+- `L54-L59`: Implements this section of logic starting with `Args:`.
+- `L61-L67`: Implements this section of logic starting with `Returns:`.
+- `L69-L70`: Implements this section of logic starting with `# Get or create Stripe customer`.
+- `L72-L81`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L83-L85`: Implements this section of logic starting with `# Attach payment method if provided`.
+- `L87-L97`: Implements this section of logic starting with `# Create Stripe subscription`.
+- `L99-L122`: Implements this section of logic starting with `# Create database subscription record`.
+- `L124-L133`: Implements this section of logic starting with `# Handle trial period`.
+- `L135-L137`: Implements this section of logic starting with `self.db.add(subscription)`.
+- `L139-L140`: Implements this section of logic starting with `logger.info(f"✓ Stripe subscription created: {subscription.id} (user: {user_id}, plan: {plan_id})")`.
+- `L142-L145`: Handles a failure from the preceding `try` block.
+- `L147-L156`: Defines the `create_subscription_paypal` function and the logic it executes.
+- `L158-L163`: Implements this section of logic starting with `Args:`.
+- `L165-L171`: Implements this section of logic starting with `Returns:`.
+- `L173-L185`: Implements this section of logic starting with `# Create PayPal subscription`.
+- `L187-L205`: Implements this section of logic starting with `# Create pending database subscription`.
+- `L207-L209`: Implements this section of logic starting with `self.db.add(subscription)`.
+- `L211`: Implements this section of logic starting with `logger.info(f"✓ PayPal subscription created (pending approval): {subscription.id}")`.
+- `L213-L218`: Returns a value from the current function.
+- `L220-L223`: Handles a failure from the preceding `try` block.
+- `L225-L227`: Comment block that explains the next section: ===========================.
+- `L229-L237`: Defines the `upgrade_subscription` function and the logic it executes.
+- `L239-L242`: Implements this section of logic starting with `Args:`.
+- `L244-L250`: Implements this section of logic starting with `Returns:`.
+- `L252-L253`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L255-L256`: Initializes module-level state or configuration such as `old_plan, old_amount`.
+- `L258-L266`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L268-L270`: Implements this section of logic starting with `# Get updated plan details`.
+- `L272-L276`: Implements this section of logic starting with `# Update database record`.
+- `L278-L284`: Continues the conditional branch for the surrounding decision tree.
+- `L286-L288`: Implements this section of logic starting with `# Get updated plan details`.
+- `L290-L294`: Implements this section of logic starting with `# Update database record`.
+- `L296-L297`: Implements this section of logic starting with `self.db.commit()`.
+- `L299-L300`: Implements this section of logic starting with `logger.info(f"✓ Subscription upgraded: {subscription_id} ({old_plan} → {new_plan_id}, ${old_amoun...`.
+- `L302-L305`: Handles a failure from the preceding `try` block.
+- `L307-L315`: Defines the `cancel_subscription` function and the logic it executes.
+- `L317-L320`: Implements this section of logic starting with `Args:`.
+- `L322-L328`: Implements this section of logic starting with `Returns:`.
+- `L330-L348`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L350-L359`: Implements this section of logic starting with `# Update database`.
+- `L361`: Initializes module-level state or configuration such as `subscription.cancellation_reason`.
+- `L363-L364`: Implements this section of logic starting with `self.db.commit()`.
+- `L366-L367`: Implements this section of logic starting with `logger.info(f"✓ Subscription canceled: {subscription_id} (at_period_end: {cancel_at_period_end})")`.
+- `L369-L372`: Handles a failure from the preceding `try` block.
+- `L374-L379`: Defines `reactivate_subscription`. Reactivate a canceled subscription (before period end).
+- `L381-L382`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L384-L388`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L390-L398`: Implements this section of logic starting with `# Update database`.
+- `L400-L401`: Implements this section of logic starting with `self.db.commit()`.
+- `L403-L404`: Implements this section of logic starting with `logger.info(f"✓ Subscription reactivated: {subscription_id}")`.
+- `L406-L409`: Handles a failure from the preceding `try` block.
+- `L411-L413`: Comment block that explains the next section: ===========================.
+- `L415-L420`: Defines `get_user_subscription`. Get user's active subscription.
+- `L422-L424`: Defines `get_user_subscriptions`. Get all user subscriptions (including canceled).
+- `L426-L428`: Defines `get_subscription`. Get subscription by ID.
+- `L430-L437`: Defines `get_expiring_subscriptions`. Get subscriptions expiring within X days.
+- `L439-L441`: Defines `get_past_due_subscriptions`. Get subscriptions with failed payments.
+- `L443-L445`: Comment block that explains the next section: ===========================.
+- `L447-L455`: Defines `get_user_invoices`. Get user's invoices.
+- `L457-L459`: Defines `get_invoice`. Get invoice by ID.
+- `L461-L463`: Comment block that explains the next section: ===========================.
+- `L465-L471`: Defines the `create_billing_portal_session` function and the logic it executes.
+- `L473-L475`: Implements this section of logic starting with `Args:`.
+- `L477-L483`: Implements this section of logic starting with `Returns:`.
+- `L485-L488`: Initializes module-level state or configuration such as `session, customer_id, return_url`.
+- `L490-L491`: Implements this section of logic starting with `logger.info(f"✓ Billing portal session created for user: {user_id}")`.
+- `L493-L495`: Handles a failure from the preceding `try` block.
+- `L497-L499`: Comment block that explains the next section: ===========================.
+- `L501-L506`: Defines the `sync_subscription_from_stripe` function and the logic it executes.
+- `L508-L509`: Implements this section of logic starting with `Args:`.
+- `L511-L518`: Implements this section of logic starting with `Returns:`.
+- `L520-L522`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L524-L527`: Implements this section of logic starting with `# Get from Stripe`.
+- `L529-L539`: Implements this section of logic starting with `# Update database record`.
+- `L541-L542`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L544-L545`: Implements this section of logic starting with `self.db.commit()`.
+- `L547-L548`: Implements this section of logic starting with `logger.info(f"✓ Subscription synced from Stripe: {subscription.id}")`.
+- `L550-L553`: Handles a failure from the preceding `try` block.
+- `L555-L560`: Defines the `sync_subscription_from_paypal` function and the logic it executes.
+- `L562-L563`: Implements this section of logic starting with `Args:`.
+- `L565-L572`: Implements this section of logic starting with `Returns:`.
+- `L574-L576`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L578-L581`: Implements this section of logic starting with `# Get from PayPal`.
+- `L583-L591`: Implements this section of logic starting with `# Map PayPal status to our status`.
+- `L593-L598`: Implements this section of logic starting with `transition_subscription_status(`.
+- `L600-L606`: Implements this section of logic starting with `# Update billing dates if available`.
+- `L608-L609`: Implements this section of logic starting with `self.db.commit()`.
+- `L611-L612`: Implements this section of logic starting with `logger.info(f"✓ Subscription synced from PayPal: {subscription.id}")`.
+- `L614-L617`: Handles a failure from the preceding `try` block.

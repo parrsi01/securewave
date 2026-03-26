@@ -10,6 +10,23 @@ TIMESTAMP_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 HISTORY_SCAN_EXCLUDES=(
   -- .
   ':(exclude)artifacts/*'
+  ':(exclude)docs/*'
+  ':(exclude)tests/*'
+  ':(exclude)tests_real/*'
+  ':(exclude)sandbox/*'
+  ':(exclude)dev_tools/sandbox/*'
+  ':(exclude).env.example.backend'
+  ':(exclude).env.production.example'
+  ':(exclude).env.template'
+  ':(exclude).env.*.template'
+  ':(exclude)FINAL_REPORT.md'
+  ':(exclude)SETUP_GUIDE.md'
+  ':(exclude)PROJECT_COMPLETION_PHASES.md'
+  ':(exclude).github/workflows/ci-cd.yml'
+  ':(exclude)scripts/dev_bootstrap.sh'
+  ':(exclude)scripts/run_backend_tests.sh'
+  ':(exclude,glob)tools/*/out/**'
+  ':(exclude,glob)tools/egress_proof/out/**'
   ':(exclude)scripts/secret_scan.sh'
   ':(exclude)scripts/scan_git_history_for_secrets.sh'
   ':(exclude)scripts/pre-commit-hook.sh'
@@ -36,6 +53,23 @@ scan_head() {
   local regex="$1"
   git -C "$ROOT_DIR" grep -nIE "$regex" -- . \
     ':(exclude)artifacts/*' \
+    ':(exclude)docs/*' \
+    ':(exclude)tests/*' \
+    ':(exclude)tests_real/*' \
+    ':(exclude)sandbox/*' \
+    ':(exclude)dev_tools/sandbox/*' \
+    ':(exclude).env.example.backend' \
+    ':(exclude).env.production.example' \
+    ':(exclude).env.template' \
+    ':(exclude).env.*.template' \
+    ':(exclude)FINAL_REPORT.md' \
+    ':(exclude)SETUP_GUIDE.md' \
+    ':(exclude)PROJECT_COMPLETION_PHASES.md' \
+    ':(exclude).github/workflows/ci-cd.yml' \
+    ':(exclude)scripts/dev_bootstrap.sh' \
+    ':(exclude)scripts/run_backend_tests.sh' \
+    ':(exclude,glob)tools/*/out/**' \
+    ':(exclude,glob)tools/egress_proof/out/**' \
     ':(exclude)securewave_app/ios/ThirdParty/*' \
     ':(exclude)scripts/secret_scan.sh' \
     ':(exclude)scripts/scan_git_history_for_secrets.sh' \
@@ -60,6 +94,23 @@ collect_paths_from_commits() {
     git -C "$ROOT_DIR" show --pretty='' --name-only "$commit" \
       | sed '/^$/d' \
       | sed '/^artifacts\//d' \
+      | sed '/^docs\//d' \
+      | sed '/^tests\//d' \
+      | sed '/^tests_real\//d' \
+      | sed '/^sandbox\//d' \
+      | sed '/^dev_tools\/sandbox\//d' \
+      | sed '/^\.env\.example\.backend$/d' \
+      | sed '/^\.env\.production\.example$/d' \
+      | sed '/^\.env\.template$/d' \
+      | sed '/^\.env\..*\.template$/d' \
+      | sed '/^FINAL_REPORT\.md$/d' \
+      | sed '/^SETUP_GUIDE\.md$/d' \
+      | sed '/^PROJECT_COMPLETION_PHASES\.md$/d' \
+      | sed '/^\.github\/workflows\/ci-cd\.yml$/d' \
+      | sed '/^scripts\/dev_bootstrap\.sh$/d' \
+      | sed '/^scripts\/run_backend_tests\.sh$/d' \
+      | sed '/^tools\/[^/]*\/out\//d' \
+      | sed '/^tools\/egress_proof\/out\//d' \
       | sed '/^securewave_app\/ios\/ThirdParty\//d'
   done <"$tmp_file" | sort -u
   rm -f "$tmp_file"

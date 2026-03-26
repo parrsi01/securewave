@@ -86,7 +86,8 @@ class _BootScreenState extends ConsumerState<BootScreen>
           SafeArea(
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: AppSpacing.authMaxWidth),
+                constraints:
+                    const BoxConstraints(maxWidth: AppSpacing.authMaxWidth),
                 child: Padding(
                   padding: const EdgeInsets.all(AppSpacing.space5),
                   child: Column(
@@ -177,11 +178,13 @@ class _BootScreenState extends ConsumerState<BootScreen>
                             vertical: AppSpacing.space2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.darkSurface.withValues(alpha: 0.55),
+                            color:
+                                AppColors.darkSurface.withValues(alpha: 0.55),
                             borderRadius:
                                 BorderRadius.circular(AppSpacing.radiusL),
                             border: Border.all(
-                              color: AppColors.primaryBright.withValues(alpha: 0.12),
+                              color: AppColors.primaryBright
+                                  .withValues(alpha: 0.12),
                             ),
                           ),
                           child: Row(
@@ -190,7 +193,8 @@ class _BootScreenState extends ConsumerState<BootScreen>
                               Icon(
                                 Icons.manage_search_rounded,
                                 size: 14,
-                                color: AppColors.primaryBright.withValues(alpha: 0.9),
+                                color: AppColors.primaryBright
+                                    .withValues(alpha: 0.9),
                               ),
                               const SizedBox(width: AppSpacing.space2),
                               Flexible(
@@ -242,7 +246,7 @@ class _BootScreenState extends ConsumerState<BootScreen>
                             child: Text(
                               boot.errorMessage!,
                               style: const TextStyle(
-                                color: Color(0xFFFF6B6B),
+                                color: AppColors.error,
                                 fontSize: 13,
                               ),
                               textAlign: TextAlign.center,
@@ -251,8 +255,10 @@ class _BootScreenState extends ConsumerState<BootScreen>
                           const SizedBox(height: AppSpacing.space4),
                         ],
                         FilledButton.icon(
-                          onPressed: () => ref.invalidate(bootControllerProvider),
-                          icon: const Icon(Icons.refresh_rounded, size: AppSpacing.iconXS),
+                          onPressed: () =>
+                              ref.invalidate(bootControllerProvider),
+                          icon: const Icon(Icons.refresh_rounded,
+                              size: AppSpacing.iconXS),
                           label: const Text('Retry'),
                         ),
                       ],
@@ -280,9 +286,8 @@ class _ConcentricRingsPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final maxRadius = math.sqrt(
-            size.width * size.width + size.height * size.height) /
-        2;
+    final maxRadius =
+        math.sqrt(size.width * size.width + size.height * size.height) / 2;
 
     const ringCount = 4;
     for (int i = 0; i < ringCount; i++) {

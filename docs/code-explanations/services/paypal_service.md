@@ -1,0 +1,107 @@
+# `services/paypal_service.py`
+
+Purpose: This service module implements the business logic for paypal service operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L11`: Imports the dependencies used later in this module, including os, logging, base64, requests, typing, datetime.
+- `L13`: Initializes module-level state or configuration such as `logger`.
+- `L15-L18`: Implements this section of logic starting with `# PayPal configuration`.
+- `L20-L24`: Implements this section of logic starting with `# API URLs`.
+- `L27-L31`: Defines `PayPalService`. Production-grade PayPal integration service Handles subscriptions, billing plans, and webhook verification.
+- `L33-L59`: Implements this section of logic starting with `# Subscription plans configuration (mirrors Stripe)`.
+- `L61-L66`: Defines `__init__`. Initialize PayPal service.
+- `L68-L71`: Applies decorators and defines `get_plan_details` with the wrapped behavior declared above it.
+- `L73-L76`: Applies decorators and defines `get_all_plans` with the wrapped behavior declared above it.
+- `L78-L80`: Comment block that explains the next section: ===========================.
+- `L82-L84`: Defines the `get_access_token` function and the logic it executes.
+- `L86-L92`: Implements this section of logic starting with `Returns:`.
+- `L94-L98`: Implements this section of logic starting with `# Get new token`.
+- `L100-L103`: Initializes module-level state or configuration such as `headers`.
+- `L105`: Initializes module-level state or configuration such as `data`.
+- `L107-L113`: Initializes module-level state or configuration such as `response, headers, data, timeout`.
+- `L115-L118`: Initializes module-level state or configuration such as `token_data, self.access_token, expires_in, self.token_expires_at`.
+- `L120-L121`: Implements this section of logic starting with `logger.info("✓ PayPal access token obtained")`.
+- `L123-L125`: Handles a failure from the preceding `try` block.
+- `L127-L134`: Defines `_get_headers`. Get headers with authorization.
+- `L136-L138`: Comment block that explains the next section: ===========================.
+- `L140-L146`: Defines the `create_billing_plan` function and the logic it executes.
+- `L148-L150`: Implements this section of logic starting with `Args:`.
+- `L152-L158`: Implements this section of logic starting with `Returns:`.
+- `L160`: Initializes module-level state or configuration such as `price`.
+- `L162-L166`: Implements this section of logic starting with `# Billing cycle configuration`.
+- `L168-L196`: Initializes module-level state or configuration such as `plan_data`.
+- `L198-L204`: Initializes module-level state or configuration such as `response, headers, json, timeout`.
+- `L206-L208`: Initializes module-level state or configuration such as `plan_response`.
+- `L210-L212`: Handles a failure from the preceding `try` block.
+- `L214-L226`: Defines `get_billing_plan`. Get billing plan details.
+- `L228-L230`: Comment block that explains the next section: ===========================.
+- `L232-L242`: Defines the `create_subscription` function and the logic it executes.
+- `L244-L250`: Implements this section of logic starting with `Args:`.
+- `L252-L258`: Implements this section of logic starting with `Returns:`.
+- `L260-L262`: Initializes module-level state or configuration such as `paypal_plan_id`.
+- `L264-L274`: Initializes module-level state or configuration such as `subscription_data`.
+- `L276-L283`: Implements this section of logic starting with `# Add subscriber info`.
+- `L285-L291`: Initializes module-level state or configuration such as `response, headers, json, timeout`.
+- `L293`: Initializes module-level state or configuration such as `subscription`.
+- `L295-L300`: Implements this section of logic starting with `# Extract approval URL`.
+- `L302`: Implements this section of logic starting with `logger.info(f"✓ PayPal subscription created: {subscription['id']}")`.
+- `L304-L309`: Returns a value from the current function.
+- `L311-L313`: Handles a failure from the preceding `try` block.
+- `L315-L327`: Defines `get_subscription`. Get subscription details.
+- `L329-L335`: Defines the `cancel_subscription` function and the logic it executes.
+- `L337-L339`: Implements this section of logic starting with `Args:`.
+- `L341-L347`: Implements this section of logic starting with `Returns:`.
+- `L349-L355`: Initializes module-level state or configuration such as `response, headers, json, timeout`.
+- `L357-L358`: Implements this section of logic starting with `logger.info(f"✓ PayPal subscription canceled: {subscription_id}")`.
+- `L360-L362`: Handles a failure from the preceding `try` block.
+- `L364-L369`: Defines `suspend_subscription`. Suspend subscription (can be reactivated).
+- `L371-L377`: Initializes module-level state or configuration such as `response, headers, json, timeout`.
+- `L379-L380`: Implements this section of logic starting with `logger.info(f"✓ PayPal subscription suspended: {subscription_id}")`.
+- `L382-L384`: Handles a failure from the preceding `try` block.
+- `L386-L395`: Defines `reactivate_subscription`. Reactivate suspended subscription.
+- `L397-L403`: Initializes module-level state or configuration such as `response, headers, json, timeout`.
+- `L405-L406`: Implements this section of logic starting with `logger.info(f"✓ PayPal subscription reactivated: {subscription_id}")`.
+- `L408-L410`: Handles a failure from the preceding `try` block.
+- `L412-L419`: Defines the `update_subscription_plan` function and the logic it executes.
+- `L421-L424`: Implements this section of logic starting with `Args:`.
+- `L426-L432`: Implements this section of logic starting with `Returns:`.
+- `L434`: Initializes module-level state or configuration such as `paypal_plan_id`.
+- `L436-L438`: Initializes module-level state or configuration such as `data`.
+- `L440-L446`: Initializes module-level state or configuration such as `response, headers, json, timeout`.
+- `L448-L449`: Implements this section of logic starting with `logger.info(f"✓ PayPal subscription updated: {subscription_id}")`.
+- `L451-L453`: Handles a failure from the preceding `try` block.
+- `L455-L457`: Comment block that explains the next section: ===========================.
+- `L459-L466`: Defines the `list_subscription_transactions` function and the logic it executes.
+- `L468-L471`: Implements this section of logic starting with `Args:`.
+- `L473-L481`: Implements this section of logic starting with `Returns:`.
+- `L483-L486`: Initializes module-level state or configuration such as `params`.
+- `L488-L494`: Initializes module-level state or configuration such as `response, headers, params, timeout`.
+- `L496-L497`: Initializes module-level state or configuration such as `transactions`.
+- `L499-L501`: Handles a failure from the preceding `try` block.
+- `L503-L505`: Comment block that explains the next section: ===========================.
+- `L507-L513`: Defines the `verify_webhook_signature` function and the logic it executes.
+- `L515-L517`: Implements this section of logic starting with `Args:`.
+- `L519-L526`: Implements this section of logic starting with `Returns:`.
+- `L528-L533`: Implements this section of logic starting with `# Extract signature headers`.
+- `L535-L537`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L539-L548`: Implements this section of logic starting with `# Verify signature via PayPal API`.
+- `L550-L556`: Initializes module-level state or configuration such as `response, headers, json, timeout`.
+- `L558-L559`: Initializes module-level state or configuration such as `verification_status`.
+- `L561-L564`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L566`: Returns a value from the current function.
+- `L568-L570`: Handles a failure from the preceding `try` block.
+- `L572-L574`: Comment block that explains the next section: ===========================.
+- `L576-L583`: Defines the `create_order` function and the logic it executes.
+- `L585-L588`: Implements this section of logic starting with `Args:`.
+- `L590-L612`: Implements this section of logic starting with `Returns:`.
+- `L614-L620`: Initializes module-level state or configuration such as `response, headers, json, timeout`.
+- `L622`: Initializes module-level state or configuration such as `order`.
+- `L624-L629`: Implements this section of logic starting with `# Extract approval URL`.
+- `L631`: Implements this section of logic starting with `logger.info(f"✓ PayPal order created: {order['id']}")`.
+- `L633-L637`: Returns a value from the current function.
+- `L639-L641`: Handles a failure from the preceding `try` block.
+- `L643-L651`: Defines `capture_order`. Capture payment for approved order.
+- `L653-L655`: Initializes module-level state or configuration such as `capture_result`.
+- `L657-L659`: Handles a failure from the preceding `try` block.

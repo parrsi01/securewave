@@ -18,8 +18,8 @@ import uuid
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import jwt
 import pytest
-from jose import jwt
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -83,8 +83,8 @@ class HomeScreen extends HookConsumerWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Color(0x167BB8FF),
-                        Color(0x129B6BFF),
+                        AppColors.primaryWash,
+                        AppColors.secondaryWash,
                         Colors.transparent,
                       ],
                     )
@@ -213,6 +213,26 @@ class _DashboardHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.space3,
+                  vertical: AppSpacing.space2,
+                ),
+                decoration: BoxDecoration(
+                  color: htb.HtbColors.accentSecondaryGhost,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  border: Border.all(color: htb.HtbColors.glassBorderDefault),
+                ),
+                child: Text(
+                  'SECUREWAVE CONTROL',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: htb.HtbColors.textMono,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
+                      ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.space3),
               const BrandMark(size: 34, textSize: 24),
               const SizedBox(height: AppSpacing.space2),
               Text(
@@ -274,12 +294,43 @@ class _ConnectionHero extends StatelessWidget {
     final protocolLabel = vpnProtocolLabel(effectiveProtocol ?? protocol);
 
     return GlassPanel(
+      glowColor: _heroGlow(visualState),
+      borderColor: _heroGlow(visualState).withValues(alpha: 0.28),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          _heroGlow(visualState).withValues(alpha: 0.12),
+          htb.HtbColors.bg1.withValues(alpha: 0.9),
+          htb.HtbColors.bg3.withValues(alpha: 0.96),
+        ],
+      ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space5,
         vertical: AppSpacing.space6,
       ),
       child: Column(
         children: [
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space3,
+              vertical: AppSpacing.space2,
+            ),
+            decoration: BoxDecoration(
+              color: htb.HtbColors.accentPrimaryGhost,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              border: Border.all(color: htb.HtbColors.glassBorderDefault),
+            ),
+            child: Text(
+              'LIVE TUNNEL STATUS',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: htb.HtbColors.textMono,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.9,
+                  ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.space3),
           // ── Status indicator + banners ───────────────────────────────
           const StatusDisplay(),
 
@@ -338,6 +389,16 @@ class _ConnectionHero extends StatelessWidget {
         .fadeIn(duration: 320.ms)
         .slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic);
   }
+
+  Color _heroGlow(ConnectionVisualState state) => switch (state) {
+        ConnectionVisualState.connected => htb.HtbColors.accentPrimary,
+        ConnectionVisualState.connecting => htb.HtbColors.accentSecondary,
+        ConnectionVisualState.reconnecting => htb.HtbColors.statusConnecting,
+        ConnectionVisualState.disconnecting => htb.HtbColors.textTertiary,
+        ConnectionVisualState.error => htb.HtbColors.statusDisconnected,
+        ConnectionVisualState.disconnected =>
+          htb.HtbColors.accentSecondaryMuted,
+      };
 
   String _headlineFor(ConnectionVisualState state, String? phaseLabel) =>
       switch (state) {
@@ -439,9 +500,14 @@ class _InfoChip extends StatelessWidget {
         vertical: AppSpacing.space2,
       ),
       decoration: BoxDecoration(
-        color: htb.HtbColors.glassFill,
+        color: (color ?? htb.HtbColors.accentPrimary)
+            .withValues(alpha: onTap == null ? 0.1 : 0.14),
         borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-        border: Border.all(color: htb.HtbColors.glassBorderDefault, width: 1),
+        border: Border.all(
+          color: (color ?? htb.HtbColors.glassBorderDefault)
+              .withValues(alpha: 0.32),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -449,7 +515,7 @@ class _InfoChip extends StatelessWidget {
           Icon(
             icon,
             size: AppSpacing.iconS,
-            color: color ?? htb.HtbColors.neonCyan,
+            color: color ?? htb.HtbColors.accentSecondary,
           ),
           const SizedBox(width: AppSpacing.space2),
           Text(
@@ -501,6 +567,8 @@ class _QuickActionPanel extends ConsumerWidget {
       ),
     );
     return GlassPanel(
+      glowColor: htb.HtbColors.accentSecondaryMuted,
+      borderColor: htb.HtbColors.glassBorderDefault,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -586,53 +654,75 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: htb.HtbColors.bg2,
-      borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-      child: InkWell(
-        onTap: onTap,
+    return Ink(
+      decoration: BoxDecoration(
+        color: htb.HtbColors.bg2.withValues(alpha: 0.76),
         borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.space4),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: htb.HtbColors.neonGreenGhost,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-                  border: Border.all(
-                    color: htb.HtbColors.glassBorderNeon,
-                    width: 1,
+        border: Border.all(color: htb.HtbColors.glassBorderDefault),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.space4),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        htb.HtbColors.accentSecondaryGhost,
+                        htb.HtbColors.accentPrimaryGhost,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+                    border: Border.all(
+                      color: htb.HtbColors.glassBorderDefault,
+                      width: 1,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: htb.HtbColors.glowSecondary,
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Icon(icon, color: htb.HtbColors.accentPrimary),
+                ),
+                const SizedBox(width: AppSpacing.space3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(height: AppSpacing.space1),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Icon(icon, color: htb.HtbColors.neonGreen),
-              ),
-              const SizedBox(width: AppSpacing.space3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: AppSpacing.space1),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right_rounded),
-            ],
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
           ),
         ),
       ),

@@ -25,8 +25,8 @@ import time
 import uuid
 from datetime import datetime, timedelta
 
+import jwt as jose_jwt
 import pytest
-from jose import jwt as jose_jwt
 
 from models.user import User
 from services.hashing_service import hash_password
@@ -50,7 +50,7 @@ class TestJWTForgery:
         """JWT with 'none' algorithm must be rejected.
 
         CVE-2015-9235: Some JWT libraries accept alg=none, allowing
-        unsigned tokens. python-jose should reject this.
+        unsigned tokens. PyJWT should reject this.
         """
         payload = {
             "sub": str(test_user.id),

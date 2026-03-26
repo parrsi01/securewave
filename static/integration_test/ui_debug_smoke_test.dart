@@ -345,7 +345,7 @@ Future<void> _openDiagnostics(WidgetTester tester) async {
 Future<void> _assertDiagnosticsSurface(WidgetTester tester) async {
   await _waitForDiagnosticsReady(tester);
   for (final section in _diagnosticsSections) {
-    final sectionFinder = find.text(section);
+    final sectionFinder = find.textContaining(section);
     await _scrollIntoView(
       tester,
       sectionFinder,
@@ -395,8 +395,8 @@ Future<void> _waitForDiagnosticsReady(WidgetTester tester) async {
     tester,
     () =>
         _finderExists(_diagnosticsScrollFinder) &&
-        _finderExists(find.text('CONNECTION')) &&
-        _finderExists(find.text('PIPELINE')),
+        _finderExists(find.textContaining('CONNECTION')) &&
+        _finderExists(find.textContaining('PIPELINE')),
     timeout: const Duration(seconds: 30),
     debugLabel: 'diagnostics body ready',
     debugDetails: () => _surfaceSummary(tester),

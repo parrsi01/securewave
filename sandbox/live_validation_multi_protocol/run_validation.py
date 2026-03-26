@@ -155,6 +155,10 @@ def normalize_protocol_name(token: str) -> Optional[str]:
     return mapping.get(raw)
 
 
+def validation_device_name(device_type: str) -> str:
+    return "multi-protocol-validation"
+
+
 def parse_declared_protocols(capability_file: Path) -> dict[str, set[str]]:
     declared: dict[str, set[str]] = {platform: set() for platform in PLATFORMS}
     text = capability_file.read_text(encoding="utf-8")
@@ -438,7 +442,7 @@ def request_profile(
 
     headers = {"Authorization": f"Bearer {api.token}"}
     payload: dict[str, Any] = {
-        "device_name": f"multi-protocol-validation-{protocol}",
+        "device_name": validation_device_name(device_type),
         "device_type": device_type,
         "protocol": protocol,
     }
@@ -636,7 +640,11 @@ def load_region_targets(path: Path) -> list[dict[str, Any]]:
 
 
 def build_manual_checklist(timestamp_dir: Path) -> str:
-    rel = timestamp_dir.relative_to(REPO_ROOT)
+    resolved_dir = timestamp_dir.resolve()
+    try:
+        rel: Path = resolved_dir.relative_to(REPO_ROOT)
+    except ValueError:
+        rel = resolved_dir
     return "\n".join(
         [
             "### Linux",
@@ -711,8 +719,8 @@ def run_error_ux_checks(ctx: RunContext, api: ApiContext, host_platform: str) ->
     cases = [
         {
             "name": "invalid_protocol_value",
-            "payload": {
-                "device_name": "error-ux-invalid",
+                "payload": {
+                "device_name": validation_device_name(host_platform),
                 "device_type": host_platform if host_platform in PLATFORMS else "linux",
                 "protocol": "invalid-protocol",
             },
@@ -721,7 +729,7 @@ def run_error_ux_checks(ctx: RunContext, api: ApiContext, host_platform: str) ->
         {
             "name": "openvpn_on_ios_not_supported",
             "payload": {
-                "device_name": "error-ux-ios",
+                "device_name": validation_device_name("ios"),
                 "device_type": "ios",
                 "protocol": "openvpn",
             },
@@ -1118,7 +1126,13 @@ def generate_report(
 
 def run_validation(args: argparse.Namespace) -> int:
     timestamp = args.timestamp or now_stamp()
-    output_dir = Path(args.output_root) / timestamp
+    output_root = Path(args.output_root).expanduser()
+    if not output_root.is_absolute():
+        output_root = (Path.cwd() / output_root).resolve()
+    else:
+        output_root = output_root.resolve()
+
+    output_dir = output_root / timestamp
     raw_logs_dir = output_dir / "raw_logs"
     raw_logs_dir.mkdir(parents=True, exist_ok=True)
     ctx = RunContext(output_dir=output_dir, raw_logs_dir=raw_logs_dir, timestamp=timestamp)

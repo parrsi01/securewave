@@ -1,0 +1,80 @@
+# `services/marl_policy.py`
+
+Purpose: This service module implements the business logic for marl policy operations.
+
+## Line Walkthrough
+
+- `L1-L2`: Module or block docstring that describes the responsibility of this section.
+- `L4-L5`: Implements this section of logic starting with `Multi-Agent Reinforcement Learning policy engine for VPN optimization.`.
+- `L7-L12`: Implements this section of logic starting with `Actions:`.
+- `L14-L21`: Implements this section of logic starting with `State Vector:`.
+- `L23-L25`: Implements this section of logic starting with `Reward Function:`.
+- `L27-L30`: Imports the dependencies used later in this module, including dataclasses, enum, typing, time.
+- `L32-L38`: Implements this section of logic starting with `# Lazy imports for QoS and Risk scorers`.
+- `L41-L47`: Defines `PolicyAction`. Available policy actions.
+- `L50-L64`: Applies decorators and defines `StateVector` with the wrapped behavior declared above it.
+- `L67-L75`: Applies decorators and defines `PolicyDecision` with the wrapped behavior declared above it.
+- `L78-L87`: Applies decorators and defines `MARLPolicyConfig` with the wrapped behavior declared above it.
+- `L90-L92`: Defines the `MARLPolicyEngine` class and the behavior it groups together.
+- `L94-L98`: Implements this section of logic starting with `Combines:`.
+- `L100-L104`: Implements this section of logic starting with `# Safety thresholds (hard constraints)`.
+- `L106-L109`: Implements this section of logic starting with `# Q-learning parameters`.
+- `L111-L119`: Defines the `__init__` function and the logic it executes.
+- `L121-L122`: Implements this section of logic starting with `# Q-table: (state_hash, action) -> value`.
+- `L124-L125`: Implements this section of logic starting with `# Reward history for tracking`.
+- `L127-L131`: Implements this section of logic starting with `# Available servers (populated from optimizer)`.
+- `L133-L135`: Defines `set_available_servers`. Update list of available servers.
+- `L137-L139`: Applies decorators and defines `_clamp` with the wrapped behavior declared above it.
+- `L141-L152`: Defines `_latency_weight`. Dynamic latency weighting: - Premium users are more latency-sensitive. - Loss/jitter amplify effective latency. - Lower QoS score increases weighting.
+- `L154-L155`: Defines the `_weighted_latency_ms` function and the logic it executes.
+- `L157-L162`: Defines the `_record_server_load_sample` function and the logic it executes.
+- `L164-L171`: Defines `_predict_server_load`. Predict near-future server load from recent trend + connection risk.
+- `L173-L176`: Initializes module-level state or configuration such as `recent, start_load, end_load, upward_delta`.
+- `L178-L182`: Initializes module-level state or configuration such as `projected`.
+- `L184`: Returns a value from the current function.
+- `L186-L193`: Defines `preclassify_server_health`. Fast pre-classification before heavier health pipelines run.
+- `L195-L199`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L201-L214`: Defines `suggest_adaptive_mtu`. MTU hint consumed by profile/tunnel orchestration.
+- `L216-L225`: Defines `_hash_state`. Create hashable state representation for Q-table.
+- `L227-L235`: Defines the `calculate_reward` function and the logic it executes.
+- `L237-L239`: Initializes module-level state or configuration such as `throughput_normalized`.
+- `L241-L246`: Initializes module-level state or configuration such as `reward`.
+- `L248-L249`: Implements this section of logic starting with `# Clamp to reasonable range`.
+- `L251-L270`: Defines `_check_safety_constraints`. Check hard safety constraints (Day 13). Returns immediate decision if constraint violated.
+- `L272-L282`: Implements this section of logic starting with `# Critical latency -> immediate reroute`.
+- `L284-L291`: Implements this section of logic starting with `# Pre-classified instability -> immediate reroute before tunnel degrades further.`.
+- `L293-L300`: Implements this section of logic starting with `# High risk -> alert`.
+- `L302-L312`: Implements this section of logic starting with `# Server overloaded -> rotate`.
+- `L314`: Returns a value from the current function.
+- `L316-L319`: Defines `_select_best_server`. Select best alternative server.
+- `L321-L324`: Implements this section of logic starting with `# Simple selection: pick first server that's not current`.
+- `L326`: Returns a value from the current function.
+- `L328-L330`: Defines `_get_q_value`. Get Q-value for state-action pair.
+- `L332-L340`: Defines `_update_q_value`. Update Q-value using Q-learning update rule.
+- `L342-L346`: Implements this section of logic starting with `# Max Q-value for next state`.
+- `L348-L351`: Implements this section of logic starting with `# Q-learning update`.
+- `L353-L354`: Initializes module-level variables and configuration used by later code.
+- `L356-L358`: Implements this section of logic starting with `# Keep history bounded`.
+- `L360-L362`: Defines the `decide` function and the logic it executes.
+- `L364-L386`: Implements this section of logic starting with `Combines:`.
+- `L388-L400`: Implements this section of logic starting with `# Check safety constraints first`.
+- `L402`: Initializes module-level state or configuration such as `state_hash`.
+- `L404-L412`: Implements this section of logic starting with `# Exploration: random action`.
+- `L414-L418`: Loops over a collection to apply the same work to each item.
+- `L420`: Initializes module-level state or configuration such as `action`.
+- `L422-L428`: Implements this section of logic starting with `# Build decision`.
+- `L430-L442`: Implements this section of logic starting with `# Set target server if needed`.
+- `L444`: Returns a value from the current function.
+- `L446-L456`: Defines `learn`. Update Q-table based on observed reward.
+- `L458-L462`: Defines `get_stats`. Get policy engine statistics.
+- `L464-L471`: Returns a value from the current function.
+- `L474-L475`: Implements this section of logic starting with `# Singleton instance`.
+- `L478-L483`: Defines `get_policy_engine`. Get or create singleton policy engine.
+- `L486-L488`: Defines `create_policy_engine`. Create a policy engine instance with optional configuration.
+- `L491-L504`: Defines the `evaluate_connection` function and the logic it executes.
+- `L506-L516`: Implements this section of logic starting with `Returns:`.
+- `L518-L526`: Implements this section of logic starting with `# Get QoS score`.
+- `L528-L534`: Implements this section of logic starting with `# Get risk score`.
+- `L536-L548`: Implements this section of logic starting with `# Build state vector`.
+- `L550-L551`: Implements this section of logic starting with `# Get policy decision`.
+- `L553-L562`: Returns a value from the current function.

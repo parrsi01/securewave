@@ -41,6 +41,20 @@ expect_in_text() {
   fi
 }
 
+expect_any_text() {
+  local haystack="$1"
+  local label="$2"
+  shift 2
+  local needle
+  for needle in "$@"; do
+    if grep -Fq "$needle" <<<"$haystack"; then
+      return 0
+    fi
+  done
+  echo "ERROR: missing $label" >&2
+  exit 1
+}
+
 control_fields="$(dpkg-deb -f "$package_path")"
 listing="$(dpkg-deb -c "$package_path")"
 temp_dir="$(mktemp -d)"
@@ -64,9 +78,21 @@ fi
 postinst_text="$(cat "$postinst_path")"
 postrm_text="$(cat "$postrm_path")"
 
-expect_in_text "$postinst_text" "/usr/local/libexec/securewave-wg-quick" "helper install path"
-expect_in_text "$postinst_text" "securewave-wg-quick.contract" "helper contract path"
-expect_in_text "$postinst_text" "50-securewave-wg.rules" "polkit rule path"
+expect_any_text \
+  "$postinst_text" \
+  "helper install path" \
+  "/usr/local/libexec/securewave-wg-quick" \
+  'HELPER=$HELPER_DIR/securewave-wg-quick'
+expect_any_text \
+  "$postinst_text" \
+  "helper contract path" \
+  "/usr/local/libexec/securewave-wg-quick.contract" \
+  'HELPER_CONTRACT=$HELPER_DIR/securewave-wg-quick.contract'
+expect_any_text \
+  "$postinst_text" \
+  "polkit rule path" \
+  "50-securewave-wg.rules" \
+  'POLKIT_RULE=$POLKIT_RULES_DIR/50-securewave-wg.rules'
 expect_in_text "$postrm_text" "rm -f /usr/local/libexec/securewave-wg-quick" "helper cleanup"
 expect_in_text "$postrm_text" "securewave-wg-quick.contract" "helper contract cleanup"
 expect_in_text "$postrm_text" "50-securewave-wg.rules" "polkit cleanup"

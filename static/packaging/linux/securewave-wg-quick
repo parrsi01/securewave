@@ -20,7 +20,7 @@ case "$action" in
   up|down)
     config="$target"
     case "$config" in
-      /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf) ;;
+      /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf|/etc/wireguard/*.conf) ;;
       *)
         echo "securewave-wg-quick: refusing unsafe config path '$config'" >&2
         exit 64

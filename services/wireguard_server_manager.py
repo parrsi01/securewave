@@ -92,6 +92,25 @@ class WireGuardServerManager:
             return "Invalid allowed IPs format"
         return None
 
+    @staticmethod
+    def _classify_restart_failure(message: str) -> str:
+        normalized = (message or "").strip().lower()
+        if any(token in normalized for token in (
+            "pkexec",
+            "permission denied",
+            "not authorized",
+            "authentication failed",
+            "no authentication agent",
+            "privilege",
+        )):
+            return "privilege_failure"
+        return "tunnel_failure"
+
+    @staticmethod
+    def _format_restart_failure(message: str) -> str:
+        detail = (message or "restart failed").strip()
+        return f"{WireGuardServerManager._classify_restart_failure(detail)}: {detail}"
+
     @property
     def http_client(self) -> httpx.AsyncClient:
         """Lazy-initialized HTTP client"""
@@ -290,21 +309,28 @@ class WireGuardServerManager:
             return False, "Interface restart requires SSH mode"
 
         safe_iface = re.sub(r"[^A-Za-z0-9_-]", "", interface) or "wg0"
+        conf_path = f"/etc/wireguard/{safe_iface}.conf"
         command = (
             "set -euo pipefail; "
             f"IFACE='{safe_iface}'; "
-            "if command -v systemctl >/dev/null 2>&1; then "
-            "sudo systemctl restart \"wg-quick@${IFACE}\"; "
+            f"CONF='{conf_path}'; "
+            "if [ \"$(id -u)\" -eq 0 ]; then "
+            "wg-quick down \"$CONF\" >/dev/null 2>&1 || true; "
+            "wg-quick up \"$CONF\"; "
+            "wg show \"${IFACE}\" >/dev/null 2>&1; "
+            "elif command -v pkexec >/dev/null 2>&1 && [ -x /usr/local/libexec/securewave-wg-quick ]; then "
+            "pkexec --disable-internal-agent /usr/local/libexec/securewave-wg-quick down \"$CONF\" >/dev/null 2>&1 || true; "
+            "pkexec --disable-internal-agent /usr/local/libexec/securewave-wg-quick up \"$CONF\"; "
+            "pkexec --disable-internal-agent wg show \"${IFACE}\" >/dev/null 2>&1; "
             "else "
-            "sudo wg-quick down \"${IFACE}\" || true; "
-            "sudo wg-quick up \"${IFACE}\"; "
+            "echo privilege_failure: securewave polkit helper unavailable >&2; "
+            "exit 126; "
             "fi; "
-            "sudo wg show \"${IFACE}\" >/dev/null 2>&1; "
             "echo restarted"
         )
         ok, stdout, stderr = await self._run_ssh_command(conn, command)
         if not ok:
-            return False, (stderr or stdout or "restart failed").strip()
+            return False, self._format_restart_failure(stderr or stdout or "restart failed")
         return True, "Interface restarted"
 
     # =========================================================================

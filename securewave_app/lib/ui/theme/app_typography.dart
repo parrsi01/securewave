@@ -188,7 +188,7 @@ class AppTypography {
   static TextStyle monoNeon = _mono(
     fontSize: 13,
     fontWeight: FontWeight.w600,
-    color: HtbColors.neonGreen,
+    color: HtbColors.accentPrimary,
     letterSpacing: 0.5,
     height: 1.4,
   );

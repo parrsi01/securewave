@@ -20,6 +20,14 @@ function escapeHtml(input) {
     .replace(/"/g, '&quot;');
 }
 
+function applyTone(el, tone) {
+  if (!el) return;
+  el.classList.remove('text-success', 'text-warning', 'text-danger', 'text-default');
+  if (tone) {
+    el.classList.add(tone);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   let sessionEmail = localStorage.getItem('user_email') || 'you@example.com';
   try {
@@ -116,10 +124,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const res = await fetch(url, { credentials: 'include' });
       el.textContent = res.ok ? 'Online' : 'Degraded';
-      el.style.color = res.ok ? 'var(--success)' : 'var(--warning)';
+      applyTone(el, res.ok ? 'text-success' : 'text-warning');
     } catch {
       el.textContent = 'Unreachable';
-      el.style.color = 'var(--danger)';
+      applyTone(el, 'text-danger');
     }
   }
 

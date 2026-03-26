@@ -28,6 +28,11 @@ require_cmd() {
   command -v "$name" >/dev/null 2>&1 || fail "$name is required."
 }
 
+is_placeholder_value() {
+  local value="$1"
+  [[ "$value" == REPLACE_WITH_REAL_* ]]
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env)
@@ -88,9 +93,9 @@ echo
 
 for name in "${required_array[@]}"; do
   value="${!name-}"
-  if [[ -z "$value" ]]; then
+  if [[ -z "$value" ]] || is_placeholder_value "$value"; then
     missing_local+=("$name")
-    echo "[skip] $name (local env missing)"
+    echo "[skip] $name (local env missing or placeholder)"
     continue
   fi
 

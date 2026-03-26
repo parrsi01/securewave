@@ -1,0 +1,130 @@
+# `services/uptime_monitor.py`
+
+Purpose: This service module implements the business logic for uptime monitor operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L13`: Imports the dependencies used later in this module, including os, logging, socket, time, shutil, typing, datetime, asyncio.
+- `L15`: Imports the dependencies used later in this module, including config.
+- `L17-L18`: Initializes module-level state or configuration such as `logger, SETTINGS`.
+- `L20-L24`: Implements this section of logic starting with `# Configuration`.
+- `L27-L31`: Defines `UptimeMonitorService`. Uptime Monitoring Service Performs health checks on critical services.
+- `L33-L36`: Defines `__init__`. Initialize uptime monitor.
+- `L38-L40`: Comment block that explains the next section: ===========================.
+- `L42-L49`: Defines the `check_http_endpoint` function and the logic it executes.
+- `L51-L54`: Implements this section of logic starting with `Args:`.
+- `L56-L61`: Implements this section of logic starting with `Returns:`.
+- `L63`: Initializes module-level state or configuration such as `start_time`.
+- `L65-L68`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L70-L71`: Initializes module-level state or configuration such as `req`.
+- `L73-L75`: Opens a managed context so resources are cleaned up automatically after use.
+- `L77-L78`: Implements this section of logic starting with `is_up = status_code == expected_status`.
+- `L80-L82`: Handles a failure from the preceding `try` block.
+- `L84-L86`: Handles a failure from the preceding `try` block.
+- `L88-L90`: Handles a failure from the preceding `try` block.
+- `L92-L94`: Handles a failure from the preceding `try` block.
+- `L96-L98`: Defines the `check_api_endpoint` function and the logic it executes.
+- `L100-L101`: Implements this section of logic starting with `Args:`.
+- `L103-L107`: Implements this section of logic starting with `Returns:`.
+- `L109-L117`: Returns a value from the current function.
+- `L119-L121`: Defines `check_frontend`. Check frontend availability.
+- `L123-L131`: Returns a value from the current function.
+- `L133-L135`: Comment block that explains the next section: ===========================.
+- `L137-L139`: Defines the `check_database` function and the logic it executes.
+- `L141-L144`: Implements this section of logic starting with `Returns:`.
+- `L146-L148`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L150`: Initializes module-level state or configuration such as `db`.
+- `L152-L154`: Implements this section of logic starting with `# Execute simple query`.
+- `L156`: Initializes module-level state or configuration such as `response_time_ms`.
+- `L158-L166`: Returns a value from the current function.
+- `L168-L169`: Handles a failure from the preceding `try` block.
+- `L171-L179`: Returns a value from the current function.
+- `L181-L183`: Comment block that explains the next section: ===========================.
+- `L185-L187`: Defines the `check_redis` function and the logic it executes.
+- `L189-L201`: Implements this section of logic starting with `Returns:`.
+- `L203`: Initializes module-level state or configuration such as `start_time`.
+- `L205-L206`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L208-L209`: Implements this section of logic starting with `# Parse Redis URL`.
+- `L211-L212`: Implements this section of logic starting with `# Ping Redis`.
+- `L214`: Initializes module-level state or configuration such as `response_time_ms`.
+- `L216-L224`: Returns a value from the current function.
+- `L226-L235`: Handles a failure from the preceding `try` block.
+- `L237-L238`: Handles a failure from the preceding `try` block.
+- `L240-L248`: Returns a value from the current function.
+- `L250-L252`: Comment block that explains the next section: ===========================.
+- `L254-L256`: Defines the `check_vpn_server` function and the logic it executes.
+- `L258-L260`: Implements this section of logic starting with `Args:`.
+- `L262-L265`: Implements this section of logic starting with `Returns:`.
+- `L267-L270`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L272-L273`: Implements this section of logic starting with `# Send dummy packet`.
+- `L275-L280`: Implements this section of logic starting with `# Wait for response (will timeout if no response, which is expected)`.
+- `L282`: Implements this section of logic starting with `sock.close()`.
+- `L284`: Initializes module-level state or configuration such as `response_time_ms`.
+- `L286-L294`: Returns a value from the current function.
+- `L296-L297`: Handles a failure from the preceding `try` block.
+- `L299-L307`: Returns a value from the current function.
+- `L309-L311`: Defines the `check_all_vpn_servers` function and the logic it executes.
+- `L313-L318`: Implements this section of logic starting with `Returns:`.
+- `L320`: Initializes module-level state or configuration such as `db`.
+- `L322-L323`: Implements this section of logic starting with `# Get all active VPN servers`.
+- `L325-L329`: Initializes module-level state or configuration such as `results`.
+- `L331-L338`: Initializes module-level state or configuration such as `server_port, result`.
+- `L340`: Returns a value from the current function.
+- `L342-L344`: Handles a failure from the preceding `try` block.
+- `L346-L350`: Defines `_vpn_server_check_port`. Resolve the current VPNServer probe port without changing sweep semantics.
+- `L352-L354`: Initializes module-level state or configuration such as `openvpn_port`.
+- `L356-L358`: Initializes module-level state or configuration such as `supports_ikev2`.
+- `L360`: Returns a value from the current function.
+- `L362-L364`: Comment block that explains the next section: ===========================.
+- `L366-L368`: Defines the `check_tcp_port` function and the logic it executes.
+- `L370-L373`: Implements this section of logic starting with `Args:`.
+- `L375-L378`: Implements this section of logic starting with `Returns:`.
+- `L380-L382`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L384-L385`: Initializes module-level state or configuration such as `result`.
+- `L387`: Initializes module-level state or configuration such as `response_time_ms`.
+- `L389-L392`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L394-L396`: Handles a failure from the preceding `try` block.
+- `L398-L400`: Handles a failure from the preceding `try` block.
+- `L402-L404`: Comment block that explains the next section: ===========================.
+- `L406-L408`: Defines the `ping_host` function and the logic it executes.
+- `L410-L412`: Implements this section of logic starting with `Args:`.
+- `L414-L418`: Implements this section of logic starting with `Returns:`.
+- `L420-L422`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L424-L427`: Implements this section of logic starting with `# Execute ping`.
+- `L429-L435`: Initializes module-level state or configuration such as `command, result, stdout, stderr, timeout`.
+- `L437-L440`: Implements this section of logic starting with `# Check if ping succeeded`.
+- `L442-L446`: Implements this section of logic starting with `# Extract average time (platform-dependent parsing)`.
+- `L448-L449`: Handles a failure from the preceding `try` block.
+- `L451-L452`: Handles a failure from the preceding `try` block.
+- `L454-L456`: Comment block that explains the next section: ===========================.
+- `L458-L460`: Defines the `run_all_checks` function and the logic it executes.
+- `L462-L472`: Implements this section of logic starting with `Returns:`.
+- `L474-L481`: Implements this section of logic starting with `# Check API`.
+- `L483-L490`: Implements this section of logic starting with `# Check frontend`.
+- `L492-L499`: Implements this section of logic starting with `# Check database`.
+- `L501-L509`: Implements this section of logic starting with `# Check Redis`.
+- `L511-L520`: Implements this section of logic starting with `# Check VPN servers`.
+- `L522-L528`: Implements this section of logic starting with `# Determine overall status`.
+- `L530`: Returns a value from the current function.
+- `L532-L534`: Defines the `save_check_results` function and the logic it executes.
+- `L536-L541`: Implements this section of logic starting with `Args:`.
+- `L543`: Initializes module-level state or configuration such as `db`.
+- `L545-L555`: Implements this section of logic starting with `# Save each check`.
+- `L557-L558`: Implements this section of logic starting with `db.commit()`.
+- `L560-L561`: Handles a failure from the preceding `try` block.
+- `L563-L565`: Comment block that explains the next section: ===========================.
+- `L567-L569`: Defines the `get_uptime_stats` function and the logic it executes.
+- `L571-L573`: Implements this section of logic starting with `Args:`.
+- `L575-L581`: Implements this section of logic starting with `Returns:`.
+- `L583`: Initializes module-level state or configuration such as `db`.
+- `L585-L586`: Implements this section of logic starting with `# Calculate start date`.
+- `L588-L592`: Implements this section of logic starting with `# Get all checks for this service`.
+- `L594-L601`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L603-L606`: Implements this section of logic starting with `# Calculate statistics`.
+- `L608-L610`: Implements this section of logic starting with `# Calculate average response time (only for successful checks)`.
+- `L612-L620`: Implements this section of logic starting with `# Find incidents`.
+- `L622-L632`: Returns a value from the current function.
+- `L634-L639`: Handles a failure from the preceding `try` block.
+- `L642-L643`: Implements this section of logic starting with `# Singleton instance`.
+- `L646-L651`: Defines `get_uptime_monitor`. Get uptime monitor instance.

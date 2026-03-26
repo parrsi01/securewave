@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../../ui/design/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
 import '../../ui/theme/app_colors.dart' as htb;
 
 /// Shared widgets for auth screens (login + register).
@@ -25,11 +25,7 @@ class AuthHeader extends StatelessWidget {
         return Container(
           width: double.infinity,
           decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [htb.HtbColors.bg2, htb.HtbColors.bg3],
-            ),
+            gradient: AppColors.authHeaderGradient,
             border: Border(
               bottom: BorderSide(
                 color: htb.HtbColors.glassBorderDefault,
@@ -38,9 +34,9 @@ class AuthHeader extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: htb.HtbColors.glowCyan,
-                blurRadius: 26,
-                offset: Offset(0, 8),
+                color: htb.HtbColors.glowSecondary,
+                blurRadius: 30,
+                offset: Offset(0, 12),
               ),
             ],
           ),
@@ -57,11 +53,18 @@ class AuthHeader extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(AppSpacing.space3),
                   decoration: BoxDecoration(
-                    color: htb.HtbColors.neonCyanGhost,
+                    gradient: AppColors.brandGradient,
                     borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
                     border: Border.all(
                       color: htb.HtbColors.glassBorderDefault,
                     ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: htb.HtbColors.glowSecondary,
+                        blurRadius: 22,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
                   ),
                   child: SvgPicture.asset(
                     'assets/securewave_logo.svg',
@@ -126,15 +129,14 @@ class AuthErrorBanner extends StatelessWidget {
         horizontal: AppSpacing.space4,
         vertical: AppSpacing.space3,
       ),
-      decoration: BoxDecoration(
-        color: const Color(0x14FF7272),
-        border: Border.all(color: const Color(0x33FF7272)),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-      ),
+      decoration: AppTheme.authErrorDecoration(),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded,
-              size: AppSpacing.iconXS, color: htb.HtbColors.statusDisconnected),
+          const Icon(
+            Icons.error_outline_rounded,
+            size: AppSpacing.iconXS,
+            color: htb.HtbColors.statusDisconnected,
+          ),
           const SizedBox(width: AppSpacing.space2),
           Expanded(
             child: Text(
@@ -145,6 +147,110 @@ class AuthErrorBanner extends StatelessWidget {
                   ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class AuthFeaturePanel extends StatelessWidget {
+  const AuthFeaturePanel({
+    super.key,
+    required this.kicker,
+    required this.title,
+    required this.description,
+    required this.items,
+  });
+
+  final String kicker;
+  final String title;
+  final String description;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.space5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            htb.HtbColors.accentSecondaryGhost,
+            htb.HtbColors.accentPrimaryGhost,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+        border: Border.all(color: htb.HtbColors.glassBorderDefault),
+        boxShadow: const [
+          BoxShadow(
+            color: htb.HtbColors.glowSecondary,
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            kicker,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: htb.HtbColors.textMono,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.space2),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: htb.HtbColors.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.space2),
+          Text(
+            description,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: htb.HtbColors.textSecondary,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.space4),
+          for (final item in items) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  margin: const EdgeInsets.only(top: 5),
+                  decoration: const BoxDecoration(
+                    color: htb.HtbColors.accentSecondary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: htb.HtbColors.glowSecondary,
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.space3),
+                Expanded(
+                  child: Text(
+                    item,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: htb.HtbColors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            if (item != items.last) const SizedBox(height: AppSpacing.space3),
+          ],
         ],
       ),
     );

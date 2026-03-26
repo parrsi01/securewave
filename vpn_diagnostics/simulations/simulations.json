@@ -1,0 +1,65 @@
+[
+  {
+    "captured_at": "2026-03-25T23:51:30Z",
+    "cycle": 1,
+    "post_snapshot": {
+      "active_connections": [
+        "Profile 1",
+        "docker0",
+        "lo",
+        "tun0"
+      ],
+      "api_health_ok": true,
+      "api_latency_ms": 54.83,
+      "default_route_present": true,
+      "dns_ok": true,
+      "ethernet_connected": false,
+      "interface": "sw-wg",
+      "internet_reachable": true,
+      "notes": [
+        "scenario:network_drop:pass",
+        "scenario:network_failure_cases:pass",
+        "vpn_interface_down"
+      ],
+      "rx_bytes": null,
+      "timestamp": "2026-03-25T23:51:30Z",
+      "tx_bytes": null,
+      "vpn_interface_up": false,
+      "wifi_connected": false,
+      "wifi_radio_enabled": true
+    },
+    "scenarios": [
+      {
+        "harness": "network_drop",
+        "metrics": {
+          "destructive_mode": false,
+          "failed": 0,
+          "interface": "sw-wg",
+          "interface_present": false,
+          "ok": 0,
+          "simulated": 7
+        },
+        "overall_status": "pass"
+      },
+      {
+        "harness": "network_failure_cases",
+        "overall_status": "pass",
+        "scenario_count": 4
+      }
+    ],
+    "telemetry": {
+      "bandwidth_mbps": 0.0,
+      "connection_stability": 1.0,
+      "disconnect_count": 0,
+      "jitter_ms": 43.447,
+      "latency_ms": 54.83,
+      "packet_loss": 0.0,
+      "qos_label": "fair",
+      "risk_score": 0.0,
+      "server_id": "sw-wg",
+      "session_duration_minutes": 9992.032,
+      "timestamp": "2026-03-25T23:51:30Z",
+      "user_id": 0
+    }
+  }
+]

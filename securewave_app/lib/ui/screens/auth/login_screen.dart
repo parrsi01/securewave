@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../debug/automation_keys.dart';
 import '../../../features/auth/auth_controller.dart';
 import '../../../features/auth/auth_widgets.dart';
+import '../../../ui/components/neon_button.dart';
+import '../../../ui/components/htb_background.dart';
 import '../../../ui/design/app_spacing.dart';
 import '../../../ui/theme/app_colors.dart' as htb;
+import '../../../ui/widgets/glass_panel.dart';
 
 /// Login screen.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -41,22 +44,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(authControllerProvider);
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            const AuthHeader(
-              headline: 'Welcome back',
-              subline: 'Sign in to SecureWave',
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.pagePadding,
-                  vertical: AppSpacing.space5,
-                ),
-                child: ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(maxWidth: AppSpacing.authMaxWidth),
+      backgroundColor: htb.HtbColors.bg0,
+      body: Stack(
+        children: [
+          const HtbBackground(),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 980;
+                final formCard = GlassPanel(
+                  glowColor: htb.HtbColors.accentSecondaryMuted,
+                  borderColor: htb.HtbColors.accentSecondaryGhost,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -92,34 +90,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
                           prefixIcon: const Icon(Icons.lock_outline_rounded),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscure
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined),
+                            icon: Icon(
+                              _obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
                             onPressed: () =>
                                 setState(() => _obscure = !_obscure),
                           ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.space6),
-                      FilledButton(
+                      NeonButton(
                         key: AutomationKeys.loginSubmitButtonKey,
+                        width: double.infinity,
+                        label: 'Sign In',
+                        icon: Icons.login_rounded,
+                        isConnecting: authState.isLoading,
                         onPressed: authState.isLoading ? null : _submit,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: htb.HtbColors.neonCyan,
-                          foregroundColor: htb.HtbColors.textInverse,
-                          disabledBackgroundColor: htb.HtbColors.neonCyanGhost,
-                          disabledForegroundColor: htb.HtbColors.textTertiary,
-                        ),
-                        child: authState.isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: htb.HtbColors.textInverse,
-                                ),
-                              )
-                            : const Text('Sign In'),
                       ),
                       const SizedBox(height: AppSpacing.space4),
                       Wrap(
@@ -134,9 +122,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             key: AutomationKeys.loginCreateAccountButtonKey,
                             onPressed: () => context.go('/register'),
                             style: TextButton.styleFrom(
-                              foregroundColor: htb.HtbColors.neonCyan,
+                              foregroundColor: htb.HtbColors.accentSecondary,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.space2),
+                                horizontal: AppSpacing.space2,
+                              ),
                             ),
                             child: const Text(
                               'Register',
@@ -147,11 +136,82 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ],
                   ),
-                ),
-              ),
+                );
+
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.pagePadding,
+                      vertical: AppSpacing.space5,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isWide ? 1080 : AppSpacing.authMaxWidth,
+                      ),
+                      child: isWide
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Expanded(
+                                  flex: 11,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      AuthHeader(
+                                        headline: 'Welcome back',
+                                        subline: 'Sign in to SecureWave',
+                                      ),
+                                      SizedBox(height: AppSpacing.space4),
+                                      AuthFeaturePanel(
+                                        kicker: 'ACCESS LAYER',
+                                        title:
+                                            'Secure access, minimal friction',
+                                        description:
+                                            'Return to the control center with live tunnel telemetry and system health kept in one streamlined surface.',
+                                        items: [
+                                          'Encrypted routing with live status visibility',
+                                          'Fast protocol switching and lightweight diagnostics',
+                                          'Consistent hacker-style UI across desktop and mobile',
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.space5),
+                                Expanded(flex: 9, child: formCard),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const AuthHeader(
+                                  headline: 'Welcome back',
+                                  subline: 'Sign in to SecureWave',
+                                ),
+                                const SizedBox(height: AppSpacing.space4),
+                                const AuthFeaturePanel(
+                                  kicker: 'ACCESS LAYER',
+                                  title: 'Secure access, minimal friction',
+                                  description:
+                                      'Return to the control center with live tunnel telemetry and system health kept in one streamlined surface.',
+                                  items: [
+                                    'Encrypted routing with live status visibility',
+                                    'Fast protocol switching and lightweight diagnostics',
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.space4),
+                                formCard,
+                              ],
+                            ),
+                    ),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

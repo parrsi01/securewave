@@ -1,0 +1,102 @@
+# `services/wireguard_server_manager.py`
+
+Purpose: This service module implements the business logic for wireguard server manager operations.
+
+## Line Walkthrough
+
+- `L1-L2`: Module or block docstring that describes the responsibility of this section.
+- `L4-L6`: Implements this section of logic starting with `Supports multiple communication methods:`.
+- `L8-L9`: Implements this section of logic starting with `This service is the bridge between the FastAPI backend and the actual WireGuard servers.`.
+- `L11-L25`: Imports the dependencies used later in this module, including os, json, logging, shlex, subprocess  # nosec B404 - controlled subprocess usage, asyncio, shutil, re, ....
+- `L27-L28`: Imports the dependencies used later in this module, including config, utils.
+- `L30-L31`: Initializes module-level state or configuration such as `logger, SETTINGS`.
+- `L33-L34`: Implements this section of logic starting with `# Communication method type`.
+- `L37-L51`: Applies decorators and defines `ServerConnection` with the wrapped behavior declared above it.
+- `L54`: Initializes module-level state or configuration such as `_IS_TESTING`.
+- `L57-L59`: Defines the `WireGuardServerManager` class and the behavior it groups together.
+- `L61-L63`: Implements this section of logic starting with `This class handles adding/removing peers, checking server health,`.
+- `L65-L73`: Defines the `__init__` function and the logic it executes.
+- `L75-L84`: Defines `_load_fernet`. Load Fernet encryption key for API keys.
+- `L86-L93`: Defines the `_validate_peer_inputs` function and the logic it executes.
+- `L95-L100`: Applies decorators and defines `http_client` with the wrapped behavior declared above it.
+- `L102-L106`: Defines `close`. Close HTTP client.
+- `L108-L110`: Comment block that explains the next section: =========================================================================.
+- `L112-L119`: Defines the `add_peer` function and the logic it executes.
+- `L121-L124`: Implements this section of logic starting with `Args:`.
+- `L126-L129`: Implements this section of logic starting with `Returns:`.
+- `L131-L136`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L138-L144`: Defines the `remove_peer` function and the logic it executes.
+- `L146-L148`: Implements this section of logic starting with `Args:`.
+- `L150-L153`: Implements this section of logic starting with `Returns:`.
+- `L155-L160`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L162-L167`: Defines the `list_peers` function and the logic it executes.
+- `L169-L170`: Implements this section of logic starting with `Args:`.
+- `L172-L180`: Implements this section of logic starting with `Returns:`.
+- `L182-L187`: Defines the `get_server_status` function and the logic it executes.
+- `L189-L190`: Implements this section of logic starting with `Args:`.
+- `L192-L200`: Implements this section of logic starting with `Returns:`.
+- `L202-L207`: Defines the `health_check` function and the logic it executes.
+- `L209-L210`: Implements this section of logic starting with `Args:`.
+- `L212-L220`: Implements this section of logic starting with `Returns:`.
+- `L222-L230`: Defines the `rotate_server_key` function and the logic it executes.
+- `L232-L238`: Implements this section of logic starting with `Returns:`.
+- `L240-L267`: Initializes module-level state or configuration such as `safe_iface, command`.
+- `L269-L271`: Initializes module-level state or configuration such as `ok, stdout, stderr`.
+- `L273-L276`: Initializes module-level state or configuration such as `candidate`.
+- `L278-L285`: Defines the `restart_interface` function and the logic it executes.
+- `L287-L290`: Implements this section of logic starting with `This is used by the self-healing watchdog to recover from missing/stuck tunnels.`.
+- `L292-L308`: Initializes module-level state or configuration such as `safe_iface, command, ok, stdout, stderr`.
+- `L310-L312`: Comment block that explains the next section: =========================================================================.
+- `L314-L324`: Defines `_add_peer_via_api`. Add peer via HTTP management API.
+- `L326-L327`: Initializes module-level state or configuration such as `response, result`.
+- `L329-L335`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L337-L346`: Defines `_remove_peer_via_api`. Remove peer via HTTP management API.
+- `L348-L349`: Initializes module-level state or configuration such as `response, result`.
+- `L351-L357`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L359-L366`: Defines `_list_peers_via_api`. List peers via HTTP management API.
+- `L368-L375`: Initializes module-level state or configuration such as `response`.
+- `L377-L384`: Defines `_get_status_via_api`. Get server status via HTTP management API.
+- `L386-L393`: Initializes module-level state or configuration such as `response`.
+- `L395-L402`: Defines `_health_check_via_api`. Health check via HTTP management API.
+- `L404-L405`: Initializes module-level state or configuration such as `response, result`.
+- `L407-L412`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L414-L416`: Comment block that explains the next section: =========================================================================.
+- `L418-L447`: Applies decorators and defines `_mock_ssh_response` with the wrapped behavior declared above it.
+- `L449-L451`: Comment block that explains the next section: =========================================================================.
+- `L453-L461`: Defines the `_run_ssh_command` function and the logic it executes.
+- `L463-L468`: Implements this section of logic starting with `Args:`.
+- `L470-L474`: Implements this section of logic starting with `Returns:`.
+- `L476-L477`: Initializes module-level state or configuration such as `ssh_key, ssh_target`.
+- `L479-L480`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L482-L486`: Implements this section of logic starting with `# H-WG-1: Pre-populate known_hosts per server to prevent TOFU MITM.`.
+- `L488-L506`: Initializes module-level variables and configuration used by later code.
+- `L508-L517`: Initializes module-level state or configuration such as `ssh_cmd`.
+- `L519-L530`: Initializes module-level state or configuration such as `stdin_pipe, process, stdin, stdout, stderr, stdin_bytes`.
+- `L532-L543`: Implements this section of logic starting with `success = process.returncode == 0`.
+- `L545-L553`: Defines the `run_ssh_command` function and the logic it executes.
+- `L555-L559`: Implements this section of logic starting with `This is used by multi-protocol provisioning flows (e.g. OpenVPN/IPsec`.
+- `L561-L571`: Defines `_add_peer_via_ssh`. Add peer via SSH.
+- `L573-L574`: Initializes module-level state or configuration such as `cmd, success, stdout, stderr`.
+- `L576-L579`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L581-L590`: Defines `_remove_peer_via_ssh`. Remove peer via SSH.
+- `L592-L595`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L597-L603`: Defines `_list_peers_via_ssh`. List peers via SSH.
+- `L605-L606`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L608-L609`: Initializes module-level state or configuration such as `peers, lines`.
+- `L611-L626`: Implements this section of logic starting with `# Skip first line (server info)`.
+- `L628`: Returns a value from the current function.
+- `L630-L637`: Defines `_get_status_via_ssh`. Get server status via SSH.
+- `L639-L649`: Implements this section of logic starting with `# Get system metrics`.
+- `L651-L652`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L654-L657`: Initializes module-level state or configuration such as `status`.
+- `L659-L664`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L666`: Returns a value from the current function.
+- `L668-L674`: Defines `_health_check_via_ssh`. Health check via SSH.
+- `L676-L679`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L681-L682`: Implements this section of logic starting with `# Singleton instance`.
+- `L685-L690`: Defines `get_wireguard_server_manager`. Get the singleton WireGuardServerManager instance.
+- `L693-L695`: Defines the `server_connection_from_db` function and the logic it executes.
+- `L697-L698`: Implements this section of logic starting with `Args:`.
+- `L700-L704`: Implements this section of logic starting with `Returns:`.
+- `L706-L711`: Implements this section of logic starting with `# Prefer HTTP API if configured`.
+- `L713-L722`: Returns a value from the current function.

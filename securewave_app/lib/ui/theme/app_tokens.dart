@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 
-/// Design tokens for the HTB cyberpunk theme.
+/// Design tokens for the shared SecureWave dark theme.
 ///
 /// Covers: spacing, border radius, elevation/shadow, glow effects,
 /// animation durations, and animation curves.
@@ -80,47 +80,47 @@ class AppTokens {
 
   // ── Glow Effects — neon BoxShadow lists ───────────────────────────────────
 
-  /// Neon green glow — primary CTA, connected ring
-  static const List<BoxShadow> glowGreen = [
+  /// Primary accent glow for CTA surfaces and connected state chrome.
+  static const List<BoxShadow> glowPrimary = [
     BoxShadow(
-      color: HtbColors.glowGreenSoft,
+      color: HtbColors.glowPrimarySoft,
       blurRadius: 24,
       spreadRadius: 2,
     ),
     BoxShadow(
-      color: HtbColors.glowGreen,
+      color: HtbColors.glowPrimary,
       blurRadius: 8,
       spreadRadius: 0,
     ),
   ];
 
-  /// Neon green glow — intense (pressed/active state)
-  static const List<BoxShadow> glowGreenIntense = [
+  /// Intensified primary accent glow for pressed and highly active states.
+  static const List<BoxShadow> glowPrimaryIntense = [
     BoxShadow(
-      color: HtbColors.glowGreen,
+      color: HtbColors.glowPrimary,
       blurRadius: 40,
       spreadRadius: 4,
     ),
     BoxShadow(
-      color: HtbColors.neonGreen,
+      color: HtbColors.accentPrimary,
       blurRadius: 12,
       spreadRadius: 0,
     ),
   ];
 
-  /// Neon green glow — subtle (idle connected)
-  static const List<BoxShadow> glowGreenSoft = [
+  /// Subtle primary accent glow for idle highlighted surfaces.
+  static const List<BoxShadow> glowPrimarySoft = [
     BoxShadow(
-      color: HtbColors.glowGreenSoft,
+      color: HtbColors.glowPrimarySoft,
       blurRadius: 16,
       spreadRadius: 0,
     ),
   ];
 
-  /// Cyan glow — secondary highlights
-  static const List<BoxShadow> glowCyan = [
+  /// Secondary accent glow for pink/purple emphasis.
+  static const List<BoxShadow> glowSecondary = [
     BoxShadow(
-      color: HtbColors.glowCyan,
+      color: HtbColors.glowSecondary,
       blurRadius: 20,
       spreadRadius: 1,
     ),

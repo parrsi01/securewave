@@ -91,6 +91,37 @@ class AutomationKeys {
   static const ValueKey<String> accountConfirmSignOutButtonKey =
       ValueKey<String>(accountConfirmSignOutButton);
 
+  // ── Health badge ──────────────────────────────────────────────────────────
+
+  static const healthBadge = 'automation_health_badge';
+  static const healthScore = 'automation_health_score';
+  static const healthFailureReason = 'automation_health_failure_reason';
+  static const healthDetailsPanel = 'automation_health_details_panel';
+  static const healthRetryChecksButton = 'automation_health_retry_checks';
+  static const healthReconnectButton = 'automation_health_reconnect';
+  static const healthRunDiagnosticButton = 'automation_health_run_diagnostic';
+  static const healthLastCheckTimestamp = 'automation_health_last_check_ts';
+  static const healthDiagnosticSummary = 'automation_health_diagnostic_summary';
+
+  static const ValueKey<String> healthBadgeKey =
+      ValueKey<String>(healthBadge);
+  static const ValueKey<String> healthScoreKey =
+      ValueKey<String>(healthScore);
+  static const ValueKey<String> healthFailureReasonKey =
+      ValueKey<String>(healthFailureReason);
+  static const ValueKey<String> healthDetailsPanelKey =
+      ValueKey<String>(healthDetailsPanel);
+  static const ValueKey<String> healthRetryChecksButtonKey =
+      ValueKey<String>(healthRetryChecksButton);
+  static const ValueKey<String> healthReconnectButtonKey =
+      ValueKey<String>(healthReconnectButton);
+  static const ValueKey<String> healthRunDiagnosticButtonKey =
+      ValueKey<String>(healthRunDiagnosticButton);
+  static const ValueKey<String> healthLastCheckTimestampKey =
+      ValueKey<String>(healthLastCheckTimestamp);
+  static const ValueKey<String> healthDiagnosticSummaryKey =
+      ValueKey<String>(healthDiagnosticSummary);
+
   static String navDestination(String label) {
     switch (_normalizeNavLabel(label)) {
       case 'home':

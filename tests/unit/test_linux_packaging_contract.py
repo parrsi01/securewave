@@ -34,5 +34,19 @@ def test_linux_runner_and_packaging_share_helper_contract():
     assert 'install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"' in script
     assert 'rm -f /usr/local/libexec/securewave-wg-quick.contract' in script
     assert "policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset" in helper
+    assert "/etc/wireguard/*.conf" in helper
     assert contract.strip() == "2"
     assert '/usr/local/libexec/securewave-wg-quick' in polkit
+    assert "/usr/bin/wg" in polkit
+
+
+def test_linux_runner_skips_redundant_wireguard_preflight_when_state_clean():
+    runner = Path("securewave_app/linux/runner/my_application.cc").read_text(
+        encoding="utf-8"
+    )
+
+    assert "if (!wireguard_policy_state_clean(kWireGuardInterfaceName)) {" in runner
+    assert "wg_preflight_cleanup(state->wg_config_path);" in runner
+    assert (
+        'g_autofree gchar* pkexec_pre = g_find_program_in_path("pkexec");'
+    ) not in runner

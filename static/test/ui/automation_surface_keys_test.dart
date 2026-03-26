@@ -48,6 +48,8 @@ class _StaticVpnService implements VpnService {
 
   @override
   Future<VpnCapabilities> getCapabilities() async => VpnCapabilities.none;
+  @override
+  void clearCapabilitiesCache() {}
 
   @override
   VpnStatus getStatus() => VpnStatus.disconnected;
@@ -226,8 +228,8 @@ void main() {
     );
 
     expect(find.byKey(AutomationKeys.diagnosticsRootScrollKey), findsOneWidget);
-    expect(find.text('CONNECTION'), findsOneWidget);
-    expect(find.text('PIPELINE'), findsOneWidget);
+    expect(find.textContaining('CONNECTION'), findsOneWidget);
+    expect(find.textContaining('PIPELINE'), findsOneWidget);
   });
 
   testWidgets('account screen exposes sign-out automation keys',

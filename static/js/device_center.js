@@ -76,7 +76,9 @@ function buildServerOptions(selectEl, servers, selectedId) {
 
 function appendTextCell(row, text, opts = {}) {
   const cell = document.createElement('td');
-  if (opts.alignRight) cell.style.textAlign = 'right';
+  if (opts.alignRight) {
+    cell.className = cell.className ? `${cell.className} text-right` : 'text-right';
+  }
   cell.textContent = text;
   row.appendChild(cell);
   return cell;
@@ -167,7 +169,9 @@ function renderDevices({ devices = [], servers = [] }) {
     row.appendChild(serverCell);
 
     const actionCell = document.createElement('td');
-    actionCell.style.textAlign = 'right';
+    actionCell.className = actionCell.className
+      ? `${actionCell.className} text-right`
+      : 'text-right';
     const button = document.createElement('button');
     button.className = 'btn btn-ghost btn-sm';
     button.type = 'button';

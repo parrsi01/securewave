@@ -76,3 +76,23 @@ def test_validate_profile_claims_for_linux_wireguard_requires_killswitch_hooks()
     dns_row, kill_row = module.validate_profile_claims("wireguard", "linux", profile)
     assert dns_row["result"] == "pass"
     assert kill_row["result"] == "pass"
+
+
+def test_build_manual_checklist_accepts_relative_output_dir():
+    module = _load_module()
+    root = Path(__file__).resolve().parents[2]
+    relative = Path("artifacts/live_validation_multi_protocol/20260326_000000")
+
+    checklist = module.build_manual_checklist(relative)
+
+    expected = relative.as_posix()
+    assert expected in checklist
+    assert str(root) not in checklist
+
+
+def test_validation_device_name_is_stable_per_platform():
+    module = _load_module()
+
+    assert module.validation_device_name("linux") == "multi-protocol-validation"
+    assert module.validation_device_name("Linux") == "multi-protocol-validation"
+    assert module.validation_device_name(" ios ") == "multi-protocol-validation"

@@ -8,7 +8,7 @@ import 'package:securewave_app/core/services/health_monitor.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 
 void main() {
-  test('HealthMonitorService emits hard failure when interface drops',
+  test('HealthMonitorService emits no-tunnel failure when interface drops',
       () async {
     final samples = ListQueue<VpnHealthSnapshot>.of(<VpnHealthSnapshot>[
       const VpnHealthSnapshot(
@@ -17,6 +17,9 @@ void main() {
         routePresent: true,
         pingReachable: true,
         trafficConnected: true,
+        httpsProbeOk: true,
+        validationStatus: VpnValidationStatus.healthy,
+        validationScore: 96,
         interfaceName: 'sw-wg',
       ),
       const VpnHealthSnapshot(
@@ -25,6 +28,10 @@ void main() {
         routePresent: false,
         pingReachable: false,
         trafficConnected: false,
+        httpsProbeOk: false,
+        validationStatus: VpnValidationStatus.unhealthy,
+        validationScore: 15,
+        failureType: VpnValidationFailureType.noTunnel,
         interfaceName: 'sw-wg',
       ),
     ]);
@@ -47,10 +54,10 @@ void main() {
     await issueReady.future.timeout(const Duration(milliseconds: 200));
 
     expect(issues, hasLength(1));
-    expect(issues.single.type, VpnHealthFailureType.hardFailure);
+    expect(issues.single.type, VpnHealthFailureType.noTunnel);
   });
 
-  test('HealthMonitorService emits soft failure after repeated probe loss',
+  test('HealthMonitorService emits degraded partial-connectivity issue',
       () async {
     final samples = ListQueue<VpnHealthSnapshot>.of(<VpnHealthSnapshot>[
       const VpnHealthSnapshot(
@@ -59,6 +66,11 @@ void main() {
         routePresent: true,
         pingReachable: false,
         trafficConnected: true,
+        httpsProbeOk: false,
+        dnsOk: true,
+        validationStatus: VpnValidationStatus.degraded,
+        validationScore: 78,
+        failureType: VpnValidationFailureType.partialConnectivity,
         interfaceName: 'sw-wg',
       ),
       const VpnHealthSnapshot(
@@ -67,6 +79,11 @@ void main() {
         routePresent: true,
         pingReachable: false,
         trafficConnected: true,
+        httpsProbeOk: false,
+        dnsOk: true,
+        validationStatus: VpnValidationStatus.degraded,
+        validationScore: 78,
+        failureType: VpnValidationFailureType.partialConnectivity,
         interfaceName: 'sw-wg',
       ),
     ]);
@@ -83,14 +100,15 @@ void main() {
         await monitor.stop();
       },
       interval: const Duration(milliseconds: 10),
-      softFailureThreshold: 2,
+      degradedFailureThreshold: 2,
     );
 
     await monitor.start();
     await issueReady.future.timeout(const Duration(milliseconds: 200));
 
     expect(issues, hasLength(1));
-    expect(issues.single.type, VpnHealthFailureType.softFailure);
+    expect(issues.single.type, VpnHealthFailureType.partialConnectivity);
+    expect(issues.single.isDegraded, isTrue);
   });
 
   test('HealthMonitorService emits recovered callback after degradation clears',
@@ -102,6 +120,11 @@ void main() {
         routePresent: true,
         pingReachable: false,
         trafficConnected: true,
+        httpsProbeOk: false,
+        dnsOk: true,
+        validationStatus: VpnValidationStatus.degraded,
+        validationScore: 78,
+        failureType: VpnValidationFailureType.partialConnectivity,
         interfaceName: 'sw-wg',
       ),
       const VpnHealthSnapshot(
@@ -110,6 +133,11 @@ void main() {
         routePresent: true,
         pingReachable: false,
         trafficConnected: true,
+        httpsProbeOk: false,
+        dnsOk: true,
+        validationStatus: VpnValidationStatus.degraded,
+        validationScore: 78,
+        failureType: VpnValidationFailureType.partialConnectivity,
         interfaceName: 'sw-wg',
       ),
       const VpnHealthSnapshot(
@@ -118,6 +146,10 @@ void main() {
         routePresent: true,
         pingReachable: true,
         trafficConnected: true,
+        httpsProbeOk: true,
+        dnsOk: true,
+        validationStatus: VpnValidationStatus.healthy,
+        validationScore: 95,
         interfaceName: 'sw-wg',
       ),
     ]);
@@ -138,18 +170,18 @@ void main() {
         await monitor.stop();
       },
       interval: const Duration(milliseconds: 10),
-      softFailureThreshold: 2,
+      degradedFailureThreshold: 2,
     );
 
     await monitor.start();
     await recovered.future.timeout(const Duration(milliseconds: 300));
 
     expect(issues, hasLength(1));
-    expect(issues.single.type, VpnHealthFailureType.softFailure);
+    expect(issues.single.type, VpnHealthFailureType.partialConnectivity);
     expect(recoveries, hasLength(1));
   });
 
-  test('HealthMonitorService emits handshake failure when handshake is stale',
+  test('HealthMonitorService emits packet-loss failure when loss is severe',
       () async {
     final samples = ListQueue<VpnHealthSnapshot>.of(<VpnHealthSnapshot>[
       const VpnHealthSnapshot(
@@ -159,8 +191,15 @@ void main() {
         pingReachable: true,
         trafficConnected: true,
         policyRoutingPresent: true,
-        handshakeRecent: false,
-        handshakeAgeSeconds: 45,
+        httpsProbeOk: true,
+        dnsOk: true,
+        probeSuccesses: 1,
+        probeAttempts: 3,
+        packetLoss: 0.40,
+        latencyMs: 120,
+        validationStatus: VpnValidationStatus.unhealthy,
+        validationScore: 64,
+        failureType: VpnValidationFailureType.packetLoss,
         interfaceName: 'sw-wg',
       ),
     ]);
@@ -177,14 +216,14 @@ void main() {
         await monitor.stop();
       },
       interval: const Duration(milliseconds: 10),
-      handshakeFailureThreshold: 1,
+      degradedFailureThreshold: 1,
     );
 
     await monitor.start();
     await issueReady.future.timeout(const Duration(milliseconds: 200));
 
     expect(issues, hasLength(1));
-    expect(issues.single.type, VpnHealthFailureType.handshakeFailure);
-    expect(issues.single.reason, contains('45s'));
+    expect(issues.single.type, VpnHealthFailureType.packetLoss);
+    expect(issues.single.reason, contains('40'));
   });
 }

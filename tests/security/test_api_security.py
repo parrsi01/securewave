@@ -24,8 +24,8 @@ import time
 import uuid
 from datetime import datetime, timedelta
 
+import jwt as jose_jwt
 import pytest
-from jose import jwt as jose_jwt
 
 from models.user import User
 from models.subscription import Subscription

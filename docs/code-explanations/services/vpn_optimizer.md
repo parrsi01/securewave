@@ -1,0 +1,95 @@
+# `services/vpn_optimizer.py`
+
+Purpose: This service module implements the business logic for vpn optimizer operations.
+
+## Line Walkthrough
+
+- `L1-L4`: Module or block docstring that describes the responsibility of this section.
+- `L6-L11`: Implements this section of logic starting with `Success criteria ("10x improvement" definition):`.
+- `L13-L16`: Implements this section of logic starting with `Safety:`.
+- `L18-L30`: Implements this section of logic starting with `Key Optimizations:`.
+- `L32-L37`: Implements this section of logic starting with `# Lazy imports - only load if available`.
+- `L39-L43`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L45-L49`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L51-L53`: Initializes module-level state or configuration such as `ML_AVAILABLE, RNG, logger`.
+- `L56-L68`: Applies decorators and defines `ServerMetrics` with the wrapped behavior declared above it.
+- `L71-L79`: Applies decorators and defines `ConnectionState` with the wrapped behavior declared above it.
+- `L82-L86`: Defines `LRUCache`. Memory-efficient LRU cache for Q-table.
+- `L88-L93`: Defines the `__setitem__` function and the logic it executes.
+- `L96-L103`: Defines `OptimizedVPNOptimizer`. Optimized VPN routing optimizer combining: - Multi-Agent Reinforcement Learning (MARL) for adaptive decision-making - XGBoost for predictive server performance modeling - Memory-efficient data structures - Optional ML dependencies (graceful degradation).
+- `L105-L107`: Defines the `__init__` function and the logic it executes.
+- `L109-L110`: Implements this section of logic starting with `# Optimized: Limited history with circular buffer`.
+- `L112-L113`: Implements this section of logic starting with `# Optimized: LRU cache for Q-table (prevents unbounded growth)`.
+- `L115-L118`: Implements this section of logic starting with `# MARL parameters (optimized)`.
+- `L120-L121`: Implements this section of logic starting with `# Performance tracking`.
+- `L123-L126`: Implements this section of logic starting with `# ML initialization (lazy)`.
+- `L128-L129`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L131-L134`: Defines `_initialize_ml_components`. Initialize ML components only if dependencies available.
+- `L136-L137`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L139-L145`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L147-L161`: Implements this section of logic starting with `# Optimized XGBoost parameters for production`.
+- `L163-L177`: Defines `add_server`. Register a new VPN server in the optimizer.
+- `L179-L188`: Applies decorators and defines `_validate_metric` with the wrapped behavior declared above it.
+- `L190-L191`: Defines the `update_server_metrics` function and the logic it executes.
+- `L193-L197`: Implements this section of logic starting with `All telemetry values are validated and clamped to prevent model`.
+- `L199-L215`: Initializes module-level state or configuration such as `server, server.latency_ms, server.bandwidth_mbps, server.cpu_load, server.active_connections, server.packet_loss`.
+- `L217-L228`: Implements this section of logic starting with `# Store validated metrics in history (automatic limit via deque)`.
+- `L230-L246`: Defines `_extract_features_simple`. Extract features without numpy (fallback).
+- `L248-L250`: Defines `_extract_features`. Extract feature vector for ML model (optimized).
+- `L252-L254`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L256-L258`: Applies decorators and defines `_clamp` with the wrapped behavior declared above it.
+- `L260-L267`: Defines `_latency_weight`. Dynamic latency weighting (premium + unstable links are more sensitive).
+- `L269-L275`: Defines `_predict_server_load`. Lightweight predictive load balancing using recent telemetry trend.
+- `L277-L279`: Implements this section of logic starting with `samples = [item for item in self.metrics_history if item.get("server_id") == server_id]`.
+- `L281-L289`: Initializes module-level state or configuration such as `recent, start, end, upward, predicted`.
+- `L291-L308`: Defines the `_preclassify_server_health` function and the logic it executes.
+- `L310-L318`: Defines the `_adaptive_mtu_hint` function and the logic it executes.
+- `L320-L331`: Defines `_calculate_reward`. Calculate reward for MARL agent (optimized formula).
+- `L333-L348`: Implements this section of logic starting with `# Optimized: Fast path for common case`.
+- `L350-L352`: Implements this section of logic starting with `# Location bonus (optimized check)`.
+- `L354-L356`: Implements this section of logic starting with `# Overload penalty`.
+- `L358`: Returns a value from the current function.
+- `L360-L372`: Defines `_select_server_marl`. Select optimal server using MARL (optimized).
+- `L374`: Initializes module-level state or configuration such as `user_state`.
+- `L376-L382`: Implements this section of logic starting with `# Optimized: Random choice with list comprehension`.
+- `L384-L386`: Implements this section of logic starting with `# Exploit: choose best server`.
+- `L388-L394`: Loops over a collection to apply the same work to each item.
+- `L396-L398`: Implements this section of logic starting with `# Get Q-value (LRU cache handles memory)`.
+- `L400-L410`: Implements this section of logic starting with `# ML enhancement (if available)`.
+- `L412-L414`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L416`: Returns a value from the current function.
+- `L418-L421`: Defines `update_q_table`. Update Q-table (optimized with simplified state).
+- `L423`: Initializes module-level state or configuration such as `server`.
+- `L425-L430`: Implements this section of logic starting with `# Simplified state (reduces memory)`.
+- `L432-L433`: Implements this section of logic starting with `# Current Q-value`.
+- `L435-L439`: Implements this section of logic starting with `# Max next Q-value`.
+- `L441-L444`: Implements this section of logic starting with `# Q-learning update (optimized)`.
+- `L446-L447`: Initializes module-level variables and configuration used by later code.
+- `L449-L455`: Defines `select_optimal_server`. Main entry point: Select optimal VPN server for user.
+- `L457-L470`: Implements this section of logic starting with `# Update user state`.
+- `L472-L482`: Implements this section of logic starting with `# Select server using MARL`.
+- `L484-L486`: Implements this section of logic starting with `# Calculate confidence`.
+- `L488-L501`: Returns a value from the current function.
+- `L503-L505`: Defines the `report_connection_quality` function and the logic it executes.
+- `L507-L510`: Implements this section of logic starting with `Input validation prevents model poisoning from malicious telemetry.`.
+- `L512-L514`: Implements this section of logic starting with `# Validate inputs to prevent model poisoning`.
+- `L516-L517`: Initializes module-level state or configuration such as `server, user_state`.
+- `L519-L521`: Implements this section of logic starting with `# Update user state (exponential moving average)`.
+- `L523-L526`: Implements this section of logic starting with `# Calculate reward`.
+- `L528-L529`: Implements this section of logic starting with `# Update Q-table`.
+- `L531-L533`: Implements this section of logic starting with `# Incremental ML training (every 100 samples, not 50)`.
+- `L535-L538`: Defines `_train_xgboost_incremental`. Incremental XGBoost training (optimized).
+- `L540-L542`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L544-L545`: Initializes module-level state or configuration such as `X_data, y_data`.
+- `L547-L556`: Loops over a collection to apply the same work to each item.
+- `L558-L561`: Implements this section of logic starting with `# Normalized target`.
+- `L563-L564`: Implements this section of logic starting with `X_data.append(features)`.
+- `L566-L572`: Implements this section of logic starting with `# Train with numpy if available`.
+- `L574-L581`: Defines `get_stats`. Get optimizer performance statistics.
+- `L583-L592`: Returns a value from the current function.
+- `L595-L596`: Implements this section of logic starting with `# Global optimizer instance`.
+- `L599-L604`: Defines `get_vpn_optimizer`. Get or create global VPN optimizer instance.
+- `L607-L609`: Defines `load_servers_from_database`. Load VPN servers from database into optimizer.
+- `L611-L613`: Initializes module-level state or configuration such as `servers`.
+- `L615-L630`: Initializes module-level state or configuration such as `loaded_count`.
+- `L632`: Returns a value from the current function.

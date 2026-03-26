@@ -119,6 +119,81 @@ PY
   chmod 700 /usr/local/bin/securewave-validate-provisioning-token
 fi
 
+cat > /usr/local/bin/securewave-ikev2-upsert-user <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+USERNAME=""
+PASSWORD_B64=""
+OUTPUT="json"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --username) USERNAME="$2"; shift 2 ;;
+    --password-b64) PASSWORD_B64="$2"; shift 2 ;;
+    --output) OUTPUT="$2"; shift 2 ;;
+    *) echo "unknown_arg:$1" >&2; exit 2 ;;
+  esac
+done
+
+if [[ "${OUTPUT}" != "json" ]]; then
+  echo "unsupported_output_format" >&2
+  exit 3
+fi
+if [[ -z "${USERNAME}" || -z "${PASSWORD_B64}" ]]; then
+  jq -n --arg code "ikev2_invalid_input" --arg message "username and password-b64 are required" \
+    '{ok:false,code:$code,message:$message,artifact_path:null}'
+  exit 4
+fi
+if [[ ! "${USERNAME}" =~ ^[A-Za-z0-9._@-]{3,96}$ ]]; then
+  jq -n --arg code "ikev2_invalid_username" --arg message "invalid username" \
+    '{ok:false,code:$code,message:$message,artifact_path:null}'
+  exit 5
+fi
+
+PASSWORD="$(python3 - <<PY
+import base64
+print(base64.b64decode("${PASSWORD_B64}".encode("ascii")).decode("utf-8"))
+PY
+)"
+
+SECRETS_FILE="/etc/ipsec.secrets"
+LOCK_DIR="/var/lib/securewave/pki/ikev2"
+LOCK_FILE="${LOCK_DIR}/.users.lock"
+install -d -m 700 "${LOCK_DIR}"
+touch "${SECRETS_FILE}"
+chmod 600 "${SECRETS_FILE}"
+
+exec 9>"${LOCK_FILE}"
+flock -w 20 9
+
+python3 - "${SECRETS_FILE}" "${USERNAME}" "${PASSWORD}" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+username = sys.argv[2]
+password = sys.argv[3]
+lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+out = []
+prefix = f"{username} : EAP "
+for line in lines:
+    stripped = line.strip()
+    if stripped.startswith(prefix):
+        continue
+    out.append(line)
+out.append(f'{username} : EAP "{password}"')
+path.write_text("\n".join(out).strip() + "\n", encoding="utf-8")
+PY
+chmod 600 "${SECRETS_FILE}"
+
+ipsec rereadsecrets >/dev/null 2>&1 || true
+
+jq -n --arg code "ikev2_user_upserted" --arg message "IKEv2 EAP user updated" --arg artifact_path "${SECRETS_FILE}" \
+  '{ok:true,code:$code,message:$message,artifact_path:$artifact_path}'
+SCRIPT
+chmod 700 /usr/local/bin/securewave-ikev2-upsert-user
+
 CA_DIR="/etc/securewave/secrets/ikev2/ca"
 OPENSSL_CNF="${CA_DIR}/openssl.cnf"
 
@@ -407,6 +482,7 @@ echo "IKEv2/IPsec provisioned successfully."
 echo "- Identity: ${IKEV2_SERVER_IDENTITY}"
 echo "- Client pool: ${IKEV2_POOL_CIDR}"
 echo "- Secrets: /etc/securewave/secrets/ikev2 (root-only)"
+echo "- User upsert script: /usr/local/bin/securewave-ikev2-upsert-user"
 echo "- Issue script: /usr/local/bin/securewave-ikev2-issue-client"
 echo "- Revoke script: /usr/local/bin/securewave-ikev2-revoke-client"
 echo "IMPORTANT: Configure Hetzner firewall to allow UDP 500 and UDP 4500 only from required sources, plus existing HTTPS/WireGuard ports."

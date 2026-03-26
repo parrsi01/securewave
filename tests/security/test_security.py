@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from fastapi import status
-from jose import jwt
+import jwt
 
 
 # ---------------------------------------------------------------------------

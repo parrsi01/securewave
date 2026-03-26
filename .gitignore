@@ -72,6 +72,8 @@ LogFiles/
 webapp-logs/
 *.zip
 *.pid
+*.out
+*.jsonl
 
 # Local/staging preview runtime
 .preview/
@@ -174,6 +176,8 @@ terraform.tfvars
 
 # Test/simulation artifacts (generated locally and in CI)
 artifacts/**
+artifacts/tmp/
+artifacts/watchdog/
 !artifacts/hetzner/
 !artifacts/hetzner/DEPLOY_READINESS_REPORT.md
 !artifacts/final_integration_report.md
@@ -242,3 +246,7 @@ securewave_app/ui_legacy_source/
 !securewave_app/lib/**/*
 !securewave_app/pubspec.yaml
 .env.hetzner
+
+# Repo-local build outputs
+.dart_tool/
+bin/

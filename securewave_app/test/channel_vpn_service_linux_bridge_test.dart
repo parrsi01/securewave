@@ -221,13 +221,19 @@ Endpoint = vpn.securewave.example:51820
 
   testWidgets('parses Linux WireGuard health metadata from native bridge',
       (tester) async {
+    var statusCalls = 0;
+    var trafficCalls = 0;
+    var healthCalls = 0;
+
     Future<Object?> handler(MethodCall call) async {
       switch (call.method) {
         case 'isAvailable':
           return true;
         case 'getStatus':
+          statusCalls += 1;
           return 'connected';
         case 'getTrafficStats':
+          trafficCalls += 1;
           return <String, Object?>{
             'connected': true,
             'protocol': 'wireguard',
@@ -237,6 +243,7 @@ Endpoint = vpn.securewave.example:51820
             'timestamp_ms': 1,
           };
         case 'getHealthStatus':
+          healthCalls += 1;
           return <String, Object?>{
             'connected': true,
             'interface': 'sw-wg',
@@ -247,6 +254,12 @@ Endpoint = vpn.securewave.example:51820
             'networkmanager_unmanaged': true,
             'ping_reachable': true,
             'traffic_connected': true,
+            'https_probe_ok': true,
+            'dns_ok': true,
+            'latency_ms': 88,
+            'packet_loss_bps': 2000,
+            'probe_successes': 3,
+            'probe_attempts': 3,
             'handshake_present': true,
             'handshake_recent': true,
             'handshake_age_seconds': 7,
@@ -285,7 +298,16 @@ Endpoint = vpn.securewave.example:51820
     expect(snapshot.reconnectAttempts, 2);
     expect(snapshot.currentDowntimeMs, 250);
     expect(snapshot.lastWatchdogAction, 'policy_routing_reapplied');
+    expect(snapshot.httpsProbeOk, isTrue);
+    expect(snapshot.dnsOk, isTrue);
+    expect(snapshot.latencyMs, 88);
+    expect(snapshot.packetLoss, closeTo(0.20, 0.001));
+    expect(snapshot.validationStatus, VpnValidationStatus.degraded);
+    expect(snapshot.failureType, VpnValidationFailureType.packetLoss);
     expect(snapshot.verifiedTunnel, isTrue);
+    expect(healthCalls, 1);
+    expect(statusCalls, 0);
+    expect(trafficCalls, 0);
   });
 
   testWidgets('reconnects when native tunnel protocol does not match request',

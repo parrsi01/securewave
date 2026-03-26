@@ -275,6 +275,28 @@ class TestVpnProfileProvisioning:
         assert profile.get("cert_serial")
         assert profile.get("cert_fingerprint_sha256")
 
+    def test_openvpn_profile_accepts_env_backed_ca_material(self, client, auth_headers, db, monkeypatch):
+        _create_free_server(db)
+        openvpn = _create_openvpn_server(db)
+        openvpn.openvpn_ca_cert_pem = ""
+        db.add(openvpn)
+        db.commit()
+        db.refresh(openvpn)
+        monkeypatch.setenv(
+            "SECUREWAVE_OPENVPN_CA_CERT_PEM",
+            "-----BEGIN CERTIFICATE-----\nENV-OPENVPN-CA\n-----END CERTIFICATE-----",
+        )
+
+        resp = client.post(
+            "/api/vpn/profile",
+            json={"device_name": "Win Box", "device_type": "windows", "protocol": "openvpn", "server_id": openvpn.server_id},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        profile = (resp.json().get("profile") or {})
+        assert profile.get("type") == "openvpn"
+        assert profile.get("auth_method") == "mtls"
+
     def test_openvpn_request_returns_typed_error_when_unavailable(self, client, auth_headers, db):
         _create_free_server(db)
 
@@ -364,6 +386,30 @@ class TestVpnProfileProvisioning:
         assert profile.get("username")
         assert profile.get("client_pkcs12_base64")
         assert profile.get("client_pkcs12_password")
+
+    def test_ikev2_profile_accepts_env_backed_remote_id_and_ca(self, client, auth_headers, db, monkeypatch):
+        ikev2 = _create_ikev2_server(db)
+        ikev2.ikev2_remote_id = None
+        ikev2.ikev2_ca_cert_pem = ""
+        db.add(ikev2)
+        db.commit()
+        db.refresh(ikev2)
+        monkeypatch.setenv("SECUREWAVE_IKEV2_REMOTE_ID", "@env-vpn.example")
+        monkeypatch.setenv(
+            "SECUREWAVE_IKEV2_CA_CERT_PEM",
+            "-----BEGIN CERTIFICATE-----\nENV-IKEV2-CA\n-----END CERTIFICATE-----",
+        )
+
+        resp = client.post(
+            "/api/vpn/profile",
+            json={"device_name": "Win Box", "device_type": "windows", "protocol": "ikev2", "server_id": ikev2.server_id},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        profile = (resp.json().get("profile") or {})
+        assert profile.get("type") == "ikev2"
+        assert profile.get("server") == "@env-vpn.example"
+        assert profile.get("remote_id") == "@env-vpn.example"
 
     def test_explicit_protocol_rejected_for_unsupported_platform(self, client, auth_headers, db):
         _create_openvpn_server(db)

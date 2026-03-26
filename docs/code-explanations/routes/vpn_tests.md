@@ -1,0 +1,75 @@
+# `routes/vpn_tests.py`
+
+Purpose: This module exposes API handlers for vpn tests features in the SecureWave backend.
+
+## Line Walkthrough
+
+- `L1-L2`: Module or block docstring that describes the responsibility of this section.
+- `L4-L5`: Implements this section of logic starting with `Provides API endpoints for running VPN performance tests`.
+- `L7-L9`: Implements this section of logic starting with `NOTE: These tests measure the ACTUAL OS-level VPN tunnel performance.`.
+- `L11-L19`: Imports the dependencies used later in this module, including os, sys, json, asyncio, logging, datetime, pathlib, typing, ....
+- `L21-L23`: Imports the dependencies used later in this module, including fastapi, pydantic, sqlalchemy.
+- `L25-L28`: Imports the dependencies used later in this module, including database, models, services, utils.
+- `L30-L31`: Initializes module-level state or configuration such as `logger, router`.
+- `L33-L38`: Implements this section of logic starting with `# Path to test suite`.
+- `L40-L41`: Implements this section of logic starting with `# Track running tests`.
+- `L44-L46`: Comment block that explains the next section: =============================================================================.
+- `L48-L63`: Defines `TestRunRequest`. Request to run VPN tests.
+- `L66-L73`: Defines `TestScoreBreakdown`. Individual test scores.
+- `L76-L82`: Defines `TestRunResponse`. Response from test run.
+- `L85-L107`: Defines `TestResultSummary`. Summary of test results.
+- `L110-L114`: Defines `TestStatusResponse`. Current test status.
+- `L117-L119`: Comment block that explains the next section: =============================================================================.
+- `L121-L123`: Defines `get_latest_results`. Load latest test results from file.
+- `L125-L126`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L128-L133`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L136-L139`: Defines `results_to_summary`. Convert raw results to summary format.
+- `L141-L149`: Initializes module-level state or configuration such as `baseline, latency, throughput, latency_cmp, throughput_cmp, dns_leak`.
+- `L151-L173`: Returns a value from the current function.
+- `L176-L192`: Defines `build_failure_results`. Build a safe failure payload that won't break the UI.
+- `L195-L204`: Defines `run_tests_async`. Run tests asynchronously.
+- `L206`: Initializes module-level variables and configuration used by later code.
+- `L208-L217`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L219`: Initializes module-level state or configuration such as `loop`.
+- `L221-L222`: Implements this section of logic starting with `# Add test suite to path`.
+- `L224-L225`: Imports the dependencies used later in this module, including runner.
+- `L227-L238`: Implements this section of logic starting with `# Run tests in thread pool to avoid blocking`.
+- `L240-L245`: Implements this section of logic starting with `# Save results`.
+- `L247-L253`: Implements this section of logic starting with `log_event(`.
+- `L255`: Returns a value from the current function.
+- `L257-L293`: Handles a failure from the preceding `try` block.
+- `L296-L298`: Comment block that explains the next section: =============================================================================.
+- `L300-L303`: Registers the `get_test_status` endpoint with the API router.
+- `L305-L309`: Implements this section of logic starting with `Returns whether a test is running and if results are available.`.
+- `L311-L313`: Initializes module-level state or configuration such as `results, has_results, last_run`.
+- `L315-L319`: Returns a value from the current function.
+- `L322-L325`: Registers the `get_latest_test_results` endpoint with the API router.
+- `L327-L329`: Implements this section of logic starting with `Returns summarized test results from the most recent test run.`.
+- `L331-L354`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L356`: Returns a value from the current function.
+- `L359-L362`: Registers the `get_latest_test_results_full` endpoint with the API router.
+- `L364-L366`: Implements this section of logic starting with `Returns complete test results with all individual measurements.`.
+- `L368-L372`: Runs conditional logic so the module only performs this setup when the required condition is met.
+- `L374`: Returns a value from the current function.
+- `L377-L384`: Registers the `run_vpn_tests` endpoint with the API router.
+- `L386-L387`: Implements this section of logic starting with `Executes the full test suite against the currently active VPN tunnel.`.
+- `L389`: Implements this section of logic starting with `**Important:** The VPN must be connected at the OS level for meaningful results.`.
+- `L391-L399`: Implements this section of logic starting with `Tests include:`.
+- `L401-L406`: Implements this section of logic starting with `# Check if test is already running`.
+- `L408-L410`: Implements this section of logic starting with `# Determine test parameters`.
+- `L412-L417`: Implements this section of logic starting with `# Check if test suite exists`.
+- `L419-L420`: Initializes module-level state or configuration such as `run_id, timeout_seconds`.
+- `L422-L430`: Implements this section of logic starting with `# Start test in background`.
+- `L432-L437`: Returns a value from the current function.
+- `L440-L446`: Registers the `run_vpn_tests_sync` endpoint with the API router.
+- `L448-L451`: Implements this section of logic starting with `**Warning:** This endpoint may take 60-120 seconds to complete.`.
+- `L453-L458`: Implements this section of logic starting with `# Check if test is already running`.
+- `L460-L465`: Implements this section of logic starting with `# Check if test suite exists`.
+- `L467-L470`: Implements this section of logic starting with `# Determine test parameters`.
+- `L472-L480`: Attempts a potentially fragile operation and relies on later branches to handle failures safely.
+- `L482-L484`: Handles a failure from the preceding `try` block.
+- `L487-L493`: Registers the `get_test_history` endpoint with the API router.
+- `L495-L498`: Implements this section of logic starting with `Returns a list of past test results sorted by date (newest first).`.
+- `L500-L505`: Implements this section of logic starting with `# Find all result files`.
+- `L507-L521`: Initializes module-level state or configuration such as `history`.
+- `L523`: Returns a value from the current function.
