@@ -2,7 +2,7 @@
 // CHANGELOG
 // =============================================================================
 // v1.1.0 (2026-03-26) — Refined SecureWave dark theme
-//   - Deep slate surfaces with sea-glass teal primary and cool blue secondary
+//   - Deep slate surfaces with electric blue primary and neon pink/purple secondary
 //   - Shared branding aligned with the website and SVG mark refresh
 //   - Full component theme coverage: AppBar, Card, Button, Input, Chip,
 //     NavigationDrawer, Divider, Icon
@@ -45,7 +45,7 @@ class HtbGradients extends ThemeExtension<HtbGradients> {
     connectedGlow: RadialGradient(
       center: Alignment.topCenter,
       radius: 1.1,
-      colors: [Color(0x22144148), HtbColors.bg0],
+      colors: [Color(0x229B6BFF), HtbColors.bg0],
     ),
     ctaButton: LinearGradient(
       begin: Alignment.topLeft,
@@ -80,7 +80,7 @@ class HtbGradients extends ThemeExtension<HtbGradients> {
     return HtbGradients(
       shellBackground:
           Gradient.lerp(shellBackground, other.shellBackground, t) ??
-          shellBackground,
+              shellBackground,
       connectedGlow:
           Gradient.lerp(connectedGlow, other.connectedGlow, t) ?? connectedGlow,
       ctaButton: Gradient.lerp(ctaButton, other.ctaButton, t) ?? ctaButton,
@@ -199,9 +199,9 @@ class HtbTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: AppTypography.textTheme().titleMedium?.copyWith(
-          color: HtbColors.textPrimary,
-          letterSpacing: 0,
-        ),
+              color: HtbColors.textPrimary,
+              letterSpacing: 0,
+            ),
         iconTheme: const IconThemeData(
           color: HtbColors.textSecondary,
           size: AppTokens.iconM,
@@ -247,9 +247,9 @@ class HtbTheme {
           elevation: 0,
           shadowColor: Colors.transparent,
           textStyle: AppTypography.textTheme().labelLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-          ),
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
         ),
       ),
 
@@ -272,9 +272,9 @@ class HtbTheme {
             width: AppTokens.neonBorderWidth,
           ),
           textStyle: AppTypography.textTheme().labelLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
         ),
       ),
 
@@ -343,11 +343,11 @@ class HtbTheme {
         selectedColor: HtbColors.neonGreenGhost,
         disabledColor: HtbColors.bg1,
         labelStyle: AppTypography.textTheme().labelMedium?.copyWith(
-          color: HtbColors.textSecondary,
-        ),
+              color: HtbColors.textSecondary,
+            ),
         secondaryLabelStyle: AppTypography.textTheme().labelMedium?.copyWith(
-          color: HtbColors.neonGreen,
-        ),
+              color: HtbColors.neonGreen,
+            ),
         padding: const EdgeInsets.symmetric(
           horizontal: AppTokens.paddingS,
           vertical: AppTokens.paddingXS,
@@ -389,13 +389,13 @@ class HtbTheme {
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return AppTypography.textTheme().labelLarge?.copyWith(
-              color: HtbColors.neonGreen,
-              fontWeight: FontWeight.w700,
-            );
+                  color: HtbColors.neonGreen,
+                  fontWeight: FontWeight.w700,
+                );
           }
           return AppTypography.textTheme().labelLarge?.copyWith(
-            color: HtbColors.textSecondary,
-          );
+                color: HtbColors.textSecondary,
+              );
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
@@ -437,8 +437,8 @@ class HtbTheme {
           border: Border.all(color: HtbColors.border),
         ),
         textStyle: AppTypography.textTheme().bodySmall?.copyWith(
-          color: HtbColors.textPrimary,
-        ),
+              color: HtbColors.textPrimary,
+            ),
         padding: const EdgeInsets.symmetric(
           horizontal: AppTokens.paddingS,
           vertical: AppTokens.paddingXS,
@@ -449,8 +449,8 @@ class HtbTheme {
       snackBarTheme: SnackBarThemeData(
         backgroundColor: HtbColors.bg3,
         contentTextStyle: AppTypography.textTheme().bodyMedium?.copyWith(
-          color: HtbColors.textPrimary,
-        ),
+              color: HtbColors.textPrimary,
+            ),
         shape: const RoundedRectangleBorder(borderRadius: AppTokens.brMedium),
         behavior: SnackBarBehavior.floating,
         elevation: 0,
@@ -470,12 +470,12 @@ class HtbTheme {
           ),
         ),
         titleTextStyle: AppTypography.textTheme().titleLarge?.copyWith(
-          color: HtbColors.textPrimary,
-          letterSpacing: 0.5,
-        ),
+              color: HtbColors.textPrimary,
+              letterSpacing: 0.5,
+            ),
         contentTextStyle: AppTypography.textTheme().bodyMedium?.copyWith(
-          color: HtbColors.textSecondary,
-        ),
+              color: HtbColors.textSecondary,
+            ),
       ),
 
       // ── BottomSheet ───────────────────────────────────────────────────────
@@ -503,11 +503,11 @@ class HtbTheme {
         iconColor: HtbColors.textSecondary,
         textColor: HtbColors.textPrimary,
         titleTextStyle: AppTypography.textTheme().bodyMedium?.copyWith(
-          color: HtbColors.textPrimary,
-        ),
+              color: HtbColors.textPrimary,
+            ),
         subtitleTextStyle: AppTypography.textTheme().bodySmall?.copyWith(
-          color: HtbColors.textSecondary,
-        ),
+              color: HtbColors.textSecondary,
+            ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppTokens.paddingM,
           vertical: AppTokens.paddingXS,

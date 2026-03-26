@@ -21,11 +21,12 @@ class HtbBackground extends StatelessWidget {
               center: Alignment(-0.6, -1.0),
               radius: 1.2,
               colors: [
-                Color(0x1C4DDFC9),
-                Color(0x0C7BB8FF),
+                Color(0x1E7BB8FF),
+                Color(0x12FF5CF4),
+                Color(0x0F9B6BFF),
                 Colors.transparent,
               ],
-              stops: [0.0, 0.22, 0.7],
+              stops: [0.0, 0.18, 0.38, 0.78],
             ),
           ),
         ),
@@ -49,7 +50,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0x0A8CBFD7)
+      ..color = const Color(0x0BAAB5D6)
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
 

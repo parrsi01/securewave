@@ -2,23 +2,23 @@
   <title id="sw-favicon-title">SecureWave</title>
   <defs>
     <linearGradient id="tile" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#103D43"/>
-      <stop offset="0.55" stop-color="#0D2631"/>
-      <stop offset="1" stop-color="#06131B"/>
+      <stop offset="0" stop-color="#1F347A"/>
+      <stop offset="0.55" stop-color="#141C31"/>
+      <stop offset="1" stop-color="#050711"/>
     </linearGradient>
     <linearGradient id="waveA" x1="20" y1="29" x2="44" y2="35" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#E6FFFC"/>
-      <stop offset="1" stop-color="#4DDFC9"/>
+      <stop offset="1" stop-color="#7BB8FF"/>
     </linearGradient>
     <linearGradient id="waveB" x1="21" y1="35" x2="43" y2="40" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#BDE7FF"/>
-      <stop offset="1" stop-color="#7BB8FF"/>
+      <stop offset="1" stop-color="#FF5CF4"/>
     </linearGradient>
   </defs>
 
   <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#tile)"/>
-  <path d="M32 12c-7 5-13 8-19 9v13c0 12 7 21 19 29 12-8 19-17 19-29V21c-6-1-12-4-19-9z" fill="none" stroke="#B0F2EA" stroke-opacity="0.42" stroke-width="2"/>
-  <circle cx="32" cy="31" r="10.5" fill="#ECFBFC"/>
+  <path d="M32 12c-7 5-13 8-19 9v13c0 12 7 21 19 29 12-8 19-17 19-29V21c-6-1-12-4-19-9z" fill="none" stroke="#DCE9FF" stroke-opacity="0.42" stroke-width="2"/>
+  <circle cx="32" cy="31" r="10.5" fill="#F4ECFF"/>
   <path d="M20 31c4-4 8-5 13-5 5 1 8 2 11 5" stroke="url(#waveA)" stroke-width="3" stroke-linecap="round"/>
   <path d="M21 37c3-3 7-4 11-4 4 0 7 1 10 4" stroke="url(#waveB)" stroke-width="2.5" stroke-linecap="round"/>
 </svg>

@@ -1,11 +1,22 @@
 <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="sw-mark" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#103D43"/>
-      <stop offset="1" stop-color="#06131B"/>
+    <linearGradient id="sw-mark" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1F347A"/>
+      <stop offset="0.58" stop-color="#141C31"/>
+      <stop offset="1" stop-color="#050711"/>
+    </linearGradient>
+    <linearGradient id="wave-a" x1="18" y1="28" x2="46" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#EAF3FF"/>
+      <stop offset="1" stop-color="#7BB8FF"/>
+    </linearGradient>
+    <linearGradient id="wave-b" x1="20" y1="34" x2="44" y2="41" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8E8FF"/>
+      <stop offset="1" stop-color="#FF5CF4"/>
     </linearGradient>
   </defs>
   <path d="M32 4C20 11 11 13 11 13v16c0 16.5 11 28.5 21 34 10-5.5 21-17.5 21-34V13S44 11 32 4z" fill="url(#sw-mark)"/>
-  <circle cx="32" cy="30" r="13" fill="#ECFBFC"/>
-  <path d="M20 34c5-5 11-7 18-6 4 1 8 2 11 4" stroke="#4DDFC9" stroke-width="4" stroke-linecap="round"/>
+  <path d="M32 8.5c-8 4.9-13.7 7.2-17.4 8v13c0 14 8.8 24.1 17.4 29.5 8.6-5.4 17.4-15.5 17.4-29.5v-13C45.7 15.7 40 13.4 32 8.5z" fill="none" stroke="#DCE9FF" stroke-opacity="0.4" stroke-width="1.8"/>
+  <circle cx="32" cy="30.5" r="11.5" fill="#F4ECFF"/>
+  <path d="M19.5 30.5c4.5-4.2 8.8-5.4 13.1-5.2 4.2 0.3 7.7 1.8 11.9 4.8" stroke="url(#wave-a)" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M21.5 36.7c3.1-2.8 6.9-3.8 10.7-3.7 3.7 0.1 6.8 1.2 10.1 3.7" stroke="url(#wave-b)" stroke-width="2.6" stroke-linecap="round"/>
 </svg>

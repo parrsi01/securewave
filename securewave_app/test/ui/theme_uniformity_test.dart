@@ -94,7 +94,8 @@ void main() {
     expect(find.text('Sign in to SecureWave'), findsOneWidget);
   });
 
-  testWidgets('auth screens use the blue-led auth CTA accents', (tester) async {
+  testWidgets('auth screens use the shared neon secondary accents',
+      (tester) async {
     await tester.pumpWidget(wrapWithTheme(const LoginScreen()));
     await tester.pump();
 

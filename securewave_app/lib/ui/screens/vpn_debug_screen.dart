@@ -7,6 +7,7 @@ import '../../core/models/vpn_status.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
 import '../widgets/vpn_ui_bindings.dart';
+import '../theme/app_colors.dart' as htb;
 
 class VpnDebugScreen extends ConsumerStatefulWidget {
   const VpnDebugScreen({super.key});
@@ -268,16 +269,16 @@ class _StatusDot extends StatelessWidget {
     switch (status) {
       case VpnStatus.connected:
       case VpnStatus.degraded:
-        return Colors.green;
+        return htb.HtbColors.neonGreen;
       case VpnStatus.connecting:
       case VpnStatus.verifying:
       case VpnStatus.reconnecting:
       case VpnStatus.disconnecting:
-        return Colors.orange;
+        return htb.HtbColors.statusConnecting;
       case VpnStatus.error:
-        return Colors.red;
+        return htb.HtbColors.statusError;
       case VpnStatus.disconnected:
-        return Colors.grey;
+        return htb.HtbColors.textTertiary;
     }
   }
 }
