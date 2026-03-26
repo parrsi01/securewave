@@ -356,6 +356,82 @@ select:focus {
   outline: none;
 }
 
+.auth-route .nav-links a.active,
+.auth-route .nav-mobile a.active {
+  color: var(--color-accent-secondary);
+  background: rgba(123, 184, 255, 0.12);
+}
+
+.auth-route .nav .btn-primary,
+.auth-route .nav-mobile .btn-primary,
+.auth-route .auth-page .btn-primary {
+  background: linear-gradient(135deg, #7bb8ff 0%, #9ed8ff 100%);
+  box-shadow: 0 12px 30px rgba(123, 184, 255, 0.22);
+}
+
+.auth-route .nav .btn-primary:hover,
+.auth-route .nav .btn-primary:focus-visible,
+.auth-route .nav-mobile .btn-primary:hover,
+.auth-route .nav-mobile .btn-primary:focus-visible,
+.auth-route .auth-page .btn-primary:hover,
+.auth-route .auth-page .btn-primary:focus-visible {
+  box-shadow: 0 16px 38px rgba(123, 184, 255, 0.28);
+}
+
+.auth-route .auth-page {
+  background:
+    radial-gradient(circle at top center, rgba(123, 184, 255, 0.14), transparent 36%),
+    linear-gradient(180deg, var(--color-bg-0) 0%, var(--color-bg-1) 100%);
+}
+
+.auth-route .auth-card {
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-card), 0 0 0 1px rgba(123, 184, 255, 0.05);
+}
+
+.auth-route .auth-header img {
+  display: block;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(123, 184, 255, 0.08);
+  border: 1px solid rgba(123, 184, 255, 0.22);
+  box-shadow: 0 16px 32px rgba(123, 184, 255, 0.12);
+}
+
+.auth-route .auth-header h1 {
+  background: linear-gradient(135deg, #ffffff 0%, #dbeeff 58%, var(--color-accent-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.auth-route .auth-header p,
+.auth-route .auth-footer {
+  color: var(--color-text-secondary);
+}
+
+.auth-route .auth-footer a,
+.auth-route .auth-page a {
+  color: var(--color-accent-secondary);
+}
+
+.auth-route .auth-page a:hover {
+  color: var(--color-text-primary);
+}
+
+.auth-route .form-input:focus,
+.auth-route input[type="text"]:focus,
+.auth-route input[type="email"]:focus,
+.auth-route input[type="password"]:focus,
+.auth-route input[type="search"]:focus,
+.auth-route input[type="tel"]:focus,
+.auth-route input[type="url"]:focus,
+.auth-route textarea:focus,
+.auth-route select:focus {
+  border-color: rgba(123, 184, 255, 0.5);
+  box-shadow: 0 0 0 4px rgba(123, 184, 255, 0.14);
+}
+
 .form-input::placeholder,
 input::placeholder,
 textarea::placeholder {

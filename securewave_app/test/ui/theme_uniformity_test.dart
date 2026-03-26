@@ -8,6 +8,7 @@ import 'package:securewave_app/debug/automation_keys.dart';
 import 'package:securewave_app/ui/design/app_colors.dart';
 import 'package:securewave_app/ui/layout/adaptive_shell_scaffold.dart';
 import 'package:securewave_app/ui/screens/auth/login_screen.dart';
+import 'package:securewave_app/ui/screens/auth/register_screen.dart';
 import 'package:securewave_app/ui/theme/app_colors.dart';
 import 'package:securewave_app/ui/theme/app_theme.dart';
 import 'package:securewave_app/ui/widgets/brand_mark.dart';
@@ -91,6 +92,46 @@ void main() {
     expect(find.byType(SvgPicture), findsOneWidget);
     expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Sign in to SecureWave'), findsOneWidget);
+  });
+
+  testWidgets('auth screens use the blue-led auth CTA accents', (tester) async {
+    await tester.pumpWidget(wrapWithTheme(const LoginScreen()));
+    await tester.pump();
+
+    final loginButton = tester.widget<FilledButton>(
+      find.byKey(AutomationKeys.loginSubmitButtonKey),
+    );
+    final loginLink = tester.widget<TextButton>(
+      find.byKey(AutomationKeys.loginCreateAccountButtonKey),
+    );
+
+    expect(
+      loginButton.style?.backgroundColor?.resolve(<WidgetState>{}),
+      HtbColors.neonCyan,
+    );
+    expect(
+      loginLink.style?.foregroundColor?.resolve(<WidgetState>{}),
+      HtbColors.neonCyan,
+    );
+
+    await tester.pumpWidget(wrapWithTheme(const RegisterScreen()));
+    await tester.pump();
+
+    final registerButton = tester.widget<FilledButton>(
+      find.byKey(AutomationKeys.registerSubmitButtonKey),
+    );
+    final registerLink = tester.widget<TextButton>(
+      find.byKey(AutomationKeys.registerBackToLoginButtonKey),
+    );
+
+    expect(
+      registerButton.style?.backgroundColor?.resolve(<WidgetState>{}),
+      HtbColors.neonCyan,
+    );
+    expect(
+      registerLink.style?.foregroundColor?.resolve(<WidgetState>{}),
+      HtbColors.neonCyan,
+    );
   });
 
   testWidgets('desktop shell keeps the shared dark navigation surface',

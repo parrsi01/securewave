@@ -104,20 +104,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       FilledButton(
                         key: AutomationKeys.loginSubmitButtonKey,
                         onPressed: authState.isLoading ? null : _submit,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: htb.HtbColors.neonCyan,
+                          foregroundColor: htb.HtbColors.textInverse,
+                          disabledBackgroundColor: htb.HtbColors.neonCyanGhost,
+                          disabledForegroundColor: htb.HtbColors.textTertiary,
+                        ),
                         child: authState.isLoading
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                  color: htb.HtbColors.textInverse,
                                 ),
                               )
                             : const Text('Sign In'),
                       ),
                       const SizedBox(height: AppSpacing.space4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             "Don't have an account?",
@@ -127,7 +134,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             key: AutomationKeys.loginCreateAccountButtonKey,
                             onPressed: () => context.go('/register'),
                             style: TextButton.styleFrom(
-                              foregroundColor: htb.HtbColors.neonGreen,
+                              foregroundColor: htb.HtbColors.neonCyan,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: AppSpacing.space2),
                             ),
