@@ -1,72 +1,68 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
-import '../design/app_colors.dart';
+import '../theme/app_colors.dart' as htb;
 
-/// SecureWave brand mark — shield icon + text.
+/// SecureWave brand mark.
 ///
-/// Renders the SecureWave brand as a shield icon with "SecureWave" text.
-/// Falls back to icon-only when [showText] is false.
+/// Uses the shared SVG shield asset and can optionally render the wordmark.
 class BrandMark extends StatelessWidget {
   const BrandMark({
     super.key,
-    this.size = 48,
-    this.color,
+    this.size = 44,
     this.showText = true,
     this.textSize = 20,
+    this.textColor,
+    this.accentColor,
   });
 
-  /// Size of the shield icon.
   final double size;
-
-  /// Optional color override for the icon.
-  final Color? color;
-
-  /// Whether to show the "SecureWave" text next to the icon.
   final bool showText;
-
-  /// Font size for the brand text.
   final double textSize;
+  final Color? textColor;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = color ?? AppColors.primaryBright;
+    final resolvedTextColor = textColor ?? htb.HtbColors.textPrimary;
+    final resolvedAccentColor = accentColor ?? htb.HtbColors.neonGreen;
+    final logo = SvgPicture.asset(
+      'assets/securewave_logo.svg',
+      width: size,
+      height: size,
+    );
 
     if (!showText) {
-      return Icon(
-        Icons.shield_rounded,
-        size: size,
-        color: iconColor,
-      );
+      return logo;
     }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          Icons.shield_rounded,
-          size: size,
-          color: iconColor,
-        ),
-        const SizedBox(width: 8),
+        logo,
+        const SizedBox(width: 12),
         RichText(
+          maxLines: 1,
+          overflow: TextOverflow.fade,
+          softWrap: false,
           text: TextSpan(
             children: [
               TextSpan(
                 text: 'Secure',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: resolvedTextColor,
                   fontSize: textSize,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+                  letterSpacing: -0.6,
                 ),
               ),
               TextSpan(
                 text: 'Wave',
                 style: TextStyle(
-                  color: iconColor,
+                  color: resolvedAccentColor,
                   fontSize: textSize,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+                  letterSpacing: -0.6,
                 ),
               ),
             ],

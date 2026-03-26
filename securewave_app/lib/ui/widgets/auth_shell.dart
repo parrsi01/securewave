@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../design/app_colors.dart';
+import '../components/htb_background.dart';
 import '../design/app_spacing.dart';
+import '../theme/app_colors.dart' as htb;
+import '../theme/app_tokens.dart';
+import 'brand_mark.dart';
 
 /// Auth screen wrapper with gradient background and centered card.
 ///
@@ -9,11 +12,7 @@ import '../design/app_spacing.dart';
 /// screens: a deep navy gradient background, then scrollable centered
 /// content constrained to [AppSpacing.authMaxWidth].
 class AuthShell extends StatelessWidget {
-  const AuthShell({
-    super.key,
-    required this.child,
-    this.title = '',
-  });
+  const AuthShell({super.key, required this.child, this.title = ''});
 
   final Widget child;
   final String title;
@@ -21,80 +20,84 @@ class AuthShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: isDark ? AppColors.navyGradient : null,
-          color: isDark ? null : AppColors.background,
-        ),
-        child: Column(
-          children: [
-            // ── Header ──────────────────────────────────────────────────
-            if (title.isNotEmpty)
+      backgroundColor: htb.HtbColors.bg0,
+      body: Stack(
+        children: [
+          // HTB grid + radial glow
+          const HtbBackground(),
+
+          Column(
+            children: [
+              // ── Branding header ────────────────────────────────────────
               Padding(
                 padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top + AppSpacing.space5,
-                  bottom: AppSpacing.space4,
+                  top: MediaQuery.of(context).padding.top + AppSpacing.space6,
+                  bottom: AppSpacing.space3,
                   left: AppSpacing.pagePadding,
                   right: AppSpacing.pagePadding,
                 ),
-                child: Text(
-                  title,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                  textAlign: TextAlign.center,
+                child: Column(
+                  children: [
+                    const BrandMark(size: 48, textSize: 24),
+                    const SizedBox(height: AppSpacing.space3),
+                    if (title.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.space2),
+                      Text(
+                        title,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: htb.HtbColors.textSecondary,
+                          letterSpacing: 0.3,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ],
                 ),
               ),
 
-            // ── Scrollable body ──────────────────────────────────────────
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.pagePadding,
-                  vertical: AppSpacing.space6,
-                ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: AppSpacing.authMaxWidth,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Material(
-                          color: isDark
-                              ? AppColors.darkSurface
-                              : theme.colorScheme.surface,
-                          borderRadius:
-                              BorderRadius.circular(AppSpacing.radiusL),
-                          elevation: isDark ? 0 : 1,
-                          child: Container(
-                            decoration: isDark
-                                ? BoxDecoration(
-                                    borderRadius: BorderRadius.circular(
-                                        AppSpacing.radiusL),
-                                    border: Border.all(
-                                      color: AppColors.darkBorder,
-                                      width: 1,
-                                    ),
-                                  )
-                                : null,
-                            padding:
-                                const EdgeInsets.all(AppSpacing.cardPadding),
+              // ── Scrollable body ────────────────────────────────────────
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.pagePadding,
+                    vertical: AppSpacing.space4,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: AppSpacing.authMaxWidth,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Glass card wrapper
+                          Container(
+                            decoration: BoxDecoration(
+                              color: htb.HtbColors.glassFill,
+                              borderRadius: BorderRadius.circular(
+                                AppSpacing.radiusL,
+                              ),
+                              border: Border.all(
+                                color: htb.HtbColors.glassBorderDefault,
+                                width: AppTokens.borderWidth,
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(
+                              AppSpacing.cardPadding,
+                            ),
                             child: child,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

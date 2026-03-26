@@ -10,6 +10,8 @@ import '../../core/state/vpn_state.dart';
 import '../../debug/automation_keys.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
+import '../theme/app_colors.dart' as htb;
+import '../theme/app_typography.dart';
 import '../widgets/glass_panel.dart';
 import '../widgets/ui_helpers.dart';
 import '../widgets/vpn_ui_bindings.dart';
@@ -333,10 +335,11 @@ class _PipelineStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = switch (step.state) {
-      VpnReadinessGateState.ready => AppColors.success,
-      VpnReadinessGateState.notReady => AppColors.warning,
-      VpnReadinessGateState.unknown => AppColors.darkInkSoft,
+      VpnReadinessGateState.ready => isDark ? htb.HtbColors.statusConnected : AppColors.success,
+      VpnReadinessGateState.notReady => isDark ? htb.HtbColors.statusConnecting : AppColors.warning,
+      VpnReadinessGateState.unknown => isDark ? htb.HtbColors.textTertiary : AppColors.darkInkSoft,
     };
     final label = switch (step.state) {
       VpnReadinessGateState.ready => 'ready',
@@ -371,9 +374,14 @@ class _PipelineStep extends StatelessWidget {
               children: [
                 Text(
                   step.title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: isDark
+                      ? AppTypography.monoMedium.copyWith(
+                          color: htb.HtbColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        )
+                      : Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                 ),
                 if (step.subtitle != null && step.subtitle!.trim().isNotEmpty)
                   Padding(
@@ -410,62 +418,102 @@ class _LogFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPanel(
-      child: ValueListenableBuilder<List<AppLogEntry>>(
-        valueListenable: AppLogger.logStream,
-        builder: (context, entries, _) {
-          final recent = entries.reversed.take(8).toList(growable: false);
-          if (recent.isEmpty &&
-              (errorMessage == null || errorMessage!.isEmpty)) {
-            return Text(
-              'No in-memory diagnostics logs captured yet.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            );
-          }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (errorMessage != null && errorMessage!.isNotEmpty) ...[
-                Text(
-                  errorMessage!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.error,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: AppSpacing.space3),
-              ],
-              for (final entry in recent)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.space3),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _timeLabel(entry.timestamp),
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                      ),
-                      const SizedBox(width: AppSpacing.space3),
-                      Expanded(
-                        child: Text(
-                          entry.message,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
+    return Container(
+      decoration: isDark
+          ? BoxDecoration(
+              color: htb.HtbColors.bg1,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+              border: Border.all(
+                color: htb.HtbColors.glassBorderDefault,
+                width: 1,
+              ),
+            )
+          : null,
+      child: isDark
+          ? Padding(
+              padding: const EdgeInsets.all(AppSpacing.space4),
+              child: _logContent(context, isDark),
+            )
+          : GlassPanel(child: _logContent(context, isDark)),
+    );
+  }
+
+  Widget _logContent(BuildContext context, bool isDark) {
+    return ValueListenableBuilder<List<AppLogEntry>>(
+      valueListenable: AppLogger.logStream,
+      builder: (context, entries, _) {
+        final recent = entries.reversed.take(8).toList(growable: false);
+        if (recent.isEmpty &&
+            (errorMessage == null || errorMessage!.isEmpty)) {
+          return Text(
+            isDark
+                ? '> no_logs_captured — waiting for events...'
+                : 'No in-memory diagnostics logs captured yet.',
+            style: isDark
+                ? AppTypography.monoSmall.copyWith(
+                    color: htb.HtbColors.textTertiary,
+                  )
+                : Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
           );
-        },
-      ),
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (errorMessage != null && errorMessage!.isNotEmpty) ...[
+              Text(
+                isDark ? '[ERR] $errorMessage' : errorMessage!,
+                style: isDark
+                    ? AppTypography.monoSmall.copyWith(
+                        color: htb.HtbColors.statusDisconnected,
+                        fontWeight: FontWeight.w700,
+                      )
+                    : Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w600,
+                        ),
+              ),
+              const SizedBox(height: AppSpacing.space3),
+            ],
+            for (final entry in recent)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.space2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _timeLabel(entry.timestamp),
+                      style: isDark
+                          ? AppTypography.monoSmall.copyWith(
+                              color: htb.HtbColors.textTertiary,
+                            )
+                          : Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                    ),
+                    const SizedBox(width: AppSpacing.space3),
+                    Expanded(
+                      child: Text(
+                        entry.message,
+                        style: isDark
+                            ? AppTypography.monoSmall.copyWith(
+                                color: htb.HtbColors.textMono,
+                              )
+                            : Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -492,12 +540,18 @@ class _SectionLabel extends StatelessWidget {
         bottom: AppSpacing.space2,
       ),
       child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: isDark ? AppColors.darkInkSoft : AppColors.inkSoft,
-              letterSpacing: 1.1,
-              fontWeight: FontWeight.w700,
-            ),
+        '// ${title.toUpperCase()}',
+        style: isDark
+            ? AppTypography.monoSmall.copyWith(
+                color: htb.HtbColors.neonCyan,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w700,
+              )
+            : Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.inkSoft,
+                  letterSpacing: 1.1,
+                  fontWeight: FontWeight.w700,
+                ),
       ),
     );
   }

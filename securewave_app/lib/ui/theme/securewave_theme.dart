@@ -1,6 +1,5 @@
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
@@ -71,11 +70,7 @@ class SecureWaveGradients extends ThemeExtension<SecureWaveGradients> {
 
   static const SecureWaveGradients light = SecureWaveGradients(
     brandGradient: AppColors.brandGradient,
-    connectedGradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFF00E676), Color(0xFF1B6B68)],
-    ),
+    connectedGradient: AppColors.connectedGradient,
     connectGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
@@ -236,13 +231,24 @@ class SecureWaveTheme {
   static ThemeData lightTheme() => light();
   static ThemeData darkTheme() => dark();
 
-  static TextTheme _textTheme() {
-    return GoogleFonts.plusJakartaSansTextTheme();
+  static TextTheme _textTheme(Brightness brightness) {
+    final base = brightness == Brightness.dark
+        ? Typography.material2021().white
+        : Typography.material2021().black;
+    final bodyColor =
+        brightness == Brightness.dark ? AppColors.darkInk : AppColors.ink;
+    final displayColor = bodyColor;
+
+    return base.apply(
+      fontFamily: 'Manrope',
+      bodyColor: bodyColor,
+      displayColor: displayColor,
+    );
   }
 
   static ThemeData light() {
     final colorScheme = AppColors.lightScheme();
-    final textTheme = _textTheme();
+    final textTheme = _textTheme(Brightness.light);
 
     final base = FlexThemeData.light(
       colorScheme: colorScheme,
@@ -291,7 +297,7 @@ class SecureWaveTheme {
 
   static ThemeData dark() {
     final colorScheme = AppColors.darkScheme();
-    final textTheme = _textTheme();
+    final textTheme = _textTheme(Brightness.dark);
 
     final base = FlexThemeData.dark(
       colorScheme: colorScheme,

@@ -5,8 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../debug/automation_keys.dart';
 import '../../../features/auth/auth_controller.dart';
 import '../../../features/auth/auth_widgets.dart';
-import '../../../ui/design/app_colors.dart';
 import '../../../ui/design/app_spacing.dart';
+import '../../../ui/theme/app_colors.dart' as htb;
 
 /// Login screen.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -127,7 +127,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             key: AutomationKeys.loginCreateAccountButtonKey,
                             onPressed: () => context.go('/register'),
                             style: TextButton.styleFrom(
-                              foregroundColor: AppColors.primaryBright,
+                              foregroundColor: htb.HtbColors.neonGreen,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: AppSpacing.space2),
                             ),

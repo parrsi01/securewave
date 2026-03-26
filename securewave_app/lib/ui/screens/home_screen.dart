@@ -7,6 +7,8 @@ import '../../core/logging/app_logger.dart';
 import '../../core/models/vpn_protocol.dart';
 import '../../core/state/vpn_state.dart';
 import '../components/connect_button.dart';
+import '../components/health_badge.dart';
+import '../components/htb_background.dart';
 import '../components/protocol_selector_card.dart';
 import '../components/status_display.dart';
 import '../components/traffic_graph_card.dart';
@@ -14,6 +16,8 @@ import '../components/traffic_stats_card.dart';
 import '../components/usage_meter_card.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
+import '../theme/app_colors.dart' as htb;
+import '../widgets/brand_mark.dart';
 import '../widgets/glass_panel.dart';
 import '../widgets/ui_helpers.dart';
 import '../widgets/vpn_ui_bindings.dart';
@@ -63,118 +67,123 @@ class HomeScreen extends HookConsumerWidget {
     }
 
     return Scaffold(
-      body: AnimatedContainer(
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeOutCubic,
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? (isConnected
+      backgroundColor: htb.HtbColors.bg0,
+      body: Stack(
+        children: [
+          // HTB ambient background — static, free
+          const HtbBackground(),
+
+          // Connected state overlay — subtle green wash
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            decoration: BoxDecoration(
+              gradient: isDark && isConnected
                   ? const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF103128), Color(0xFF081424)],
+                      colors: [Color(0x1A12413F), Colors.transparent],
                     )
-                  : AppColors.navyGradient)
-              : const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFFF4F8FB), Color(0xFFFDFEFF)],
-                ),
-        ),
-        child: SafeArea(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.pagePadding,
-                  AppSpacing.space4,
-                  AppSpacing.pagePadding,
-                  AppSpacing.space6,
-                ),
-                children: [
-                  _DashboardHeader(
-                    onAccountTap: () => context.go('/account'),
-                    onSettingsTap: () => context.go('/settings'),
+                  : null,
+            ),
+          ),
+
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.pagePadding,
+                    AppSpacing.space4,
+                    AppSpacing.pagePadding,
+                    AppSpacing.space6,
                   ),
-                  const SizedBox(height: AppSpacing.space5),
-
-                  // ── Connection Hero ─────────────────────────────────────
-                  _ConnectionHero(
-                    visualState: visualState,
-                    protocol: homeVpn.protocol,
-                    effectiveProtocol: homeVpn.effectiveProtocol,
-                    connectPhaseLabel: homeVpn.connectPhaseLabel,
-                    stabilityPct: homeVpn.stabilityPct,
-                    recoveryMessage: homeVpn.recoveryMessage,
-                    selectedServerLabel: selectedServer?.name,
-                    latencyMs: selectedServer?.latencyMs,
-                    onServerTap: () => context.go('/servers'),
-                    onConnectTap: onConnectTap,
-                  ),
-
-                  const SizedBox(height: AppSpacing.space4),
-
-                  // ── Stats + Side Panel ──────────────────────────────────
-                  if (isWide)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Expanded(
-                          flex: 6,
-                          child: Column(
-                            children: <Widget>[
-                              TrafficStatsCard(),
-                              SizedBox(height: AppSpacing.space4),
-                              TrafficGraphCard(),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.space4),
-                        Expanded(
-                          flex: 4,
-                          child: Column(
-                            children: [
-                              const UsageMeterCard(),
-                              const SizedBox(height: AppSpacing.space4),
-                              const ProtocolSelectorCard(),
-                              const SizedBox(height: AppSpacing.space4),
-                              _QuickActionPanel(
-                                onServersTap: () => context.go('/servers'),
-                                onConnectionTap: () =>
-                                    context.go('/connection'),
-                                onDiagnosticsTap: () =>
-                                    context.go('/diagnostics'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Column(
-                      children: [
-                        const TrafficStatsCard(),
-                        const SizedBox(height: AppSpacing.space4),
-                        const UsageMeterCard(),
-                        const SizedBox(height: AppSpacing.space4),
-                        const ProtocolSelectorCard(),
-                        const SizedBox(height: AppSpacing.space4),
-                        const TrafficGraphCard(),
-                        const SizedBox(height: AppSpacing.space4),
-                        _QuickActionPanel(
-                          onServersTap: () => context.go('/servers'),
-                          onConnectionTap: () => context.go('/connection'),
-                          onDiagnosticsTap: () => context.go('/diagnostics'),
-                        ),
-                      ],
+                  children: [
+                    _DashboardHeader(
+                      onAccountTap: () => context.go('/account'),
+                      onSettingsTap: () => context.go('/settings'),
                     ),
-                ],
+                    const SizedBox(height: AppSpacing.space5),
+
+                    // ── Connection Hero ─────────────────────────────────────
+                    _ConnectionHero(
+                      visualState: visualState,
+                      protocol: homeVpn.protocol,
+                      effectiveProtocol: homeVpn.effectiveProtocol,
+                      connectPhaseLabel: homeVpn.connectPhaseLabel,
+                      stabilityPct: homeVpn.stabilityPct,
+                      recoveryMessage: homeVpn.recoveryMessage,
+                      selectedServerLabel: selectedServer?.name,
+                      latencyMs: selectedServer?.latencyMs,
+                      showHealthBadge: isConnected,
+                      onServerTap: () => context.go('/servers'),
+                      onConnectTap: onConnectTap,
+                    ),
+
+                    const SizedBox(height: AppSpacing.space4),
+
+                    // ── Stats + Side Panel ──────────────────────────────────
+                    if (isWide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Expanded(
+                            flex: 6,
+                            child: Column(
+                              children: <Widget>[
+                                TrafficStatsCard(),
+                                SizedBox(height: AppSpacing.space4),
+                                TrafficGraphCard(),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.space4),
+                          Expanded(
+                            flex: 4,
+                            child: Column(
+                              children: [
+                                const UsageMeterCard(),
+                                const SizedBox(height: AppSpacing.space4),
+                                const ProtocolSelectorCard(),
+                                const SizedBox(height: AppSpacing.space4),
+                                _QuickActionPanel(
+                                  onServersTap: () => context.go('/servers'),
+                                  onConnectionTap: () =>
+                                      context.go('/connection'),
+                                  onDiagnosticsTap: () =>
+                                      context.go('/diagnostics'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Column(
+                        children: [
+                          const TrafficStatsCard(),
+                          const SizedBox(height: AppSpacing.space4),
+                          const UsageMeterCard(),
+                          const SizedBox(height: AppSpacing.space4),
+                          const ProtocolSelectorCard(),
+                          const SizedBox(height: AppSpacing.space4),
+                          const TrafficGraphCard(),
+                          const SizedBox(height: AppSpacing.space4),
+                          _QuickActionPanel(
+                            onServersTap: () => context.go('/servers'),
+                            onConnectionTap: () => context.go('/connection'),
+                            onDiagnosticsTap: () => context.go('/diagnostics'),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -194,14 +203,21 @@ class _DashboardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            'SecureWave',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const BrandMark(size: 34, textSize: 24),
+              const SizedBox(height: AppSpacing.space2),
+              Text(
+                'Control center for connection health, routing, and diagnostics.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: htb.HtbColors.textSecondary,
                 ),
+              ),
+            ],
           ),
         ),
         const SizedBox(width: AppSpacing.space3),
@@ -232,6 +248,7 @@ class _ConnectionHero extends StatelessWidget {
     required this.recoveryMessage,
     required this.selectedServerLabel,
     required this.latencyMs,
+    required this.showHealthBadge,
     required this.onServerTap,
     required this.onConnectTap,
   });
@@ -244,70 +261,75 @@ class _ConnectionHero extends StatelessWidget {
   final String? recoveryMessage;
   final String? selectedServerLabel;
   final int? latencyMs;
+  final bool showHealthBadge;
   final VoidCallback onServerTap;
   final VoidCallback onConnectTap;
 
   @override
   Widget build(BuildContext context) {
-    final protocolLabel =
-        vpnProtocolLabel(effectiveProtocol ?? protocol);
+    final protocolLabel = vpnProtocolLabel(effectiveProtocol ?? protocol);
 
     return GlassPanel(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.space5,
-        vertical: AppSpacing.space6,
-      ),
-      child: Column(
-        children: [
-          // ── Status indicator + banners ───────────────────────────────
-          const StatusDisplay(),
-
-          const SizedBox(height: AppSpacing.space5),
-
-          // ── Hero connect button (dominant visual) ────────────────────
-          ConnectButton(
-            visualState: visualState,
-            connectPhaseLabel: connectPhaseLabel,
-            onTap: onConnectTap,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.space5,
+            vertical: AppSpacing.space6,
           ),
+          child: Column(
+            children: [
+              // ── Status indicator + banners ───────────────────────────────
+              const StatusDisplay(),
 
-          const SizedBox(height: AppSpacing.space5),
+              if (showHealthBadge) ...[
+                const SizedBox(height: AppSpacing.space3),
+                const HealthBadge(),
+              ],
 
-          // ── Status headline (animated crossfade) ─────────────────────
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(
-              _headlineFor(visualState, connectPhaseLabel),
-              key: ValueKey('${visualState}_$connectPhaseLabel'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              const SizedBox(height: AppSpacing.space5),
+
+              // ── Hero connect button (dominant visual) ────────────────────
+              ConnectButton(
+                visualState: visualState,
+                connectPhaseLabel: connectPhaseLabel,
+                onTap: onConnectTap,
+              ),
+
+              const SizedBox(height: AppSpacing.space5),
+
+              // ── Status headline (animated crossfade) ─────────────────────
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  _headlineFor(visualState, connectPhaseLabel),
+                  key: ValueKey('${visualState}_$connectPhaseLabel'),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.3,
                   ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.space1),
-          Text(
-            _subtitleFor(visualState, recoveryMessage),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                ),
+              ),
+              const SizedBox(height: AppSpacing.space1),
+              Text(
+                _subtitleFor(visualState, recoveryMessage),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-          ),
+              ),
 
-          const SizedBox(height: AppSpacing.space5),
+              const SizedBox(height: AppSpacing.space5),
 
-          // ── Server + Latency + Protocol chips ────────────────────────
-          _InfoChipRow(
-            serverLabel: selectedServerLabel,
-            latencyMs: latencyMs,
-            protocolLabel: protocolLabel,
-            stabilityPct: stabilityPct,
-            onServerTap: onServerTap,
+              // ── Server + Latency + Protocol chips ────────────────────────
+              _InfoChipRow(
+                serverLabel: selectedServerLabel,
+                latencyMs: latencyMs,
+                protocolLabel: protocolLabel,
+                stabilityPct: stabilityPct,
+                onServerTap: onServerTap,
+              ),
+            ],
           ),
-        ],
-      ),
-    )
+        )
         .animate()
         .fadeIn(duration: 320.ms)
         .slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic);
@@ -324,21 +346,25 @@ class _ConnectionHero extends StatelessWidget {
         ConnectionVisualState.disconnected => 'Ready to protect traffic',
       };
 
-  String _subtitleFor(ConnectionVisualState state, String? recoveryMessage) =>
-      switch (state) {
-        ConnectionVisualState.connected =>
-          'Traffic is flowing through the current SecureWave route.',
-        ConnectionVisualState.connecting =>
-          'Authenticating, fetching profile, and bringing the tunnel online.',
-        ConnectionVisualState.reconnecting => recoveryMessage ??
-            'Recovering the session after a network or region change.',
-        ConnectionVisualState.disconnecting =>
-          'Closing the active session and clearing route state.',
-        ConnectionVisualState.error => recoveryMessage ??
-            'Diagnostics are available if the tunnel could not be established.',
-        ConnectionVisualState.disconnected =>
-          'Pick a region or protocol and connect when ready.',
-      };
+  String _subtitleFor(
+    ConnectionVisualState state,
+    String? recoveryMessage,
+  ) => switch (state) {
+    ConnectionVisualState.connected =>
+      'Traffic is flowing through the current SecureWave route.',
+    ConnectionVisualState.connecting =>
+      'Authenticating, fetching profile, and bringing the tunnel online.',
+    ConnectionVisualState.reconnecting =>
+      recoveryMessage ??
+          'Recovering the session after a network or region change.',
+    ConnectionVisualState.disconnecting =>
+      'Closing the active session and clearing route state.',
+    ConnectionVisualState.error =>
+      recoveryMessage ??
+          'Diagnostics are available if the tunnel could not be established.',
+    ConnectionVisualState.disconnected =>
+      'Pick a region or protocol and connect when ready.',
+  };
 }
 
 // ── Info Chip Row ─────────────────────────────────────────────────────────────
@@ -376,22 +402,16 @@ class _InfoChipRow extends StatelessWidget {
             label: latencyLabel(latencyMs),
             color: _latencyColor(latencyMs!),
           ),
-        _InfoChip(
-          icon: Icons.lock_rounded,
-          label: protocolLabel,
-        ),
-        _InfoChip(
-          icon: Icons.timeline_rounded,
-          label: '$stabilityPct%',
-        ),
+        _InfoChip(icon: Icons.lock_rounded, label: protocolLabel),
+        _InfoChip(icon: Icons.timeline_rounded, label: '$stabilityPct%'),
       ],
     );
   }
 
   Color _latencyColor(int ms) {
-    if (ms < 50) return AppColors.success;
-    if (ms < 100) return AppColors.warning;
-    return AppColors.error;
+    if (ms < 50) return htb.HtbColors.statusConnected;
+    if (ms < 100) return htb.HtbColors.statusConnecting;
+    return htb.HtbColors.statusDisconnected;
   }
 }
 
@@ -416,8 +436,9 @@ class _InfoChip extends StatelessWidget {
         vertical: AppSpacing.space2,
       ),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: htb.HtbColors.glassFill,
         borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        border: Border.all(color: htb.HtbColors.glassBorderDefault, width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -425,14 +446,14 @@ class _InfoChip extends StatelessWidget {
           Icon(
             icon,
             size: AppSpacing.iconS,
-            color: color ?? AppColors.primaryBright,
+            color: color ?? htb.HtbColors.neonCyan,
           ),
           const SizedBox(width: AppSpacing.space2),
           Text(
             label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           if (onTap != null) ...[
             const SizedBox(width: AppSpacing.space1),
@@ -477,70 +498,70 @@ class _QuickActionPanel extends ConsumerWidget {
       ),
     );
     return GlassPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Control Center',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: AppSpacing.space4),
-          _ActionButton(
-            icon: Icons.public_rounded,
-            title: 'Server Selection',
-            subtitle: 'Switch regions and compare latency',
-            onTap: onServersTap,
-          ),
-          const SizedBox(height: AppSpacing.space2),
-          _ActionButton(
-            icon: Icons.shield_rounded,
-            title: 'Connection Detail',
-            subtitle: 'Inspect tunnel metrics and session data',
-            onTap: onConnectionTap,
-          ),
-          const SizedBox(height: AppSpacing.space2),
-          _ActionButton(
-            icon: Icons.monitor_heart_outlined,
-            title: 'Diagnostics',
-            subtitle: 'Verify readiness, logs, and failover signals',
-            onTap: onDiagnosticsTap,
-          ),
-          const SizedBox(height: AppSpacing.space4),
-          Divider(
-            height: 1,
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
-          const SizedBox(height: AppSpacing.space3),
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.data_usage_rounded,
-                size: AppSpacing.iconS,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.space2),
               Text(
-                'Session: ${formatBytesCompact(panelState.sessionTransferredBytes)}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                'Control Center',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: AppSpacing.space4),
+              _ActionButton(
+                icon: Icons.public_rounded,
+                title: 'Server Selection',
+                subtitle: 'Switch regions and compare latency',
+                onTap: onServersTap,
+              ),
+              const SizedBox(height: AppSpacing.space2),
+              _ActionButton(
+                icon: Icons.shield_rounded,
+                title: 'Connection Detail',
+                subtitle: 'Inspect tunnel metrics and session data',
+                onTap: onConnectionTap,
+              ),
+              const SizedBox(height: AppSpacing.space2),
+              _ActionButton(
+                icon: Icons.monitor_heart_outlined,
+                title: 'Diagnostics',
+                subtitle: 'Verify readiness, logs, and failover signals',
+                onTap: onDiagnosticsTap,
+              ),
+              const SizedBox(height: AppSpacing.space4),
+              Divider(
+                height: 1,
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+              const SizedBox(height: AppSpacing.space3),
+              Row(
+                children: [
+                  Icon(
+                    Icons.data_usage_rounded,
+                    size: AppSpacing.iconS,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: AppSpacing.space2),
+                  Text(
+                    'Session: ${formatBytesCompact(panelState.sessionTransferredBytes)}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
+                  ),
+                ],
               ),
+              if (panelState.errorMessage?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: AppSpacing.space2),
+                Text(
+                  panelState.errorMessage!,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.error),
+                ),
+              ],
             ],
           ),
-          if (panelState.errorMessage?.trim().isNotEmpty == true) ...[
-            const SizedBox(height: AppSpacing.space2),
-            Text(
-              panelState.errorMessage!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.error,
-                  ),
-            ),
-          ],
-        ],
-      ),
-    )
+        )
         .animate()
         .fadeIn(duration: 360.ms)
         .slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic);
@@ -563,7 +584,7 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: htb.HtbColors.bg2,
       borderRadius: BorderRadius.circular(AppSpacing.radiusL),
       child: InkWell(
         onTap: onTap,
@@ -576,10 +597,14 @@ class _ActionButton extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: AppColors.primaryBright.withValues(alpha: 0.12),
+                  color: htb.HtbColors.neonGreenGhost,
                   borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+                  border: Border.all(
+                    color: htb.HtbColors.glassBorderNeon,
+                    width: 1,
+                  ),
                 ),
-                child: Icon(icon, color: AppColors.primaryBright),
+                child: Icon(icon, color: htb.HtbColors.neonGreen),
               ),
               const SizedBox(width: AppSpacing.space3),
               Expanded(
@@ -589,16 +614,15 @@ class _ActionButton extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.space1),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),

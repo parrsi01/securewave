@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../debug/automation_keys.dart';
-import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
+import '../theme/app_colors.dart' as htb;
+import '../theme/app_tokens.dart';
+import '../widgets/brand_mark.dart';
 
 /// Adaptive navigation shell.
 ///
@@ -21,13 +23,7 @@ class AdaptiveShellScaffold extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
   final Widget child;
 
-  static const _labels = [
-    'Home',
-    'Servers',
-    'Connect',
-    'Settings',
-    'Account',
-  ];
+  static const _labels = ['Home', 'Servers', 'Connect', 'Settings', 'Account'];
 
   static const _icons = [
     Icons.home_outlined,
@@ -107,7 +103,7 @@ class _DesktopRail extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
     final w = showLabels ? AppSpacing.sidebarWidth : AppSpacing.railWidth;
-    final bgColor = isDark ? AppColors.darkBackgroundWarm : cs.surface;
+    final bgColor = isDark ? htb.HtbColors.bg1 : cs.surface;
 
     return Container(
       width: w,
@@ -115,7 +111,7 @@ class _DesktopRail extends StatelessWidget {
         color: bgColor,
         border: Border(
           right: BorderSide(
-            color: isDark ? AppColors.darkBorder : cs.outlineVariant,
+            color: isDark ? htb.HtbColors.divider : cs.outlineVariant,
             width: 1,
           ),
         ),
@@ -129,33 +125,11 @@ class _DesktopRail extends StatelessWidget {
               horizontal: showLabels ? AppSpacing.space4 : 0,
             ),
             child: showLabels
-                ? const Row(
-                    children: [
-                      SizedBox(width: AppSpacing.space2),
-                      Icon(
-                        Icons.shield_rounded,
-                        color: AppColors.primaryBright,
-                        size: 24,
-                      ),
-                      SizedBox(width: AppSpacing.space2),
-                      Text(
-                        'SecureWave',
-                        style: TextStyle(
-                          color: AppColors.primaryBright,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                    ],
+                ? const Padding(
+                    padding: EdgeInsets.only(left: AppSpacing.space1),
+                    child: BrandMark(size: 24, textSize: 16),
                   )
-                : const Center(
-                    child: Icon(
-                      Icons.shield_rounded,
-                      color: AppColors.primaryBright,
-                      size: 28,
-                    ),
-                  ),
+                : const Center(child: BrandMark(size: 28, showText: false)),
           ),
           const SizedBox(height: AppSpacing.space5),
           for (var i = 0; i < labels.length; i++)
@@ -192,9 +166,14 @@ class _RailItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
-    final activeColor = cs.primary;
-    final inactiveColor = cs.onSurfaceVariant;
+    final activeColor = isDark ? htb.HtbColors.neonGreen : cs.primary;
+    final inactiveColor =
+        isDark ? htb.HtbColors.textSecondary : cs.onSurfaceVariant;
+    final activeBg = isDark
+        ? htb.HtbColors.neonGreenGhost
+        : cs.primary.withValues(alpha: 0.1);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -202,8 +181,7 @@ class _RailItem extends StatelessWidget {
         vertical: AppSpacing.space1,
       ),
       child: Material(
-        color:
-            selected ? cs.primary.withValues(alpha: 0.1) : Colors.transparent,
+        color: selected ? activeBg : Colors.transparent,
         borderRadius: BorderRadius.circular(AppSpacing.radiusM),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -219,6 +197,27 @@ class _RailItem extends StatelessWidget {
               child: showLabel
                   ? Row(
                       children: [
+                        // Active indicator bar on left edge
+                        if (selected)
+                          Container(
+                            width: 3,
+                            height: 16,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: htb.HtbColors.neonGreen,
+                              borderRadius: AppTokens.brSmall,
+                              boxShadow: isDark
+                                  ? const <BoxShadow>[
+                                      BoxShadow(
+                                        color: htb.HtbColors.glowGreenSoft,
+                                        blurRadius: 6,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          )
+                        else
+                          const SizedBox(width: 11),
                         Icon(
                           selected ? activeIcon : icon,
                           color: selected ? activeColor : inactiveColor,
@@ -228,10 +227,11 @@ class _RailItem extends StatelessWidget {
                         Text(
                           label,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight:
                                 selected ? FontWeight.w700 : FontWeight.w400,
                             color: selected ? activeColor : inactiveColor,
+                            letterSpacing: selected ? 0.3 : 0,
                           ),
                         ),
                       ],
@@ -288,10 +288,10 @@ class _BottomBar extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkBackgroundWarm : cs.surface,
+        color: isDark ? htb.HtbColors.bg1 : cs.surface,
         border: Border(
           top: BorderSide(
-            color: isDark ? AppColors.darkBorder : cs.outlineVariant,
+            color: isDark ? htb.HtbColors.divider : cs.outlineVariant,
             width: 1,
           ),
         ),
@@ -334,9 +334,11 @@ class _BarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
-    final activeColor = cs.primary;
-    final inactiveColor = cs.onSurfaceVariant;
+    final activeColor = isDark ? htb.HtbColors.neonGreen : cs.primary;
+    final inactiveColor =
+        isDark ? htb.HtbColors.textSecondary : cs.onSurfaceVariant;
 
     return InkWell(
       key: AutomationKeys.navDestinationKey(label),

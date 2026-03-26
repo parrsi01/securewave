@@ -1,7 +1,7 @@
 {
   "version": "4.0.0+1",
-  "build_date": "2026-02-22T10:27:52Z",
-  "generated_at": "2026-02-22T10:27:52Z",
+  "build_date": "2026-03-26T03:19:14Z",
+  "generated_at": "2026-03-26T03:19:14Z",
   "provider": "hetzner",
   "artifacts": [
     {
@@ -15,10 +15,10 @@
       "signed": false,
       "notes": "Primary Linux package for Ubuntu/Debian systems.",
       "signing_notes": "Unsigned .deb: distribute with SHA256 verification and signed release notes.",
-      "sha256": "4f4ca715640024643b6abad51cc2baf2438719793ef1d68c0d7ac59462244a77",
-      "size_bytes": 13112696,
+      "sha256": "549bfa6f2ed8d594a9513846fa018c94387df6275f296e6938aa27fc2ca2378b",
+      "size_bytes": 16277360,
       "version": "4.0.0+1",
-      "build_date": "2026-02-22T10:27:52Z"
+      "build_date": "2026-03-26T03:19:14Z"
     },
     {
       "platform": "windows",
@@ -34,7 +34,7 @@
       "sha256": null,
       "size_bytes": null,
       "version": "4.0.0+1",
-      "build_date": "2026-02-22T10:27:52Z"
+      "build_date": "2026-03-26T03:19:14Z"
     },
     {
       "platform": "macos",
@@ -45,12 +45,12 @@
       "status": "unavailable",
       "primary": true,
       "signed": false,
-      "notes": "macOS version pending App Store Network Extension approval. Contact us for developer preview access.",
-      "signing_notes": "Requires Apple Developer ID signing, notarization, and Network Extension (Packet Tunnel Provider) entitlement approval.",
+      "notes": "Preview build only: no signed/notarized DMG attached in this run.",
+      "signing_notes": "Apple Developer ID signing + notarization required for production DMG.",
       "sha256": null,
       "size_bytes": null,
       "version": "4.0.0+1",
-      "build_date": "2026-02-22T10:27:52Z"
+      "build_date": "2026-03-26T03:19:14Z"
     },
     {
       "platform": "android",
@@ -66,7 +66,7 @@
       "sha256": null,
       "size_bytes": null,
       "version": "4.0.0+1",
-      "build_date": "2026-02-22T10:27:52Z"
+      "build_date": "2026-03-26T03:19:14Z"
     },
     {
       "platform": "ios",
@@ -82,7 +82,7 @@
       "sha256": null,
       "size_bytes": null,
       "version": "4.0.0+1",
-      "build_date": "2026-02-22T10:27:52Z"
+      "build_date": "2026-03-26T03:19:14Z"
     }
   ],
   "platform_urls": {

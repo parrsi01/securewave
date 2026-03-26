@@ -6,8 +6,8 @@ import '../../../debug/automation_keys.dart';
 import '../../../features/auth/auth_controller.dart';
 import '../../../features/auth/auth_widgets.dart';
 import '../../../services/auth_service.dart';
-import '../../../ui/design/app_colors.dart';
 import '../../../ui/design/app_spacing.dart';
+import '../../../ui/theme/app_colors.dart' as htb;
 
 /// Registration screen.
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -159,7 +159,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             key: AutomationKeys.registerBackToLoginButtonKey,
                             onPressed: () => context.go('/login'),
                             style: TextButton.styleFrom(
-                              foregroundColor: AppColors.primaryBright,
+                              foregroundColor: htb.HtbColors.neonGreen,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: AppSpacing.space2),
                             ),
