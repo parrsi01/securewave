@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/logging/app_logger.dart';
 import '../../debug/automation_keys.dart';
+import '../design/app_animations.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 import '../theme/app_colors.dart' as htb;
@@ -43,20 +44,22 @@ class _ConnectButtonState extends State<ConnectButton>
   late final AnimationController _pulse;
   late final Animation<double> _scale;
   late final AnimationController _spin;
+  bool _hovered = false;
+  bool _pressed = false;
 
   @override
   void initState() {
     super.initState();
     _pulse = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: AppAnimations.glowPulseDuration,
     );
     _scale = Tween<double>(begin: 1, end: 1.01).animate(
-      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
+      CurvedAnimation(parent: _pulse, curve: AppAnimations.curveDefault),
     );
     _spin = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: AppAnimations.ringRotationDuration,
     );
     _updateAnimation();
   }
@@ -112,6 +115,11 @@ class _ConnectButtonState extends State<ConnectButton>
   @override
   Widget build(BuildContext context) {
     final busy = _isBusy(widget.visualState);
+    final interactionScale = _pressed
+        ? AppAnimations.buttonPressScale
+        : _hovered
+            ? AppAnimations.buttonHoverScale
+            : 1.0;
 
     return Semantics(
       button: true,
@@ -128,102 +136,125 @@ class _ConnectButtonState extends State<ConnectButton>
               child: child,
             );
           },
-          child: GestureDetector(
-            key: AutomationKeys.connectionRingButtonKey,
-            onTap: busy ? null : widget.onTap,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeOutCubic,
-                  width: _size,
-                  height: _size,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: _background(widget.visualState),
-                    border: Border.all(
-                      color: _borderColor(widget.visualState),
-                      width: 1.2,
-                    ),
-                    boxShadow: <BoxShadow>[
-                      const BoxShadow(
-                        color: Color(0x42020306),
-                        blurRadius: 18,
-                        offset: Offset(0, 10),
-                      ),
-                      if (_showGlow(widget.visualState))
-                        BoxShadow(
-                          color: _accentColor(widget.visualState)
-                              .withValues(alpha: 0.18),
-                          blurRadius: 22,
-                          offset: const Offset(0, 8),
+          child: MouseRegion(
+            onEnter: busy ? null : (_) => setState(() => _hovered = true),
+            onExit: (_) => setState(() {
+              _hovered = false;
+              _pressed = false;
+            }),
+            child: GestureDetector(
+              key: AutomationKeys.connectionRingButtonKey,
+              onTap: busy ? null : widget.onTap,
+              onTapDown: busy ? null : (_) => setState(() => _pressed = true),
+              onTapUp: busy ? null : (_) => setState(() => _pressed = false),
+              onTapCancel: () => setState(() => _pressed = false),
+              child: AnimatedScale(
+                scale: interactionScale,
+                duration: AppAnimations.durationHover,
+                curve: AppAnimations.curveDefault,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    AnimatedContainer(
+                      duration: AppAnimations.durationSurfaceEnter,
+                      curve: AppAnimations.curveDefault,
+                      width: _size,
+                      height: _size,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: _background(widget.visualState),
+                        border: Border.all(
+                          color: _borderColor(widget.visualState),
+                          width: 1.2,
                         ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: _size - 8,
-                  height: _size - 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: _innerRingColor(widget.visualState),
-                      width: 1.6,
+                        boxShadow: <BoxShadow>[
+                          const BoxShadow(
+                            color: Color(0x42020306),
+                            blurRadius: 18,
+                            offset: Offset(0, 10),
+                          ),
+                          if (_showGlow(widget.visualState) ||
+                              _hovered ||
+                              _pressed)
+                            BoxShadow(
+                              color:
+                                  _accentColor(widget.visualState).withValues(
+                                alpha: _pressed
+                                    ? 0.24
+                                    : _hovered
+                                        ? 0.18
+                                        : 0.16,
+                              ),
+                              blurRadius: _pressed ? 24 : 20,
+                              offset: const Offset(0, 8),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-                if (busy)
-                  AnimatedBuilder(
-                    animation: _spin,
-                    builder: (_, __) => Transform.rotate(
-                      angle: _spin.value * 2 * math.pi,
-                      child: SizedBox(
-                        width: _size - 20,
-                        height: _size - 20,
-                        child: CustomPaint(
-                          painter: _ArcPainter(
-                            color: _accentColor(widget.visualState),
-                            strokeWidth: AppSpacing.connectionRingStroke,
+                    Container(
+                      width: _size - 8,
+                      height: _size - 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _innerRingColor(widget.visualState),
+                          width: 1.6,
+                        ),
+                      ),
+                    ),
+                    if (busy)
+                      AnimatedBuilder(
+                        animation: _spin,
+                        builder: (_, __) => Transform.rotate(
+                          angle: _spin.value * 2 * math.pi,
+                          child: SizedBox(
+                            width: _size - 20,
+                            height: _size - 20,
+                            child: CustomPaint(
+                              painter: _ArcPainter(
+                                color: _accentColor(widget.visualState),
+                                strokeWidth: AppSpacing.connectionRingStroke,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  child: KeyedSubtree(
-                    key: AutomationKeys.connectionStateKey(
-                      widget.visualState.name,
-                    ),
-                    child: Column(
-                      key: ValueKey(
-                        '${widget.visualState}_${widget.connectPhaseLabel}',
-                      ),
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _icon(widget.visualState),
-                          color: _foregroundColor(widget.visualState),
-                          size: 40,
+                    AnimatedSwitcher(
+                      duration: AppAnimations.durationNormal,
+                      switchInCurve: AppAnimations.curveEnter,
+                      switchOutCurve: AppAnimations.curveExit,
+                      child: KeyedSubtree(
+                        key: AutomationKeys.connectionStateKey(
+                          widget.visualState.name,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _label(widget.visualState),
-                          style: TextStyle(
-                            color: _foregroundColor(widget.visualState),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            letterSpacing: 0.5,
+                        child: Column(
+                          key: ValueKey(
+                            '${widget.visualState}_${widget.connectPhaseLabel}',
                           ),
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _icon(widget.visualState),
+                              color: _foregroundColor(widget.visualState),
+                              size: 40,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _label(widget.visualState),
+                              style: TextStyle(
+                                color: _foregroundColor(widget.visualState),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

@@ -14,6 +14,7 @@ import '../components/status_display.dart';
 import '../components/traffic_graph_card.dart';
 import '../components/traffic_stats_card.dart';
 import '../components/usage_meter_card.dart';
+import '../design/app_animations.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 import '../theme/app_colors.dart' as htb;
@@ -73,20 +74,16 @@ class HomeScreen extends HookConsumerWidget {
           // HTB ambient background — static, free
           const HtbBackground(),
 
-          // Connected state overlay — subtle blue / purple wash
+          // Connected state overlay — subtle neon purple wash
           AnimatedContainer(
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOutCubic,
+            duration: AppAnimations.durationSlow,
+            curve: AppAnimations.curveDefault,
             decoration: BoxDecoration(
               gradient: isDark && isConnected
                   ? const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        AppColors.primaryWash,
-                        AppColors.secondaryWash,
-                        Colors.transparent,
-                      ],
+                      colors: [Color(0x1A2A1A50), Colors.transparent],
                     )
                   : null,
             ),
@@ -213,26 +210,6 @@ class _DashboardHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.space3,
-                  vertical: AppSpacing.space2,
-                ),
-                decoration: BoxDecoration(
-                  color: htb.HtbColors.accentSecondaryGhost,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                  border: Border.all(color: htb.HtbColors.glassBorderDefault),
-                ),
-                child: Text(
-                  'SECUREWAVE CONTROL',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: htb.HtbColors.textMono,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.0,
-                      ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.space3),
               const BrandMark(size: 34, textSize: 24),
               const SizedBox(height: AppSpacing.space2),
               Text(
@@ -256,7 +233,18 @@ class _DashboardHeader extends StatelessWidget {
           label: const Text('Account'),
         ),
       ],
-    ).animate().fadeIn(duration: 260.ms).slideY(begin: -0.08, end: 0);
+    )
+        .animate()
+        .fadeIn(
+          duration: AppAnimations.pageEnter,
+          curve: AppAnimations.curveEnter,
+        )
+        .slideY(
+          begin: -0.06,
+          end: 0,
+          duration: AppAnimations.pageEnter,
+          curve: AppAnimations.curveEnter,
+        );
   }
 }
 
@@ -294,43 +282,12 @@ class _ConnectionHero extends StatelessWidget {
     final protocolLabel = vpnProtocolLabel(effectiveProtocol ?? protocol);
 
     return GlassPanel(
-      glowColor: _heroGlow(visualState),
-      borderColor: _heroGlow(visualState).withValues(alpha: 0.28),
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          _heroGlow(visualState).withValues(alpha: 0.12),
-          htb.HtbColors.bg1.withValues(alpha: 0.9),
-          htb.HtbColors.bg3.withValues(alpha: 0.96),
-        ],
-      ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space5,
         vertical: AppSpacing.space6,
       ),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.space3,
-              vertical: AppSpacing.space2,
-            ),
-            decoration: BoxDecoration(
-              color: htb.HtbColors.accentPrimaryGhost,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-              border: Border.all(color: htb.HtbColors.glassBorderDefault),
-            ),
-            child: Text(
-              'LIVE TUNNEL STATUS',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: htb.HtbColors.textMono,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.9,
-                  ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.space3),
           // ── Status indicator + banners ───────────────────────────────
           const StatusDisplay(),
 
@@ -352,7 +309,9 @@ class _ConnectionHero extends StatelessWidget {
 
           // ── Status headline (animated crossfade) ─────────────────────
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
+            duration: AppAnimations.durationNormal,
+            switchInCurve: AppAnimations.curveEnter,
+            switchOutCurve: AppAnimations.curveExit,
             child: Text(
               _headlineFor(visualState, connectPhaseLabel),
               key: ValueKey('${visualState}_$connectPhaseLabel'),
@@ -386,19 +345,17 @@ class _ConnectionHero extends StatelessWidget {
       ),
     )
         .animate()
-        .fadeIn(duration: 320.ms)
-        .slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic);
+        .fadeIn(
+          duration: AppAnimations.durationSurfaceEnter,
+          curve: AppAnimations.curveEnter,
+        )
+        .slideY(
+          begin: AppAnimations.surfaceSlideOffset,
+          end: 0,
+          duration: AppAnimations.durationSurfaceEnter,
+          curve: AppAnimations.curveEnter,
+        );
   }
-
-  Color _heroGlow(ConnectionVisualState state) => switch (state) {
-        ConnectionVisualState.connected => htb.HtbColors.accentPrimary,
-        ConnectionVisualState.connecting => htb.HtbColors.accentSecondary,
-        ConnectionVisualState.reconnecting => htb.HtbColors.statusConnecting,
-        ConnectionVisualState.disconnecting => htb.HtbColors.textTertiary,
-        ConnectionVisualState.error => htb.HtbColors.statusDisconnected,
-        ConnectionVisualState.disconnected =>
-          htb.HtbColors.accentSecondaryMuted,
-      };
 
   String _headlineFor(ConnectionVisualState state, String? phaseLabel) =>
       switch (state) {
@@ -500,14 +457,9 @@ class _InfoChip extends StatelessWidget {
         vertical: AppSpacing.space2,
       ),
       decoration: BoxDecoration(
-        color: (color ?? htb.HtbColors.accentPrimary)
-            .withValues(alpha: onTap == null ? 0.1 : 0.14),
+        color: htb.HtbColors.glassFill,
         borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-        border: Border.all(
-          color: (color ?? htb.HtbColors.glassBorderDefault)
-              .withValues(alpha: 0.32),
-          width: 1,
-        ),
+        border: Border.all(color: htb.HtbColors.glassBorderDefault, width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -515,7 +467,7 @@ class _InfoChip extends StatelessWidget {
           Icon(
             icon,
             size: AppSpacing.iconS,
-            color: color ?? htb.HtbColors.accentSecondary,
+            color: color ?? htb.HtbColors.neonCyan,
           ),
           const SizedBox(width: AppSpacing.space2),
           Text(
@@ -567,8 +519,6 @@ class _QuickActionPanel extends ConsumerWidget {
       ),
     );
     return GlassPanel(
-      glowColor: htb.HtbColors.accentSecondaryMuted,
-      borderColor: htb.HtbColors.glassBorderDefault,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -634,8 +584,16 @@ class _QuickActionPanel extends ConsumerWidget {
       ),
     )
         .animate()
-        .fadeIn(duration: 360.ms)
-        .slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic);
+        .fadeIn(
+          duration: AppAnimations.durationSlow,
+          curve: AppAnimations.curveEnter,
+        )
+        .slideY(
+          begin: AppAnimations.surfaceSlideOffset,
+          end: 0,
+          duration: AppAnimations.durationSlow,
+          curve: AppAnimations.curveEnter,
+        );
   }
 }
 
@@ -654,75 +612,53 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Ink(
-      decoration: BoxDecoration(
-        color: htb.HtbColors.bg2.withValues(alpha: 0.76),
+    return Material(
+      color: htb.HtbColors.bg2,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-        border: Border.all(color: htb.HtbColors.glassBorderDefault),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.space4),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        htb.HtbColors.accentSecondaryGhost,
-                        htb.HtbColors.accentPrimaryGhost,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-                    border: Border.all(
-                      color: htb.HtbColors.glassBorderDefault,
-                      width: 1,
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: htb.HtbColors.glowSecondary,
-                        blurRadius: 12,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Icon(icon, color: htb.HtbColors.accentPrimary),
-                ),
-                const SizedBox(width: AppSpacing.space3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                      const SizedBox(height: AppSpacing.space1),
-                      Text(
-                        subtitle,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                      ),
-                    ],
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.space4),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: htb.HtbColors.neonGreenGhost,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+                  border: Border.all(
+                    color: htb.HtbColors.glassBorderNeon,
+                    width: 1,
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded),
-              ],
-            ),
+                child: Icon(icon, color: htb.HtbColors.neonGreen),
+              ),
+              const SizedBox(width: AppSpacing.space3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: AppSpacing.space1),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
           ),
         ),
       ),

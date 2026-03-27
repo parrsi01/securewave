@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../design/app_animations.dart';
 import 'app_colors.dart';
 
-/// Design tokens for the shared SecureWave dark theme.
+/// Design tokens for the shared SecureWave theme.
 ///
 /// Covers: spacing, border radius, elevation/shadow, glow effects,
 /// animation durations, and animation curves.
@@ -56,36 +57,97 @@ class AppTokens {
 
   static const List<BoxShadow> shadowLow = [
     BoxShadow(
-      color: Color(0x33000000),
-      blurRadius: 8,
-      offset: Offset(0, 2),
+      color: Color(0x22000000),
+      blurRadius: 10,
+      offset: Offset(0, 3),
+    ),
+    BoxShadow(
+      color: Color(0x14000000),
+      blurRadius: 2,
+      offset: Offset(0, 1),
     ),
   ];
 
   static const List<BoxShadow> shadowMedium = [
     BoxShadow(
-      color: Color(0x4D000000),
-      blurRadius: 16,
-      offset: Offset(0, 4),
+      color: Color(0x30000000),
+      blurRadius: 18,
+      offset: Offset(0, 8),
+    ),
+    BoxShadow(
+      color: Color(0x16000000),
+      blurRadius: 6,
+      offset: Offset(0, 2),
     ),
   ];
 
   static const List<BoxShadow> shadowHigh = [
     BoxShadow(
-      color: Color(0x66000000),
-      blurRadius: 32,
-      offset: Offset(0, 8),
+      color: Color(0x3D000000),
+      blurRadius: 28,
+      offset: Offset(0, 14),
+    ),
+    BoxShadow(
+      color: Color(0x1A000000),
+      blurRadius: 10,
+      offset: Offset(0, 4),
     ),
   ];
 
-  // ── Glow Effects — softened BoxShadow lists ───────────────────────────────
+  // ── Glow Effects — reserved for interactive states ───────────────────────
 
-  /// Primary accent glow for CTA surfaces and connected state chrome.
+  /// Neon purple glow — primary CTA, connected ring
+  static const List<BoxShadow> glowGreen = [
+    BoxShadow(
+      color: HtbColors.glowGreenSoft,
+      blurRadius: 14,
+      spreadRadius: 0,
+    ),
+    BoxShadow(
+      color: HtbColors.glowGreen,
+      blurRadius: 6,
+      spreadRadius: 0,
+    ),
+  ];
+
+  /// Neon purple glow — intense (pressed/active state)
+  static const List<BoxShadow> glowGreenIntense = [
+    BoxShadow(
+      color: HtbColors.glowGreen,
+      blurRadius: 20,
+      spreadRadius: 0,
+    ),
+    BoxShadow(
+      color: HtbColors.neonGreen,
+      blurRadius: 8,
+      spreadRadius: 0,
+    ),
+  ];
+
+  /// Neon purple glow — subtle (idle connected)
+  static const List<BoxShadow> glowGreenSoft = [
+    BoxShadow(
+      color: HtbColors.glowGreenSoft,
+      blurRadius: 10,
+      spreadRadius: 0,
+    ),
+  ];
+
+  /// Lavender glow — secondary highlights
+  static const List<BoxShadow> glowCyan = [
+    BoxShadow(
+      color: HtbColors.glowCyan,
+      blurRadius: 12,
+      spreadRadius: 0,
+    ),
+  ];
+
+  /// Neon purple glow — semantic alias for primary
   static const List<BoxShadow> glowPrimary = [
     BoxShadow(
       color: HtbColors.glowPrimarySoft,
-      blurRadius: 18,
-      spreadRadius: 1,
+      blurRadius: 14,
+      spreadRadius: 0,
     ),
     BoxShadow(
       color: HtbColors.glowPrimary,
@@ -94,34 +156,11 @@ class AppTokens {
     ),
   ];
 
-  /// Intensified primary accent glow for pressed and highly active states.
-  static const List<BoxShadow> glowPrimaryIntense = [
-    BoxShadow(
-      color: HtbColors.glowPrimary,
-      blurRadius: 26,
-      spreadRadius: 2,
-    ),
-    BoxShadow(
-      color: HtbColors.accentPrimary,
-      blurRadius: 8,
-      spreadRadius: 0,
-    ),
-  ];
-
-  /// Subtle primary accent glow for idle highlighted surfaces.
+  /// Neon purple glow — soft variant
   static const List<BoxShadow> glowPrimarySoft = [
     BoxShadow(
       color: HtbColors.glowPrimarySoft,
-      blurRadius: 12,
-      spreadRadius: 0,
-    ),
-  ];
-
-  /// Secondary accent glow for pink/purple emphasis.
-  static const List<BoxShadow> glowSecondary = [
-    BoxShadow(
-      color: HtbColors.glowSecondary,
-      blurRadius: 14,
+      blurRadius: 10,
       spreadRadius: 0,
     ),
   ];
@@ -130,7 +169,7 @@ class AppTokens {
   static const List<BoxShadow> glowRed = [
     BoxShadow(
       color: HtbColors.glowRed,
-      blurRadius: 14,
+      blurRadius: 12,
       spreadRadius: 0,
     ),
   ];
@@ -139,31 +178,31 @@ class AppTokens {
   static const List<BoxShadow> glowAmber = [
     BoxShadow(
       color: HtbColors.glowAmber,
-      blurRadius: 14,
+      blurRadius: 12,
       spreadRadius: 0,
     ),
   ];
 
   // ── Animation Durations ───────────────────────────────────────────────────
 
-  static const Duration durationFast = Duration(milliseconds: 150);
-  static const Duration durationNormal = Duration(milliseconds: 250);
-  static const Duration durationSlow = Duration(milliseconds: 400);
-  static const Duration durationXSlow = Duration(milliseconds: 600);
+  static const Duration durationFast = AppAnimations.durationFast;
+  static const Duration durationNormal = AppAnimations.durationNormal;
+  static const Duration durationSlow = AppAnimations.durationSlow;
+  static const Duration durationXSlow = AppAnimations.durationXSlow;
 
   /// Pulse loop for connecting state
-  static const Duration durationPulse = Duration(milliseconds: 1400);
+  static const Duration durationPulse = AppAnimations.glowPulseDuration;
 
   /// Glow breathe cycle
-  static const Duration durationGlowCycle = Duration(milliseconds: 2000);
+  static const Duration durationGlowCycle = AppAnimations.glowPulseDuration;
 
   // ── Animation Curves ──────────────────────────────────────────────────────
 
-  static const Curve curveDefault = Curves.easeOutCubic;
-  static const Curve curveEnter = Curves.easeOutCubic;
-  static const Curve curveExit = Curves.easeInCubic;
-  static const Curve curveSharp = Curves.fastOutSlowIn;
-  static const Curve curveBounce = Curves.elasticOut;
+  static const Curve curveDefault = AppAnimations.curveDefault;
+  static const Curve curveEnter = AppAnimations.curveEnter;
+  static const Curve curveExit = AppAnimations.curveExit;
+  static const Curve curveSharp = AppAnimations.curveSharp;
+  static const Curve curveBounce = AppAnimations.curveBounce;
   static const Curve curvePulse = Curves.easeInOut;
 
   // ── Button Sizes ──────────────────────────────────────────────────────────
@@ -183,7 +222,7 @@ class AppTokens {
   // ── Misc ──────────────────────────────────────────────────────────────────
 
   /// Backdrop blur sigma used on glass panels
-  static const double blurSigma = 14;
+  static const double blurSigma = 12;
 
   /// Border width for neon-lit containers
   static const double neonBorderWidth = 1.25;

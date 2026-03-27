@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../design/app_animations.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../theme/app_typography.dart';
 
-/// Primary accent CTA button with a softened glow effect.
+/// Primary CTA button using the shared accent palette.
 ///
-/// States:
-///   - Normal: softened orchid -> iris -> blue gradient + dark text
-///   - Hover/pressed: glow ring amplified via AnimatedContainer BoxShadow
-///   - Connecting: slow pulse animation on the outer glow ring
-///   - Disabled: ghosted neon fill, no glow
+/// Glow is intentionally limited to button interaction states.
 ///
 /// Use [NeonOutlinedButton] for secondary actions.
 class NeonButton extends StatefulWidget {
@@ -32,7 +29,7 @@ class NeonButton extends StatefulWidget {
   /// When true, adds a pulsing animation to the glow ring (connecting state).
   final bool isConnecting;
 
-  /// When true, uses the destructive error accent instead of the primary glow.
+  /// When true, uses the destructive error accent instead of the primary accent.
   final bool isDestructive;
 
   final double? width;
@@ -56,7 +53,7 @@ class _NeonButtonState extends State<NeonButton>
       vsync: this,
       duration: AppTokens.durationPulse,
     );
-    _pulseAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
+    _pulseAnim = Tween<double>(begin: 0.45, end: 1.0).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: AppTokens.curvePulse),
     );
     _syncPulse();
@@ -87,24 +84,21 @@ class _NeonButtonState extends State<NeonButton>
       ? HtbColors.statusDisconnected
       : HtbColors.accentPrimary;
 
-  Color get _glowBase =>
-      widget.isDestructive ? HtbColors.glowRed : HtbColors.glowSecondary;
+  Color get _accentDark => widget.isDestructive
+      ? HtbColors.statusErrorDeep
+      : HtbColors.accentPrimaryMuted;
 
-  Gradient get _backgroundGradient => widget.isDestructive
-      ? const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [HtbColors.statusDisconnected, HtbColors.statusErrorDeep],
-        )
-      : const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            HtbColors.accentSecondaryMuted,
-            HtbColors.accentSecondary,
-            HtbColors.accentPrimary,
-          ],
-        );
+  Color get _glowBase =>
+      widget.isDestructive ? HtbColors.glowRed : HtbColors.glowPrimary;
+
+  // Minimal accent gradient kept for the primary CTA only.
+  Gradient get _backgroundGradient => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: widget.isDestructive
+            ? [_accentColor, _accentDark]
+            : [HtbColors.accentPrimary, HtbColors.accentPrimaryMuted],
+      );
 
   List<BoxShadow> _buildShadow(double pulseValue) {
     if (widget.onPressed == null) return const [];
@@ -113,36 +107,35 @@ class _NeonButtonState extends State<NeonButton>
           widget.isConnecting ? pulseValue : (_pressed ? 1.0 : 0.6);
       return [
         BoxShadow(
-          color: _glowBase.withValues(alpha: 0.3 * intensity),
-          blurRadius: 20,
-          spreadRadius: 1,
+          color: _glowBase.withValues(alpha: 0.18 * intensity),
+          blurRadius: 14,
+          spreadRadius: 0,
         ),
         BoxShadow(
-          color: _accentColor.withValues(alpha: 0.16 * intensity),
-          blurRadius: 10,
+          color: _accentColor.withValues(alpha: 0.10 * intensity),
+          blurRadius: 4,
           spreadRadius: 0,
         ),
       ];
     }
-    return [
-      BoxShadow(
-        color: _glowBase.withValues(alpha: 0.12),
-        blurRadius: 8,
-        spreadRadius: 0,
-      ),
-    ];
+    return const [];
   }
 
   @override
   Widget build(BuildContext context) {
     final disabled = widget.onPressed == null;
+    final interactionScale = _pressed
+        ? AppAnimations.buttonPressScale
+        : _hovered
+            ? AppAnimations.buttonHoverScale
+            : 1.0;
 
     return AnimatedBuilder(
       animation: _pulseAnim,
       builder: (context, _) {
         return AnimatedContainer(
-          duration: AppTokens.durationFast,
-          curve: AppTokens.curveDefault,
+          duration: AppAnimations.durationHover,
+          curve: AppAnimations.curveDefault,
           width: widget.width,
           height: widget.height,
           decoration: BoxDecoration(
@@ -150,8 +143,11 @@ class _NeonButtonState extends State<NeonButton>
             boxShadow: _buildShadow(_pulseAnim.value),
           ),
           child: MouseRegion(
-            onEnter: (_) => setState(() => _hovered = true),
-            onExit: (_) => setState(() => _hovered = false),
+            onEnter: disabled ? null : (_) => setState(() => _hovered = true),
+            onExit: (_) => setState(() {
+              _hovered = false;
+              _pressed = false;
+            }),
             child: Semantics(
               button: true,
               enabled: !disabled,
@@ -163,9 +159,9 @@ class _NeonButtonState extends State<NeonButton>
                     disabled ? null : (_) => setState(() => _pressed = false),
                 onTapCancel: () => setState(() => _pressed = false),
                 child: AnimatedScale(
-                  scale: _pressed ? 0.97 : 1.0,
-                  duration: AppTokens.durationFast,
-                  curve: AppTokens.curveDefault,
+                  scale: interactionScale,
+                  duration: AppAnimations.durationHover,
+                  curve: AppAnimations.curveDefault,
                   child: Material(
                     color: Colors.transparent,
                     child: Ink(
@@ -178,7 +174,7 @@ class _NeonButtonState extends State<NeonButton>
                         border: Border.all(
                           color: disabled
                               ? HtbColors.border
-                              : HtbColors.textPrimary.withValues(alpha: 0.08),
+                              : _accentDark.withValues(alpha: 0.40),
                         ),
                       ),
                       child: InkWell(
@@ -246,7 +242,7 @@ class _NeonButtonState extends State<NeonButton>
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Secondary outlined button with shared accent border and hover glow.
+/// Secondary outlined button with neon accent border and hover glow.
 class NeonOutlinedButton extends StatefulWidget {
   const NeonOutlinedButton({
     super.key,
@@ -277,13 +273,14 @@ class _NeonOutlinedButtonState extends State<NeonOutlinedButton> {
   Widget build(BuildContext context) {
     final disabled = widget.onPressed == null;
     final glowOpacity = _pressed
-        ? 0.5
+        ? 0.30
         : _hovered
-            ? 0.3
+            ? 0.16
             : 0.0;
 
     return AnimatedContainer(
-      duration: AppTokens.durationFast,
+      duration: AppAnimations.durationHover,
+      curve: AppAnimations.curveDefault,
       width: widget.width,
       height: widget.height,
       decoration: BoxDecoration(
@@ -292,22 +289,30 @@ class _NeonOutlinedButtonState extends State<NeonOutlinedButton> {
             ? [
                 BoxShadow(
                   color: widget.accentColor.withValues(alpha: glowOpacity),
-                  blurRadius: 16,
-                  spreadRadius: 1,
+                  blurRadius: 12,
+                  spreadRadius: 0,
                 ),
               ]
             : const [],
       ),
       child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
+        onEnter: disabled ? null : (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
         child: GestureDetector(
-          onTapDown: (_) => setState(() => _pressed = true),
-          onTapUp: (_) => setState(() => _pressed = false),
+          onTapDown: disabled ? null : (_) => setState(() => _pressed = true),
+          onTapUp: disabled ? null : (_) => setState(() => _pressed = false),
           onTapCancel: () => setState(() => _pressed = false),
           child: AnimatedScale(
-            scale: _pressed ? 0.97 : 1.0,
-            duration: AppTokens.durationFast,
+            scale: _pressed
+                ? AppAnimations.buttonPressScale
+                : _hovered
+                    ? AppAnimations.buttonHoverScale
+                    : 1.0,
+            duration: AppAnimations.durationHover,
+            curve: AppAnimations.curveDefault,
             child: OutlinedButton(
               onPressed: widget.onPressed,
               style: OutlinedButton.styleFrom(
@@ -327,13 +332,13 @@ class _NeonOutlinedButtonState extends State<NeonOutlinedButton> {
                       ? HtbColors.border
                       : _hovered
                           ? widget.accentColor
-                          : widget.accentColor.withValues(alpha: 0.6),
+                          : widget.accentColor.withValues(alpha: 0.7),
                   width: AppTokens.neonBorderWidth,
                 ),
                 backgroundColor: _pressed
-                    ? widget.accentColor.withValues(alpha: 0.1)
+                    ? widget.accentColor.withValues(alpha: 0.08)
                     : _hovered
-                        ? widget.accentColor.withValues(alpha: 0.05)
+                        ? widget.accentColor.withValues(alpha: 0.04)
                         : Colors.transparent,
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppTokens.paddingL,

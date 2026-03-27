@@ -2,26 +2,38 @@ import 'package:flutter/animation.dart';
 
 /// SecureWave animation constants and curves.
 ///
-/// Standard [Duration] and [Curve] tokens only — no flutter_animate.
+/// Standard [Duration], [Curve], and motion constants only.
+/// Values stay short and restrained to keep the UI responsive.
 class AppAnimations {
   AppAnimations._();
 
   // ── Durations ──────────────────────────────────────────────────────────
 
-  static const Duration durationFast = Duration(milliseconds: 120);
-  static const Duration durationNormal = Duration(milliseconds: 250);
-  static const Duration durationMedium = Duration(milliseconds: 350);
-  static const Duration durationSlow = Duration(milliseconds: 450);
-  static const Duration durationXSlow = Duration(milliseconds: 600);
+  static const Duration durationFast = Duration(milliseconds: 140);
+  static const Duration durationNormal = Duration(milliseconds: 220);
+  static const Duration durationMedium = Duration(milliseconds: 320);
+  static const Duration durationSlow = Duration(milliseconds: 420);
+  static const Duration durationXSlow = Duration(milliseconds: 560);
+
+  static const Duration durationHover = Duration(milliseconds: 180);
+  static const Duration durationPress = durationFast;
+  static const Duration durationSurfaceEnter = durationMedium;
 
   // ── Curves ─────────────────────────────────────────────────────────────
 
-  static const Curve curveDefault = Curves.easeOutCubic;
-  static const Curve curveEnter = Curves.easeOutCubic;
+  static const Curve curveDefault = Cubic(0.2, 0.8, 0.2, 1.0);
+  static const Curve curveEnter = Cubic(0.16, 1.0, 0.3, 1.0);
   static const Curve curveExit = Curves.easeInCubic;
   static const Curve curveSpring = Curves.elasticOut;
   static const Curve curveBounce = Curves.bounceOut;
-  static const Curve curveSharp = Curves.fastOutSlowIn;
+  static const Curve curveSharp = Cubic(0.2, 0.0, 0.0, 1.0);
+
+  // ── Shared Motion Values ───────────────────────────────────────────────
+
+  static const double buttonHoverScale = 1.01;
+  static const double buttonPressScale = 0.975;
+  static const double pageSlideOffset = 0.018;
+  static const double surfaceSlideOffset = 0.05;
 
   // ── Connection Ring ────────────────────────────────────────────────────
 

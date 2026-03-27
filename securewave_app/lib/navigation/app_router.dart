@@ -1,4 +1,3 @@
-import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +10,7 @@ import '../features/onboarding/onboarding_screen.dart';
 import '../screens/account/edit_profile_screen.dart';
 import '../screens/settings/apple_vpn_diagnostics_screen.dart';
 import '../screens/settings/manage_devices_screen.dart';
+import '../ui/design/app_animations.dart';
 import '../ui/screens/account_screen.dart';
 import '../ui/screens/connection_screen.dart';
 import '../ui/screens/diagnostics_screen.dart';
@@ -29,15 +29,26 @@ Page<T> _buildPage<T>({
 }) {
   return CustomTransitionPage<T>(
     key: state.pageKey,
-    transitionDuration: const Duration(milliseconds: 260),
-    reverseTransitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: AppAnimations.pageEnter,
+    reverseTransitionDuration: AppAnimations.pageExit,
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      return FadeThroughTransition(
-        animation: animation,
-        secondaryAnimation: secondaryAnimation,
-        fillColor: Colors.transparent,
-        child: child,
+      final fade = CurvedAnimation(
+        parent: animation,
+        curve: AppAnimations.curveEnter,
+        reverseCurve: AppAnimations.curveExit,
+      );
+      final slide = Tween<Offset>(
+        begin: const Offset(AppAnimations.pageSlideOffset, 0),
+        end: Offset.zero,
+      ).animate(fade);
+
+      return FadeTransition(
+        opacity: fade,
+        child: SlideTransition(
+          position: slide,
+          child: child,
+        ),
       );
     },
   );
