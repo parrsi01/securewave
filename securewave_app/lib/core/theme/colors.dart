@@ -1,205 +1,179 @@
 import 'package:flutter/material.dart';
 
-/// SecureWave color system.
+/// SecureWave color system — pure purple dark-to-light hue.
 ///
-/// New global palette:
-/// - near-black foundations
-/// - softened blue primary accent
-/// - muted orchid / iris secondary accents
-/// - calmer contrast and glow for long-session readability
+/// Dark plum (#120C1F) → neon purple (#7A5CFF) → lavender white (#E8E0FF).
+/// No blue/cyan. Tertiary pink (#FF2BD6) as accent.
 class AppColors {
   AppColors._();
 
-  // ── Accent Colors ────────────────────────────────────────────────────────
+  // ── Primary (Neon Purple) ─────────────────────────────────────────────────
 
-  static const Color primary = Color(0xFF6E9FDD);
-  static const Color primaryDark = Color(0xFF4B72B7);
-  static const Color primaryDeep = Color(0xFF16243D);
-  static const Color primaryBright = Color(0xFF8EC5FF);
-  static const Color primaryLight = Color(0xFFE2EEFF);
+  static const Color primary = Color(0xFF7A5CFF);
+  static const Color primaryDark = Color(0xFF5A3FCC);
+  static const Color primaryDeep = Color(0xFF24183E);
+  static const Color primaryBright = Color(0xFFB794FF); // light lavender
+  static const Color primaryLight = Color(0xFF2D2150); // container on dark
 
-  static const Color primaryGhost = Color(0x148EC5FF);
-  static const Color primaryWash = Color(0x108EC5FF);
+  static const Color primaryGhost = Color(0x147A5CFF);
+  static const Color primaryWash = Color(0x1E7A5CFF);
 
-  static const Color secondary = Color(0xFFD887F5);
-  static const Color secondaryDark = Color(0xFF8C74E6);
-  static const Color secondaryLight = Color(0xFFF0E7FF);
-  static const Color secondaryWash = Color(0x108C74E6);
+  // ── Secondary (Light Purple / Lavender) ───────────────────────────────────
+  // No cyan — secondary is a lighter shade of purple
 
-  // ── Semantic / Status ────────────────────────────────────────────────────
+  static const Color secondary = Color(0xFFB794FF); // light lavender
+  static const Color secondaryDark = Color(0xFF9A72FF); // mid lavender
+  static const Color secondaryLight = Color(0xFF241A3A);
+  static const Color secondaryWash = Color(0x14B794FF);
 
-  static const Color success = primaryBright;
-  static const Color successDark = primaryDark;
+  // ── Tertiary (Neon Pink — accent only) ────────────────────────────────────
+
+  static const Color tertiary = Color(0xFFFF2BD6);
+  static const Color tertiaryDark = Color(0xFFCC1FAB);
+
+  // ── Semantic / Status ─────────────────────────────────────────────────────
+
+  static const Color success = Color(0xFF9A72FF); // mid-lavender for connected
+  static const Color successDark = Color(0xFF7A5CFF);
   static const Color warning = Color(0xFFFFB454);
-  static const Color warningDark = Color(0xFFC27A18);
-  static const Color error = Color(0xFFFF6A8B);
-  static const Color errorDark = Color(0xFFB83252);
+  static const Color warningDark = Color(0xFFD68910);
+  static const Color error = Color(0xFFFF4D6A);
+  static const Color errorDark = Color(0xFFCC3355);
 
-  static const Color successLight = primaryLight;
-  static const Color warningLight = Color(0xFFF8E3C9);
-  static const Color errorLight = Color(0xFFF5D3DB);
+  static const Color successLight = Color(0xFF1E1535);
+  static const Color warningLight = Color(0xFF221A0D);
+  static const Color errorLight = Color(0xFF220D12);
 
-  // ── Light Mode Surfaces ──────────────────────────────────────────────────
+  // ── Surfaces (dark plum ramp) ─────────────────────────────────────────────
 
-  static const Color background = Color(0xFFF8F7FB);
-  static const Color backgroundWarm = Color(0xFFF2F0F7);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceMuted = Color(0xFFF2F1F7);
-  static const Color surfaceElevated = Color(0xFFFFFFFF);
+  static const Color background = Color(0xFF0E0818); // deepest dark plum
+  static const Color backgroundWarm = Color(0xFF160F26); // slightly warmer
+  static const Color surface = Color(0xFF130B22);
+  static const Color surfaceMuted = Color(0xFF1E1535);
+  static const Color surfaceElevated = Color(0xFF291C47);
 
-  // ── Light Mode Text ──────────────────────────────────────────────────────
+  // ── Text (lavender-white ramp) ────────────────────────────────────────────
 
-  static const Color ink = Color(0xFF13111B);
-  static const Color inkMuted = Color(0xFF5F5A74);
-  static const Color inkSoft = Color(0xFF8A839D);
+  static const Color ink = Color(0xFFEDE6FF); // near-white with purple tint
+  static const Color inkMuted = Color(0xFFBAAFDD);
+  static const Color inkSoft = Color(0xFF8070A8);
 
-  // ── Light Mode Borders ───────────────────────────────────────────────────
+  // ── Borders ───────────────────────────────────────────────────────────────
 
-  static const Color border = Color(0xFFD9D4E5);
+  static const Color border = Color(0xFF3D2D66);
   static const Color borderFocus = primary;
 
-  // ── Dark Mode Surfaces ───────────────────────────────────────────────────
+  // ── Ambient Glows ─────────────────────────────────────────────────────────
 
-  static const Color darkBackground = Color(0xFF050508);
-  static const Color darkBackgroundWarm = Color(0xFF0B0B0F);
-  static const Color darkSurface = Color(0xFF111117);
-  static const Color darkSurfaceMuted = Color(0xFF15151C);
-  static const Color darkSurfaceElevated = Color(0xFF1A1A22);
-
-  // ── Dark Mode Text ───────────────────────────────────────────────────────
-
-  static const Color darkInk = Color(0xFFFAFAFF);
-  static const Color darkInkMuted = Color(0xFFB7B5C9);
-  static const Color darkInkSoft = Color(0xFF7F7B96);
-
-  // ── Dark Mode Borders ────────────────────────────────────────────────────
-
-  static const Color darkBorder = Color(0xFF2A2737);
-  static const Color darkBorderFocus = primaryBright;
-  static const Color darkGridLine = Color(0x0D8C74E6);
-
-  // ── Ambient Glows ────────────────────────────────────────────────────────
-
-  static const Color ambientGlowPrimary = Color(0x148EC5FF);
-  static const Color ambientGlowSecondary = Color(0x12D887F5);
-  static const Color ambientGlowTertiary = Color(0x108C74E6);
+  static const Color ambientGlowPrimary = Color(0x1E7A5CFF); // purple glow
+  static const Color ambientGlowSecondary = Color(0x12B794FF); // lavender glow
+  static const Color ambientGlowTertiary = Color(0x0EFF2BD6); // pink accent
 
   // ── Glass Tokens ─────────────────────────────────────────────────────────
 
   static Color get glassFillLight =>
-      const Color(0xFFFFFFFF).withValues(alpha: 0.74);
+      const Color(0xFF1A1130).withValues(alpha: 0.88);
 
   static Color get glassFillDark =>
-      const Color(0xFF0B0B0F).withValues(alpha: 0.82);
+      const Color(0xFF0E0818).withValues(alpha: 0.88);
 
   static Color get glassBorderLight =>
-      const Color(0xFFFFFFFF).withValues(alpha: 0.38);
+      const Color(0xFF7A5CFF).withValues(alpha: 0.30);
 
   static Color get glassBorderDark =>
-      const Color(0xFF8C74E6).withValues(alpha: 0.18);
+      const Color(0xFF7A5CFF).withValues(alpha: 0.30);
 
   // ── Gradient Presets ─────────────────────────────────────────────────────
 
-  static const Gradient heroGradientLight = RadialGradient(
-    center: Alignment.topCenter,
-    radius: 1.2,
-    colors: [Color(0xFFF7F6FF), Color(0xFFFFF0FC)],
+  static const Gradient heroGradientLight = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [background, backgroundWarm],
     stops: [0.0, 1.0],
   );
 
-  static const Gradient heroGradientDark = RadialGradient(
-    center: Alignment.topCenter,
-    radius: 1.2,
-    colors: [Color(0xFF18131F), darkBackground],
-    stops: [0.0, 1.0],
-  );
+  static const Gradient heroGradientDark = heroGradientLight;
 
+  /// Dark purple → neon purple → light lavender
   static const Gradient brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [secondary, secondaryDark, primaryBright],
+    colors: [primaryDark, primary, primaryBright],
   );
 
   static const Gradient authHeaderGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [secondaryDark, secondary, primaryBright],
+    colors: [primaryDeep, primaryDark, primary],
   );
 
+  /// Connected state: neon purple → lavender
   static const Gradient connectedGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [secondaryDark, primary, primaryBright],
+    colors: [primary, primaryBright],
   );
 
+  // Neutral plum gradient.
   static const Gradient navyGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [darkBackgroundWarm, darkBackground],
+    colors: [backgroundWarm, background],
   );
 
-  static const Gradient cyanGradient = LinearGradient(
+  /// Lavender accent gradient
+  static const Gradient lavenderGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [secondaryDark, secondary],
+    colors: [secondary, secondaryDark],
   );
 
-  // ── ColorScheme Builders ────────────────────────────────────────────────
+  // ── Dark aliases ─────────────────────────────────────────────────────────
+
+  static const Color darkBackground = background;
+  static const Color darkBackgroundWarm = backgroundWarm;
+  static const Color darkSurface = surface;
+  static const Color darkSurfaceMuted = surfaceMuted;
+  static const Color darkSurfaceElevated = surfaceElevated;
+
+  static const Color darkInk = ink;
+  static const Color darkInkMuted = inkMuted;
+  static const Color darkInkSoft = inkSoft;
+
+  static const Color darkBorder = border;
+  static const Color darkBorderFocus = borderFocus;
+  static const Color darkGridLine = Color(0x127A5CFF);
+
+  // ── ColorScheme Builders ─────────────────────────────────────────────────
 
   static ColorScheme lightScheme() {
     return ColorScheme.fromSeed(
-      seedColor: primaryBright,
-      brightness: Brightness.light,
+      seedColor: primary,
+      brightness: Brightness.dark,
     ).copyWith(
       primary: primary,
-      onPrimary: Colors.white,
+      onPrimary: ink,
       primaryContainer: primaryLight,
-      onPrimaryContainer: primaryDeep,
+      onPrimaryContainer: primaryBright,
       secondary: secondary,
-      onSecondary: Colors.white,
+      onSecondary: background,
       secondaryContainer: secondaryLight,
-      onSecondaryContainer: const Color(0xFF3A215E),
+      onSecondaryContainer: ink,
+      tertiary: tertiary,
+      onTertiary: ink,
       error: errorDark,
-      onError: Colors.white,
+      onError: background,
       surface: surface,
       onSurface: ink,
       surfaceContainerHighest: surfaceMuted,
       onSurfaceVariant: inkMuted,
       outline: border,
-      outlineVariant: const Color(0xFFE8E3F0),
-      shadow: ink,
-      scrim: ink,
+      outlineVariant: const Color(0xFF2E1F52),
+      shadow: const Color(0xFF0A0612),
+      scrim: const Color(0xFF0E0818),
     );
   }
 
-  static ColorScheme darkScheme() {
-    return ColorScheme.fromSeed(
-      seedColor: primaryBright,
-      brightness: Brightness.dark,
-    ).copyWith(
-      primary: primaryBright,
-      onPrimary: darkBackground,
-      primaryContainer: darkSurfaceElevated,
-      onPrimaryContainer: primaryLight,
-      secondary: secondary,
-      onSecondary: darkBackground,
-      surface: darkSurface,
-      onSurface: darkInk,
-      surfaceContainerLowest: darkBackground,
-      surfaceContainerLow: darkBackgroundWarm,
-      surfaceContainer: darkSurface,
-      surfaceContainerHigh: darkSurfaceMuted,
-      surfaceContainerHighest: darkSurfaceElevated,
-      onSurfaceVariant: darkInkMuted,
-      outline: darkBorder,
-      outlineVariant: const Color(0xFF211F2B),
-      error: error,
-      onError: darkBackground,
-      shadow: Colors.black,
-      scrim: Colors.black,
-      inverseSurface: darkInk,
-      onInverseSurface: darkBackground,
-      inversePrimary: secondaryDark,
-    );
-  }
+  // darkScheme() kept for compile compatibility — returns same dark scheme.
+  static ColorScheme darkScheme() => lightScheme();
 }

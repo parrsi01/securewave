@@ -9,7 +9,7 @@ import '../theme/app_colors.dart' as htb;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Lightweight animated SecureWave ambient background for use as the bottom
-/// layer in a Stack.
+/// layer in a Stack. Dark plum base, neon purple/lavender ambient glow.
 class HtbBackground extends StatelessWidget {
   const HtbBackground({super.key});
 
@@ -24,25 +24,27 @@ class HtbBackground extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
+            // Near-black base gradient
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    AppColors.darkBackground,
-                    AppColors.darkBackgroundWarm,
-                    AppColors.darkSurface,
+                    AppColors.background,
+                    AppColors.backgroundWarm,
+                    AppColors.surfaceMuted,
                   ],
                   stops: [0.0, 0.52, 1.0],
                 ),
               ),
             ),
+            // Neon purple radial glow top-left
             Transform.translate(
               offset: Offset(-42 * drift, -56 * drift),
-              child: const Opacity(
-                opacity: 0.78,
-                child: DecoratedBox(
+              child: Opacity(
+                opacity: 0.78 * value,
+                child: const DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: RadialGradient(
                       center: Alignment(-0.72, -0.96),
@@ -58,11 +60,12 @@ class HtbBackground extends StatelessWidget {
                 ),
               ),
             ),
+            // Neon purple glow bottom-right
             Transform.translate(
               offset: Offset(48 * drift, 76 * drift),
-              child: const Opacity(
-                opacity: 0.54,
-                child: DecoratedBox(
+              child: Opacity(
+                opacity: 0.78 * value,
+                child: const DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: RadialGradient(
                       center: Alignment(0.92, 1.08),
@@ -78,6 +81,7 @@ class HtbBackground extends StatelessWidget {
                 ),
               ),
             ),
+            // Subtle top-center neon wash
             Align(
               alignment: Alignment.topCenter,
               child: IgnorePointer(
@@ -93,8 +97,8 @@ class HtbBackground extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        htb.HtbColors.accentSecondaryGhost.withValues(
-                          alpha: 0.16 * value,
+                        htb.HtbColors.accentPrimaryGhost.withValues(
+                          alpha: 0.06 * value,
                         ),
                         Colors.transparent,
                       ],
@@ -103,6 +107,7 @@ class HtbBackground extends StatelessWidget {
                 ),
               ),
             ),
+            // Faint purple grid
             const Positioned.fill(
               child: RepaintBoundary(
                 child: CustomPaint(painter: _GridPainter()),
@@ -126,19 +131,18 @@ class _GridPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Faint purple at ~5% opacity — subtle on dark backgrounds
     final paint = Paint()
-      ..color = AppColors.darkGridLine
+      ..color = const Color(0x0D7A5CFF)
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
 
-    // Vertical lines
     double x = 0;
     while (x <= size.width) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
       x += _cellSize;
     }
 
-    // Horizontal lines
     double y = 0;
     while (y <= size.height) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
@@ -154,8 +158,8 @@ class _GridPainter extends CustomPainter {
 // HtbScaffoldBackground
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Convenience wrapper: fills the scaffold area with the solid bg0 color
-/// and overlays HtbBackground effects. Use this as the body's Stack base.
+/// Convenience wrapper: fills the scaffold area with near-black and overlays
+/// HtbBackground ambient effects.
 class HtbScaffoldBackground extends StatelessWidget {
   const HtbScaffoldBackground({super.key, required this.child});
 
@@ -166,7 +170,7 @@ class HtbScaffoldBackground extends StatelessWidget {
     return Stack(
       children: [
         const ColoredBox(
-            color: AppColors.darkBackground, child: SizedBox.expand()),
+            color: AppColors.background, child: SizedBox.expand()),
         const HtbBackground(),
         child,
       ],

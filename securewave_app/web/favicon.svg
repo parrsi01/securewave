@@ -3,19 +3,16 @@
   <defs>
     <linearGradient id="waveA" x1="19" y1="29" x2="45" y2="35" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#7a5cff"/>
-      <stop offset="1" stop-color="#5a3fcc"/>
+      <stop offset="1" stop-color="#b794ff"/>
     </linearGradient>
     <linearGradient id="waveB" x1="21" y1="36" x2="43" y2="40" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#7a5cff"/>
-      <stop offset="1" stop-color="#7a5cff" stop-opacity="0.7"/>
+      <stop offset="0" stop-color="#9a72ff"/>
+      <stop offset="1" stop-color="#9a72ff" stop-opacity="0.6"/>
     </linearGradient>
   </defs>
-  <!-- Tile background -->
-  <rect x="0" y="0" width="64" height="64" rx="12" fill="#ffffff"/>
-  <!-- Shield outline -->
-  <path d="M32 8c-7 5-13 8-19 9v13c0 12 7 21 19 29 12-8 19-17 19-29V17c-6-1-12-4-19-9z" fill="#f4efff" stroke="#7a5cff" stroke-width="1.6"/>
-  <!-- Waves -->
+  <rect x="0" y="0" width="64" height="64" rx="12" fill="#0e0818"/>
+  <path d="M32 8c-7 5-13 8-19 9v13c0 12 7 21 19 29 12-8 19-17 19-29V17c-6-1-12-4-19-9z" fill="#1e1535" stroke="#7a5cff" stroke-width="1.6"/>
   <path d="M20 31c4-4 8-5 13-5 5 1 8 2 11 5" stroke="url(#waveA)" stroke-width="3" stroke-linecap="round"/>
   <path d="M21 37c3-3 7-4 11-4 4 0 7 1 10 4" stroke="url(#waveB)" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M24 43c2-1 5-2 8-2 3 0 5 1 8 2" stroke="#7a5cff" stroke-opacity="0.6" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M24 43c2-1 5-2 8-2 3 0 5 1 8 2" stroke="#ff2bd6" stroke-opacity="0.50" stroke-width="1.8" stroke-linecap="round"/>
 </svg>

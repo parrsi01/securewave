@@ -1,15 +1,19 @@
 // =============================================================================
 // CHANGELOG
 // =============================================================================
-// v2.1.0 (2026-03-26) — SecureWave Night Pulse redesign
-//   - Deep slate surfaces with electric blue primary and neon pink/purple
-//     secondary accents
-//   - Glass panels, luminous gradients, and tighter Material 3 coverage
-//   - Full component theme coverage: AppBar, Card, Button, Input, Chip,
-//     NavigationDrawer, Divider, Icon
-//   - AppTokens + AppTypography wired in (Manrope + JetBrains Mono)
-//   - Two ThemeExtensions: HtbGradients, HtbSemanticColors
-//   - Glass card theme via CardTheme (transparent, custom border)
+// v4.1.0 (2026-03-26) — Strict neon dark color transformation
+//   - Preserved stable layout and component structure
+//   - Enforced near-black surfaces (#0B0B0F / #111117 / #1A1A22)
+//   - Enforced neon accent system: blue (#4CC9FF), purple (#7A5CFF),
+//     pink (#FF2BD6)
+//   - Removed remaining legacy palette references from the shared
+//     Material theme docs
+// v4.0.0 (2026-03-26) — Neon dark mode: blue + purple palette
+//   - Full dark theme: near-black surfaces (#0B0B0F), neon blue primary
+//     (#4CC9FF), neon purple secondary (#7A5CFF), light text (#E8E6F0)
+//   - HtbTheme.dark() now produces a true dark Material3 theme
+//   - SystemUiOverlayStyle: dark status bar with light icons
+//   - Input fill: bg2 (#1A1A22), focusedBorder: accentPrimary (#4CC9FF)
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -41,29 +45,27 @@ class HtbGradients extends ThemeExtension<HtbGradients> {
     shellBackground: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [HtbColors.bg0, HtbColors.bg2],
+      colors: [HtbColors.bg0, HtbColors.bg1],
     ),
     connectedGlow: RadialGradient(
       center: Alignment.topCenter,
       radius: 1.1,
-      colors: [HtbColors.glowSecondary, HtbColors.bg0],
+      colors: [HtbColors.glowPrimarySoft, HtbColors.bg0],
     ),
     ctaButton: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        HtbColors.accentSecondary,
-        HtbColors.accentSecondaryMuted,
         HtbColors.accentPrimary,
+        HtbColors.accentPrimaryMuted,
       ],
     ),
     neonEdge: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        HtbColors.accentSecondary,
-        HtbColors.accentSecondaryMuted,
         HtbColors.accentPrimary,
+        HtbColors.accentSecondary,
       ],
     ),
   );
@@ -187,6 +189,7 @@ extension HtbThemeContext on BuildContext {
 class HtbTheme {
   HtbTheme._();
 
+  /// Returns the SecureWave strict neon dark theme.
   static ThemeData dark() {
     final colorScheme = HtbColors.darkScheme();
     final textTheme = AppTypography.textTheme();
@@ -223,7 +226,7 @@ class HtbTheme {
 
       // ── Card ──────────────────────────────────────────────────────────────
       cardTheme: const CardThemeData(
-        color: HtbColors.glassFill,
+        color: HtbColors.bg1,
         shadowColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -301,7 +304,7 @@ class HtbTheme {
           ),
           shape: const RoundedRectangleBorder(borderRadius: AppTokens.brMedium),
           side: const BorderSide(
-            color: HtbColors.glassBorderDefault,
+            color: HtbColors.border,
             width: AppTokens.neonBorderWidth,
           ),
           textStyle: AppTypography.textTheme().labelLarge?.copyWith(
@@ -346,7 +349,7 @@ class HtbTheme {
         focusedBorder: OutlineInputBorder(
           borderRadius: AppTokens.brMedium,
           borderSide: BorderSide(
-            color: HtbColors.accentSecondaryMuted,
+            color: HtbColors.accentPrimary,
             width: AppTokens.neonBorderWidth,
           ),
         ),
@@ -465,7 +468,7 @@ class HtbTheme {
       // ── Tooltip ──────────────────────────────────────────────────────────
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: HtbColors.bg3,
+          color: HtbColors.bg2,
           borderRadius: AppTokens.brSmall,
           border: Border.all(color: HtbColors.border),
         ),
@@ -480,7 +483,7 @@ class HtbTheme {
 
       // ── SnackBar ─────────────────────────────────────────────────────────
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: HtbColors.bg3,
+        backgroundColor: HtbColors.bg2,
         contentTextStyle: AppTypography.textTheme().bodyMedium?.copyWith(
               color: HtbColors.textPrimary,
             ),
@@ -513,8 +516,8 @@ class HtbTheme {
 
       // ── BottomSheet ───────────────────────────────────────────────────────
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: HtbColors.bg1,
-        modalBackgroundColor: HtbColors.bg1,
+        backgroundColor: HtbColors.bg2,
+        modalBackgroundColor: HtbColors.bg2,
         elevation: 0,
         modalElevation: 0,
         shape: RoundedRectangleBorder(
@@ -560,7 +563,7 @@ class HtbTheme {
           if (states.contains(WidgetState.selected)) {
             return HtbColors.accentPrimary;
           }
-          return HtbColors.bg3;
+          return HtbColors.bg2;
         }),
         trackOutlineColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
