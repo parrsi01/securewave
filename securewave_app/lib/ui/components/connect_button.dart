@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/logging/app_logger.dart';
-import '../../core/theme/app_theme.dart';
 import '../../debug/automation_keys.dart';
+import '../design/app_colors.dart';
+import '../design/app_spacing.dart';
+import '../theme/app_colors.dart' as htb;
 import '../widgets/vpn_ui_bindings.dart';
 
 /// Central connect/disconnect button with animated states.
@@ -14,10 +16,10 @@ import '../widgets/vpn_ui_bindings.dart';
 /// pending-timer issues in widget tests.
 ///
 /// Animations:
-/// - **Pulse**: gentle scale 1→1.04 when connected (breathing effect).
+/// - **Pulse**: subtle scale 1→1.01 when connected.
 /// - **Spin**: 120° arc rotation when busy (connecting/disconnecting/reconnecting).
 /// - **Crossfade**: icon + label smoothly transition between states.
-/// - **Glow**: box shadow color animates via [AnimatedContainer].
+/// - **Glow**: reserved for the button itself, never for passive status UI.
 class ConnectButton extends StatefulWidget {
   const ConnectButton({
     super.key,
@@ -49,7 +51,7 @@ class _ConnectButtonState extends State<ConnectButton>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     );
-    _scale = Tween<double>(begin: 1, end: 1.04).animate(
+    _scale = Tween<double>(begin: 1, end: 1.01).animate(
       CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
     );
     _spin = AnimationController(
@@ -132,7 +134,6 @@ class _ConnectButtonState extends State<ConnectButton>
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // ── Animated background + glow ────────────────────────────
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOutCubic,
@@ -140,32 +141,38 @@ class _ConnectButtonState extends State<ConnectButton>
                   height: _size,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: _gradient(widget.visualState),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _glowColor(widget.visualState)
-                            .withValues(alpha: 0.35),
-                        blurRadius: 32,
-                        spreadRadius: 4,
+                    gradient: _background(widget.visualState),
+                    border: Border.all(
+                      color: _borderColor(widget.visualState),
+                      width: 1.2,
+                    ),
+                    boxShadow: <BoxShadow>[
+                      const BoxShadow(
+                        color: Color(0x42020306),
+                        blurRadius: 18,
+                        offset: Offset(0, 10),
                       ),
+                      if (_showGlow(widget.visualState))
+                        BoxShadow(
+                          color: _accentColor(widget.visualState)
+                              .withValues(alpha: 0.18),
+                          blurRadius: 22,
+                          offset: const Offset(0, 8),
+                        ),
                     ],
                   ),
                 ),
-
-                // ── Outer ring ────────────────────────────────────────────
                 Container(
                   width: _size - 8,
                   height: _size - 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppTheme.ringOutlineColor,
-                      width: 2,
+                      color: _innerRingColor(widget.visualState),
+                      width: 1.6,
                     ),
                   ),
                 ),
-
-                // ── Spinning arc for busy states ──────────────────────────
                 if (busy)
                   AnimatedBuilder(
                     animation: _spin,
@@ -176,15 +183,13 @@ class _ConnectButtonState extends State<ConnectButton>
                         height: _size - 20,
                         child: CustomPaint(
                           painter: _ArcPainter(
-                            color: AppTheme.ringSpinnerColor,
+                            color: _accentColor(widget.visualState),
                             strokeWidth: AppSpacing.connectionRingStroke,
                           ),
                         ),
                       ),
                     ),
                   ),
-
-                // ── Icon + label with crossfade ───────────────────────────
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 250),
                   switchInCurve: Curves.easeOutCubic,
@@ -201,14 +206,14 @@ class _ConnectButtonState extends State<ConnectButton>
                       children: [
                         Icon(
                           _icon(widget.visualState),
-                          color: AppTheme.ringForegroundColor,
+                          color: _foregroundColor(widget.visualState),
                           size: 40,
                         ),
                         const SizedBox(height: 8),
                         Text(
                           _label(widget.visualState),
-                          style: const TextStyle(
-                            color: AppTheme.ringForegroundColor,
+                          style: TextStyle(
+                            color: _foregroundColor(widget.visualState),
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
                             letterSpacing: 0.5,
@@ -226,16 +231,65 @@ class _ConnectButtonState extends State<ConnectButton>
     );
   }
 
-  Gradient _gradient(ConnectionVisualState s) => switch (s) {
-        ConnectionVisualState.connected => AppTheme.connectionGradient(s),
-        ConnectionVisualState.error => AppTheme.connectionGradient(s),
-        _ => AppTheme.connectionGradient(s),
+  Gradient _background(ConnectionVisualState s) => switch (s) {
+        ConnectionVisualState.connected => const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              htb.HtbColors.accentPrimaryMuted,
+              htb.HtbColors.accentPrimary,
+            ],
+          ),
+        ConnectionVisualState.error => const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              AppColors.errorDark,
+              AppColors.error,
+            ],
+          ),
+        _ => const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[htb.HtbColors.bg2, htb.HtbColors.bg1],
+          ),
       };
 
-  Color _glowColor(ConnectionVisualState s) => switch (s) {
-        ConnectionVisualState.connected => AppTheme.connectionColor(s),
-        ConnectionVisualState.error => AppTheme.connectionColor(s),
-        _ => AppTheme.connectionColor(s),
+  Color _accentColor(ConnectionVisualState s) => switch (s) {
+        ConnectionVisualState.error => AppColors.error,
+        _ => htb.HtbColors.accentPrimary,
+      };
+
+  Color _foregroundColor(ConnectionVisualState s) => htb.HtbColors.textPrimary;
+
+  Color _borderColor(ConnectionVisualState s) => switch (s) {
+        ConnectionVisualState.error => AppColors.error.withValues(alpha: 0.42),
+        ConnectionVisualState.connected =>
+          htb.HtbColors.accentPrimary.withValues(alpha: 0.48),
+        ConnectionVisualState.connecting =>
+          htb.HtbColors.accentPrimary.withValues(alpha: 0.34),
+        ConnectionVisualState.reconnecting =>
+          htb.HtbColors.accentPrimary.withValues(alpha: 0.34),
+        ConnectionVisualState.disconnecting =>
+          htb.HtbColors.textSecondary.withValues(alpha: 0.24),
+        ConnectionVisualState.disconnected =>
+          htb.HtbColors.border.withValues(alpha: 0.92),
+      };
+
+  Color _innerRingColor(ConnectionVisualState s) => switch (s) {
+        ConnectionVisualState.error => AppColors.error.withValues(alpha: 0.34),
+        ConnectionVisualState.disconnected =>
+          htb.HtbColors.border.withValues(alpha: 0.55),
+        _ => _accentColor(s).withValues(alpha: 0.28),
+      };
+
+  bool _showGlow(ConnectionVisualState s) => switch (s) {
+        ConnectionVisualState.connected => true,
+        ConnectionVisualState.connecting => true,
+        ConnectionVisualState.reconnecting => true,
+        ConnectionVisualState.error => true,
+        ConnectionVisualState.disconnecting => false,
+        ConnectionVisualState.disconnected => false,
       };
 
   IconData _icon(ConnectionVisualState s) => switch (s) {

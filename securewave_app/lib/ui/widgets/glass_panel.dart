@@ -1,14 +1,13 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
+import '../theme/app_colors.dart' as htb;
 
-/// Frosted glass card with backdrop blur.
+/// Shared elevated panel surface.
 ///
-/// Adapts fill & border colors to current brightness using AppColors
-/// glassmorphism tokens.
+/// Keeps cards on flat dark surfaces with restrained borders so only buttons
+/// and interactive states carry accent glow.
 class GlassPanel extends StatelessWidget {
   const GlassPanel({
     super.key,
@@ -37,54 +36,30 @@ class GlassPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fillColor =
-        color ?? (isDark ? AppColors.glassFillDark : AppColors.glassFillLight);
-    final resolvedBorderColor = borderColor ??
-        (isDark ? AppColors.glassBorderDark : AppColors.glassBorderLight);
+    final fillColor = color ?? (isDark ? htb.HtbColors.bg1 : AppColors.surface);
+    final resolvedBorderColor =
+        borderColor ?? (isDark ? htb.HtbColors.border : AppColors.border);
     final radius = borderRadius ?? BorderRadius.circular(AppSpacing.radiusL);
-    final shadowColor = glowColor ??
-        (isDark
-            ? AppColors.primaryBright
-            : Colors.black.withValues(alpha: 0.1));
+    final activeBorderColor = glowColor == null
+        ? resolvedBorderColor
+        : glowColor!.withValues(alpha: 0.22);
 
-    return ClipRRect(
-      borderRadius: radius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-        child: Container(
-          decoration: BoxDecoration(
-            color: fillColor,
-            gradient: gradient,
-            borderRadius: radius,
-            border: Border.all(color: resolvedBorderColor, width: 1),
-            boxShadow: isDark
-                ? [
-                    BoxShadow(
-                      color: shadowColor.withValues(
-                        alpha: glowColor == null ? 0.18 : 0.22,
-                      ),
-                      blurRadius: 28,
-                      offset: const Offset(0, 16),
-                    ),
-                    if (glowColor != null)
-                      BoxShadow(
-                        color: glowColor!.withValues(alpha: 0.14),
-                        blurRadius: 44,
-                        spreadRadius: -6,
-                      ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 20,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
+    return Container(
+      decoration: BoxDecoration(
+        color: fillColor,
+        gradient: gradient,
+        borderRadius: radius,
+        border: Border.all(color: activeBorderColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
-          padding: padding ?? const EdgeInsets.all(AppSpacing.cardPadding),
-          child: child,
-        ),
+        ],
       ),
+      padding: padding ?? const EdgeInsets.all(AppSpacing.cardPadding),
+      child: child,
     );
   }
 }

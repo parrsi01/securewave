@@ -1,19 +1,16 @@
 // =============================================================================
 // CHANGELOG
 // =============================================================================
-// v4.1.0 (2026-03-26) — Strict neon dark color transformation
-//   - Preserved stable layout and component structure
-//   - Enforced near-black surfaces (#0B0B0F / #111117 / #1A1A22)
-//   - Enforced neon accent system: blue (#4CC9FF), purple (#7A5CFF),
-//     pink (#FF2BD6)
-//   - Removed remaining legacy palette references from the shared
-//     Material theme docs
-// v4.0.0 (2026-03-26) — Neon dark mode: blue + purple palette
-//   - Full dark theme: near-black surfaces (#0B0B0F), neon blue primary
-//     (#4CC9FF), neon purple secondary (#7A5CFF), light text (#E8E6F0)
-//   - HtbTheme.dark() now produces a true dark Material3 theme
-//   - SystemUiOverlayStyle: dark status bar with light icons
-//   - Input fill: bg2 (#1A1A22), focusedBorder: accentPrimary (#4CC9FF)
+// v1.2.0 (2026-03-27) — Controlled cyberpunk refinement
+//   - Near-black base surfaces with restrained purple/blue accents
+//   - Glow reserved for buttons and active interactive states
+//   - Reduced gradient noise and aligned Material components to shared tokens
+//   - Shared branding aligned with the website and SVG mark refresh
+//   - Full component theme coverage: AppBar, Card, Button, Input, Chip,
+//     NavigationDrawer, Divider, Icon
+//   - AppTokens + AppTypography wired in (Manrope + JetBrains Mono)
+//   - Two ThemeExtensions: HtbGradients, HtbSemanticColors
+//   - Glass card theme via CardTheme (transparent, custom border)
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -55,18 +52,12 @@ class HtbGradients extends ThemeExtension<HtbGradients> {
     ctaButton: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [
-        HtbColors.accentPrimary,
-        HtbColors.accentPrimaryMuted,
-      ],
+      colors: [HtbColors.accentPrimary, HtbColors.accentPrimaryMuted],
     ),
     neonEdge: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [
-        HtbColors.accentPrimary,
-        HtbColors.accentSecondary,
-      ],
+      colors: [HtbColors.accentPrimary, HtbColors.accentSecondary],
     ),
   );
 
@@ -189,7 +180,6 @@ extension HtbThemeContext on BuildContext {
 class HtbTheme {
   HtbTheme._();
 
-  /// Returns the SecureWave strict neon dark theme.
   static ThemeData dark() {
     final colorScheme = HtbColors.darkScheme();
     final textTheme = AppTypography.textTheme();
@@ -255,7 +245,7 @@ class HtbTheme {
             horizontal: AppTokens.paddingL,
             vertical: AppTokens.paddingS,
           ),
-          shape: const RoundedRectangleBorder(borderRadius: AppTokens.brMedium),
+          shape: const RoundedRectangleBorder(borderRadius: AppTokens.brLarge),
           elevation: 0,
           shadowColor: Colors.transparent,
           textStyle: AppTypography.textTheme().labelLarge?.copyWith(
@@ -265,6 +255,7 @@ class HtbTheme {
         ),
       ),
 
+      // ── FilledButton ─────────────────────────────────────────────────────
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: HtbColors.accentPrimary,
@@ -279,7 +270,7 @@ class HtbTheme {
             horizontal: AppTokens.paddingL,
             vertical: AppTokens.paddingS,
           ),
-          shape: const RoundedRectangleBorder(borderRadius: AppTokens.brMedium),
+          shape: const RoundedRectangleBorder(borderRadius: AppTokens.brLarge),
           elevation: 0,
           shadowColor: Colors.transparent,
           textStyle: AppTypography.textTheme().labelLarge?.copyWith(
@@ -302,7 +293,7 @@ class HtbTheme {
             horizontal: AppTokens.paddingL,
             vertical: AppTokens.paddingS,
           ),
-          shape: const RoundedRectangleBorder(borderRadius: AppTokens.brMedium),
+          shape: const RoundedRectangleBorder(borderRadius: AppTokens.brLarge),
           side: const BorderSide(
             color: HtbColors.border,
             width: AppTokens.neonBorderWidth,
@@ -441,6 +432,53 @@ class HtbTheme {
         }),
       ),
 
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: HtbColors.bg1,
+        indicatorColor: HtbColors.accentPrimaryGhost,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return AppTypography.textTheme().labelSmall?.copyWith(
+                color: selected
+                    ? HtbColors.accentPrimary
+                    : HtbColors.textSecondary,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          return IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? HtbColors.accentPrimary
+                : HtbColors.textSecondary,
+            size: AppTokens.iconM,
+          );
+        }),
+      ),
+
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: HtbColors.bg1,
+        indicatorColor: HtbColors.accentPrimaryGhost,
+        selectedIconTheme: const IconThemeData(
+          color: HtbColors.accentPrimary,
+          size: AppTokens.iconM,
+        ),
+        unselectedIconTheme: const IconThemeData(
+          color: HtbColors.textSecondary,
+          size: AppTokens.iconM,
+        ),
+        selectedLabelTextStyle: AppTypography.textTheme().labelMedium?.copyWith(
+              color: HtbColors.accentPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+        unselectedLabelTextStyle:
+            AppTypography.textTheme().labelMedium?.copyWith(
+                  color: HtbColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+        elevation: 0,
+      ),
+
       // ── Icon ─────────────────────────────────────────────────────────────
       iconTheme: const IconThemeData(
         color: HtbColors.textSecondary,
@@ -468,7 +506,7 @@ class HtbTheme {
       // ── Tooltip ──────────────────────────────────────────────────────────
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: HtbColors.bg2,
+          color: HtbColors.bg3,
           borderRadius: AppTokens.brSmall,
           border: Border.all(color: HtbColors.border),
         ),
@@ -483,7 +521,7 @@ class HtbTheme {
 
       // ── SnackBar ─────────────────────────────────────────────────────────
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: HtbColors.bg2,
+        backgroundColor: HtbColors.bg3,
         contentTextStyle: AppTypography.textTheme().bodyMedium?.copyWith(
               color: HtbColors.textPrimary,
             ),
@@ -516,8 +554,8 @@ class HtbTheme {
 
       // ── BottomSheet ───────────────────────────────────────────────────────
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: HtbColors.bg2,
-        modalBackgroundColor: HtbColors.bg2,
+        backgroundColor: HtbColors.bg1,
+        modalBackgroundColor: HtbColors.bg1,
         elevation: 0,
         modalElevation: 0,
         shape: RoundedRectangleBorder(
@@ -563,7 +601,7 @@ class HtbTheme {
           if (states.contains(WidgetState.selected)) {
             return HtbColors.accentPrimary;
           }
-          return HtbColors.bg2;
+          return HtbColors.bg3;
         }),
         trackOutlineColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {

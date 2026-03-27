@@ -122,15 +122,13 @@ class _DesktopRail extends StatelessWidget {
           color: isDark ? htb.HtbColors.divider : cs.outlineVariant,
           width: 1,
         ),
-        boxShadow: isDark
-            ? const [
-                BoxShadow(
-                  color: htb.HtbColors.accentSecondaryGhost,
-                  blurRadius: 26,
-                  offset: Offset(0, 18),
-                ),
-              ]
-            : null,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x30020306),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,14 +146,7 @@ class _DesktopRail extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.space3),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: <Color>[
-                          htb.HtbColors.accentSecondaryGhost,
-                          htb.HtbColors.accentPrimaryGhost,
-                        ],
-                      ),
+                      color: htb.HtbColors.bg0,
                       borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
                       border: Border.all(
                         color: htb.HtbColors.glassBorderDefault,
@@ -234,25 +225,12 @@ class _RailItem extends StatelessWidget {
         curve: AppTokens.curveDefault,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-          gradient: selected
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    activeBg,
-                    htb.HtbColors.accentSecondaryGhost.withValues(alpha: 0.22),
-                  ],
-                )
-              : null,
-          boxShadow: selected && isDark
-              ? const [
-                  BoxShadow(
-                    color: htb.HtbColors.accentSecondaryGhost,
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ]
-              : null,
+          color: selected ? activeBg : Colors.transparent,
+          border: Border.all(
+            color: selected
+                ? htb.HtbColors.accentPrimary.withValues(alpha: 0.18)
+                : Colors.transparent,
+          ),
         ),
         child: Material(
           color: Colors.transparent,
@@ -278,26 +256,10 @@ class _RailItem extends StatelessWidget {
                             height: selected ? 30 : 14,
                             margin: const EdgeInsets.only(right: 10),
                             decoration: BoxDecoration(
-                              gradient: selected
-                                  ? const LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        htb.HtbColors.accentSecondary,
-                                        htb.HtbColors.accentPrimary,
-                                      ],
-                                    )
-                                  : null,
-                              color: selected ? null : Colors.transparent,
+                              color: selected
+                                  ? htb.HtbColors.accentPrimary
+                                  : Colors.transparent,
                               borderRadius: AppTokens.brSmall,
-                              boxShadow: selected && isDark
-                                  ? const <BoxShadow>[
-                                      BoxShadow(
-                                        color: htb.HtbColors.glowSecondary,
-                                        blurRadius: 10,
-                                      ),
-                                    ]
-                                  : null,
                             ),
                           ),
                           Icon(
@@ -330,16 +292,7 @@ class _RailItem extends StatelessWidget {
                             padding: const EdgeInsets.all(AppSpacing.space2),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              gradient: selected
-                                  ? const LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: <Color>[
-                                        htb.HtbColors.accentSecondaryGhost,
-                                        htb.HtbColors.accentPrimaryGhost,
-                                      ],
-                                    )
-                                  : null,
+                              color: selected ? activeBg : Colors.transparent,
                             ),
                             child: Icon(
                               selected ? activeIcon : icon,
@@ -405,15 +358,13 @@ class _BottomBar extends StatelessWidget {
             color: isDark ? htb.HtbColors.divider : cs.outlineVariant,
             width: 1,
           ),
-          boxShadow: isDark
-              ? const [
-                  BoxShadow(
-                    color: htb.HtbColors.accentSecondaryGhost,
-                    blurRadius: 24,
-                    offset: Offset(0, 12),
-                  ),
-                ]
-              : null,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x28020306),
+              blurRadius: 16,
+              offset: Offset(0, 8),
+            ),
+          ],
         ),
         child: SafeArea(
           top: false,
@@ -477,25 +428,14 @@ class _BarItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
-              gradient: selected
-                  ? const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        htb.HtbColors.accentSecondaryGhost,
-                        htb.HtbColors.accentPrimaryGhost,
-                      ],
-                    )
-                  : null,
-              boxShadow: selected && isDark
-                  ? const [
-                      BoxShadow(
-                        color: htb.HtbColors.accentSecondaryGhost,
-                        blurRadius: 14,
-                        offset: Offset(0, 6),
-                      ),
-                    ]
-                  : null,
+              color: selected
+                  ? htb.HtbColors.accentPrimaryGhost
+                  : Colors.transparent,
+              border: Border.all(
+                color: selected
+                    ? htb.HtbColors.accentPrimary.withValues(alpha: 0.18)
+                    : Colors.transparent,
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

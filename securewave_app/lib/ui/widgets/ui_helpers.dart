@@ -137,13 +137,10 @@ class StatusDot extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.4),
-            blurRadius: 6,
-            spreadRadius: 1,
-          ),
-        ],
+        border: Border.all(
+          color: color.withValues(alpha: 0.45),
+          width: 1.2,
+        ),
       ),
     );
   }

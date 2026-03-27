@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
+import '../theme/app_colors.dart' as htb;
 import '../widgets/vpn_ui_bindings.dart';
 
 /// Small dot + label showing VPN visual state.
@@ -26,7 +27,7 @@ class _StatusIndicatorState extends State<StatusIndicator>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
-    _scale = Tween<double>(begin: 1, end: 1.4).animate(
+    _scale = Tween<double>(begin: 1, end: 1.14).animate(
       CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
     );
     _updateAnimation();
@@ -75,13 +76,10 @@ class _StatusIndicatorState extends State<StatusIndicator>
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.4),
-                    blurRadius: 6,
-                    spreadRadius: 1,
-                  ),
-                ],
+                border: Border.all(
+                  color: color.withValues(alpha: 0.45),
+                  width: 1.2,
+                ),
               ),
             ),
           ),
@@ -99,12 +97,12 @@ class _StatusIndicatorState extends State<StatusIndicator>
   }
 
   Color _color(ConnectionVisualState s) => switch (s) {
-        ConnectionVisualState.connected => AppColors.success,
-        ConnectionVisualState.connecting => AppColors.secondary,
-        ConnectionVisualState.reconnecting => AppColors.warning,
-        ConnectionVisualState.disconnecting => AppColors.darkInkSoft,
+        ConnectionVisualState.connected => htb.HtbColors.accentPrimary,
+        ConnectionVisualState.connecting => htb.HtbColors.accentPrimary,
+        ConnectionVisualState.reconnecting => htb.HtbColors.accentPrimary,
+        ConnectionVisualState.disconnecting => htb.HtbColors.textSecondary,
         ConnectionVisualState.error => AppColors.error,
-        ConnectionVisualState.disconnected => AppColors.darkInkSoft,
+        ConnectionVisualState.disconnected => htb.HtbColors.textTertiary,
       };
 
   String _label(ConnectionVisualState s) => switch (s) {
