@@ -183,6 +183,55 @@ class HtbTheme {
   static ThemeData dark() {
     final colorScheme = HtbColors.darkScheme();
     final textTheme = AppTypography.textTheme();
+    final primaryButtonOverlay = WidgetStateProperty.resolveWith<Color?>((
+      states,
+    ) {
+      if (states.contains(WidgetState.disabled)) {
+        return Colors.transparent;
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return HtbColors.accentPrimaryGhost;
+      }
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return HtbColors.accentPrimaryHover;
+      }
+      return Colors.transparent;
+    });
+    final surfaceButtonOverlay = WidgetStateProperty.resolveWith<Color?>((
+      states,
+    ) {
+      if (states.contains(WidgetState.disabled)) {
+        return Colors.transparent;
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return HtbColors.accentPrimaryGhost;
+      }
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return HtbColors.accentPrimaryHover;
+      }
+      return Colors.transparent;
+    });
+    final outlinedButtonSide = WidgetStateProperty.resolveWith<BorderSide?>((
+      states,
+    ) {
+      final highlighted = states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused) ||
+          states.contains(WidgetState.pressed);
+      return BorderSide(
+        color: highlighted ? HtbColors.accentPrimary : HtbColors.border,
+        width: AppTokens.neonBorderWidth,
+      );
+    });
+    final inputLabelStyle = AppTypography.textTheme().labelMedium?.copyWith(
+          color: HtbColors.textSecondary,
+        );
+    final inputFloatingLabelStyle =
+        AppTypography.textTheme().labelMedium?.copyWith(
+              color: HtbColors.accentPrimary,
+              fontWeight: FontWeight.w600,
+            );
 
     return ThemeData(
       useMaterial3: true,
@@ -196,9 +245,9 @@ class HtbTheme {
         backgroundColor: HtbColors.bg0,
         foregroundColor: HtbColors.textPrimary,
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
+        shadowColor: const Color(0x22000000),
         elevation: 0,
-        scrolledUnderElevation: 0,
+        scrolledUnderElevation: 6,
         centerTitle: false,
         titleTextStyle: AppTypography.textTheme().titleMedium?.copyWith(
               color: HtbColors.textPrimary,
@@ -216,13 +265,14 @@ class HtbTheme {
 
       // ── Card ──────────────────────────────────────────────────────────────
       cardTheme: const CardThemeData(
-        color: HtbColors.bg1,
-        shadowColor: Colors.transparent,
-        elevation: 0,
+        color: HtbColors.panelRaised,
+        shadowColor: Color(0x26000000),
+        elevation: 2,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.brCard,
           side: BorderSide(
-            color: HtbColors.glassBorderDefault,
+            color: HtbColors.borderStrong,
             width: AppTokens.borderWidth,
           ),
         ),
@@ -232,133 +282,255 @@ class HtbTheme {
 
       // ── ElevatedButton ────────────────────────────────────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: HtbColors.accentPrimary,
-          foregroundColor: HtbColors.textInverse,
-          disabledBackgroundColor: HtbColors.accentPrimaryGhost,
-          disabledForegroundColor: HtbColors.textTertiary,
-          minimumSize: const Size(
-            AppTokens.buttonMinWidth,
-            AppTokens.buttonHeightM,
+        style: ButtonStyle(
+          animationDuration: AppTokens.durationFast,
+          minimumSize: const WidgetStatePropertyAll(
+            Size(AppTokens.buttonMinWidth, AppTokens.buttonHeightM),
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.paddingL,
-            vertical: AppTokens.paddingS,
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(
+              horizontal: AppTokens.paddingL,
+              vertical: AppTokens.paddingS,
+            ),
           ),
-          shape: const RoundedRectangleBorder(borderRadius: AppTokens.brLarge),
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          textStyle: AppTypography.textTheme().labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
+          shape: const WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: AppTokens.brLarge),
+          ),
+          elevation: const WidgetStatePropertyAll(0),
+          shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return HtbColors.textTertiary;
+            }
+            return HtbColors.textInverse;
+          }),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return HtbColors.accentPrimaryGhost;
+            }
+            if (states.contains(WidgetState.pressed)) {
+              return HtbColors.accentPrimaryMuted;
+            }
+            return HtbColors.accentPrimary;
+          }),
+          overlayColor: primaryButtonOverlay,
+          textStyle: WidgetStatePropertyAll(
+            AppTypography.textTheme().labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+          ),
         ),
       ),
 
       // ── FilledButton ─────────────────────────────────────────────────────
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: HtbColors.accentPrimary,
-          foregroundColor: HtbColors.textInverse,
-          disabledBackgroundColor: HtbColors.accentPrimaryGhost,
-          disabledForegroundColor: HtbColors.textTertiary,
-          minimumSize: const Size(
-            AppTokens.buttonMinWidth,
-            AppTokens.buttonHeightM,
+        style: ButtonStyle(
+          animationDuration: AppTokens.durationFast,
+          minimumSize: const WidgetStatePropertyAll(
+            Size(AppTokens.buttonMinWidth, AppTokens.buttonHeightM),
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.paddingL,
-            vertical: AppTokens.paddingS,
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(
+              horizontal: AppTokens.paddingL,
+              vertical: AppTokens.paddingS,
+            ),
           ),
-          shape: const RoundedRectangleBorder(borderRadius: AppTokens.brLarge),
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          textStyle: AppTypography.textTheme().labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
-              ),
+          shape: const WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: AppTokens.brLarge),
+          ),
+          elevation: const WidgetStatePropertyAll(0),
+          shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return HtbColors.textTertiary;
+            }
+            return HtbColors.textInverse;
+          }),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return HtbColors.accentPrimaryGhost;
+            }
+            if (states.contains(WidgetState.pressed)) {
+              return HtbColors.accentPrimaryMuted;
+            }
+            return HtbColors.accentPrimary;
+          }),
+          overlayColor: primaryButtonOverlay,
+          textStyle: WidgetStatePropertyAll(
+            AppTypography.textTheme().labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+          ),
         ),
       ),
 
       // ── OutlinedButton ────────────────────────────────────────────────────
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: HtbColors.textPrimary,
-          disabledForegroundColor: HtbColors.textTertiary,
-          minimumSize: const Size(
-            AppTokens.buttonMinWidth,
-            AppTokens.buttonHeightM,
+        style: ButtonStyle(
+          animationDuration: AppTokens.durationFast,
+          minimumSize: const WidgetStatePropertyAll(
+            Size(AppTokens.buttonMinWidth, AppTokens.buttonHeightM),
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.paddingL,
-            vertical: AppTokens.paddingS,
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(
+              horizontal: AppTokens.paddingL,
+              vertical: AppTokens.paddingS,
+            ),
           ),
-          shape: const RoundedRectangleBorder(borderRadius: AppTokens.brLarge),
-          side: const BorderSide(
-            color: HtbColors.border,
-            width: AppTokens.neonBorderWidth,
+          shape: const WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: AppTokens.brLarge),
           ),
-          textStyle: AppTypography.textTheme().labelLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-              ),
+          side: outlinedButtonSide,
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return HtbColors.textTertiary;
+            }
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused) ||
+                states.contains(WidgetState.pressed)) {
+              return HtbColors.textPrimary;
+            }
+            return HtbColors.textSecondary;
+          }),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused) ||
+                states.contains(WidgetState.pressed)) {
+              return HtbColors.accentPrimaryGhost;
+            }
+            return Colors.transparent;
+          }),
+          overlayColor: surfaceButtonOverlay,
+          textStyle: WidgetStatePropertyAll(
+            AppTypography.textTheme().labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+          ),
         ),
       ),
 
       // ── TextButton ────────────────────────────────────────────────────────
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: HtbColors.accentSecondary,
-          textStyle: AppTypography.textTheme().labelLarge,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.paddingM,
-            vertical: AppTokens.paddingS,
+        style: ButtonStyle(
+          animationDuration: AppTokens.durationFast,
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return HtbColors.textTertiary;
+            }
+            if (states.contains(WidgetState.pressed)) {
+              return HtbColors.accentPrimaryMuted;
+            }
+            return HtbColors.accentPrimary;
+          }),
+          overlayColor: surfaceButtonOverlay,
+          textStyle: WidgetStatePropertyAll(
+            AppTypography.textTheme().labelLarge,
+          ),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(
+              horizontal: AppTokens.paddingM,
+              vertical: AppTokens.paddingS,
+            ),
           ),
         ),
       ),
 
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(
+          animationDuration: AppTokens.durationFast,
+          minimumSize: const WidgetStatePropertyAll(Size.square(44)),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.all(AppTokens.paddingS),
+          ),
+          shape: const WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: AppTokens.brMedium),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return HtbColors.accentPrimaryGhost;
+            }
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused) ||
+                states.contains(WidgetState.pressed)) {
+              return HtbColors.bg2;
+            }
+            return Colors.transparent;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return HtbColors.textTertiary;
+            }
+            if (states.contains(WidgetState.selected)) {
+              return HtbColors.accentPrimary;
+            }
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused) ||
+                states.contains(WidgetState.pressed)) {
+              return HtbColors.textPrimary;
+            }
+            return HtbColors.textSecondary;
+          }),
+          overlayColor: surfaceButtonOverlay,
+        ),
+      ),
+
       // ── Input Decoration ─────────────────────────────────────────────────
-      inputDecorationTheme: const InputDecorationTheme(
+      inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: HtbColors.bg2,
-        hintStyle: TextStyle(color: HtbColors.textHint),
-        labelStyle: TextStyle(color: HtbColors.textSecondary),
-        border: OutlineInputBorder(
+        hintStyle: AppTypography.textTheme().bodyMedium?.copyWith(
+              color: HtbColors.textHint,
+            ),
+        labelStyle: inputLabelStyle,
+        floatingLabelStyle: inputFloatingLabelStyle,
+        helperStyle: AppTypography.textTheme().bodySmall?.copyWith(
+              color: HtbColors.textTertiary,
+            ),
+        errorStyle: AppTypography.textTheme().bodySmall?.copyWith(
+              color: HtbColors.statusError,
+              fontWeight: FontWeight.w600,
+            ),
+        hoverColor: HtbColors.panelRaised,
+        focusColor: HtbColors.accentPrimaryGhost,
+        border: const OutlineInputBorder(
           borderRadius: AppTokens.brMedium,
           borderSide: BorderSide(
             color: HtbColors.border,
             width: AppTokens.borderWidth,
           ),
         ),
-        enabledBorder: OutlineInputBorder(
+        enabledBorder: const OutlineInputBorder(
           borderRadius: AppTokens.brMedium,
           borderSide: BorderSide(
             color: HtbColors.border,
             width: AppTokens.borderWidth,
           ),
         ),
-        focusedBorder: OutlineInputBorder(
+        focusedBorder: const OutlineInputBorder(
           borderRadius: AppTokens.brMedium,
           borderSide: BorderSide(
             color: HtbColors.accentPrimary,
             width: AppTokens.neonBorderWidth,
           ),
         ),
-        errorBorder: OutlineInputBorder(
+        errorBorder: const OutlineInputBorder(
           borderRadius: AppTokens.brMedium,
           borderSide: BorderSide(
             color: HtbColors.statusError,
             width: AppTokens.neonBorderWidth,
           ),
         ),
-        focusedErrorBorder: OutlineInputBorder(
+        focusedErrorBorder: const OutlineInputBorder(
           borderRadius: AppTokens.brMedium,
           borderSide: BorderSide(
             color: HtbColors.statusError,
             width: AppTokens.neonBorderWidth,
           ),
         ),
-        contentPadding: EdgeInsets.symmetric(
+        contentPadding: const EdgeInsets.symmetric(
           horizontal: AppTokens.paddingM,
           vertical: AppTokens.paddingM,
         ),
@@ -578,6 +750,7 @@ class HtbTheme {
         textColor: HtbColors.textPrimary,
         titleTextStyle: AppTypography.textTheme().bodyMedium?.copyWith(
               color: HtbColors.textPrimary,
+              fontWeight: FontWeight.w600,
             ),
         subtitleTextStyle: AppTypography.textTheme().bodySmall?.copyWith(
               color: HtbColors.textSecondary,

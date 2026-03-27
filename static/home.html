@@ -5,11 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Features — SecureWave VPN</title>
   <meta name="description" content="Powerful VPN protection for every device. Download SecureWave for Windows, macOS, Linux, and mobile. Military-grade encryption with zero-log privacy.">
-  <link rel="stylesheet" href="/css/theme_tokens.css?v=20260327b">
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260327b">
-  <link rel="stylesheet" href="/css/htb_theme.css?v=20260327b">
-  <link rel="stylesheet" href="/vendor/flaticon/css/solid/rounded.css">
-  <link rel="stylesheet" href="/vendor/flaticon/css/brands/all.css">
+  <link rel="stylesheet" href="/css/theme_tokens.css?v=20260327c">
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260327c">
+  <link rel="stylesheet" href="/css/htb_theme.css?v=20260327c">
   
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 </head>
@@ -110,7 +108,7 @@
         </div>
         <div class="grid grid-4">
           <div class="card card-elevated text-center reveal">
-            <div class="card-icon card-icon-lg mx-auto" aria-hidden="true"><i class="fi fi-brands-windows"></i></div>
+            <div class="card-icon card-icon-lg mx-auto" aria-hidden="true"><img src="/img/icons/windows.svg" width="32" height="32" alt=""></div>
             <h4>Windows</h4>
             <p class="text-muted">Windows 10 and later. Full WireGuard integration with system tray controls.</p>
             <div class="mt-4">
@@ -118,7 +116,7 @@
             </div>
           </div>
           <div class="card card-elevated text-center reveal">
-            <div class="card-icon card-icon-lg mx-auto" aria-hidden="true"><i class="fi fi-brands-apple"></i></div>
+            <div class="card-icon card-icon-lg mx-auto" aria-hidden="true"><img src="/img/icons/apple.svg" width="32" height="32" alt=""></div>
             <h4>macOS</h4>
             <p class="text-muted">macOS 12 Monterey and later. Native menu bar app with Network Extension support.</p>
             <div class="mt-4">
@@ -126,7 +124,7 @@
             </div>
           </div>
           <div class="card card-elevated text-center reveal">
-            <div class="card-icon card-icon-lg mx-auto" aria-hidden="true"><i class="fi fi-brands-ubuntu"></i></div>
+            <div class="card-icon card-icon-lg mx-auto" aria-hidden="true"><img src="/img/icons/linux.svg" width="32" height="32" alt=""></div>
             <h4>Linux</h4>
             <p class="text-muted">Ubuntu, Fedora, Debian, and Arch. CLI and GUI with wg-quick integration.</p>
             <div class="mt-4">
@@ -134,7 +132,7 @@
             </div>
           </div>
           <div class="card card-elevated text-center reveal">
-            <div class="card-icon card-icon-lg mx-auto" aria-hidden="true"><i class="fi fi-sr-smartphone"></i></div>
+            <div class="card-icon card-icon-lg mx-auto" aria-hidden="true"><img src="/img/icons/smartphone.svg" width="32" height="32" alt=""></div>
             <h4>Mobile</h4>
             <p class="text-muted">iOS 15+ and Android 10+. Always-on VPN with battery-optimized connections.</p>
             <div class="mt-4">
@@ -180,35 +178,56 @@
         <!-- Feature: Speed -->
         <div class="hero-split section-sm">
           <div class="reveal">
-            <div class="card card-elevated p-8">
+            <div class="card card-elevated p-8" data-performance-benchmark>
               <div class="mb-4">
                 <div class="flex justify-between mb-2">
-                  <span class="text-muted">Download Speed</span>
-                  <span class="text-primary font-semibold">94% retained</span>
+                  <span class="text-muted">Benchmark Host</span>
+                  <span class="text-primary font-semibold" data-benchmark-host>Awaiting data</span>
                 </div>
-                <div class="progress"><div class="progress-bar progress-fill-94"></div></div>
+                <div class="flex justify-between mb-2">
+                  <span class="text-muted">Measured</span>
+                  <span class="text-primary font-semibold" data-benchmark-generated>Pending</span>
+                </div>
               </div>
               <div class="mb-4">
                 <div class="flex justify-between mb-2">
-                  <span class="text-muted">Upload Speed</span>
-                  <span class="text-primary font-semibold">91% retained</span>
+                  <span class="text-muted">Baseline Download</span>
+                  <span class="text-primary font-semibold" data-benchmark-baseline-download>Pending</span>
                 </div>
-                <div class="progress"><div class="progress-bar progress-fill-91"></div></div>
               </div>
-              <div>
+              <div class="mb-4">
                 <div class="flex justify-between mb-2">
-                  <span class="text-muted">Latency Impact</span>
-                  <span class="text-primary font-semibold">+3ms avg</span>
+                  <span class="text-muted">Baseline Upload</span>
+                  <span class="text-primary font-semibold" data-benchmark-baseline-upload>Not measured</span>
                 </div>
-                <div class="progress"><div class="progress-bar success progress-fill-97"></div></div>
+              </div>
+              <div class="mb-4">
+                <div class="flex justify-between mb-2">
+                  <span class="text-muted">Baseline Latency</span>
+                  <span class="text-primary font-semibold" data-benchmark-baseline-latency>Pending</span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-3" data-benchmark-protocols>
+                <div class="flex justify-between gap-3">
+                  <span class="text-muted">WireGuard</span>
+                  <span class="text-primary font-semibold">Pending</span>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <span class="text-muted">OpenVPN</span>
+                  <span class="text-primary font-semibold">Pending</span>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <span class="text-muted">IKEv2</span>
+                  <span class="text-primary font-semibold">Pending</span>
+                </div>
               </div>
             </div>
           </div>
           <div class="reveal">
             <span class="section-eyebrow">Performance</span>
             <h3>Speed That Never Compromises</h3>
-            <p>Unlike traditional VPNs that slow you down, SecureWave uses the WireGuard protocol to maintain near-native speeds. Our optimized server infrastructure and intelligent routing keep latency low and throughput high, even across continents.</p>
-            <p>Stream 4K video, join video calls, and download large files without noticing the VPN is active. Speed tests consistently show 90%+ speed retention across all server locations.</p>
+            <p>Performance figures on this page are pulled from the latest local benchmark artifact, not hardcoded marketing percentages. If a protocol is unavailable or failing on the current test host, the site shows that state directly.</p>
+            <p>Download speed and latency are measured on the active host path. Upload speed appears only when an `iperf3` target is configured for the benchmark run.</p>
           </div>
         </div>
 
@@ -315,7 +334,6 @@
         <div class="footer-brand">
           <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
           <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
-          <p class="footer-attribution">Uicons by <a href="https://www.flaticon.com/uicons">Flaticon</a></p>
         </div>
         <div class="footer-col">
           <h5>Product</h5>
@@ -355,6 +373,6 @@
   </footer>
 
   <script src="/js/os_download.js"></script>
-  <script src="/js/site.js?v=20260327b"></script>
+  <script src="/js/site.js?v=20260327c"></script>
 </body>
 </html>

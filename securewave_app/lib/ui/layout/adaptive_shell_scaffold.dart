@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../debug/automation_keys.dart';
+import '../design/app_animations.dart';
 import '../design/app_spacing.dart';
 import '../theme/app_colors.dart' as htb;
 import '../theme/app_tokens.dart';
@@ -125,8 +126,8 @@ class _DesktopRail extends StatelessWidget {
         boxShadow: const [
           BoxShadow(
             color: Color(0x30020306),
-            blurRadius: 18,
-            offset: Offset(0, 10),
+            blurRadius: 14,
+            offset: Offset(0, 8),
           ),
         ],
       ),
@@ -187,7 +188,7 @@ class _DesktopRail extends StatelessWidget {
   }
 }
 
-class _RailItem extends StatelessWidget {
+class _RailItem extends StatefulWidget {
   const _RailItem({
     required this.icon,
     required this.activeIcon,
@@ -205,6 +206,14 @@ class _RailItem extends StatelessWidget {
   final bool showLabel;
 
   @override
+  State<_RailItem> createState() => _RailItemState();
+}
+
+class _RailItemState extends State<_RailItem> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
@@ -214,104 +223,155 @@ class _RailItem extends StatelessWidget {
     final activeBg = isDark
         ? htb.HtbColors.accentPrimaryGhost
         : cs.primary.withValues(alpha: 0.1);
+    final isHighlighted = _hovered || _pressed;
+    final currentColor = widget.selected
+        ? activeColor
+        : isHighlighted
+            ? htb.HtbColors.textPrimary
+            : inactiveColor;
+    final scale = _pressed
+        ? AppAnimations.buttonPressScale
+        : _hovered
+            ? AppAnimations.buttonHoverScale
+            : 1.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space2,
         vertical: AppSpacing.space1,
       ),
-      child: AnimatedContainer(
-        duration: AppTokens.durationNormal,
-        curve: AppTokens.curveDefault,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-          color: selected ? activeBg : Colors.transparent,
-          border: Border.all(
-            color: selected
-                ? htb.HtbColors.accentPrimary.withValues(alpha: 0.18)
-                : Colors.transparent,
+      child: AnimatedScale(
+        scale: scale,
+        duration: _pressed
+            ? AppAnimations.durationPress
+            : AppAnimations.durationHover,
+        curve: AppAnimations.curveDefault,
+        child: AnimatedContainer(
+          duration: AppAnimations.durationHover,
+          curve: AppAnimations.curveDefault,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+            color: widget.selected
+                ? activeBg
+                : isHighlighted
+                    ? htb.HtbColors.bg2
+                    : Colors.transparent,
+            border: Border.all(
+              color: widget.selected
+                  ? htb.HtbColors.accentPrimary.withValues(alpha: 0.18)
+                  : isHighlighted
+                      ? htb.HtbColors.border
+                      : Colors.transparent,
+            ),
           ),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            key: AutomationKeys.navDestinationKey(label),
-            onTap: onTap,
-            child: SizedBox(
-              width: double.infinity,
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: showLabel ? AppSpacing.space3 : 0,
-                  vertical: AppSpacing.space3,
-                ),
-                child: showLabel
-                    ? Row(
-                        children: [
-                          AnimatedContainer(
-                            duration: AppTokens.durationNormal,
-                            curve: AppTokens.curveDefault,
-                            width: 4,
-                            height: selected ? 30 : 14,
-                            margin: const EdgeInsets.only(right: 10),
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? htb.HtbColors.accentPrimary
-                                  : Colors.transparent,
-                              borderRadius: AppTokens.brSmall,
-                            ),
-                          ),
-                          Icon(
-                            selected ? activeIcon : icon,
-                            color: selected ? activeColor : inactiveColor,
-                            size: 20,
-                          ),
-                          const SizedBox(width: AppSpacing.space3),
-                          Expanded(
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: selected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: selected ? activeColor : inactiveColor,
-                                letterSpacing: selected ? 0.3 : 0,
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              key: AutomationKeys.navDestinationKey(widget.label),
+              onTap: widget.onTap,
+              onHover: (value) {
+                if (_hovered == value) return;
+                setState(() => _hovered = value);
+              },
+              onHighlightChanged: (value) {
+                if (_pressed == value) return;
+                setState(() => _pressed = value);
+              },
+              overlayColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.pressed)) {
+                  return htb.HtbColors.accentPrimaryGhost;
+                }
+                if (states.contains(WidgetState.hovered) ||
+                    states.contains(WidgetState.focused)) {
+                  return htb.HtbColors.accentPrimaryHover;
+                }
+                return Colors.transparent;
+              }),
+              child: SizedBox(
+                width: double.infinity,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: widget.showLabel ? AppSpacing.space3 : 0,
+                    vertical: AppSpacing.space3,
+                  ),
+                  child: widget.showLabel
+                      ? Row(
+                          children: [
+                            AnimatedContainer(
+                              duration: AppAnimations.durationHover,
+                              curve: AppAnimations.curveDefault,
+                              width: 4,
+                              height: widget.selected ? 30 : 14,
+                              margin: const EdgeInsets.only(right: 10),
+                              decoration: BoxDecoration(
+                                color: widget.selected
+                                    ? htb.HtbColors.accentPrimary
+                                    : isHighlighted
+                                        ? htb.HtbColors.borderStrong
+                                        : Colors.transparent,
+                                borderRadius: AppTokens.brSmall,
                               ),
                             ),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AnimatedContainer(
-                            duration: AppTokens.durationNormal,
-                            curve: AppTokens.curveDefault,
-                            padding: const EdgeInsets.all(AppSpacing.space2),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: selected ? activeBg : Colors.transparent,
-                            ),
-                            child: Icon(
-                              selected ? activeIcon : icon,
-                              color: selected ? activeColor : inactiveColor,
+                            Icon(
+                              widget.selected ? widget.activeIcon : widget.icon,
+                              color: currentColor,
                               size: 20,
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            label,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight:
-                                  selected ? FontWeight.w700 : FontWeight.w500,
-                              color: selected ? activeColor : inactiveColor,
+                            const SizedBox(width: AppSpacing.space3),
+                            Expanded(
+                              child: Text(
+                                widget.label,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: widget.selected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: currentColor,
+                                  letterSpacing: widget.selected ? 0.3 : 0,
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AnimatedContainer(
+                              duration: AppAnimations.durationHover,
+                              curve: AppAnimations.curveDefault,
+                              padding: const EdgeInsets.all(AppSpacing.space2),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: widget.selected
+                                    ? activeBg
+                                    : isHighlighted
+                                        ? htb.HtbColors.bg2
+                                        : Colors.transparent,
+                              ),
+                              child: Icon(
+                                widget.selected
+                                    ? widget.activeIcon
+                                    : widget.icon,
+                                color: currentColor,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: widget.selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: currentColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
               ),
             ),
           ),
@@ -361,8 +421,8 @@ class _BottomBar extends StatelessWidget {
           boxShadow: const [
             BoxShadow(
               color: Color(0x28020306),
-              blurRadius: 16,
-              offset: Offset(0, 8),
+              blurRadius: 12,
+              offset: Offset(0, 6),
             ),
           ],
         ),
@@ -388,7 +448,7 @@ class _BottomBar extends StatelessWidget {
   }
 }
 
-class _BarItem extends StatelessWidget {
+class _BarItem extends StatefulWidget {
   const _BarItem({
     required this.icon,
     required this.activeIcon,
@@ -404,57 +464,105 @@ class _BarItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_BarItem> createState() => _BarItemState();
+}
+
+class _BarItemState extends State<_BarItem> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
     final activeColor = isDark ? htb.HtbColors.accentPrimary : cs.primary;
     final inactiveColor =
         isDark ? htb.HtbColors.textSecondary : cs.onSurfaceVariant;
+    final isHighlighted = _hovered || _pressed;
+    final currentColor = widget.selected
+        ? activeColor
+        : isHighlighted
+            ? htb.HtbColors.textPrimary
+            : inactiveColor;
+    final scale = _pressed
+        ? AppAnimations.buttonPressScale
+        : _hovered
+            ? AppAnimations.buttonHoverScale
+            : 1.0;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        key: AutomationKeys.navDestinationKey(label),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.space1,
-            vertical: AppSpacing.space2,
-          ),
-          child: AnimatedContainer(
-            duration: AppTokens.durationNormal,
-            curve: AppTokens.curveDefault,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
-              color: selected
-                  ? htb.HtbColors.accentPrimaryGhost
-                  : Colors.transparent,
-              border: Border.all(
-                color: selected
-                    ? htb.HtbColors.accentPrimary.withValues(alpha: 0.18)
-                    : Colors.transparent,
-              ),
+    return AnimatedScale(
+      scale: scale,
+      duration:
+          _pressed ? AppAnimations.durationPress : AppAnimations.durationHover,
+      curve: AppAnimations.curveDefault,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: AutomationKeys.navDestinationKey(widget.label),
+          onTap: widget.onTap,
+          onHover: (value) {
+            if (_hovered == value) return;
+            setState(() => _hovered = value);
+          },
+          onHighlightChanged: (value) {
+            if (_pressed == value) return;
+            setState(() => _pressed = value);
+          },
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return htb.HtbColors.accentPrimaryGhost;
+            }
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused)) {
+              return htb.HtbColors.accentPrimaryHover;
+            }
+            return Colors.transparent;
+          }),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.space1,
+              vertical: AppSpacing.space2,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  selected ? activeIcon : icon,
-                  color: selected ? activeColor : inactiveColor,
-                  size: 22,
+            child: AnimatedContainer(
+              duration: AppAnimations.durationHover,
+              curve: AppAnimations.curveDefault,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+                color: widget.selected
+                    ? htb.HtbColors.accentPrimaryGhost
+                    : isHighlighted
+                        ? htb.HtbColors.bg2
+                        : Colors.transparent,
+                border: Border.all(
+                  color: widget.selected
+                      ? htb.HtbColors.accentPrimary.withValues(alpha: 0.18)
+                      : isHighlighted
+                          ? htb.HtbColors.border
+                          : Colors.transparent,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected ? activeColor : inactiveColor,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.selected ? widget.activeIcon : widget.icon,
+                    color: currentColor,
+                    size: 22,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 3),
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight:
+                          widget.selected ? FontWeight.w700 : FontWeight.w500,
+                      color: currentColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

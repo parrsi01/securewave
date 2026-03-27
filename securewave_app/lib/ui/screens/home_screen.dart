@@ -83,7 +83,10 @@ class HomeScreen extends HookConsumerWidget {
                   ? const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0x1A2A1A50), Colors.transparent],
+                      colors: <Color>[
+                        htb.HtbColors.accentPrimaryGhost,
+                        Colors.transparent,
+                      ],
                     )
                   : null,
             ),
@@ -436,7 +439,7 @@ class _InfoChipRow extends StatelessWidget {
   }
 }
 
-class _InfoChip extends StatelessWidget {
+class _InfoChip extends StatefulWidget {
   const _InfoChip({
     required this.icon,
     required this.label,
@@ -450,48 +453,120 @@ class _InfoChip extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
+  State<_InfoChip> createState() => _InfoChipState();
+}
+
+class _InfoChipState extends State<_InfoChip> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    final child = Container(
+    final interactive = widget.onTap != null;
+    final isHighlighted = interactive && (_hovered || _pressed);
+    final scale = _pressed
+        ? AppAnimations.buttonPressScale
+        : _hovered
+            ? AppAnimations.buttonHoverScale
+            : 1.0;
+    final chipChild = AnimatedContainer(
+      duration: AppAnimations.durationHover,
+      curve: AppAnimations.curveDefault,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space3,
         vertical: AppSpacing.space2,
       ),
       decoration: BoxDecoration(
-        color: htb.HtbColors.glassFill,
+        color: isHighlighted
+            ? htb.HtbColors.glassFillLight
+            : htb.HtbColors.glassFill,
         borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-        border: Border.all(color: htb.HtbColors.glassBorderDefault, width: 1),
+        border: Border.all(
+          color: isHighlighted
+              ? htb.HtbColors.borderAccent
+              : htb.HtbColors.glassBorderDefault,
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            icon,
+            widget.icon,
             size: AppSpacing.iconS,
-            color: color ?? htb.HtbColors.neonCyan,
+            color: widget.color ??
+                (isHighlighted
+                    ? htb.HtbColors.accentPrimary
+                    : htb.HtbColors.accentSecondary),
           ),
           const SizedBox(width: AppSpacing.space2),
           Text(
-            label,
+            widget.label,
             style: Theme.of(
               context,
-            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+            ).textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isHighlighted
+                      ? htb.HtbColors.textPrimary
+                      : htb.HtbColors.textSecondary,
+                ),
           ),
-          if (onTap != null) ...[
+          if (interactive) ...[
             const SizedBox(width: AppSpacing.space1),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: AppSpacing.iconXS,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            AnimatedSlide(
+              offset: isHighlighted ? const Offset(0.08, 0) : Offset.zero,
+              duration: AppAnimations.durationHover,
+              curve: AppAnimations.curveDefault,
+              child: Icon(
+                Icons.chevron_right_rounded,
+                size: AppSpacing.iconXS,
+                color: isHighlighted
+                    ? htb.HtbColors.accentPrimary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ],
       ),
     );
 
-    if (onTap != null) {
-      return GestureDetector(onTap: onTap, child: child);
+    if (!interactive) {
+      return chipChild;
     }
-    return child;
+
+    return AnimatedScale(
+      scale: scale,
+      duration:
+          _pressed ? AppAnimations.durationPress : AppAnimations.durationHover,
+      curve: AppAnimations.curveDefault,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: widget.onTap,
+          onHover: (value) {
+            if (_hovered == value) return;
+            setState(() => _hovered = value);
+          },
+          onHighlightChanged: (value) {
+            if (_pressed == value) return;
+            setState(() => _pressed = value);
+          },
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return htb.HtbColors.accentPrimaryGhost;
+            }
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused)) {
+              return htb.HtbColors.accentPrimaryHover;
+            }
+            return Colors.transparent;
+          }),
+          child: chipChild,
+        ),
+      ),
+    );
   }
 }
 
@@ -597,7 +672,7 @@ class _QuickActionPanel extends ConsumerWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _ActionButton extends StatefulWidget {
   const _ActionButton({
     required this.icon,
     required this.title,
@@ -611,54 +686,132 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: htb.HtbColors.bg2,
-      borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-      child: InkWell(
-        onTap: onTap,
+    final isHighlighted = _hovered || _pressed;
+    final scale = _pressed
+        ? AppAnimations.buttonPressScale
+        : _hovered
+            ? AppAnimations.buttonHoverScale
+            : 1.0;
+
+    return AnimatedScale(
+      scale: scale,
+      duration:
+          _pressed ? AppAnimations.durationPress : AppAnimations.durationHover,
+      curve: AppAnimations.curveDefault,
+      child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(AppSpacing.radiusL),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.space4),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: htb.HtbColors.neonGreenGhost,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-                  border: Border.all(
-                    color: htb.HtbColors.glassBorderNeon,
-                    width: 1,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: widget.onTap,
+          onHover: (value) {
+            if (_hovered == value) return;
+            setState(() => _hovered = value);
+          },
+          onHighlightChanged: (value) {
+            if (_pressed == value) return;
+            setState(() => _pressed = value);
+          },
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return htb.HtbColors.accentPrimaryGhost;
+            }
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused)) {
+              return htb.HtbColors.accentPrimaryHover;
+            }
+            return Colors.transparent;
+          }),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+          child: AnimatedContainer(
+            duration: AppAnimations.durationHover,
+            curve: AppAnimations.curveDefault,
+            padding: const EdgeInsets.all(AppSpacing.space4),
+            decoration: BoxDecoration(
+              color: isHighlighted ? htb.HtbColors.bg3 : htb.HtbColors.bg2,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusL),
+              border: Border.all(
+                color: isHighlighted
+                    ? htb.HtbColors.borderAccent
+                    : htb.HtbColors.border,
+              ),
+            ),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: AppAnimations.durationHover,
+                  curve: AppAnimations.curveDefault,
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: isHighlighted
+                        ? htb.HtbColors.accentPrimaryHover
+                        : htb.HtbColors.accentPrimaryGhost,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusM),
+                    border: Border.all(
+                      color: isHighlighted
+                          ? htb.HtbColors.accentPrimary
+                          : htb.HtbColors.borderAccent,
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    widget.icon,
+                    color: isHighlighted
+                        ? htb.HtbColors.textPrimary
+                        : htb.HtbColors.accentPrimary,
                   ),
                 ),
-                child: Icon(icon, color: htb.HtbColors.neonGreen),
-              ),
-              const SizedBox(width: AppSpacing.space3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: AppSpacing.space1),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
+                const SizedBox(width: AppSpacing.space3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: isHighlighted
+                                  ? htb.HtbColors.textPrimary
+                                  : null,
+                            ),
+                      ),
+                      const SizedBox(height: AppSpacing.space1),
+                      Text(
+                        widget.subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: isHighlighted
+                                  ? htb.HtbColors.textSecondary
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right_rounded),
-            ],
+                AnimatedSlide(
+                  offset: isHighlighted ? const Offset(0.08, 0) : Offset.zero,
+                  duration: AppAnimations.durationHover,
+                  curve: AppAnimations.curveDefault,
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    color: isHighlighted
+                        ? htb.HtbColors.accentPrimary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
