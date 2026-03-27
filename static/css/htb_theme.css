@@ -308,7 +308,7 @@ textarea::placeholder {
 
 .auth-route .auth-card {
   border-color: #d8cdfa;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 16px rgba(122, 92, 255, 0.14);
 }
 
 .auth-route .auth-header img {
@@ -405,7 +405,7 @@ kbd {
 .cta-banner {
   background: linear-gradient(135deg, #1a1530 0%, #ffffff 100%);
   border: 1px solid rgba(122, 92, 255, 0.25);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 16px rgba(122, 92, 255, 0.12);
 }
 
 .pricing-card {

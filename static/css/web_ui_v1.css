@@ -515,7 +515,7 @@ body{padding-top:var(--sw-nav-height)}
   font-size:.8125rem;
   font-weight:600;
   letter-spacing:.02em;
-  box-shadow:0 1px 3px rgba(0,0,0,.3);
+  box-shadow:0 1px 3px rgba(122,92,255,.10);
 }
 .hero-chip::before{
   content:'';
@@ -542,7 +542,7 @@ body{padding-top:var(--sw-nav-height)}
   border-radius:calc(var(--sw-radius-xl) + 4px);
   background:#ffffff;
   border:1px solid #d8cdfa;
-  box-shadow:0 8px 32px rgba(0,0,0,.4);
+  box-shadow:0 8px 32px rgba(122,92,255,.12);
   overflow:hidden;
 }
 .hero-signal-panel::before{
@@ -681,7 +681,7 @@ body{padding-top:var(--sw-nav-height)}
   border-radius:var(--sw-radius-lg);
   background:#ffffff;
   border:1px solid #d8cdfa;
-  box-shadow:0 2px 8px rgba(0,0,0,.4);
+  box-shadow:0 2px 8px rgba(122,92,255,.12);
 }
 .stat-value{font-size:clamp(1.5rem,3vw,2.25rem);font-weight:800;color:var(--sw-primary)}
 .stat-label{font-size:.8125rem;color:var(--sw-text-muted);margin-top:var(--sw-space-2);letter-spacing:.08em;text-transform:uppercase}
@@ -754,7 +754,7 @@ body{padding-top:var(--sw-nav-height)}
   border-radius:var(--sw-radius-lg);
   border:1px solid #d8cdfa;
   background:#ffffff;
-  box-shadow:0 2px 8px rgba(0,0,0,.4);
+  box-shadow:0 2px 8px rgba(122,92,255,.12);
 }
 .pricing-hero-card span{
   display:block;
@@ -844,7 +844,7 @@ td[aria-label="Included"],td[aria-label="Not included"]{text-align:center}
   border:1px solid #d8cdfa;
   max-width:480px;width:100%;
   padding:var(--sw-space-8);
-  box-shadow:0 16px 40px rgba(0,0,0,.6);
+  box-shadow:0 16px 40px rgba(122,92,255,.16);
   animation:modalIn var(--sw-duration-slow) var(--sw-ease);
 }
 .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sw-space-5)}
@@ -1022,7 +1022,7 @@ td[aria-label="Included"],td[aria-label="Not included"]{text-align:center}
 .cta-banner{
   background:linear-gradient(135deg,#1a1530 0%,#ffffff 100%);
   border:1px solid rgba(122,92,255,.25);
-  box-shadow:0 4px 16px rgba(0,0,0,.4);
+  box-shadow:0 4px 16px rgba(122,92,255,.12);
   border-radius:var(--sw-radius-xl);
   padding:var(--sw-space-12) var(--sw-space-8);
   text-align:center;color:var(--sw-text);
