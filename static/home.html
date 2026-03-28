@@ -12,6 +12,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 </head>
 <body>
+  <a href="#main" class="skip-link">Skip to main content</a>
 
   <!-- ===== Navigation ===== -->
   <nav class="nav" id="navbar">
@@ -48,7 +49,7 @@
     </div>
   </nav>
 
-  <main>
+  <main id="main">
 
     <!-- ===== Hero Section ===== -->
     <section class="hero hero-centered">
@@ -101,7 +102,7 @@
     <!-- ===== Platform Downloads ===== -->
     <section class="section bg-alt" id="downloads">
       <div class="container">
-        <div class="section-header centered">
+        <div class="section-header">
           <span class="section-eyebrow">Downloads</span>
           <h2>Available on All Platforms</h2>
           <p>Native applications built for performance on every major operating system. SecureWave provisions VPN profiles automatically after sign-in, with no manual configuration files.</p>
@@ -186,13 +187,13 @@
                 </div>
                 <div class="flex justify-between mb-2">
                   <span class="text-muted">Measured</span>
-                  <span class="text-primary font-semibold" data-benchmark-generated>Pending</span>
+                  <span class="text-primary font-semibold" data-benchmark-generated><span class="skeleton-text skeleton-text-fixed">&nbsp;</span></span>
                 </div>
               </div>
               <div class="mb-4">
                 <div class="flex justify-between mb-2">
                   <span class="text-muted">Baseline Download</span>
-                  <span class="text-primary font-semibold" data-benchmark-baseline-download>Pending</span>
+                  <span class="text-primary font-semibold" data-benchmark-baseline-download><span class="skeleton-text skeleton-text-fixed">&nbsp;</span></span>
                 </div>
               </div>
               <div class="mb-4">
@@ -204,21 +205,21 @@
               <div class="mb-4">
                 <div class="flex justify-between mb-2">
                   <span class="text-muted">Baseline Latency</span>
-                  <span class="text-primary font-semibold" data-benchmark-baseline-latency>Pending</span>
+                  <span class="text-primary font-semibold" data-benchmark-baseline-latency><span class="skeleton-text skeleton-text-fixed">&nbsp;</span></span>
                 </div>
               </div>
               <div class="flex flex-col gap-3" data-benchmark-protocols>
                 <div class="flex justify-between gap-3">
                   <span class="text-muted">WireGuard</span>
-                  <span class="text-primary font-semibold">Pending</span>
+                  <span class="text-primary font-semibold"><span class="skeleton-text skeleton-text-fixed">&nbsp;</span></span>
                 </div>
                 <div class="flex justify-between gap-3">
                   <span class="text-muted">OpenVPN</span>
-                  <span class="text-primary font-semibold">Pending</span>
+                  <span class="text-primary font-semibold"><span class="skeleton-text skeleton-text-fixed">&nbsp;</span></span>
                 </div>
                 <div class="flex justify-between gap-3">
                   <span class="text-muted">IKEv2</span>
-                  <span class="text-primary font-semibold">Pending</span>
+                  <span class="text-primary font-semibold"><span class="skeleton-text skeleton-text-fixed">&nbsp;</span></span>
                 </div>
               </div>
             </div>
@@ -243,11 +244,11 @@
             <div class="card card-elevated p-6">
               <h4 class="mb-4">What We Never Store</h4>
               <div class="flex flex-col gap-3">
-                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>Browsing history</span></div>
-                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>Connection timestamps</span></div>
-                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>Original IP addresses</span></div>
-                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>DNS query logs</span></div>
-                <div class="flex items-center gap-3"><span class="badge badge-primary">None</span> <span>Bandwidth usage per session</span></div>
+                <div class="flex items-center gap-3"><span class="privacy-check">✓</span> <span>Browsing history</span></div>
+                <div class="flex items-center gap-3"><span class="privacy-check">✓</span> <span>Connection timestamps</span></div>
+                <div class="flex items-center gap-3"><span class="privacy-check">✓</span> <span>Original IP addresses</span></div>
+                <div class="flex items-center gap-3"><span class="privacy-check">✓</span> <span>DNS query logs</span></div>
+                <div class="flex items-center gap-3"><span class="privacy-check">✓</span> <span>Bandwidth usage per session</span></div>
               </div>
             </div>
           </div>
@@ -265,49 +266,49 @@
           <p>Find answers to common questions about SecureWave VPN.</p>
         </div>
         <div class="content-narrow mx-auto">
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
+          <div class=”accordion-item”>
+            <button class=”accordion-trigger” type=”button” aria-expanded=”false” aria-controls=”faq-1”>
               What is a VPN and why do I need one?
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+              <svg width=”20” height=”20” viewBox=”0 0 20 20” fill=”none” stroke=”currentColor” stroke-width=”2” stroke-linecap=”round”><polyline points=”6 8 10 12 14 8”/></svg>
             </button>
-            <div class="accordion-content">
-              <div class="accordion-body">A VPN (Virtual Private Network) creates an encrypted tunnel between your device and the internet. It prevents your ISP, hackers, and third parties from monitoring your online activity. With public Wi-Fi attacks on the rise and ISPs selling browsing data, a VPN is essential for maintaining your digital privacy and security.</div>
+            <div class=”accordion-content” id=”faq-1”>
+              <div class=”accordion-body”>A VPN (Virtual Private Network) creates an encrypted tunnel between your device and the internet. It prevents your ISP, hackers, and third parties from monitoring your online activity. With public Wi-Fi attacks on the rise and ISPs selling browsing data, a VPN is essential for maintaining your digital privacy and security.</div>
             </div>
           </div>
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
+          <div class=”accordion-item”>
+            <button class=”accordion-trigger” type=”button” aria-expanded=”false” aria-controls=”faq-2”>
               Will SecureWave slow down my internet connection?
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+              <svg width=”20” height=”20” viewBox=”0 0 20 20” fill=”none” stroke=”currentColor” stroke-width=”2” stroke-linecap=”round”><polyline points=”6 8 10 12 14 8”/></svg>
             </button>
-            <div class="accordion-content">
-              <div class="accordion-body">SecureWave uses the WireGuard protocol, which is significantly faster than older protocols like OpenVPN or IPSec. Most users retain over 90% of their base internet speed. In some cases, a VPN can actually improve speeds by bypassing ISP throttling on streaming and gaming traffic.</div>
+            <div class=”accordion-content” id=”faq-2”>
+              <div class=”accordion-body”>SecureWave uses the WireGuard protocol, which is significantly faster than older protocols like OpenVPN or IPSec. Most users retain over 90% of their base internet speed. In some cases, a VPN can actually improve speeds by bypassing ISP throttling on streaming and gaming traffic.</div>
             </div>
           </div>
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
+          <div class=”accordion-item”>
+            <button class=”accordion-trigger” type=”button” aria-expanded=”false” aria-controls=”faq-3”>
               How many devices can I connect simultaneously?
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+              <svg width=”20” height=”20” viewBox=”0 0 20 20” fill=”none” stroke=”currentColor” stroke-width=”2” stroke-linecap=”round”><polyline points=”6 8 10 12 14 8”/></svg>
             </button>
-            <div class="accordion-content">
-              <div class="accordion-body">The number of simultaneous connections depends on your plan. The Starter plan supports 1 device, Pro supports up to 5, and Enterprise offers unlimited connections. You can protect your laptop, phone, tablet, and home devices across all supported platforms.</div>
+            <div class=”accordion-content” id=”faq-3”>
+              <div class=”accordion-body”>The number of simultaneous connections depends on your plan. The Starter plan supports 1 device, Pro supports up to 5, and Enterprise offers unlimited connections. You can protect your laptop, phone, tablet, and home devices across all supported platforms.</div>
             </div>
           </div>
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
+          <div class=”accordion-item”>
+            <button class=”accordion-trigger” type=”button” aria-expanded=”false” aria-controls=”faq-4”>
               Does SecureWave work in countries with internet restrictions?
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+              <svg width=”20” height=”20” viewBox=”0 0 20 20” fill=”none” stroke=”currentColor” stroke-width=”2” stroke-linecap=”round”><polyline points=”6 8 10 12 14 8”/></svg>
             </button>
-            <div class="accordion-content">
-              <div class="accordion-body">SecureWave focuses on legal, standards-based reliability: WireGuard keepalive, MTU tuning, and resilient reconnect behavior. Some networks may still block VPN protocols entirely, but these best-effort options can improve connectivity without impersonating other services or using domain fronting.</div>
+            <div class=”accordion-content” id=”faq-4”>
+              <div class=”accordion-body”>SecureWave focuses on legal, standards-based reliability: WireGuard keepalive, MTU tuning, and resilient reconnect behavior. Some networks may still block VPN protocols entirely, but these best-effort options can improve connectivity without impersonating other services or using domain fronting.</div>
             </div>
           </div>
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
+          <div class=”accordion-item”>
+            <button class=”accordion-trigger” type=”button” aria-expanded=”false” aria-controls=”faq-5”>
               What happens if the VPN connection drops unexpectedly?
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 8 10 12 14 8"/></svg>
+              <svg width=”20” height=”20” viewBox=”0 0 20 20” fill=”none” stroke=”currentColor” stroke-width=”2” stroke-linecap=”round”><polyline points=”6 8 10 12 14 8”/></svg>
             </button>
-            <div class="accordion-content">
-              <div class="accordion-body">SecureWave provides a best-effort kill switch and reconnect behavior. On supported platforms, traffic is blocked if the tunnel drops unexpectedly to help prevent leaks, and the app will attempt to reconnect on network changes. For maximum protection on mobile, enable Always-on VPN and “block without VPN” in your OS settings.</div>
+            <div class=”accordion-content” id=”faq-5”>
+              <div class=”accordion-body”>SecureWave provides a best-effort kill switch and reconnect behavior. On supported platforms, traffic is blocked if the tunnel drops unexpectedly to help prevent leaks, and the app will attempt to reconnect on network changes. For maximum protection on mobile, enable Always-on VPN and “block without VPN” in your OS settings.</div>
             </div>
           </div>
         </div>

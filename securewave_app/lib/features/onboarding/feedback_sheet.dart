@@ -91,13 +91,12 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                 const SizedBox(height: AppSpacing.space5),
 
                 // ── Title ───────────────────────────────────────────────
-                const Text(
+                Text(
                   'Send Feedback',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
-                  ),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
                 ),
                 const SizedBox(height: AppSpacing.space5),
 
@@ -109,7 +108,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                           value: cat,
                           label: Text(
                             cat.label,
-                            style: const TextStyle(fontSize: 12),
+                            style: Theme.of(context).textTheme.labelSmall,
                           ),
                         ),
                       )
@@ -169,7 +168,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                     onPressed: _canSubmit ? _handleSubmit : null,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.ink,
                       disabledBackgroundColor: AppColors.border,
                       disabledForegroundColor: AppColors.inkSoft,
                       shape: RoundedRectangleBorder(
@@ -178,13 +177,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                         ),
                       ),
                     ),
-                    child: const Text(
-                      'Submit',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: const Text('Submit'),
                   ),
                 ),
               ],

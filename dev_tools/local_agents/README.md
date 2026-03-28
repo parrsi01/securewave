@@ -19,6 +19,11 @@ Agents:
   - Can safely recover Wi-Fi/networking locally and optionally bounce the VPN interface.
   - Emits patch recommendations for repeated failure signatures.
 
+- `MarlXgbSandboxAgent`
+  - Runs the existing fault/recovery agents and a live protocol benchmark pass in one isolated cycle.
+  - Publishes website-ready benchmark JSON to `static/data/performance_benchmarks.json`.
+  - Marks protocols as `pass`, `partial`, `fail`, or `unavailable` instead of fabricating results.
+
 Run both agents together:
 
 ```bash
@@ -29,6 +34,15 @@ python3 dev_tools/local_agents/run_securewave_vpn_agents.py \
   --api-base-url https://138.199.204.139.nip.io/api \
   --interface sw-wg \
   --diagnostics-dir vpn_diagnostics
+```
+
+Run the dedicated MARL/XGBoost sandbox agent:
+
+```bash
+python3 dev_tools/local_agents/run_marlxgb_sandbox_agent.py \
+  --cycles 1 \
+  --output-dir artifacts/local_agents/runtime/marlxgb_sandbox \
+  --publish-path static/data/performance_benchmarks.json
 ```
 
 Enable safe local recovery actions:
@@ -61,6 +75,9 @@ Artifacts:
 - `artifacts/local_agents/runtime/vpn_fault_lab_telemetry.csv`
 - `artifacts/local_agents/runtime/recovery_ml/latest_recovery_cycle.json`
 - `artifacts/local_agents/runtime/recovery_ml/patch_recommendations.md`
+- `artifacts/local_agents/runtime/marlxgb_sandbox/latest_cycle.json`
+- `artifacts/local_agents/runtime/marlxgb_sandbox/benchmarks/*/protocol_speed_results.json`
+- `static/data/performance_benchmarks.json`
 - `vpn_diagnostics/logs/logs.json`
 - `vpn_diagnostics/simulations/simulations.json`
 - `vpn_diagnostics/test_results/fixes.json`

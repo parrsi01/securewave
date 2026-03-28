@@ -43,12 +43,12 @@ class AppTheme {
     LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [AppColors.primary, AppColors.secondaryDark],
+      colors: [AppColors.primary, AppColors.primaryDark],
     ),
     LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [AppColors.secondary, AppColors.secondaryDark],
+      colors: [AppColors.primaryBright, AppColors.primary],
     ),
   ];
 
@@ -66,7 +66,7 @@ class AppTheme {
 
   static Color connectionColor(ConnectionVisualState state) => switch (state) {
         ConnectionVisualState.connected => AppColors.primaryBright,
-        ConnectionVisualState.connecting => AppColors.secondary,
+        ConnectionVisualState.connecting => AppColors.warning,
         ConnectionVisualState.reconnecting => AppColors.warning,
         ConnectionVisualState.disconnecting => AppColors.darkInkSoft,
         ConnectionVisualState.error => AppColors.error,

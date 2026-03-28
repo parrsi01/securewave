@@ -9,6 +9,22 @@ class AppTypography {
   static const String _sansFamily = 'Manrope';
   static const String _monoFamily = 'JetBrainsMono';
 
+  // Shared type scale.
+  static const double sizeLabelSmall = 11;
+  static const double sizeLabelMedium = 12;
+  static const double sizeBodySmall = 13;
+  static const double sizeBodyMedium = 14;
+  static const double sizeBodyLarge = 16;
+  static const double sizeTitleSmall = 16;
+  static const double sizeTitleMedium = 18;
+  static const double sizeTitleLarge = 20;
+  static const double sizeHeadlineSmall = 24;
+  static const double sizeHeadlineMedium = 28;
+  static const double sizeHeadlineLarge = 32;
+  static const double sizeDisplaySmall = 34;
+  static const double sizeDisplayMedium = 44;
+  static const double sizeDisplayLarge = 56;
+
   static TextStyle _sans({
     double? fontSize,
     FontWeight? fontWeight,
@@ -46,115 +62,115 @@ class AppTypography {
   static TextTheme textTheme() {
     return TextTheme(
       displayLarge: _sans(
-        fontSize: 56,
+        fontSize: sizeDisplayLarge,
         fontWeight: FontWeight.w700,
         color: HtbColors.textPrimary,
         letterSpacing: -1.2,
         height: 1.08,
       ),
       displayMedium: _sans(
-        fontSize: 44,
+        fontSize: sizeDisplayMedium,
         fontWeight: FontWeight.w700,
         color: HtbColors.textPrimary,
         letterSpacing: -0.9,
         height: 1.12,
       ),
       displaySmall: _sans(
-        fontSize: 34,
+        fontSize: sizeDisplaySmall,
         fontWeight: FontWeight.w700,
         color: HtbColors.textPrimary,
         letterSpacing: -0.5,
         height: 1.18,
       ),
       headlineLarge: _sans(
-        fontSize: 32,
+        fontSize: sizeHeadlineLarge,
         fontWeight: FontWeight.w700,
         color: HtbColors.textPrimary,
         letterSpacing: -0.6,
         height: 1.2,
       ),
       headlineMedium: _sans(
-        fontSize: 28,
+        fontSize: sizeHeadlineMedium,
         fontWeight: FontWeight.w700,
         color: HtbColors.textPrimary,
         letterSpacing: -0.4,
         height: 1.24,
       ),
       headlineSmall: _sans(
-        fontSize: 24,
+        fontSize: sizeHeadlineSmall,
         fontWeight: FontWeight.w700,
         color: HtbColors.textPrimary,
         letterSpacing: -0.2,
         height: 1.28,
       ),
       titleLarge: _sans(
-        fontSize: 22,
+        fontSize: sizeTitleLarge,
         fontWeight: FontWeight.w700,
         color: HtbColors.textPrimary,
         letterSpacing: -0.2,
-        height: 1.28,
+        height: 1.3,
       ),
       titleMedium: _sans(
-        fontSize: 16,
+        fontSize: sizeTitleMedium,
         fontWeight: FontWeight.w700,
         color: HtbColors.textPrimary,
         letterSpacing: -0.05,
-        height: 1.50,
+        height: 1.33,
       ),
       titleSmall: _sans(
-        fontSize: 14,
+        fontSize: sizeTitleSmall,
         fontWeight: FontWeight.w600,
         color: HtbColors.textPrimary,
         letterSpacing: 0,
-        height: 1.43,
+        height: 1.38,
       ),
       bodyLarge: _sans(
-        fontSize: 16,
+        fontSize: sizeBodyLarge,
         fontWeight: FontWeight.w400,
         color: HtbColors.textPrimary,
         letterSpacing: 0,
         height: 1.50,
       ),
       bodyMedium: _sans(
-        fontSize: 14,
+        fontSize: sizeBodyMedium,
         fontWeight: FontWeight.w400,
         color: HtbColors.textPrimary,
         letterSpacing: 0,
         height: 1.5,
       ),
       bodySmall: _sans(
-        fontSize: 12,
+        fontSize: sizeBodySmall,
         fontWeight: FontWeight.w400,
         color: HtbColors.textSecondary,
-        letterSpacing: 0.1,
-        height: 1.45,
+        letterSpacing: 0.05,
+        height: 1.5,
       ),
       labelLarge: _sans(
-        fontSize: 14,
+        fontSize: sizeBodyMedium,
         fontWeight: FontWeight.w700,
         color: HtbColors.textPrimary,
         letterSpacing: 0.15,
         height: 1.43,
       ),
       labelMedium: _sans(
-        fontSize: 12,
+        fontSize: sizeLabelMedium,
         fontWeight: FontWeight.w600,
         color: HtbColors.textSecondary,
-        letterSpacing: 0.2,
+        letterSpacing: 0.25,
         height: 1.33,
       ),
       labelSmall: _sans(
-        fontSize: 11,
+        fontSize: sizeLabelSmall,
         fontWeight: FontWeight.w600,
-        color: HtbColors.textTertiary,
-        letterSpacing: 0.2,
+        color: HtbColors.textSecondary,
+        letterSpacing: 0.35,
         height: 1.45,
       ),
     );
   }
 
   static TextStyle monoLarge = _mono(
-    fontSize: 24,
+    fontSize: sizeHeadlineSmall,
     fontWeight: FontWeight.w600,
     color: HtbColors.textMono,
     letterSpacing: -0.2,
@@ -162,7 +178,7 @@ class AppTypography {
   );
 
   static TextStyle monoMedium = _mono(
-    fontSize: 14,
+    fontSize: sizeBodyMedium,
     fontWeight: FontWeight.w500,
     color: HtbColors.textMono,
     letterSpacing: 0.1,
@@ -170,7 +186,7 @@ class AppTypography {
   );
 
   static TextStyle monoSmall = _mono(
-    fontSize: 12,
+    fontSize: sizeLabelMedium,
     fontWeight: FontWeight.w400,
     color: HtbColors.textSecondary,
     letterSpacing: 0.15,
@@ -178,15 +194,15 @@ class AppTypography {
   );
 
   static TextStyle monoLabel = _mono(
-    fontSize: 11,
-    fontWeight: FontWeight.w400,
-    color: HtbColors.textTertiary,
-    letterSpacing: 0.3,
+    fontSize: sizeLabelSmall,
+    fontWeight: FontWeight.w500,
+    color: HtbColors.textSecondary,
+    letterSpacing: 0.35,
     height: 1.5,
   );
 
   static TextStyle monoNeon = _mono(
-    fontSize: 13,
+    fontSize: sizeBodySmall,
     fontWeight: FontWeight.w600,
     color: HtbColors.accentPrimary,
     letterSpacing: 0.5,
@@ -194,7 +210,7 @@ class AppTypography {
   );
 
   static TextStyle monoFallback({
-    double fontSize = 13,
+    double fontSize = sizeBodySmall,
     FontWeight fontWeight = FontWeight.w500,
     Color? color,
   }) {

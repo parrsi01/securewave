@@ -91,6 +91,18 @@ class AppleVpnDiagnosticsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.space3),
                   _StatusCard(
+                    title: 'Active Protocol',
+                    value: status.protocol ??
+                        diagnostics.activeProtocol ??
+                        diagnostics.configuredProtocol ??
+                        'none',
+                    accent: AppColors.primary,
+                    subtitle: status.interfaceName == null
+                        ? null
+                        : 'interface=${status.interfaceName}',
+                  ),
+                  const SizedBox(height: AppSpacing.space3),
+                  _StatusCard(
                     title: 'Capability Presence',
                     value: diagnostics.available ? 'ready' : 'blocked',
                     accent: diagnostics.available
@@ -103,6 +115,67 @@ class AppleVpnDiagnosticsScreen extends ConsumerWidget {
                     ].join(' • '),
                   ),
                   const SizedBox(height: AppSpacing.space3),
+                  _StatusCard(
+                    title: 'Supported Protocols',
+                    value: [
+                      if (diagnostics.wireGuardSupported) 'WireGuard',
+                      if (diagnostics.ikev2Supported) 'IKEv2',
+                      if (diagnostics.openVpnSupported) 'OpenVPN',
+                    ].join(' • ').isEmpty
+                        ? 'none'
+                        : [
+                            if (diagnostics.wireGuardSupported) 'WireGuard',
+                            if (diagnostics.ikev2Supported) 'IKEv2',
+                            if (diagnostics.openVpnSupported) 'OpenVPN',
+                          ].join(' • '),
+                    accent: diagnostics.available
+                        ? AppColors.success
+                        : AppColors.warning,
+                    subtitle:
+                        'packetTunnelReady=${diagnostics.tunnelManagerReady} • personalVpnReady=${diagnostics.personalVpnReady} • openVpnRuntimeLinked=${diagnostics.openVpnRuntimeLinked}',
+                  ),
+                  const SizedBox(height: AppSpacing.space3),
+                  _ProtocolCapabilityCard(
+                    title: 'WireGuard',
+                    capability: diagnostics.wireGuardCapability,
+                    accent: diagnostics.wireGuardCapability.runtimeAvailable
+                        ? AppColors.success
+                        : AppColors.warning,
+                  ),
+                  const SizedBox(height: AppSpacing.space3),
+                  _ProtocolCapabilityCard(
+                    title: 'IKEv2',
+                    capability: diagnostics.ikev2Capability,
+                    accent: diagnostics.ikev2Capability.runtimeAvailable
+                        ? AppColors.success
+                        : AppColors.warning,
+                  ),
+                  const SizedBox(height: AppSpacing.space3),
+                  _ProtocolCapabilityCard(
+                    title: 'OpenVPN',
+                    capability: diagnostics.openVpnCapability,
+                    accent: diagnostics.openVpnCapability.runtimeAvailable
+                        ? AppColors.success
+                        : AppColors.warning,
+                    forcedStatus: diagnostics.openVpnCapability.supported
+                        ? 'path available • runtime ${diagnostics.openVpnCapability.runtimeAvailable ? 'linked' : 'not linked'}'
+                        : 'path unavailable',
+                    subtitle: diagnostics.openVpnInstallHint,
+                  ),
+                  const SizedBox(height: AppSpacing.space3),
+                  if (diagnostics.openVpnInstallHint != null) ...[
+                    _StatusCard(
+                      title: 'OpenVPN Action',
+                      value: diagnostics.openVpnRuntimeLinked
+                          ? 'runtime linked'
+                          : 'replace placeholder runtime',
+                      accent: diagnostics.openVpnRuntimeLinked
+                          ? AppColors.success
+                          : AppColors.warning,
+                      subtitle: diagnostics.openVpnInstallHint,
+                    ),
+                    const SizedBox(height: AppSpacing.space3),
+                  ],
                   _StatusCard(
                     title: 'Traffic Counters',
                     value: 'rx=${status.rxBytes} • tx=${status.txBytes}',
@@ -123,9 +196,7 @@ class AppleVpnDiagnosticsScreen extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.space3),
                   _StatusCard(
                     title: 'Last Native Error',
-                    value: diagnostics.lastError ??
-                        status.lastError ??
-                        'none',
+                    value: diagnostics.lastError ?? status.lastError ?? 'none',
                     accent: diagnostics.lastError == null &&
                             status.lastError == null
                         ? AppColors.success
@@ -176,6 +247,43 @@ class _CenteredMessage extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ProtocolCapabilityCard extends StatelessWidget {
+  const _ProtocolCapabilityCard({
+    required this.title,
+    required this.capability,
+    required this.accent,
+    this.forcedStatus,
+    this.subtitle,
+  });
+
+  final String title;
+  final ProtocolCapability capability;
+  final Color accent;
+  final String? forcedStatus;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = capability.reason?.trim();
+    final status = forcedStatus ??
+        (capability.supported
+            ? capability.runtimeAvailable
+                ? 'supported • runtime ready'
+                : 'supported • runtime blocked'
+            : 'not supported');
+    final detail = [
+      if (subtitle != null && subtitle!.trim().isNotEmpty) subtitle!.trim(),
+      if (reason != null && reason.isNotEmpty) reason,
+    ].join(' • ');
+    return _StatusCard(
+      title: title,
+      value: status,
+      accent: accent,
+      subtitle: detail.isEmpty ? null : detail,
     );
   }
 }

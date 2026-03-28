@@ -7,6 +7,7 @@ import '../../core/models/vpn_protocol_catalog.dart';
 import '../../core/models/vpn_status.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
+import '../../core/vpn/protocol_capabilities.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 import '../widgets/glass_panel.dart';
@@ -18,6 +19,7 @@ class ProtocolSelectorCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final vpnState = ref.watch(vpnStateProvider);
     final catalogAsync = ref.watch(vpnProtocolCatalogProvider);
+    final capabilitiesAsync = ref.watch(vpnCapabilitiesProvider);
     final activeTunnel = vpnState.status == VpnStatus.connected ||
         vpnState.status == VpnStatus.degraded ||
         vpnState.status == VpnStatus.connecting ||
@@ -66,8 +68,8 @@ class ProtocolSelectorCard extends ConsumerWidget {
                 ),
           ),
           const SizedBox(height: AppSpacing.space4),
-          catalogAsync.when(
-            loading: () => Wrap(
+          if (catalogAsync.isLoading || capabilitiesAsync.isLoading)
+            Wrap(
               spacing: AppSpacing.space2,
               runSpacing: AppSpacing.space2,
               children: List.generate(
@@ -84,23 +86,55 @@ class ProtocolSelectorCard extends ConsumerWidget {
                   ),
                 ),
               ),
-            ),
-            error: (error, _) => _ProtocolError(message: error.toString()),
-            data: (catalog) {
+            )
+          else if (catalogAsync.hasError)
+            _ProtocolError(message: catalogAsync.error.toString())
+          else if (capabilitiesAsync.hasError)
+            _ProtocolError(message: capabilitiesAsync.error.toString())
+          else ...[
+            (() {
+              final catalog = catalogAsync.requireValue;
+              final capabilities = capabilitiesAsync.requireValue;
               final entries = _entriesFor(catalog);
+              final availability = {
+                for (final item in ProtocolCapabilityMatrix.evaluate(
+                  nativeCapabilities: capabilities,
+                  backendEnabledProtocols: catalog.enabledProtocols(),
+                ))
+                  item.protocol: item,
+              };
               return Wrap(
                 spacing: AppSpacing.space2,
                 runSpacing: AppSpacing.space2,
                 children: entries.map((entry) {
                   final selected = vpnState.protocol == entry.protocol;
-                  final enabled =
-                      entry.protocol == VpnProtocol.auto || entry.isAvailable;
-                  final helpText =
-                      enabled ? null : (entry.reason ?? 'Unavailable');
+                  final capability = capabilities.capabilityFor(entry.protocol);
+                  final matrixEntry = availability[entry.protocol];
+                  final runtimeAvailable = entry.protocol == VpnProtocol.auto ||
+                      capability.runtimeAvailable;
+                  final gatedForAppleRuntime =
+                      entry.protocol == VpnProtocol.openVpn &&
+                          capability.supported &&
+                          !capability.runtimeAvailable;
+                  final helpText = gatedForAppleRuntime
+                      ? (capability.reason ??
+                          'OpenVPN path exists, but the Apple runtime is not linked.')
+                      : runtimeAvailable
+                          ? null
+                          : (capability.reason ??
+                              matrixEntry?.unavailableReason ??
+                              '${entry.reason ?? 'Unavailable'} Connect will fail until runtime support is available.');
                   return Tooltip(
-                    message: helpText ?? vpnProtocolLabel(entry.protocol),
+                    message: helpText ??
+                        matrixEntry?.unavailableReason ??
+                        vpnProtocolLabel(entry.protocol),
                     child: ChoiceChip(
-                      label: Text(vpnProtocolLabel(entry.protocol)),
+                      label: _ProtocolChipLabel(
+                        protocol: entry.protocol,
+                        helperText: gatedForAppleRuntime
+                            ? 'Requires Apple runtime'
+                            : null,
+                      ),
                       selected: selected,
                       selectedColor:
                           AppColors.primaryBright.withValues(alpha: 0.18),
@@ -115,14 +149,18 @@ class ProtocolSelectorCard extends ConsumerWidget {
                           ?.copyWith(
                             fontWeight:
                                 selected ? FontWeight.w700 : FontWeight.w500,
-                            color: enabled
+                            color: runtimeAvailable
                                 ? null
                                 : Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
                           ),
-                      avatar: _protocolAvatar(entry, selected),
-                      onSelected: enabled
+                      avatar: _protocolAvatar(
+                        entry,
+                        selected,
+                        runtimeAvailable: runtimeAvailable,
+                      ),
+                      onSelected: runtimeAvailable
                           ? (_) => ref
                               .read(vpnStateProvider.notifier)
                               .selectProtocol(entry.protocol)
@@ -131,8 +169,23 @@ class ProtocolSelectorCard extends ConsumerWidget {
                   );
                 }).toList(),
               );
-            },
-          ),
+            })(),
+            if (vpnState.protocol != VpnProtocol.auto &&
+                !capabilitiesAsync.requireValue
+                    .capabilityFor(vpnState.protocol)
+                    .runtimeAvailable) ...[
+              const SizedBox(height: AppSpacing.space3),
+              Text(
+                capabilitiesAsync.requireValue
+                        .capabilityFor(vpnState.protocol)
+                        .reason ??
+                    '${vpnProtocolLabel(vpnState.protocol)} cannot connect on this device yet.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.warning,
+                    ),
+              ),
+            ],
+          ],
           if (vpnState.protocolMessage != null &&
               vpnState.protocolMessage!.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.space3),
@@ -183,7 +236,11 @@ class ProtocolSelectorCard extends ConsumerWidget {
     return out;
   }
 
-  Widget _protocolAvatar(VpnProtocolCatalogEntry entry, bool selected) {
+  Widget _protocolAvatar(
+    VpnProtocolCatalogEntry entry,
+    bool selected, {
+    required bool runtimeAvailable,
+  }) {
     if (entry.protocol == VpnProtocol.auto) {
       return Icon(
         Icons.auto_awesome_rounded,
@@ -191,7 +248,7 @@ class ProtocolSelectorCard extends ConsumerWidget {
         color: selected ? AppColors.primaryBright : null,
       );
     }
-    if (entry.isAvailable) {
+    if (runtimeAvailable) {
       return Icon(
         Icons.shield_moon_rounded,
         size: AppSpacing.iconS,
@@ -201,6 +258,36 @@ class ProtocolSelectorCard extends ConsumerWidget {
     return const Icon(
       Icons.lock_outline_rounded,
       size: AppSpacing.iconS,
+    );
+  }
+}
+
+class _ProtocolChipLabel extends StatelessWidget {
+  const _ProtocolChipLabel({
+    required this.protocol,
+    this.helperText,
+  });
+
+  final VpnProtocol protocol;
+  final String? helperText;
+
+  @override
+  Widget build(BuildContext context) {
+    if (helperText == null) {
+      return Text(vpnProtocolLabel(protocol));
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(vpnProtocolLabel(protocol)),
+        Text(
+          helperText!,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
     );
   }
 }

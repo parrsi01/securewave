@@ -162,10 +162,8 @@ class VpnState {
       validationStatus: validationStatus ?? this.validationStatus,
       validationScore: validationScore ?? this.validationScore,
       validationLatencyMs: validationLatencyMs ?? this.validationLatencyMs,
-      validationPacketLoss:
-          validationPacketLoss ?? this.validationPacketLoss,
-      validationIpVerified:
-          validationIpVerified ?? this.validationIpVerified,
+      validationPacketLoss: validationPacketLoss ?? this.validationPacketLoss,
+      validationIpVerified: validationIpVerified ?? this.validationIpVerified,
       validationDnsOk: validationDnsOk ?? this.validationDnsOk,
       validationFailureType:
           validationFailureType ?? this.validationFailureType,
@@ -1572,7 +1570,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> _retryDegradedValidation(VpnHealthIssue issue) async {
-    if (_degradedRecoveryInFlight || !mounted || _disposed || !state.desiredOn) {
+    if (_degradedRecoveryInFlight ||
+        !mounted ||
+        _disposed ||
+        !state.desiredOn) {
       return;
     }
     _degradedRecoveryInFlight = true;
@@ -2284,7 +2285,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         'effective=${plan.effective.name} backend=${plan.backendProtocol.name} '
         'connectable=${plan.isConnectable} '
         'warning=${plan.warning ?? "-"} error=${plan.error ?? "-"} '
-        'caps(wg=${capabilities.wireGuard},ovpn=${capabilities.openVpn},ikev2=${capabilities.ikev2})',
+        'caps('
+        'wg=s${capabilities.wireGuardCapability.supported}/r${capabilities.wireGuardCapability.runtimeAvailable},'
+        'ovpn=s${capabilities.openVpnCapability.supported}/r${capabilities.openVpnCapability.runtimeAvailable},'
+        'ikev2=s${capabilities.ikev2Capability.supported}/r${capabilities.ikev2Capability.runtimeAvailable}'
+        ')',
       );
       AppLogger.info(
         '[VPN_SM] {"event":"protocol_resolved",'
@@ -2298,6 +2303,24 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       );
       if (!plan.isConnectable) {
         final runtimeBlocked = plan.runtimeBlocked;
+        if (runtimeBlocked && plan.effective == VpnProtocol.openVpn) {
+          final capability = capabilities.openVpnCapability;
+          AppLogger.vpn(
+            'STATE_MACHINE',
+            'OPENVPN_RUNTIME_BLOCKED',
+            level: 900,
+            fields: <String, Object?>{
+              'supported': capability.supported,
+              'runtime_available': capability.runtimeAvailable,
+              'selected': plan.selected.name,
+              'effective': plan.effective.name,
+            },
+          );
+        }
+        final runtimeErrorCode = _runtimeProtocolErrorCode(
+          protocol: plan.effective,
+          capabilities: capabilities,
+        );
         _updateReadiness(
           runtimeReady: runtimeBlocked
               ? VpnReadinessGateState.notReady
@@ -2306,10 +2329,15 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           runtimeHint: runtimeBlocked ? plan.error : null,
           clearRuntimeHint: !runtimeBlocked,
           lastErrorCode:
-              runtimeBlocked ? 'runtime_not_ready' : 'backend_protocol_blocked',
+              runtimeBlocked ? runtimeErrorCode : 'backend_protocol_blocked',
         );
         throw VpnServiceException(
-          'protocol_unavailable',
+          runtimeBlocked
+              ? _runtimeProtocolExceptionCode(
+                  protocol: plan.effective,
+                  capabilities: capabilities,
+                )
+              : 'protocol_unavailable',
           plan.error ??
               'No supported VPN runtime is available for this protocol.',
         );
@@ -2798,8 +2826,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           final code = apiErrorCode(error);
           final staleCachedDevice =
               requestedDeviceId != null && code == 'device_not_found';
-          final staleSelectedServer =
-              (requestedServerId ?? '').isNotEmpty && code == 'server_not_found';
+          final staleSelectedServer = (requestedServerId ?? '').isNotEmpty &&
+              code == 'server_not_found';
           if (staleCachedDevice) {
             AppLogger.warning(
               '[VPN_SM] {"event":"profile_retry_without_cached_device","device_id":$requestedDeviceId}',
@@ -2826,10 +2854,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
               continue;
             }
           }
-          final transientPinnedRegionFailure =
-              !attemptedPinnedRegionRetry &&
-                  code == 'region_down' &&
-                  (requestedServerId ?? '').isNotEmpty;
+          final transientPinnedRegionFailure = !attemptedPinnedRegionRetry &&
+              code == 'region_down' &&
+              (requestedServerId ?? '').isNotEmpty;
           if (transientPinnedRegionFailure) {
             attemptedPinnedRegionRetry = true;
             AppLogger.warning(
@@ -3745,6 +3772,32 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     return null;
   }
 
+  String _runtimeProtocolErrorCode({
+    required VpnProtocol protocol,
+    required VpnCapabilities capabilities,
+  }) {
+    final capability = capabilities.capabilityFor(protocol);
+    if (protocol == VpnProtocol.openVpn &&
+        capability.supported &&
+        !capability.runtimeAvailable) {
+      return 'openvpn_runtime_not_linked';
+    }
+    return 'runtime_not_ready';
+  }
+
+  String _runtimeProtocolExceptionCode({
+    required VpnProtocol protocol,
+    required VpnCapabilities capabilities,
+  }) {
+    final capability = capabilities.capabilityFor(protocol);
+    if (protocol == VpnProtocol.openVpn &&
+        capability.supported &&
+        !capability.runtimeAvailable) {
+      return 'OPENVPN_RUNTIME_NOT_LINKED';
+    }
+    return 'protocol_unavailable';
+  }
+
   bool _isBackendProtocolDisabledCode(String? code) {
     if (code == null || code.isEmpty) return false;
     return code == 'protocol_disabled_server_side' ||
@@ -3784,6 +3837,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         return (kind: VpnErrorKind.backendError, message: error.message);
       }
       if (error.code == 'protocol_unavailable') {
+        return (kind: VpnErrorKind.protocolUnavailable, message: error.message);
+      }
+      if (error.code.toLowerCase() == 'openvpn_runtime_not_linked') {
         return (kind: VpnErrorKind.protocolUnavailable, message: error.message);
       }
       if (error.code == 'vpn_permission_required') {
@@ -4161,10 +4217,10 @@ extension VpnStatePresentation on VpnState {
     return switch (status) {
       VpnStatus.connected => AppColors.success,
       VpnStatus.degraded => AppColors.warning,
-      VpnStatus.connecting => AppColors.secondary,
-      VpnStatus.verifying => AppColors.secondary,
-      VpnStatus.reconnecting => AppColors.secondary,
-      VpnStatus.disconnecting => AppColors.secondary,
+      VpnStatus.connecting => AppColors.warning,
+      VpnStatus.verifying => AppColors.warning,
+      VpnStatus.reconnecting => AppColors.warning,
+      VpnStatus.disconnecting => AppColors.warning,
       VpnStatus.error =>
         backendUnreachable ? AppColors.error : AppColors.warning,
       VpnStatus.disconnected => AppColors.inkSoft,

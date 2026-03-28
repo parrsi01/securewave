@@ -2,113 +2,129 @@ import 'package:flutter/material.dart';
 
 import '../design/app_colors.dart';
 
-/// SecureWave design tokens — pure purple dark-to-light hue.
+/// SecureWave shared dark design tokens.
 ///
-/// Primary: neon purple (#7A5CFF). Secondary: lavender (#B794FF).
-/// Dark plum surfaces. No cyan/blue.
+/// Legacy names are retained for compatibility, but the values resolve to one
+/// dark plum + single neon purple system.
 class HtbColors {
   HtbColors._();
 
   // ── Primary Accent (Neon Purple) ──────────────────────────────────────────
 
-  static const Color accentPrimary = AppColors.primary;           // #7A5CFF
-  static const Color accentPrimaryMuted = AppColors.primaryDark;  // #5A3FCC
+  static const Color neonPurple = AppColors.primary;
+  static const Color neonPurpleMuted = AppColors.primaryDark;
+  static const Color neonPurpleGhost = AppColors.primaryGhost;
+  static const Color neonPurpleHover = AppColors.primaryWash;
+
+  static const Color neonLavender = AppColors.primaryBright;
+  static const Color neonLavenderMuted = AppColors.primaryDark;
+  static const Color neonLavenderGhost = AppColors.primaryWash;
+
+  // ── Accent aliases (used by newer screens) ────────────────────────────────
+
+  static const Color accentPrimary = AppColors.primary;
+  static const Color accentPrimaryMuted = AppColors.primaryDark;
   static const Color accentPrimaryGhost = AppColors.primaryGhost;
   static const Color accentPrimaryHover = AppColors.primaryWash;
 
-  // ── Secondary Accent (Lavender) ───────────────────────────────────────────
+  static const Color accentSecondary = AppColors.primaryBright;
+  static const Color accentSecondaryMuted = AppColors.primaryDark;
+  static const Color accentSecondaryGhost = AppColors.primaryWash;
 
-  static const Color accentSecondary = AppColors.secondary;           // #B794FF
-  static const Color accentSecondaryMuted = AppColors.secondaryDark;  // #9A72FF
-  static const Color accentSecondaryGhost = AppColors.secondaryWash;
+  static const Color accentTertiary = AppColors.primaryBright;
 
-  // ── Tertiary Accent (Neon Pink) ───────────────────────────────────────────
+  static const Color bg0 = AppColors.background;
+  static const Color bg1 = AppColors.backgroundWarm;
+  static const Color bg2 = AppColors.surfaceMuted;
+  static const Color bg3 = AppColors.surfaceElevated;
 
-  static const Color accentTertiary = AppColors.tertiary;  // #FF2BD6
-
-  // ── Backgrounds (dark plum ramp) ─────────────────────────────────────────
-
-  static const Color bg0 = AppColors.background;      // #0E0818
-  static const Color bg1 = AppColors.backgroundWarm;  // #160F26
-  static const Color bg2 = AppColors.surfaceMuted;    // #1E1535
-  static const Color bg3 = AppColors.surfaceElevated; // #291C47
+  static const Color panelSunken = AppColors.surfaceSunken;
+  static const Color panelBase = AppColors.surfaceBase;
+  static const Color panelRaised = AppColors.surfaceRaised;
+  static const Color panelFloating = AppColors.surfaceFloating;
+  static const Color panelOverlay = AppColors.surfaceOverlay;
 
   // ── Glass Surface Tokens ─────────────────────────────────────────────────
 
-  // dark plum @ 88% opacity
-  static const Color glassFill = Color(0xE01A1130);
-  static const Color glassFillLight = Color(0xE6201840);
-  // purple neon border
-  static const Color glassBorderNeon = Color(0x4D7A5CFF);
-  static const Color glassBorderDefault = Color(0x337A5CFF);
-  static const Color glassBorderMuted = Color(0x1AEDE6FF);
+  static const Color glassFill = Color(0xE61E1535);
+  static const Color glassFillLight = Color(0xEA291C47);
+  static const Color glassBorderNeon = Color(0x337A5CFF);
+  static const Color glassBorderDefault = AppColors.borderStrong;
+  static const Color glassBorderMuted = Color(0x14EDE6FF);
 
-  // ── Text Colors (lavender-white ramp) ─────────────────────────────────────
+  // ── Text Colors ───────────────────────────────────────────────────────────
 
-  static const Color textPrimary = AppColors.ink;       // #EDE6FF
-  static const Color textSecondary = AppColors.inkMuted; // #BAAFD
-  static const Color textTertiary = AppColors.inkSoft;  // #8070A8
-  // textInverse: used on bright neon buttons — dark plum
-  static const Color textInverse = Color(0xFF0E0818);
-  // textMono: lavender for monospace labels
-  static const Color textMono = Color(0xFFD4C6FF);
-  static const Color textHint = Color(0xFF6D5E96);
+  static const Color textPrimary = AppColors.ink;
+  static const Color textSecondary = AppColors.inkMuted;
+  static const Color textTertiary = AppColors.inkSoft;
+  static const Color textInverse = AppColors.ink;
+  static const Color textMono = Color(0xFFD8CCFF);
+  static const Color textHint = Color(0xFF6B5D8A);
 
   // ── Status Colors ─────────────────────────────────────────────────────────
 
-  static const Color statusConnected = AppColors.success;    // #9A72FF lavender
-  static const Color statusDisconnected = AppColors.error;   // #FF4D6A
-  static const Color statusConnecting = AppColors.warning;   // #FFB454
-  static const Color statusWarning = AppColors.warning;
-  static const Color statusError = AppColors.error;
-  static const Color statusErrorDeep = AppColors.errorDark;
+  static const Color statusConnected = AppColors.success;
+  static const Color statusDisconnected = Color(0xFFFF4D6A);
+  static const Color statusConnecting = Color(0xFFFFB454);
+  static const Color statusWarning = Color(0xFFFF9B4A);
+  static const Color statusError = Color(0xFFFF4D6A);
   static const Color statusIdle = textTertiary;
 
   // ── Glow Colors ───────────────────────────────────────────────────────────
 
-  // neon purple glow
-  static const Color glowPrimary = Color(0x527A5CFF);
-  static const Color glowPrimarySoft = Color(0x2C7A5CFF);
-  // lavender glow
-  static const Color glowSecondary = Color(0x30B794FF);
-  // pink accent glow
-  static const Color glowTertiary = Color(0x28FF2BD6);
-  // status glows
+  static const Color glowPurple = Color(0x337A5CFF);
+  static const Color glowPurpleSoft = Color(0x187A5CFF);
+  static const Color glowLavender = Color(0x267A5CFF);
   static const Color glowRed = Color(0x44FF4D6A);
   static const Color glowAmber = Color(0x44FFB454);
 
+  // Semantic glow aliases (used by newer components)
+  static const Color glowPrimary = Color(0x337A5CFF);
+  static const Color glowPrimarySoft = Color(0x1A7A5CFF);
+  static const Color glowSecondary = glowPrimarySoft;
+
+  // Legacy aliases
+  static const Color glowGreen = glowPurple;
+  static const Color glowGreenSoft = glowPurpleSoft;
+  static const Color glowCyan = glowLavender;
+  static const Color statusErrorDeep = AppColors.errorDark;
+
   // ── Borders & Dividers ────────────────────────────────────────────────────
 
-  static const Color border = AppColors.border;         // #3D2D66
+  static const Color border = AppColors.border;
+  static const Color borderSubtle = AppColors.borderSubtle;
+  static const Color borderStrong = AppColors.borderStrong;
+  static const Color borderAccent = AppColors.borderAccent;
   static const Color borderActive = accentPrimary;
-  static const Color divider = Color(0xFF2E1F52);
+  static const Color divider = Color(0xFF2A1F4A);
 
   // ── Miscellaneous ─────────────────────────────────────────────────────────
 
-  static const Color scrim = Color(0xCC0A0612);
+  static const Color scrim = Color(0xCC0E0818);
   static const Color loadLow = accentPrimary;
   static const Color loadMedium = statusConnecting;
   static const Color loadHigh = statusDisconnected;
 
   // ── ColorScheme Builder ───────────────────────────────────────────────────
 
-  static ColorScheme lightScheme() {
-    return AppColors.lightScheme().copyWith(
+  static ColorScheme darkScheme() {
+    return ColorScheme.fromSeed(
+      seedColor: accentPrimary,
+      brightness: Brightness.dark,
+    ).copyWith(
       primary: accentPrimary,
       onPrimary: textInverse,
-      primaryContainer: AppColors.primaryLight,
+      primaryContainer: AppColors.primaryDeep,
       onPrimaryContainer: textPrimary,
       secondary: accentSecondary,
       onSecondary: textInverse,
-      secondaryContainer: AppColors.secondaryLight,
+      secondaryContainer: AppColors.primaryDeep,
       onSecondaryContainer: textPrimary,
-      tertiary: accentTertiary,
-      onTertiary: textInverse,
-      surface: bg0,
+      surface: bg1,
       onSurface: textPrimary,
       surfaceContainerLowest: bg0,
-      surfaceContainerLow: bg1,
-      surfaceContainer: bg2,
+      surfaceContainerLow: bg0,
+      surfaceContainer: bg1,
       surfaceContainerHigh: bg2,
       surfaceContainerHighest: bg3,
       onSurfaceVariant: textSecondary,
@@ -116,14 +132,11 @@ class HtbColors {
       outlineVariant: divider,
       error: statusError,
       onError: textInverse,
-      shadow: const Color(0xFF0A0612),
+      shadow: const Color(0xFF060410),
       scrim: scrim,
       inverseSurface: textPrimary,
       onInverseSurface: bg0,
-      inversePrimary: accentSecondary,
+      inversePrimary: accentPrimaryMuted,
     );
   }
-
-  // darkScheme() kept for compile compatibility — returns same dark scheme.
-  static ColorScheme darkScheme() => lightScheme();
 }

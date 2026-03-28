@@ -92,13 +92,13 @@ class ProtocolCapabilityMatrix {
       case VpnClientPlatform.windows:
       case VpnClientPlatform.linux:
       case VpnClientPlatform.macos:
+      case VpnClientPlatform.ios:
         return const <VpnProtocol>{
           VpnProtocol.wireGuard,
           VpnProtocol.openVpn,
           VpnProtocol.ikev2,
         };
       case VpnClientPlatform.android:
-      case VpnClientPlatform.ios:
       case VpnClientPlatform.unknown:
         return const <VpnProtocol>{VpnProtocol.wireGuard};
     }
@@ -153,12 +153,8 @@ class ProtocolCapabilityMatrix {
     for (final protocol in orderedProtocols()) {
       final declaredByPlatform = declared.contains(protocol);
       final backendEnabled = backendEnabledProtocols.contains(protocol);
-      final nativeReady = switch (protocol) {
-        VpnProtocol.auto => false,
-        VpnProtocol.wireGuard => nativeCapabilities.wireGuard,
-        VpnProtocol.openVpn => nativeCapabilities.openVpn,
-        VpnProtocol.ikev2 => nativeCapabilities.ikev2,
-      };
+      final nativeCapability = nativeCapabilities.capabilityFor(protocol);
+      final nativeReady = nativeCapability.runtimeAvailable;
 
       String? reason;
       if (!declaredByPlatform) {
@@ -168,7 +164,7 @@ class ProtocolCapabilityMatrix {
         reason =
             '${vpnProtocolLabel(protocol)} is disabled by backend policy or plan.';
       } else if (!nativeReady) {
-        reason =
+        reason = nativeCapability.reason ??
             _nativeUnavailableReason(platform, protocol, nativeCapabilities);
       }
 

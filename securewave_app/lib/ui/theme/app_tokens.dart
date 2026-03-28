@@ -118,7 +118,7 @@ class AppTokens {
       spreadRadius: 0,
     ),
     BoxShadow(
-      color: HtbColors.neonGreen,
+      color: HtbColors.neonPurple,
       blurRadius: 8,
       spreadRadius: 0,
     ),
@@ -133,7 +133,7 @@ class AppTokens {
     ),
   ];
 
-  /// Lavender glow — secondary highlights
+  /// Legacy compatibility alias for accent glow in older widgets.
   static const List<BoxShadow> glowCyan = [
     BoxShadow(
       color: HtbColors.glowCyan,
@@ -229,4 +229,14 @@ class AppTokens {
 
   /// Default border width
   static const double borderWidth = 1;
+
+  // ── Standardized Opacity Scale ────────────────────────────────────────────
+
+  static const double opacityGhost = 0.04;
+  static const double opacityFaint = 0.08;
+  static const double opacitySoft = 0.12;
+  static const double opacityMedium = 0.18;
+  static const double opacityStrong = 0.24;
+  static const double opacityHeavy = 0.36;
+  static const double opacityDisabled = 0.38;
 }

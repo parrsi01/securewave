@@ -34,7 +34,7 @@ class AuthHeader extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: htb.HtbColors.glowSecondary,
+                color: htb.HtbColors.glowPrimary,
                 blurRadius: 30,
                 offset: Offset(0, 12),
               ),
@@ -60,7 +60,7 @@ class AuthHeader extends StatelessWidget {
                     ),
                     boxShadow: const [
                       BoxShadow(
-                        color: htb.HtbColors.glowSecondary,
+                        color: htb.HtbColors.glowPrimary,
                         blurRadius: 22,
                         offset: Offset(0, 10),
                       ),
@@ -76,22 +76,20 @@ class AuthHeader extends StatelessWidget {
               const SizedBox(height: AppSpacing.space4),
               Text(
                 headline,
-                style: TextStyle(
-                  color: htb.HtbColors.textPrimary,
-                  fontSize: headlineSize,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: htb.HtbColors.textPrimary,
+                      fontSize: headlineSize,
+                      fontWeight: FontWeight.w800,
+                    ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.space1),
               Text(
                 subline,
-                style: TextStyle(
-                  color: htb.HtbColors.textSecondary,
-                  fontSize: sublineSize,
-                  fontWeight: FontWeight.w400,
-                ),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: htb.HtbColors.textSecondary,
+                      fontSize: sublineSize,
+                    ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -142,7 +140,7 @@ class AuthErrorBanner extends StatelessWidget {
             child: Text(
               message,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: htb.HtbColors.statusDisconnected,
+                    color: htb.HtbColors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
             ),
@@ -177,7 +175,7 @@ class AuthFeaturePanel extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            htb.HtbColors.accentSecondaryGhost,
+            htb.HtbColors.accentPrimaryGhost,
             htb.HtbColors.accentPrimaryGhost,
           ],
         ),
@@ -185,7 +183,7 @@ class AuthFeaturePanel extends StatelessWidget {
         border: Border.all(color: htb.HtbColors.glassBorderDefault),
         boxShadow: const [
           BoxShadow(
-            color: htb.HtbColors.glowSecondary,
+            color: htb.HtbColors.glowPrimary,
             blurRadius: 20,
             offset: Offset(0, 10),
           ),
@@ -199,7 +197,7 @@ class AuthFeaturePanel extends StatelessWidget {
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: htb.HtbColors.textMono,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
+                  letterSpacing: 0.8,
                 ),
           ),
           const SizedBox(height: AppSpacing.space2),
@@ -227,11 +225,11 @@ class AuthFeaturePanel extends StatelessWidget {
                   height: 10,
                   margin: const EdgeInsets.only(top: 5),
                   decoration: const BoxDecoration(
-                    color: htb.HtbColors.accentSecondary,
+                    color: htb.HtbColors.accentPrimary,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: htb.HtbColors.glowSecondary,
+                        color: htb.HtbColors.glowPrimary,
                         blurRadius: 10,
                       ),
                     ],

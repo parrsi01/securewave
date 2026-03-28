@@ -15,8 +15,92 @@ import WireGuardKitC
 import WireGuardKit
 #endif
 
+private enum SecureWavePacketTunnelProtocol: String {
+  case wireGuard = "wireguard"
+  case openVpn = "openvpn"
+
+  init(providerConfiguration: [String: Any]) {
+    let raw = (providerConfiguration["protocol"] as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+    self = Self(rawValue: raw ?? "") ?? .wireGuard
+  }
+}
+
+private struct SecureWaveOpenVPNPacketTunnelRequest {
+  let serverAddress: String
+  let ovpnConfig: String
+  let username: String?
+  let passwordReference: Data?
+
+  init(
+    tunnelProtocol: NETunnelProviderProtocol,
+    providerConfiguration: [String: Any]
+  ) throws {
+    let ovpnConfig = (
+      providerConfiguration["ovpn_config"] as? String ??
+      providerConfiguration["openvpn_config"] as? String ??
+      ""
+    )
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !ovpnConfig.isEmpty else {
+      throw NSError(
+        domain: "SecureWave",
+        code: -20,
+        userInfo: [NSLocalizedDescriptionKey: "Missing OpenVPN configuration (ovpn_config)."]
+      )
+    }
+
+    self.serverAddress = tunnelProtocol.serverAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
+      .nonEmpty ?? "OpenVPN"
+    self.ovpnConfig = ovpnConfig
+    self.username = tunnelProtocol.username?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    self.passwordReference = tunnelProtocol.passwordReference
+  }
+}
+
+private final class SecureWavePlaceholderOpenVPNEngine {
+  static let installHint =
+    "OpenVPN bridge is wired, but SecureWavePlaceholderOpenVPNEngine is still active. Replace this class with your licensed OpenVPN runtime."
+
+  private let provider: NEPacketTunnelProvider
+  private let log: Logger
+
+  init(provider: NEPacketTunnelProvider, log: Logger) {
+    self.provider = provider
+    self.log = log
+  }
+
+  func start(
+    request: SecureWaveOpenVPNPacketTunnelRequest,
+    completionHandler: @escaping (Error?) -> Void
+  ) {
+    let error = NSError(
+      domain: "SecureWave",
+      code: -21,
+      userInfo: [NSLocalizedDescriptionKey: Self.installHint]
+    )
+    log.error(
+      "OpenVPN start requested for \(request.serverAddress, privacy: .public), but the placeholder engine is still installed."
+    )
+    provider.cancelTunnelWithError(error)
+    completionHandler(error)
+  }
+
+  func stop(completionHandler: @escaping () -> Void) {
+    completionHandler()
+  }
+}
+
+private extension String {
+  var nonEmpty: String? {
+    isEmpty ? nil : self
+  }
+}
+
 class PacketTunnelProvider: NEPacketTunnelProvider {
   private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "SecureWave.PacketTunnel", category: "vpn")
+  private var activeProtocol: SecureWavePacketTunnelProtocol = .wireGuard
   private var appGroupIdentifier: String {
     if let configured = (Bundle.main.object(forInfoDictionaryKey: "SecureWaveAppGroupIdentifier") as? String)?
       .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -31,23 +115,91 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
   #if canImport(WireGuardKit)
   private var adapter: WireGuardAdapter?
   #endif
+  private var openVpnEngine: SecureWavePlaceholderOpenVPNEngine?
 
   override func startTunnel(options: [String : NSObject]? = nil, completionHandler: @escaping (Error?) -> Void) {
     log.log("startTunnel called")
     guard let tunnelProtocol = protocolConfiguration as? NETunnelProviderProtocol,
-          let providerConfiguration = tunnelProtocol.providerConfiguration,
-          let config = buildWireGuardConfig(from: providerConfiguration) else {
+          let providerConfiguration = tunnelProtocol.providerConfiguration else {
+      let error = NSError(
+        domain: "SecureWave",
+        code: -10,
+        userInfo: [NSLocalizedDescriptionKey: "Missing Packet Tunnel configuration."]
+      )
+      persistStatus(state: "error", lastError: error.localizedDescription, connectedSince: 0)
+      log.error("startTunnel aborted: missing providerConfiguration")
+      completionHandler(error)
+      return
+    }
+    let protocolType = SecureWavePacketTunnelProtocol(providerConfiguration: providerConfiguration)
+    activeProtocol = protocolType
+    persistStatus(state: "connecting", lastError: nil, connectedSince: 0)
+
+    switch protocolType {
+    case .wireGuard:
+      startWireGuardTunnel(
+        tunnelProtocol: tunnelProtocol,
+        providerConfiguration: providerConfiguration,
+        completionHandler: completionHandler
+      )
+    case .openVpn:
+      startOpenVpnTunnel(
+        tunnelProtocol: tunnelProtocol,
+        providerConfiguration: providerConfiguration,
+        completionHandler: completionHandler
+      )
+    }
+  }
+
+  override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
+    persistStatus(state: "disconnecting", lastError: nil, connectedSince: readConnectedSince())
+    switch activeProtocol {
+    case .wireGuard:
+      #if canImport(WireGuardKit)
+      log.log("stopTunnel called: reason=\(reason.rawValue, privacy: .public)")
+      adapter?.stop { [weak self] _ in
+        self?.persistStatus(state: "disconnected", lastError: nil, connectedSince: 0)
+        self?.log.log("tunnel stopped")
+        completionHandler()
+      }
+      adapter = nil
+      #else
+      persistStatus(state: "disconnected", lastError: nil, connectedSince: 0)
+      log.log("stopTunnel called (no WireGuardKit linked)")
+      completionHandler()
+      #endif
+    case .openVpn:
+      guard let openVpnEngine else {
+        persistStatus(state: "disconnected", lastError: nil, connectedSince: 0)
+        log.log("OpenVPN tunnel stopped (placeholder engine missing)")
+        completionHandler()
+        return
+      }
+      openVpnEngine.stop { [weak self] in
+        self?.persistStatus(state: "disconnected", lastError: nil, connectedSince: 0)
+        self?.log.log("OpenVPN tunnel stopped")
+        completionHandler()
+      }
+      self.openVpnEngine = nil
+    }
+  }
+
+  private func startWireGuardTunnel(
+    tunnelProtocol _: NETunnelProviderProtocol,
+    providerConfiguration: [String: Any],
+    completionHandler: @escaping (Error?) -> Void
+  ) {
+    guard let config = buildWireGuardConfig(from: providerConfiguration) else {
       let error = NSError(
         domain: "SecureWave",
         code: -10,
         userInfo: [NSLocalizedDescriptionKey: "Missing WireGuard configuration."]
       )
       persistStatus(state: "error", lastError: error.localizedDescription, connectedSince: 0)
-      log.error("startTunnel aborted: missing config")
+      log.error("startTunnel aborted: missing WireGuard config")
       completionHandler(error)
       return
     }
-    persistStatus(state: "connecting", lastError: nil, connectedSince: 0)
 
     #if canImport(WireGuardKit)
     do {
@@ -131,21 +283,34 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     #endif
   }
 
-  override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-    persistStatus(state: "disconnecting", lastError: nil, connectedSince: readConnectedSince())
-    #if canImport(WireGuardKit)
-    log.log("stopTunnel called: reason=\(reason.rawValue, privacy: .public)")
-    adapter?.stop { [weak self] _ in
-      self?.persistStatus(state: "disconnected", lastError: nil, connectedSince: 0)
-      self?.log.log("tunnel stopped")
-      completionHandler()
+  private func startOpenVpnTunnel(
+    tunnelProtocol: NETunnelProviderProtocol,
+    providerConfiguration: [String: Any],
+    completionHandler: @escaping (Error?) -> Void
+  ) {
+    do {
+      let request = try SecureWaveOpenVPNPacketTunnelRequest(
+        tunnelProtocol: tunnelProtocol,
+        providerConfiguration: providerConfiguration
+      )
+      let engine = SecureWavePlaceholderOpenVPNEngine(provider: self, log: log)
+      openVpnEngine = engine
+      engine.start(request: request) { [weak self] error in
+        if let error {
+          self?.persistStatus(state: "error", lastError: error.localizedDescription, connectedSince: 0)
+          completionHandler(error)
+        } else {
+          let connectedSince = Int(Date().timeIntervalSince1970)
+          self?.persistStatus(state: "connected", lastError: nil, connectedSince: connectedSince)
+          completionHandler(nil)
+        }
+      }
+    } catch {
+      let nsError = error as NSError
+      persistStatus(state: "error", lastError: nsError.localizedDescription, connectedSince: 0)
+      log.error("OpenVPN request parse failed: \(nsError.localizedDescription, privacy: .public)")
+      completionHandler(nsError)
     }
-    adapter = nil
-    #else
-    persistStatus(state: "disconnected", lastError: nil, connectedSince: 0)
-    log.log("stopTunnel called (no WireGuardKit linked)")
-    completionHandler()
-    #endif
   }
 
   override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)? = nil) {

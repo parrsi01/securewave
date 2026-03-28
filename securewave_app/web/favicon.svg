@@ -14,5 +14,5 @@
   <path d="M32 8c-7 5-13 8-19 9v13c0 12 7 21 19 29 12-8 19-17 19-29V17c-6-1-12-4-19-9z" fill="#1e1535" stroke="#7a5cff" stroke-width="1.6"/>
   <path d="M20 31c4-4 8-5 13-5 5 1 8 2 11 5" stroke="url(#waveA)" stroke-width="3" stroke-linecap="round"/>
   <path d="M21 37c3-3 7-4 11-4 4 0 7 1 10 4" stroke="url(#waveB)" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M24 43c2-1 5-2 8-2 3 0 5 1 8 2" stroke="#ff2bd6" stroke-opacity="0.50" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M24 43c2-1 5-2 8-2 3 0 5 1 8 2" stroke="#7a5cff" stroke-opacity="0.35" stroke-width="1.8" stroke-linecap="round"/>
 </svg>

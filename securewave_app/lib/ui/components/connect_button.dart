@@ -9,6 +9,8 @@ import '../design/app_animations.dart';
 import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 import '../theme/app_colors.dart' as htb;
+import '../theme/app_tokens.dart';
+import '../theme/app_typography.dart';
 import '../widgets/vpn_ui_bindings.dart';
 
 /// Central connect/disconnect button with animated states.
@@ -168,11 +170,7 @@ class _ConnectButtonState extends State<ConnectButton>
                           width: 1.2,
                         ),
                         boxShadow: <BoxShadow>[
-                          const BoxShadow(
-                            color: Color(0x42020306),
-                            blurRadius: 18,
-                            offset: Offset(0, 10),
-                          ),
+                          ...AppTokens.shadowHigh,
                           if (_showGlow(widget.visualState) ||
                               _hovered ||
                               _pressed)
@@ -241,12 +239,16 @@ class _ConnectButtonState extends State<ConnectButton>
                             const SizedBox(height: 8),
                             Text(
                               _label(widget.visualState),
-                              style: TextStyle(
-                                color: _foregroundColor(widget.visualState),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                letterSpacing: 0.5,
-                              ),
+                              style: AppTypography.textTheme()
+                                      .labelMedium
+                                      ?.copyWith(
+                                        color: _foregroundColor(
+                                          widget.visualState,
+                                        ),
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.5,
+                                      ) ??
+                                  const TextStyle(),
                             ),
                           ],
                         ),

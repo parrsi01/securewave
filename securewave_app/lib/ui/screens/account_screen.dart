@@ -9,6 +9,7 @@ import '../../ui/components/htb_background.dart';
 import '../../ui/design/app_colors.dart';
 import '../../ui/design/app_spacing.dart';
 import '../../ui/theme/app_colors.dart' as htb;
+import '../../ui/theme/app_tokens.dart';
 import '../../ui/widgets/glass_panel.dart';
 
 /// Account / profile screen.
@@ -19,8 +20,6 @@ class AccountScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authSession = ref.watch(authSessionProvider);
     final planAsync = ref.watch(userPlanProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       key: AutomationKeys.accountScreenKey,
       backgroundColor: AppColors.darkBackground,
@@ -40,13 +39,13 @@ class AccountScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   GlassPanel(
-                    glowColor: htb.HtbColors.accentSecondaryMuted,
-                    borderColor: htb.HtbColors.accentSecondaryGhost,
+                    glowColor: htb.HtbColors.accentPrimaryMuted,
+                    borderColor: htb.HtbColors.accentPrimaryGhost,
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        htb.HtbColors.accentSecondaryGhost,
+                        htb.HtbColors.accentPrimaryGhost,
                         htb.HtbColors.bg1.withValues(alpha: 0.92),
                         htb.HtbColors.bg3.withValues(alpha: 0.96),
                       ],
@@ -60,11 +59,11 @@ class AccountScreen extends ConsumerWidget {
                             vertical: AppSpacing.space2,
                           ),
                           decoration: BoxDecoration(
-                            color: htb.HtbColors.accentSecondaryGhost,
+                            color: htb.HtbColors.accentPrimaryGhost,
                             borderRadius:
                                 BorderRadius.circular(AppSpacing.radiusFull),
                             border: Border.all(
-                              color: htb.HtbColors.accentSecondaryGhost,
+                              color: htb.HtbColors.accentPrimaryGhost,
                             ),
                           ),
                           child: Text(
@@ -111,7 +110,7 @@ class AccountScreen extends ConsumerWidget {
                                 child: Text(
                                   _initials(authSession.email),
                                   style: const TextStyle(
-                                    color: Colors.white,
+                                    color: AppColors.darkBackground,
                                     fontWeight: FontWeight.w800,
                                     fontSize: 24,
                                   ),
@@ -165,7 +164,7 @@ class AccountScreen extends ConsumerWidget {
                               color: plan.isPremium
                                   ? null
                                   : AppColors.primaryBright
-                                      .withValues(alpha: 0.12),
+                                      .withValues(alpha: AppTokens.opacitySoft),
                               borderRadius:
                                   BorderRadius.circular(AppSpacing.radiusFull),
                             ),
@@ -176,7 +175,7 @@ class AccountScreen extends ConsumerWidget {
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.8,
                                 color: plan.isPremium
-                                    ? Colors.white
+                                    ? AppColors.darkBackground
                                     : AppColors.primaryBright,
                               ),
                             ),
@@ -194,22 +193,22 @@ class AccountScreen extends ConsumerWidget {
                         _ActionTile(
                           icon: Icons.edit_outlined,
                           label: 'Edit Profile',
-                          isDark: isDark,
+
                           onTap: () => context.push('/edit-profile'),
                         ),
-                        _divider(context, isDark),
+                        _divider(context),
                         _ActionTile(
                           icon: Icons.devices_rounded,
                           label: 'Manage Devices',
-                          isDark: isDark,
+
                           onTap: () => context.push('/devices'),
                         ),
-                        _divider(context, isDark),
+                        _divider(context),
                         _ActionTile(
                           automationKey: AutomationKeys.accountSignOutButtonKey,
                           icon: Icons.logout_rounded,
                           label: 'Sign Out',
-                          isDark: isDark,
+
                           danger: true,
                           onTap: () => _confirmSignOut(context, ref),
                         ),
@@ -236,9 +235,7 @@ class AccountScreen extends ConsumerWidget {
                                           .textTheme
                                           .labelMedium
                                           ?.copyWith(
-                                            color: isDark
-                                                ? AppColors.darkInkMuted
-                                                : AppColors.inkMuted,
+                                            color: AppColors.inkMuted,
                                           ),
                                     ),
                                     Text(
@@ -326,7 +323,6 @@ class _ActionTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    required this.isDark,
     this.danger = false,
   });
 
@@ -334,7 +330,6 @@ class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool isDark;
   final bool danger;
 
   @override
@@ -346,12 +341,12 @@ class _ActionTile extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
+          color: color.withValues(alpha: AppTokens.opacitySoft),
           borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-          border: Border.all(color: color.withValues(alpha: 0.26)),
+          border: Border.all(color: color.withValues(alpha: AppTokens.opacityStrong)),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.12),
+              color: color.withValues(alpha: AppTokens.opacitySoft),
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),
@@ -368,10 +363,10 @@ class _ActionTile extends StatelessWidget {
       ),
       trailing: danger
           ? null
-          : Icon(
+          : const Icon(
               Icons.chevron_right_rounded,
               size: AppSpacing.iconS,
-              color: isDark ? AppColors.darkInkSoft : AppColors.inkSoft,
+              color: AppColors.inkSoft,
             ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.space4,
@@ -382,10 +377,8 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
-Widget _divider(BuildContext context, bool isDark) => Divider(
+Widget _divider(BuildContext context) => const Divider(
       height: 1,
       indent: AppSpacing.space7,
-      color: isDark
-          ? AppColors.darkBorder
-          : Theme.of(context).colorScheme.outlineVariant,
+      color: AppColors.border,
     );

@@ -36,9 +36,12 @@ class VpnServiceException implements Exception {
 
 class VpnCapabilities {
   const VpnCapabilities({
-    required this.wireGuard,
-    required this.openVpn,
-    required this.ikev2,
+    required bool wireGuard,
+    required bool openVpn,
+    required bool ikev2,
+    ProtocolCapability? wireGuardCapability,
+    ProtocolCapability? openVpnCapability,
+    ProtocolCapability? ikev2Capability,
     this.windowsThreadSafe = false,
     this.androidVpnServiceBased = false,
     this.macosEntitlementReady = false,
@@ -49,11 +52,19 @@ class VpnCapabilities {
     this.ikev2InstallHint,
     this.linuxElevationHint,
     this.macosEntitlementWarning,
-  });
+  })  : _wireGuardAvailable = wireGuard,
+        _openVpnAvailable = openVpn,
+        _ikev2Available = ikev2,
+        _wireGuardCapability = wireGuardCapability,
+        _openVpnCapability = openVpnCapability,
+        _ikev2Capability = ikev2Capability;
 
-  final bool wireGuard;
-  final bool openVpn;
-  final bool ikev2;
+  final bool _wireGuardAvailable;
+  final bool _openVpnAvailable;
+  final bool _ikev2Available;
+  final ProtocolCapability? _wireGuardCapability;
+  final ProtocolCapability? _openVpnCapability;
+  final ProtocolCapability? _ikev2Capability;
 
   final bool windowsThreadSafe;
   final bool androidVpnServiceBased;
@@ -67,17 +78,78 @@ class VpnCapabilities {
   final String? linuxElevationHint;
   final String? macosEntitlementWarning;
 
-  bool supportsProtocol(VpnProtocol protocol) {
+  ProtocolCapability get wireGuardCapability =>
+      _wireGuardCapability ??
+      ProtocolCapability(
+        supported: _wireGuardAvailable,
+        runtimeAvailable: _wireGuardAvailable,
+        reason: _wireGuardAvailable ? null : wireGuardInstallHint,
+      );
+
+  ProtocolCapability get openVpnCapability =>
+      _openVpnCapability ??
+      ProtocolCapability(
+        supported: _openVpnAvailable,
+        runtimeAvailable: _openVpnAvailable,
+        reason: _openVpnAvailable ? null : openVpnInstallHint,
+      );
+
+  ProtocolCapability get ikev2Capability =>
+      _ikev2Capability ??
+      ProtocolCapability(
+        supported: _ikev2Available,
+        runtimeAvailable: _ikev2Available,
+        reason: _ikev2Available ? null : ikev2InstallHint,
+      );
+
+  bool get wireGuard => wireGuardCapability.available;
+  bool get openVpn => openVpnCapability.available;
+  bool get ikev2 => ikev2Capability.available;
+
+  bool isProtocolSupported(VpnProtocol protocol) {
     switch (protocol) {
       case VpnProtocol.auto:
         return false;
       case VpnProtocol.wireGuard:
-        return wireGuard;
+        return wireGuardCapability.supported;
       case VpnProtocol.openVpn:
-        return openVpn;
+        return openVpnCapability.supported;
       case VpnProtocol.ikev2:
-        return ikev2;
+        return ikev2Capability.supported;
     }
+  }
+
+  bool isRuntimeAvailable(VpnProtocol protocol) {
+    switch (protocol) {
+      case VpnProtocol.auto:
+        return false;
+      case VpnProtocol.wireGuard:
+        return wireGuardCapability.runtimeAvailable;
+      case VpnProtocol.openVpn:
+        return openVpnCapability.runtimeAvailable;
+      case VpnProtocol.ikev2:
+        return ikev2Capability.runtimeAvailable;
+    }
+  }
+
+  ProtocolCapability capabilityFor(VpnProtocol protocol) {
+    switch (protocol) {
+      case VpnProtocol.auto:
+        return const ProtocolCapability(
+          supported: false,
+          runtimeAvailable: false,
+        );
+      case VpnProtocol.wireGuard:
+        return wireGuardCapability;
+      case VpnProtocol.openVpn:
+        return openVpnCapability;
+      case VpnProtocol.ikev2:
+        return ikev2Capability;
+    }
+  }
+
+  bool supportsProtocol(VpnProtocol protocol) {
+    return capabilityFor(protocol).available;
   }
 
   static const VpnCapabilities none = VpnCapabilities(
@@ -276,8 +348,7 @@ class VpnHealthSnapshot {
       routePresent: routePresent ?? this.routePresent,
       pingReachable: pingReachable ?? this.pingReachable,
       trafficConnected: trafficConnected ?? this.trafficConnected,
-      policyRoutingPresent:
-          policyRoutingPresent ?? this.policyRoutingPresent,
+      policyRoutingPresent: policyRoutingPresent ?? this.policyRoutingPresent,
       fwmarkConfigured: fwmarkConfigured ?? this.fwmarkConfigured,
       networkManagerUnmanaged:
           networkManagerUnmanaged ?? this.networkManagerUnmanaged,
@@ -302,8 +373,7 @@ class VpnHealthSnapshot {
       ipVerified: ipVerified ?? this.ipVerified,
       validationStatus: validationStatus ?? this.validationStatus,
       validationScore: validationScore ?? this.validationScore,
-      failureType:
-          clearFailureType ? null : (failureType ?? this.failureType),
+      failureType: clearFailureType ? null : (failureType ?? this.failureType),
     );
   }
 }
@@ -508,8 +578,8 @@ class ChannelVpnService implements VpnService {
           connected: native.isConnected,
           rxBytes: native.rxBytes,
           txBytes: native.txBytes,
-          interfaceName: native.isConnected ? 'utun' : null,
-          protocol: vpnProtocolStorageValue(VpnProtocol.wireGuard),
+          interfaceName: native.interfaceName,
+          protocol: native.protocol,
           timestampMs: DateTime.now().millisecondsSinceEpoch,
         );
       }
@@ -638,6 +708,65 @@ class ChannelVpnService implements VpnService {
     throw TimeoutException('Timed out waiting for Apple VPN bridge.');
   }
 
+  VpnStatus? _nativeStatusFromRawValue(Object? raw) {
+    final normalized = (raw?.toString() ?? '').toLowerCase().trim();
+    return switch (normalized) {
+      'connected' => VpnStatus.connected,
+      'connecting' => VpnStatus.connecting,
+      'disconnecting' => VpnStatus.disconnecting,
+      'error' => VpnStatus.error,
+      'disconnected' => VpnStatus.disconnected,
+      _ => null,
+    };
+  }
+
+  Future<void> _disconnectLinuxTunnelBeforeReconnect({
+    required VpnProtocol requestedProtocol,
+  }) async {
+    final currentStats = await fetchTrafficStats();
+    AppLogger.warning(
+      'Disconnecting stale Linux tunnel before protocol switch: '
+      'requested=${vpnProtocolStorageValue(requestedProtocol)} '
+      'reported_protocol=${currentStats?.protocol ?? 'unknown'} '
+      'interface=${currentStats?.interfaceName ?? 'unknown'}',
+      tag: 'SecureWave.VPN',
+    );
+
+    await _channel
+        .invokeMethod<void>('disconnect')
+        .timeout(const Duration(seconds: 20));
+
+    final deadline = _clock().add(const Duration(seconds: 10));
+    while (_clock().isBefore(deadline)) {
+      try {
+        final raw = await _channel
+            .invokeMethod<String>('getStatus')
+            .timeout(const Duration(seconds: 3));
+        final status = _nativeStatusFromRawValue(raw);
+        if (status == VpnStatus.disconnected) {
+          _status = VpnStatus.disconnected;
+          return;
+        }
+      } on TimeoutException {
+        // Keep polling until the native runner settles after teardown.
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+
+    final residualStats = await fetchTrafficStats();
+    throw VpnServiceException(
+      'vpn_disconnect_failed',
+      'Unable to clear the active Linux tunnel before switching to '
+          '${vpnProtocolLabel(requestedProtocol)}.',
+      details: <String, Object?>{
+        'requested_protocol': vpnProtocolStorageValue(requestedProtocol),
+        'reported_protocol': residualStats?.protocol,
+        'interface': residualStats?.interfaceName,
+        'connected': residualStats?.connected ?? false,
+      },
+    );
+  }
+
   /// Best-effort sync of tunnel status from the native layer.
   ///
   /// This is primarily used to avoid "stuck disconnected" states after an app
@@ -656,17 +785,9 @@ class ChannelVpnService implements VpnService {
       final raw = await _channel
           .invokeMethod<String>('getStatus')
           .timeout(const Duration(seconds: 4));
-      final normalized = (raw ?? '').toLowerCase().trim();
-      if (normalized == 'connected') {
-        _status = VpnStatus.connected;
-      } else if (normalized == 'connecting') {
-        _status = VpnStatus.connecting;
-      } else if (normalized == 'disconnecting') {
-        _status = VpnStatus.disconnecting;
-      } else if (normalized == 'error') {
-        _status = VpnStatus.error;
-      } else if (normalized == 'disconnected') {
-        _status = VpnStatus.disconnected;
+      final parsed = _nativeStatusFromRawValue(raw);
+      if (parsed != null) {
+        _status = parsed;
       }
     } on TimeoutException {
       // getStatus can block for several seconds on Linux due to ICMP health
@@ -872,8 +993,7 @@ class ChannelVpnService implements VpnService {
           packetLoss: data.containsKey('packet_loss_bps')
               ? d('packet_loss_bps') / 10000.0
               : d('packet_loss'),
-          latencyMs:
-              data.containsKey('latency_ms') ? i('latency_ms') : null,
+          latencyMs: data.containsKey('latency_ms') ? i('latency_ms') : null,
         ));
       }
     } on TimeoutException {
@@ -1032,19 +1152,43 @@ class ChannelVpnService implements VpnService {
       }
       if (!_simulationEnabled && _supportsNativeChannel()) {
         final synced = await refreshStatus();
-        if (synced == VpnStatus.connected &&
-            await _hasMatchingConnectedTunnel(protocol)) {
-          return _status;
+        if (synced == VpnStatus.connected) {
+          if (await _hasMatchingConnectedTunnel(protocol)) {
+            return _status;
+          }
+          if (!_usesAppleBridge() &&
+              platform.operatingSystem.name.toLowerCase() == 'linux') {
+            await _disconnectLinuxTunnelBeforeReconnect(
+              requestedProtocol: protocol,
+            );
+          }
         }
         _status = VpnStatus.disconnected;
       }
       _status = VpnStatus.connecting;
       final capabilities = await getCapabilities();
-      if (!capabilities.supportsProtocol(protocol)) {
+      final capability = capabilities.capabilityFor(protocol);
+      if (!capability.available) {
+        if (protocol == VpnProtocol.openVpn) {
+          AppLogger.vpn(
+            'CONNECT',
+            'OPENVPN_RUNTIME_BLOCKED',
+            level: 900,
+            fields: <String, Object?>{
+              'supported': capability.supported,
+              'runtime_available': capability.runtimeAvailable,
+            },
+          );
+        }
         _status = VpnStatus.disconnected;
         throw VpnServiceException(
-          'protocol_unavailable',
+          _protocolUnavailableCode(protocol, capability),
           _protocolUnavailableMessage(protocol, capabilities),
+          details: <String, Object?>{
+            'supported': capability.supported,
+            'runtime_available': capability.runtimeAvailable,
+            if (capability.reason != null) 'reason': capability.reason,
+          },
         );
       }
       final available = await _refreshNativeAvailability();
@@ -1105,31 +1249,12 @@ class ChannelVpnService implements VpnService {
         return _status;
       }
       if (_usesAppleBridge()) {
-        if (protocol != VpnProtocol.wireGuard) {
-          _status = VpnStatus.disconnected;
-          throw VpnServiceException(
-            'protocol_unavailable',
-            'Apple Network Extension bridge currently supports WireGuard only.',
-          );
-        }
-        final request = (() {
-          try {
-            return WireGuardNativeConfig.fromProfilePayload(preparedPayload);
-          } on StateError catch (error) {
-            throw VpnServiceException('invalid_profile', error.message);
-          }
-        })();
-        await _platformBridge.connectWireGuard(
-          serverId: request.serverId,
-          endpointHost: request.endpointHost,
-          endpointPort: request.endpointPort,
-          clientPrivateKey: request.clientPrivateKey,
-          addressCidr: request.addressCidr,
-          dns: request.dns,
-          allowedIps: request.allowedIps,
-          keepaliveSeconds: request.keepaliveSeconds,
-          presharedKey: request.presharedKey,
-          serverPublicKey: request.serverPublicKey,
+        await _platformBridge.connect(
+          protocol: protocol,
+          profile: _appleBridgeProfile(
+            protocol: protocol,
+            payload: preparedPayload,
+          ),
         );
         final native = await _waitForBridgeState(
           terminalStates: const <VpnPlatformBridgeState>{
@@ -1289,19 +1414,55 @@ class ChannelVpnService implements VpnService {
     final os = platform.operatingSystem.name.toLowerCase();
     if (_usesAppleBridge()) {
       final diagnostics = await fetchPlatformDiagnostics();
-      final available = diagnostics?.available ?? false;
-      final warning = diagnostics?.lastError ?? _defaultUnavailableMessage(os);
+      final wireGuardCapability = diagnostics?.wireGuardCapability ??
+          const ProtocolCapability(supported: false, runtimeAvailable: false);
+      final openVpnCapability = diagnostics?.openVpnCapability ??
+          const ProtocolCapability(supported: false, runtimeAvailable: false);
+      final ikev2Capability = diagnostics?.ikev2Capability ??
+          const ProtocolCapability(supported: false, runtimeAvailable: false);
       final capabilities = VpnCapabilities(
-        wireGuard: available,
-        openVpn: false,
-        ikev2: false,
+        wireGuard: wireGuardCapability.available,
+        openVpn: openVpnCapability.available,
+        ikev2: ikev2Capability.available,
+        wireGuardCapability: wireGuardCapability,
+        openVpnCapability: openVpnCapability,
+        ikev2Capability: ikev2Capability,
         windowsThreadSafe: false,
         androidVpnServiceBased: false,
-        macosEntitlementReady: os != 'macos' || available,
+        macosEntitlementReady: os != 'macos' ||
+            (diagnostics?.available ?? false) ||
+            (diagnostics?.tunnelManagerReady ?? false) ||
+            (diagnostics?.personalVpnReady ?? false),
         linuxWireGuardInstalled: true,
         linuxElevationAvailable: true,
-        wireGuardInstallHint: available ? null : warning,
-        macosEntitlementWarning: os == 'macos' && !available ? warning : null,
+        wireGuardInstallHint: wireGuardCapability.available
+            ? null
+            : (wireGuardCapability.reason ??
+                _appleCapabilityHint(
+                  protocol: VpnProtocol.wireGuard,
+                  diagnostics: diagnostics,
+                  os: os,
+                )),
+        openVpnInstallHint: openVpnCapability.available
+            ? null
+            : (openVpnCapability.reason ??
+                _appleCapabilityHint(
+                  protocol: VpnProtocol.openVpn,
+                  diagnostics: diagnostics,
+                  os: os,
+                )),
+        ikev2InstallHint: ikev2Capability.available
+            ? null
+            : (ikev2Capability.reason ??
+                _appleCapabilityHint(
+                  protocol: VpnProtocol.ikev2,
+                  diagnostics: diagnostics,
+                  os: os,
+                )),
+        macosEntitlementWarning:
+            os == 'macos' && !(diagnostics?.available ?? false)
+                ? (diagnostics?.lastError ?? _defaultUnavailableMessage(os))
+                : null,
       );
       _cacheCapabilities(capabilities);
       return capabilities;
@@ -1327,19 +1488,57 @@ class ChannelVpnService implements VpnService {
           return text.trim();
         }
 
+        ProtocolCapability parseCapability(
+          String key, {
+          required String installHintKey,
+        }) {
+          final rawCapabilities =
+              data['protocol_capabilities'] ?? data['protocolCapabilities'];
+          if (rawCapabilities is Map) {
+            final rawCapability = rawCapabilities[key];
+            if (rawCapability is Map) {
+              return ProtocolCapability.fromMap(rawCapability);
+            }
+          }
+
+          final available = b(key);
+          final hint = s(installHintKey);
+          return ProtocolCapability(
+            supported: available,
+            runtimeAvailable: available,
+            reason: available ? null : hint,
+          );
+        }
+
+        final wireGuardCapability = parseCapability(
+          'wireguard',
+          installHintKey: 'wireguard_install_hint',
+        );
+        final openVpnCapability = parseCapability(
+          'openvpn',
+          installHintKey: 'openvpn_install_hint',
+        );
+        final ikev2Capability = parseCapability(
+          'ikev2',
+          installHintKey: 'ikev2_install_hint',
+        );
+
         final capabilities = VpnCapabilities(
-          wireGuard: b('wireguard'),
-          openVpn: b('openvpn'),
-          ikev2: b('ikev2'),
+          wireGuard: wireGuardCapability.available,
+          openVpn: openVpnCapability.available,
+          ikev2: ikev2Capability.available,
+          wireGuardCapability: wireGuardCapability,
+          openVpnCapability: openVpnCapability,
+          ikev2Capability: ikev2Capability,
           windowsThreadSafe: b('windows_thread_safe'),
           androidVpnServiceBased: b('android_vpnservice_based'),
           macosEntitlementReady: b('macos_entitlements_ready'),
           linuxWireGuardInstalled: os != 'linux' || b('linux_wg_installed'),
           linuxElevationAvailable:
               os != 'linux' || b('linux_elevation_available'),
-          wireGuardInstallHint: s('wireguard_install_hint'),
-          openVpnInstallHint: s('openvpn_install_hint'),
-          ikev2InstallHint: s('ikev2_install_hint'),
+          wireGuardInstallHint: wireGuardCapability.reason,
+          openVpnInstallHint: openVpnCapability.reason,
+          ikev2InstallHint: ikev2Capability.reason,
           linuxElevationHint: s('linux_elevation_hint'),
           macosEntitlementWarning: s('macos_entitlement_warning'),
         );
@@ -1627,20 +1826,35 @@ class ChannelVpnService implements VpnService {
     VpnProtocol protocol,
     VpnCapabilities capabilities,
   ) {
+    final capability = capabilities.capabilityFor(protocol);
+    if (capability.reason != null && capability.reason!.trim().isNotEmpty) {
+      return capability.reason!;
+    }
     if (protocol == VpnProtocol.wireGuard) {
-      return capabilities.wireGuardInstallHint ??
-          'WireGuard runtime is not available on this device.';
+      return 'WireGuard runtime is not available on this device.';
     }
     if (protocol == VpnProtocol.openVpn) {
-      return capabilities.openVpnInstallHint ??
-          'OpenVPN runtime is not available on this device.';
+      return _usesAppleBridge()
+          ? 'OpenVPN bridge exists, but the Apple runtime is not available on this build.'
+          : 'OpenVPN runtime is not available on this device.';
     }
     if (protocol == VpnProtocol.ikev2) {
-      return capabilities.ikev2InstallHint ??
-          'IKEv2/IPsec runtime is not available on this device.';
+      return 'IKEv2/IPsec runtime is not available on this device.';
     }
     return '${vpnProtocolLabel(protocol)} is not available on this build. '
         'Select a different protocol or switch to Automatic.';
+  }
+
+  String _protocolUnavailableCode(
+    VpnProtocol protocol,
+    ProtocolCapability capability,
+  ) {
+    if (protocol == VpnProtocol.openVpn &&
+        capability.supported &&
+        !capability.runtimeAvailable) {
+      return openVpnRuntimeNotLinkedErrorCode;
+    }
+    return 'protocol_unavailable';
   }
 
   String _macosEntitlementWarning() {
@@ -1693,6 +1907,62 @@ class ChannelVpnService implements VpnService {
       return null;
     } on PlatformException {
       return null;
+    }
+  }
+
+  Map<String, Object?> _appleBridgeProfile({
+    required VpnProtocol protocol,
+    required Map<String, dynamic> payload,
+  }) {
+    if (protocol == VpnProtocol.wireGuard) {
+      final request = (() {
+        try {
+          return WireGuardNativeConfig.fromProfilePayload(payload);
+        } on StateError catch (error) {
+          throw VpnServiceException('invalid_profile', error.message);
+        }
+      })();
+      return <String, Object?>{
+        'serverId': request.serverId,
+        'endpointHost': request.endpointHost,
+        'endpointPort': request.endpointPort,
+        'clientPrivateKey': request.clientPrivateKey,
+        'addressCidr': request.addressCidr,
+        'dns': request.dns,
+        'allowedIps': request.allowedIps,
+        'keepaliveSeconds': request.keepaliveSeconds,
+        'presharedKey': request.presharedKey,
+        'serverPublicKey': request.serverPublicKey,
+      };
+    }
+
+    final profile = Map<String, Object?>.from(payload);
+    profile['type'] = profile['type'] ?? vpnProtocolStorageValue(protocol);
+    profile['protocol'] = vpnProtocolStorageValue(protocol);
+    return profile;
+  }
+
+  String _appleCapabilityHint({
+    required VpnProtocol protocol,
+    required VpnPlatformBridgeDiagnostics? diagnostics,
+    required String os,
+  }) {
+    final warning = diagnostics?.lastError ?? _defaultUnavailableMessage(os);
+    switch (protocol) {
+      case VpnProtocol.auto:
+        return _defaultUnavailableMessage(os);
+      case VpnProtocol.wireGuard:
+        return warning;
+      case VpnProtocol.openVpn:
+        return diagnostics?.openVpnInstallHint ??
+            'OpenVPN bridge is wired, but the Apple packet tunnel is still '
+                'using the placeholder OpenVPN engine.';
+      case VpnProtocol.ikev2:
+        if (diagnostics != null && !diagnostics.personalVpnReady) {
+          return 'IKEv2 requires Apple Personal VPN capability and valid '
+              'Network Extension signing for this build.';
+        }
+        return warning;
     }
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/vpn_platform_bridge.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
 import 'package:securewave_app/core/state/vpn_state_machine.dart';
@@ -83,6 +84,45 @@ void main() {
     expect(state.errorKind, VpnErrorKind.protocolUnavailable);
     expect(state.desiredOn, isTrue);
     expect(service.connectCalls, 0); // service.connect never reached
+  });
+
+  test('OpenVPN runtime gate fails before connect attempt with explicit code',
+      () async {
+    final service = ControlledVpnService(
+      capabilities: const VpnCapabilities(
+        wireGuard: true,
+        openVpn: false,
+        ikev2: false,
+        openVpnCapability: ProtocolCapability(
+          supported: true,
+          runtimeAvailable: false,
+          reason: 'Apple OpenVPN runtime not linked',
+        ),
+      ),
+      connectDelay: Duration.zero,
+      disconnectDelay: Duration.zero,
+    );
+    final fakeApi = FakeApiClient(config: testAppConfig());
+    final container = buildVpnContainer(service: service, apiClient: fakeApi);
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await settleStateMachine(turns: 8);
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+    await settleStateMachine(turns: 8);
+
+    await notifier.connect();
+    await waitForCondition(
+      () => container.read(vpnStateProvider).status == VpnStatus.error,
+      timeout: const Duration(seconds: 3),
+    );
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
+    expect(state.errorMessage, contains('Apple OpenVPN runtime not linked'));
+    expect(state.readiness.lastErrorCode, 'openvpn_runtime_not_linked');
+    expect(service.connectCalls, 0);
   });
 
   test('connect timeout moves to terminal failure state for IKEv2', () async {

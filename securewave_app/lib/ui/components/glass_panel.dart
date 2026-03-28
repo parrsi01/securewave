@@ -5,16 +5,9 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 
-/// SecureWave frosted glass panel with optional accent glow.
+/// SecureWave dark panel with optional accent glow.
 ///
-/// Uses [BackdropFilter] + semi-transparent fill for the glass effect.
-/// The [glowColor] param enables a neon BoxShadow ring around the panel.
-///
-/// Differences from `lib/ui/widgets/glass_panel.dart`:
-///   - HTB color tokens (HtbColors) instead of AppColors
-///   - Optional [glowColor] + [borderColor] overrides
-///   - Optional [glowIntensity] multiplier (0.0–1.0)
-///   - Default fill is [HtbColors.glassFill] (dark bg1 @ 80%)
+/// Accent glow is opt-in and intended only for interactive emphasis.
 class HtbGlassPanel extends StatelessWidget {
   const HtbGlassPanel({
     super.key,
@@ -42,7 +35,7 @@ class HtbGlassPanel extends StatelessWidget {
   /// Override border color. Defaults to [HtbColors.glassBorderDefault].
   final Color? borderColor;
 
-  /// Neon glow color. When non-null, adds a BoxShadow ring with this color.
+  /// Glow color. When non-null, adds a BoxShadow ring with this color.
   final Color? glowColor;
 
   /// Multiplier for glow opacity (0.0–1.0). Default 1.0 = full.
@@ -56,25 +49,25 @@ class HtbGlassPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolvedRadius =
-        borderRadius ?? const BorderRadius.all(Radius.circular(AppTokens.radiusCard));
+    final resolvedRadius = borderRadius ??
+        const BorderRadius.all(Radius.circular(AppTokens.radiusCard));
     final resolvedFill = color ?? HtbColors.glassFill;
-    final resolvedBorder = borderColor ?? HtbColors.glassBorderDefault;
+    final resolvedBorder = borderColor ?? HtbColors.borderStrong;
 
     final List<BoxShadow> shadows = glowColor != null
         ? [
             BoxShadow(
-              color: glowColor!.withValues(alpha: 0.45 * glowIntensity),
-              blurRadius: 24,
-              spreadRadius: 1,
+              color: glowColor!.withValues(alpha: AppTokens.opacityMedium * glowIntensity),
+              blurRadius: 14,
+              spreadRadius: 0,
             ),
             BoxShadow(
-              color: glowColor!.withValues(alpha: 0.20 * glowIntensity),
-              blurRadius: 8,
+              color: glowColor!.withValues(alpha: AppTokens.opacityFaint * glowIntensity),
+              blurRadius: 4,
               spreadRadius: 0,
             ),
           ]
-        : const [];
+        : AppTokens.shadowMedium;
 
     return Container(
       width: width,
@@ -91,8 +84,7 @@ class HtbGlassPanel extends StatelessWidget {
           child: Container(
             width: width,
             height: height,
-            padding:
-                padding ?? const EdgeInsets.all(AppTokens.paddingM),
+            padding: padding ?? const EdgeInsets.all(AppTokens.paddingM),
             decoration: BoxDecoration(
               color: resolvedFill,
               borderRadius: resolvedRadius,
@@ -109,7 +101,7 @@ class HtbGlassPanel extends StatelessWidget {
   }
 }
 
-/// Convenience variant with the primary accent glow pre-configured.
+/// Convenience variant with the primary neon accent glow pre-configured.
 class NeonGlassPanel extends StatelessWidget {
   const NeonGlassPanel({
     super.key,

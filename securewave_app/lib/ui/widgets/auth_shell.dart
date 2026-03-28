@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../components/depth_panel.dart';
 import '../components/htb_background.dart';
 import '../design/app_spacing.dart';
 import '../theme/app_colors.dart' as htb;
-import '../theme/app_tokens.dart';
 import 'brand_mark.dart';
 
-/// Auth screen wrapper with gradient background and centered card.
+/// Auth screen wrapper with shared background and centered panel.
 ///
 /// Provides a consistent layout for login, register, and password reset
-/// screens: a deep navy gradient background, then scrollable centered
-/// content constrained to [AppSpacing.authMaxWidth].
+/// screens with a reusable raised panel constrained to
+/// [AppSpacing.authMaxWidth].
 class AuthShell extends StatelessWidget {
   const AuthShell({super.key, required this.child, this.title = ''});
 
@@ -72,17 +72,10 @@ class AuthShell extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Glass card wrapper
-                          Container(
-                            decoration: BoxDecoration(
-                              color: htb.HtbColors.glassFill,
-                              borderRadius: BorderRadius.circular(
-                                AppSpacing.radiusL,
-                              ),
-                              border: Border.all(
-                                color: htb.HtbColors.glassBorderDefault,
-                                width: AppTokens.borderWidth,
-                              ),
+                          DepthPanel(
+                            depth: PanelDepth.raised,
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.radiusL,
                             ),
                             padding: const EdgeInsets.all(
                               AppSpacing.cardPadding,

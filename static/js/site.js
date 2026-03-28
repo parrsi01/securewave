@@ -104,7 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       revealObserver.observe(el);
     });
-    window.setTimeout(() => revealEls.forEach(makeVisible), 1200);
   } else if (revealEls.length > 0) {
     revealEls.forEach((el) => el.classList.add('visible'));
   }
@@ -158,6 +157,79 @@ document.addEventListener('DOMContentLoaded', () => {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
+
+  /* ── Performance benchmark card ── */
+  const benchmarkCard = document.querySelector('[data-performance-benchmark]');
+  if (benchmarkCard) {
+    const formatMbps = (value) =>
+      typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} Mbps` : 'Not measured';
+    const formatMs = (value) =>
+      typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} ms` : 'Not measured';
+    const formatRetention = (value) =>
+      typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}% retained` : 'Not measured';
+    const protocolSummary = (row) => {
+      if (!row) return 'No data';
+      if (row.status === 'unavailable') return row.reason || 'Unavailable';
+      if (row.status === 'fail') return row.reason || 'Benchmark failed';
+      const parts = [];
+      if (typeof row.download_mbps === 'number') parts.push(`${row.download_mbps.toFixed(1)} Mbps down`);
+      if (typeof row.upload_mbps === 'number') parts.push(`${row.upload_mbps.toFixed(1)} Mbps up`);
+      if (typeof row.latency_ms === 'number') parts.push(`${row.latency_ms.toFixed(1)} ms`);
+      if (typeof row.download_retention_pct === 'number') parts.push(`${row.download_retention_pct.toFixed(1)}% retained`);
+      return parts.length > 0 ? parts.join(' • ') : (row.reason || row.status);
+    };
+
+    fetch('/data/performance_benchmarks.json?v=20260327a', { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`http_${res.status}`);
+        return res.json();
+      })
+      .then((payload) => {
+        const baseline = payload.baseline || {};
+        const protocols = payload.protocols || {};
+        const generated = payload.generated_at ? new Date(payload.generated_at) : null;
+        const generatedText =
+          generated && !Number.isNaN(generated.getTime()) ? generated.toISOString().replace('T', ' ').replace('.000Z', ' UTC') : 'Unknown';
+
+        const hostEl = benchmarkCard.querySelector('[data-benchmark-host]');
+        if (hostEl) hostEl.textContent = payload.host_platform || 'Unknown';
+        const generatedEl = benchmarkCard.querySelector('[data-benchmark-generated]');
+        if (generatedEl) generatedEl.textContent = generatedText;
+        const baseDownloadEl = benchmarkCard.querySelector('[data-benchmark-baseline-download]');
+        if (baseDownloadEl) baseDownloadEl.textContent = formatMbps(baseline.download_mbps);
+        const baseUploadEl = benchmarkCard.querySelector('[data-benchmark-baseline-upload]');
+        if (baseUploadEl) baseUploadEl.textContent = formatMbps(baseline.upload_mbps);
+        const baseLatencyEl = benchmarkCard.querySelector('[data-benchmark-baseline-latency]');
+        if (baseLatencyEl) baseLatencyEl.textContent = formatMs(baseline.latency_ms);
+
+        const list = benchmarkCard.querySelector('[data-benchmark-protocols]');
+        if (list) {
+          list.innerHTML = ['wireguard', 'openvpn', 'ikev2']
+            .map((protocol) => {
+              const row = protocols[protocol] || {};
+              const label = row.label || protocol;
+              return (
+                `<div class="flex justify-between gap-3">` +
+                `<span class="text-muted">${label}</span>` +
+                `<span class="text-primary font-semibold">${protocolSummary(row)}</span>` +
+                `</div>`
+              );
+            })
+            .join('');
+        }
+      })
+      .catch(() => {
+        const generatedEl = benchmarkCard.querySelector('[data-benchmark-generated]');
+        if (generatedEl) generatedEl.textContent = 'Unavailable';
+        const baseDownloadEl = benchmarkCard.querySelector('[data-benchmark-baseline-download]');
+        if (baseDownloadEl) baseDownloadEl.textContent = 'No benchmark artifact';
+        const list = benchmarkCard.querySelector('[data-benchmark-protocols]');
+        if (list) {
+          list.innerHTML =
+            '<div class="flex justify-between gap-3"><span class="text-muted">Benchmark status</span><span class="text-primary font-semibold">No published benchmark artifact</span></div>';
+        }
+      });
+  }
 
   /* ── Load assistant widget ── */
   const ensureAssistant = () => {

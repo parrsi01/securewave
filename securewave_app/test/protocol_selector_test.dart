@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_protocol_catalog.dart';
+import 'package:securewave_app/core/services/vpn_platform_bridge.dart';
 import 'package:securewave_app/core/services/protocol_selector.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 
@@ -13,6 +14,11 @@ void main() {
       wireGuard: true,
       openVpn: false,
       ikev2: false,
+      openVpnCapability: ProtocolCapability(
+        supported: true,
+        runtimeAvailable: false,
+        reason: 'Apple OpenVPN runtime not linked',
+      ),
     );
 
     final resolution =
@@ -21,7 +27,7 @@ void main() {
     expect(resolution.isConnectable, isFalse);
     expect(resolution.effective, VpnProtocol.openVpn);
     expect(resolution.warning, isNull);
-    expect(resolution.error, contains('OpenVPN runtime is not available'));
+    expect(resolution.error, 'Apple OpenVPN runtime not linked');
   });
 
   test('auto deterministically chooses WireGuard when multiple runtimes exist',
@@ -151,7 +157,8 @@ void main() {
     expect(resolution.error, contains('No supported VPN runtime'));
   });
 
-  test('surfaces backend misconfiguration reason for protocol-specific disable', () {
+  test('surfaces backend misconfiguration reason for protocol-specific disable',
+      () {
     const caps = VpnCapabilities(
       wireGuard: true,
       openVpn: true,

@@ -46,7 +46,7 @@ import UIKit
       SecureWaveVPNManager.shared.status { payload in
         result(payload)
       }
-    case "connectWireGuard", "startVPN":
+    case "connect", "connectWireGuard", "startVPN":
       guard let args = call.arguments as? [String: Any] else {
         result(
           FlutterError(

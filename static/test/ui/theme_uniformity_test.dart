@@ -33,11 +33,11 @@ void main() {
   });
 
   test('legacy and modern UI palettes stay aligned', () {
-    expect(AppColors.primaryBright, HtbColors.accentPrimary);
+    expect(AppColors.primary, HtbColors.accentPrimary);
     expect(AppColors.secondary, HtbColors.accentSecondary);
     expect(AppColors.darkBackground, HtbColors.bg0);
     expect(AppColors.darkBackgroundWarm, HtbColors.bg1);
-    expect(AppColors.darkSurface, HtbColors.bg2);
+    expect(AppColors.darkSurfaceMuted, HtbColors.bg2);
     expect(AppColors.darkSurfaceElevated, HtbColors.bg3);
     expect(AppColors.darkInk, HtbColors.textPrimary);
     expect(AppColors.darkInkMuted, HtbColors.textSecondary);
@@ -54,7 +54,7 @@ void main() {
     expect(theme.colorScheme.secondary, HtbColors.accentSecondary);
     expect(theme.appBarTheme.backgroundColor, HtbColors.bg0);
     expect(theme.inputDecorationTheme.fillColor, HtbColors.bg2);
-    expect(theme.cardTheme.color, HtbColors.glassFill);
+    expect(theme.cardTheme.color, HtbColors.bg1);
     expect(
       elevated.backgroundColor?.resolve(<WidgetState>{}),
       HtbColors.accentPrimary,
@@ -65,7 +65,7 @@ void main() {
     );
     expect(
       outlined.side?.resolve(<WidgetState>{})?.color,
-      HtbColors.glassBorderDefault,
+      HtbColors.border,
     );
   });
 

@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-03-27T12:04:26.177975+00:00",
+  "host_platform": "linux",
+  "baseline": {
+    "download_mbps": 6.988,
+    "upload_mbps": null,
+    "latency_ms": 11.083
+  },
+  "highlight_protocol": "wireguard",
+  "protocols": {
+    "wireguard": {
+      "label": "WireGuard",
+      "status": "fail",
+      "reason": "curl_exit_7:curl: (7) Failed to connect to api.ipify.org port 443 after 22 ms: Couldn't connect to server",
+      "interface": "wg0",
+      "download_mbps": null,
+      "upload_mbps": null,
+      "latency_ms": null,
+      "download_retention_pct": null,
+      "upload_retention_pct": null,
+      "latency_impact_ms": null
+    },
+    "openvpn": {
+      "label": "OpenVPN",
+      "status": "fail",
+      "reason": "curl_exit_28:curl: (28) Failed to connect to api.ipify.org port 443 after 6000 ms: Timeout was reached",
+      "interface": "tun0",
+      "download_mbps": null,
+      "upload_mbps": null,
+      "latency_ms": null,
+      "download_retention_pct": null,
+      "upload_retention_pct": null,
+      "latency_impact_ms": null
+    },
+    "ikev2": {
+      "label": "IKEv2",
+      "status": "unavailable",
+      "reason": "interface_not_detected",
+      "interface": null,
+      "download_mbps": 33.076,
+      "upload_mbps": null,
+      "latency_ms": 31.132,
+      "download_retention_pct": 473.3,
+      "upload_retention_pct": null,
+      "latency_impact_ms": 20.049
+    }
+  }
+}

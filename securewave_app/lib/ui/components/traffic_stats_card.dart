@@ -43,7 +43,7 @@ class TrafficStatsCard extends ConsumerWidget {
               icon: Icons.arrow_upward_rounded,
               label: 'Upload',
               value: formatDataRate(stats.up),
-              color: htb.HtbColors.accentSecondary,
+              color: htb.HtbColors.accentPrimaryMuted,
             ),
           ),
           const SizedBox(width: AppSpacing.space3),

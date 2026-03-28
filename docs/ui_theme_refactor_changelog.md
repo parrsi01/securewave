@@ -16,6 +16,35 @@ Date: 2026-03-26
 - Shared glass-panel treatment, luminous gradients, and tighter spacing rhythm
 - Unified component language across Flutter and website
 
+## Strict Color Transformation
+
+- Applied a color-only stabilization pass across the existing Flutter and
+  website UI without changing layout, spacing, typography, or interaction
+  structure
+- Locked remaining Flutter theme surfaces to the near-black stack
+  `#0b0b0f`, `#111117`, and `#1a1a22`
+- Kept the accent remap constrained to:
+  - neon blue `#4cc9ff`
+  - neon purple `#7a5cff`
+  - neon pink `#ff2bd6`
+- Updated remaining bright-accent foregrounds in Flutter onboarding/account
+  surfaces so contrast stays correct on the strict dark palette
+- Reconfirmed the website token layer keeps former white surfaces mapped to
+  near-black panels rather than introducing new component patterns
+- Replaced the last light toast/panel fallback in the shared website CSS with
+  dark elevated surfaces so no white-backed runtime UI remains
+- Reconfirmed the shared logo and favicon assets render on black foundations
+  with blue/purple neon accents and no green variants
+
+## Purple-Primary Inversion
+
+- Inverted the accent hierarchy so purple is now the primary design color
+  across both Flutter and website surfaces
+- Kept blue as the secondary support accent for contrast, status support, and
+  layered gradients
+- Rebased the website token layer and shared Flutter token layer so primary
+  buttons, focus states, panel glow, and hero emphasis resolve to purple first
+
 ## Color System Reset
 
 - Replaced the previous dark-blue leaning base with a stricter near-black stack:

@@ -1,87 +1,94 @@
 import 'package:flutter/material.dart';
 
-/// SecureWave color system — pure purple dark-to-light hue.
+/// SecureWave shared dark palette.
 ///
-/// Dark plum (#120C1F) → neon purple (#7A5CFF) → lavender white (#E8E0FF).
-/// No blue/cyan. Tertiary pink (#FF2BD6) as accent.
+/// Dark plum surfaces with a single neon purple accent.
+/// Semantic warning/error colors remain available for state feedback.
 class AppColors {
   AppColors._();
 
   // ── Primary (Neon Purple) ─────────────────────────────────────────────────
 
   static const Color primary = Color(0xFF7A5CFF);
-  static const Color primaryDark = Color(0xFF5A3FCC);
+  static const Color primaryDark = Color(0xFF6248D8);
   static const Color primaryDeep = Color(0xFF24183E);
-  static const Color primaryBright = Color(0xFFB794FF); // light lavender
-  static const Color primaryLight = Color(0xFF2D2150); // container on dark
+  static const Color primaryBright = Color(0xFFA28FFF);
+  // primaryLight removed — was identical to primaryDeep (0xFF24183E). Use primaryDeep.
 
   static const Color primaryGhost = Color(0x147A5CFF);
   static const Color primaryWash = Color(0x1E7A5CFF);
 
-  // ── Secondary (Light Purple / Lavender) ───────────────────────────────────
-  // No cyan — secondary is a lighter shade of purple
+  // Legacy secondary/tertiary aliases resolve back into the primary accent
+  // family so downstream widgets cannot drift into mixed palettes.
+  static const Color secondary = primary;
+  static const Color secondaryDark = primaryDark;
+  static const Color secondaryLight = primaryDeep;
+  static const Color secondaryWash = primaryWash;
 
-  static const Color secondary = Color(0xFFB794FF); // light lavender
-  static const Color secondaryDark = Color(0xFF9A72FF); // mid lavender
-  static const Color secondaryLight = Color(0xFF241A3A);
-  static const Color secondaryWash = Color(0x14B794FF);
-
-  // ── Tertiary (Neon Pink — accent only) ────────────────────────────────────
-
-  static const Color tertiary = Color(0xFFFF2BD6);
-  static const Color tertiaryDark = Color(0xFFCC1FAB);
+  static const Color tertiary = primaryBright;
+  static const Color tertiaryDark = primaryDark;
 
   // ── Semantic / Status ─────────────────────────────────────────────────────
 
-  static const Color success = Color(0xFF9A72FF); // mid-lavender for connected
-  static const Color successDark = Color(0xFF7A5CFF);
+  static const Color success = primary;
+  static const Color successDark = primaryDark;
   static const Color warning = Color(0xFFFFB454);
   static const Color warningDark = Color(0xFFD68910);
   static const Color error = Color(0xFFFF4D6A);
   static const Color errorDark = Color(0xFFCC3355);
 
-  static const Color successLight = Color(0xFF1E1535);
+  static const Color successLight = primaryDeep;
   static const Color warningLight = Color(0xFF221A0D);
   static const Color errorLight = Color(0xFF220D12);
 
-  // ── Surfaces (dark plum ramp) ─────────────────────────────────────────────
+  // ── Surfaces ──────────────────────────────────────────────────────────────
 
-  static const Color background = Color(0xFF0E0818); // deepest dark plum
-  static const Color backgroundWarm = Color(0xFF160F26); // slightly warmer
-  static const Color surface = Color(0xFF130B22);
+  static const Color background = Color(0xFF0E0818);
+  static const Color backgroundWarm = Color(0xFF120D20);
+  static const Color surface = Color(0xFF160F26);
   static const Color surfaceMuted = Color(0xFF1E1535);
   static const Color surfaceElevated = Color(0xFF291C47);
+  static const Color surfaceOverlay = Color(0xFF332558);
 
-  // ── Text (lavender-white ramp) ────────────────────────────────────────────
+  // Semantic surface tiers for layered panels.
+  static const Color surfaceSunken = backgroundWarm;
+  static const Color surfaceBase = surface;
+  static const Color surfaceRaised = surfaceMuted;
+  static const Color surfaceFloating = surfaceElevated;
 
-  static const Color ink = Color(0xFFEDE6FF); // near-white with purple tint
-  static const Color inkMuted = Color(0xFFBAAFDD);
-  static const Color inkSoft = Color(0xFF8070A8);
+  // ── Text ──────────────────────────────────────────────────────────────────
+
+  static const Color ink = Color(0xFFEDE6FF);
+  static const Color inkMuted = Color(0xFFBAAFD0);
+  static const Color inkSoft = Color(0xFF8878A8);
 
   // ── Borders ───────────────────────────────────────────────────────────────
 
   static const Color border = Color(0xFF3D2D66);
   static const Color borderFocus = primary;
+  static const Color borderSubtle = Color(0xFF2A1F4A);
+  static const Color borderStrong = Color(0xFF4E3A7D);
+  static const Color borderAccent = Color(0x447A5CFF);
 
   // ── Ambient Glows ─────────────────────────────────────────────────────────
 
-  static const Color ambientGlowPrimary = Color(0x1E7A5CFF); // purple glow
-  static const Color ambientGlowSecondary = Color(0x12B794FF); // lavender glow
-  static const Color ambientGlowTertiary = Color(0x0EFF2BD6); // pink accent
+  static const Color ambientGlowPrimary = Color(0x1A7A5CFF);
+  static const Color ambientGlowSecondary = Color(0x127A5CFF);
+  static const Color ambientGlowTertiary = Color(0x0F7A5CFF);
 
   // ── Glass Tokens ─────────────────────────────────────────────────────────
 
   static Color get glassFillLight =>
-      const Color(0xFF1A1130).withValues(alpha: 0.88);
+      const Color(0xFF120D20).withValues(alpha: 0.88);
 
   static Color get glassFillDark =>
       const Color(0xFF0E0818).withValues(alpha: 0.88);
 
   static Color get glassBorderLight =>
-      const Color(0xFF7A5CFF).withValues(alpha: 0.30);
+      const Color(0xFF7A5CFF).withValues(alpha: 0.24);
 
   static Color get glassBorderDark =>
-      const Color(0xFF7A5CFF).withValues(alpha: 0.30);
+      const Color(0xFF7A5CFF).withValues(alpha: 0.24);
 
   // ── Gradient Presets ─────────────────────────────────────────────────────
 
@@ -94,11 +101,10 @@ class AppColors {
 
   static const Gradient heroGradientDark = heroGradientLight;
 
-  /// Dark purple → neon purple → light lavender
   static const Gradient brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [primaryDark, primary, primaryBright],
+    colors: [primaryDeep, primaryDark, primary],
   );
 
   static const Gradient authHeaderGradient = LinearGradient(
@@ -107,11 +113,10 @@ class AppColors {
     colors: [primaryDeep, primaryDark, primary],
   );
 
-  /// Connected state: neon purple → lavender
   static const Gradient connectedGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [primary, primaryBright],
+    colors: [primaryDark, primary],
   );
 
   // Neutral plum gradient.
@@ -121,11 +126,10 @@ class AppColors {
     colors: [backgroundWarm, background],
   );
 
-  /// Lavender accent gradient
-  static const Gradient lavenderGradient = LinearGradient(
+  static const Gradient accentGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [secondary, secondaryDark],
+    colors: [primaryDark, primaryBright],
   );
 
   // ── Dark aliases ─────────────────────────────────────────────────────────
@@ -135,6 +139,10 @@ class AppColors {
   static const Color darkSurface = surface;
   static const Color darkSurfaceMuted = surfaceMuted;
   static const Color darkSurfaceElevated = surfaceElevated;
+  static const Color darkSurfaceSunken = surfaceSunken;
+  static const Color darkSurfaceBase = surfaceBase;
+  static const Color darkSurfaceRaised = surfaceRaised;
+  static const Color darkSurfaceFloating = surfaceFloating;
 
   static const Color darkInk = ink;
   static const Color darkInkMuted = inkMuted;
@@ -153,10 +161,10 @@ class AppColors {
     ).copyWith(
       primary: primary,
       onPrimary: ink,
-      primaryContainer: primaryLight,
+      primaryContainer: primaryDeep,
       onPrimaryContainer: primaryBright,
       secondary: secondary,
-      onSecondary: background,
+      onSecondary: ink,
       secondaryContainer: secondaryLight,
       onSecondaryContainer: ink,
       tertiary: tertiary,
@@ -168,8 +176,8 @@ class AppColors {
       surfaceContainerHighest: surfaceMuted,
       onSurfaceVariant: inkMuted,
       outline: border,
-      outlineVariant: const Color(0xFF2E1F52),
-      shadow: const Color(0xFF0A0612),
+      outlineVariant: const Color(0xFF2A1F4A),
+      shadow: const Color(0xFF060410),
       scrim: const Color(0xFF0E0818),
     );
   }

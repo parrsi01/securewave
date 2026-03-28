@@ -107,12 +107,14 @@ class _NeonButtonState extends State<NeonButton>
           widget.isConnecting ? pulseValue : (_pressed ? 1.0 : 0.6);
       return [
         BoxShadow(
-          color: _glowBase.withValues(alpha: 0.18 * intensity),
+          color:
+              _glowBase.withValues(alpha: AppTokens.opacityMedium * intensity),
           blurRadius: 14,
           spreadRadius: 0,
         ),
         BoxShadow(
-          color: _accentColor.withValues(alpha: 0.10 * intensity),
+          color: _accentColor.withValues(
+              alpha: AppTokens.opacityFaint * intensity),
           blurRadius: 4,
           spreadRadius: 0,
         ),
@@ -169,12 +171,14 @@ class _NeonButtonState extends State<NeonButton>
                         borderRadius: AppTokens.brMedium,
                         gradient: disabled ? null : _backgroundGradient,
                         color: disabled
-                            ? _accentColor.withValues(alpha: 0.12)
+                            ? _accentColor.withValues(
+                                alpha: AppTokens.opacitySoft)
                             : null,
                         border: Border.all(
                           color: disabled
                               ? HtbColors.border
-                              : _accentDark.withValues(alpha: 0.40),
+                              : _accentDark.withValues(
+                                  alpha: AppTokens.opacityHeavy),
                         ),
                       ),
                       child: InkWell(
@@ -242,7 +246,7 @@ class _NeonButtonState extends State<NeonButton>
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Secondary outlined button with neon accent border and hover glow.
+/// Secondary outlined button with consistent border-only feedback.
 class NeonOutlinedButton extends StatefulWidget {
   const NeonOutlinedButton({
     super.key,
@@ -272,29 +276,13 @@ class _NeonOutlinedButtonState extends State<NeonOutlinedButton> {
   @override
   Widget build(BuildContext context) {
     final disabled = widget.onPressed == null;
-    final glowOpacity = _pressed
-        ? 0.30
-        : _hovered
-            ? 0.16
-            : 0.0;
 
     return AnimatedContainer(
       duration: AppAnimations.durationHover,
       curve: AppAnimations.curveDefault,
       width: widget.width,
       height: widget.height,
-      decoration: BoxDecoration(
-        borderRadius: AppTokens.brMedium,
-        boxShadow: glowOpacity > 0
-            ? [
-                BoxShadow(
-                  color: widget.accentColor.withValues(alpha: glowOpacity),
-                  blurRadius: 12,
-                  spreadRadius: 0,
-                ),
-              ]
-            : const [],
-      ),
+      decoration: const BoxDecoration(borderRadius: AppTokens.brMedium),
       child: MouseRegion(
         onEnter: disabled ? null : (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() {
@@ -336,9 +324,11 @@ class _NeonOutlinedButtonState extends State<NeonOutlinedButton> {
                   width: AppTokens.neonBorderWidth,
                 ),
                 backgroundColor: _pressed
-                    ? widget.accentColor.withValues(alpha: 0.08)
+                    ? widget.accentColor
+                        .withValues(alpha: AppTokens.opacityFaint)
                     : _hovered
-                        ? widget.accentColor.withValues(alpha: 0.04)
+                        ? widget.accentColor
+                            .withValues(alpha: AppTokens.opacityGhost)
                         : Colors.transparent,
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppTokens.paddingL,

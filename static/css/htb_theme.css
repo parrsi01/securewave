@@ -1,9 +1,8 @@
 /* ============================================================
    SecureWave Brand Layer
    Controlled cyberpunk polish on top of the shared dark system.
+   v20260327d
    ============================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
   color-scheme: dark;
@@ -20,16 +19,16 @@
   --color-accent-primary: var(--theme-color-accent-primary);
   --color-accent-primary-dim: var(--theme-color-accent-primary-dim);
   --color-accent-primary-glow: var(--theme-accent-primary-strong);
-  --color-accent-secondary: var(--theme-color-accent-secondary);
-  --color-accent-secondary-dim: var(--theme-accent-secondary-dim);
-  --color-accent-tertiary: var(--theme-color-accent-tertiary);
+  --color-accent-secondary: var(--theme-color-accent-primary);
+  --color-accent-secondary-dim: var(--theme-color-accent-primary-dim);
+  --color-accent-tertiary: var(--theme-color-accent-primary);
 
   --color-text-primary: var(--theme-color-text-primary);
   --color-text-secondary: var(--theme-color-text-secondary);
   --color-text-tertiary: var(--theme-color-text-muted);
   --color-text-mono: var(--theme-color-text-mono);
 
-  --color-status-connected: var(--theme-color-accent-secondary);
+  --color-status-connected: var(--theme-color-accent-primary);
   --color-status-connecting: var(--theme-color-warning);
   --color-status-disconnected: var(--theme-color-danger);
   --color-status-warning: var(--theme-color-warning);
@@ -110,11 +109,17 @@ a:hover { color: var(--theme-color-accent-primary); }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 12px;
+  padding: var(--theme-space-1) var(--theme-space-3);
   border-radius: var(--theme-radius-full);
   border: 1px solid var(--theme-accent-primary-ring);
   background: var(--theme-accent-primary-faint);
   box-shadow: none;
+}
+
+.section-eyebrow,
+.section-badge,
+.hero-eyebrow {
+  border-color: var(--theme-accent-primary-ring);
 }
 
 /* ── Auth ──────────────────────────────────────────────────────────────── */
@@ -196,6 +201,18 @@ h1.hero-title,
   background: var(--color-bg-1);
   border-top: 1px solid var(--color-border-subtle);
   border-bottom: 1px solid var(--color-border-subtle);
+  position: relative;
+}
+
+.section + .section::before {
+  content: '';
+  display: block;
+  width: 96px;
+  height: 1px;
+  background: var(--theme-accent-primary-hairline);
+  margin: 0 auto;
+  position: relative;
+  top: calc(-1 * var(--theme-space-10));
 }
 
 .stat-value,
@@ -211,6 +228,12 @@ kbd {
   font-family: var(--font-mono);
 }
 
+.stat-value,
+.stat-number {
+  color: var(--color-accent-primary);
+  font-weight: 800;
+}
+
 /* ── Feature Icons ─────────────────────────────────────────────────────── */
 
 .feature-icon,
@@ -219,8 +242,7 @@ kbd {
   background: var(--color-bg-3);
   border: 1px solid var(--theme-accent-primary-ring);
   color: var(--color-accent-primary);
-  /* Faint inner glow: reinforces the neon-lit icon feel */
-  box-shadow: inset 0 0 12px rgba(122, 92, 255, 0.08);
+  box-shadow: none;
 }
 
 /* ── Cards — cyberpunk depth system ──────────────────────────────────── */
@@ -234,7 +256,7 @@ kbd {
 /* Elevated cards (section feature cards) — one level higher */
 .card-elevated {
   background: var(--color-bg-2);
-  border-color: rgba(122, 92, 255, 0.14);
+  border-color: var(--theme-accent-primary-ring);
 }
 
 /* Remove pseudo after top-line on cards inside bg-alt sections —
@@ -246,7 +268,12 @@ kbd {
 
 .cta-banner {
   background: var(--color-bg-2);
-  border: 1px solid rgba(122, 92, 255, 0.30);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--sw-radius-xl, 20px);
+  padding: var(--theme-space-16) var(--theme-space-8);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
   box-shadow: var(--shadow-card);
 }
 
@@ -298,15 +325,32 @@ tr:hover td { background: var(--theme-accent-primary-faint); }
 .footer {
   background: var(--color-bg-0);
   border-top: 1px solid var(--color-border-subtle);
+  padding: var(--theme-space-16) 0;
 }
 
 .footer a,
 .footer-link,
-.footer-legal a { color: var(--color-text-secondary); }
+.footer-legal a {
+  color: var(--color-text-secondary);
+  transition: color 200ms;
+  padding: 4px 0;
+}
 
 .footer a:hover,
 .footer-link:hover,
-.footer-legal a:hover { color: var(--color-text-primary); }
+.footer-legal a:hover { color: var(--color-accent-primary); }
+
+.footer-col a,
+.footer-legal a {
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: color 200ms, text-decoration-color 200ms;
+}
+.footer-col a:hover,
+.footer-legal a:hover {
+  text-decoration-color: currentColor;
+}
 
 .footer-copy { color: var(--color-text-tertiary); }
 
@@ -382,7 +426,7 @@ tr:hover td { background: var(--theme-accent-primary-faint); }
 }
 
 .status-dot.online {
-  background: var(--color-accent-secondary);
+  background: var(--color-accent-primary);
   box-shadow: none;
 }
 
@@ -467,9 +511,9 @@ code, pre, kbd {
   background: var(--color-bg-1);
   border: 1px solid var(--color-border-default);
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 2px var(--theme-space-2);
   font-family: var(--font-mono);
-  color: var(--color-accent-secondary);
+  color: var(--color-accent-primary);
   font-size: 0.875em;
 }
 
@@ -497,6 +541,10 @@ pre {
   background: var(--theme-accent-primary-faint);
   border: 1px solid var(--theme-accent-primary-ring);
   color: var(--color-accent-primary);
+}
+
+.hero-chip::before {
+  display: none;
 }
 
 /* Hero signal / status panel */
@@ -582,10 +630,19 @@ pre {
 }
 .accordion-item:last-child { border-bottom: none; }
 .accordion-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
   background: transparent;
   color: var(--theme-color-text-primary);
   padding-left: 0;
   padding-right: 0;
+}
+.accordion-trigger svg {
+  flex-shrink: 0;
+  margin-left: 12px;
 }
 .accordion-trigger:hover {
   color: var(--color-accent-primary);
@@ -640,6 +697,146 @@ h1, h2, h3, h4, h5, h6 { color: var(--color-text-primary); }
 .hero h1,
 .cta-banner h2 { color: var(--color-text-primary); }
 
+/* ── Scroll reveal ─────────────────────────────────────────────────────── */
+
+/* No-JS fallback: if scripting is disabled, all reveals show immediately */
+@media (scripting: none) {
+  .reveal { opacity: 1; transform: none; }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.35s cubic-bezier(.2,.8,.2,1), transform 0.35s cubic-bezier(.2,.8,.2,1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Benchmark card rows — cleaner data table feel ───────────────────── */
+
+[data-performance-benchmark] .flex.justify-between {
+  padding: var(--theme-space-3) 0;
+  border-bottom: 1px solid var(--theme-accent-primary-hairline);
+}
+[data-performance-benchmark] .flex.justify-between:last-child {
+  border-bottom: none;
+}
+[data-performance-benchmark] .mb-4:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Privacy card — "None" badge rows ────────────────────────────────── */
+
+.card .flex.items-center.gap-3 {
+  padding: var(--theme-space-3) 0;
+  border-bottom: 1px solid var(--theme-accent-primary-hairline);
+}
+.card .flex.items-center.gap-3:last-child {
+  border-bottom: none;
+}
+
+/* ── Protocol card — recommended treatment ───────────────────────────── */
+
+.card.card-recommended::before {
+  content: 'Recommended';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  background: var(--color-accent-primary);
+  color: var(--color-bg-0);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px var(--theme-space-3);
+  border-radius: var(--theme-radius-full, 9999px);
+}
+
+.card.card-recommended {
+  position: relative;
+  border-color: var(--theme-accent-primary-focus);
+}
+
+/* ── Benchmark rows ───────────────────────────────────────────────────── */
+
+.benchmark-row {
+  padding: var(--theme-space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.benchmark-value {
+  font-family: var(--font-mono);
+  color: var(--color-accent-primary);
+  font-weight: 600;
+}
+
+/* ── Privacy check ──────────────────────────────────────────────────── */
+
+.privacy-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--theme-accent-primary-soft);
+  color: var(--color-accent-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Skeleton loading ───────────────────────────────────────────────── */
+
+.skeleton-text {
+  display: inline-block;
+  height: 1em;
+  min-width: 60px;
+  width: clamp(40px, 20vw, 80px);
+  background: linear-gradient(90deg, var(--color-bg-2) 25%, var(--color-bg-3) 50%, var(--color-bg-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: var(--theme-radius-sm, 4px);
+  vertical-align: middle;
+}
+
+/* ── Stat highlight ─────────────────────────────────────────────────── */
+
+.stat-highlight .stat-value,
+.stat-highlight .stat-number {
+  color: var(--color-accent-primary);
+  position: relative;
+}
+
+.stat-highlight {
+  border-left: 2px solid var(--color-accent-primary);
+  padding-left: var(--theme-space-4);
+}
+
+/* ── Misc polish ─────────────────────────────────────────────────────── */
+
+/* Slightly larger card padding on desktop for feature cards */
+@media (min-width: 768px) {
+  .card-elevated.feature-card { padding: var(--theme-space-8); }
+  .grid { gap: var(--theme-space-8); }
+}
+
+/* Tighter card padding on small phones */
+@media (max-width: 639px) {
+  .card, .card-elevated { padding: var(--theme-space-5); }
+}
+
+/* Stronger text for card h4 headings */
+.card h4 { color: var(--color-text-primary); letter-spacing: -0.01em; }
+
+/* Section-eyebrow pill margins in htb override */
+.section-header .section-eyebrow,
+.section-header .hero-eyebrow { margin-bottom: var(--theme-space-4); }
+
 @media print {
   .nav, .footer, .sw-chat-fab, .sw-chat-panel { display: none !important; }
   body { padding-top: 0; color: var(--color-text-primary); background: var(--color-bg-0); }
@@ -676,8 +873,8 @@ h1, h2, h3, h4, h5, h6 { color: var(--color-text-primary); }
 
   /* Sections */
   .section { padding: 40px var(--theme-space-4); }
-  .section-header { margin-bottom: var(--theme-space-6); }
-  .section-header h2 { font-size: clamp(1.3rem, 6vw, 1.9rem); }
+  .section-header { margin-bottom: var(--theme-space-8); }
+  .section-header h2 { font-size: clamp(1.3rem, 6vw, 1.9rem); margin-bottom: var(--theme-space-3); }
 
   /* Cards & grids */
   .features-grid,

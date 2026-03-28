@@ -145,14 +145,15 @@ class _BootScreenState extends ConsumerState<BootScreen>
 
                       const SizedBox(height: AppSpacing.space5),
 
-                      const Text(
+                      Text(
                         'SecureWave',
-                        style: TextStyle(
-                          color: AppColors.darkInk,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                        ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
+                              color: AppColors.darkInk,
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                       const SizedBox(height: AppSpacing.space2),
 
@@ -161,11 +162,10 @@ class _BootScreenState extends ConsumerState<BootScreen>
                         child: Text(
                           headlineText,
                           key: ValueKey('${boot.status.name}:$headlineText'),
-                          style: const TextStyle(
-                            color: AppColors.darkInkMuted,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.darkInkMuted,
+                                  ),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -200,11 +200,12 @@ class _BootScreenState extends ConsumerState<BootScreen>
                               Flexible(
                                 child: Text(
                                   stepDetail,
-                                  style: const TextStyle(
-                                    color: AppColors.darkInkMuted,
-                                    fontSize: 12,
-                                    height: 1.25,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: AppColors.darkInk,
+                                      ),
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -245,10 +246,13 @@ class _BootScreenState extends ConsumerState<BootScreen>
                             ),
                             child: Text(
                               boot.errorMessage!,
-                              style: const TextStyle(
-                                color: AppColors.error,
-                                fontSize: 13,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.darkInk,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                               textAlign: TextAlign.center,
                             ),
                           ),

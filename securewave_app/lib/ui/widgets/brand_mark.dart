@@ -46,8 +46,8 @@ class BrandMark extends StatelessWidget {
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                textColor ?? htb.HtbColors.accentSecondary,
-                accentColor ?? htb.HtbColors.accentSecondaryMuted,
+                textColor ?? htb.HtbColors.accentPrimaryMuted,
+                accentColor ?? htb.HtbColors.accentPrimary,
                 htb.HtbColors.accentPrimary,
               ],
             ).createShader(bounds),

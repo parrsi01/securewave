@@ -589,7 +589,7 @@ class _ActionRow extends StatelessWidget {
             key: AutomationKeys.healthRunDiagnosticButtonKey,
             label: 'Run Full Diagnostic',
             icon: Icons.biotech_rounded,
-            color: htb.HtbColors.accentSecondary,
+            color: htb.HtbColors.accentPrimary,
             isLoading: isLoading,
             onPressed: isLoading ? null : onRunDiagnostic,
           ),

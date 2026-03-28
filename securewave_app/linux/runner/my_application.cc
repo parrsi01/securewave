@@ -234,6 +234,10 @@ static gboolean wireguard_elevation_available() {
   return pkexec_available() && securewave_wg_helper_install_ready();
 }
 
+static gboolean root_command_elevation_available() {
+  return geteuid() == 0 || pkexec_available();
+}
+
 static gboolean elevation_available() {
   return wireguard_elevation_available();
 }
@@ -241,9 +245,9 @@ static gboolean elevation_available() {
 static gboolean native_vpn_available() {
   const gboolean wireguard_ready =
       wg_quick_available() && wireguard_elevation_available();
-  const gboolean root_runtime = geteuid() == 0;
-  return wireguard_ready || (root_runtime && openvpn_available()) ||
-         (root_runtime && nmcli_available() && ipsec_available());
+  const gboolean root_commands_ready = root_command_elevation_available();
+  return wireguard_ready || (root_commands_ready && openvpn_available()) ||
+         (root_commands_ready && nmcli_available() && ipsec_available());
 }
 
 static const gchar* wireguard_install_hint_message() {
@@ -257,6 +261,18 @@ static const gchar* openvpn_install_hint_message() {
 static const gchar* ikev2_install_hint_message() {
   return "IKEv2 on Linux requires system components. Install NetworkManager, "
          "network-manager-strongswan, and strongSwan (ipsec), then retry.";
+}
+
+static const gchar* openvpn_elevation_hint_message() {
+  return "OpenVPN automation on Linux requires administrator privileges. "
+         "Install pkexec/policykit-1 so SecureWave can prompt for elevation, "
+         "or run SecureWave as root.";
+}
+
+static const gchar* ikev2_elevation_hint_message() {
+  return "IKEv2 automation on Linux requires administrator privileges. "
+         "Install pkexec/policykit-1 so SecureWave can prompt for elevation, "
+         "or run SecureWave as root.";
 }
 
 static const gchar* elevation_hint_message() {
@@ -685,6 +701,81 @@ static gint append_pkexec_prefix(gchar** argv, gchar* pkexec_path) {
     argv[idx++] = const_cast<gchar*>(kPkexecDisableInternalAgentArg);
   }
   return idx;
+}
+
+static gboolean run_root_command_step(gchar** argv,
+                                      const gchar* error_code,
+                                      const gchar* fallback_message,
+                                      const gchar* elevation_message,
+                                      gchar** out_code,
+                                      gchar** out_message) {
+  if (!argv || !argv[0]) {
+    if (out_code) {
+      *out_code = g_strdup("invalid_profile");
+    }
+    if (out_message) {
+      *out_message = g_strdup("Privileged command is missing.");
+    }
+    return FALSE;
+  }
+
+  if (geteuid() == 0) {
+    return run_command_step(
+        argv, error_code, fallback_message, out_code, out_message);
+  }
+
+  g_autofree gchar* pkexec_path = g_find_program_in_path("pkexec");
+  if (!pkexec_path) {
+    if (out_code) {
+      *out_code = g_strdup("vpn_permission_required");
+    }
+    if (out_message) {
+      *out_message = g_strdup(
+          elevation_message ? elevation_message : elevation_hint_message());
+    }
+    return FALSE;
+  }
+
+  gchar* elevated_argv[32] = {nullptr};
+  gint idx = append_pkexec_prefix(elevated_argv, pkexec_path);
+  for (gint arg_idx = 0; argv[arg_idx] != nullptr; arg_idx++) {
+    if (idx >= static_cast<gint>(G_N_ELEMENTS(elevated_argv)) - 1) {
+      if (out_code) {
+        *out_code = g_strdup("invalid_profile");
+      }
+      if (out_message) {
+        *out_message = g_strdup("Privileged command is too large.");
+      }
+      return FALSE;
+    }
+    elevated_argv[idx++] = argv[arg_idx];
+  }
+  elevated_argv[idx] = nullptr;
+  return run_command_step(
+      elevated_argv, error_code, fallback_message, out_code, out_message);
+}
+
+static gboolean run_root_quiet_command(gchar** argv) {
+  if (!argv || !argv[0]) {
+    return FALSE;
+  }
+  if (geteuid() == 0) {
+    return run_quiet_command(argv);
+  }
+  g_autofree gchar* pkexec_path = g_find_program_in_path("pkexec");
+  if (!pkexec_path) {
+    return FALSE;
+  }
+  gchar* elevated_argv[32] = {nullptr};
+  gint idx = append_pkexec_prefix(elevated_argv, pkexec_path);
+  for (gint arg_idx = 0; argv[arg_idx] != nullptr; arg_idx++) {
+    if (idx >= static_cast<gint>(G_N_ELEMENTS(elevated_argv)) - 1) {
+      return FALSE;
+    }
+    elevated_argv[idx++] = argv[arg_idx];
+  }
+  elevated_argv[idx] = nullptr;
+  return run_quiet_command(elevated_argv);
 }
 
 static gboolean run_wireguard_helper_step(const gchar* action,
@@ -2988,14 +3079,16 @@ static void handle_vpn_call(FlMethodChannel* channel,
     const gboolean nmcli_installed = nmcli_available();
     const gboolean ipsec_installed = ipsec_available();
     const gboolean can_elevate = elevation_available();
-    const gboolean root_runtime = geteuid() == 0;
+    const gboolean root_commands_ready = root_command_elevation_available();
     g_autoptr(FlValue) map = fl_value_new_map();
     fl_value_set_string_take(map, "wireguard", fl_value_new_bool(wg_installed && can_elevate));
-    fl_value_set_string_take(map, "openvpn", fl_value_new_bool(ovpn_installed && root_runtime));
+    fl_value_set_string_take(
+        map, "openvpn", fl_value_new_bool(ovpn_installed && root_commands_ready));
     fl_value_set_string_take(
         map,
         "ikev2",
-        fl_value_new_bool(nmcli_installed && ipsec_installed && root_runtime));
+        fl_value_new_bool(
+            nmcli_installed && ipsec_installed && root_commands_ready));
     fl_value_set_string_take(map, "windows_thread_safe", fl_value_new_bool(FALSE));
     fl_value_set_string_take(map, "android_vpnservice_based", fl_value_new_bool(FALSE));
     fl_value_set_string_take(map, "macos_entitlements_ready", fl_value_new_bool(TRUE));
@@ -3022,21 +3115,19 @@ static void handle_vpn_call(FlMethodChannel* channel,
           "wireguard_install_hint",
           fl_value_new_string(hint));
     }
-    if (!ovpn_installed || !root_runtime) {
+    if (!ovpn_installed || !root_commands_ready) {
       const gchar* hint = !ovpn_installed
                               ? openvpn_install_hint_message()
-                              : "OpenVPN automation on Linux requires running SecureWave as root. "
-                                "The scoped SecureWave helper only supports WireGuard.";
+                              : openvpn_elevation_hint_message();
       fl_value_set_string_take(
           map,
           "openvpn_install_hint",
           fl_value_new_string(hint));
     }
-    if (!nmcli_installed || !ipsec_installed || !root_runtime) {
+    if (!nmcli_installed || !ipsec_installed || !root_commands_ready) {
       const gchar* hint = nullptr;
-      if (!root_runtime) {
-        hint = "IKEv2 automation on Linux requires running SecureWave as root. "
-               "The scoped SecureWave helper only supports WireGuard.";
+      if (!root_commands_ready) {
+        hint = ikev2_elevation_hint_message();
       } else if (!nmcli_installed || !ipsec_installed) {
         hint = ikev2_install_hint_message();
       }
@@ -3394,12 +3485,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
             nullptr);
         return;
       }
-      if (geteuid() != 0) {
+      if (!root_command_elevation_available()) {
         respond_error(
             method_call,
-            "protocol_unavailable",
-            "OpenVPN automation on Linux requires running SecureWave as root. "
-            "The scoped SecureWave helper only supports WireGuard.",
+            "vpn_permission_required",
+            openvpn_elevation_hint_message(),
             nullptr);
         return;
       }
@@ -3477,10 +3567,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
 
       g_autofree gchar* code = nullptr;
       g_autofree gchar* message = nullptr;
-      if (!run_command_step(
+      if (!run_root_command_step(
               argv,
               "vpn_connect_failed",
               "Failed to start OpenVPN.",
+              openvpn_elevation_hint_message(),
               &code,
               &message)) {
         respond_error(method_call, code, message, nullptr);
@@ -3519,12 +3610,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
             nullptr);
         return;
       }
-      if (geteuid() != 0) {
+      if (!root_command_elevation_available()) {
         respond_error(
             method_call,
-            "protocol_unavailable",
-            "IKEv2 automation on Linux requires running SecureWave as root. "
-            "The scoped SecureWave helper only supports WireGuard.",
+            "vpn_permission_required",
+            ikev2_elevation_hint_message(),
             nullptr);
         return;
       }
@@ -3584,10 +3674,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
       delete_argv[didx] = nullptr;
       g_autofree gchar* ignored_code = nullptr;
       g_autofree gchar* ignored_message = nullptr;
-      run_command_step(
+      run_root_command_step(
           delete_argv,
           "vpn_setup_failed",
           "Unable to clean up existing IKEv2 profile.",
+          ikev2_elevation_hint_message(),
           &ignored_code,
           &ignored_message);
 
@@ -3612,10 +3703,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
 
       g_autofree gchar* add_code = nullptr;
       g_autofree gchar* add_message = nullptr;
-      if (!run_command_step(
+      if (!run_root_command_step(
               add_argv,
               "vpn_setup_failed",
               "Failed to configure IKEv2 connection profile.",
+              ikev2_elevation_hint_message(),
               &add_code,
               &add_message)) {
         respond_error(method_call, add_code, add_message, nullptr);
@@ -3633,10 +3725,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
 
       g_autofree gchar* up_code = nullptr;
       g_autofree gchar* up_message = nullptr;
-      if (!run_command_step(
+      if (!run_root_command_step(
               up_argv,
               "vpn_connect_failed",
               "Failed to establish IKEv2 connection.",
+              ikev2_elevation_hint_message(),
               &up_code,
               &up_message)) {
         respond_error(method_call, up_code, up_message, nullptr);
@@ -3653,7 +3746,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
         down_argv[didx++] = const_cast<gchar*>("id");
         down_argv[didx++] = const_cast<gchar*>(kIkev2ConnectionName);
         down_argv[didx] = nullptr;
-        run_quiet_command(down_argv);
+        run_root_quiet_command(down_argv);
         respond_error(
             method_call,
             "vpn_connect_failed",
@@ -3683,12 +3776,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
     stop_wireguard_watchdog(state);
     const gchar* active = state->active_protocol;
     if (active && g_strcmp0(active, "openvpn") == 0) {
-      if (geteuid() != 0) {
+      if (!root_command_elevation_available()) {
         respond_error(
             method_call,
-            "protocol_unavailable",
-            "OpenVPN automation on Linux requires running SecureWave as root. "
-            "The scoped SecureWave helper only supports WireGuard.",
+            "vpn_permission_required",
+            openvpn_elevation_hint_message(),
             nullptr);
         return;
       }
@@ -3711,10 +3803,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
       argv[idx] = nullptr;
       g_autofree gchar* code = nullptr;
       g_autofree gchar* message = nullptr;
-      if (!run_command_step(
+      if (!run_root_command_step(
               argv,
               "vpn_disconnect_failed",
               "Failed to stop OpenVPN tunnel.",
+              openvpn_elevation_hint_message(),
               &code,
               &message)) {
         respond_error(method_call, code, message, nullptr);
@@ -3740,12 +3833,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
             nullptr);
         return;
       }
-      if (geteuid() != 0) {
+      if (!root_command_elevation_available()) {
         respond_error(
             method_call,
-            "protocol_unavailable",
-            "IKEv2 automation on Linux requires running SecureWave as root. "
-            "The scoped SecureWave helper only supports WireGuard.",
+            "vpn_permission_required",
+            ikev2_elevation_hint_message(),
             nullptr);
         return;
       }
@@ -3760,10 +3852,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
 
       g_autofree gchar* code = nullptr;
       g_autofree gchar* message = nullptr;
-      if (!run_command_step(
+      if (!run_root_command_step(
               argv,
               "vpn_disconnect_failed",
               "Failed to disconnect IKEv2 tunnel.",
+              ikev2_elevation_hint_message(),
               &code,
               &message)) {
         g_autofree gchar* lower = g_ascii_strdown(message, -1);
@@ -3784,10 +3877,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
       delete_argv[didx] = nullptr;
       g_autofree gchar* delete_code = nullptr;
       g_autofree gchar* delete_message = nullptr;
-      if (!run_command_step(
+      if (!run_root_command_step(
               delete_argv,
               "vpn_disconnect_failed",
               "Failed to clean up IKEv2 connection profile.",
+              ikev2_elevation_hint_message(),
               &delete_code,
               &delete_message)) {
         g_autofree gchar* lower = g_ascii_strdown(delete_message, -1);

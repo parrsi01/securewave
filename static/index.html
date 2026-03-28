@@ -12,6 +12,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 </head>
 <body>
+  <a href="#main" class="skip-link">Skip to main content</a>
   <!-- ===== Navigation ===== -->
   <nav class="nav" id="navbar">
     <div class="nav-inner">
@@ -47,7 +48,7 @@
     </div>
   </nav>
 
-  <main>
+  <main id="main">
 
     <!-- ===== Hero Section ===== -->
     <section class="hero">
@@ -124,7 +125,7 @@
             <div class="stat-value">2</div>
             <div class="stat-label">Server Regions</div>
           </div>
-          <div class="stat reveal">
+          <div class="stat stat-highlight reveal">
             <div class="stat-value">256-bit</div>
             <div class="stat-label">AES Encryption</div>
           </div>
@@ -188,7 +189,7 @@
           <p>SecureWave supports industry-standard VPN protocols so you can choose the best fit for your needs.</p>
         </div>
         <div class="grid grid-3">
-          <div class="card card-elevated feature-card reveal">
+          <div class="card card-elevated feature-card card-recommended reveal" data-recommended>
             <div class="card-icon card-icon-lg" aria-hidden="true"><img src="/img/icons/shield-check.svg" width="32" height="32" alt=""></div>
             <h4>WireGuard</h4>
             <p>Modern, lightweight protocol with minimal attack surface. Uses ChaCha20 and Curve25519 for fast, secure connections with low overhead.</p>

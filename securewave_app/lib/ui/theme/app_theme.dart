@@ -2,7 +2,7 @@
 // CHANGELOG
 // =============================================================================
 // v1.2.0 (2026-03-27) — Controlled cyberpunk refinement
-//   - Near-black base surfaces with restrained purple/blue accents
+//   - Near-black base surfaces with a single restrained neon accent
 //   - Glow reserved for buttons and active interactive states
 //   - Reduced gradient noise and aligned Material components to shared tokens
 //   - Shared branding aligned with the website and SVG mark refresh
@@ -57,7 +57,7 @@ class HtbGradients extends ThemeExtension<HtbGradients> {
     neonEdge: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [HtbColors.accentPrimary, HtbColors.accentSecondary],
+      colors: [HtbColors.accentPrimaryMuted, HtbColors.accentPrimary],
     ),
   );
 

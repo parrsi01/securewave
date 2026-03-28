@@ -33,12 +33,16 @@ void main() {
   });
 
   test('legacy and modern UI palettes stay aligned', () {
-    expect(AppColors.primaryBright, HtbColors.accentPrimary);
+    expect(AppColors.primary, HtbColors.accentPrimary);
     expect(AppColors.secondary, HtbColors.accentSecondary);
     expect(AppColors.darkBackground, HtbColors.bg0);
     expect(AppColors.darkBackgroundWarm, HtbColors.bg1);
-    expect(AppColors.darkSurface, HtbColors.bg2);
+    expect(AppColors.darkSurfaceMuted, HtbColors.bg2);
     expect(AppColors.darkSurfaceElevated, HtbColors.bg3);
+    expect(AppColors.darkSurfaceSunken, HtbColors.panelSunken);
+    expect(AppColors.darkSurfaceBase, HtbColors.panelBase);
+    expect(AppColors.darkSurfaceRaised, HtbColors.panelRaised);
+    expect(AppColors.darkSurfaceFloating, HtbColors.panelFloating);
     expect(AppColors.darkInk, HtbColors.textPrimary);
     expect(AppColors.darkInkMuted, HtbColors.textSecondary);
   });
@@ -54,7 +58,10 @@ void main() {
     expect(theme.colorScheme.secondary, HtbColors.accentSecondary);
     expect(theme.appBarTheme.backgroundColor, HtbColors.bg0);
     expect(theme.inputDecorationTheme.fillColor, HtbColors.bg2);
-    expect(theme.cardTheme.color, HtbColors.glassFill);
+    expect(theme.cardTheme.color, HtbColors.panelRaised);
+    expect(theme.textTheme.bodySmall?.fontSize, AppTypography.sizeBodySmall);
+    expect(theme.textTheme.bodySmall?.color, HtbColors.textSecondary);
+    expect(theme.textTheme.labelSmall?.color, HtbColors.textSecondary);
     expect(
       elevated.backgroundColor?.resolve(<WidgetState>{}),
       HtbColors.accentPrimary,
@@ -65,7 +72,7 @@ void main() {
     );
     expect(
       outlined.side?.resolve(<WidgetState>{})?.color,
-      HtbColors.glassBorderDefault,
+      HtbColors.border,
     );
   });
 

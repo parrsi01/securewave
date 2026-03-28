@@ -1,0 +1,24 @@
+[Unit]
+Description=SecureWave VPN Backend (workspace local)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sp
+Group=sp
+WorkingDirectory=/home/sp/cyber-course/projects/securewave
+ExecStart=/home/sp/cyber-course/projects/securewave/venv/bin/uvicorn main:app \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --workers 2 \
+    --no-access-log \
+    --log-level warning
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=securewave-backend
+
+[Install]
+WantedBy=multi-user.target

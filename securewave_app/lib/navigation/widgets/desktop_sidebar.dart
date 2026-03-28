@@ -126,7 +126,7 @@ class DesktopSidebar extends ConsumerWidget {
                 CircleAvatar(
                   radius: 16,
                   backgroundColor:
-                      isDark ? AppColors.primaryDeep : AppColors.primaryLight,
+                      isDark ? AppColors.primaryDeep : AppColors.primaryDeep,
                   child: Text(
                     initial,
                     style: TextStyle(
@@ -190,7 +190,7 @@ class _NavItem extends StatelessWidget {
     final primaryColor = isDark ? AppColors.primaryBright : AppColors.primary;
     final activeColor = isDark
         ? AppColors.primaryBright.withValues(alpha: 0.14)
-        : AppColors.primaryLight;
+        : AppColors.primaryDeep;
     final inkColor = isDark ? AppColors.darkInk : AppColors.ink;
     final mutedColor = isDark ? AppColors.darkInkMuted : AppColors.inkMuted;
 

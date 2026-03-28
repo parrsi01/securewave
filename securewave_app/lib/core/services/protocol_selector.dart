@@ -32,11 +32,13 @@ class ProtocolSelector {
     required VpnCapabilities capabilities,
     VpnProtocolCatalog? catalog,
   }) {
-    final runtimeAvailableProtocols = <VpnProtocol>[
-      if (capabilities.wireGuard) VpnProtocol.wireGuard,
-      if (capabilities.openVpn) VpnProtocol.openVpn,
-      if (capabilities.ikev2) VpnProtocol.ikev2,
-    ];
+    final runtimeAvailableProtocols = VpnProtocol.values
+        .where(
+          (protocol) =>
+              protocol != VpnProtocol.auto &&
+              capabilities.isRuntimeAvailable(protocol),
+        )
+        .toList(growable: false);
     final backendAvailableProtocols =
         catalog?.enabledProtocols() ?? runtimeAvailableProtocols.toSet();
     final connectableProtocols = runtimeAvailableProtocols
@@ -101,7 +103,8 @@ class ProtocolSelector {
         effective: requested,
         backendProtocol: requested,
         backendBlocked: true,
-        error: _backendUnavailableMessage(requested, catalog.entryFor(requested)),
+        error:
+            _backendUnavailableMessage(requested, catalog.entryFor(requested)),
       );
     }
 
@@ -113,33 +116,28 @@ class ProtocolSelector {
   }
 
   bool _supportsProtocol(VpnProtocol protocol, VpnCapabilities capabilities) {
-    switch (protocol) {
-      case VpnProtocol.auto:
-        return false;
-      case VpnProtocol.wireGuard:
-        return capabilities.wireGuard;
-      case VpnProtocol.openVpn:
-        return capabilities.openVpn;
-      case VpnProtocol.ikev2:
-        return capabilities.ikev2;
-    }
+    return capabilities.supportsProtocol(protocol);
   }
 
   String _unsupportedProtocolMessage(
     VpnProtocol protocol,
     VpnCapabilities capabilities,
   ) {
+    final capability = capabilities.capabilityFor(protocol);
+    if (capability.reason != null && capability.reason!.trim().isNotEmpty) {
+      return capability.reason!;
+    }
     if (protocol == VpnProtocol.wireGuard) {
-      return capabilities.wireGuardInstallHint ??
-          'WireGuard runtime is not available on this device.';
+      return 'WireGuard runtime is not available on this device.';
     }
     if (protocol == VpnProtocol.openVpn) {
-      return capabilities.openVpnInstallHint ??
-          'OpenVPN runtime is not available on this device.';
+      if (capability.supported && !capability.runtimeAvailable) {
+        return 'OpenVPN is supported on this device, but its runtime is not available.';
+      }
+      return 'OpenVPN runtime is not available on this device.';
     }
     if (protocol == VpnProtocol.ikev2) {
-      return capabilities.ikev2InstallHint ??
-          'IKEv2/IPsec runtime is not available on this device.';
+      return 'IKEv2/IPsec runtime is not available on this device.';
     }
     return '${vpnProtocolLabel(protocol)} is not available on this build. '
         'Select a different protocol or switch to Automatic.';
