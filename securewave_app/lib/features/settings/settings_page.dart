@@ -6,8 +6,6 @@ import '../../core/models/vpn_protocol.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/preferences_state.dart';
 import '../../core/state/vpn_state.dart';
-import '../../ui/app_ui_v1.dart';
-import '../../ui/components/depth_panel.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -20,6 +18,7 @@ class SettingsPage extends ConsumerWidget {
         ref.watch(vpnStateProvider.select((state) => state.protocol));
     final effectiveProtocol =
         ref.watch(vpnStateProvider.select((state) => state.effectiveProtocol));
+    final cs = Theme.of(context).colorScheme;
 
     final languageLabel = switch (language) {
       'es' => 'Spanish',
@@ -30,81 +29,110 @@ class SettingsPage extends ConsumerWidget {
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(AppUIv1.space5),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         children: [
-          Text('Settings', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppUIv1.space2),
+          // ── Device ────────────────────────────────────────────────────────
           Text(
-            'Clear device controls with explicit runtime mapping.',
-            style: Theme.of(context).textTheme.bodyMedium,
+            'Device',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  letterSpacing: 0.5,
+                ),
           ),
-          const SizedBox(height: AppUIv1.space4),
-          DepthPanel(
-            depth: PanelDepth.raised,
-            padding: EdgeInsets.zero,
+          const SizedBox(height: 8),
+          Card(
             child: ListTile(
-              leading: const Icon(Icons.devices),
+              leading: const Icon(Icons.devices_rounded),
               title: const Text('Current device'),
               subtitle: Text(deviceInfo),
             ),
           ),
-          const SizedBox(height: AppUIv1.space3),
-          DepthPanel(
-            depth: PanelDepth.raised,
-            padding: EdgeInsets.zero,
-            child: ListTile(
-              leading: const Icon(Icons.language),
-              title: const Text('Language'),
-              subtitle: Text(languageLabel),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/settings/language'),
-            ),
-          ),
-          const SizedBox(height: AppUIv1.space3),
-          DepthPanel(
-            depth: PanelDepth.floating,
-            padding: EdgeInsets.zero,
-            child: ListTile(
-              leading: const Icon(Icons.health_and_safety),
-              title: const Text('Diagnostics'),
-              subtitle:
-                  const Text('Run backend, tunnel, route, and traffic checks'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/diagnostics'),
-            ),
-          ),
-          const SizedBox(height: AppUIv1.space4),
-          Text('Protocol', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: AppUIv1.space2),
+
+          const SizedBox(height: 20),
+
+          // ── Preferences ───────────────────────────────────────────────────
           Text(
-            effectiveProtocol == null
-                ? 'Preferred protocol: ${vpnProtocolLabel(protocol)}'
-                : 'Preferred protocol: ${vpnProtocolLabel(protocol)} • Active: ${vpnProtocolLabel(effectiveProtocol)}',
-            style: Theme.of(context).textTheme.bodySmall,
+            'Preferences',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  letterSpacing: 0.5,
+                ),
           ),
-          const SizedBox(height: AppUIv1.space3),
-          DepthPanel(
-            depth: PanelDepth.floating,
-            padding: const EdgeInsets.all(AppUIv1.space3),
-            child: Wrap(
-              spacing: AppUIv1.space2,
-              runSpacing: AppUIv1.space2,
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
               children: [
-                for (final protocolOption in VpnProtocol.values)
-                  ChoiceChip(
-                    label: Text(vpnProtocolLabel(protocolOption)),
-                    selected: protocol == protocolOption,
-                    onSelected: (_) => ref
-                        .read(vpnStateProvider.notifier)
-                        .selectProtocol(protocolOption),
+                ListTile(
+                  leading: const Icon(Icons.language_rounded),
+                  title: const Text('Language'),
+                  subtitle: Text(languageLabel),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/settings/language'),
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: const Icon(Icons.health_and_safety_rounded),
+                  title: const Text('Diagnostics'),
+                  subtitle: const Text(
+                    'Run backend, tunnel, route, and traffic checks',
                   ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/diagnostics'),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: AppUIv1.space2),
+
+          const SizedBox(height: 20),
+
+          // ── Protocol ─────────────────────────────────────────────────────
           Text(
-            'Protocol choice is applied on the next /vpn/profile request.',
-            style: Theme.of(context).textTheme.bodySmall,
+            'Protocol',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  letterSpacing: 0.5,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    effectiveProtocol == null
+                        ? 'Preferred: ${vpnProtocolLabel(protocol)}'
+                        : 'Preferred: ${vpnProtocolLabel(protocol)}  •  Active: ${vpnProtocolLabel(effectiveProtocol)}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final protocolOption in VpnProtocol.values)
+                        ChoiceChip(
+                          label: Text(vpnProtocolLabel(protocolOption)),
+                          selected: protocol == protocolOption,
+                          onSelected: (_) => ref
+                              .read(vpnStateProvider.notifier)
+                              .selectProtocol(protocolOption),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Applied on the next profile request.',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:flutter_svg/flutter_svg.dart';
+
+import '../../../core/theme/colors.dart';
 import '../../../debug/automation_keys.dart';
 import '../../../features/auth/auth_controller.dart';
 import '../../../features/auth/auth_widgets.dart';
@@ -51,8 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 980;
-                final formCard = GlassPanel(
+                final formCard =GlassPanel(
                   glowColor: htb.HtbColors.accentSecondaryMuted,
                   borderColor: htb.HtbColors.accentSecondaryGhost,
                   child: Column(
@@ -145,66 +147,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       vertical: AppSpacing.space5,
                     ),
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: isWide ? 1080 : AppSpacing.authMaxWidth,
+                      constraints: const BoxConstraints(
+                        maxWidth: AppSpacing.authMaxWidth,
                       ),
-                      child: isWide
-                          ? Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Expanded(
-                                  flex: 11,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      AuthHeader(
-                                        headline: 'Welcome back',
-                                        subline: 'Sign in to SecureWave',
-                                      ),
-                                      SizedBox(height: AppSpacing.space4),
-                                      AuthFeaturePanel(
-                                        kicker: 'ACCESS LAYER',
-                                        title:
-                                            'Secure access, minimal friction',
-                                        description:
-                                            'Return to the control center with live tunnel telemetry and system health kept in one streamlined surface.',
-                                        items: [
-                                          'Encrypted routing with live status visibility',
-                                          'Fast protocol switching and lightweight diagnostics',
-                                          'Consistent hacker-style UI across desktop and mobile',
-                                        ],
-                                      ),
-                                    ],
+                                Container(
+                                  width: 72,
+                                  height: 72,
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryDeep,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: AppColors.primary.withValues(alpha: 0.35),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: SvgPicture.asset('assets/securewave_logo.svg'),
+                                ),
+                                const SizedBox(width: 14),
+                                const Text(
+                                  'SecureWave',
+                                  style: TextStyle(
+                                    fontFamily: 'JetBrainsMono',
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                    letterSpacing: 0.3,
                                   ),
                                 ),
-                                const SizedBox(width: AppSpacing.space5),
-                                Expanded(flex: 9, child: formCard),
-                              ],
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const AuthHeader(
-                                  headline: 'Welcome back',
-                                  subline: 'Sign in to SecureWave',
-                                ),
-                                const SizedBox(height: AppSpacing.space4),
-                                const AuthFeaturePanel(
-                                  kicker: 'ACCESS LAYER',
-                                  title: 'Secure access, minimal friction',
-                                  description:
-                                      'Return to the control center with live tunnel telemetry and system health kept in one streamlined surface.',
-                                  items: [
-                                    'Encrypted routing with live status visibility',
-                                    'Fast protocol switching and lightweight diagnostics',
-                                  ],
-                                ),
-                                const SizedBox(height: AppSpacing.space4),
-                                formCard,
                               ],
                             ),
+                          ),
+                          const SizedBox(height: 24),
+                          formCard,
+                        ],
+                      ),
                     ),
                   ),
                 );

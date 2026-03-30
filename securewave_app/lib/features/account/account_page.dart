@@ -6,8 +6,6 @@ import '../../core/logging/app_logger.dart';
 import '../../core/services/auth_session.dart';
 import '../../core/models/user_plan.dart';
 import '../../core/state/app_state.dart';
-import '../../ui/app_ui_v1.dart';
-import '../../ui/components/depth_panel.dart';
 
 class AccountPage extends ConsumerWidget {
   const AccountPage({super.key});
@@ -16,33 +14,51 @@ class AccountPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final plan = ref.watch(userPlanProvider);
     final config = ref.watch(appConfigProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(AppUIv1.space5),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         children: [
-          Text('Account', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppUIv1.space2),
-          Text(
-            'Manage your plan and keep an eye on data usage.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: AppUIv1.space4),
+          // ── Plan summary card ─────────────────────────────────────────────
           plan.when(
-            data: (data) => _PlanSummary(plan: data),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) =>
-                const Text('Unable to load plan details right now.'),
+            data: (data) => _PlanSummaryCard(plan: data),
+            loading: () => const Card(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+            error: (_, __) => Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Unable to load plan details right now.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                ),
+              ),
+            ),
           ),
-          const SizedBox(height: AppUIv1.space4),
-          Text('Subscription options',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: AppUIv1.space3),
+
+          const SizedBox(height: 20),
+
+          // ── Subscription options ──────────────────────────────────────────
+          Text(
+            'Subscription',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  letterSpacing: 0.5,
+                ),
+          ),
+          const SizedBox(height: 8),
           LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > 720;
               if (isWide) {
                 return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: _PlanOptionCard(
@@ -53,14 +69,14 @@ class AccountPage extends ConsumerWidget {
                         features: const [
                           '5 GB monthly data',
                           'Region auto-select',
-                          'Email support'
+                          'Email support',
                         ],
                         actionLabel: 'Stay on Free',
                         onAction: () => AppLogger.info('Free plan intent'),
-                        accent: AppUIv1.surfaceMuted,
+                        highlight: false,
                       ),
                     ),
-                    const SizedBox(width: AppUIv1.space3),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: _PlanOptionCard(
                         title: 'Premium',
@@ -69,12 +85,11 @@ class AccountPage extends ConsumerWidget {
                         features: const [
                           'Unlimited data',
                           'Priority servers',
-                          'Priority support'
+                          'Priority support',
                         ],
                         actionLabel: 'Upgrade to Premium',
                         onAction: () => AppLogger.info(
                             'upgrade_intent: ${config.upgradeUrl}'),
-                        accent: AppUIv1.accentSoft,
                         highlight: true,
                       ),
                     ),
@@ -91,13 +106,13 @@ class AccountPage extends ConsumerWidget {
                     features: const [
                       '5 GB monthly data',
                       'Region auto-select',
-                      'Email support'
+                      'Email support',
                     ],
                     actionLabel: 'Stay on Free',
                     onAction: () => AppLogger.info('Free plan intent'),
-                    accent: AppUIv1.surfaceMuted,
+                    highlight: false,
                   ),
-                  const SizedBox(height: AppUIv1.space3),
+                  const SizedBox(height: 12),
                   _PlanOptionCard(
                     title: 'Premium',
                     price: '\$9 / month',
@@ -105,56 +120,65 @@ class AccountPage extends ConsumerWidget {
                     features: const [
                       'Unlimited data',
                       'Priority servers',
-                      'Priority support'
+                      'Priority support',
                     ],
                     actionLabel: 'Upgrade to Premium',
                     onAction: () =>
                         AppLogger.info('upgrade_intent: ${config.upgradeUrl}'),
-                    accent: AppUIv1.accentSoft,
                     highlight: true,
                   ),
                 ],
               );
             },
           ),
-          const SizedBox(height: AppUIv1.space4),
-          DepthPanel(
-            depth: PanelDepth.raised,
-            padding: EdgeInsets.zero,
-            child: ListTile(
-              leading: const Icon(Icons.open_in_new),
-              title: const Text('Manage account in web portal'),
-              subtitle: Text(config.portalUrl),
-              onTap: () => AppLogger.info('portal_intent: ${config.portalUrl}'),
-            ),
+
+          const SizedBox(height: 20),
+
+          // ── Account actions ───────────────────────────────────────────────
+          Text(
+            'Account',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  letterSpacing: 0.5,
+                ),
           ),
-          const SizedBox(height: AppUIv1.space3),
-          DepthPanel(
-            depth: PanelDepth.base,
-            padding: EdgeInsets.zero,
-            child: ListTile(
-              leading: const Icon(Icons.devices_outlined),
-              title: const Text('Manage devices'),
-              subtitle: const Text(
-                'Open the portal to revoke old devices or resolve a device limit.',
-              ),
-              onTap: () => AppLogger.info('portal_intent: ${config.portalUrl}'),
-            ),
-          ),
-          const SizedBox(height: AppUIv1.space3),
-          DepthPanel(
-            depth: PanelDepth.base,
-            padding: EdgeInsets.zero,
-            child: ListTile(
-              leading: const Icon(Icons.logout_rounded),
-              title: const Text('Sign out on this device'),
-              subtitle: const Text(
-                'Clears the local session token and lets router protection return you to login.',
-              ),
-              onTap: () async {
-                AppLogger.info('tap_sign_out');
-                await ref.read(authSessionProvider).clearSession();
-              },
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.open_in_new),
+                  title: const Text('Manage account in web portal'),
+                  subtitle: Text(config.portalUrl),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () =>
+                      AppLogger.info('portal_intent: ${config.portalUrl}'),
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: const Icon(Icons.devices_outlined),
+                  title: const Text('Manage devices'),
+                  subtitle: const Text(
+                    'Revoke old devices or resolve a device limit.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () =>
+                      AppLogger.info('portal_intent: ${config.portalUrl}'),
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: Icon(Icons.logout_rounded, color: cs.error),
+                  title: Text(
+                    'Sign out',
+                    style: TextStyle(color: cs.error),
+                  ),
+                  subtitle: const Text('Clears the local session token.'),
+                  onTap: () async {
+                    AppLogger.info('tap_sign_out');
+                    await ref.read(authSessionProvider).clearSession();
+                  },
+                ),
+              ],
             ),
           ),
         ],
@@ -163,86 +187,100 @@ class AccountPage extends ConsumerWidget {
   }
 }
 
-class _PlanSummary extends StatelessWidget {
-  const _PlanSummary({required this.plan});
+// ── Plan Summary Card ─────────────────────────────────────────────────────────
+
+class _PlanSummaryCard extends StatelessWidget {
+  const _PlanSummaryCard({required this.plan});
 
   final UserPlan plan;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final usageLabel =
-        '${plan.usedGb.toStringAsFixed(1)} GB of ${plan.dataCapGb.toStringAsFixed(0)} GB';
-    final remainingLabel =
-        '${plan.remainingGb.toStringAsFixed(1)} GB remaining';
-    return Column(
-      children: [
-        DepthPanel(
-          depth: PanelDepth.floating,
-          padding: const EdgeInsets.all(AppUIv1.space4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Current plan',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(height: AppUIv1.space1),
-                  Text(plan.name,
-                      style: Theme.of(context).textTheme.titleLarge),
-                ],
-              ),
-              Chip(
-                label: Text(plan.isPremium ? 'Premium' : 'Free'),
-                backgroundColor:
-                    (plan.isPremium ? AppUIv1.accentSoft : AppUIv1.panelBase)
-                        .withValues(alpha: 0.78),
-                labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: plan.isPremium
-                          ? AppUIv1.accentStrong
-                          : AppUIv1.inkSoft,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppUIv1.space3),
-        DepthPanel(
-          depth: PanelDepth.raised,
-          padding: const EdgeInsets.all(AppUIv1.space4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Data usage',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppUIv1.space2),
-              Text(usageLabel, style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: AppUIv1.space2),
-              DepthPanel(
-                depth: PanelDepth.sunken,
-                padding: const EdgeInsets.all(AppUIv1.space2),
-                borderRadius: BorderRadius.circular(999),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: plan.usagePercent,
-                    minHeight: 10,
-                    backgroundColor: AppUIv1.panelSunken,
-                    color: AppUIv1.accent,
+        '${plan.usedGb.toStringAsFixed(1)} / ${plan.dataCapGb.toStringAsFixed(0)} GB';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Current plan',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        plan.name,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ],
                   ),
                 ),
+                Chip(
+                  label: Text(plan.isPremium ? 'Premium' : 'Free'),
+                  backgroundColor: plan.isPremium
+                      ? cs.primaryContainer
+                      : cs.surfaceContainerHigh,
+                  labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: plan.isPremium
+                            ? cs.onPrimaryContainer
+                            : cs.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Data usage',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                ),
+                Text(
+                  usageLabel,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: plan.usagePercent,
+                minHeight: 8,
               ),
-              const SizedBox(height: AppUIv1.space2),
-              Text(remainingLabel,
-                  style: Theme.of(context).textTheme.bodySmall),
-            ],
-          ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${plan.remainingGb.toStringAsFixed(1)} GB remaining',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
+
+// ── Plan Option Card ──────────────────────────────────────────────────────────
 
 class _PlanOptionCard extends StatelessWidget {
   const _PlanOptionCard({
@@ -252,8 +290,7 @@ class _PlanOptionCard extends StatelessWidget {
     required this.features,
     required this.actionLabel,
     required this.onAction,
-    required this.accent,
-    this.highlight = false,
+    required this.highlight,
   });
 
   final String title;
@@ -262,65 +299,104 @@ class _PlanOptionCard extends StatelessWidget {
   final List<String> features;
   final String actionLabel;
   final VoidCallback onAction;
-  final Color accent;
   final bool highlight;
 
   @override
   Widget build(BuildContext context) {
-    return DepthPanel(
-      depth: highlight ? PanelDepth.floating : PanelDepth.raised,
-      isAccent: highlight,
-      padding: const EdgeInsets.all(AppUIv1.space4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppUIv1.space3, vertical: AppUIv1.space1),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: highlight ? 0.32 : 0.22),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: highlight ? AppUIv1.borderStrong : AppUIv1.borderSubtle,
-              ),
+    final cs = Theme.of(context).colorScheme;
+
+    return Card(
+      shape: highlight
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(color: cs.primary.withValues(alpha: 0.4)),
+            )
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                if (highlight) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: cs.primaryContainer,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Popular',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: cs.onPrimaryContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: AppUIv1.inkMuted,
+            const SizedBox(height: 4),
+            Text(
+              price,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
+                    color: highlight ? cs.primary : null,
                   ),
             ),
-          ),
-          const SizedBox(height: AppUIv1.space3),
-          Text(price, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppUIv1.space2),
-          Text(description, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: AppUIv1.space3),
-          ...features.map(
-            (feature) => Padding(
-              padding: const EdgeInsets.only(bottom: AppUIv1.space1),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle,
-                      size: 18,
-                      color: highlight ? AppUIv1.accent : AppUIv1.inkSoft),
-                  const SizedBox(width: AppUIv1.space2),
-                  Expanded(
-                      child: Text(feature,
-                          style: Theme.of(context).textTheme.bodySmall)),
-                ],
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            ...features.map(
+              (feature) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 16,
+                      color: highlight ? cs.primary : cs.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        feature,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: AppUIv1.space3),
-          SizedBox(
-            width: double.infinity,
-            child: highlight
-                ? FilledButton(onPressed: onAction, child: Text(actionLabel))
-                : OutlinedButton(onPressed: onAction, child: Text(actionLabel)),
-          ),
-        ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: highlight
+                  ? FilledButton(
+                      onPressed: onAction,
+                      child: Text(actionLabel),
+                    )
+                  : OutlinedButton(
+                      onPressed: onAction,
+                      child: Text(actionLabel),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

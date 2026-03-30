@@ -38,8 +38,8 @@ class AppTokens {
 
   static const double radiusSmall = 4;
   static const double radiusMedium = 8;
-  static const double radiusLarge = 16;
-  static const double radiusCard = 12;
+  static const double radiusLarge = 12;
+  static const double radiusCard = 10;
   static const double radiusPill = 999;
 
   static const BorderRadius brSmall =
@@ -58,39 +58,24 @@ class AppTokens {
   static const List<BoxShadow> shadowLow = [
     BoxShadow(
       color: Color(0x22000000),
-      blurRadius: 10,
-      offset: Offset(0, 3),
-    ),
-    BoxShadow(
-      color: Color(0x14000000),
-      blurRadius: 2,
-      offset: Offset(0, 1),
+      blurRadius: 8,
+      offset: Offset(0, 2),
     ),
   ];
 
   static const List<BoxShadow> shadowMedium = [
     BoxShadow(
       color: Color(0x30000000),
-      blurRadius: 18,
-      offset: Offset(0, 8),
-    ),
-    BoxShadow(
-      color: Color(0x16000000),
-      blurRadius: 6,
-      offset: Offset(0, 2),
+      blurRadius: 14,
+      offset: Offset(0, 5),
     ),
   ];
 
   static const List<BoxShadow> shadowHigh = [
     BoxShadow(
       color: Color(0x3D000000),
-      blurRadius: 28,
-      offset: Offset(0, 14),
-    ),
-    BoxShadow(
-      color: Color(0x1A000000),
-      blurRadius: 10,
-      offset: Offset(0, 4),
+      blurRadius: 18,
+      offset: Offset(0, 8),
     ),
   ];
 
@@ -100,12 +85,12 @@ class AppTokens {
   static const List<BoxShadow> glowGreen = [
     BoxShadow(
       color: HtbColors.glowGreenSoft,
-      blurRadius: 14,
+      blurRadius: 8,
       spreadRadius: 0,
     ),
     BoxShadow(
       color: HtbColors.glowGreen,
-      blurRadius: 6,
+      blurRadius: 4,
       spreadRadius: 0,
     ),
   ];
@@ -114,12 +99,12 @@ class AppTokens {
   static const List<BoxShadow> glowGreenIntense = [
     BoxShadow(
       color: HtbColors.glowGreen,
-      blurRadius: 20,
+      blurRadius: 12,
       spreadRadius: 0,
     ),
     BoxShadow(
       color: HtbColors.neonPurple,
-      blurRadius: 8,
+      blurRadius: 5,
       spreadRadius: 0,
     ),
   ];
@@ -128,7 +113,7 @@ class AppTokens {
   static const List<BoxShadow> glowGreenSoft = [
     BoxShadow(
       color: HtbColors.glowGreenSoft,
-      blurRadius: 10,
+      blurRadius: 6,
       spreadRadius: 0,
     ),
   ];
@@ -137,7 +122,7 @@ class AppTokens {
   static const List<BoxShadow> glowCyan = [
     BoxShadow(
       color: HtbColors.glowCyan,
-      blurRadius: 12,
+      blurRadius: 7,
       spreadRadius: 0,
     ),
   ];
@@ -146,12 +131,12 @@ class AppTokens {
   static const List<BoxShadow> glowPrimary = [
     BoxShadow(
       color: HtbColors.glowPrimarySoft,
-      blurRadius: 14,
+      blurRadius: 8,
       spreadRadius: 0,
     ),
     BoxShadow(
       color: HtbColors.glowPrimary,
-      blurRadius: 6,
+      blurRadius: 4,
       spreadRadius: 0,
     ),
   ];
@@ -160,7 +145,7 @@ class AppTokens {
   static const List<BoxShadow> glowPrimarySoft = [
     BoxShadow(
       color: HtbColors.glowPrimarySoft,
-      blurRadius: 10,
+      blurRadius: 6,
       spreadRadius: 0,
     ),
   ];
@@ -169,7 +154,7 @@ class AppTokens {
   static const List<BoxShadow> glowRed = [
     BoxShadow(
       color: HtbColors.glowRed,
-      blurRadius: 12,
+      blurRadius: 7,
       spreadRadius: 0,
     ),
   ];
@@ -178,7 +163,7 @@ class AppTokens {
   static const List<BoxShadow> glowAmber = [
     BoxShadow(
       color: HtbColors.glowAmber,
-      blurRadius: 12,
+      blurRadius: 7,
       spreadRadius: 0,
     ),
   ];
@@ -222,7 +207,7 @@ class AppTokens {
   // ── Misc ──────────────────────────────────────────────────────────────────
 
   /// Backdrop blur sigma used on glass panels
-  static const double blurSigma = 12;
+  static const double blurSigma = 4;
 
   /// Border width for neon-lit containers
   static const double neonBorderWidth = 1.25;

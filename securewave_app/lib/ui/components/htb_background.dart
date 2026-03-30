@@ -7,39 +7,72 @@ import '../theme/app_colors.dart';
 // HtbBackground
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Static SecureWave ambient background for use as the bottom layer in a Stack.
+/// Purple gradient background — light plum at top fading to near-black.
+/// Mirrors the green-era concept: soft radial bloom from upper-left corner
+/// over a linear dark base. Fine grid overlay for depth.
 class HtbBackground extends StatelessWidget {
   const HtbBackground({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const Stack(
+      fit: StackFit.expand,
       children: [
-        // Neutral surface wash for depth without a global accent glow.
+        // ── Base: top-left lighter purple → near-black bottom-right ──────────
         DecoratedBox(
           decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(-0.6, -1.0),
-              radius: 1.2,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
               colors: [
-                Color(0x12160F26),
-                Color(0x08120D20),
-                Colors.transparent,
+                Color(0xFF130C24), // muted plum — lighter purple hue
+                Color(0xFF0D0915), // mid transition
+                AppColors.background, // #07090F near-black
               ],
-              stops: [0.0, 0.22, 0.7],
+              stops: [0.0, 0.42, 1.0],
             ),
           ),
         ),
 
-        // Fine technical grid.
+        // ── Radial bloom: top-left purple glow (green-era concept) ───────────
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(-0.6, -0.95),
+              radius: 1.15,
+              colors: [
+                Color(0x287A5CFF), // primary ~16% — visible bloom
+                Color(0x127A5CFF), // primary ~7%
+                Color(0x057A5CFF), // primary ~2%
+                Colors.transparent,
+              ],
+              stops: [0.0, 0.22, 0.48, 0.82],
+            ),
+          ),
+        ),
+
+        // ── Secondary: subtle bottom-right counter-glow ───────────────────────
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(1.0, 1.1),
+              radius: 0.80,
+              colors: [
+                Color(0x107A5CFF), // primary ~6%
+                Colors.transparent,
+              ],
+              stops: [0.0, 0.70],
+            ),
+          ),
+        ),
+
+        // ── Fine grid ─────────────────────────────────────────────────────────
         Positioned.fill(child: CustomPaint(painter: _GridPainter())),
       ],
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Grid painter
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _GridPainter extends CustomPainter {
@@ -50,18 +83,16 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.darkGridLine
+      ..color = const Color(0x0F7A5CFF) // purple-tinted grid lines ~6%
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
 
-    // Vertical lines
     double x = 0;
     while (x <= size.width) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
       x += _cellSize;
     }
 
-    // Horizontal lines
     double y = 0;
     while (y <= size.height) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
@@ -77,8 +108,7 @@ class _GridPainter extends CustomPainter {
 // HtbScaffoldBackground
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Convenience wrapper: fills the scaffold area with the solid bg0 color
-/// and overlays HtbBackground effects. Use this as the body's Stack base.
+/// Wraps any widget with the full gradient background layer.
 class HtbScaffoldBackground extends StatelessWidget {
   const HtbScaffoldBackground({super.key, required this.child});
 
@@ -88,8 +118,12 @@ class HtbScaffoldBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const ColoredBox(color: HtbColors.bg0, child: SizedBox.expand()),
-        const HtbBackground(),
+        const SizedBox.expand(
+          child: DecoratedBox(
+            decoration: BoxDecoration(color: HtbColors.bg0),
+          ),
+        ),
+        const SizedBox.expand(child: HtbBackground()),
         child,
       ],
     );

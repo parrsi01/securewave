@@ -328,7 +328,7 @@ class HtbTheme {
         style: ButtonStyle(
           animationDuration: AppTokens.durationFast,
           minimumSize: const WidgetStatePropertyAll(
-            Size(AppTokens.buttonMinWidth, AppTokens.buttonHeightM),
+            Size(AppTokens.buttonMinWidth, AppTokens.buttonHeightL),
           ),
           padding: const WidgetStatePropertyAll(
             EdgeInsets.symmetric(
@@ -759,6 +759,8 @@ class HtbTheme {
           horizontal: AppTokens.paddingM,
           vertical: AppTokens.paddingXS,
         ),
+        minVerticalPadding: 12,
+        minLeadingWidth: 24,
         shape: const RoundedRectangleBorder(borderRadius: AppTokens.brCard),
       ),
 

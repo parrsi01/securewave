@@ -188,38 +188,18 @@ class _HealthBadgeViewState extends State<_HealthBadgeView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final surfaceGlow = switch (widget.validationStatus) {
-      VpnValidationStatus.healthy => htb.HtbColors.glowPrimarySoft,
-      VpnValidationStatus.degraded => htb.HtbColors.glowAmber,
-      VpnValidationStatus.unhealthy => htb.HtbColors.glowRed,
-    };
 
     return AnimatedContainer(
       duration: AppTokens.durationNormal,
       curve: AppTokens.curveDefault,
       padding: const EdgeInsets.all(AppSpacing.space3),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            widget.color.withValues(alpha: 0.12),
-            htb.HtbColors.bg1,
-            htb.HtbColors.bg3,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+        color: htb.HtbColors.bg1,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusL),
         border: Border.all(
-          color: widget.color.withValues(alpha: _expanded ? 0.48 : 0.34),
+          color: widget.color.withValues(alpha: _expanded ? 0.34 : 0.22),
           width: AppTokens.neonBorderWidth,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: surfaceGlow.withValues(alpha: _expanded ? 0.34 : 0.22),
-            blurRadius: _expanded ? 22 : 16,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -267,20 +247,19 @@ class _HealthBadgeViewState extends State<_HealthBadgeView> {
                                   vertical: AppSpacing.space1,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: widget.color.withValues(alpha: 0.12),
+                                  color: htb.HtbColors.bg0,
                                   borderRadius: BorderRadius.circular(
-                                    AppSpacing.radiusFull,
+                                    AppSpacing.radiusS,
                                   ),
                                   border: Border.all(
-                                    color: widget.color.withValues(alpha: 0.26),
+                                    color: htb.HtbColors.border,
                                   ),
                                 ),
                                 child: Text(
-                                  'VALIDATION',
+                                  'Checks',
                                   style: theme.textTheme.labelSmall?.copyWith(
-                                    color: htb.HtbColors.textMono,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.9,
+                                    color: htb.HtbColors.textSecondary,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ),
@@ -314,34 +293,19 @@ class _HealthBadgeViewState extends State<_HealthBadgeView> {
                         vertical: AppSpacing.space2,
                       ),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            widget.color.withValues(alpha: 0.12),
-                            htb.HtbColors.bg0.withValues(alpha: 0.82),
-                          ],
-                        ),
+                        color: htb.HtbColors.bg0,
                         borderRadius: BorderRadius.circular(AppSpacing.radiusL),
                         border: Border.all(
-                          color: htb.HtbColors.glassBorderDefault,
+                          color: htb.HtbColors.border,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: widget.color.withValues(alpha: 0.12),
-                            blurRadius: 14,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
                       ),
                       child: Column(
                         children: [
                           Text(
                             'SCORE',
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: htb.HtbColors.textMono,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.9,
+                              color: htb.HtbColors.textSecondary,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                           const SizedBox(height: AppSpacing.space1),
@@ -401,18 +365,11 @@ class _HealthBadgeViewState extends State<_HealthBadgeView> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(AppSpacing.space4),
                       decoration: BoxDecoration(
-                        color: htb.HtbColors.bg0.withValues(alpha: 0.58),
+                        color: htb.HtbColors.bg0,
                         borderRadius: BorderRadius.circular(AppSpacing.radiusL),
                         border: Border.all(
-                          color: htb.HtbColors.glassBorderDefault,
+                          color: htb.HtbColors.border,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: widget.color.withValues(alpha: 0.08),
-                            blurRadius: 24,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,13 +471,6 @@ class _StatusBeacon extends StatelessWidget {
             border: Border.all(
               color: color.withValues(alpha: 0.34),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.18 * value),
-                blurRadius: 18 * value,
-                spreadRadius: 1,
-              ),
-            ],
           ),
           child: Center(
             child: Container(
@@ -529,12 +479,6 @@ class _StatusBeacon extends StatelessWidget {
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.56),
-                    blurRadius: 10 * value,
-                  ),
-                ],
               ),
             ),
           ),
@@ -646,14 +590,7 @@ class _MetricTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: htb.HtbColors.bg2.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(AppSpacing.radiusM),
-        border: Border.all(color: accent.withValues(alpha: 0.22)),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.1),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        border: Border.all(color: htb.HtbColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -661,9 +598,8 @@ class _MetricTile extends StatelessWidget {
           Text(
             label,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: htb.HtbColors.textMono,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
+              color: htb.HtbColors.textSecondary,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: AppSpacing.space2),

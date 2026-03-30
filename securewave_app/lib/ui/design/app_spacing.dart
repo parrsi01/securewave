@@ -44,10 +44,10 @@ class AppSpacing {
 
   static const double radiusXS = 4;
   static const double radiusS = 8;
-  static const double radiusM = 12;
-  static const double radiusL = 16;
-  static const double radiusXL = 20;
-  static const double radiusXXL = 28;
+  static const double radiusM = 10;
+  static const double radiusL = 12;
+  static const double radiusXL = 14;
+  static const double radiusXXL = 16;
 
   /// Fully rounded — pills, chips
   static const double radiusFull = 999;

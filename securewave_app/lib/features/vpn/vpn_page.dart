@@ -12,10 +12,6 @@ import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
 import '../../ui/app_ui_v1.dart';
 import '../../ui/connect_button.dart';
-import '../../ui/components/depth_panel.dart';
-import '../../ui/connection_card.dart';
-import '../../ui/traffic_stats_card.dart';
-import '../../ui/usage_meter.dart';
 
 class VpnPage extends HookConsumerWidget {
   const VpnPage({super.key});
@@ -90,66 +86,134 @@ class VpnPage extends HookConsumerWidget {
       }
     }
 
+    final cs = Theme.of(context).colorScheme;
+
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(AppUIv1.space5),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         children: [
-          Text('SecureWave', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: AppUIv1.space2),
-          Text(
-            'One tap protection with live tunnel diagnostics and traffic telemetry.',
-            style: Theme.of(context).textTheme.bodyMedium,
+          // ── Status header ─────────────────────────────────────────────────
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isConnected
+                          ? AppUIv1.success
+                          : vpnState.status == VpnStatus.error
+                              ? AppUIv1.danger
+                              : AppUIv1.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      statusLabel,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                  if (phaseLabel != null)
+                    Text(
+                      phaseLabel,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                    ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: AppUIv1.space5),
+
+          const SizedBox(height: 20),
+
+          // ── Connect button ────────────────────────────────────────────────
           Center(
             child: ConnectButton(
               status: vpnState.status,
               isBusy: vpnState.isBusy,
               onPressed: () => unawaited(onPrimaryAction()),
             ),
-          )
-              .animate()
-              .fadeIn(duration: 300.ms)
-              .scale(begin: const Offset(0.96, 0.96)),
-          const SizedBox(height: AppUIv1.space5),
-          ConnectionCard(
-            status: vpnState.status,
-            statusLabel: statusLabel,
-            serverLabel: serverLabel,
-            protocolLabel: protocolLabel,
-            durationLabel: vpnState.lastTunnelStartAt == null
-                ? '--:--:--'
-                : AppUIv1.formatDuration(
-                    DateTime.now().difference(vpnState.lastTunnelStartAt!)),
-            stageLabel: phaseLabel ?? 'Idle',
-            detail: vpnState.killSwitchActive
-                ? vpnState.reconnectReason
-                : vpnState.protocolMessage,
-          ),
-          const SizedBox(height: AppUIv1.space4),
+          ).animate().fadeIn(duration: 300.ms).scale(
+                begin: const Offset(0.96, 0.96),
+              ),
+
+          const SizedBox(height: 20),
+
+          // ── Stats row — download / upload / ping ──────────────────────────
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => context.push('/servers'),
-                  icon: const Icon(Icons.public),
-                  label: const Text('Choose server'),
+                child: _StatCard(
+                  icon: Icons.arrow_downward_rounded,
+                  label: 'Download',
+                  value: AppUIv1.formatBytes(vpnState.dataRateDown),
+                  color: cs.primary,
                 ),
               ),
-              const SizedBox(width: AppUIv1.space3),
+              const SizedBox(width: 8),
               Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => context.push('/connection'),
-                  icon: const Icon(Icons.wifi_tethering),
-                  label: const Text('Connection details'),
+                child: _StatCard(
+                  icon: Icons.arrow_upward_rounded,
+                  label: 'Upload',
+                  value: AppUIv1.formatBytes(vpnState.dataRateUp),
+                  color: cs.secondary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _StatCard(
+                  icon: Icons.timer_outlined,
+                  label: 'Session',
+                  value: vpnState.lastTunnelStartAt == null
+                      ? '--:--'
+                      : AppUIv1.formatDuration(
+                          DateTime.now()
+                              .difference(vpnState.lastTunnelStartAt!),
+                        ),
+                  color: cs.onSurfaceVariant,
                 ),
               ),
             ],
           ),
+
+          const SizedBox(height: 12),
+
+          // ── Server selector ───────────────────────────────────────────────
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.public_rounded),
+              title: const Text('Server'),
+              subtitle: Text(serverLabel),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => context.push('/servers'),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // ── Protocol badge ────────────────────────────────────────────────
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.lock_rounded),
+              title: const Text('Protocol'),
+              subtitle: Text(protocolLabel),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => context.push('/connection'),
+            ),
+          ),
+
+          // ── Reconnect now (conditional) ───────────────────────────────────
           if (vpnState.desiredOn &&
               vpnState.status != VpnStatus.connected &&
               vpnState.reconnectPending) ...[
-            const SizedBox(height: AppUIv1.space3),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: FilledButton.tonalIcon(
@@ -162,48 +226,138 @@ class VpnPage extends HookConsumerWidget {
               ),
             ),
           ],
+
+          // ── Error message ─────────────────────────────────────────────────
           if (vpnState.errorMessage != null) ...[
-            const SizedBox(height: AppUIv1.space3),
-            DepthPanel(
-              depth: PanelDepth.base,
-              padding: const EdgeInsets.all(AppUIv1.space3),
-              child: Text(
-                vpnState.errorMessage!,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: AppUIv1.warning),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        size: 18, color: AppUIv1.warning),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        vpnState.errorMessage!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppUIv1.warning,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
-          const SizedBox(height: AppUIv1.space4),
-          TrafficStatsCard(
-            downloadLabel: AppUIv1.formatBytes(vpnState.dataRateDown),
-            uploadLabel: AppUIv1.formatBytes(vpnState.dataRateUp),
-            downloadPoints: downHistory.value,
-            uploadPoints: upHistory.value,
-            sessionUsageLabel:
-                AppUIv1.formatDataAmount(vpnState.sessionTransferredBytes),
-            lifetimeUsageLabel:
-                AppUIv1.formatDataAmount(vpnState.lifetimeTransferredBytes),
-            note: trafficNote,
-          ),
-          const SizedBox(height: AppUIv1.space4),
+
+          const SizedBox(height: 12),
+
+          // ── Traffic note ──────────────────────────────────────────────────
+          if (trafficNote != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                trafficNote,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+
+          // ── Plan usage ────────────────────────────────────────────────────
           plan.when(
-            data: (data) => UsageMeter(
-              label: 'Plan usage',
-              usagePercent: data.usagePercent,
-              caption:
-                  '${data.usedGb.toStringAsFixed(1)} GB used of ${data.dataCapGb.toStringAsFixed(0)} GB',
+            data: (data) => Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Plan usage',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          '${data.usedGb.toStringAsFixed(1)} / ${data.dataCapGb.toStringAsFixed(0)} GB',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: data.usagePercent,
+                        minHeight: 8,
+                        backgroundColor: Colors.transparent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const UsageMeter(
-              label: 'Plan usage',
-              usagePercent: 0,
-              caption: 'Usage data unavailable.',
-            ),
+            error: (_, __) => const SizedBox.shrink(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }

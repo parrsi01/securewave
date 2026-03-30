@@ -58,7 +58,7 @@ class HtbGlassPanel extends StatelessWidget {
         ? [
             BoxShadow(
               color: glowColor!.withValues(alpha: AppTokens.opacityMedium * glowIntensity),
-              blurRadius: 14,
+              blurRadius: 8,
               spreadRadius: 0,
             ),
             BoxShadow(

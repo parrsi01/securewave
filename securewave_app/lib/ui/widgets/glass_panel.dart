@@ -4,10 +4,7 @@ import '../design/app_colors.dart';
 import '../design/app_spacing.dart';
 import '../theme/app_colors.dart' as htb;
 
-/// Shared elevated panel surface.
-///
-/// Keeps cards on flat dark surfaces with restrained borders so only buttons
-/// and interactive states carry accent glow.
+/// Shared panel surface for the app shell and dashboard cards.
 class GlassPanel extends StatelessWidget {
   const GlassPanel({
     super.key,
@@ -18,7 +15,7 @@ class GlassPanel extends StatelessWidget {
     this.borderColor,
     this.glowColor,
     this.gradient,
-    this.blurSigma = 12,
+    this.blurSigma = 0,
   });
 
   final Widget child;
@@ -36,7 +33,8 @@ class GlassPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fillColor = color ?? (isDark ? htb.HtbColors.bg1 : AppColors.surface);
+    final fillColor =
+        color ?? (isDark ? htb.HtbColors.panelBase : AppColors.surface);
     final resolvedBorderColor =
         borderColor ?? (isDark ? htb.HtbColors.border : AppColors.border);
     final radius = borderRadius ?? BorderRadius.circular(AppSpacing.radiusL);
@@ -52,9 +50,9 @@ class GlassPanel extends StatelessWidget {
         border: Border.all(color: activeBorderColor, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: isDark ? 0.14 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),

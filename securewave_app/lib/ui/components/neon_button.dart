@@ -109,7 +109,7 @@ class _NeonButtonState extends State<NeonButton>
         BoxShadow(
           color:
               _glowBase.withValues(alpha: AppTokens.opacityMedium * intensity),
-          blurRadius: 14,
+          blurRadius: 8,
           spreadRadius: 0,
         ),
         BoxShadow(

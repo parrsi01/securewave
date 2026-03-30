@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../ui/app_ui_v1.dart';
+import '../../ui/components/htb_background.dart';
 import '../config/app_config.dart';
 import '../models/vpn_status.dart';
 import '../services/auth_session.dart';
@@ -144,7 +145,7 @@ class AppShell extends ConsumerWidget {
           );
           return Scaffold(
             appBar: appBar,
-            body: child,
+            body: HtbScaffoldBackground(child: child),
             bottomNavigationBar: NavigationBar(
               selectedIndex: compactIndex < 0 ? 0 : compactIndex,
               onDestinationSelected: (index) =>
@@ -166,12 +167,14 @@ class AppShell extends ConsumerWidget {
 
         return Scaffold(
           appBar: appBar,
-          body: Row(
-            children: [
-              rail,
-              const VerticalDivider(width: 1),
-              Expanded(child: child),
-            ],
+          body: HtbScaffoldBackground(
+            child: Row(
+              children: [
+                rail,
+                const VerticalDivider(width: 1),
+                Expanded(child: child),
+              ],
+            ),
           ),
         );
       },

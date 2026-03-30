@@ -118,18 +118,11 @@ class _DesktopRail extends StatelessWidget {
       width: w,
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
         border: Border.all(
           color: isDark ? htb.HtbColors.divider : cs.outlineVariant,
           width: 1,
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x30020306),
-            blurRadius: 14,
-            offset: Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,32 +136,10 @@ class _DesktopRail extends StatelessWidget {
               0,
             ),
             child: showLabels
-                ? Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(AppSpacing.space3),
-                    decoration: BoxDecoration(
-                      color: htb.HtbColors.bg0,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
-                      border: Border.all(
-                        color: htb.HtbColors.glassBorderDefault,
-                      ),
-                    ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        BrandMark(size: 20, textSize: 14),
-                        SizedBox(height: AppSpacing.space2),
-                        Text(
-                          'CONTROL MESH',
-                          style: TextStyle(
-                            color: htb.HtbColors.textMono,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
+                ? const Padding(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: AppSpacing.space1),
+                    child: BrandMark(size: 20, textSize: 14),
                   )
                 : const Center(child: BrandMark(size: 28, showText: false)),
           ),
@@ -329,7 +300,6 @@ class _RailItemState extends State<_RailItem> {
                                       ? FontWeight.w700
                                       : FontWeight.w500,
                                   color: currentColor,
-                                  letterSpacing: widget.selected ? 0.3 : 0,
                                 ),
                               ),
                             ),
@@ -413,18 +383,11 @@ class _BottomBar extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: isDark ? htb.HtbColors.bg1 : cs.surface,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
           border: Border.all(
             color: isDark ? htb.HtbColors.divider : cs.outlineVariant,
             width: 1,
           ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x28020306),
-              blurRadius: 12,
-              offset: Offset(0, 6),
-            ),
-          ],
         ),
         child: SafeArea(
           top: false,
