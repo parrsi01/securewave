@@ -5,7 +5,7 @@
 -r requirements_ml.txt
 
 # Testing
-pytest==8.2.2
+pytest==9.0.3
 pytest-cov==6.0.0
 pytest-asyncio==0.24.0
 httpx==0.27.0
