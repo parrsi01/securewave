@@ -6,21 +6,22 @@
   <meta name="build-timestamp" content="BUILD_TIMESTAMP">
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>Create Account - SecureWave</title>
-  <meta name="description" content="Create your SecureWave account." />
+  <meta name="description" content="Create your SecureWave account and start with Free Starter or Pro." />
   <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
   <main class="form-shell">
     <div class="form-card">
-      <div class="card-row" style="margin-bottom: var(--space-4);">
+      <div class="card-row" style="margin-bottom: var(--space-5);">
         <img src="/img/logo.svg" alt="SecureWave logo" width="44" height="44">
         <div>
-          <h1>Create your account</h1>
-          <p class="subtitle">Start with Free Starter (5 GB) or upgrade to Pro ($9/mo) anytime.</p>
+          <span class="badge">SecureWave account</span>
+          <h1 style="margin-top: var(--space-4); font-size: clamp(2.4rem, 6vw, 3.4rem);">Create your account</h1>
+          <p class="subtitle" style="margin-top: var(--space-3);">Start on Free Starter or move straight to Pro. You can manage your account and app downloads as soon as registration completes.</p>
         </div>
       </div>
-      <div class="form-message" data-form-message>All fields are required.</div>
+      <div class="form-message visible" data-form-message>All fields are required to create your SecureWave account.</div>
       <form class="form-grid" data-auth="register" novalidate>
         <div class="field">
           <label for="email">Email address</label>
@@ -39,13 +40,14 @@
         </div>
         <button class="btn btn-primary" type="submit">Create account</button>
       </form>
-      <div class="stat-list" style="margin-top: var(--space-4);">
-        <a class="btn btn-secondary" href="/login.html">Already have an account? Sign in</a>
+      <div class="stat-list" style="margin-top: var(--space-5);">
+        <a class="btn btn-secondary" href="/login.html">Already have an account?</a>
         <a class="btn btn-ghost" href="/home.html">Back to home</a>
       </div>
-      <div class="card" style="margin-top: var(--space-5);">
-        <h3>Next: Download SecureWave App</h3>
-        <p class="subtitle">After creating your account, install the app to connect.</p>
+      <div class="card" style="margin-top: var(--space-6);">
+        <span class="eyebrow">Next step</span>
+        <h3 style="margin-top: var(--space-3);">Install the SecureWave app.</h3>
+        <p class="subtitle" style="margin-top: var(--space-3);">After registration, download the app for your platform to connect and manage device-side VPN settings.</p>
         <div class="download-grid" style="margin-top: var(--space-4);">
           <a class="btn download-btn" href="https://github.com/parrsi01/securewave/releases">macOS</a>
           <a class="btn download-btn" href="https://github.com/parrsi01/securewave/releases">Windows</a>

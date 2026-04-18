@@ -6,21 +6,22 @@
   <meta name="build-timestamp" content="BUILD_TIMESTAMP">
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>Sign In - SecureWave</title>
-  <meta name="description" content="Sign in to SecureWave." />
+  <meta name="description" content="Sign in to SecureWave to manage your account and download the latest app builds." />
   <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
   <main class="form-shell">
     <div class="form-card">
-      <div class="card-row" style="margin-bottom: var(--space-4);">
+      <div class="card-row" style="margin-bottom: var(--space-5);">
         <img src="/img/logo.svg" alt="SecureWave logo" width="44" height="44">
         <div>
-          <h1>Welcome back</h1>
-          <p class="subtitle">Sign in to connect and manage your account.</p>
+          <span class="badge">SecureWave account</span>
+          <h1 style="margin-top: var(--space-4); font-size: clamp(2.4rem, 6vw, 3.4rem);">Welcome back</h1>
+          <p class="subtitle" style="margin-top: var(--space-3);">Sign in to manage your plan, view your dashboard, and download the latest SecureWave app build.</p>
         </div>
       </div>
-      <div class="form-message" data-form-message>Enter your details below.</div>
+      <div class="form-message visible" data-form-message>Enter your account details to continue.</div>
       <form class="form-grid" data-auth="login" novalidate>
         <div class="field">
           <label for="email">Email address</label>
@@ -34,14 +35,14 @@
         </div>
         <button class="btn btn-primary" type="submit">Sign in</button>
       </form>
-      <div class="stat-list" style="margin-top: var(--space-4);">
-        <a class="btn btn-secondary" href="/register.html">Create an account</a>
+      <div class="stat-list" style="margin-top: var(--space-5);">
+        <a class="btn btn-secondary" href="/register.html">Create account</a>
         <a class="btn btn-ghost" href="/home.html">Back to home</a>
       </div>
-      <div class="card" style="margin-top: var(--space-5);">
-        <h3>Download SecureWave App</h3>
-        <p class="subtitle">Use the app to connect after signing in.</p>
-        <!-- TODO: Replace placeholder URLs with final store links. -->
+      <div class="card" style="margin-top: var(--space-6);">
+        <span class="eyebrow">Need the app?</span>
+        <h3 style="margin-top: var(--space-3);">Download SecureWave after sign-in.</h3>
+        <p class="subtitle" style="margin-top: var(--space-3);">The website handles your account. The installed app handles the VPN connection on your device.</p>
         <div class="download-grid" style="margin-top: var(--space-4);">
           <a class="btn download-btn" href="https://github.com/parrsi01/securewave/releases">macOS</a>
           <a class="btn download-btn" href="https://github.com/parrsi01/securewave/releases">Windows</a>

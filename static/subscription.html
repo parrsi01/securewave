@@ -6,7 +6,7 @@
   <meta name="build-timestamp" content="BUILD_TIMESTAMP">
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>Plans - SecureWave</title>
-  <meta name="description" content="SecureWave subscription plans. Free Starter or Pro unlimited." />
+  <meta name="description" content="Choose between Free Starter and Pro, then download the SecureWave VPN app." />
   <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
@@ -18,140 +18,70 @@
           <img src="/img/logo.svg" alt="SecureWave logo">
           <span>SecureWave</span>
         </a>
-        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
-          <a href="/home.html" class="nav-link">Home</a>
-          <a href="/services.html" class="nav-link">Services</a>
-          <a class="nav-link active" href="/subscription.html" aria-current="page">Plans</a>
-          <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="btn btn-ghost" href="/login.html">Sign in</a>
-          <a class="btn btn-secondary" href="/register.html">Get started</a>
+        <div class="nav-panel">
+          <nav class="nav-links nav" aria-label="Primary">
+            <a class="nav-link" href="/home.html">Home</a>
+            <a class="nav-link" href="/services.html">Services</a>
+            <a class="nav-link active" href="/subscription.html" aria-current="page">Plans</a>
+            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link" href="/contact.html">Support</a>
+          </nav>
+          <div class="nav-actions">
+            <a class="btn btn-ghost" href="/login.html">Sign in</a>
+            <a class="btn btn-primary" href="/register.html">Get started</a>
+          </div>
         </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
+        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
       </div>
     </header>
 
     <main>
       <section class="section">
-        <div class="container section-header">
+        <div class="container content-stack">
           <span class="badge">Plans</span>
-          <h1>Two plans. No surprises.</h1>
-          <p class="subtitle text-measure">Pick the plan that fits your needs, then download the app to connect.</p>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="container content-stack">
-          <div class="plans-grid">
-            <div class="card">
-              <div class="pill">Free Starter</div>
-              <h2 style="margin-top: var(--space-3);">$0 / month</h2>
-              <p class="subtitle">Basic protection for light use.</p>
-              <ul class="list">
-                <li>5 GB data per month</li>
-                <li>Standard server routing</li>
-                <li>1 device at a time</li>
-                <li>Community support</li>
+          <h1>Two plans. Clear tradeoffs.</h1>
+          <p class="text-measure">Pick the account tier that fits your usage pattern, then install the app to start protected traffic on your device.</p>
+          <div class="plans-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+            <article class="card">
+              <span class="pill">Free Starter</span>
+              <h2 style="margin-top: var(--space-4);">$0 <span class="subtitle">/ month</span></h2>
+              <p style="margin-top: var(--space-3);">Basic protection for lighter usage and account onboarding.</p>
+              <ul class="list" style="margin-top: var(--space-4);">
+                <li>5 GB monthly allowance</li>
+                <li>Single device session</li>
+                <li>Standard support path</li>
               </ul>
-              <div class="stat-list" style="margin-top: var(--space-4);">
-                <a class="btn btn-secondary" href="/register.html">Start free</a>
-              </div>
-            </div>
-            <div class="card plan-primary">
-              <div class="pill" style="background: var(--accent-soft); color: var(--accent-strong);">Pro</div>
-              <h2 style="margin-top: var(--space-3);">$9 / month</h2>
-              <p class="subtitle">Unlimited coverage for everyday use.</p>
-              <ul class="list">
+              <a class="btn btn-secondary" style="margin-top: var(--space-5);" href="/register.html">Start free</a>
+            </article>
+            <article class="card card-strong">
+              <span class="pill">Pro</span>
+              <h2 style="margin-top: var(--space-4);">$9 <span class="subtitle">/ month</span></h2>
+              <p style="margin-top: var(--space-3);">For everyday work, travel, and high-volume usage across more devices.</p>
+              <ul class="list" style="margin-top: var(--space-4);">
                 <li>Unlimited data</li>
-                <li>Priority server routing</li>
+                <li>Priority routing access</li>
                 <li>Up to 5 devices</li>
-                <li>Priority support</li>
               </ul>
-              <div class="stat-list" style="margin-top: var(--space-4);">
-                <a class="btn btn-primary" href="/register.html">Get Pro</a>
-              </div>
-            </div>
+              <a class="btn btn-primary" style="margin-top: var(--space-5);" href="/register.html">Get Pro</a>
+            </article>
           </div>
         </div>
       </section>
 
-      <section class="section">
-        <div class="container content-stack">
-          <div class="section-header">
-            <h2>After you choose a plan</h2>
-            <p class="subtitle text-measure">Three steps to protection.</p>
-          </div>
-          <div class="grid">
-            <div class="card card-row">
-              <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5z" />
-                  <path d="M20 21a8 8 0 0 0-16 0" />
-                </svg>
-              </div>
-              <div>
-                <h3>1. Create an account</h3>
-                <p class="subtitle">Pick your plan during registration.</p>
-              </div>
-            </div>
-            <div class="card card-row">
-              <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 3v12" />
-                  <path d="m7 10 5 5 5-5" />
-                  <path d="M5 21h14" />
-                </svg>
-              </div>
-              <div>
-                <h3>2. Download the app</h3>
-                <p class="subtitle">Available for iOS, Android, macOS, Windows, and Linux.</p>
-              </div>
-            </div>
-            <div class="card card-row">
-              <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z" />
-                </svg>
-              </div>
-              <div>
-                <h3>3. Tap connect</h3>
-                <p class="subtitle">The app handles routing automatically.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="container layout">
-          <div class="layout-main">
-            <h2>Have questions?</h2>
-            <p class="subtitle text-measure">Ask SecureWave Assistant for help choosing the right plan.</p>
-          </div>
-          <div class="card layout-side">
-            <div class="chatbot">
-              <div class="chatbot-header">
-                <div class="icon-circle">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3>SecureWave Assistant</h3>
-                  <p class="subtitle">Ask about plans, features, or billing.</p>
-                </div>
-              </div>
-              <div class="chatbot-panel">
-                <div class="chat-bubble">Which plan is right for me?</div>
-                <div class="chat-bubble chat-bubble-accent">If you browse casually, Free Starter (5 GB) works well. For daily use or streaming, Pro ($9/mo) gives you unlimited data and priority routing.</div>
-                <div class="chat-input" data-chat-input>Type your question here...</div>
-              </div>
-            </div>
-          </div>
+      <section class="section-tight">
+        <div class="container feature-grid">
+          <article class="card">
+            <h3>Create your account</h3>
+            <p>Registration brings you straight into the SecureWave account system and the dashboard.</p>
+          </article>
+          <article class="card">
+            <h3>Install the app</h3>
+            <p>Downloads remain centralized so every platform build comes from the same release path.</p>
+          </article>
+          <article class="card">
+            <h3>Connect in app</h3>
+            <p>The VPN tunnel is controlled in the app, not the browser, which keeps the product behavior honest and understandable.</p>
+          </article>
         </div>
       </section>
     </main>
@@ -159,14 +89,20 @@
     <footer class="footer">
       <div class="container footer-top">
         <div class="footer-brand">
-          <strong>SecureWave VPN</strong>
-          <p>Calm protection for everyday connections.</p>
+          <strong>SecureWave Plans</strong>
+          <p>Simple plan selection with a direct path to download, install, and connect.</p>
         </div>
         <div class="footer-columns">
           <div class="footer-column">
             <div class="footer-title">Product</div>
             <a href="/services.html">Services</a>
-            <a href="/subscription.html">Plans</a>
+            <a href="/vpn.html">VPN app</a>
+            <a href="/home.html#download">Downloads</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Account</div>
+            <a href="/register.html">Create account</a>
+            <a href="/login.html">Sign in</a>
             <a href="/dashboard.html">Dashboard</a>
           </div>
           <div class="footer-column">
@@ -174,19 +110,11 @@
             <a href="/privacy.html">Privacy</a>
             <a href="/terms.html">Terms</a>
           </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Help</a>
-          </div>
         </div>
       </div>
-      <div class="container footer-bottom">
-        <span data-year>2026</span> SecureWave. All rights reserved.
-      </div>
+      <div class="container footer-bottom"><span data-year>2026</span> SecureWave. All rights reserved.</div>
     </footer>
-
   </div>
-
   <script src="/js/bootstrap.bundle.min.js" defer></script>
   <script src="/js/site.js" defer></script>
 </body>

@@ -6,7 +6,7 @@
   <meta name="build-timestamp" content="BUILD_TIMESTAMP">
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>Services - SecureWave</title>
-  <meta name="description" content="SecureWave services and features." />
+  <meta name="description" content="See how SecureWave delivers a modern, app-first VPN experience across platforms." />
   <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
@@ -18,111 +18,106 @@
           <img src="/img/logo.svg" alt="SecureWave logo">
           <span>SecureWave</span>
         </a>
-        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
-          <a href="/home.html" class="nav-link">Home</a>
-          <a class="nav-link active" href="/services.html" aria-current="page">Services</a>
-          <a href="/subscription.html" class="nav-link">Plans</a>
-          <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="btn btn-ghost" href="/login.html">Sign in</a>
-          <a class="btn btn-secondary" href="/home.html#download">Download app</a>
+        <div class="nav-panel">
+          <nav class="nav-links nav" aria-label="Primary">
+            <a class="nav-link" href="/home.html">Home</a>
+            <a class="nav-link active" href="/services.html" aria-current="page">Services</a>
+            <a class="nav-link" href="/subscription.html">Plans</a>
+            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link" href="/contact.html">Support</a>
+          </nav>
+          <div class="nav-actions">
+            <a class="btn btn-ghost" href="/login.html">Sign in</a>
+            <a class="btn btn-primary" href="/home.html#download">Download app</a>
+          </div>
         </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
+        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
       </div>
     </header>
 
     <main>
       <section class="section">
-        <div class="container hero">
+        <div class="container hero-shell">
           <div class="content-stack">
-            <div class="section-header">
-              <span class="badge">Services</span>
-              <h1>Protection that stays calm.</h1>
-              <p class="subtitle text-measure">SecureWave keeps your connection private while remaining easy to use.</p>
-              <p class="subtitle text-measure">Basic includes a 5 GB monthly cap.</p>
-            </div>
+            <span class="badge">Services</span>
+            <h1>Protection designed around real devices.</h1>
+            <p class="text-measure">SecureWave is not a browser-only privacy layer. The website manages your account, while the app handles protocols, regions, diagnostics, and tunnel routing directly on your device.</p>
             <div class="stat-list">
               <a class="btn btn-primary" href="/subscription.html">Choose a plan</a>
-              <a class="btn btn-ghost" href="/register.html">Create an account</a>
+              <a class="btn btn-secondary" href="/register.html">Create account</a>
             </div>
           </div>
-          <div class="card">
-            <h2>App-first experience</h2>
-            <p class="subtitle">The app handles connection, routing, and diagnostics.</p>
+          <aside class="card card-strong">
+            <span class="eyebrow">Included experience</span>
             <ul class="list">
-              <li>Auto-selects the best region.</li>
-              <li>Shows clear connection status.</li>
-              <li>Guides you through diagnostics.</li>
+              <li>Guided onboarding from account creation to app install.</li>
+              <li>Clear distinction between dashboard actions and in-app VPN actions.</li>
+              <li>Consistent design language across marketing, account, and diagnostics pages.</li>
             </ul>
-            <p class="subtitle" style="margin-top: var(--space-3);">The SecureWave app establishes the VPN tunnel on your device.</p>
-            <p class="subtitle">This website manages your account and device configuration.</p>
-          </div>
+          </aside>
         </div>
       </section>
 
-      <section class="section">
-        <div class="container content-stack">
-          <div class="section-header">
-            <h2>Core features</h2>
-            <p class="subtitle text-measure">Mirrors the same language and density as the app.</p>
-          </div>
-          <div class="grid">
-            <div class="card">
-              <h3>Connection essentials</h3>
-              <ul class="list">
-                <li>Smart routing chooses the best region automatically.</li>
-                <li>One-tap connect without setup.</li>
-              </ul>
-            </div>
-            <div class="card">
-              <h3>Clarity and guidance</h3>
-              <ul class="list">
-                <li>Clear status shows when you are protected.</li>
-                <li>Guided support keeps diagnostics readable.</li>
-              </ul>
-            </div>
-          </div>
+      <section class="section-tight">
+        <div class="container feature-grid">
+          <article class="card">
+            <h3>Connection essentials</h3>
+            <p>Fast sign-in, direct platform downloads, and simple pathing into the VPN app when it is time to connect.</p>
+          </article>
+          <article class="card">
+            <h3>Account management</h3>
+            <p>Plans, billing visibility, and dashboard state stay in the website where browser-based account tasks belong.</p>
+          </article>
+          <article class="card">
+            <h3>Support and diagnostics</h3>
+            <p>Users are pointed straight to diagnostics, support, and download pages instead of being left in a dead-end UI.</p>
+          </article>
         </div>
       </section>
 
-      <section class="section">
-        <div class="container split">
-          <div class="section-header">
-            <h2>Built for everyday use</h2>
-            <p class="subtitle text-measure">SecureWave keeps the experience beginner-friendly.</p>
+      <section class="section-tight">
+        <div class="container split-grid">
+          <div class="card">
+            <span class="eyebrow">App responsibilities</span>
+            <h2>What SecureWave does inside the app.</h2>
             <ul class="list">
-              <li>Large buttons and clear labels.</li>
-              <li>No complex configuration.</li>
-              <li>Consistent visuals across web and app.</li>
+              <li>Start and stop the VPN tunnel on the device.</li>
+              <li>Select protocols and available routing options.</li>
+              <li>Run diagnostics for tunnel, server, and traffic conditions.</li>
+              <li>Display live connection state and traffic behavior.</li>
             </ul>
           </div>
           <div class="card">
-            <h3>Ready to connect?</h3>
-            <p class="subtitle">Download the app and sign in to get started.</p>
-            <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-secondary" href="/home.html#download">Download app</a>
-              <a class="btn btn-ghost" href="/login.html">Sign in</a>
-            </div>
+            <span class="eyebrow">Website responsibilities</span>
+            <h2>What SecureWave does on the web.</h2>
+            <ul class="list">
+              <li>Create and authenticate accounts.</li>
+              <li>Show plans, pricing, and dashboard status.</li>
+              <li>Provide support guidance and release downloads.</li>
+              <li>Keep next actions obvious when users need help.</li>
+            </ul>
           </div>
         </div>
       </section>
     </main>
 
-        <footer class="footer">
+    <footer class="footer">
       <div class="container footer-top">
         <div class="footer-brand">
-          <strong>SecureWave VPN</strong>
-          <p>Calm protection for everyday connections.</p>
+          <strong>SecureWave Services</strong>
+          <p>A product system that keeps network control in the app and account clarity in the browser.</p>
         </div>
         <div class="footer-columns">
           <div class="footer-column">
-            <div class="footer-title">Product</div>
-            <a href="/services.html">Services</a>
+            <div class="footer-title">Explore</div>
             <a href="/subscription.html">Plans</a>
+            <a href="/vpn.html">VPN app</a>
+            <a href="/about.html">About</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Support</div>
+            <a href="/contact.html">Support</a>
+            <a href="/diagnostics.html">Diagnostics</a>
             <a href="/dashboard.html">Dashboard</a>
           </div>
           <div class="footer-column">
@@ -130,19 +125,11 @@
             <a href="/privacy.html">Privacy</a>
             <a href="/terms.html">Terms</a>
           </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Support</a>
-          </div>
         </div>
       </div>
-      <div class="container footer-bottom">
-        <span data-year>2026</span> SecureWave. All rights reserved.
-      </div>
+      <div class="container footer-bottom"><span data-year>2026</span> SecureWave. All rights reserved.</div>
     </footer>
-
   </div>
-
   <script src="/js/bootstrap.bundle.min.js" defer></script>
   <script src="/js/site.js" defer></script>
 </body>

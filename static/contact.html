@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="build-timestamp" content="BUILD_TIMESTAMP">
   <meta name="ui-version" content="UI_VERSION v1.0">
-  <title>Help - SecureWave</title>
-  <meta name="description" content="SecureWave help and support." />
+  <title>Support - SecureWave</title>
+  <meta name="description" content="Get help with SecureWave downloads, account access, plans, and diagnostics." />
   <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
@@ -18,62 +18,53 @@
           <img src="/img/logo.svg" alt="SecureWave logo">
           <span>SecureWave</span>
         </a>
-        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
-          <a href="/home.html" class="nav-link">Home</a>
-          <a href="/services.html" class="nav-link">Services</a>
-          <a href="/subscription.html" class="nav-link">Plans</a>
-          <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="btn btn-ghost" href="/login.html">Sign in</a>
-          <a class="btn btn-primary" href="/home.html#download">Download app</a>
+        <div class="nav-panel">
+          <nav class="nav-links nav" aria-label="Primary">
+            <a class="nav-link" href="/home.html">Home</a>
+            <a class="nav-link" href="/services.html">Services</a>
+            <a class="nav-link" href="/subscription.html">Plans</a>
+            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link active" href="/contact.html" aria-current="page">Support</a>
+          </nav>
+          <div class="nav-actions">
+            <a class="btn btn-ghost" href="/login.html">Sign in</a>
+            <a class="btn btn-primary" href="/home.html#download">Download app</a>
+          </div>
         </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
+        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
       </div>
     </header>
 
     <main>
       <section class="section">
-        <div class="container layout">
-          <div class="layout-main content-stack">
-            <div class="section-header">
-              <span class="badge">Help</span>
-              <h1>Get help with SecureWave.</h1>
-              <p class="subtitle text-measure">Start with the app's built-in diagnostics, then ask SecureWave Assistant for the next step.</p>
-            </div>
-            <div class="card">
-              <h3>Common questions</h3>
-              <ul class="list">
-                <li><strong>Can't connect?</strong> Open the app, go to Settings, run diagnostics.</li>
-                <li><strong>Plan questions?</strong> Visit <a href="/subscription.html">Plans</a> to compare Free Starter and Pro.</li>
-                <li><strong>Account issues?</strong> Sign in to the <a href="/dashboard.html">dashboard</a> to manage your account.</li>
-                <li><strong>App not working?</strong> Try reinstalling from the <a href="/home.html#download">download page</a>.</li>
-              </ul>
-            </div>
-          </div>
-          <div class="card layout-side">
-            <div class="chatbot">
-              <div class="chatbot-header">
-                <div class="icon-circle">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3>SecureWave Assistant</h3>
-                  <p class="subtitle">Ask about anything.</p>
-                </div>
-              </div>
-              <div class="chatbot-panel">
-                <div class="chat-bubble">How do I change my plan?</div>
-                <div class="chat-bubble chat-bubble-accent">Go to your dashboard, then select "Manage plan". You can switch between Free Starter and Pro at any time.</div>
-                <div class="chat-input" data-chat-input>Type your question here...</div>
-              </div>
+        <div class="container split-grid">
+          <div class="content-stack">
+            <span class="badge">Support center</span>
+            <h1>Get back to a working connection faster.</h1>
+            <p class="text-measure">If SecureWave is not behaving the way you expect, start with the simplest next step: check your account, run app diagnostics, or reinstall from the latest release.</p>
+            <div class="support-grid">
+              <article class="card">
+                <h3>Account access</h3>
+                <p>Use the dashboard to confirm your account status, current plan, and sign-in state.</p>
+                <a class="btn btn-secondary" href="/dashboard.html">Open dashboard</a>
+              </article>
+              <article class="card">
+                <h3>Download the latest app</h3>
+                <p>Install the current SecureWave build before troubleshooting VPN behavior.</p>
+                <a class="btn btn-secondary" href="/home.html#download">Download app</a>
+              </article>
             </div>
           </div>
+
+          <aside class="card card-strong">
+            <span class="eyebrow">Recommended first checks</span>
+            <ul class="list">
+              <li><strong>Cannot sign in?</strong> Retry from the login page and verify your password before reinstalling the app.</li>
+              <li><strong>VPN not connecting?</strong> Open the app and run diagnostics. The website cannot start or stop the tunnel.</li>
+              <li><strong>Plan question?</strong> Compare plans, then return to the dashboard to confirm billing state.</li>
+              <li><strong>Need platform files?</strong> Use the release downloads linked on the home page.</li>
+            </ul>
+          </aside>
         </div>
       </section>
     </main>
@@ -81,14 +72,20 @@
     <footer class="footer">
       <div class="container footer-top">
         <div class="footer-brand">
-          <strong>SecureWave VPN</strong>
-          <p>Calm protection for everyday connections.</p>
+          <strong>SecureWave Support</strong>
+          <p>Guided account and app support, structured around the fastest next action.</p>
         </div>
         <div class="footer-columns">
           <div class="footer-column">
             <div class="footer-title">Product</div>
             <a href="/services.html">Services</a>
             <a href="/subscription.html">Plans</a>
+            <a href="/vpn.html">VPN app</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Account</div>
+            <a href="/login.html">Sign in</a>
+            <a href="/register.html">Create account</a>
             <a href="/dashboard.html">Dashboard</a>
           </div>
           <div class="footer-column">
@@ -96,19 +93,11 @@
             <a href="/privacy.html">Privacy</a>
             <a href="/terms.html">Terms</a>
           </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Help</a>
-          </div>
         </div>
       </div>
-      <div class="container footer-bottom">
-        <span data-year>2026</span> SecureWave. All rights reserved.
-      </div>
+      <div class="container footer-bottom"><span data-year>2026</span> SecureWave. All rights reserved.</div>
     </footer>
-
   </div>
-
   <script src="/js/bootstrap.bundle.min.js" defer></script>
   <script src="/js/site.js" defer></script>
 </body>

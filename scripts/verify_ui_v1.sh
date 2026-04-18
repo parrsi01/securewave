@@ -108,9 +108,9 @@ if ! test -f securewave_app/lib/ui/app_ui_v1.dart; then
   exit 1
 fi
 
-EXTRA_THEME_FILES=$(find securewave_app/lib/ui -maxdepth 1 -type f ! -name "app_ui_v1.dart")
+EXTRA_THEME_FILES=$(find securewave_app/lib/ui -maxdepth 1 -type f ! -name "app_ui_v1.dart" ! -name "app_haptics.dart")
 if [[ -n "${EXTRA_THEME_FILES}" ]]; then
-  echo "Unexpected Flutter theme files present:" >&2
+  echo "Unexpected Flutter UI files present:" >&2
   echo "${EXTRA_THEME_FILES}" >&2
   exit 1
 fi

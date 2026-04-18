@@ -6,7 +6,7 @@
   <meta name="build-timestamp" content="BUILD_TIMESTAMP">
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>Settings - SecureWave</title>
-  <meta name="description" content="SecureWave account settings." />
+  <meta name="description" content="Understand which SecureWave settings live in the app and which stay local to the website." />
   <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
@@ -18,57 +18,56 @@
           <img src="/img/logo.svg" alt="SecureWave logo">
           <span>SecureWave</span>
         </a>
-        <div class="nav-panel"><nav class="nav-links nav" aria-label="Primary">
-          <a href="/home.html" class="nav-link">Home</a>
-          <a href="/services.html" class="nav-link">Services</a>
-          <a href="/subscription.html" class="nav-link">Plans</a>
-          <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="btn btn-ghost" href="/login.html">Sign in</a>
-          <a class="btn btn-primary" href="/home.html#download">Download app</a>
+        <div class="nav-panel">
+          <nav class="nav-links nav" aria-label="Primary">
+            <a class="nav-link" href="/home.html">Home</a>
+            <a class="nav-link" href="/services.html">Services</a>
+            <a class="nav-link" href="/subscription.html">Plans</a>
+            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link active" href="/settings.html" aria-current="page">Settings</a>
+          </nav>
+          <div class="nav-actions">
+            <a class="btn btn-ghost" href="/login.html">Sign in</a>
+            <a class="btn btn-primary" href="/home.html#download">Download app</a>
+          </div>
         </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
+        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
       </div>
     </header>
 
     <main>
       <section class="section">
-        <div class="container split">
-          <div>
+        <div class="container split-grid">
+          <div class="content-stack">
             <span class="badge">Settings</span>
-            <h1>Settings live in the app.</h1>
-            <p class="subtitle">Connection preferences, VPN protocol, and device controls are managed from the SecureWave app on your device.</p>
-            <p class="subtitle" style="margin-top: var(--space-3);">This website is your control plane: account management, plan changes, and billing.</p>
+            <h1>Device VPN settings live in the app.</h1>
+            <p class="text-measure">SecureWave keeps protocol selection, server choice, ad-blocking, diagnostics, and tunnel behavior inside the installed app. This website remains focused on account, plan, and local browser context.</p>
           </div>
-          <div class="card">
-            <h3>Available in the app</h3>
+          <aside class="card">
+            <span class="eyebrow">In-app controls</span>
             <ul class="list">
-              <li>VPN protocol selection (WireGuard, IKEv2, OpenVPN)</li>
-              <li>Server / region selection</li>
-              <li>Ad-blocking and tracker protection</li>
-              <li>Connection guard (kill switch)</li>
-              <li>Language preferences</li>
-              <li>Diagnostics and support logs</li>
+              <li>Protocol selection and failover behavior</li>
+              <li>Server and region preferences</li>
+              <li>Traffic protection features</li>
+              <li>Language, diagnostics, and support sharing</li>
             </ul>
-            <div class="stat-list" style="margin-top: var(--space-4);">
-              <a class="btn btn-primary" href="/home.html#download">Download the app</a>
-              <a class="btn btn-secondary" href="/dashboard.html">Back to dashboard</a>
-            </div>
-          </div>
+          </aside>
         </div>
       </section>
 
-      <section class="section">
-        <div class="container">
-          <div class="card">
-            <h3>About website preferences</h3>
-            <p class="subtitle">Any preferences you set on this website (such as display theme or session data) are <strong>stored on this device only</strong> using your browser's local storage. They do not sync across devices or browsers.</p>
-            <p class="subtitle" style="margin-top: var(--space-2);">To manage your account settings (plan, email, password), visit the <a href="/dashboard.html">dashboard</a>.</p>
-          </div>
+      <section class="section-tight">
+        <div class="container split-grid">
+          <article class="card">
+            <span class="eyebrow">Website-local behavior</span>
+            <p>Any website-specific preferences or session cues stored in the browser remain local to this device and do not configure the VPN tunnel.</p>
+          </article>
+          <article class="card">
+            <span class="eyebrow">Best next action</span>
+            <div class="stat-list">
+              <a class="btn btn-primary" href="/home.html#download">Download the app</a>
+              <a class="btn btn-secondary" href="/dashboard.html">Back to dashboard</a>
+            </div>
+          </article>
         </div>
       </section>
     </main>
@@ -76,34 +75,32 @@
     <footer class="footer">
       <div class="container footer-top">
         <div class="footer-brand">
-          <strong>SecureWave VPN</strong>
-          <p>Calm protection for everyday connections.</p>
+          <strong>SecureWave Settings</strong>
+          <p>Clear boundaries between browser-local account context and device-side VPN control.</p>
         </div>
         <div class="footer-columns">
           <div class="footer-column">
             <div class="footer-title">Product</div>
             <a href="/services.html">Services</a>
+            <a href="/vpn.html">VPN app</a>
             <a href="/subscription.html">Plans</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Account</div>
             <a href="/dashboard.html">Dashboard</a>
+            <a href="/diagnostics.html">Diagnostics</a>
+            <a href="/contact.html">Support</a>
           </div>
           <div class="footer-column">
             <div class="footer-title">Legal</div>
             <a href="/privacy.html">Privacy</a>
             <a href="/terms.html">Terms</a>
           </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Help</a>
-          </div>
         </div>
       </div>
-      <div class="container footer-bottom">
-        <span data-year>2026</span> SecureWave. All rights reserved.
-      </div>
+      <div class="container footer-bottom"><span data-year>2026</span> SecureWave. All rights reserved.</div>
     </footer>
-
   </div>
-
   <script src="/js/bootstrap.bundle.min.js" defer></script>
   <script src="/js/site.js" defer></script>
 </body>
