@@ -2,206 +2,111 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Devices - SecureWave</title>
-  <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
-  <link rel="stylesheet" href="/css/web_ui_v1.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
+  <meta name="ui-version" content="UI_VERSION v1.0">
+  <title>VPN App - SecureWave</title>
+  <meta name="description" content="The SecureWave app handles VPN connection, routing, and diagnostics on your device." />
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-
-<nav class="nav" id="navbar">
-  <div class="nav-inner">
-    <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
-    <div class="nav-links">
-      <a href="/dashboard">Account</a>
-      <a href="/vpn" class="active">Devices</a>
-      <a href="/settings">Settings</a>
-      <a href="/subscription">Plan</a>
-      <a href="/diagnostics">Diagnostics</a>
-      <a href="/download">Download</a>
-    </div>
-    <div class="nav-actions">
-      <a class="btn btn-ghost btn-sm" href="/dashboard">Account</a>
-      <button class="btn btn-secondary btn-sm" type="button" data-logout>Sign out</button>
-    </div>
-    <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
-      <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>
-  </div>
-  <div class="nav-mobile">
-    <a href="/dashboard">Account</a><a href="/vpn">Devices</a><a href="/settings">Settings</a><a href="/subscription">Plan</a><a href="/diagnostics">Diagnostics</a><a href="/download">Download</a>
-    <div class="nav-mobile-actions">
-      <button class="btn btn-secondary btn-block" type="button" data-logout>Sign out</button>
-    </div>
-  </div>
-</nav>
-
-<main class="main">
-  <div class="container">
-
-    <!-- Section Header -->
-    <section class="section">
-      <div class="section-header">
-        <h1>Device &amp; Session Center</h1>
-        <p>VPN tunnels are controlled from the SecureWave apps, not the web. Use this center to manage devices, review status, and get support.</p>
-      </div>
-    </section>
-
-    <!-- Center Layout -->
-    <section class="section">
-      <div class="dash-layout">
-
-        <!-- Main Column -->
-        <div class="dash-main">
-          <!-- Metrics -->
-          <div class="metrics-grid">
-            <div class="dash-metric">
-              <span class="dash-metric-label">Subscription</span>
-              <span class="dash-metric-value" data-metric="plan">--</span>
-              <span class="dash-metric-sub">Billing status from your account</span>
-            </div>
-            <div class="dash-metric">
-              <span class="dash-metric-label">Devices</span>
-              <span class="dash-metric-value" data-metric="devices">--</span>
-              <span class="dash-metric-sub">Registered devices on your account</span>
-            </div>
-            <div class="dash-metric">
-              <span class="dash-metric-label">Data Used</span>
-              <span class="dash-metric-value" data-metric="data-used">--</span>
-              <span class="dash-metric-sub">Across all devices (best effort)</span>
-            </div>
-            <div class="dash-metric">
-              <span class="dash-metric-label">Security Posture</span>
-              <span class="dash-metric-value" data-metric="posture">Protected</span>
-              <span class="dash-metric-sub">Ad/Malware DNS always-on in the tunnel</span>
-            </div>
-          </div>
-
-          <!-- Devices -->
-          <div class="card" style="margin-top: var(--space-4)">
-            <div class="card-header">
-              <h3>Devices</h3>
-              <span class="badge badge-muted" data-device-count>--</span>
-            </div>
-            <div class="card-body">
-              <div class="table-wrap">
-                <table class="table">
-                  <thead>
-                    <tr>
-                      <th>Device</th>
-                      <th>Type</th>
-                      <th>Status</th>
-                      <th>Last seen</th>
-                      <th>Preferred server</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody data-devices-body>
-                    <tr><td colspan="6">Loading devices…</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <p class="muted" style="margin-top: var(--space-3)">
-                SecureWave delivers tunnel profiles directly to the app after sign-in. No manual configuration files are required.
-              </p>
-            </div>
-          </div>
-
-          <!-- Security posture -->
-          <div class="card" style="margin-top: var(--space-4)">
-            <div class="card-header">
-              <h3>Security posture</h3>
-            </div>
-            <div class="card-body">
-              <ul class="check-list">
-                <li class="check-list-item check-pass">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>Encryption: <strong>WireGuard</strong></span>
-                </li>
-                <li class="check-list-item check-pass">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>Ad/Malware blocking: <strong>ON</strong> <span class="badge badge-muted">via DNS</span></span>
-                </li>
-                <li class="check-list-item check-pass">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>DNS leak protection: <strong>Best effort</strong></span>
-                </li>
-                <li class="check-list-item check-pass">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>Kill switch: <strong>Best effort</strong> <span class="badge badge-muted">per platform</span></span>
-                </li>
-              </ul>
-            </div>
+  <div class="page">
+    <header class="navbar navbar-expand-lg">
+      <div class="container navbar-row">
+        <a class="brand navbar-brand" href="/home.html">
+          <img src="/img/logo.svg" alt="SecureWave logo">
+          <span>SecureWave</span>
+        </a>
+        <div class="nav-panel">
+          <nav class="nav-links nav" aria-label="Primary">
+            <a class="nav-link" href="/home.html">Home</a>
+            <a class="nav-link" href="/services.html">Services</a>
+            <a class="nav-link" href="/subscription.html">Plans</a>
+            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link active" href="/vpn.html" aria-current="page">VPN app</a>
+          </nav>
+          <div class="nav-actions">
+            <a class="btn btn-ghost" href="/login.html">Sign in</a>
+            <a class="btn btn-primary" href="/home.html#download">Download app</a>
           </div>
         </div>
+        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
+      </div>
+    </header>
 
-        <!-- Sidebar -->
-        <div class="dash-sidebar">
-
-          <div class="card">
-            <div class="card-header">
-              <h3>Troubleshooting</h3>
-            </div>
-            <div class="card-body">
-              <div class="stack">
-                <a href="/download" class="btn btn-primary btn-block">Download the app</a>
-                <a href="/diagnostics" class="btn btn-secondary btn-block">Diagnostics</a>
-                <a href="/leak-test" class="btn btn-ghost btn-block">Leak test</a>
-                <a href="/contact" class="btn btn-ghost btn-block">Contact support</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <h3>Backend status</h3>
-            </div>
-            <div class="card-body">
-              <div class="stack">
-                <div class="vpn-info-item">
-                  <span class="vpn-info-label">API</span>
-                  <span class="vpn-info-value" data-backend-api>Checking…</span>
-                </div>
-                <div class="vpn-info-item">
-                  <span class="vpn-info-label">Database</span>
-                  <span class="vpn-info-value" data-backend-db>Checking…</span>
-                </div>
-                <div class="vpn-info-item">
-                  <span class="vpn-info-label">VPN fleet</span>
-                  <span class="vpn-info-value" data-backend-fleet>Checking…</span>
-                </div>
-              </div>
+    <main>
+      <section class="section">
+        <div class="container split-grid">
+          <div class="content-stack">
+            <span class="badge">VPN app</span>
+            <h1>The tunnel runs in the SecureWave app.</h1>
+            <p class="text-measure">Connection control, region selection, protocol behavior, kill-switch support, and diagnostics all live in the app so they can operate correctly on your device.</p>
+            <div class="stat-list">
+              <a class="btn btn-primary" href="/home.html#download">Download SecureWave</a>
+              <a class="btn btn-secondary" href="/services.html">View services</a>
             </div>
           </div>
-
+          <aside class="card card-strong">
+            <span class="eyebrow">What the app handles</span>
+            <ul class="list">
+              <li>Starting and stopping protected traffic.</li>
+              <li>Displaying live connection status and current region.</li>
+              <li>Running diagnostics for server reachability and routing health.</li>
+              <li>Giving users clear feedback when something fails.</li>
+            </ul>
+          </aside>
         </div>
+      </section>
 
+      <section class="section-tight">
+        <div class="container metric-grid">
+          <article class="card">
+            <span class="metric-value">1 tap</span>
+            <p class="metric-label">to connect from the app home screen</p>
+          </article>
+          <article class="card">
+            <span class="metric-value">1 account</span>
+            <p class="metric-label">shared between the dashboard and the VPN app</p>
+          </article>
+          <article class="card">
+            <span class="metric-value">0 guesswork</span>
+            <p class="metric-label">when switching from account tasks to network tasks</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer-top">
+        <div class="footer-brand">
+          <strong>SecureWave App</strong>
+          <p>Install the app when you are ready to connect. Use the website when you need your account.</p>
+        </div>
+        <div class="footer-columns">
+          <div class="footer-column">
+            <div class="footer-title">Product</div>
+            <a href="/home.html#download">Download</a>
+            <a href="/subscription.html">Plans</a>
+            <a href="/services.html">Services</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Account</div>
+            <a href="/login.html">Sign in</a>
+            <a href="/register.html">Create account</a>
+            <a href="/dashboard.html">Dashboard</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Support</div>
+            <a href="/contact.html">Support</a>
+            <a href="/diagnostics.html">Diagnostics</a>
+          </div>
+        </div>
       </div>
-    </section>
-
+      <div class="container footer-bottom"><span data-year>2026</span> SecureWave. All rights reserved.</div>
+    </footer>
   </div>
-</main>
-
-<footer class="footer">
-  <div class="container">
-    <div class="footer-grid">
-      <div class="footer-brand">
-        <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
-        <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
-      </div>
-      <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/download">Downloads</a></div>
-      <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
-      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/dashboard">Account Center</a></div>
-    </div>
-    <div class="footer-bottom">
-      <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
-      <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
-    </div>
-  </div>
-</footer>
-
-<script src="/js/site.js"></script>
-<script src="/js/device_center.js"></script>
+  <script src="/js/bootstrap.bundle.min.js" defer></script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

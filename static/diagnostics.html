@@ -2,182 +2,90 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Network Diagnostics | SecureWave</title>
-  <meta name="description" content="Run network diagnostics to test your VPN connection, detect DNS leaks, and monitor performance.">
-  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/web_ui_v1.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
+  <meta name="ui-version" content="UI_VERSION v1.0">
+  <title>Diagnostics - SecureWave</title>
+  <meta name="description" content="Learn where SecureWave diagnostics live and how to recover faster from connection issues." />
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
+  <div class="page">
+    <header class="navbar navbar-expand-lg">
+      <div class="container navbar-row">
+        <a class="brand navbar-brand" href="/home.html">
+          <img src="/img/logo.svg" alt="SecureWave logo">
+          <span>SecureWave</span>
+        </a>
+        <div class="nav-panel">
+          <nav class="nav-links nav" aria-label="Primary">
+            <a class="nav-link" href="/home.html">Home</a>
+            <a class="nav-link" href="/services.html">Services</a>
+            <a class="nav-link" href="/subscription.html">Plans</a>
+            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link active" href="/diagnostics.html" aria-current="page">Diagnostics</a>
+          </nav>
+          <div class="nav-actions">
+            <a class="btn btn-ghost" href="/login.html">Sign in</a>
+            <a class="btn btn-primary" href="/home.html#download">Download app</a>
+          </div>
+        </div>
+        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
+      </div>
+    </header>
 
-<nav class="nav" id="navbar">
-  <div class="nav-inner">
-    <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
-    <div class="nav-links">
-      <a href="/dashboard">Account</a>
-      <a href="/vpn">Devices</a>
-      <a href="/settings">Settings</a>
-      <a href="/subscription">Plan</a>
-      <a href="/diagnostics" class="active">Diagnostics</a>
-      <a href="/download">Download</a>
-    </div>
-    <div class="nav-actions">
-      <a class="btn btn-ghost btn-sm" href="/dashboard">Account</a>
-      <button class="btn btn-secondary btn-sm" type="button" data-logout>Sign out</button>
-    </div>
-    <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
-      <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>
+    <main>
+      <section class="section">
+        <div class="container split-grid">
+          <div class="content-stack">
+            <span class="badge">Diagnostics</span>
+            <h1>Run connection diagnostics inside the app.</h1>
+            <p class="text-measure">Because the VPN tunnel runs on the device, tunnel, route, traffic, and protocol checks are performed from the app. The website helps you understand when to run them and what to do next.</p>
+          </div>
+          <aside class="card card-strong">
+            <span class="eyebrow">Recommended workflow</span>
+            <ul class="list">
+              <li>Confirm your account and plan in the dashboard.</li>
+              <li>Open the SecureWave app and run diagnostics.</li>
+              <li>Retry from the current app build if a download update is available.</li>
+              <li>Use the support page if the issue persists after diagnostics.</li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer-top">
+        <div class="footer-brand">
+          <strong>SecureWave Diagnostics</strong>
+          <p>Clear recovery guidance that points users to the right execution environment: the app.</p>
+        </div>
+        <div class="footer-columns">
+          <div class="footer-column">
+            <div class="footer-title">Product</div>
+            <a href="/services.html">Services</a>
+            <a href="/vpn.html">VPN app</a>
+            <a href="/home.html#download">Downloads</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Account</div>
+            <a href="/dashboard.html">Dashboard</a>
+            <a href="/settings.html">Settings</a>
+            <a href="/contact.html">Support</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Legal</div>
+            <a href="/privacy.html">Privacy</a>
+            <a href="/terms.html">Terms</a>
+          </div>
+        </div>
+      </div>
+      <div class="container footer-bottom"><span data-year>2026</span> SecureWave. All rights reserved.</div>
+    </footer>
   </div>
-  <div class="nav-mobile">
-    <a href="/dashboard">Account</a><a href="/vpn">Devices</a><a href="/settings">Settings</a><a href="/subscription">Plan</a><a href="/diagnostics" class="active">Diagnostics</a><a href="/download">Download</a>
-    <div class="nav-mobile-actions">
-      <button class="btn btn-secondary btn-block" type="button" data-logout>Sign out</button>
-    </div>
-  </div>
-</nav>
-
-<main class="main">
-  <section class="section">
-    <div class="container">
-      <div class="section-header">
-        <h1>Network Diagnostics</h1>
-        <p>Test your connection, detect leaks, and monitor network performance in real time.</p>
-      </div>
-
-      <div class="metrics-grid">
-        <div class="dash-metric">
-          <span class="dash-metric-label">Latency</span>
-          <span class="dash-metric-value" data-metric="latency">-- ms</span>
-        </div>
-        <div class="dash-metric">
-          <span class="dash-metric-label">Download Speed</span>
-          <span class="dash-metric-value" data-metric="download">-- Mbps</span>
-        </div>
-        <div class="dash-metric">
-          <span class="dash-metric-label">Upload Speed</span>
-          <span class="dash-metric-value" data-metric="upload">-- Mbps</span>
-        </div>
-        <div class="dash-metric">
-          <span class="dash-metric-label">Packet Loss</span>
-          <span class="dash-metric-value" data-metric="packet-loss">-- %</span>
-        </div>
-      </div>
-
-      <div class="card-grid">
-        <div class="card">
-          <div class="card-header">
-            <h3>Connection Test</h3>
-          </div>
-          <div class="card-body">
-            <p>Run a full diagnostic scan to measure latency, throughput, and connection stability.</p>
-            <button class="btn btn-primary" type="button" data-run-diagnostics>Run Diagnostics</button>
-            <div class="progress-bar" data-diagnostics-progress>
-              <div class="progress-bar-fill" style="width: 0%"></div>
-            </div>
-            <div class="diagnostics-results" data-diagnostics-results></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>DNS Leak Test</h3>
-          </div>
-          <div class="card-body">
-            <p>Verify that your DNS requests are routed through the VPN tunnel and not leaking to your ISP.</p>
-            <div class="test-result">
-              <span class="test-label">DNS Servers</span>
-              <span class="test-value" data-dns-servers>Not tested</span>
-            </div>
-            <div class="test-result">
-              <span class="test-label">Status</span>
-              <span class="badge" data-dns-status>Pending</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>WebRTC Leak Test</h3>
-          </div>
-          <div class="card-body">
-            <p>Check whether WebRTC is exposing your real IP address outside the VPN tunnel.</p>
-            <div class="test-result">
-              <span class="test-label">WebRTC Status</span>
-              <span class="badge" data-webrtc-status>Pending</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>Network Anomaly Detection</h3>
-          </div>
-          <div class="card-body">
-            <div class="anomaly-indicator" data-anomaly-indicator>
-              <span class="anomaly-dot"></span>
-              <span>Monitoring</span>
-            </div>
-            <p>ML-powered analysis using MARL and XGBoost models to detect unusual traffic patterns, potential intrusions, and connection anomalies in real time.</p>
-            <div class="test-result">
-              <span class="test-label">QoS Score</span>
-              <span class="test-value" data-qos-score>--</span>
-            </div>
-            <div class="test-result">
-              <span class="test-label">Risk Level</span>
-              <span class="badge" data-risk-level>Unknown</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card card-full">
-          <div class="card-header">
-            <h3>Connection Log</h3>
-          </div>
-          <div class="card-body">
-            <div class="table-wrap">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Timestamp</th>
-                    <th>Event</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody data-connection-log>
-                  <tr>
-                    <td colspan="3" class="text-muted">No events recorded yet. Run diagnostics to begin.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </section>
-</main>
-
-<footer class="footer">
-  <div class="container">
-    <div class="footer-grid">
-      <div class="footer-brand">
-        <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
-        <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
-      </div>
-      <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/download">Downloads</a></div>
-      <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
-      <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/dashboard">Account Center</a></div>
-    </div>
-    <div class="footer-bottom">
-      <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
-      <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
-    </div>
-  </div>
-</footer>
-
-<script src="/js/site.js"></script>
+  <script src="/js/bootstrap.bundle.min.js" defer></script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

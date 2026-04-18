@@ -3,308 +3,119 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pricing - SecureWave VPN</title>
-  <meta name="description" content="Simple, transparent VPN pricing. Choose the plan that fits your needs with no hidden fees.">
-  <link rel="stylesheet" href="/css/web_ui_v1.css">
+  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
+  <meta name="ui-version" content="UI_VERSION v1.0">
+  <title>Plans - SecureWave</title>
+  <meta name="description" content="Choose between Free Starter and Pro, then download the SecureWave VPN app." />
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-
-  <!-- Navigation -->
-  <nav class="nav" id="navbar">
-    <div class="nav-inner">
-      <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
-      <div class="nav-links">
-        <a href="/home">Features</a>
-        <a href="/services">Services</a>
-        <a href="/subscription" class="active">Pricing</a>
-        <a href="/download">Download</a>
-        <a href="/about">About</a>
-        <a href="/contact">Contact</a>
-      </div>
-      <div class="nav-actions">
-        <a class="btn btn-ghost btn-sm" href="/login">Sign in</a>
-        <a class="btn btn-primary btn-sm" href="/register">Get Started</a>
-      </div>
-      <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
-        <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="nav-mobile">
-      <a href="/home">Features</a><a href="/services">Services</a><a href="/subscription" class="active">Pricing</a><a href="/download">Download</a><a href="/about">About</a><a href="/contact">Contact</a>
-      <div class="nav-mobile-actions">
-        <a class="btn btn-ghost btn-block" href="/login">Sign in</a>
-        <a class="btn btn-primary btn-block" href="/register">Get Started</a>
-      </div>
-    </div>
-  </nav>
-
-  <main>
-    <!-- Hero -->
-    <section class="hero hero-centered">
-      <div class="container">
-        <div class="hero-content">
-          <span class="section-eyebrow">Pricing</span>
-          <h1>Simple, transparent pricing</h1>
-          <p class="hero-desc">Choose the plan that fits your needs. No hidden fees, no surprises. Cancel anytime.</p>
+  <div class="page">
+    <header class="navbar navbar-expand-lg">
+      <div class="container navbar-row">
+        <a class="brand navbar-brand" href="/home.html">
+          <img src="/img/logo.svg" alt="SecureWave logo">
+          <span>SecureWave</span>
+        </a>
+        <div class="nav-panel">
+          <nav class="nav-links nav" aria-label="Primary">
+            <a class="nav-link" href="/home.html">Home</a>
+            <a class="nav-link" href="/services.html">Services</a>
+            <a class="nav-link active" href="/subscription.html" aria-current="page">Plans</a>
+            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link" href="/contact.html">Support</a>
+          </nav>
+          <div class="nav-actions">
+            <a class="btn btn-ghost" href="/login.html">Sign in</a>
+            <a class="btn btn-primary" href="/register.html">Get started</a>
+          </div>
         </div>
+        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
       </div>
-    </section>
+    </header>
 
-    <!-- Pricing Cards -->
-    <section class="section">
-      <div class="container">
-        <div class="grid grid-3">
+    <main>
+      <section class="section">
+        <div class="container content-stack">
+          <span class="badge">Plans</span>
+          <h1>Two plans. Clear tradeoffs.</h1>
+          <p class="text-measure">Pick the account tier that fits your usage pattern, then install the app to start protected traffic on your device.</p>
+          <div class="plans-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+            <article class="card">
+              <span class="pill">Free Starter</span>
+              <h2 style="margin-top: var(--space-4);">$0 <span class="subtitle">/ month</span></h2>
+              <p style="margin-top: var(--space-3);">Basic protection for lighter usage and account onboarding.</p>
+              <ul class="list" style="margin-top: var(--space-4);">
+                <li>5 GB monthly allowance</li>
+                <li>Single device session</li>
+                <li>Standard support path</li>
+              </ul>
+              <a class="btn btn-secondary" style="margin-top: var(--space-5);" href="/register.html">Start free</a>
+            </article>
+            <article class="card card-strong">
+              <span class="pill">Pro</span>
+              <h2 style="margin-top: var(--space-4);">$9 <span class="subtitle">/ month</span></h2>
+              <p style="margin-top: var(--space-3);">For everyday work, travel, and high-volume usage across more devices.</p>
+              <ul class="list" style="margin-top: var(--space-4);">
+                <li>Unlimited data</li>
+                <li>Priority routing access</li>
+                <li>Up to 5 devices</li>
+              </ul>
+              <a class="btn btn-primary" style="margin-top: var(--space-5);" href="/register.html">Get Pro</a>
+            </article>
+          </div>
+        </div>
+      </section>
 
-          <!-- Free Starter -->
-          <article class="card card-elevated pricing-card">
-            <div class="pricing-name">Starter</div>
-            <div class="pricing-price">$0<span>/mo</span></div>
-            <p class="pricing-desc">Perfect for trying out SecureWave with basic protection.</p>
-            <ul class="pricing-features">
-              <li>5 GB monthly data</li>
-              <li>1 device</li>
-              <li>3 server locations</li>
-              <li>Basic encryption</li>
-              <li>Email support</li>
-            </ul>
-            <a class="btn btn-secondary btn-block" href="/register">Start Free</a>
+      <section class="section-tight">
+        <div class="container feature-grid">
+          <article class="card">
+            <h3>Create your account</h3>
+            <p>Registration brings you straight into the SecureWave account system and the dashboard.</p>
           </article>
-
-          <!-- Pro (Popular) -->
-          <article class="card card-elevated pricing-card popular">
-            <div class="pricing-name">Pro</div>
-            <div class="pricing-price">$9<span>/mo</span></div>
-            <p class="pricing-desc">Best value for individuals who want full protection.</p>
-            <ul class="pricing-features">
-              <li>Unlimited data</li>
-              <li>5 devices</li>
-              <li>50+ server locations</li>
-              <li>Advanced encryption</li>
-              <li>Priority support</li>
-              <li>Kill switch</li>
-              <li>Split tunneling</li>
-            </ul>
-            <a class="btn btn-primary btn-block" href="/register">Get Pro</a>
+          <article class="card">
+            <h3>Install the app</h3>
+            <p>Downloads remain centralized so every platform build comes from the same release path.</p>
           </article>
-
-          <!-- Enterprise -->
-          <article class="card card-elevated pricing-card">
-            <div class="pricing-name">Enterprise</div>
-            <div class="pricing-price">$29<span>/mo</span></div>
-            <p class="pricing-desc">Full-featured protection for teams and organizations.</p>
-            <ul class="pricing-features">
-              <li>Unlimited data</li>
-              <li>Unlimited devices</li>
-              <li>50+ server locations</li>
-              <li>Military-grade encryption</li>
-              <li>Dedicated support</li>
-              <li>Custom DNS</li>
-              <li>Team management</li>
-              <li>API access</li>
-            </ul>
-            <a class="btn btn-secondary btn-block" href="/contact">Contact Sales</a>
+          <article class="card">
+            <h3>Connect in app</h3>
+            <p>The VPN tunnel is controlled in the app, not the browser, which keeps the product behavior honest and understandable.</p>
           </article>
-
         </div>
-      </div>
-    </section>
+      </section>
+    </main>
 
-    <!-- Feature Comparison Table -->
-    <section class="section bg-alt">
-      <div class="container">
-        <div class="section-header centered">
-          <span class="section-eyebrow">Compare Plans</span>
-          <h2>Feature comparison</h2>
-          <p>See exactly what you get with each plan so you can make the right choice.</p>
-        </div>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Feature</th>
-                <th>Free</th>
-                <th>Pro</th>
-                <th>Enterprise</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Monthly data</td>
-                <td>5 GB</td>
-                <td>Unlimited</td>
-                <td>Unlimited</td>
-              </tr>
-              <tr>
-                <td>Simultaneous devices</td>
-                <td>1</td>
-                <td>5</td>
-                <td>Unlimited</td>
-              </tr>
-              <tr>
-                <td>Server locations</td>
-                <td>3</td>
-                <td>50+</td>
-                <td>50+</td>
-              </tr>
-              <tr>
-                <td>Encryption standard</td>
-                <td>AES-128</td>
-                <td>AES-256</td>
-                <td>AES-256</td>
-              </tr>
-              <tr>
-                <td>Kill switch</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Included">&#x2713;</td>
-                <td aria-label="Included">&#x2713;</td>
-              </tr>
-              <tr>
-                <td>Split tunneling</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Included">&#x2713;</td>
-                <td aria-label="Included">&#x2713;</td>
-              </tr>
-              <tr>
-                <td>Custom DNS</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Included">&#x2713;</td>
-              </tr>
-              <tr>
-                <td>Team management</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Included">&#x2713;</td>
-              </tr>
-              <tr>
-                <td>API access</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Included">&#x2713;</td>
-              </tr>
-              <tr>
-                <td>Dedicated support</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Included">&#x2713;</td>
-              </tr>
-              <tr>
-                <td>Priority support</td>
-                <td aria-label="Not included">&#x2717;</td>
-                <td aria-label="Included">&#x2713;</td>
-                <td aria-label="Included">&#x2713;</td>
-              </tr>
-              <tr>
-                <td>No-log policy</td>
-                <td aria-label="Included">&#x2713;</td>
-                <td aria-label="Included">&#x2713;</td>
-                <td aria-label="Included">&#x2713;</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- FAQ Accordion -->
-    <section class="section">
-      <div class="container">
-        <div class="section-header centered">
-          <span class="section-eyebrow">FAQ</span>
-          <h2>Frequently asked questions</h2>
-          <p>Everything you need to know about pricing and billing.</p>
-        </div>
-
-        <div style="max-width:720px;margin:0 auto">
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
-              <span>Can I switch plans at any time?</span>
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            </button>
-            <div class="accordion-content">
-              <div class="accordion-body">Yes, you can upgrade or downgrade your plan at any time from your account settings. When upgrading, you will be charged the prorated difference for the remainder of your billing cycle. Downgrades take effect at the start of the next billing period.</div>
-            </div>
-          </div>
-
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
-              <span>What payment methods do you accept?</span>
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            </button>
-            <div class="accordion-content">
-              <div class="accordion-body">We accept all major credit and debit cards including Visa, Mastercard, and American Express. We also support payments through PayPal and Apple Pay for your convenience.</div>
-            </div>
-          </div>
-
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
-              <span>Is there a money-back guarantee?</span>
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            </button>
-            <div class="accordion-content">
-              <div class="accordion-body">Absolutely. All paid plans come with a 30-day money-back guarantee. If you are not satisfied with SecureWave for any reason, contact our support team within 30 days of purchase for a full refund, no questions asked.</div>
-            </div>
-          </div>
-
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
-              <span>Do you offer annual billing?</span>
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            </button>
-            <div class="accordion-content">
-              <div class="accordion-body">Yes, we offer annual billing with a 20% discount compared to monthly pricing. You can select annual billing when you sign up or switch to it from your account settings at any time.</div>
-            </div>
-          </div>
-
-          <div class="accordion-item">
-            <button class="accordion-trigger" type="button" aria-expanded="false">
-              <span>What happens when I exceed my data limit on the Free plan?</span>
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            </button>
-            <div class="accordion-content">
-              <div class="accordion-body">When you reach your 5 GB monthly data limit on the Free plan, your VPN connection will be paused until the next billing cycle. You can upgrade to Pro at any time to get unlimited data and continue browsing without interruption.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CTA Banner -->
-    <section class="section">
-      <div class="container">
-        <div class="cta-banner">
-          <h2>Need help choosing?</h2>
-          <p>Our team is here to help you find the perfect plan for your security needs.</p>
-          <div class="flex justify-center gap-3 flex-wrap">
-            <button class="btn btn-primary" type="button" data-open-assistant>Talk to our assistant</button>
-            <a class="btn btn-white" href="/contact">Contact Sales</a>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="container">
-      <div class="footer-grid">
+    <footer class="footer">
+      <div class="container footer-top">
         <div class="footer-brand">
-          <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
-          <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
+          <strong>SecureWave Plans</strong>
+          <p>Simple plan selection with a direct path to download, install, and connect.</p>
         </div>
-        <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/download">Downloads</a></div>
-        <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
-        <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/contact">Contact</a></div>
+        <div class="footer-columns">
+          <div class="footer-column">
+            <div class="footer-title">Product</div>
+            <a href="/services.html">Services</a>
+            <a href="/vpn.html">VPN app</a>
+            <a href="/home.html#download">Downloads</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Account</div>
+            <a href="/register.html">Create account</a>
+            <a href="/login.html">Sign in</a>
+            <a href="/dashboard.html">Dashboard</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Legal</div>
+            <a href="/privacy.html">Privacy</a>
+            <a href="/terms.html">Terms</a>
+          </div>
+        </div>
       </div>
-      <div class="footer-bottom">
-        <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
-        <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
-      </div>
-    </div>
-  </footer>
-
-  <script src="/js/site.js"></script>
+      <div class="container footer-bottom"><span data-year>2026</span> SecureWave. All rights reserved.</div>
+    </footer>
+  </div>
+  <script src="/js/bootstrap.bundle.min.js" defer></script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>

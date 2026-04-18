@@ -2,243 +2,108 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Learn about SecureWave - our mission to build a more private internet with enterprise-grade VPN protection for everyone.">
-  <title>About Us - SecureWave</title>
-  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/web_ui_v1.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
+  <meta name="ui-version" content="UI_VERSION v1.0">
+  <title>About - SecureWave</title>
+  <meta name="description" content="Learn how SecureWave combines a modern VPN app with a clear account portal." />
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
-
-  <!-- Navigation -->
-  <nav class="nav" id="navbar">
-    <div class="nav-inner">
-      <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
-      <div class="nav-links">
-        <a href="/home">Features</a>
-        <a href="/services">Services</a>
-        <a href="/subscription">Pricing</a>
-        <a href="/download">Download</a>
-        <a href="/about" class="active">About</a>
-        <a href="/contact">Contact</a>
-      </div>
-      <div class="nav-actions">
-        <a class="btn btn-ghost btn-sm" href="/login">Sign in</a>
-        <a class="btn btn-primary btn-sm" href="/register">Get Started</a>
-      </div>
-      <button class="nav-toggle" type="button" aria-label="Toggle menu" data-nav-toggle>
-        <svg class="menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        <svg class="close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="nav-mobile">
-      <a href="/home">Features</a><a href="/services">Services</a><a href="/subscription">Pricing</a><a href="/download">Download</a><a href="/about">About</a><a href="/contact">Contact</a>
-      <div class="nav-mobile-actions">
-        <a class="btn btn-ghost btn-block" href="/login">Sign in</a>
-        <a class="btn btn-primary btn-block" href="/register">Get Started</a>
-      </div>
-    </div>
-  </nav>
-
-  <main>
-
-    <!-- Hero -->
-    <section class="hero hero-centered">
-      <div class="container">
-        <div class="hero-content">
-          <span class="section-eyebrow">About Us</span>
-          <h1>Building a More <span class="highlight">Private</span> Internet</h1>
-          <p class="hero-desc">We believe everyone deserves online privacy. SecureWave was founded to make enterprise-grade security accessible, transparent, and effortless for individuals and organizations worldwide.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Mission -->
-    <section class="section">
-      <div class="container">
-        <div class="grid grid-2 items-center">
-          <div>
-            <span class="section-eyebrow">Our Mission</span>
-            <h2>Privacy Is a Right, Not a Privilege</h2>
-            <p>At SecureWave, we are committed to defending digital privacy as a fundamental human right. Our mission is to provide fast, reliable, and transparent VPN infrastructure that empowers users to take control of their online presence.</p>
-            <p>We believe the internet should be open, free, and safe for everyone. That means no activity logging, no data brokering, and no compromises on encryption standards. Every architectural decision we make is guided by one principle: your data belongs to you.</p>
-            <p>Whether you are a journalist operating under censorship, a remote worker securing sensitive communications, or an everyday user who values discretion, SecureWave delivers military-grade protection without complexity.</p>
-          </div>
-          <div class="shield-visual">
-            <img src="/img/logo.svg" alt="SecureWave Shield" width="80" height="80">
+  <div class="page">
+    <header class="navbar navbar-expand-lg">
+      <div class="container navbar-row">
+        <a class="brand navbar-brand" href="/home.html">
+          <img src="/img/logo.svg" alt="SecureWave logo">
+          <span>SecureWave</span>
+        </a>
+        <div class="nav-panel">
+          <nav class="nav-links nav" aria-label="Primary">
+            <a class="nav-link" href="/home.html">Home</a>
+            <a class="nav-link" href="/services.html">Services</a>
+            <a class="nav-link" href="/subscription.html">Plans</a>
+            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link active" href="/about.html" aria-current="page">About</a>
+          </nav>
+          <div class="nav-actions">
+            <a class="btn btn-ghost" href="/login.html">Sign in</a>
+            <a class="btn btn-primary" href="/home.html#download">Download app</a>
           </div>
         </div>
+        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
       </div>
-    </section>
+    </header>
 
-    <!-- Values -->
-    <section class="section" style="background:var(--sw-bg-alt)">
-      <div class="container">
-        <div class="section-header centered">
-          <span class="section-eyebrow">Our Values</span>
-          <h2>What Drives Us Forward</h2>
-          <p>Three core principles guide every product decision, engineering choice, and customer interaction at SecureWave.</p>
-        </div>
-        <div class="grid grid-3">
-          <div class="card card-elevated feature-card">
-            <div class="card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <h4>Privacy First</h4>
-            <p>Zero-log architecture from day one. We cannot share what we do not collect. Our infrastructure is designed so that even we cannot see your browsing activity, connection timestamps, or bandwidth usage.</p>
+    <main>
+      <section class="section">
+        <div class="container story-grid">
+          <div class="content-stack">
+            <span class="badge">About SecureWave</span>
+            <h1>Protection designed to feel orderly.</h1>
+            <p class="text-measure">SecureWave is built around a simple idea: the VPN app should handle connection, routing, and diagnostics, while the website should handle account setup, plans, and support without clutter.</p>
+            <p class="text-measure">That separation makes the product easier to trust, easier to troubleshoot, and faster to adopt across desktop and mobile devices.</p>
           </div>
-          <div class="card card-elevated feature-card">
-            <div class="card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            </div>
-            <h4>Transparency</h4>
-            <p>Open documentation, honest performance metrics, and clear communication. We publish regular transparency reports, explain our technical decisions publicly, and never hide behind vague marketing claims.</p>
-          </div>
-          <div class="card card-elevated feature-card">
-            <div class="card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            </div>
-            <h4>Innovation</h4>
-            <p>Continuous improvement powered by cutting-edge research. From AI-driven route optimization to next-generation WireGuard tunneling, we invest heavily in engineering to deliver measurably faster and more secure connections.</p>
+          <div class="card card-strong">
+            <span class="eyebrow">Operating principle</span>
+            <h3>App-first network control. Web-first account clarity.</h3>
+            <ul class="list">
+              <li>The app establishes the VPN tunnel on your device.</li>
+              <li>The dashboard keeps billing, plans, and downloads easy to find.</li>
+              <li>Support pages are written around next actions, not technical jargon.</li>
+            </ul>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Stats Bar -->
-    <section class="section-sm">
-      <div class="container">
-        <div class="stats-bar">
-          <div class="stat">
-            <div class="stat-value">10,000+</div>
-            <div class="stat-label">Active Users</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value">50+</div>
-            <div class="stat-label">Global Servers</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value">99.9%</div>
-            <div class="stat-label">Uptime</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value">0</div>
-            <div class="stat-label">Logs Stored</div>
-          </div>
+      <section class="section-tight">
+        <div class="container feature-grid">
+          <article class="card">
+            <h3>Minimal by design</h3>
+            <p>SecureWave removes unnecessary screens and pushes the product toward a one-account, one-app, one-connect workflow.</p>
+          </article>
+          <article class="card">
+            <h3>Built for distributed teams</h3>
+            <p>Traveling staff, remote employees, and privacy-conscious individuals all benefit from the same low-friction onboarding path.</p>
+          </article>
+          <article class="card">
+            <h3>Support with context</h3>
+            <p>When something fails, the website explains where to go next instead of pretending the browser can manage the VPN tunnel itself.</p>
+          </article>
         </div>
-      </div>
-    </section>
+      </section>
+    </main>
 
-    <!-- Team -->
-    <section class="section">
-      <div class="container">
-        <div class="section-header centered">
-          <span class="section-eyebrow">Our People</span>
-          <h2>The Team Behind SecureWave</h2>
-          <p>A distributed team of security engineers, privacy advocates, and product designers united by a shared commitment to protecting users online.</p>
-        </div>
-        <div class="grid grid-3">
-          <div class="card card-elevated">
-            <div class="flex flex-col items-center text-center">
-              <div class="testimonial-avatar" style="width:64px;height:64px;font-size:1.25rem;margin-bottom:var(--sw-space-4)">AK</div>
-              <h4>Alex Kovacs</h4>
-              <p class="card-subtitle">Founder and CEO</p>
-              <p>Former network security researcher with over a decade of experience in encrypted communications. Alex founded SecureWave to close the gap between enterprise security tools and consumer accessibility.</p>
-            </div>
-          </div>
-          <div class="card card-elevated">
-            <div class="flex flex-col items-center text-center">
-              <div class="testimonial-avatar" style="width:64px;height:64px;font-size:1.25rem;margin-bottom:var(--sw-space-4)">MR</div>
-              <h4>Maya Rodriguez</h4>
-              <p class="card-subtitle">Chief Technology Officer</p>
-              <p>Specialist in distributed systems and protocol engineering. Maya leads SecureWave's infrastructure team and architects the adaptive routing engine that powers our global VPN network.</p>
-            </div>
-          </div>
-          <div class="card card-elevated">
-            <div class="flex flex-col items-center text-center">
-              <div class="testimonial-avatar" style="width:64px;height:64px;font-size:1.25rem;margin-bottom:var(--sw-space-4)">JT</div>
-              <h4>James Thornton</h4>
-              <p class="card-subtitle">Head of Security</p>
-              <p>Certified penetration tester and former incident response lead. James oversees SecureWave's zero-trust architecture, conducts internal audits, and manages our external bug bounty program.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Technology -->
-    <section class="section" style="background:var(--sw-bg-alt)">
-      <div class="container">
-        <div class="section-header centered">
-          <span class="section-eyebrow">Engineering</span>
-          <h2>Our Technology</h2>
-          <p>SecureWave combines proven cryptographic standards with intelligent network optimization to deliver a VPN experience that is both secure and fast.</p>
-        </div>
-        <div class="grid grid-2">
-          <div class="card card-elevated">
-            <div class="card-icon card-icon-lg">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            </div>
-            <h4>Adaptive Routing with MARL and XGBoost</h4>
-            <p>Our network optimization layer uses Multi-Agent Reinforcement Learning (MARL) combined with XGBoost gradient boosting to continuously evaluate server health, latency patterns, and load distribution across our global infrastructure. Each routing decision is informed by real-time telemetry, ensuring your traffic always takes the fastest available path.</p>
-          </div>
-          <div class="card card-elevated">
-            <div class="card-icon card-icon-lg">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
-            </div>
-            <h4>Anomaly Detection and Threat Prevention</h4>
-            <p>Machine learning models trained on anonymized network patterns detect unusual connection behavior, potential DDoS attempts, and protocol-level attacks in real time. When anomalies are identified, traffic is automatically rerouted through clean paths, maintaining both security and performance without user intervention.</p>
-          </div>
-          <div class="card card-elevated">
-            <div class="card-icon card-icon-lg">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-            </div>
-            <h4>WireGuard Protocol Integration</h4>
-            <p>SecureWave is built on the WireGuard protocol, a modern tunneling solution with a minimal attack surface and state-of-the-art cryptographic primitives including Curve25519, ChaCha20, and BLAKE2s. Our implementation supports native platform integration on iOS, Android, macOS, Windows, and Linux.</p>
-          </div>
-          <div class="card card-elevated">
-            <div class="card-icon card-icon-lg">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-            </div>
-            <h4>Global Infrastructure</h4>
-            <p>Over 50 server locations across six continents, each running hardened Linux kernels with full-disk encryption and memory-safe configurations. Servers are provisioned through automated pipelines and rotated regularly to minimize the risk of persistent compromise.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CTA Banner -->
-    <section class="section">
-      <div class="container">
-        <div class="cta-banner">
-          <h2>Ready to Secure Your Connection?</h2>
-          <p>Join thousands of users who trust SecureWave to protect their online privacy every day.</p>
-          <a class="btn btn-primary btn-lg" href="/register">Get Started Free</a>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="container">
-      <div class="footer-grid">
+    <footer class="footer">
+      <div class="container footer-top">
         <div class="footer-brand">
-          <a class="nav-brand" href="/"><img src="/img/logo.svg" alt="SecureWave" width="36" height="36"><span>SecureWave</span></a>
-          <p>Enterprise-grade VPN protection for everyone. Secure your connection with military-grade encryption across all your devices.</p>
+          <strong>SecureWave VPN</strong>
+          <p>Modern VPN access with a quieter, more understandable product experience.</p>
         </div>
-        <div class="footer-col"><h5>Product</h5><a href="/home">Features</a><a href="/subscription">Pricing</a><a href="/services">Services</a><a href="/download">Downloads</a></div>
-        <div class="footer-col"><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
-        <div class="footer-col"><h5>Support</h5><a href="/diagnostics">Diagnostics</a><a href="/leak-test">Leak test</a><a href="/contact">Contact</a></div>
+        <div class="footer-columns">
+          <div class="footer-column">
+            <div class="footer-title">Product</div>
+            <a href="/services.html">Services</a>
+            <a href="/subscription.html">Plans</a>
+            <a href="/vpn.html">VPN app</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Support</div>
+            <a href="/contact.html">Contact</a>
+            <a href="/dashboard.html">Dashboard</a>
+            <a href="/diagnostics.html">Diagnostics</a>
+          </div>
+          <div class="footer-column">
+            <div class="footer-title">Legal</div>
+            <a href="/privacy.html">Privacy</a>
+            <a href="/terms.html">Terms</a>
+          </div>
+        </div>
       </div>
-      <div class="footer-bottom">
-        <span class="footer-copy">&copy; <span data-year></span> SecureWave. All rights reserved.</span>
-        <div class="footer-legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
-      </div>
-    </div>
-  </footer>
-
-  <script src="/js/site.js"></script>
+      <div class="container footer-bottom"><span data-year>2026</span> SecureWave. All rights reserved.</div>
+    </footer>
+  </div>
+  <script src="/js/bootstrap.bundle.min.js" defer></script>
+  <script src="/js/site.js" defer></script>
 </body>
 </html>
