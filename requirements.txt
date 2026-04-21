@@ -29,7 +29,7 @@ qrcode==7.4.2
 pillow==10.4.0
 
 # Environment & Configuration
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 pydantic==2.10.6
 pydantic-settings==2.7.0
 email-validator==2.2.0
