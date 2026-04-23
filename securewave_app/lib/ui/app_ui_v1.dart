@@ -11,7 +11,7 @@ class AppUIv1 {
   static const Color surface = Color(0xFF081426);
   static const Color surfaceElevated = Color(0xFF0D1B32);
   static const Color surfaceMuted = Color(0xFF10233D);
-  static const Color surfaceGlass = Color(0xB30A172B);
+  static const Color surfaceGlass = Color(0xD60A172B);
   static const Color accent = Color(0xFF10B7FF);
   static const Color accentStrong = Color(0xFF4C7DFF);
   static const Color accentCyan = Color(0xFF00D5FF);
@@ -58,17 +58,17 @@ class AppUIv1 {
 
   static List<BoxShadow> get shadowSm => [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.20),
-          blurRadius: 12,
-          offset: const Offset(0, 8),
+          color: Colors.black.withValues(alpha: 0.24),
+          blurRadius: 14,
+          offset: const Offset(0, 10),
         ),
       ];
 
   static List<BoxShadow> get shadowMd => [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.32),
-          blurRadius: 24,
-          offset: const Offset(0, 16),
+          blurRadius: 30,
+          offset: const Offset(0, 18),
         ),
       ];
 
@@ -184,11 +184,20 @@ class AppUIv1 {
         ),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: background,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
         foregroundColor: ink,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: surfaceElevated,
+        contentTextStyle: const TextStyle(color: ink),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusM),
+          side: const BorderSide(color: borderStrong),
+        ),
+        behavior: SnackBarBehavior.floating,
       ),
       cardTheme: CardThemeData(
         color: surfaceGlass,

@@ -95,16 +95,15 @@ class _VpnPageState extends ConsumerState<VpnPage> {
     final selectedServerLabel = vpnState.selectedServerId == null
         ? 'Smart location'
         : (serversData == null || serversData.isEmpty)
-        ? vpnState.selectedServerId!
-        : serversData
-              .firstWhere(
-                (server) => server.id == vpnState.selectedServerId,
-                orElse: () => serversData.first,
-              )
-              .name;
+            ? vpnState.selectedServerId!
+            : serversData
+                .firstWhere(
+                  (server) => server.id == vpnState.selectedServerId,
+                  orElse: () => serversData.first,
+                )
+                .name;
 
-    final backendUnreachable =
-        vpnState.status == VpnStatus.error &&
+    final backendUnreachable = vpnState.status == VpnStatus.error &&
         vpnState.errorKind == VpnErrorKind.backendUnreachable;
     final statusText = switch (vpnState.status) {
       VpnStatus.connected => 'Connected',
@@ -255,8 +254,7 @@ class _ConnectionStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isConnected = vpnState.status == VpnStatus.connected;
-    final isBusy =
-        vpnState.status == VpnStatus.connecting ||
+    final isBusy = vpnState.status == VpnStatus.connecting ||
         vpnState.status == VpnStatus.disconnecting;
 
     return SwPanel(
@@ -264,23 +262,28 @@ class _ConnectionStage extends StatelessWidget {
       padding: const EdgeInsets.all(AppUIv1.space5),
       child: Column(
         children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                height: 360,
-                width: double.infinity,
-                child: CustomPaint(
-                  painter: _WorldTracePainter(color: statusColor),
-                ),
-              ),
-              _ConnectCore(
-                status: vpnState.status,
-                color: statusColor,
-                enabled: connectEnabled,
-                onPressed: connectEnabled ? onConnectPressed : null,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stageHeight = constraints.maxWidth < 560 ? 300.0 : 360.0;
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    height: stageHeight,
+                    width: double.infinity,
+                    child: CustomPaint(
+                      painter: _WorldTracePainter(color: statusColor),
+                    ),
+                  ),
+                  _ConnectCore(
+                    status: vpnState.status,
+                    color: statusColor,
+                    enabled: connectEnabled,
+                    onPressed: connectEnabled ? onConnectPressed : null,
+                  ),
+                ],
+              );
+            },
           ),
           AnimatedSwitcher(
             duration: AppUIv1.durationNormal,
@@ -298,8 +301,8 @@ class _ConnectionStage extends StatelessWidget {
                   isConnected
                       ? 'Your connection is secured by the active tunnel.'
                       : isBusy
-                      ? 'SecureWave is negotiating tunnel state.'
-                      : 'Tap the core to connect securely.',
+                          ? 'SecureWave is negotiating tunnel state.'
+                          : 'Tap the core to connect securely.',
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -363,8 +366,47 @@ class _ConnectCoreState extends State<_ConnectCore>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..repeat();
+      duration: _durationFor(widget.status),
+    );
+    _syncMotion();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ConnectCore oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.status != widget.status) _syncMotion();
+  }
+
+  Duration _durationFor(VpnStatus status) {
+    return switch (status) {
+      VpnStatus.connecting ||
+      VpnStatus.disconnecting =>
+        const Duration(milliseconds: 1500),
+      VpnStatus.connected => const Duration(milliseconds: 5200),
+      VpnStatus.error ||
+      VpnStatus.disconnected =>
+        const Duration(milliseconds: 2200),
+    };
+  }
+
+  void _syncMotion() {
+    final nextDuration = _durationFor(widget.status);
+    if (_controller.duration != nextDuration) {
+      _controller
+        ..stop()
+        ..duration = nextDuration;
+    }
+    switch (widget.status) {
+      case VpnStatus.connecting:
+      case VpnStatus.disconnecting:
+      case VpnStatus.connected:
+        _controller.repeat();
+      case VpnStatus.error:
+      case VpnStatus.disconnected:
+        _controller
+          ..stop()
+          ..value = 0;
+    }
   }
 
   @override
@@ -376,21 +418,20 @@ class _ConnectCoreState extends State<_ConnectCore>
   @override
   Widget build(BuildContext context) {
     final isConnected = widget.status == VpnStatus.connected;
-    final isBusy =
-        widget.status == VpnStatus.connecting ||
+    final isBusy = widget.status == VpnStatus.connecting ||
         widget.status == VpnStatus.disconnecting;
     final icon = isBusy
         ? Icons.sync_rounded
         : isConnected
-        ? Icons.stop_rounded
-        : Icons.power_settings_new_rounded;
+            ? Icons.stop_rounded
+            : Icons.power_settings_new_rounded;
     final label = isBusy
         ? widget.status == VpnStatus.disconnecting
-              ? 'Closing'
-              : 'Linking'
+            ? 'Closing'
+            : 'Linking'
         : isConnected
-        ? 'Disconnect'
-        : 'Connect';
+            ? 'Disconnect'
+            : 'Connect';
 
     return AnimatedBuilder(
       animation: _controller,
@@ -444,7 +485,9 @@ class _ConnectCoreState extends State<_ConnectCore>
                         const SizedBox(height: 6),
                         Text(
                           label,
-                          style: Theme.of(context).textTheme.labelMedium
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelMedium
                               ?.copyWith(color: Colors.white, fontSize: 12),
                         ),
                       ],
@@ -501,7 +544,21 @@ class _CoreRingPainter extends CustomPainter {
         stops: const [0, 0.35, 0.70, 1],
         transform: GradientRotation(progress * math.pi * 2),
       ).createShader(Offset.zero & size);
-    canvas.drawCircle(center, 102, sweep);
+    if (busy || connected) {
+      canvas.drawCircle(center, 102, sweep);
+    } else {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: 102),
+        -math.pi * 0.72,
+        math.pi * 1.42,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..color = color.withValues(alpha: 0.38),
+      );
+    }
     if (busy || connected) {
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: 80),
@@ -510,9 +567,9 @@ class _CoreRingPainter extends CustomPainter {
         false,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 5
+          ..strokeWidth = busy ? 5 : 4
           ..strokeCap = StrokeCap.round
-          ..color = color,
+          ..color = connected ? color.withValues(alpha: 0.84) : color,
       );
     }
   }
@@ -642,8 +699,7 @@ class _SideColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active =
-        vpnState.status == VpnStatus.connected ||
+    final active = vpnState.status == VpnStatus.connected ||
         vpnState.status == VpnStatus.connecting ||
         vpnState.status == VpnStatus.disconnecting;
     return Column(
@@ -668,7 +724,7 @@ class _SideColumn extends StatelessWidget {
         const SizedBox(height: AppUIv1.space4),
         AnimatedOpacity(
           duration: AppUIv1.durationNormal,
-          opacity: active ? 1 : 0.45,
+          opacity: active ? 1 : 0.72,
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 480;
@@ -771,8 +827,8 @@ class _NoticeSurface extends StatelessWidget {
     final title = nativeUnavailable && canSimulate
         ? 'Demo mode active'
         : nativeUnavailable
-        ? 'Native tunnel unavailable'
-        : 'Platform note';
+            ? 'Native tunnel unavailable'
+            : 'Platform note';
     final body = nativeUnavailable && canSimulate
         ? 'Native VPN tunnel unavailable on this device. Connections are simulated because mock API mode is enabled.'
         : platformNotice ?? 'Review platform prerequisites before connecting.';

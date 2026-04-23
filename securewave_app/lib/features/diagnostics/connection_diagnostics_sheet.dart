@@ -387,8 +387,10 @@ class _ConnectionDiagnosticsSheetState
             ),
           ),
           const SizedBox(height: AppUIv1.space3),
-          if (_running) const LinearProgressIndicator(minHeight: 2),
-          const SizedBox(height: AppUIv1.space3),
+          if (_running) ...[
+            const SwScanBand(),
+            const SizedBox(height: AppUIv1.space3),
+          ],
           SwPanel(
             accent: AppUIv1.accentCyan,
             child: Column(

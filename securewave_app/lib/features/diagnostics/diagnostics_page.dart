@@ -116,9 +116,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
 
     // Native tunnel availability (local)
     results['native'] = _CheckResult(
-      status: vpnService.isNativeAvailable
-          ? _CheckStatus.ok
-          : _CheckStatus.warn,
+      status:
+          vpnService.isNativeAvailable ? _CheckStatus.ok : _CheckStatus.warn,
       title: 'Native VPN bridge',
       message: vpnService.isNativeAvailable
           ? 'Available.'
@@ -142,9 +141,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       final expiresRaw = await storage.getString(
         SecureStorage.vpnProfileExpiresAtKey,
       );
-      final expiresAt = expiresRaw != null
-          ? DateTime.tryParse(expiresRaw)
-          : null;
+      final expiresAt =
+          expiresRaw != null ? DateTime.tryParse(expiresRaw) : null;
       results['cache'] = _CheckResult(
         status: (cachedConfig != null && cachedConfig.trim().isNotEmpty)
             ? _CheckStatus.info
@@ -296,9 +294,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         final dns = data['dns'] is Map
             ? Map<String, dynamic>.from(data['dns'] as Map)
             : const <String, dynamic>{};
-        final dnsServers = dns['servers'] is List
-            ? (dns['servers'] as List).length
-            : 0;
+        final dnsServers =
+            dns['servers'] is List ? (dns['servers'] as List).length : 0;
         final killSwitch = data['kill_switch'] is Map
             ? Map<String, dynamic>.from(data['kill_switch'] as Map)
             : const <String, dynamic>{};
@@ -465,61 +462,73 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
             const SizedBox(height: AppUIv1.space5),
             SwPanel(
               accent: AppUIv1.accentCyan,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 560;
-                  final runButton = FilledButton.icon(
-                    onPressed: _running ? null : _runChecks,
-                    icon: _running
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.play_arrow_rounded),
-                    label: Text(_running ? 'Running scan' : 'Run diagnostics'),
-                  );
-                  final clearButton = OutlinedButton.icon(
-                    onPressed: _running
-                        ? null
-                        : () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            final storage = SecureStorage();
-                            await storage.delete(
-                              SecureStorage.vpnProfileConfigKey,
-                            );
-                            await storage.delete(
-                              SecureStorage.vpnProfileExpiresAtKey,
-                            );
-                            if (!mounted) return;
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Cached profile cleared'),
-                              ),
-                            );
-                            await _runChecks();
-                          },
-                    icon: const Icon(Icons.cleaning_services_rounded),
-                    label: const Text('Clear cache'),
-                  );
-                  if (compact) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        runButton,
-                        const SizedBox(height: AppUIv1.space3),
-                        clearButton,
-                      ],
-                    );
-                  }
-                  return Row(
-                    children: [
-                      Expanded(child: runButton),
-                      const SizedBox(width: AppUIv1.space3),
-                      clearButton,
-                    ],
-                  );
-                },
+              child: Column(
+                children: [
+                  if (_running) ...[
+                    const SwScanBand(),
+                    const SizedBox(height: AppUIv1.space4),
+                  ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 560;
+                      final runButton = FilledButton.icon(
+                        onPressed: _running ? null : _runChecks,
+                        icon: _running
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.play_arrow_rounded),
+                        label: Text(
+                          _running ? 'Running scan' : 'Run diagnostics',
+                        ),
+                      );
+                      final clearButton = OutlinedButton.icon(
+                        onPressed: _running
+                            ? null
+                            : () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                final storage = SecureStorage();
+                                await storage.delete(
+                                  SecureStorage.vpnProfileConfigKey,
+                                );
+                                await storage.delete(
+                                  SecureStorage.vpnProfileExpiresAtKey,
+                                );
+                                if (!mounted) return;
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Cached profile cleared'),
+                                  ),
+                                );
+                                await _runChecks();
+                              },
+                        icon: const Icon(Icons.cleaning_services_rounded),
+                        label: const Text('Clear cache'),
+                      );
+                      if (compact) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            runButton,
+                            const SizedBox(height: AppUIv1.space3),
+                            clearButton,
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(child: runButton),
+                          const SizedBox(width: AppUIv1.space3),
+                          clearButton,
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: AppUIv1.space4),
@@ -536,6 +545,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final columns = constraints.maxWidth >= 960 ? 2 : 1;
+                  final rowHeight = columns == 2 ? 168.0 : 148.0;
                   return GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -544,7 +554,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                       crossAxisCount: columns,
                       crossAxisSpacing: AppUIv1.space3,
                       mainAxisSpacing: AppUIv1.space3,
-                      mainAxisExtent: 132,
+                      mainAxisExtent: rowHeight,
                     ),
                     itemBuilder: (context, index) {
                       final r = rows[index];
@@ -573,7 +583,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                                               r.details!.trim().isEmpty
                                           ? r.message
                                           : '${r.message}\n${r.details}',
-                                      overflow: TextOverflow.fade,
+                                      maxLines: columns == 2 ? 5 : 4,
+                                      overflow: TextOverflow.ellipsis,
                                       style: Theme.of(
                                         context,
                                       ).textTheme.bodySmall,

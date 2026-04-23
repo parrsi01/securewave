@@ -26,8 +26,7 @@ class SwPage extends StatelessWidget {
     final content = ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: Padding(
-        padding:
-            padding ??
+        padding: padding ??
             const EdgeInsets.symmetric(
               horizontal: AppUIv1.space5,
               vertical: AppUIv1.space4,
@@ -96,8 +95,8 @@ class _SecurityGridPainter extends CustomPainter {
     final wavePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = AppUIv1.accentCyan.withValues(alpha: 0.12);
-    for (var i = 0; i < 4; i++) {
+      ..color = AppUIv1.accentCyan.withValues(alpha: 0.09);
+    for (var i = 0; i < 3; i++) {
       final path = Path();
       final yBase = size.height * (0.18 + i * 0.18);
       path.moveTo(-40, yBase);
@@ -106,6 +105,18 @@ class _SecurityGridPainter extends CustomPainter {
         path.lineTo(x, y);
       }
       canvas.drawPath(path, wavePaint);
+    }
+
+    final diagonalPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7
+      ..color = AppUIv1.accentViolet.withValues(alpha: 0.07);
+    for (double x = -size.height; x < size.width; x += 160) {
+      canvas.drawLine(
+        Offset(x, size.height),
+        Offset(x + size.height, 0),
+        diagonalPaint,
+      );
     }
 
     final scanPaint = Paint()
@@ -145,33 +156,62 @@ class SwPanel extends StatefulWidget {
 
 class _SwPanelState extends State<SwPanel> {
   bool _hovered = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     final accent = widget.accent ?? AppUIv1.borderStrong;
     final borderColor = widget.selected || _hovered ? accent : AppUIv1.border;
-    final content = AnimatedContainer(
+    final lift = widget.onTap == null
+        ? 0.0
+        : _pressed
+            ? 1.0
+            : _hovered
+                ? -2.0
+                : 0.0;
+    final scale = widget.onTap == null
+        ? 1.0
+        : _pressed
+            ? 0.994
+            : _hovered
+                ? 1.004
+                : 1.0;
+    final content = AnimatedScale(
+      scale: scale,
       duration: AppUIv1.durationNormal,
       curve: AppUIv1.curveDefault,
-      padding: widget.padding,
-      decoration: BoxDecoration(
-        color: AppUIv1.surfaceGlass,
-        borderRadius: BorderRadius.circular(AppUIv1.radiusL),
-        border: Border.all(
-          color: borderColor,
-          width: widget.selected ? 1.3 : 1,
+      child: AnimatedContainer(
+        duration: AppUIv1.durationNormal,
+        curve: AppUIv1.curveDefault,
+        transform: Matrix4.translationValues(0, lift, 0),
+        padding: widget.padding,
+        decoration: BoxDecoration(
+          color: AppUIv1.surfaceGlass,
+          borderRadius: BorderRadius.circular(AppUIv1.radiusL),
+          border: Border.all(
+            color: borderColor,
+            width: widget.selected ? 1.3 : 1,
+          ),
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withValues(alpha: widget.selected ? 0.045 : 0.025),
+              Colors.white.withValues(alpha: 0.006),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            ...AppUIv1.shadowSm,
+            if (widget.selected || _hovered)
+              BoxShadow(
+                color: accent.withValues(alpha: 0.18),
+                blurRadius: 30,
+                spreadRadius: -11,
+              ),
+          ],
         ),
-        boxShadow: [
-          ...AppUIv1.shadowSm,
-          if (widget.selected || _hovered)
-            BoxShadow(
-              color: accent.withValues(alpha: 0.16),
-              blurRadius: 26,
-              spreadRadius: -10,
-            ),
-        ],
+        child: widget.child,
       ),
-      child: widget.child,
     );
 
     if (widget.onTap == null) return content;
@@ -184,6 +224,9 @@ class _SwPanelState extends State<SwPanel> {
         child: InkWell(
           borderRadius: BorderRadius.circular(AppUIv1.radiusL),
           onTap: widget.onTap,
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapCancel: () => setState(() => _pressed = false),
+          onTapUp: (_) => setState(() => _pressed = false),
           child: content,
         ),
       ),
@@ -217,9 +260,9 @@ class SwSectionHeader extends StatelessWidget {
               Text(
                 eyebrow.toUpperCase(),
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: AppUIv1.accentCyan,
-                  fontSize: 11,
-                ),
+                      color: AppUIv1.accentCyan,
+                      fontSize: 11,
+                    ),
               ),
               const SizedBox(height: AppUIv1.space1),
               Text(title, style: Theme.of(context).textTheme.headlineSmall),
@@ -351,9 +394,9 @@ class _SwStatusPillState extends State<SwStatusPill>
           Text(
             widget.label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: widget.color,
-              fontSize: 12,
-            ),
+                  color: widget.color,
+                  fontSize: 12,
+                ),
           ),
         ],
       ),
@@ -398,7 +441,26 @@ class SwMetricTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppUIv1.space2),
-          Text(value, style: Theme.of(context).textTheme.titleLarge),
+          AnimatedSwitcher(
+            duration: AppUIv1.durationNormal,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.18),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            child: Text(
+              value,
+              key: ValueKey(value),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
           if (caption != null) ...[
             const SizedBox(height: AppUIv1.space1),
             Text(caption!, style: Theme.of(context).textTheme.bodySmall),
@@ -488,6 +550,95 @@ class SwMiniGraph extends StatelessWidget {
         size: Size.infinite,
       ),
     );
+  }
+}
+
+class SwScanBand extends StatefulWidget {
+  const SwScanBand({super.key, this.color = AppUIv1.accentCyan});
+
+  final Color color;
+
+  @override
+  State<SwScanBand> createState() => _SwScanBandState();
+}
+
+class _SwScanBandState extends State<SwScanBand>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppUIv1.durationScan,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 4,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return CustomPaint(
+            painter: _ScanBandPainter(
+              progress: _controller.value,
+              color: widget.color,
+            ),
+            size: Size.infinite,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ScanBandPainter extends CustomPainter {
+  const _ScanBandPainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final track = Paint()
+      ..color = AppUIv1.surfaceMuted
+      ..strokeWidth = size.height
+      ..strokeCap = StrokeCap.round;
+    final y = size.height / 2;
+    canvas.drawLine(Offset(0, y), Offset(size.width, y), track);
+    final width = size.width * 0.34;
+    final start = (size.width + width) * progress - width;
+    final rect = Rect.fromLTWH(start, 0, width, size.height);
+    final paint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          Colors.transparent,
+          color.withValues(alpha: 0.85),
+          AppUIv1.accentTeal.withValues(alpha: 0.80),
+          Colors.transparent,
+        ],
+      ).createShader(rect);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        const Radius.circular(AppUIv1.radiusFull),
+      ),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScanBandPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
   }
 }
 
