@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6,13 +7,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:platform_info/platform_info.dart';
 
-import '../../core/models/vpn_status.dart';
 import '../../core/config/app_config.dart';
+import '../../core/models/vpn_protocol.dart';
+import '../../core/models/vpn_status.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
-import '../diagnostics/connection_diagnostics_sheet.dart';
 import '../../ui/app_haptics.dart';
 import '../../ui/app_ui_v1.dart';
+import '../../ui/securewave_ui.dart';
+import '../diagnostics/connection_diagnostics_sheet.dart';
 
 class VpnPage extends ConsumerStatefulWidget {
   const VpnPage({super.key});
@@ -33,14 +36,11 @@ class _VpnPageState extends ConsumerState<VpnPage> {
     }
     switch (os) {
       case OperatingSystem.linux:
-        return 'Linux VPN uses wg-quick. Install WireGuard tools and allow '
-            'the app to run elevated commands when prompted.';
+        return 'Linux VPN uses wg-quick. Install WireGuard tools and allow elevated tunnel commands.';
       case OperatingSystem.windows:
-        return 'Windows VPN requires WireGuard for Windows (wireguard.exe). '
-            'Install it to enable native tunneling.';
+        return 'Windows VPN requires WireGuard for Windows (wireguard.exe).';
       case OperatingSystem.macOS:
-        return 'VPN unavailable on macOS (yet). This build does not include the '
-            'required Apple Network Extension entitlements for real tunneling.';
+        return 'VPN unavailable on macOS. This build does not include Network Extension tunnel support.';
       case OperatingSystem.iOS:
       case OperatingSystem.android:
         return null;
@@ -86,37 +86,38 @@ class _VpnPageState extends ConsumerState<VpnPage> {
     final servers = ref.watch(serversProvider);
     final vpnService = ref.watch(vpnServiceProvider);
     final config = ref.watch(appConfigProvider);
+    final platformNotice = _platformNotice();
 
-    final serversData =
-        servers.maybeWhen(data: (data) => data, orElse: () => null);
-
+    final serversData = servers.maybeWhen(
+      data: (data) => data,
+      orElse: () => null,
+    );
     final selectedServerLabel = vpnState.selectedServerId == null
-        ? 'Auto-select'
+        ? 'Smart location'
         : (serversData == null || serversData.isEmpty)
-            ? vpnState.selectedServerId!
-            : serversData
-                .firstWhere(
-                  (server) => server.id == vpnState.selectedServerId,
-                  orElse: () => serversData.first,
-                )
-                .name;
+        ? vpnState.selectedServerId!
+        : serversData
+              .firstWhere(
+                (server) => server.id == vpnState.selectedServerId,
+                orElse: () => serversData.first,
+              )
+              .name;
 
-    final backendUnreachable = vpnState.status == VpnStatus.error &&
+    final backendUnreachable =
+        vpnState.status == VpnStatus.error &&
         vpnState.errorKind == VpnErrorKind.backendUnreachable;
-
     final statusText = switch (vpnState.status) {
       VpnStatus.connected => 'Connected',
-      VpnStatus.connecting => 'Connecting...',
-      VpnStatus.disconnecting => 'Disconnecting...',
+      VpnStatus.connecting => 'Connecting',
+      VpnStatus.disconnecting => 'Disconnecting',
       VpnStatus.error =>
         backendUnreachable ? 'Backend unreachable' : 'Needs attention',
       VpnStatus.disconnected => 'Disconnected',
     };
-
     final statusColor = switch (vpnState.status) {
       VpnStatus.connected => AppUIv1.success,
-      VpnStatus.connecting => AppUIv1.accentSun,
-      VpnStatus.disconnecting => AppUIv1.accentSun,
+      VpnStatus.connecting => AppUIv1.accentCyan,
+      VpnStatus.disconnecting => AppUIv1.warning,
       VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
       VpnStatus.disconnected => AppUIv1.inkSoft,
     };
@@ -124,385 +125,628 @@ class _VpnPageState extends ConsumerState<VpnPage> {
     final isConnected = vpnState.status == VpnStatus.connected;
     final isConnecting = vpnState.status == VpnStatus.connecting;
     final isDisconnecting = vpnState.status == VpnStatus.disconnecting;
-    final platformNotice = _platformNotice();
     final nativeUnavailable = !vpnService.isNativeAvailable;
     final canSimulate = config.useMockApi;
     final canAttemptConnect = !nativeUnavailable || canSimulate;
     final connectEnabled =
         !vpnState.isBusy && (isConnected || canAttemptConnect);
-    final needsSetupTitle = platform.operatingSystem == OperatingSystem.macOS
-        ? 'VPN unavailable'
-        : 'Setup required';
 
-    return SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
-          child: ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppUIv1.space5,
-              vertical: AppUIv1.space4,
-            ),
+    return SwPage(
+      center: false,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= AppUIv1.desktopBreakpoint;
+          final dashboard = Column(
             children: [
-              // ── Notices (collapsed if none) ───────────────────────
-              if (nativeUnavailable && canSimulate) ...[
-                const _NoticeCard(
-                  icon: Icons.info_outline,
-                  color: AppUIv1.accentSun,
-                  title: 'Demo mode',
-                  body: 'Native VPN tunnel unavailable on this device. '
-                      'Connections are simulated. Install the native bridge '
-                      'for real tunnel support.',
-                ),
-                const SizedBox(height: AppUIv1.space3),
-              ] else if (nativeUnavailable && platformNotice != null) ...[
-                _NoticeCard(
-                  icon: Icons.devices,
-                  color: AppUIv1.warning,
-                  title: needsSetupTitle,
-                  body: platformNotice,
-                ),
-                const SizedBox(height: AppUIv1.space3),
-              ] else if (nativeUnavailable) ...[
-                const _NoticeCard(
-                  icon: Icons.warning_amber_rounded,
-                  color: AppUIv1.warning,
-                  title: 'VPN not available',
-                  body:
-                      'Native VPN tunnel unavailable on this device. Install required VPN components and retry.',
-                ),
-                const SizedBox(height: AppUIv1.space3),
-              ],
-              if (platformNotice != null && !nativeUnavailable) ...[
-                _NoticeCard(
-                  icon: Icons.devices,
-                  color: AppUIv1.inkSoft,
-                  body: platformNotice,
-                ),
-                const SizedBox(height: AppUIv1.space3),
-              ],
-
-              // ── Hero connection section ───────────────────────────
-              const SizedBox(height: AppUIv1.space4),
-              Center(
-                child: _ConnectButton(
-                  status: vpnState.status,
-                  statusColor: statusColor,
-                  isBusy: vpnState.isBusy,
-                  onPressed: connectEnabled
-                      ? () {
-                          if (isConnected) {
-                            _pendingDisconnectHaptic = true;
-                            _pendingConnectHaptic = false;
-                            unawaited(AppHaptics.disconnectTap());
-                            ref.read(vpnStateProvider.notifier).disconnect();
-                          } else {
-                            _pendingConnectHaptic = true;
-                            _pendingDisconnectHaptic = false;
-                            unawaited(AppHaptics.connectTap());
-                            ref.read(vpnStateProvider.notifier).connect();
-                          }
-                        }
-                      : null,
+              SwSectionHeader(
+                eyebrow: 'Dashboard',
+                title: 'Secure tunnel control',
+                subtitle:
+                    'Live VPN state, protocol truth, location, diagnostics, and traffic telemetry.',
+                trailing: SwStatusPill(
+                  label: statusText,
+                  color: statusColor,
+                  icon: _statusIcon(vpnState.status),
+                  pulse: isConnecting || isDisconnecting,
                 ),
               ),
               const SizedBox(height: AppUIv1.space5),
-
-              // ── Status label ──────────────────────────────────────
-              Center(
-                child: AnimatedSwitcher(
-                  duration: AppUIv1.durationNormal,
-                  child: Text(
-                    statusText,
-                    key: ValueKey(vpnState.status),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: statusColor,
-                        ),
-                  ),
+              if (nativeUnavailable || platformNotice != null)
+                _NoticeSurface(
+                  nativeUnavailable: nativeUnavailable,
+                  canSimulate: canSimulate,
+                  platformNotice: platformNotice,
                 ),
-              ),
-              const SizedBox(height: AppUIv1.space2),
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => ConnectionDiagnosticsSheet.show(context),
-                  icon: const Icon(Icons.monitor_heart_outlined, size: 18),
-                  label: const Text('Connection diagnostics'),
-                ),
-              ),
-              const SizedBox(height: AppUIv1.space5),
-
-              // ── Server selection row ──────────────────────────────
-              Card(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(AppUIv1.radiusXL),
-                  onTap: () => context.go('/servers'),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppUIv1.space4,
-                      vertical: AppUIv1.space3,
+              if (nativeUnavailable || platformNotice != null)
+                const SizedBox(height: AppUIv1.space4),
+              if (wide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 7,
+                      child: _ConnectionStage(
+                        vpnState: vpnState,
+                        statusText: statusText,
+                        statusColor: statusColor,
+                        selectedServerLabel: selectedServerLabel,
+                        connectEnabled: connectEnabled,
+                        onConnectPressed: () =>
+                            _handleConnectToggle(isConnected),
+                      ),
                     ),
-                    child: Row(
+                    const SizedBox(width: AppUIv1.space4),
+                    Expanded(
+                      flex: 4,
+                      child: _SideColumn(
+                        vpnState: vpnState,
+                        statusColor: statusColor,
+                        selectedServerLabel: selectedServerLabel,
+                      ),
+                    ),
+                  ],
+                )
+              else ...[
+                _ConnectionStage(
+                  vpnState: vpnState,
+                  statusText: statusText,
+                  statusColor: statusColor,
+                  selectedServerLabel: selectedServerLabel,
+                  connectEnabled: connectEnabled,
+                  onConnectPressed: () => _handleConnectToggle(isConnected),
+                ),
+                const SizedBox(height: AppUIv1.space4),
+                _SideColumn(
+                  vpnState: vpnState,
+                  statusColor: statusColor,
+                  selectedServerLabel: selectedServerLabel,
+                ),
+              ],
+            ],
+          );
+          return ListView(children: [dashboard]);
+        },
+      ),
+    );
+  }
+
+  void _handleConnectToggle(bool isConnected) {
+    if (isConnected) {
+      _pendingDisconnectHaptic = true;
+      _pendingConnectHaptic = false;
+      unawaited(AppHaptics.disconnectTap());
+      ref.read(vpnStateProvider.notifier).disconnect();
+      return;
+    }
+    _pendingConnectHaptic = true;
+    _pendingDisconnectHaptic = false;
+    unawaited(AppHaptics.connectTap());
+    ref.read(vpnStateProvider.notifier).connect();
+  }
+
+  IconData _statusIcon(VpnStatus status) {
+    return switch (status) {
+      VpnStatus.connected => Icons.verified_user_rounded,
+      VpnStatus.connecting => Icons.sync_rounded,
+      VpnStatus.disconnecting => Icons.sync_disabled_rounded,
+      VpnStatus.error => Icons.warning_amber_rounded,
+      VpnStatus.disconnected => Icons.shield_outlined,
+    };
+  }
+}
+
+class _ConnectionStage extends StatelessWidget {
+  const _ConnectionStage({
+    required this.vpnState,
+    required this.statusText,
+    required this.statusColor,
+    required this.selectedServerLabel,
+    required this.connectEnabled,
+    required this.onConnectPressed,
+  });
+
+  final VpnState vpnState;
+  final String statusText;
+  final Color statusColor;
+  final String selectedServerLabel;
+  final bool connectEnabled;
+  final VoidCallback onConnectPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final isConnected = vpnState.status == VpnStatus.connected;
+    final isBusy =
+        vpnState.status == VpnStatus.connecting ||
+        vpnState.status == VpnStatus.disconnecting;
+
+    return SwPanel(
+      accent: statusColor,
+      padding: const EdgeInsets.all(AppUIv1.space5),
+      child: Column(
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                height: 360,
+                width: double.infinity,
+                child: CustomPaint(
+                  painter: _WorldTracePainter(color: statusColor),
+                ),
+              ),
+              _ConnectCore(
+                status: vpnState.status,
+                color: statusColor,
+                enabled: connectEnabled,
+                onPressed: connectEnabled ? onConnectPressed : null,
+              ),
+            ],
+          ),
+          AnimatedSwitcher(
+            duration: AppUIv1.durationNormal,
+            child: Column(
+              key: ValueKey(vpnState.status),
+              children: [
+                Text(
+                  statusText.toUpperCase(),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: statusColor),
+                ),
+                const SizedBox(height: AppUIv1.space1),
+                Text(
+                  isConnected
+                      ? 'Your connection is secured by the active tunnel.'
+                      : isBusy
+                      ? 'SecureWave is negotiating tunnel state.'
+                      : 'Tap the core to connect securely.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppUIv1.space5),
+          _ConnectionToolbar(
+            selectedServerLabel: selectedServerLabel,
+            protocol: vpnProtocolLabel(vpnState.protocol),
+          ),
+          if (vpnState.errorMessage != null) ...[
+            const SizedBox(height: AppUIv1.space4),
+            SwPanel(
+              accent: statusColor,
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: statusColor),
+                  const SizedBox(width: AppUIv1.space3),
+                  Expanded(
+                    child: Text(
+                      vpnState.errorMessage!,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: statusColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ConnectCore extends StatefulWidget {
+  const _ConnectCore({
+    required this.status,
+    required this.color,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final VpnStatus status;
+  final Color color;
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  @override
+  State<_ConnectCore> createState() => _ConnectCoreState();
+}
+
+class _ConnectCoreState extends State<_ConnectCore>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isConnected = widget.status == VpnStatus.connected;
+    final isBusy =
+        widget.status == VpnStatus.connecting ||
+        widget.status == VpnStatus.disconnecting;
+    final icon = isBusy
+        ? Icons.sync_rounded
+        : isConnected
+        ? Icons.stop_rounded
+        : Icons.power_settings_new_rounded;
+    final label = isBusy
+        ? widget.status == VpnStatus.disconnecting
+              ? 'Closing'
+              : 'Linking'
+        : isConnected
+        ? 'Disconnect'
+        : 'Connect';
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return SizedBox(
+          width: 238,
+          height: 238,
+          child: CustomPaint(
+            painter: _CoreRingPainter(
+              progress: _controller.value,
+              color: widget.color,
+              busy: isBusy,
+              connected: isConnected,
+            ),
+            child: Center(
+              child: Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: widget.enabled ? widget.onPressed : null,
+                  child: AnimatedContainer(
+                    duration: AppUIv1.durationNormal,
+                    curve: AppUIv1.curveDefault,
+                    width: 126,
+                    height: 126,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: isConnected
+                          ? const LinearGradient(
+                              colors: [AppUIv1.accentTeal, AppUIv1.success],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : AppUIv1.brandGradient,
+                      boxShadow: AppUIv1.glow(widget.color, opacity: 0.42),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: AppUIv1.accentSoft,
-                          child: Icon(Icons.public,
-                              size: 20, color: AppUIv1.accent),
+                        isBusy
+                            ? RotationTransition(
+                                turns: _controller,
+                                child: Icon(
+                                  icon,
+                                  color: Colors.white,
+                                  size: 32,
+                                ),
+                              )
+                            : Icon(icon, color: Colors.white, size: 34),
+                        const SizedBox(height: 6),
+                        Text(
+                          label,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(color: Colors.white, fontSize: 12),
                         ),
-                        const SizedBox(width: AppUIv1.space3),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Server',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              Text(
-                                selectedServerLabel,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right, color: AppUIv1.inkSoft),
                       ],
                     ),
                   ),
                 ),
               ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
-              // ── Error message ─────────────────────────────────────
-              if (vpnState.errorMessage != null) ...[
-                const SizedBox(height: AppUIv1.space3),
-                Container(
-                  padding: const EdgeInsets.all(AppUIv1.space3),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(AppUIv1.radiusM),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        backendUnreachable
-                            ? Icons.cloud_off
-                            : Icons.warning_amber_rounded,
-                        size: 18,
-                        color: statusColor,
-                      ),
-                      const SizedBox(width: AppUIv1.space2),
-                      Expanded(
-                        child: Text(
-                          vpnState.errorMessage!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: statusColor),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+class _CoreRingPainter extends CustomPainter {
+  const _CoreRingPainter({
+    required this.progress,
+    required this.color,
+    required this.busy,
+    required this.connected,
+  });
+
+  final double progress;
+  final Color color;
+  final bool busy;
+  final bool connected;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    for (var i = 0; i < 4; i++) {
+      final radius = 58.0 + i * 24;
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = i == 1 ? 1.4 : 0.8
+          ..color = color.withValues(alpha: 0.22 - i * 0.035),
+      );
+    }
+    final sweep = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..shader = SweepGradient(
+        colors: [
+          Colors.transparent,
+          color,
+          AppUIv1.accentTeal,
+          Colors.transparent,
+        ],
+        stops: const [0, 0.35, 0.70, 1],
+        transform: GradientRotation(progress * math.pi * 2),
+      ).createShader(Offset.zero & size);
+    canvas.drawCircle(center, 102, sweep);
+    if (busy || connected) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: 80),
+        progress * math.pi * 2,
+        busy ? 1.4 : math.pi * 1.65,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5
+          ..strokeCap = StrokeCap.round
+          ..color = color,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CoreRingPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.color != color ||
+        oldDelegate.busy != busy ||
+        oldDelegate.connected != connected;
+  }
+}
+
+class _WorldTracePainter extends CustomPainter {
+  const _WorldTracePainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.9
+      ..color = AppUIv1.borderStrong.withValues(alpha: 0.26);
+    final centerY = size.height * 0.45;
+    for (var i = 0; i < 5; i++) {
+      final rect = Rect.fromCenter(
+        center: Offset(size.width / 2, centerY),
+        width: size.width * (0.42 + i * 0.14),
+        height: size.height * (0.18 + i * 0.08),
+      );
+      canvas.drawOval(rect, paint);
+    }
+    final nodePaint = Paint()..color = color.withValues(alpha: 0.70);
+    for (final offset in const [
+      Offset(0.22, 0.34),
+      Offset(0.38, 0.24),
+      Offset(0.62, 0.30),
+      Offset(0.78, 0.48),
+      Offset(0.31, 0.62),
+      Offset(0.68, 0.66),
+    ]) {
+      canvas.drawCircle(
+        Offset(size.width * offset.dx, size.height * offset.dy),
+        2.4,
+        nodePaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WorldTracePainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
+class _ConnectionToolbar extends StatelessWidget {
+  const _ConnectionToolbar({
+    required this.selectedServerLabel,
+    required this.protocol,
+  });
+
+  final String selectedServerLabel;
+  final String protocol;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 560;
+        final tiles = [
+          SwActionTile(
+            icon: Icons.travel_explore,
+            title: selectedServerLabel,
+            subtitle: 'Location policy',
+            color: AppUIv1.accentCyan,
+            onTap: () => context.go('/servers'),
+            trailing: const Icon(Icons.chevron_right, color: AppUIv1.inkSoft),
+          ),
+          SwActionTile(
+            icon: Icons.hub_outlined,
+            title: protocol,
+            subtitle: 'Active protocol',
+            color: AppUIv1.accentTeal,
+          ),
+          SwActionTile(
+            icon: Icons.monitor_heart_outlined,
+            title: 'Diagnostics',
+            subtitle: 'Readiness scan',
+            color: AppUIv1.accentViolet,
+            onTap: () => ConnectionDiagnosticsSheet.show(context),
+          ),
+        ];
+        if (compact) {
+          return Column(
+            children: [
+              for (final tile in tiles) ...[
+                tile,
+                if (tile != tiles.last) const SizedBox(height: AppUIv1.space3),
               ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (final tile in tiles) ...[
+              Expanded(child: tile),
+              if (tile != tiles.last) const SizedBox(width: AppUIv1.space3),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
 
-              // ── Live activity ─────────────────────────────────────
-              const SizedBox(height: AppUIv1.space4),
-              AnimatedOpacity(
-                duration: AppUIv1.durationNormal,
-                opacity:
-                    isConnected || isConnecting || isDisconnecting ? 1.0 : 0.4,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _MetricTile(
-                        icon: Icons.arrow_downward_rounded,
-                        label: 'Download',
-                        value:
-                            '${vpnState.dataRateDown.toStringAsFixed(1)} Mbps',
-                      ),
-                    ),
-                    const SizedBox(width: AppUIv1.space3),
-                    Expanded(
-                      child: _MetricTile(
-                        icon: Icons.arrow_upward_rounded,
-                        label: 'Upload',
-                        value: '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps',
-                      ),
-                    ),
-                  ],
-                ),
+class _SideColumn extends StatelessWidget {
+  const _SideColumn({
+    required this.vpnState,
+    required this.statusColor,
+    required this.selectedServerLabel,
+  });
+
+  final VpnState vpnState;
+  final Color statusColor;
+  final String selectedServerLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final active =
+        vpnState.status == VpnStatus.connected ||
+        vpnState.status == VpnStatus.connecting ||
+        vpnState.status == VpnStatus.disconnecting;
+    return Column(
+      children: [
+        SwPanel(
+          accent: statusColor,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Connection Status',
+                style: Theme.of(context).textTheme.titleSmall,
               ),
+              const SizedBox(height: AppUIv1.space4),
+              _DetailRow('Protocol', vpnProtocolLabel(vpnState.protocol)),
+              _DetailRow('Location', selectedServerLabel),
+              _DetailRow('Tunnel state', vpnState.status.name),
+              _DetailRow('Traffic source', active ? 'Live session' : 'Idle'),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ── Hero connect button ────────────────────────────────────────────────
-
-class _ConnectButton extends StatelessWidget {
-  const _ConnectButton({
-    required this.status,
-    required this.statusColor,
-    required this.isBusy,
-    required this.onPressed,
-  });
-
-  final VpnStatus status;
-  final Color statusColor;
-  final bool isBusy;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final isConnected = status == VpnStatus.connected;
-    final isWorking =
-        status == VpnStatus.connecting || status == VpnStatus.disconnecting;
-    final isDisconnecting = status == VpnStatus.disconnecting;
-    final buttonColor =
-        (isConnected || isDisconnecting) ? AppUIv1.success : AppUIv1.accent;
-    final ringColor = statusColor.withValues(alpha: 0.15);
-
-    final label = isWorking
-        ? isDisconnecting
-            ? 'Disconnecting'
-            : 'Connecting'
-        : isConnected
-            ? 'Disconnect'
-            : 'Connect';
-
-    final icon = isWorking
-        ? Icons.sync
-        : isConnected
-            ? Icons.stop_rounded
-            : Icons.power_settings_new_rounded;
-
-    return AnimatedContainer(
-      duration: AppUIv1.durationSlow,
-      curve: AppUIv1.curveDefault,
-      width: 160,
-      height: 160,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: ringColor,
-        boxShadow: isConnected
-            ? [
-                BoxShadow(
-                  color: AppUIv1.success.withValues(alpha: 0.15),
-                  blurRadius: 32,
-                  spreadRadius: 4,
-                ),
-              ]
-            : [],
-      ),
-      child: Center(
-        child: AnimatedContainer(
+        const SizedBox(height: AppUIv1.space4),
+        AnimatedOpacity(
           duration: AppUIv1.durationNormal,
-          curve: AppUIv1.curveDefault,
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: buttonColor,
-            boxShadow: AppUIv1.shadowMd,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onPressed,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+          opacity: active ? 1 : 0.45,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 480;
+              final metrics = [
+                SwMetricTile(
+                  icon: Icons.arrow_downward_rounded,
+                  label: 'Download',
+                  value: '${vpnState.dataRateDown.toStringAsFixed(1)} Mbps',
+                  color: AppUIv1.accentCyan,
+                  caption: 'Current rate',
+                ),
+                SwMetricTile(
+                  icon: Icons.arrow_upward_rounded,
+                  label: 'Upload',
+                  value: '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps',
+                  color: AppUIv1.accentTeal,
+                  caption: 'Current rate',
+                ),
+              ];
+              if (compact) {
+                return Column(
+                  children: [
+                    metrics[0],
+                    const SizedBox(height: AppUIv1.space3),
+                    metrics[1],
+                  ],
+                );
+              }
+              return Row(
                 children: [
-                  AnimatedSwitcher(
-                    duration: AppUIv1.durationFast,
-                    child: isWorking
-                        ? SizedBox(
-                            key: const ValueKey('spinner'),
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          )
-                        : Icon(icon,
-                            key: ValueKey(icon), color: Colors.white, size: 32),
-                  ),
-                  const SizedBox(height: 6),
-                  AnimatedSwitcher(
-                    duration: AppUIv1.durationFast,
-                    child: Text(
-                      label,
-                      key: ValueKey(label),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
+                  Expanded(child: metrics[0]),
+                  const SizedBox(width: AppUIv1.space3),
+                  Expanded(child: metrics[1]),
                 ],
-              ),
-            ),
+              );
+            },
           ),
         ),
-      ),
+        const SizedBox(height: AppUIv1.space4),
+        SwPanel(
+          accent: AppUIv1.accentViolet,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Network Activity',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: AppUIv1.space3),
+              const SwMiniGraph(color: AppUIv1.accentCyan),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-// ── Notice card ────────────────────────────────────────────────────────
+class _DetailRow extends StatelessWidget {
+  const _DetailRow(this.label, this.value);
 
-class _NoticeCard extends StatelessWidget {
-  const _NoticeCard({
-    required this.icon,
-    required this.color,
-    required this.body,
-    this.title,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String body;
-  final String? title;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppUIv1.space3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(AppUIv1.radiusM),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppUIv1.space3),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: AppUIv1.space2),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (title != null) ...[
-                  Text(
-                    title!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: color,
-                        ),
-                  ),
-                  const SizedBox(height: 2),
-                ],
-                Text(
-                  body,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.labelMedium,
             ),
           ),
         ],
@@ -511,44 +755,42 @@ class _NoticeCard extends StatelessWidget {
   }
 }
 
-// ── Metric tile ────────────────────────────────────────────────────────
-
-class _MetricTile extends StatelessWidget {
-  const _MetricTile({
-    required this.icon,
-    required this.label,
-    required this.value,
+class _NoticeSurface extends StatelessWidget {
+  const _NoticeSurface({
+    required this.nativeUnavailable,
+    required this.canSimulate,
+    required this.platformNotice,
   });
 
-  final IconData icon;
-  final String label;
-  final String value;
+  final bool nativeUnavailable;
+  final bool canSimulate;
+  final String? platformNotice;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppUIv1.space3),
-      decoration: BoxDecoration(
-        color: AppUIv1.surface,
-        borderRadius: BorderRadius.circular(AppUIv1.radiusL),
-        border: Border.all(color: AppUIv1.border),
-      ),
+    final title = nativeUnavailable && canSimulate
+        ? 'Demo mode active'
+        : nativeUnavailable
+        ? 'Native tunnel unavailable'
+        : 'Platform note';
+    final body = nativeUnavailable && canSimulate
+        ? 'Native VPN tunnel unavailable on this device. Connections are simulated because mock API mode is enabled.'
+        : platformNotice ?? 'Review platform prerequisites before connecting.';
+    final color = nativeUnavailable ? AppUIv1.warning : AppUIv1.inkSoft;
+    return SwPanel(
+      accent: color,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: AppUIv1.accent),
-          const SizedBox(width: AppUIv1.space2),
+          Icon(Icons.info_outline_rounded, color: color),
+          const SizedBox(width: AppUIv1.space3),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: Theme.of(context).textTheme.bodySmall),
-                Text(
-                  value,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
+                Text(title, style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: AppUIv1.space1),
+                Text(body, style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),

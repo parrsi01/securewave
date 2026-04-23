@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../ui/app_ui_v1.dart';
 import '../../services/external_links.dart';
+import '../../ui/app_ui_v1.dart';
+import '../../ui/securewave_ui.dart';
 import '../config/app_config.dart';
-import '../services/auth_session.dart';
 import '../models/vpn_status.dart';
+import '../services/auth_session.dart';
 import '../state/vpn_state.dart';
 
 class AppShell extends ConsumerWidget {
@@ -16,11 +16,30 @@ class AppShell extends ConsumerWidget {
   final Widget child;
 
   static const _destinations = [
-    _NavDestination('Home', Icons.shield_outlined, Icons.shield, '/vpn'),
-    _NavDestination('Servers', Icons.public_outlined, Icons.public, '/servers'),
-    _NavDestination('Account', Icons.person_outline, Icons.person, '/account'),
     _NavDestination(
-        'Settings', Icons.settings_outlined, Icons.settings, '/settings'),
+      'Dashboard',
+      Icons.dashboard_outlined,
+      Icons.dashboard_rounded,
+      '/vpn',
+    ),
+    _NavDestination(
+      'Locations',
+      Icons.travel_explore,
+      Icons.public_rounded,
+      '/servers',
+    ),
+    _NavDestination(
+      'Account',
+      Icons.person_outline_rounded,
+      Icons.person,
+      '/account',
+    ),
+    _NavDestination(
+      'Settings',
+      Icons.tune_rounded,
+      Icons.settings,
+      '/settings',
+    ),
   ];
 
   int _currentIndex(BuildContext context) {
@@ -34,43 +53,43 @@ class AppShell extends ConsumerWidget {
     final currentIndex = _currentIndex(context);
     final vpnState = ref.watch(vpnStateProvider);
     final config = ref.watch(appConfigProvider);
-
-    final backendUnreachable = vpnState.status == VpnStatus.error &&
-        vpnState.errorKind == VpnErrorKind.backendUnreachable;
-
-    final statusColor = switch (vpnState.status) {
-      VpnStatus.connected => AppUIv1.success,
-      VpnStatus.connecting => AppUIv1.accentSun,
-      VpnStatus.disconnecting => AppUIv1.accentSun,
-      VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
-      VpnStatus.disconnected => AppUIv1.inkSoft,
-    };
+    final statusColor = _statusColor(vpnState);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= AppUIv1.tabletBreakpoint;
-
         if (isDesktop) {
           return Scaffold(
-            body: SafeArea(
-              child: Row(
-                children: [
-                  // Desktop: NavigationRail with logo header
-                  _DesktopRail(
-                    currentIndex: currentIndex,
-                    statusColor: statusColor,
-                    vpnStatus: vpnState.status,
-                    onLogout: () => _logout(context, ref),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: child),
-                ],
+            body: SwSecurityBackdrop(
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    _DesktopSidebar(
+                      currentIndex: currentIndex,
+                      vpnStatus: vpnState.status,
+                      statusColor: statusColor,
+                      onLogout: () => _logout(context, ref),
+                    ),
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: AppUIv1.durationNormal,
+                        switchInCurve: AppUIv1.curveEnter,
+                        switchOutCurve: AppUIv1.curveExit,
+                        child: KeyedSubtree(
+                          key: ValueKey(
+                            GoRouterState.of(context).matchedLocation,
+                          ),
+                          child: child,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
         }
 
-        // Mobile: bottom nav + drawer
         final location = GoRouterState.of(context).matchedLocation;
         final isNestedRoute =
             location.startsWith('/settings/') && location != '/settings';
@@ -78,41 +97,23 @@ class AppShell extends ConsumerWidget {
           appBar: isNestedRoute
               ? null
               : AppBar(
-                  title: AnimatedSwitcher(
-                    duration: AppUIv1.durationFast,
-                    child: Row(
-                      key: ValueKey(vpnState.status),
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedContainer(
-                          duration: AppUIv1.durationNormal,
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: AppUIv1.space2),
-                        Text(
-                          'SecureWave',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
-                  ),
+                  titleSpacing: AppUIv1.space4,
+                  title: const SwBrandLockup(compact: true),
                   actions: [
-                    IconButton(
-                      icon: const Icon(Icons.logout, size: 20),
-                      tooltip: 'Sign out',
-                      onPressed: () => _logout(context, ref),
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppUIv1.space2),
+                      child: SwStatusPill(
+                        label: _statusLabel(vpnState.status),
+                        color: statusColor,
+                        pulse: vpnState.status == VpnStatus.connecting ||
+                            vpnState.status == VpnStatus.disconnecting,
+                      ),
                     ),
-                    const SizedBox(width: AppUIv1.space1),
                   ],
                 ),
           drawer: isNestedRoute
               ? null
-              : _AppDrawer(
+              : _MobileDrawer(
                   config: config,
                   vpnStatus: vpnState.status,
                   statusColor: statusColor,
@@ -125,21 +126,53 @@ class AppShell extends ConsumerWidget {
                       ref.read(externalLinksProvider).openUrl(url),
                 ),
           body: child,
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: currentIndex,
-            onDestinationSelected: (index) =>
-                context.go(_destinations[index].route),
-            destinations: _destinations
-                .map((d) => NavigationDestination(
+          bottomNavigationBar: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppUIv1.backgroundStrong,
+              border: Border(
+                top: BorderSide(color: AppUIv1.border.withValues(alpha: 0.8)),
+              ),
+            ),
+            child: NavigationBar(
+              selectedIndex: currentIndex,
+              onDestinationSelected: (index) =>
+                  context.go(_destinations[index].route),
+              destinations: _destinations
+                  .map(
+                    (d) => NavigationDestination(
                       icon: Icon(d.icon),
                       selectedIcon: Icon(d.selectedIcon),
                       label: d.label,
-                    ))
-                .toList(),
+                    ),
+                  )
+                  .toList(),
+            ),
           ),
         );
       },
     );
+  }
+
+  Color _statusColor(VpnState vpnState) {
+    final backendUnreachable = vpnState.status == VpnStatus.error &&
+        vpnState.errorKind == VpnErrorKind.backendUnreachable;
+    return switch (vpnState.status) {
+      VpnStatus.connected => AppUIv1.success,
+      VpnStatus.connecting => AppUIv1.accentCyan,
+      VpnStatus.disconnecting => AppUIv1.warning,
+      VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
+      VpnStatus.disconnected => AppUIv1.inkSoft,
+    };
+  }
+
+  String _statusLabel(VpnStatus status) {
+    return switch (status) {
+      VpnStatus.connected => 'Secure',
+      VpnStatus.connecting => 'Linking',
+      VpnStatus.disconnecting => 'Closing',
+      VpnStatus.error => 'Alert',
+      VpnStatus.disconnected => 'Idle',
+    };
   }
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
@@ -148,80 +181,142 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-// ── Desktop NavigationRail with branding ──────────────────────────────
-
-class _DesktopRail extends StatelessWidget {
-  const _DesktopRail({
+class _DesktopSidebar extends StatelessWidget {
+  const _DesktopSidebar({
     required this.currentIndex,
-    required this.statusColor,
     required this.vpnStatus,
+    required this.statusColor,
     required this.onLogout,
   });
 
   final int currentIndex;
-  final Color statusColor;
   final VpnStatus vpnStatus;
+  final Color statusColor;
   final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 80,
+    return Container(
+      width: 248,
+      margin: const EdgeInsets.all(AppUIv1.space3),
+      decoration: BoxDecoration(
+        color: AppUIv1.surfaceGlass,
+        borderRadius: BorderRadius.circular(AppUIv1.radiusL),
+        border: Border.all(color: AppUIv1.border),
+        boxShadow: AppUIv1.shadowMd,
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: AppUIv1.space4),
-          // Logo
-          SvgPicture.asset(
-            'assets/securewave_logo.svg',
-            width: 32,
-            height: 32,
-          ),
-          const SizedBox(height: AppUIv1.space2),
-          // Status dot
-          AnimatedContainer(
-            duration: AppUIv1.durationNormal,
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: statusColor,
-              shape: BoxShape.circle,
+          Padding(
+            padding: const EdgeInsets.all(AppUIv1.space5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SwBrandLockup(),
+                const SizedBox(height: AppUIv1.space4),
+                SwStatusPill(
+                  label: switch (vpnStatus) {
+                    VpnStatus.connected => 'Protected tunnel active',
+                    VpnStatus.connecting => 'Negotiating tunnel',
+                    VpnStatus.disconnecting => 'Closing tunnel',
+                    VpnStatus.error => 'Action required',
+                    VpnStatus.disconnected => 'Tunnel idle',
+                  },
+                  color: statusColor,
+                  pulse: vpnStatus == VpnStatus.connecting ||
+                      vpnStatus == VpnStatus.disconnecting,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: AppUIv1.space4),
-          // Navigation items
           Expanded(
-            child: NavigationRail(
-              selectedIndex: currentIndex,
-              onDestinationSelected: (index) =>
-                  context.go(AppShell._destinations[index].route),
-              labelType: NavigationRailLabelType.all,
-              backgroundColor: Colors.transparent,
-              destinations: AppShell._destinations
-                  .map((d) => NavigationRailDestination(
-                        icon: Icon(d.icon),
-                        selectedIcon: Icon(d.selectedIcon),
-                        label: Text(d.label),
-                      ))
-                  .toList(),
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: AppUIv1.space3),
+              itemBuilder: (context, index) {
+                final destination = AppShell._destinations[index];
+                final selected = index == currentIndex;
+                return _DesktopNavItem(
+                  destination: destination,
+                  selected: selected,
+                  onTap: () => context.go(destination.route),
+                );
+              },
+              separatorBuilder: (_, __) =>
+                  const SizedBox(height: AppUIv1.space2),
+              itemCount: AppShell._destinations.length,
             ),
           ),
-          // Logout at bottom
-          IconButton(
-            icon: const Icon(Icons.logout, size: 20, color: AppUIv1.inkSoft),
-            tooltip: 'Sign out',
-            onPressed: onLogout,
+          Padding(
+            padding: const EdgeInsets.all(AppUIv1.space3),
+            child: SwActionTile(
+              icon: Icons.logout_rounded,
+              title: 'Sign out',
+              subtitle: 'Clear local session',
+              color: AppUIv1.inkSoft,
+              onTap: onLogout,
+            ),
           ),
-          const SizedBox(height: AppUIv1.space4),
         ],
       ),
     );
   }
 }
 
-// ── Mobile Drawer ─────────────────────────────────────────────────────
+class _DesktopNavItem extends StatelessWidget {
+  const _DesktopNavItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
 
-class _AppDrawer extends StatelessWidget {
-  const _AppDrawer({
+  final _NavDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SwPanel(
+      onTap: onTap,
+      selected: selected,
+      accent: AppUIv1.accentCyan,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppUIv1.space3,
+        vertical: AppUIv1.space3,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            selected ? destination.selectedIcon : destination.icon,
+            color: selected ? AppUIv1.accentCyan : AppUIv1.inkSoft,
+            size: 20,
+          ),
+          const SizedBox(width: AppUIv1.space3),
+          Expanded(
+            child: Text(
+              destination.label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: selected ? AppUIv1.ink : AppUIv1.inkMuted,
+                  ),
+            ),
+          ),
+          AnimatedOpacity(
+            duration: AppUIv1.durationFast,
+            opacity: selected ? 1 : 0,
+            child: const Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: AppUIv1.accentCyan,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileDrawer extends StatelessWidget {
+  const _MobileDrawer({
     required this.config,
     required this.vpnStatus,
     required this.statusColor,
@@ -239,131 +334,115 @@ class _AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusLabel = switch (vpnStatus) {
-      VpnStatus.connected => 'Connected',
-      VpnStatus.connecting => 'Connecting',
-      VpnStatus.disconnecting => 'Disconnecting',
-      VpnStatus.error => 'Needs attention',
-      VpnStatus.disconnected => 'Disconnected',
-    };
-
     return Drawer(
-      child: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(AppUIv1.space5),
-              child: Row(
-                children: [
-                  SvgPicture.asset(
-                    'assets/securewave_logo.svg',
-                    width: 36,
-                    height: 36,
+      backgroundColor: AppUIv1.backgroundStrong,
+      child: SwSecurityBackdrop(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(AppUIv1.space4),
+            child: Column(
+              children: [
+                SwPanel(
+                  accent: statusColor,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SwBrandLockup(),
+                      const SizedBox(height: AppUIv1.space4),
+                      SwStatusPill(
+                        label: switch (vpnStatus) {
+                          VpnStatus.connected => 'Protected',
+                          VpnStatus.connecting => 'Negotiating',
+                          VpnStatus.disconnecting => 'Closing',
+                          VpnStatus.error => 'Needs attention',
+                          VpnStatus.disconnected => 'Disconnected',
+                        },
+                        color: statusColor,
+                        pulse: vpnStatus == VpnStatus.connecting ||
+                            vpnStatus == VpnStatus.disconnecting,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: AppUIv1.space3),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'SecureWave',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                color: statusColor,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              statusLabel,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: statusColor),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                ),
+                const SizedBox(height: AppUIv1.space4),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      _drawerTile(
+                        Icons.dashboard_rounded,
+                        'Dashboard',
+                        () => onNavigate('/vpn'),
+                      ),
+                      _drawerTile(
+                        Icons.travel_explore,
+                        'Locations',
+                        () => onNavigate('/servers'),
+                      ),
+                      _drawerTile(
+                        Icons.person,
+                        'Account',
+                        () => onNavigate('/account'),
+                      ),
+                      _drawerTile(
+                        Icons.tune_rounded,
+                        'Settings',
+                        () => onNavigate('/settings'),
+                      ),
+                      const SizedBox(height: AppUIv1.space3),
+                      _drawerTile(Icons.language, 'Language', () {
+                        Navigator.of(context).maybePop();
+                        context.push('/settings/language');
+                      }),
+                      _drawerTile(
+                        Icons.upgrade_rounded,
+                        'Upgrade plan',
+                        () => onExternalLink(config.upgradeUrl),
+                      ),
+                      _drawerTile(
+                        Icons.open_in_new,
+                        'Web portal',
+                        () => onExternalLink(config.portalUrl),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                SwActionTile(
+                  icon: Icons.logout_rounded,
+                  title: 'Sign out',
+                  subtitle: 'Clear local session',
+                  color: AppUIv1.inkSoft,
+                  onTap: onLogout,
+                ),
+              ],
             ),
-            const Divider(height: 1),
-            // Navigation
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: AppUIv1.space2),
-                children: [
-                  _drawerTile(context, Icons.shield, 'VPN Home',
-                      () => onNavigate('/vpn')),
-                  _drawerTile(context, Icons.public, 'Servers',
-                      () => onNavigate('/servers')),
-                  _drawerTile(context, Icons.person, 'Account',
-                      () => onNavigate('/account')),
-                  _drawerTile(context, Icons.settings, 'Settings',
-                      () => onNavigate('/settings')),
-                  const Divider(height: AppUIv1.space5),
-                  _drawerTile(
-                    context,
-                    Icons.language,
-                    'Language',
-                    () {
-                      Navigator.of(context).maybePop();
-                      context.push('/settings/language');
-                    },
-                  ),
-                  _drawerTile(
-                    context,
-                    Icons.upgrade,
-                    'Upgrade plan',
-                    () => onExternalLink(config.upgradeUrl),
-                  ),
-                  _drawerTile(
-                    context,
-                    Icons.open_in_new,
-                    'Web portal',
-                    () => onExternalLink(config.portalUrl),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            // Logout
-            ListTile(
-              leading: const Icon(Icons.logout, color: AppUIv1.inkSoft),
-              title: Text(
-                'Sign out',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              onTap: onLogout,
-            ),
-            const SizedBox(height: AppUIv1.space2),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _drawerTile(
-    BuildContext context,
-    IconData icon,
-    String label,
-    VoidCallback onTap,
-  ) {
-    return ListTile(
-      leading: Icon(icon, size: 22),
-      title: Text(label),
-      dense: true,
-      onTap: onTap,
+  Widget _drawerTile(IconData icon, String label, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppUIv1.space2),
+      child: SwPanel(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppUIv1.space3,
+          vertical: AppUIv1.space3,
+        ),
+        onTap: onTap,
+        child: Row(
+          children: [
+            Icon(icon, color: AppUIv1.accentCyan, size: 20),
+            const SizedBox(width: AppUIv1.space3),
+            Expanded(
+              child: Builder(
+                builder: (context) =>
+                    Text(label, style: Theme.of(context).textTheme.labelLarge),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

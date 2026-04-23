@@ -15,6 +15,7 @@ import '../../core/services/secure_storage.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
 import '../../ui/app_ui_v1.dart';
+import '../../ui/securewave_ui.dart';
 
 enum _CheckStatus { ok, warn, fail, info }
 
@@ -115,8 +116,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
 
     // Native tunnel availability (local)
     results['native'] = _CheckResult(
-      status:
-          vpnService.isNativeAvailable ? _CheckStatus.ok : _CheckStatus.warn,
+      status: vpnService.isNativeAvailable
+          ? _CheckStatus.ok
+          : _CheckStatus.warn,
       title: 'Native VPN bridge',
       message: vpnService.isNativeAvailable
           ? 'Available.'
@@ -134,12 +136,15 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
 
     // Cached profile presence (local)
     try {
-      final cachedConfig =
-          await storage.getString(SecureStorage.vpnProfileConfigKey);
-      final expiresRaw =
-          await storage.getString(SecureStorage.vpnProfileExpiresAtKey);
-      final expiresAt =
-          expiresRaw != null ? DateTime.tryParse(expiresRaw) : null;
+      final cachedConfig = await storage.getString(
+        SecureStorage.vpnProfileConfigKey,
+      );
+      final expiresRaw = await storage.getString(
+        SecureStorage.vpnProfileExpiresAtKey,
+      );
+      final expiresAt = expiresRaw != null
+          ? DateTime.tryParse(expiresRaw)
+          : null;
       results['cache'] = _CheckResult(
         status: (cachedConfig != null && cachedConfig.trim().isNotEmpty)
             ? _CheckStatus.info
@@ -161,8 +166,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     // Backend checks (network)
     Future<_CheckResult> checkHealth() async {
       try {
-        final resp =
-            await dio.get<Map<String, dynamic>>(_apiPath(config, '/health'));
+        final resp = await dio.get<Map<String, dynamic>>(
+          _apiPath(config, '/health'),
+        );
         final data = resp.data ?? const <String, dynamic>{};
         final status = data['status']?.toString();
         if (status == 'ok') {
@@ -192,8 +198,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
 
     Future<_CheckResult> checkReady() async {
       try {
-        final resp =
-            await dio.get<Map<String, dynamic>>(_apiPath(config, '/ready'));
+        final resp = await dio.get<Map<String, dynamic>>(
+          _apiPath(config, '/ready'),
+        );
         final data = resp.data ?? const <String, dynamic>{};
         final status = data['status']?.toString();
         if (status == 'ready') {
@@ -230,8 +237,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         );
       }
       try {
-        final resp =
-            await dio.get<Map<String, dynamic>>(_apiPath(config, '/user/plan'));
+        final resp = await dio.get<Map<String, dynamic>>(
+          _apiPath(config, '/user/plan'),
+        );
         if (resp.statusCode == 200) {
           return _CheckResult(
             status: _CheckStatus.ok,
@@ -288,8 +296,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         final dns = data['dns'] is Map
             ? Map<String, dynamic>.from(data['dns'] as Map)
             : const <String, dynamic>{};
-        final dnsServers =
-            dns['servers'] is List ? (dns['servers'] as List).length : 0;
+        final dnsServers = dns['servers'] is List
+            ? (dns['servers'] as List).length
+            : 0;
         final killSwitch = data['kill_switch'] is Map
             ? Map<String, dynamic>.from(data['kill_switch'] as Map)
             : const <String, dynamic>{};
@@ -437,106 +446,166 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints:
-                const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
-            child: ListView(
-              padding: const EdgeInsets.all(AppUIv1.space5),
-              children: [
-                Text('Run checks',
-                    style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: AppUIv1.space2),
-                Text(
-                  'These checks help classify common failures (backend unreachable, auth expired, profile provisioning issues, missing WireGuard tools).',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: AppUIv1.space4),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _running ? null : _runChecks,
-                        icon: _running
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.play_arrow),
-                        label: Text(_running ? 'Running…' : 'Run diagnostics'),
-                      ),
-                    ),
-                    const SizedBox(width: AppUIv1.space3),
-                    OutlinedButton(
-                      onPressed: _running
-                          ? null
-                          : () async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              final storage = SecureStorage();
-                              await storage
-                                  .delete(SecureStorage.vpnProfileConfigKey);
-                              await storage
-                                  .delete(SecureStorage.vpnProfileExpiresAtKey);
-                              if (!mounted) return;
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                    content: Text('Cached profile cleared')),
-                              );
-                              await _runChecks();
-                            },
-                      child: const Text('Clear cache'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppUIv1.space4),
-                Card(
-                  child: Column(
-                    children: [
-                      for (final r in rows) ...[
-                        ListTile(
-                          leading: Icon(_statusIcon(r.status),
-                              color: _statusColor(r.status)),
-                          title: Text(r.title),
-                          subtitle: Text(
-                            r.details == null || r.details!.trim().isEmpty
-                                ? r.message
-                                : '${r.message}\n${r.details}',
-                          ),
-                        ),
-                        const Divider(height: 1),
-                      ],
-                      if (rows.isEmpty)
-                        const ListTile(
-                          leading: Icon(Icons.info_outline),
-                          title: Text('No results yet'),
-                          subtitle: Text('Tap "Run diagnostics" to begin.'),
-                        ),
-                    ],
-                  ),
-                ),
-                if (_lastRunAt != null) ...[
-                  const SizedBox(height: AppUIv1.space3),
-                  Text(
-                    'Last run: ${_lastRunAt!.toLocal()}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-                if (_runError != null) ...[
-                  const SizedBox(height: AppUIv1.space3),
-                  Text(
-                    _runError!,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppUIv1.danger),
-                  ),
-                ],
-              ],
+      body: SwPage(
+        center: false,
+        child: ListView(
+          children: [
+            SwSectionHeader(
+              eyebrow: 'Readiness scan',
+              title: 'Diagnostics',
+              subtitle:
+                  'Classifies backend reachability, auth state, profile provisioning, native tunnel availability, and cached profile health.',
+              trailing: SwStatusPill(
+                label: _running ? 'Scanning' : '${rows.length} checks',
+                color: _running ? AppUIv1.accentCyan : AppUIv1.accentTeal,
+                icon: _running ? Icons.radar_rounded : Icons.fact_check_rounded,
+                pulse: _running,
+              ),
             ),
-          ),
+            const SizedBox(height: AppUIv1.space5),
+            SwPanel(
+              accent: AppUIv1.accentCyan,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 560;
+                  final runButton = FilledButton.icon(
+                    onPressed: _running ? null : _runChecks,
+                    icon: _running
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.play_arrow_rounded),
+                    label: Text(_running ? 'Running scan' : 'Run diagnostics'),
+                  );
+                  final clearButton = OutlinedButton.icon(
+                    onPressed: _running
+                        ? null
+                        : () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final storage = SecureStorage();
+                            await storage.delete(
+                              SecureStorage.vpnProfileConfigKey,
+                            );
+                            await storage.delete(
+                              SecureStorage.vpnProfileExpiresAtKey,
+                            );
+                            if (!mounted) return;
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Cached profile cleared'),
+                              ),
+                            );
+                            await _runChecks();
+                          },
+                    icon: const Icon(Icons.cleaning_services_rounded),
+                    label: const Text('Clear cache'),
+                  );
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        runButton,
+                        const SizedBox(height: AppUIv1.space3),
+                        clearButton,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: runButton),
+                      const SizedBox(width: AppUIv1.space3),
+                      clearButton,
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: AppUIv1.space4),
+            if (rows.isEmpty)
+              const SwPanel(
+                child: SwActionTile(
+                  icon: Icons.info_outline_rounded,
+                  title: 'No results yet',
+                  subtitle: 'Tap Run diagnostics to begin.',
+                  color: AppUIv1.inkSoft,
+                ),
+              )
+            else
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 960 ? 2 : 1;
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: rows.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      crossAxisSpacing: AppUIv1.space3,
+                      mainAxisSpacing: AppUIv1.space3,
+                      mainAxisExtent: 132,
+                    ),
+                    itemBuilder: (context, index) {
+                      final r = rows[index];
+                      final color = _statusColor(r.status);
+                      return SwPanel(
+                        accent: color,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(_statusIcon(r.status), color: color),
+                            const SizedBox(width: AppUIv1.space3),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    r.title,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: AppUIv1.space1),
+                                  Expanded(
+                                    child: Text(
+                                      r.details == null ||
+                                              r.details!.trim().isEmpty
+                                          ? r.message
+                                          : '${r.message}\n${r.details}',
+                                      overflow: TextOverflow.fade,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            if (_lastRunAt != null) ...[
+              const SizedBox(height: AppUIv1.space3),
+              Text(
+                'Last run: ${_lastRunAt!.toLocal()}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            if (_runError != null) ...[
+              const SizedBox(height: AppUIv1.space3),
+              Text(
+                _runError!,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppUIv1.danger),
+              ),
+            ],
+          ],
         ),
       ),
     );

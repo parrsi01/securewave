@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../ui/app_ui_v1.dart';
 import '../../core/state/preferences_state.dart';
+import '../../ui/app_ui_v1.dart';
+import '../../ui/securewave_ui.dart';
 
 class LanguagePage extends ConsumerWidget {
   const LanguagePage({super.key});
@@ -13,13 +14,19 @@ class LanguagePage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Language')),
-      body: SafeArea(
+      body: SwPage(
+        maxWidth: AppUIv1.narrowContentMaxWidth,
+        center: false,
         child: ListView(
-          padding: const EdgeInsets.all(AppUIv1.space5),
           children: [
-            Text('Choose your language', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppUIv1.space3),
-            Card(
+            const SwSectionHeader(
+              eyebrow: 'Preferences',
+              title: 'Language',
+              subtitle: 'Choose the interface language for this device.',
+            ),
+            const SizedBox(height: AppUIv1.space5),
+            SwPanel(
+              accent: AppUIv1.accentCyan,
               child: RadioGroup<String>(
                 groupValue: language,
                 onChanged: (value) {
@@ -29,11 +36,11 @@ class LanguagePage extends ConsumerWidget {
                 child: const Column(
                   children: [
                     _LanguageTile(label: 'English', value: 'en'),
-                    Divider(height: 1),
+                    SizedBox(height: AppUIv1.space2),
                     _LanguageTile(label: 'Spanish', value: 'es'),
-                    Divider(height: 1),
+                    SizedBox(height: AppUIv1.space2),
                     _LanguageTile(label: 'French', value: 'fr'),
-                    Divider(height: 1),
+                    SizedBox(height: AppUIv1.space2),
                     _LanguageTile(label: 'German', value: 'de'),
                   ],
                 ),
@@ -47,19 +54,16 @@ class LanguagePage extends ConsumerWidget {
 }
 
 class _LanguageTile extends StatelessWidget {
-  const _LanguageTile({
-    required this.label,
-    required this.value,
-  });
+  const _LanguageTile({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return RadioListTile<String>(
-      title: Text(label),
-      value: value,
+    return SwPanel(
+      padding: EdgeInsets.zero,
+      child: RadioListTile<String>(title: Text(label), value: value),
     );
   }
 }

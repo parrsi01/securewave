@@ -12,6 +12,7 @@ import '../../core/services/vpn_service.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
 import '../../ui/app_ui_v1.dart';
+import '../../ui/securewave_ui.dart';
 
 enum _CheckStatus { ok, warn, fail, info }
 
@@ -39,6 +40,7 @@ class ConnectionDiagnosticsSheet extends ConsumerStatefulWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
+      backgroundColor: AppUIv1.backgroundStrong,
       builder: (context) => const SafeArea(
         child: Padding(
           padding: EdgeInsets.only(top: AppUIv1.space2),
@@ -99,48 +101,63 @@ class _ConnectionDiagnosticsSheetState
 
     // 1) Backend reachable
     if (config.useMockApi) {
-      items.add(const _CheckItem(
-        status: _CheckStatus.info,
-        title: 'Backend reachable',
-        message: 'Skipped (mock API enabled).',
-      ));
+      items.add(
+        const _CheckItem(
+          status: _CheckStatus.info,
+          title: 'Backend reachable',
+          message: 'Skipped (mock API enabled).',
+        ),
+      );
     } else {
       items.add(await _checkHealth(config, token: token));
     }
 
     // 2) Auth valid
     if (!isAuthed) {
-      items.add(const _CheckItem(
-        status: _CheckStatus.fail,
-        title: 'Auth valid',
-        message: 'Not signed in.',
-      ));
+      items.add(
+        const _CheckItem(
+          status: _CheckStatus.fail,
+          title: 'Auth valid',
+          message: 'Not signed in.',
+        ),
+      );
     } else if (config.useMockApi) {
-      items.add(const _CheckItem(
-        status: _CheckStatus.info,
-        title: 'Auth valid',
-        message: 'Token present (mock mode).',
-      ));
+      items.add(
+        const _CheckItem(
+          status: _CheckStatus.info,
+          title: 'Auth valid',
+          message: 'Token present (mock mode).',
+        ),
+      );
     } else {
       items.add(await _checkPlan(config, token: token));
     }
 
     // 3) Profile fetched
     if (!isAuthed) {
-      items.add(const _CheckItem(
-        status: _CheckStatus.info,
-        title: 'Profile fetched',
-        message: 'Skipped (not signed in).',
-      ));
+      items.add(
+        const _CheckItem(
+          status: _CheckStatus.info,
+          title: 'Profile fetched',
+          message: 'Skipped (not signed in).',
+        ),
+      );
     } else if (config.useMockApi) {
-      items.add(const _CheckItem(
-        status: _CheckStatus.info,
-        title: 'Profile fetched',
-        message: 'Simulated (mock mode).',
-      ));
+      items.add(
+        const _CheckItem(
+          status: _CheckStatus.info,
+          title: 'Profile fetched',
+          message: 'Simulated (mock mode).',
+        ),
+      );
     } else {
-      items.add(await _checkProfile(config,
-          token: token, serverId: vpnState.selectedServerId));
+      items.add(
+        await _checkProfile(
+          config,
+          token: token,
+          serverId: vpnState.selectedServerId,
+        ),
+      );
     }
 
     // 4) Native tunnel started
@@ -156,8 +173,9 @@ class _ConnectionDiagnosticsSheetState
   Future<_CheckItem> _checkHealth(AppConfig config, {String? token}) async {
     final dio = _dioFor(config, token: token);
     try {
-      final resp =
-          await dio.get<Map<String, dynamic>>(_apiPath(config, '/health'));
+      final resp = await dio.get<Map<String, dynamic>>(
+        _apiPath(config, '/health'),
+      );
       final status = resp.data?['status']?.toString();
       if (status == 'ok') {
         return const _CheckItem(
@@ -185,8 +203,9 @@ class _ConnectionDiagnosticsSheetState
   Future<_CheckItem> _checkPlan(AppConfig config, {String? token}) async {
     final dio = _dioFor(config, token: token);
     try {
-      final resp =
-          await dio.get<Map<String, dynamic>>(_apiPath(config, '/user/plan'));
+      final resp = await dio.get<Map<String, dynamic>>(
+        _apiPath(config, '/user/plan'),
+      );
       if (resp.statusCode == 200) {
         return const _CheckItem(
           status: _CheckStatus.ok,
@@ -356,32 +375,41 @@ class _ConnectionDiagnosticsSheetState
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Connection diagnostics',
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppUIv1.space2),
-          Text(
-            'Quick, read-only checks to classify connection issues.',
-            style: Theme.of(context).textTheme.bodyMedium,
+          SwSectionHeader(
+            eyebrow: 'Quick scan',
+            title: 'Connection diagnostics',
+            subtitle: 'Read-only checks to classify connection issues.',
+            trailing: SwStatusPill(
+              label: _running ? 'Scanning' : '${_items.length} checks',
+              color: _running ? AppUIv1.accentCyan : AppUIv1.accentTeal,
+              icon: Icons.monitor_heart_outlined,
+              pulse: _running,
+            ),
           ),
           const SizedBox(height: AppUIv1.space3),
           if (_running) const LinearProgressIndicator(minHeight: 2),
           const SizedBox(height: AppUIv1.space3),
-          Card(
+          SwPanel(
+            accent: AppUIv1.accentCyan,
             child: Column(
               children: [
                 for (final item in _items) ...[
-                  ListTile(
-                    leading: Icon(_statusIcon(item.status),
-                        color: _statusColor(item.status)),
-                    title: Text(item.title),
-                    subtitle: Text(item.message),
+                  SwActionTile(
+                    icon: _statusIcon(item.status),
+                    title: item.title,
+                    subtitle: item.message,
+                    color: _statusColor(item.status),
                   ),
-                  const Divider(height: 1),
+                  if (item != _items.last)
+                    const SizedBox(height: AppUIv1.space3),
                 ],
                 if (_items.isEmpty)
-                  const ListTile(
-                    leading: Icon(Icons.info_outline),
-                    title: Text('Running checks…'),
+                  const SwActionTile(
+                    icon: Icons.info_outline,
+                    title: 'Running checks',
+                    subtitle:
+                        'SecureWave is collecting local and backend signals.',
+                    color: AppUIv1.inkSoft,
                   ),
               ],
             ),
