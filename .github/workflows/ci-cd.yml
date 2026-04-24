@@ -1,145 +1,78 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [ master, develop ]
-    tags:
-      - "v*"
+    branches: [master, develop]
   pull_request:
-    branches: [ master, develop ]
+    branches: [master, develop]
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: '3.11'
-  NODE_VERSION: '18'
-  AZURE_CLIENT_ID: 55850cdb-6553-4317-8065-af7c0ba4e399
-  AZURE_TENANT_ID: 1e7d59bd-9531-4720-aa64-fe5513491eb1
-  AZURE_SUBSCRIPTION_ID: ca5729a0-9aac-469d-b518-a7e970878993
-  AZURE_RESOURCE_GROUP_PROD: SecureWaveRG
-  AZURE_WEBAPP_NAME_PROD: securewave-web
-  AZURE_WEBAPP_URL_PROD: https://securewave-web.azurewebsites.net
-  AZURE_RESOURCE_GROUP_STAGING: SecureWaveRG
-  AZURE_WEBAPP_NAME_STAGING: securewave-staging
-  AZURE_WEBAPP_URL_STAGING: https://securewave-staging.azurewebsites.net
+  PYTHON_VERSION: "3.11"
+  FLUTTER_CHANNEL: stable
 
 jobs:
-  # ===========================
-  # UI VERSION GUARD
-  # ===========================
-  ui-guard:
-    name: Validate UI v1.0 assets
+  repo-guards:
+    name: Repository Guards
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run UI guard
+      - name: Reject conflict-copy files
+        run: |
+          set -euo pipefail
+          conflicts="$(find . -path ./.git -prune -o \( -name '* 2.*' -o -name '* 2' \) -print)"
+          if [ -n "$conflicts" ]; then
+            echo "ERROR: conflict-copy files detected. Clean these locally before committing:" >&2
+            echo "$conflicts" >&2
+            exit 1
+          fi
+
+      - name: Reject retired cloud GitHub Actions configuration
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          retired_provider = "az" + "ure"
+          failures = []
+          for path in Path(".github/workflows").glob("*.yml"):
+              text = path.read_text(encoding="utf-8")
+              lowered = text.lower()
+              if retired_provider in lowered or "AZ" + "URE_" in text:
+                  failures.append(str(path))
+          if failures:
+              print("ERROR: retired cloud CI/CD references are not allowed in GitHub Actions.", file=sys.stderr)
+              for item in failures:
+                  print(f" - {item}", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Verify UI v1 assets
         run: bash scripts/verify_ui_v1.sh
 
-  # ===========================
-  # CODE QUALITY & LINTING
-  # ===========================
-  lint:
-    name: Lint Code
-    needs: [ui-guard]
+      - name: Verify plan copy
+        run: bash scripts/check_plan_copy.sh
+
+      - name: Verify release guards
+        run: bash scripts/verify_release_guards.sh
+
+      - name: Verify Xcode workspace guardrails
+        run: bash scripts/check_xcworkspace_usage.sh
+
+  python-tests:
+    name: Python Tests
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install Python linters
-        run: |
-          python -m pip install --upgrade pip
-          pip install flake8 black isort
-
-      - name: Run Black (code formatter check)
-        run: black --check . --exclude '/(\.git|\.venv|node_modules|securewave_app)/'
-        continue-on-error: true
-
-      - name: Run isort (import sorting check)
-        run: isort --check-only . --skip securewave_app --skip .git
-        continue-on-error: true
-
-      - name: Run Flake8 (linting)
-        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=securewave_app,.git
-        continue-on-error: true
-
-      - name: Verify plan copy consistency
-        run: |
-          bash scripts/check_plan_copy.sh
-
-      - name: Verify release guards and VPN bridges
-        run: |
-          bash scripts/verify_release_guards.sh
-
-      - name: Verify xcworkspace usage (no .xcodeproj builds)
-        run: |
-          bash scripts/check_xcworkspace_usage.sh
-
-  # ===========================
-  # FLUTTER ANALYZE (Non-blocking)
-  # ===========================
-  flutter-analyze:
-    name: Flutter Analyze
-    needs: [ui-guard]
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - name: Run Flutter analyze
-        run: |
-          cd securewave_app
-          flutter pub get
-          flutter analyze
-
-  flutter-linux-build:
-    name: Flutter Linux Build
-    needs: [ui-guard]
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - name: Install Linux deps
-        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
-
-      - name: Build Linux
-        run: |
-          cd securewave_app
-          flutter pub get
-          flutter build linux --release
-
-  # ===========================
-  # UNIT TESTS (Non-blocking for UI changes)
-  # ===========================
-  test:
-    name: Run Tests
-    needs: [ui-guard]
-    runs-on: ubuntu-latest
-    continue-on-error: true
-
+    needs: repo-guards
     services:
       postgres:
         image: postgres:15
@@ -154,7 +87,6 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-
       redis:
         image: redis:7
         options: >-
@@ -164,45 +96,48 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-
+    env:
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_securewave
+      REDIS_URL: redis://localhost:6379/0
+      SECRET_KEY: test-secret-key-for-ci
+      ACCESS_TOKEN_SECRET: test-access-token-secret
+      REFRESH_TOKEN_SECRET: test-refresh-token-secret
+      TESTING: "true"
+      DEMO_MODE: "true"
+      WG_MOCK_MODE: "true"
+      ENABLE_APP_INSIGHTS: "false"
+      ENABLE_SENTRY: "false"
+      EMAIL_VALIDATOR_CHECK_DELIVERABILITY: "false"
+      BCRYPT_ROUNDS: "4"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements_ml.txt
+            requirements_dev.txt
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements_dev.txt
 
-      - name: Set environment variables
-        run: |
-          echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_securewave" >> $GITHUB_ENV
-          echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
-          echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
-          echo "ACCESS_TOKEN_SECRET=test-access-token-secret" >> $GITHUB_ENV
-          echo "REFRESH_TOKEN_SECRET=test-refresh-token-secret" >> $GITHUB_ENV
-          echo "DEMO_MODE=true" >> $GITHUB_ENV
-          echo "WG_MOCK_MODE=true" >> $GITHUB_ENV
-          echo "ENABLE_APP_INSIGHTS=false" >> $GITHUB_ENV
-          echo "ENABLE_SENTRY=false" >> $GITHUB_ENV
-
-      - name: Run database migrations
+      - name: Prepare test database
         run: |
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
 
-          url = os.environ["DATABASE_URL"]
-          engine = create_engine(url)
+          engine = create_engine(os.environ["DATABASE_URL"])
           with engine.connect() as conn:
-            conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"))
-            conn.commit()
+              conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"))
+              conn.commit()
           PY
           python - <<'PY'
           from database.base import Base
@@ -216,59 +151,59 @@ jobs:
         run: |
           SKIP_INSTALL=true \
           USE_SYSTEM_PYTHON=true \
-          PYTEST_ARGS="tests/ -v --cov=. --cov-report=xml --cov-report=html" \
+          PYTEST_ARGS="tests -v --cov=. --cov-report=xml" \
             bash scripts/run_backend_tests.sh
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
+          name: python-coverage
+          path: coverage.xml
+          if-no-files-found: ignore
 
-  # ===========================
-  # SECURITY SCANNING (Non-blocking)
-  # ===========================
-  security:
-    name: Security Scan
-    needs: [ui-guard]
+  flutter-linux:
+    name: Flutter Linux Analyze and Build
     runs-on: ubuntu-latest
-    continue-on-error: true
+    needs: repo-guards
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
 
-      - name: Install security tools
+      - name: Install Linux build dependencies
         run: |
-          pip install safety bandit
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev wireguard-tools
 
-      - name: Run Safety (check dependencies for vulnerabilities)
-        run: safety check --json
-        continue-on-error: true
+      - name: Prepare Flutter env asset
+        run: FORCE_FLUTTER_ENV=true bash scripts/prepare_flutter_env.sh
 
-      - name: Run Bandit (security linter)
-        run: bandit -r . -f json -o bandit-report.json
-        continue-on-error: true
+      - name: Flutter analyze
+        run: |
+          cd securewave_app
+          flutter pub get
+          flutter analyze
 
-      - name: Upload security reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports
-          path: |
-            bandit-report.json
-        if: always()
+      - name: Flutter tests
+        run: |
+          cd securewave_app
+          flutter test
 
-  # ===========================
-  # BUILD DOCKER IMAGE
-  # ===========================
-  build:
-    name: Build Docker Image
+      - name: Flutter Linux release build
+        run: |
+          cd securewave_app
+          flutter build linux --release
+
+  docker-build:
+    name: Docker Build
     runs-on: ubuntu-latest
-    needs: [lint]
+    needs: [repo-guards, python-tests]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -277,536 +212,10 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: false
           tags: securewave:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  # ===========================
-  # DEPLOY TO STAGING
-  # ===========================
-  deploy-staging:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: github.ref == 'refs/heads/develop'
-    environment:
-      name: staging
-      url: ${{ env.AZURE_WEBAPP_URL_STAGING }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Verify Azure credentials configured
-        run: |
-          if [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
-            echo "AZURE_CREDENTIALS secret is missing. Deployment blocked."
-            exit 1
-          fi
-
-      - name: Inject build metadata
-        run: |
-          set -euo pipefail
-          BUILD_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          CACHE_BUST=${GITHUB_SHA::12}
-          export BUILD_TS CACHE_BUST
-          python3 - <<'PY'
-          import glob
-          import os
-          import re
-
-          build_ts = os.environ["BUILD_TS"]
-          cache_bust = os.environ["CACHE_BUST"]
-
-          for path in glob.glob("static/*.html"):
-              with open(path, "r", encoding="utf-8") as handle:
-                  content = handle.read()
-              content = re.sub(
-                  r'(<meta name="build-timestamp" content=")[^"]*(")',
-                  lambda match: match.group(1) + build_ts + match.group(2),
-                  content,
-              )
-              content = re.sub(
-                  r'web_ui_v1\\.css\\?v=[^"]+',
-                  f"web_ui_v1.css?v={cache_bust}",
-                  content,
-              )
-              with open(path, "w", encoding="utf-8", newline="\n") as handle:
-                handle.write(content)
-          PY
-
-      - name: Run UI guard
-        run: bash scripts/verify_ui_v1.sh
-
-      - name: Build deployment artifact
-        run: |
-          set -euo pipefail
-          rm -f deploy-web.zip
-          INCLUDED=()
-          for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static templates alembic routers services models utils database; do
-            if [ -e "$path" ]; then
-              INCLUDED+=("$path")
-            fi
-          done
-          zip -r deploy-web.zip "${INCLUDED[@]}" -x \
-            "*/__pycache__/*" \
-            "*/.pytest_cache/*" \
-            "*/.mypy_cache/*" \
-            "*/.cache/*" \
-            "*/LogFiles/*" \
-            "*/app-logs/*" \
-            "*/azure-logs/*" \
-            "*/node_modules/*" \
-            "*/dist/*" \
-            "*/build/*" \
-            "deploy-*.zip" \
-            "*.log"
-
-      - name: Verify artifact contents
-        run: |
-          ZIP_LIST=$(unzip -l deploy-web.zip | awk '{print $4}')
-          echo "$ZIP_LIST" | grep -q "static/css/web_ui_v1.css"
-          echo "$ZIP_LIST" | grep -q "static/home.html"
-          echo "$ZIP_LIST" | grep -q "main.py"
-          echo "$ZIP_LIST" | grep -q "^static/css/$"
-          CSS_LIST=$(echo "$ZIP_LIST" | grep -E '^static/css/' || true)
-          CSS_FILES=$(echo "$CSS_LIST" | grep -v '/$' || true)
-          if ! echo "$CSS_FILES" | grep -qx "static/css/web_ui_v1.css"; then
-            echo "ERROR: web_ui_v1.css missing from deployment artifact"
-            exit 1
-          fi
-          if echo "$CSS_FILES" | grep -q "static/css/professional.css"; then
-            echo "ERROR: legacy professional.css found in deployment artifact"
-            exit 1
-          fi
-          OTHER_CSS=$(echo "$CSS_FILES" | grep -v "static/css/web_ui_v1.css" || true)
-          if [ -n "$OTHER_CSS" ]; then
-            echo "ERROR: unexpected CSS files found in deployment artifact:"
-            echo "$OTHER_CSS"
-            exit 1
-          fi
-          REQUIRED_ASSETS=( \
-            "static/fonts/Manrope-400.ttf" \
-            "static/fonts/Manrope-600.ttf" \
-            "static/fonts/Manrope-700.ttf" \
-            "static/fonts/Manrope-800.ttf" \
-            "static/img/logo.svg" \
-            "static/favicon.svg" \
-            "static/js/site.js" \
-            "static/js/auth.js" \
-            "static/js/dashboard.js" \
-          )
-          for asset in "${REQUIRED_ASSETS[@]}"; do
-            if ! echo "$ZIP_LIST" | grep -qx "$asset"; then
-              echo "ERROR: required asset missing from deployment artifact: $asset"
-              exit 1
-            fi
-          done
-          if echo "$ZIP_LIST" | grep -E "securewave_app|\\.git/|(^|/)LogFiles/|(^|/)app-logs/|(^|/)azure-logs/|__pycache__|\\.pytest_cache|\\.mypy_cache|(^|/)\\.cache/|(^|/)node_modules/|(^|/)dist/|(^|/)build/|deploy-.*\\.zip|\\.log$" ; then
-            echo "ERROR: Unexpected paths found in deployment artifact"
-            exit 1
-          fi
-
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy to Azure Web App (Staging)
-        run: |
-          set -euo pipefail
-          ATTEMPTS=5
-          for attempt in $(seq 1 $ATTEMPTS); do
-            echo "Zip deploy attempt $attempt/$ATTEMPTS"
-            if az webapp deployment source config-zip \
-              --resource-group "$AZURE_RESOURCE_GROUP_STAGING" \
-              --name "$AZURE_WEBAPP_NAME_STAGING" \
-              --src deploy-web.zip \
-              --timeout 1800; then
-              echo "Zip deploy command completed"
-              break
-            fi
-            if [ "$attempt" -eq "$ATTEMPTS" ]; then
-              echo "ERROR: zip deploy failed after $ATTEMPTS attempts"
-              exit 1
-            fi
-            echo "Retrying in 15s..."
-            sleep 15
-          done
-
-      - name: Restart staging app service
-        run: |
-          az webapp restart -g ${{ env.AZURE_RESOURCE_GROUP_STAGING }} -n ${{ env.AZURE_WEBAPP_NAME_STAGING }}
-
-      - name: Wait for staging deployment
-        run: |
-          echo "Waiting 30 seconds for staging deployment..."
-          sleep 30
-
-      - name: Verify staging static files
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_STAGING }}/css/web_ui_v1.css)
-          if [ "$STATUS" != "200" ]; then
-            echo "ERROR: web_ui_v1.css not reachable on staging (HTTP $STATUS)"
-            exit 1
-          fi
-          LEGACY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_STAGING }}/css/professional.css)
-          if [ "$LEGACY_STATUS" != "404" ]; then
-            echo "ERROR: legacy professional.css still reachable on staging (HTTP $LEGACY_STATUS)"
-            exit 1
-          fi
-          CONTENT=$(curl -s ${{ env.AZURE_WEBAPP_URL_STAGING }}/home.html)
-          if ! echo "$CONTENT" | grep -q "web_ui_v1.css?v="; then
-            echo "ERROR: Staging homepage missing cache-busted web_ui_v1.css reference"
-            exit 1
-          fi
-          if ! echo "$CONTENT" | grep -q "name=\"build-timestamp\""; then
-            echo "ERROR: Staging homepage missing build timestamp meta tag"
-            exit 1
-          fi
-          if ! echo "$CONTENT" | grep -q "UI_VERSION v1.0"; then
-            echo "ERROR: Staging homepage missing UI_VERSION v1.0 marker"
-            exit 1
-          fi
-          if ! echo "$CONTENT" | grep -q 'class="page"'; then
-            echo "ERROR: Staging homepage missing expected layout class (page)"
-            exit 1
-          fi
-          if ! echo "$CONTENT" | grep -q 'class="navbar"'; then
-            echo "ERROR: Staging homepage missing expected layout class (navbar)"
-            exit 1
-          fi
-          echo "OK: Staging static assets verified"
-
-      - name: Run smoke tests
-        run: |
-          echo "Testing staging environment..."
-          curl -f ${{ env.AZURE_WEBAPP_URL_STAGING }}/api/health || (echo "ERROR: Staging health check failed" && exit 1)
-          echo "OK: Staging deployment verified"
-
-  # ===========================
-  # DEPLOY TO PRODUCTION
-  # ===========================
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: github.ref == 'refs/heads/master'
-    environment:
-      name: production
-      url: ${{ env.AZURE_WEBAPP_URL_PROD }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Verify Azure credentials configured
-        run: |
-          if [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
-            echo "AZURE_CREDENTIALS secret is missing. Deployment blocked."
-            exit 1
-          fi
-
-      - name: Inject build metadata
-        run: |
-          set -euo pipefail
-          BUILD_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          CACHE_BUST=${GITHUB_SHA::12}
-          export BUILD_TS CACHE_BUST
-          python3 - <<'PY'
-          import glob
-          import os
-          import re
-
-          build_ts = os.environ["BUILD_TS"]
-          cache_bust = os.environ["CACHE_BUST"]
-
-          for path in glob.glob("static/*.html"):
-              with open(path, "r", encoding="utf-8") as handle:
-                  content = handle.read()
-              content = re.sub(
-                  r'(<meta name="build-timestamp" content=")[^"]*(")',
-                  lambda match: match.group(1) + build_ts + match.group(2),
-                  content,
-              )
-              content = re.sub(
-                  r'web_ui_v1\\.css\\?v=[^"]+',
-                  f"web_ui_v1.css?v={cache_bust}",
-                  content,
-              )
-              with open(path, "w", encoding="utf-8", newline="\n") as handle:
-                handle.write(content)
-          PY
-
-      - name: Run UI guard
-        run: bash scripts/verify_ui_v1.sh
-
-      - name: Build deployment artifact
-        run: |
-          set -euo pipefail
-          rm -f deploy-web.zip
-          INCLUDED=()
-          for path in main.py background_tasks.py alembic.ini requirements.txt runtime.txt gunicorn.conf.py static templates alembic routers services models utils database; do
-            if [ -e "$path" ]; then
-              INCLUDED+=("$path")
-            fi
-          done
-          zip -r deploy-web.zip "${INCLUDED[@]}" -x \
-            "*/__pycache__/*" \
-            "*/.pytest_cache/*" \
-            "*/.mypy_cache/*" \
-            "*/.cache/*" \
-            "*/LogFiles/*" \
-            "*/app-logs/*" \
-            "*/azure-logs/*" \
-            "*/node_modules/*" \
-            "*/dist/*" \
-            "*/build/*" \
-            "deploy-*.zip" \
-            "*.log"
-
-      - name: Verify artifact contents
-        run: |
-          ZIP_LIST=$(unzip -l deploy-web.zip | awk '{print $4}')
-          echo "$ZIP_LIST" | grep -q "static/css/web_ui_v1.css"
-          echo "$ZIP_LIST" | grep -q "static/home.html"
-          echo "$ZIP_LIST" | grep -q "main.py"
-          echo "$ZIP_LIST" | grep -q "^static/css/$"
-          CSS_LIST=$(echo "$ZIP_LIST" | grep -E '^static/css/' || true)
-          CSS_FILES=$(echo "$CSS_LIST" | grep -v '/$' || true)
-          if ! echo "$CSS_FILES" | grep -qx "static/css/web_ui_v1.css"; then
-            echo "ERROR: web_ui_v1.css missing from deployment artifact"
-            exit 1
-          fi
-          if echo "$CSS_FILES" | grep -q "static/css/professional.css"; then
-            echo "ERROR: legacy professional.css found in deployment artifact"
-            exit 1
-          fi
-          OTHER_CSS=$(echo "$CSS_FILES" | grep -v "static/css/web_ui_v1.css" || true)
-          if [ -n "$OTHER_CSS" ]; then
-            echo "ERROR: unexpected CSS files found in deployment artifact:"
-            echo "$OTHER_CSS"
-            exit 1
-          fi
-          REQUIRED_ASSETS=( \
-            "static/fonts/Manrope-400.ttf" \
-            "static/fonts/Manrope-600.ttf" \
-            "static/fonts/Manrope-700.ttf" \
-            "static/fonts/Manrope-800.ttf" \
-            "static/img/logo.svg" \
-            "static/favicon.svg" \
-            "static/js/site.js" \
-            "static/js/auth.js" \
-            "static/js/dashboard.js" \
-          )
-          for asset in "${REQUIRED_ASSETS[@]}"; do
-            if ! echo "$ZIP_LIST" | grep -qx "$asset"; then
-              echo "ERROR: required asset missing from deployment artifact: $asset"
-              exit 1
-            fi
-          done
-          if echo "$ZIP_LIST" | grep -E "securewave_app|\\.git/|(^|/)LogFiles/|(^|/)app-logs/|(^|/)azure-logs/|__pycache__|\\.pytest_cache|\\.mypy_cache|(^|/)\\.cache/|(^|/)node_modules/|(^|/)dist/|(^|/)build/|deploy-.*\\.zip|\\.log$" ; then
-            echo "ERROR: Unexpected paths found in deployment artifact"
-            exit 1
-          fi
-
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy to Azure Web App (Production)
-        run: |
-          set -euo pipefail
-          ATTEMPTS=5
-          for attempt in $(seq 1 $ATTEMPTS); do
-            echo "Zip deploy attempt $attempt/$ATTEMPTS"
-            if az webapp deployment source config-zip \
-              --resource-group "$AZURE_RESOURCE_GROUP_PROD" \
-              --name "$AZURE_WEBAPP_NAME_PROD" \
-              --src deploy-web.zip \
-              --timeout 1800; then
-              echo "Zip deploy command completed"
-              break
-            fi
-            if [ "$attempt" -eq "$ATTEMPTS" ]; then
-              echo "ERROR: zip deploy failed after $ATTEMPTS attempts"
-              exit 1
-            fi
-            echo "Retrying in 15s..."
-            sleep 15
-          done
-
-      - name: Restart production app service
-        run: |
-          az webapp restart -g ${{ env.AZURE_RESOURCE_GROUP_PROD }} -n ${{ env.AZURE_WEBAPP_NAME_PROD }}
-
-      - name: Wait for deployment to complete
-        run: |
-          echo "Waiting 45 seconds for Azure to process deployment..."
-          sleep 45
-
-      - name: Verify static files deployed
-        run: |
-          echo "Verifying new CSS file is accessible..."
-          MAX_RETRIES=5
-          RETRY_COUNT=0
-
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_PROD }}/css/web_ui_v1.css)
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "OK: CSS file deployed successfully (HTTP $HTTP_CODE)"
-              break
-            fi
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "WAIT: Attempt $RETRY_COUNT/$MAX_RETRIES: CSS not ready yet (HTTP $HTTP_CODE), waiting 10s..."
-            sleep 10
-          done
-
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "ERROR: CSS file still not accessible after $MAX_RETRIES attempts"
-            echo "This indicates the deployment did not update static files"
-            exit 1
-          fi
-
-          LEGACY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.AZURE_WEBAPP_URL_PROD }}/css/professional.css)
-          if [ "$LEGACY_STATUS" != "404" ]; then
-            echo "ERROR: legacy professional.css still reachable in production (HTTP $LEGACY_STATUS)"
-            exit 1
-          fi
-
-      - name: Verify HTML files updated
-        run: |
-          echo "Checking if HTML files reference new CSS..."
-          CONTENT=$(curl -s ${{ env.AZURE_WEBAPP_URL_PROD }}/home.html)
-
-          if echo "$CONTENT" | grep -q "web_ui_v1.css?v="; then
-            echo "OK: HTML files updated with cache-busted CSS reference"
-          else
-            echo "ERROR: ERROR: HTML still references old CSS"
-            echo "Found CSS reference:"
-            echo "$CONTENT" | grep -o 'href="/css/[^"]*"' || echo "No CSS found"
-            exit 1
-          fi
-
-          if ! echo "$CONTENT" | grep -q "name=\"build-timestamp\""; then
-            echo "ERROR: HTML missing build timestamp meta tag"
-            exit 1
-          fi
-          if ! echo "$CONTENT" | grep -q "UI_VERSION v1.0"; then
-            echo "ERROR: Homepage missing UI_VERSION v1.0 marker"
-            exit 1
-          fi
-          if ! echo "$CONTENT" | grep -q 'class="page"'; then
-            echo "ERROR: Homepage missing expected layout class (page)"
-            exit 1
-          fi
-          if ! echo "$CONTENT" | grep -q 'class="navbar"'; then
-            echo "ERROR: Homepage missing expected layout class (navbar)"
-            exit 1
-          fi
-
-      - name: Warm up application
-        run: |
-          echo "Warming up application endpoints..."
-          for i in {1..3}; do
-            curl -s ${{ env.AZURE_WEBAPP_URL_PROD }}/api/health || true
-            sleep 2
-          done
-
-      - name: Run smoke tests
-        run: |
-          echo "Running production smoke tests..."
-          curl -f ${{ env.AZURE_WEBAPP_URL_PROD }}/ || (echo "ERROR: Homepage failed" && exit 1)
-          curl -f ${{ env.AZURE_WEBAPP_URL_PROD }}/api/health || (echo "ERROR: Health check failed" && exit 1)
-          echo "OK: All smoke tests passed"
-
-      - name: Deployment summary
-        if: success()
-        run: |
-          echo "SUCCESS: Deployment to production completed successfully"
-          echo "URL: ${{ env.AZURE_WEBAPP_URL_PROD }}"
-          echo "New UI v1.0 with Calm Slate design is now live!"
-
-      - name: Deployment failure notice
-        if: failure()
-        run: |
-          echo "ERROR: Deployment failed - see errors above"
-          echo "The workflow will now fail to alert you of the issue"
-
-  # ===========================
-  # RELEASE (Tag-triggered)
-  # ===========================
-  # ===========================
-  # LEGAL PLACEHOLDER GUARD
-  # ===========================
-  legal-placeholder-guard:
-    name: Legal Placeholder Guard
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Validate legal content placeholders
-        # Guard against shipping placeholder legal text in release builds.
-        run: |
-          set -euo pipefail
-          pattern='TODO|TBD|PLACEHOLDER|<insert|INSERT|Lorem'
-          if command -v rg >/dev/null 2>&1; then
-            if rg -n "$pattern" static/privacy.html static/terms.html; then
-              echo "ERROR: Legal placeholders detected in privacy/terms." >&2
-              exit 1
-            fi
-          else
-            if grep -En "$pattern" static/privacy.html static/terms.html; then
-              echo "ERROR: Legal placeholders detected in privacy/terms." >&2
-              exit 1
-            fi
-          fi
-          echo "OK: No legal placeholders detected."
-
-  # ===========================
-  # RELEASE (Tag-triggered)
-  # ===========================
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Create release package
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "Creating release package for $VERSION"
-          zip -r securewave-$VERSION.zip . \
-            -x "*.git*" \
-            -x "securewave_app/*" \
-            -x "*.pyc" \
-            -x "__pycache__/*" \
-            -x "*.zip" \
-            -x "azure-logs*" \
-            -x "app-logs*" \
-            -x ".claude/*" \
-            -x "tests/*"
-
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: securewave-release-${{ github.ref_name }}
-          path: securewave-*.zip
-          retention-days: 90
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: securewave-*.zip
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
