@@ -2,7 +2,7 @@
 """
 Initialize the production WireGuard server in the database.
 
-This script registers the live WireGuard VM (securewave-wg) so that
+This script registers the live WireGuard Linux host so that
 the VPN allocation flow can generate real, working configurations.
 
 Run this once after the WG VM is provisioned:
@@ -25,22 +25,25 @@ from database.session import SessionLocal
 from models.vpn_server import VPNServer
 
 
-# Live WireGuard server configuration
+# Live WireGuard server configuration. Prefer the Hetzner sync script for
+# production fleets; this script is a minimal single-host registry helper.
 PRODUCTION_SERVER = {
-    "server_id": "eu-west-001",
-    "location": "West Europe",
-    "country": "Netherlands",
-    "country_code": "NL",
-    "city": "Amsterdam",
-    "region": "Europe",
-    "latitude": 52.3676,
-    "longitude": 4.9041,
-    "azure_region": "westeurope",
-    "azure_resource_group": "SecureWaveRG",
-    "azure_vm_name": "securewave-wg",
-    "public_ip": "172.201.201.2",
-    "wg_listen_port": 51820,
-    "wg_public_key": "f/C/Zvq4r2FxUBwglIT65ozbX51oRi6+tOdVW4JI7lk=",
+    "server_id": os.getenv("WG_SERVER_ID", "securewave-01"),
+    "location": os.getenv("WG_SERVER_LOCATION", "Ashburn, US"),
+    "country": os.getenv("WG_SERVER_COUNTRY", "United States"),
+    "country_code": os.getenv("WG_SERVER_COUNTRY_CODE", "US"),
+    "city": os.getenv("WG_SERVER_CITY", "Ashburn"),
+    "region": os.getenv("WG_SERVER_REGION", "Americas"),
+    "latitude": float(os.getenv("WG_SERVER_LATITUDE", "39.0438")),
+    "longitude": float(os.getenv("WG_SERVER_LONGITUDE", "-77.4874")),
+    "hcloud_location": os.getenv("HCLOUD_LOCATION", "ash"),
+    "hcloud_server_id": os.getenv("HCLOUD_SERVER_ID", ""),
+    "hcloud_server_name": os.getenv("HCLOUD_SERVER_NAME", os.getenv("WG_SERVER_ID", "securewave-01")),
+    "hcloud_server_type": os.getenv("HCLOUD_SERVER_TYPE", "cx33"),
+    "hcloud_server_state": os.getenv("HCLOUD_SERVER_STATE", "running"),
+    "public_ip": os.getenv("WG_SERVER_PUBLIC_IP", ""),
+    "wg_listen_port": int(os.getenv("WG_LISTEN_PORT", "51820")),
+    "wg_public_key": os.getenv("WG_SERVER_PUBLIC_KEY", ""),
     "max_connections": 1000,
     "tier_restriction": None,  # Available to all users
     "priority": 100,
@@ -49,6 +52,9 @@ PRODUCTION_SERVER = {
 
 def init_production_server():
     """Register the production WireGuard server in the database."""
+    if not PRODUCTION_SERVER["public_ip"] or not PRODUCTION_SERVER["wg_public_key"]:
+        raise RuntimeError("WG_SERVER_PUBLIC_IP and WG_SERVER_PUBLIC_KEY must be set")
+
     db = SessionLocal()
 
     try:
@@ -78,7 +84,7 @@ def init_production_server():
             if existing.status != "active":
                 print(f"\nActivating server (was: {existing.status})")
                 existing.status = "active"
-                existing.azure_vm_state = "running"
+                existing.hcloud_server_state = "running"
 
             db.commit()
             print("\nServer updated successfully.")
@@ -94,9 +100,11 @@ def init_production_server():
             region=PRODUCTION_SERVER["region"],
             latitude=PRODUCTION_SERVER["latitude"],
             longitude=PRODUCTION_SERVER["longitude"],
-            azure_region=PRODUCTION_SERVER["azure_region"],
-            azure_resource_group=PRODUCTION_SERVER["azure_resource_group"],
-            azure_vm_name=PRODUCTION_SERVER["azure_vm_name"],
+            hcloud_location=PRODUCTION_SERVER["hcloud_location"],
+            hcloud_server_id=PRODUCTION_SERVER["hcloud_server_id"] or None,
+            hcloud_server_name=PRODUCTION_SERVER["hcloud_server_name"],
+            hcloud_server_type=PRODUCTION_SERVER["hcloud_server_type"],
+            hcloud_server_state=PRODUCTION_SERVER["hcloud_server_state"],
             public_ip=PRODUCTION_SERVER["public_ip"],
             endpoint=f"{PRODUCTION_SERVER['public_ip']}:{PRODUCTION_SERVER['wg_listen_port']}",
             wg_listen_port=PRODUCTION_SERVER["wg_listen_port"],
@@ -107,7 +115,6 @@ def init_production_server():
             priority=PRODUCTION_SERVER["priority"],
             status="active",
             health_status="healthy",
-            azure_vm_state="running",
             provisioned_at=datetime.utcnow(),
         )
 

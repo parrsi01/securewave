@@ -1,7 +1,7 @@
 # SecureWave Demo Flow
 
 ## Preconditions
-- App running on Azure App Service
+- App running locally or on the supported Hetzner-backed deployment
 - WG server reachable at `WG_ENDPOINT`
 - `WG_MOCK_MODE=false` for real config generation
 

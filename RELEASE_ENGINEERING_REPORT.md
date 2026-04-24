@@ -136,7 +136,7 @@ Release Build → kIsReleaseMode = true
 | # | Task | Why Human-Only | Est. Effort |
 |---|------|----------------|-------------|
 | 1 | Configure SMTP secrets in GitHub | Requires access to email provider credentials | 15 min |
-| 2 | Generate and store Fernet keys | Requires secure key storage (Azure Key Vault) | 30 min |
+| 2 | Generate and store Fernet keys | Requires approved secure key storage | 30 min |
 | 3 | Create Android signing keystore | Requires secure private key generation | 30 min |
 | 4 | Obtain Apple Developer Team ID | Requires Apple Developer account | N/A |
 | 5 | Configure iOS code signing | Requires provisioning profiles + certificates | 2 hrs |
@@ -151,7 +151,7 @@ Release Build → kIsReleaseMode = true
 | 9 | Review and finalize privacy policy text | Legal review required |
 | 10 | Review and finalize terms of service text | Legal review required |
 | 11 | Configure production API endpoint URLs | Infrastructure decision |
-| 12 | Set up monitoring (Sentry/App Insights) | Account credentials required |
+| 12 | Set up monitoring (Sentry or equivalent) | Account credentials required |
 
 ---
 
@@ -306,7 +306,7 @@ base64 -w 0 securewave-release.jks > keystore-base64.txt
 # Copy contents of keystore-base64.txt to ANDROID_KEYSTORE_BASE64 secret
 cat keystore-base64.txt
 
-# IMPORTANT: Store original keystore securely (Azure Key Vault, etc.)
+# IMPORTANT: Store original keystore securely in the approved secret store
 # DO NOT commit keystore to git
 ```
 

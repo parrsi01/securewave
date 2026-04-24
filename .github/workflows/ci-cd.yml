@@ -36,22 +36,34 @@ jobs:
             exit 1
           fi
 
-      - name: Reject retired cloud GitHub Actions configuration
+      - name: Reject retired cloud references
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+          import subprocess
           import sys
 
-          retired_provider = "az" + "ure"
+          terms = [
+              "az" + "ure",
+              "az" + "urewebsites",
+              "application" + "insights",
+              "opencensus.ext." + "az" + "ure",
+              "key" + " vault",
+          ]
+          upper_terms = ["AZ" + "URE_"]
           failures = []
-          for path in Path(".github/workflows").glob("*.yml"):
-              text = path.read_text(encoding="utf-8")
+          files = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+          for filename in files:
+              if filename.startswith("securewave_app/ios/ThirdParty/"):
+                  continue
+              path = Path(filename)
+              text = path.read_text(encoding="utf-8", errors="ignore")
               lowered = text.lower()
-              if retired_provider in lowered or "AZ" + "URE_" in text:
-                  failures.append(str(path))
+              if any(term in lowered for term in terms) or any(term in text for term in upper_terms):
+                  failures.append(filename)
           if failures:
-              print("ERROR: retired cloud CI/CD references are not allowed in GitHub Actions.", file=sys.stderr)
+              print("ERROR: retired cloud references are not allowed in tracked files.", file=sys.stderr)
               for item in failures:
                   print(f" - {item}", file=sys.stderr)
               sys.exit(1)
@@ -105,7 +117,6 @@ jobs:
       TESTING: "true"
       DEMO_MODE: "true"
       WG_MOCK_MODE: "true"
-      ENABLE_APP_INSIGHTS: "false"
       ENABLE_SENTRY: "false"
       EMAIL_VALIDATOR_CHECK_DELIVERABILITY: "false"
       BCRYPT_ROUNDS: "4"

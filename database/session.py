@@ -46,17 +46,17 @@ if DATABASE_URL.startswith("sqlite:///"):
     # Extract the path after sqlite:///
     db_path = DATABASE_URL.replace("sqlite:///", "")
 
-    # Ensure production SQLite uses persistent storage on Azure
+    # Ensure production SQLite uses a persistent path when explicitly selected.
     if IS_PRODUCTION:
         temp_dir = tempfile.gettempdir()
         if db_path in ("", ":memory:") or db_path.startswith(f"{temp_dir}{os.sep}"):
-            db_path = "/home/site/securewave.db"
+            db_path = os.getenv("SECUREWAVE_SQLITE_PATH", "/app/data/securewave.db")
             DATABASE_URL = f"sqlite:///{db_path}"
 
     # Preserve in-memory SQLite for tests/dev
     if db_path == ":memory:":
         DATABASE_URL = "sqlite:///:memory:"
-    # For Azure/Cloud: use /tmp if not absolute path
+    # For relative paths, use the system temp directory.
     elif not db_path.startswith("/"):
         temp_dir = tempfile.gettempdir()
         db_path = os.path.join(temp_dir, db_path)
@@ -94,9 +94,9 @@ elif DATABASE_URL.startswith("postgresql"):
         "poolclass": pool.QueuePool,  # Default, but explicit
     })
 
-    # SSL/TLS configuration for Azure PostgreSQL
+    # SSL/TLS configuration for production PostgreSQL
     connect_args = {}
-    if "azure" in DATABASE_URL or IS_PRODUCTION:
+    if IS_PRODUCTION:
         connect_args = {
             "sslmode": os.getenv("DB_SSL_MODE", "require"),
             "connect_timeout": 10,

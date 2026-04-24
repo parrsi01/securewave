@@ -15,7 +15,7 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 # Configuration
-APP_URL = os.getenv("APP_URL", "https://securewave.azurewebsites.net")
+APP_URL = os.getenv("APP_URL", "http://localhost:8000")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 REDIS_URL = os.getenv("REDIS_URL", "")
 CHECK_INTERVAL_SECONDS = int(os.getenv("UPTIME_CHECK_INTERVAL", "300"))  # 5 minutes

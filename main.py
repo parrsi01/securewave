@@ -635,5 +635,5 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 """
 Note: For local dev, use `uvicorn main:app --reload`.
-Azure App Service uses gunicorn with the startup command in AZURE_DEPLOY.md.
+Production process managers should run gunicorn with `main:app`.
 """

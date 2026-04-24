@@ -11,11 +11,11 @@ stable deployment, and a clear handoff checklist.
 4. Compatibility endpoints for VPN connect/config to keep demo flows stable.
 
 ### Remaining For Full Production
-1. Persistent database (Azure Postgres/MySQL) and migration plan.
+1. Persistent managed PostgreSQL and migration plan.
 2. Email delivery (SMTP/SendGrid) for verification and resets.
 3. Payment provider sandbox keys (Stripe/PayPal) for full demo flow.
-4. Secrets manager integration (Key Vault) for runtime secrets.
-5. Monitoring and alerting (App Insights or equivalent).
+4. External secret manager integration for runtime secrets.
+5. Monitoring and alerting.
 
 ### Acceptance Checklist
 - App health endpoint returns 200.
@@ -23,4 +23,3 @@ stable deployment, and a clear handoff checklist.
 - VPN allocation and config download work.
 - Admin server registration and health check work.
 - No secrets or local artifacts committed.
-

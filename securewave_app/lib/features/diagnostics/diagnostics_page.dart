@@ -359,7 +359,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         if (isUnauthorized)
           'Auth failed. Sign in again, or check that SECUREWAVE_API_BASE_URL points at the correct backend.',
         if (e.type == DioExceptionType.connectionError)
-          'If you previously used an Azure URL, it may be offline. Start the backend locally and retry.',
+          'If you previously used a retired backend URL, it may be offline. Start the backend locally and retry.',
       ].whereType<String>().join('\n'),
     );
   }

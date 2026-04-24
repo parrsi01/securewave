@@ -37,7 +37,7 @@ COPY static/ ./static/
 # Create necessary directories
 RUN mkdir -p /wg /app/logs
 
-# Expose port 8080 (Azure requirement)
+# Expose the application port
 EXPOSE 8080
 
 # Health check

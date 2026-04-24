@@ -12,7 +12,7 @@ def _create_free_server(db):
         country_code="US",
         city="New York",
         region="Americas",
-        azure_region="eastus",
+        hcloud_location="ash",
         public_ip="10.0.0.9",
         endpoint="10.0.0.9:51820",
         wg_public_key="dGVzdC1wdWJsaWMta2V5LXByb2ZpbGU=",
@@ -23,7 +23,7 @@ def _create_free_server(db):
         current_connections=0,
         tier_restriction=None,
         performance_score=99.0,
-        azure_vm_state="running",
+        hcloud_server_state="running",
     )
     db.add(server)
     db.commit()
@@ -84,4 +84,3 @@ class TestVpnProfileProvisioning:
         assert resp.status_code == 200, resp.text
         config = resp.json().get("wireguard_config", "")
         assert "PostUp" not in config
-

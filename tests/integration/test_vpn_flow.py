@@ -32,7 +32,7 @@ def _create_free_server(db):
         country_code="US",
         city="New York",
         region="Americas",
-        azure_region="eastus",
+        hcloud_location="ash",
         public_ip="10.0.0.1",
         endpoint="10.0.0.1:51820",
         wg_public_key="dGVzdC1wdWJsaWMta2V5LWZyZWUtc2VydmVy",
@@ -43,7 +43,7 @@ def _create_free_server(db):
         current_connections=10,
         tier_restriction=None,
         performance_score=90.0,
-        azure_vm_state="running",
+        hcloud_server_state="running",
     )
     db.add(server)
     db.commit()
@@ -62,7 +62,7 @@ def _create_premium_server(db):
         country_code="GB",
         city="London",
         region="Europe",
-        azure_region="uksouth",
+        hcloud_location="fsn1",
         public_ip="10.0.1.1",
         endpoint="10.0.1.1:51820",
         wg_public_key="dGVzdC1wdWJsaWMta2V5LXByZW1pdW0tc2VydmVy",
@@ -73,7 +73,7 @@ def _create_premium_server(db):
         current_connections=5,
         tier_restriction="premium",
         performance_score=95.0,
-        azure_vm_state="running",
+        hcloud_server_state="running",
     )
     db.add(server)
     db.commit()

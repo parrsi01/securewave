@@ -4,7 +4,6 @@ WireGuard Server Manager - Manages peer operations on remote WireGuard servers.
 Supports multiple communication methods:
 1. HTTP API - Direct API calls to management API on WG server
 2. SSH - Execute commands via SSH
-3. Azure VM Run Command - For Azure-hosted VMs
 
 This service is the bridge between the FastAPI backend and the actual WireGuard servers.
 """
@@ -28,7 +27,7 @@ from utils.env_validation import validate_fernet_key, is_production
 logger = logging.getLogger(__name__)
 
 # Communication method type
-CommunicationMethod = Literal["http_api", "ssh", "azure_run_command"]
+CommunicationMethod = Literal["http_api", "ssh"]
 
 
 @dataclass
@@ -41,12 +40,9 @@ class ServerConnection:
     api_port: int = 8080
     api_key: Optional[str] = None
     # SSH settings
-    ssh_user: str = "azureuser"
+    ssh_user: str = "securewave"
     ssh_key_path: Optional[str] = None
     ssh_port: int = 22
-    # Azure settings
-    azure_resource_group: Optional[str] = None
-    azure_vm_name: Optional[str] = None
     # Preferred communication method
     method: CommunicationMethod = "ssh"
 
@@ -66,7 +62,6 @@ class WireGuardServerManager:
         self.default_api_key = os.getenv("WG_API_KEY", "")
         self.timeout = int(os.getenv("WG_COMMAND_TIMEOUT", "30"))
         self.ssh_path = shutil.which("ssh")
-        self.az_path = shutil.which("az")
         self._wg_key_pattern = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
 
     def _load_fernet(self) -> Optional[Fernet]:
@@ -129,8 +124,6 @@ class WireGuardServerManager:
             return await self._add_peer_via_api(conn, public_key, allowed_ips)
         elif conn.method == "ssh":
             return await self._add_peer_via_ssh(conn, public_key, allowed_ips)
-        elif conn.method == "azure_run_command":
-            return await self._add_peer_via_azure(conn, public_key, allowed_ips)
         else:
             return False, f"Unknown communication method: {conn.method}"
 
@@ -155,8 +148,6 @@ class WireGuardServerManager:
             return await self._remove_peer_via_api(conn, public_key)
         elif conn.method == "ssh":
             return await self._remove_peer_via_ssh(conn, public_key)
-        elif conn.method == "azure_run_command":
-            return await self._remove_peer_via_azure(conn, public_key)
         else:
             return False, f"Unknown communication method: {conn.method}"
 
@@ -177,8 +168,6 @@ class WireGuardServerManager:
             return await self._list_peers_via_api(conn)
         elif conn.method == "ssh":
             return await self._list_peers_via_ssh(conn)
-        elif conn.method == "azure_run_command":
-            return await self._list_peers_via_azure(conn)
         else:
             return False, []
 
@@ -199,8 +188,6 @@ class WireGuardServerManager:
             return await self._get_status_via_api(conn)
         elif conn.method == "ssh":
             return await self._get_status_via_ssh(conn)
-        elif conn.method == "azure_run_command":
-            return await self._get_status_via_azure(conn)
         else:
             return False, {}
 
@@ -221,8 +208,6 @@ class WireGuardServerManager:
             return await self._health_check_via_api(conn)
         elif conn.method == "ssh":
             return await self._health_check_via_ssh(conn)
-        elif conn.method == "azure_run_command":
-            return await self._health_check_via_azure(conn)
         else:
             return False, f"Unknown communication method: {conn.method}"
 
@@ -498,161 +483,6 @@ class WireGuardServerManager:
         else:
             return False, stderr or "Server unhealthy"
 
-    # =========================================================================
-    # Azure VM Run Command Implementation
-    # =========================================================================
-
-    async def _run_azure_command(
-        self,
-        conn: ServerConnection,
-        script: str,
-    ) -> Tuple[bool, str, str]:
-        """
-        Execute a command via Azure VM Run Command.
-
-        Returns:
-            Tuple of (success, stdout, stderr)
-        """
-        if not conn.azure_resource_group or not conn.azure_vm_name:
-            return False, "", "Azure resource group or VM name not configured"
-
-        if not self.az_path:
-            return False, "", "Azure CLI not installed"
-
-        az_cmd = [
-            self.az_path, "vm", "run-command", "invoke",
-            "-g", conn.azure_resource_group,
-            "-n", conn.azure_vm_name,
-            "--command-id", "RunShellScript",
-            "--scripts", script
-        ]
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *az_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=self.timeout * 2  # Azure commands take longer
-            )
-
-            if process.returncode != 0:
-                return False, "", stderr.decode()
-
-            # Parse Azure CLI JSON output
-            try:
-                result = json.loads(stdout.decode())
-                message = result.get("value", [{}])[0].get("message", "")
-                # Azure returns stdout and stderr concatenated
-                return True, message, ""
-            except json.JSONDecodeError:
-                return True, stdout.decode(), ""
-
-        except asyncio.TimeoutError:
-            return False, "", "Azure command timed out"
-        except Exception as e:
-            return False, "", str(e)
-
-    async def _add_peer_via_azure(
-        self,
-        conn: ServerConnection,
-        public_key: str,
-        allowed_ips: str,
-    ) -> Tuple[bool, str]:
-        """Add peer via Azure VM Run Command"""
-        script = f"sudo wg set wg0 peer '{public_key}' allowed-ips '{allowed_ips}' && sudo wg-quick save wg0"
-        success, stdout, stderr = await self._run_azure_command(conn, script)
-
-        if success:
-            return True, "Peer added successfully"
-        else:
-            return False, stderr or "Failed to add peer"
-
-    async def _remove_peer_via_azure(
-        self,
-        conn: ServerConnection,
-        public_key: str,
-    ) -> Tuple[bool, str]:
-        """Remove peer via Azure VM Run Command"""
-        script = f"sudo wg set wg0 peer '{public_key}' remove && sudo wg-quick save wg0"
-        success, stdout, stderr = await self._run_azure_command(conn, script)
-
-        if success:
-            return True, "Peer removed successfully"
-        else:
-            return False, stderr or "Failed to remove peer"
-
-    async def _list_peers_via_azure(
-        self,
-        conn: ServerConnection,
-    ) -> Tuple[bool, List[Dict]]:
-        """List peers via Azure VM Run Command"""
-        script = "sudo wg show wg0 dump"
-        success, stdout, stderr = await self._run_azure_command(conn, script)
-
-        if not success:
-            return False, []
-
-        # Parse the same format as SSH
-        peers = []
-        lines = stdout.strip().split('\n')
-
-        for line in lines[1:]:  # Skip server info line
-            if not line.strip():
-                continue
-            parts = line.split('\t')
-            if len(parts) >= 5:
-                peer = {
-                    "public_key": parts[0],
-                    "endpoint": parts[2] if parts[2] != "(none)" else None,
-                    "allowed_ips": parts[3],
-                    "latest_handshake": int(parts[4]) if parts[4] != "0" else None,
-                }
-                peers.append(peer)
-
-        return True, peers
-
-    async def _get_status_via_azure(
-        self,
-        conn: ServerConnection,
-    ) -> Tuple[bool, Dict]:
-        """Get server status via Azure VM Run Command"""
-        script = """
-        echo "{"
-        echo '"status": "active",'
-        echo '"cpu_load":' $(awk '{print $1}' /proc/loadavg),
-        echo '"memory_percent":' $(free | awk '/Mem/{printf "%.1f", $3/$2*100}'),
-        echo '"peer_count":' $(sudo wg show wg0 peers 2>/dev/null | wc -l)
-        echo "}"
-        """
-        success, stdout, stderr = await self._run_azure_command(conn, script)
-
-        if not success:
-            return False, {}
-
-        try:
-            status = json.loads(stdout)
-            status["timestamp"] = datetime.utcnow().isoformat() + "Z"
-            return True, status
-        except json.JSONDecodeError:
-            return False, {}
-
-    async def _health_check_via_azure(
-        self,
-        conn: ServerConnection,
-    ) -> Tuple[bool, str]:
-        """Health check via Azure VM Run Command"""
-        script = "sudo wg show wg0 > /dev/null 2>&1 && echo 'OK' || echo 'FAIL'"
-        success, stdout, stderr = await self._run_azure_command(conn, script)
-
-        if success and "OK" in stdout:
-            return True, "Server healthy"
-        else:
-            return False, stderr or "Server unhealthy"
-
-
 # Singleton instance
 _manager_instance: Optional[WireGuardServerManager] = None
 
@@ -684,9 +514,6 @@ def server_connection_from_db(server) -> ServerConnection:
         method = "http_api"
     elif os.getenv("WG_SSH_KEY_PATH"):
         method = "ssh"
-    elif server.azure_vm_name and server.azure_resource_group:
-        # Fallback to Azure Run Command for Azure VMs
-        method = "azure_run_command"
 
     return ServerConnection(
         server_id=server.server_id,
@@ -694,9 +521,7 @@ def server_connection_from_db(server) -> ServerConnection:
         wg_port=server.wg_listen_port or 51820,
         api_port=int(os.getenv("WG_API_PORT", "8080")),
         api_key=api_key,
-        ssh_user=os.getenv("WG_SSH_USER", "azureuser"),
+        ssh_user=os.getenv("WG_SSH_USER", "securewave"),
         ssh_key_path=os.getenv("WG_SSH_KEY_PATH"),
-        azure_resource_group=server.azure_resource_group,
-        azure_vm_name=server.azure_vm_name,
         method=method,
     )

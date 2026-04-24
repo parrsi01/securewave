@@ -1,12 +1,11 @@
 """
 SecureWave VPN - Secrets Management Service
-Handles secure storage and retrieval of secrets using Azure Key Vault
-Falls back to environment variables for development
+Handles read-only secret retrieval from process environment.
 """
 
 import os
 import logging
-from typing import Optional, Dict
+from typing import Any, Optional, Dict
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,66 +13,23 @@ load_dotenv(".env.production")
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-USE_AZURE_KEY_VAULT = os.getenv("USE_AZURE_KEY_VAULT", "false").lower() == "true"
-AZURE_KEY_VAULT_URL = os.getenv("AZURE_KEY_VAULT_URL")
-
 
 class SecretsManager:
     """
-    Unified secrets management service
-    Uses Azure Key Vault in production, environment variables in development
+    Unified read-only secrets management service.
+
+    Deployment platforms inject secrets through environment variables or an
+    external secret manager before process startup. This class intentionally
+    does not talk to a cloud-provider API.
     """
 
     def __init__(self):
         """Initialize secrets manager"""
-        self.use_key_vault = USE_AZURE_KEY_VAULT
-        self.key_vault_client = None
-
-        if self.use_key_vault:
-            try:
-                self._init_azure_key_vault()
-            except Exception as e:
-                logger.error(f"Failed to initialize Azure Key Vault: {e}")
-                logger.warning("Falling back to environment variables")
-                self.use_key_vault = False
-
-    def _init_azure_key_vault(self):
-        """Initialize Azure Key Vault client"""
-        if not AZURE_KEY_VAULT_URL:
-            raise ValueError("AZURE_KEY_VAULT_URL not configured")
-
-        try:
-            from azure.identity import DefaultAzureCredential
-            from azure.keyvault.secrets import SecretClient
-
-            # Use DefaultAzureCredential for authentication
-            # This works with Managed Identity, Azure CLI, environment variables, etc.
-            credential = DefaultAzureCredential()
-
-            # Create Key Vault client
-            self.key_vault_client = SecretClient(
-                vault_url=AZURE_KEY_VAULT_URL,
-                credential=credential
-            )
-
-            # Test connection
-            # Try to list secrets to verify access (don't actually retrieve anything)
-            _ = list(self.key_vault_client.list_properties_of_secrets(max_results=1))
-
-            logger.info(f"✓ Azure Key Vault initialized: {AZURE_KEY_VAULT_URL}")
-
-        except ImportError:
-            raise ImportError(
-                "Azure SDK not installed. "
-                "Install with: pip install azure-identity azure-keyvault-secrets"
-            )
-        except Exception as e:
-            raise Exception(f"Failed to connect to Azure Key Vault: {e}")
+        self.provider = "environment_variables"
 
     def get_secret(self, secret_name: str, default: Optional[str] = None) -> Optional[str]:
         """
-        Get secret from Key Vault or environment variables
+        Get secret from environment variables.
 
         Args:
             secret_name: Name of the secret (e.g., "DATABASE-URL", "STRIPE-SECRET-KEY")
@@ -83,36 +39,10 @@ class SecretsManager:
             Secret value or default
         """
         try:
-            if self.use_key_vault and self.key_vault_client:
-                return self._get_from_key_vault(secret_name, default)
-            else:
-                return self._get_from_env(secret_name, default)
+            return self._get_from_env(secret_name, default)
 
         except Exception as e:
             logger.error(f"Error retrieving secret {secret_name}: {e}")
-            return default
-
-    def _get_from_key_vault(self, secret_name: str, default: Optional[str] = None) -> Optional[str]:
-        """
-        Retrieve secret from Azure Key Vault
-
-        Args:
-            secret_name: Name of the secret (use hyphens, not underscores)
-            default: Default value
-
-        Returns:
-            Secret value or default
-        """
-        try:
-            # Azure Key Vault uses hyphens, not underscores
-            vault_name = secret_name.replace("_", "-")
-
-            secret = self.key_vault_client.get_secret(vault_name)
-            logger.debug(f"✓ Retrieved secret from Key Vault: {vault_name}")
-            return secret.value
-
-        except Exception as e:
-            logger.warning(f"Secret {secret_name} not found in Key Vault: {e}")
             return default
 
     def _get_from_env(self, secret_name: str, default: Optional[str] = None) -> Optional[str]:
@@ -126,11 +56,9 @@ class SecretsManager:
         Returns:
             Environment variable value or default
         """
-        # Try with underscores (standard env var format)
         value = os.getenv(secret_name, None)
 
         if value is None:
-            # Try with hyphens (Key Vault format)
             value = os.getenv(secret_name.replace("-", "_"), default)
 
         if value:
@@ -140,7 +68,7 @@ class SecretsManager:
 
     def set_secret(self, secret_name: str, secret_value: str) -> bool:
         """
-        Set secret in Key Vault (admin/deployment operation)
+        Reject runtime secret mutation.
 
         Args:
             secret_name: Name of the secret
@@ -149,23 +77,12 @@ class SecretsManager:
         Returns:
             True if successful
         """
-        if not self.use_key_vault or not self.key_vault_client:
-            logger.warning("Key Vault not available. Cannot set secrets.")
-            return False
-
-        try:
-            vault_name = secret_name.replace("_", "-")
-            self.key_vault_client.set_secret(vault_name, secret_value)
-            logger.info(f"✓ Secret set in Key Vault: {vault_name}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to set secret {secret_name}: {e}")
-            return False
+        logger.warning("Secret mutation is not supported at runtime: %s", secret_name)
+        return False
 
     def delete_secret(self, secret_name: str) -> bool:
         """
-        Delete secret from Key Vault (admin operation)
+        Reject runtime secret deletion.
 
         Args:
             secret_name: Name of the secret
@@ -173,19 +90,8 @@ class SecretsManager:
         Returns:
             True if successful
         """
-        if not self.use_key_vault or not self.key_vault_client:
-            logger.warning("Key Vault not available. Cannot delete secrets.")
-            return False
-
-        try:
-            vault_name = secret_name.replace("_", "-")
-            self.key_vault_client.begin_delete_secret(vault_name).wait()
-            logger.info(f"✓ Secret deleted from Key Vault: {vault_name}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to delete secret {secret_name}: {e}")
-            return False
+        logger.warning("Secret deletion is not supported at runtime: %s", secret_name)
+        return False
 
     def get_all_secrets(self) -> Dict[str, str]:
         """
@@ -220,10 +126,6 @@ class SecretsManager:
             "SMTP_USER",
             "SMTP_PASSWORD",
 
-            # Azure
-            "AZURE_SUBSCRIPTION_ID",
-            "AZURE_RESOURCE_GROUP",
-
             # VPN
             "WIREGUARD_PRIVATE_KEY",
 
@@ -239,7 +141,7 @@ class SecretsManager:
 
         return secrets
 
-    def health_check(self) -> Dict[str, any]:
+    def health_check(self) -> Dict[str, Any]:
         """
         Check secrets manager health
 
@@ -247,10 +149,9 @@ class SecretsManager:
             Health status dictionary
         """
         return {
-            "status": "healthy" if self.use_key_vault or True else "degraded",
-            "provider": "azure_key_vault" if self.use_key_vault else "environment_variables",
-            "key_vault_url": AZURE_KEY_VAULT_URL if self.use_key_vault else None,
-            "connected": self.key_vault_client is not None if self.use_key_vault else True,
+            "status": "healthy",
+            "provider": self.provider,
+            "connected": True,
         }
 
 

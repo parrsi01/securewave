@@ -85,9 +85,6 @@ privatekey
 publickey
 keys/
 
-# Azure
-.azure/
-
 # Temporary files
 tmp/
 temp/
@@ -136,8 +133,7 @@ keys_and_storage_configurations/*.key
 keys_and_storage_configurations/*.env
 keys_and_storage_configurations/.env.*
 
-# Azure deployment artifacts
-azure-logs/
+# Runtime/deployment artifacts
 LogFiles/
 deployments/
 *.log

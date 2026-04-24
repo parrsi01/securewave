@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # SecureWave VPN - WireGuard Server Setup Script
-# Run this on a fresh Ubuntu 22.04 Azure VM
+# Run this on a fresh Ubuntu 22.04/24.04 Linux host
 # =============================================================================
 
 set -e

@@ -11,15 +11,15 @@
    - `infrastructure/init_production_server.py` or `/api/admin/servers`
 2. Rotate secrets:
    - `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`, `WG_ENCRYPTION_KEY`
-3. Update App Service settings:
+3. Update runtime environment settings:
    - `WG_MOCK_MODE=false`, `DEMO_MODE=false`, `WG_AUTO_REGISTER_PEERS=true`
-4. Database storage (Azure):
+4. Database storage:
    - Set `DATABASE_URL` to managed Postgres before production traffic.
-   - If using SQLite in demo: use `/home/site/securewave.db`.
+   - If using SQLite in demo: use an explicitly configured persistent path.
 
 ### Incident Triage
 1. App boot issues:
-   - Check App Service logs for missing dependencies.
+   - Check process and container logs for missing dependencies.
 2. VPN allocation errors:
    - Verify server is registered and health check is green.
 3. Peer registration failures:
@@ -35,12 +35,12 @@
    - Restore a backup to a staging app monthly.
 
 ### Deploy and Rollback
-1. Deploy: `bash deploy.sh azure`
-2. Rollback (fast): redeploy the previous known-good `deploy.zip`.
-3. Rollback (safe): use an App Service deployment slot if configured.
+1. Deploy: follow `docs/HETZNER_RUNBOOK.md`.
+2. Rollback (fast): redeploy the previous known-good container or service revision.
+3. Rollback (safe): restore the previous host/application snapshot and database backup.
 
 ### Monitoring
-1. Enable App Service log streaming during deploys.
+1. Stream application and systemd/container logs during deploys.
 2. Alert on:
    - HTTP 5xx rate spikes
    - /health failures

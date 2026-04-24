@@ -177,8 +177,8 @@ STRIPE_PORTAL_CONFIG_ID=bpc_XXXXXXXXXXXXXXXXXXXXXXXX
 **Security rules:**
 
 - Never commit `.env` files to version control.
-- In production, use Azure Key Vault, AWS Secrets Manager, or an equivalent
-  secret store.
+- In production, use environment-injected secrets from your approved secret
+  manager.
 - Rotate keys immediately if any are exposed.
 
 ---

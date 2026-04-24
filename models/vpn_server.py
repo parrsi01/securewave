@@ -21,12 +21,15 @@ class VPNServer(Base):
     latitude = Column(Float, nullable=True)  # For map display
     longitude = Column(Float, nullable=True)  # For map display
 
-    # Azure Infrastructure Details
-    azure_resource_group = Column(String, nullable=True)  # Azure resource group name
-    azure_vm_name = Column(String, nullable=True)  # Azure VM name
-    azure_region = Column(String, nullable=False)  # eastus, westeurope, japaneast, etc.
-    azure_vm_size = Column(String, default="Standard_B2s")  # VM size/tier
-    azure_vm_state = Column(String, nullable=True)  # running, stopped, deallocated, etc.
+    # Provider metadata. Runtime operations use Linux host access (SSH/API);
+    # provider fields are registry metadata, not cloud-control fallbacks.
+    provider = Column(String, default="hetzner")
+    hcloud_server_id = Column(String, nullable=True, index=True)
+    hcloud_server_name = Column(String, nullable=True)
+    hcloud_location = Column(String, nullable=True)
+    hcloud_server_type = Column(String, nullable=True)
+    hcloud_server_state = Column(String, nullable=True)
+    provider_metadata = Column(JSON, nullable=True)
 
     # Network Configuration
     public_ip = Column(String, nullable=False)
@@ -36,6 +39,19 @@ class VPNServer(Base):
     wg_public_key = Column(String, nullable=False)  # Server's WireGuard public key
     wg_private_key_encrypted = Column(String, nullable=False)  # Encrypted private key
     dns_servers = Column(String, default="1.1.1.1,1.0.0.1")  # Cloudflare DNS
+    allowed_ips = Column(String, default="0.0.0.0/0, ::/0")
+
+    # Protocol capability metadata. Public v1 exposes WireGuard only.
+    protocol = Column(String, default="wireguard")
+    supports_wireguard = Column(Boolean, default=True)
+    supports_openvpn = Column(Boolean, default=False)
+    supports_ikev2 = Column(Boolean, default=False)
+    openvpn_endpoint = Column(String, nullable=True)
+    openvpn_port = Column(Integer, default=1194)
+    openvpn_transport = Column(String, default="udp")
+    openvpn_ca_cert_pem = Column(String, nullable=True)
+    ikev2_remote_id = Column(String, nullable=True)
+    ikev2_ca_cert_pem = Column(String, nullable=True)
 
     # Capacity and limits
     max_connections = Column(Integer, default=1000)
@@ -93,11 +109,12 @@ class VPNServer(Base):
     @property
     def is_available(self) -> bool:
         """Check if server is available for new connections"""
+        provider_state = (self.hcloud_server_state or "running").lower()
         return (
             self.status == "active" and
             self.health_status in ["healthy", "degraded"] and
             self.current_connections < self.max_connections and
-            self.azure_vm_state == "running"
+            provider_state == "running"
         )
 
     @property
@@ -133,6 +150,10 @@ class VPNServer(Base):
             "latitude": self.latitude,
             "longitude": self.longitude,
             "endpoint": self.endpoint,
+            "protocol": self.protocol,
+            "supports_wireguard": self.supports_wireguard,
+            "supports_openvpn": self.supports_openvpn,
+            "supports_ikev2": self.supports_ikev2,
             "status": self.status,
             "health_status": self.health_status,
             "current_connections": self.current_connections,
@@ -154,9 +175,11 @@ class VPNServer(Base):
                 "public_ip": self.public_ip,
                 "private_ip": self.private_ip,
                 "wg_public_key": self.wg_public_key,
-                "azure_vm_name": self.azure_vm_name,
-                "azure_region": self.azure_region,
-                "azure_vm_state": self.azure_vm_state,
+                "provider": self.provider,
+                "hcloud_server_id": self.hcloud_server_id,
+                "hcloud_server_name": self.hcloud_server_name,
+                "hcloud_location": self.hcloud_location,
+                "hcloud_server_state": self.hcloud_server_state,
             })
 
         return data
@@ -167,8 +190,12 @@ class VPNServer(Base):
             **self.to_dict(include_sensitive=True),
             "wg_listen_port": self.wg_listen_port,
             "dns_servers": self.dns_servers,
-            "azure_resource_group": self.azure_resource_group,
-            "azure_vm_size": self.azure_vm_size,
+            "allowed_ips": self.allowed_ips,
+            "hcloud_server_type": self.hcloud_server_type,
+            "openvpn_endpoint": self.openvpn_endpoint,
+            "openvpn_port": self.openvpn_port,
+            "openvpn_transport": self.openvpn_transport,
+            "ikev2_remote_id": self.ikev2_remote_id,
             "priority": self.priority,
             "auto_scale_enabled": self.auto_scale_enabled,
             "is_auto_scaled": self.is_auto_scaled,

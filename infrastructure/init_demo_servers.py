@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Initialize demo VPN servers in database
-This script seeds the database with 5 demo servers for the hybrid deployment
+This script seeds the database with 5 demo servers for local/demo flows.
 """
 import sys
 from pathlib import Path
@@ -31,7 +31,6 @@ def init_demo_servers():
             "country_code": "US",
             "city": "San Francisco",
             "region": "Americas",
-            "azure_region": "westus",
             "public_ip": "demo-us-west.securewave.app",
             "endpoint": "demo-us-west.securewave.app:51820",
             "latency_ms": 30.0,
@@ -45,7 +44,6 @@ def init_demo_servers():
             "country_code": "GB",
             "city": "London",
             "region": "Europe",
-            "azure_region": "uksouth",
             "public_ip": "demo-eu-west.securewave.app",
             "endpoint": "demo-eu-west.securewave.app:51820",
             "latency_ms": 40.0,
@@ -59,7 +57,6 @@ def init_demo_servers():
             "country_code": "DE",
             "city": "Frankfurt",
             "region": "Europe",
-            "azure_region": "germanywestcentral",
             "public_ip": "demo-eu-central.securewave.app",
             "endpoint": "demo-eu-central.securewave.app:51820",
             "latency_ms": 45.0,
@@ -73,7 +70,6 @@ def init_demo_servers():
             "country_code": "SG",
             "city": "Singapore",
             "region": "Asia",
-            "azure_region": "southeastasia",
             "public_ip": "demo-ap-southeast.securewave.app",
             "endpoint": "demo-ap-southeast.securewave.app:51820",
             "latency_ms": 80.0,
@@ -87,7 +83,6 @@ def init_demo_servers():
             "country_code": "JP",
             "city": "Tokyo",
             "region": "Asia",
-            "azure_region": "japaneast",
             "public_ip": "demo-ap-northeast.securewave.app",
             "endpoint": "demo-ap-northeast.securewave.app:51820",
             "latency_ms": 85.0,
@@ -120,7 +115,8 @@ def init_demo_servers():
             region=server_data["region"],
             latitude=server_data.get("latitude"),
             longitude=server_data.get("longitude"),
-            azure_region=server_data["azure_region"],
+            provider="demo",
+            hcloud_server_state="running",
             public_ip=server_data["public_ip"],
             endpoint=server_data["endpoint"],
             wg_public_key=public_key,

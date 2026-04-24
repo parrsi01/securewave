@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# SecureWave VPN - Azure App Service Startup Script (Production)
+# SecureWave VPN - Backend Startup Script (Production)
 # Ensures dependencies exist before launching gunicorn.
 ###############################################################################
 

@@ -207,7 +207,7 @@ See the main SecureWave backend for API endpoints:
 - Run `ip link show` to see available interfaces
 
 ### Website smoke failures
-- Set base URL explicitly: `./run_tests.sh --base-url https://securewave-web.azurewebsites.net`
+- Set base URL explicitly: `./run_tests.sh --base-url https://your-securewave-host.example`
 - Ensure the site is reachable and `/health` returns 200
 
 ### DNS tests failing

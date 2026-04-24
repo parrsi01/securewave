@@ -122,7 +122,7 @@ if [ $FOUND_SECRETS -eq 1 ]; then
     echo "If these are real secrets:"
     echo "  1. Remove the secrets from the file"
     echo "  2. Add the file to .gitignore"
-    echo "  3. Store secrets in environment variables or Azure Key Vault"
+    echo "  3. Store secrets in environment variables or your approved secret manager"
     echo ""
     exit 1
 fi
