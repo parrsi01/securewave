@@ -2,6 +2,12 @@
 
 All notable changes to SecureWave VPN will be documented in this file.
 
+Release-scope note: historical entries below do not override the current public
+v1 planning truth. The current public v1 go decision is Linux desktop only with
+WireGuard primary; OpenVPN is limited to the already certified Linux
+runtime/helper dataplane path unless separately promoted, and IKEv2 plus
+Windows/macOS/mobile runtime support remain outside public v1 scope.
+
 ## [1.1.0] - 2026-02-03 (VPN Platform Bridges + Email Providers)
 
 ### VPN Platform Bridges
