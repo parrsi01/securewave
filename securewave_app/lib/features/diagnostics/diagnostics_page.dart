@@ -418,6 +418,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
   @override
   Widget build(BuildContext context) {
     final rows = _results.values.toList();
+    final okCount = rows.where((r) => r.status == _CheckStatus.ok).length;
+    final warnCount = rows.where((r) => r.status == _CheckStatus.warn).length;
+    final failCount = rows.where((r) => r.status == _CheckStatus.fail).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -437,107 +440,305 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints:
-                const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
-            child: ListView(
-              padding: const EdgeInsets.all(AppUIv1.space5),
-              children: [
-                Text('Run checks',
-                    style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: AppUIv1.space2),
-                Text(
-                  'These checks help classify common failures (backend unreachable, auth expired, profile provisioning issues, missing WireGuard tools).',
-                  style: Theme.of(context).textTheme.bodyMedium,
+      body: SecurePageBackground(
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final padding = AppUIv1.pagePaddingFor(constraints.maxWidth);
+              return SingleChildScrollView(
+                padding: padding,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: AppUIv1.contentWideMaxWidth,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SecureSurface(
+                          variant: SecureSurfaceVariant.glass,
+                          padding: const EdgeInsets.all(AppUIv1.space5),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.terminal_rounded,
+                                    color: AppUIv1.accentCyan,
+                                    size: 30,
+                                  ),
+                                  const SizedBox(width: AppUIv1.space3),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Technical diagnostics',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .headlineMedium,
+                                        ),
+                                        const SizedBox(height: AppUIv1.space1),
+                                        Text(
+                                          'Read-only checks for backend reachability, auth, profile provisioning, cache, and native VPN availability.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (_lastRunAt != null)
+                                    const SecureStatePill(
+                                      label: 'Updated',
+                                      color: AppUIv1.accentCyan,
+                                      icon: Icons.schedule_rounded,
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: AppUIv1.space5),
+                              Wrap(
+                                spacing: AppUIv1.space3,
+                                runSpacing: AppUIv1.space3,
+                                children: [
+                                  _DiagnosticCountPill(
+                                    label: 'OK',
+                                    count: okCount,
+                                    color: AppUIv1.success,
+                                  ),
+                                  _DiagnosticCountPill(
+                                    label: 'Warnings',
+                                    count: warnCount,
+                                    color: AppUIv1.warning,
+                                  ),
+                                  _DiagnosticCountPill(
+                                    label: 'Failures',
+                                    count: failCount,
+                                    color: AppUIv1.danger,
+                                  ),
+                                ],
+                              ),
+                              if (_running) ...[
+                                const SizedBox(height: AppUIv1.space4),
+                                const LinearProgressIndicator(minHeight: 3),
+                              ],
+                              const SizedBox(height: AppUIv1.space5),
+                              Wrap(
+                                spacing: AppUIv1.space3,
+                                runSpacing: AppUIv1.space3,
+                                children: [
+                                  FilledButton.icon(
+                                    onPressed: _running ? null : _runChecks,
+                                    icon: _running
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(Icons.play_arrow_rounded),
+                                    label: Text(_running
+                                        ? 'Running'
+                                        : 'Run diagnostics'),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: _running
+                                        ? null
+                                        : () async {
+                                            final messenger =
+                                                ScaffoldMessenger.of(context);
+                                            final storage = SecureStorage();
+                                            await storage.delete(SecureStorage
+                                                .vpnProfileConfigKey);
+                                            await storage.delete(SecureStorage
+                                                .vpnProfileExpiresAtKey);
+                                            if (!mounted) return;
+                                            messenger.showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                    'Cached profile cleared'),
+                                              ),
+                                            );
+                                            await _runChecks();
+                                          },
+                                    icon: const Icon(Icons.cleaning_services),
+                                    label: const Text('Clear cache'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: AppUIv1.space4),
+                        if (rows.isEmpty)
+                          const _DiagnosticsEmptyState()
+                        else
+                          Column(
+                            children: [
+                              for (final r in rows) ...[
+                                _CheckResultCard(
+                                  result: r,
+                                  color: _statusColor(r.status),
+                                  icon: _statusIcon(r.status),
+                                ),
+                                const SizedBox(height: AppUIv1.space3),
+                              ],
+                            ],
+                          ),
+                        if (_lastRunAt != null) ...[
+                          const SizedBox(height: AppUIv1.space1),
+                          Text(
+                            'Last run: ${_lastRunAt!.toLocal()}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (_runError != null) ...[
+                          const SizedBox(height: AppUIv1.space3),
+                          SecureSurface(
+                            variant: SecureSurfaceVariant.danger,
+                            padding: const EdgeInsets.all(AppUIv1.space3),
+                            child: Text(
+                              _runError!,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: AppUIv1.danger),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: AppUIv1.space4),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiagnosticCountPill extends StatelessWidget {
+  const _DiagnosticCountPill({
+    required this.label,
+    required this.count,
+    required this.color,
+  });
+
+  final String label;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SecureSurface(
+      variant: SecureSurfaceVariant.base,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppUIv1.space3,
+        vertical: AppUIv1.space2,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$count',
+            style:
+                Theme.of(context).textTheme.titleSmall?.copyWith(color: color),
+          ),
+          const SizedBox(width: AppUIv1.space2),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckResultCard extends StatelessWidget {
+  const _CheckResultCard({
+    required this.result,
+    required this.color,
+    required this.icon,
+  });
+
+  final _CheckResult result;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = result.details?.trim();
+    return SecureSurface(
+      variant: SecureSurfaceVariant.base,
+      padding: const EdgeInsets.all(AppUIv1.space4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: AppUIv1.space3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
                   children: [
                     Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _running ? null : _runChecks,
-                        icon: _running
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.play_arrow),
-                        label: Text(_running ? 'Running…' : 'Run diagnostics'),
+                      child: Text(
+                        result.title,
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
                     ),
-                    const SizedBox(width: AppUIv1.space3),
-                    OutlinedButton(
-                      onPressed: _running
-                          ? null
-                          : () async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              final storage = SecureStorage();
-                              await storage
-                                  .delete(SecureStorage.vpnProfileConfigKey);
-                              await storage
-                                  .delete(SecureStorage.vpnProfileExpiresAtKey);
-                              if (!mounted) return;
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                    content: Text('Cached profile cleared')),
-                              );
-                              await _runChecks();
-                            },
-                      child: const Text('Clear cache'),
+                    SecureStatePill(
+                      label: result.status.name.toUpperCase(),
+                      color: color,
                     ),
                   ],
                 ),
-                const SizedBox(height: AppUIv1.space4),
-                Card(
-                  child: Column(
-                    children: [
-                      for (final r in rows) ...[
-                        ListTile(
-                          leading: Icon(_statusIcon(r.status),
-                              color: _statusColor(r.status)),
-                          title: Text(r.title),
-                          subtitle: Text(
-                            r.details == null || r.details!.trim().isEmpty
-                                ? r.message
-                                : '${r.message}\n${r.details}',
-                          ),
-                        ),
-                        const Divider(height: 1),
-                      ],
-                      if (rows.isEmpty)
-                        const ListTile(
-                          leading: Icon(Icons.info_outline),
-                          title: Text('No results yet'),
-                          subtitle: Text('Tap "Run diagnostics" to begin.'),
-                        ),
-                    ],
-                  ),
-                ),
-                if (_lastRunAt != null) ...[
+                const SizedBox(height: AppUIv1.space2),
+                Text(result.message,
+                    style: Theme.of(context).textTheme.bodyMedium),
+                if (details != null && details.isNotEmpty) ...[
                   const SizedBox(height: AppUIv1.space3),
-                  Text(
-                    'Last run: ${_lastRunAt!.toLocal()}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-                if (_runError != null) ...[
-                  const SizedBox(height: AppUIv1.space3),
-                  Text(
-                    _runError!,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppUIv1.danger),
+                  SelectableText(
+                    details,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppUIv1.inkMuted,
+                        ),
                   ),
                 ],
               ],
             ),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiagnosticsEmptyState extends StatelessWidget {
+  const _DiagnosticsEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return SecureSurface(
+      variant: SecureSurfaceVariant.base,
+      padding: const EdgeInsets.all(AppUIv1.space5),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: AppUIv1.accent, size: 24),
+          const SizedBox(width: AppUIv1.space3),
+          Expanded(
+            child: Text(
+              'No diagnostic results yet. Run checks to collect read-only status.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
       ),
     );
   }

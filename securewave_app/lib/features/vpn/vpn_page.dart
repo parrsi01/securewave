@@ -6,13 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:platform_info/platform_info.dart';
 
-import '../../core/models/vpn_status.dart';
 import '../../core/config/app_config.dart';
+import '../../core/models/server_region.dart';
+import '../../core/models/vpn_protocol.dart';
+import '../../core/models/vpn_status.dart';
 import '../../core/state/app_state.dart';
 import '../../core/state/vpn_state.dart';
-import '../diagnostics/connection_diagnostics_sheet.dart';
 import '../../ui/app_haptics.dart';
 import '../../ui/app_ui_v1.dart';
+import '../diagnostics/connection_diagnostics_sheet.dart';
+import 'protocol_selection_panel.dart';
 
 class VpnPage extends ConsumerStatefulWidget {
   const VpnPage({super.key});
@@ -89,261 +92,549 @@ class _VpnPageState extends ConsumerState<VpnPage> {
 
     final serversData =
         servers.maybeWhen(data: (data) => data, orElse: () => null);
-
-    final selectedServerLabel = vpnState.selectedServerId == null
-        ? 'Auto-select'
-        : (serversData == null || serversData.isEmpty)
-            ? vpnState.selectedServerId!
-            : serversData
-                .firstWhere(
-                  (server) => server.id == vpnState.selectedServerId,
-                  orElse: () => serversData.first,
-                )
-                .name;
+    final selectedServer = _selectedServerSummary(
+      selectedServerId: vpnState.selectedServerId,
+      servers: serversData,
+    );
 
     final backendUnreachable = vpnState.status == VpnStatus.error &&
         vpnState.errorKind == VpnErrorKind.backendUnreachable;
-
-    final statusText = switch (vpnState.status) {
-      VpnStatus.connected => 'Connected',
-      VpnStatus.connecting => 'Connecting...',
-      VpnStatus.disconnecting => 'Disconnecting...',
-      VpnStatus.error =>
-        backendUnreachable ? 'Backend unreachable' : 'Needs attention',
-      VpnStatus.disconnected => 'Disconnected',
-    };
-
-    final statusColor = switch (vpnState.status) {
-      VpnStatus.connected => AppUIv1.success,
-      VpnStatus.connecting => AppUIv1.accentSun,
-      VpnStatus.disconnecting => AppUIv1.accentSun,
-      VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
-      VpnStatus.disconnected => AppUIv1.inkSoft,
-    };
+    final statusText = _statusText(vpnState.status, backendUnreachable);
+    final statusColor = _statusColor(vpnState.status, backendUnreachable);
 
     final isConnected = vpnState.status == VpnStatus.connected;
     final isConnecting = vpnState.status == VpnStatus.connecting;
     final isDisconnecting = vpnState.status == VpnStatus.disconnecting;
+    final isActive = isConnected || isConnecting || isDisconnecting;
     final platformNotice = _platformNotice();
     final nativeUnavailable = !vpnService.isNativeAvailable;
     final canSimulate = config.useMockApi;
     final canAttemptConnect = !nativeUnavailable || canSimulate;
     final connectEnabled =
         !vpnState.isBusy && (isConnected || canAttemptConnect);
-    final needsSetupTitle = platform.operatingSystem == OperatingSystem.macOS
-        ? 'VPN unavailable'
-        : 'Setup required';
 
-    return SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
-          child: ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppUIv1.space5,
-              vertical: AppUIv1.space4,
-            ),
-            children: [
-              // ── Notices (collapsed if none) ───────────────────────
-              if (nativeUnavailable && canSimulate) ...[
-                const _NoticeCard(
-                  icon: Icons.info_outline,
-                  color: AppUIv1.accentSun,
-                  title: 'Demo mode',
-                  body: 'Native VPN tunnel unavailable on this device. '
-                      'Connections are simulated. Install the native bridge '
-                      'for real tunnel support.',
-                ),
-                const SizedBox(height: AppUIv1.space3),
-              ] else if (nativeUnavailable && platformNotice != null) ...[
-                _NoticeCard(
-                  icon: Icons.devices,
-                  color: AppUIv1.warning,
-                  title: needsSetupTitle,
-                  body: platformNotice,
-                ),
-                const SizedBox(height: AppUIv1.space3),
-              ] else if (nativeUnavailable) ...[
-                const _NoticeCard(
-                  icon: Icons.warning_amber_rounded,
-                  color: AppUIv1.warning,
-                  title: 'VPN not available',
-                  body:
-                      'Native VPN tunnel unavailable on this device. Install required VPN components and retry.',
-                ),
-                const SizedBox(height: AppUIv1.space3),
-              ],
-              if (platformNotice != null && !nativeUnavailable) ...[
-                _NoticeCard(
-                  icon: Icons.devices,
-                  color: AppUIv1.inkSoft,
-                  body: platformNotice,
-                ),
-                const SizedBox(height: AppUIv1.space3),
-              ],
+    final connectAction = connectEnabled
+        ? () {
+            if (isConnected) {
+              _pendingDisconnectHaptic = true;
+              _pendingConnectHaptic = false;
+              unawaited(AppHaptics.disconnectTap());
+              ref.read(vpnStateProvider.notifier).disconnect();
+            } else {
+              _pendingConnectHaptic = true;
+              _pendingDisconnectHaptic = false;
+              unawaited(AppHaptics.connectTap());
+              ref.read(vpnStateProvider.notifier).connect();
+            }
+          }
+        : null;
 
-              // ── Hero connection section ───────────────────────────
-              const SizedBox(height: AppUIv1.space4),
-              Center(
-                child: _ConnectButton(
-                  status: vpnState.status,
-                  statusColor: statusColor,
-                  isBusy: vpnState.isBusy,
-                  onPressed: connectEnabled
-                      ? () {
-                          if (isConnected) {
-                            _pendingDisconnectHaptic = true;
-                            _pendingConnectHaptic = false;
-                            unawaited(AppHaptics.disconnectTap());
-                            ref.read(vpnStateProvider.notifier).disconnect();
-                          } else {
-                            _pendingConnectHaptic = true;
-                            _pendingDisconnectHaptic = false;
-                            unawaited(AppHaptics.connectTap());
-                            ref.read(vpnStateProvider.notifier).connect();
-                          }
-                        }
-                      : null,
-                ),
-              ),
-              const SizedBox(height: AppUIv1.space5),
+    return SecurePageBackground(
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isWide = width >= AppUIv1.tabletBreakpoint;
+            final padding = AppUIv1.pagePaddingFor(width);
 
-              // ── Status label ──────────────────────────────────────
-              Center(
-                child: AnimatedSwitcher(
-                  duration: AppUIv1.durationNormal,
-                  child: Text(
-                    statusText,
-                    key: ValueKey(vpnState.status),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: statusColor,
-                        ),
+            return SingleChildScrollView(
+              padding: padding,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: AppUIv1.shellMaxWidth,
                   ),
-                ),
-              ),
-              const SizedBox(height: AppUIv1.space2),
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => ConnectionDiagnosticsSheet.show(context),
-                  icon: const Icon(Icons.monitor_heart_outlined, size: 18),
-                  label: const Text('Connection diagnostics'),
-                ),
-              ),
-              const SizedBox(height: AppUIv1.space5),
-
-              // ── Server selection row ──────────────────────────────
-              Card(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(AppUIv1.radiusXL),
-                  onTap: () => context.go('/servers'),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppUIv1.space4,
-                      vertical: AppUIv1.space3,
-                    ),
-                    child: Row(
-                      children: [
-                        const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: AppUIv1.accentSoft,
-                          child: Icon(Icons.public,
-                              size: 20, color: AppUIv1.accent),
-                        ),
-                        const SizedBox(width: AppUIv1.space3),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Server',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              Text(
-                                selectedServerLabel,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right, color: AppUIv1.inkSoft),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // ── Error message ─────────────────────────────────────
-              if (vpnState.errorMessage != null) ...[
-                const SizedBox(height: AppUIv1.space3),
-                Container(
-                  padding: const EdgeInsets.all(AppUIv1.space3),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(AppUIv1.radiusM),
-                  ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        backendUnreachable
-                            ? Icons.cloud_off
-                            : Icons.warning_amber_rounded,
-                        size: 18,
-                        color: statusColor,
+                      _DashboardHeader(
+                        statusText: statusText,
+                        statusColor: statusColor,
                       ),
-                      const SizedBox(width: AppUIv1.space2),
-                      Expanded(
-                        child: Text(
-                          vpnState.errorMessage!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: statusColor),
+                      const SizedBox(height: AppUIv1.space4),
+                      ..._noticeCards(
+                        nativeUnavailable: nativeUnavailable,
+                        canSimulate: canSimulate,
+                        platformNotice: platformNotice,
+                      ),
+                      if (isWide)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 6,
+                              child: _ConnectionControlPanel(
+                                vpnState: vpnState,
+                                statusText: statusText,
+                                statusColor: statusColor,
+                                selectedServer: selectedServer,
+                                active: isActive,
+                                nativeUnavailable: nativeUnavailable,
+                                canAttemptConnect: canAttemptConnect,
+                                onConnectPressed: connectAction,
+                              ),
+                            ),
+                            const SizedBox(width: AppUIv1.space5),
+                            Expanded(
+                              flex: 4,
+                              child: _SelectionColumn(
+                                selectedServer: selectedServer,
+                                protocol: vpnState.protocol,
+                                onProtocolSelected: (protocol) {
+                                  ref
+                                      .read(vpnStateProvider.notifier)
+                                      .selectProtocol(protocol);
+                                },
+                              ),
+                            ),
+                          ],
+                        )
+                      else ...[
+                        _ConnectionControlPanel(
+                          vpnState: vpnState,
+                          statusText: statusText,
+                          statusColor: statusColor,
+                          selectedServer: selectedServer,
+                          active: isActive,
+                          nativeUnavailable: nativeUnavailable,
+                          canAttemptConnect: canAttemptConnect,
+                          onConnectPressed: connectAction,
                         ),
-                      ),
+                        const SizedBox(height: AppUIv1.space4),
+                        _SelectionColumn(
+                          selectedServer: selectedServer,
+                          protocol: vpnState.protocol,
+                          onProtocolSelected: (protocol) {
+                            ref
+                                .read(vpnStateProvider.notifier)
+                                .selectProtocol(protocol);
+                          },
+                        ),
+                      ],
                     ],
                   ),
                 ),
-              ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 
-              // ── Live activity ─────────────────────────────────────
-              const SizedBox(height: AppUIv1.space4),
-              AnimatedOpacity(
-                duration: AppUIv1.durationNormal,
-                opacity:
-                    isConnected || isConnecting || isDisconnecting ? 1.0 : 0.4,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _MetricTile(
-                        icon: Icons.arrow_downward_rounded,
-                        label: 'Download',
-                        value:
-                            '${vpnState.dataRateDown.toStringAsFixed(1)} Mbps',
-                      ),
-                    ),
-                    const SizedBox(width: AppUIv1.space3),
-                    Expanded(
-                      child: _MetricTile(
-                        icon: Icons.arrow_upward_rounded,
-                        label: 'Upload',
-                        value: '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps',
-                      ),
-                    ),
-                  ],
-                ),
+  List<Widget> _noticeCards({
+    required bool nativeUnavailable,
+    required bool canSimulate,
+    required String? platformNotice,
+  }) {
+    final needsSetupTitle = platform.operatingSystem == OperatingSystem.macOS
+        ? 'VPN unavailable'
+        : 'Setup required';
+    final cards = <Widget>[];
+
+    if (nativeUnavailable && canSimulate) {
+      cards.add(
+        const _NoticeCard(
+          icon: Icons.info_outline,
+          color: AppUIv1.accentSun,
+          title: 'Demo mode',
+          body: 'Native VPN tunnel unavailable on this device. Connections are '
+              'simulated until the native bridge is available.',
+        ),
+      );
+    } else if (nativeUnavailable && platformNotice != null) {
+      cards.add(
+        _NoticeCard(
+          icon: Icons.devices,
+          color: AppUIv1.warning,
+          title: needsSetupTitle,
+          body: platformNotice,
+        ),
+      );
+    } else if (nativeUnavailable) {
+      cards.add(
+        const _NoticeCard(
+          icon: Icons.warning_amber_rounded,
+          color: AppUIv1.warning,
+          title: 'VPN not available',
+          body:
+              'Native VPN tunnel unavailable on this device. Install required '
+              'VPN components and retry.',
+        ),
+      );
+    }
+
+    if (platformNotice != null && !nativeUnavailable) {
+      cards.add(
+        _NoticeCard(
+          icon: Icons.devices,
+          color: AppUIv1.inkSoft,
+          title: 'Runtime note',
+          body: platformNotice,
+        ),
+      );
+    }
+
+    return [
+      for (final card in cards) ...[
+        card,
+        const SizedBox(height: AppUIv1.space3),
+      ],
+    ];
+  }
+}
+
+class _DashboardHeader extends StatelessWidget {
+  const _DashboardHeader({
+    required this.statusText,
+    required this.statusColor,
+  });
+
+  final String statusText;
+  final Color statusColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'SecureWave control',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: AppUIv1.space1),
+              Text(
+                'Operate your tunnel, region, and protocol from one trusted surface.',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
           ),
         ),
+        const SizedBox(width: AppUIv1.space3),
+        SecureStatePill(
+          label: statusText,
+          color: statusColor,
+          icon: _statusIconForText(statusText),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConnectionControlPanel extends StatelessWidget {
+  const _ConnectionControlPanel({
+    required this.vpnState,
+    required this.statusText,
+    required this.statusColor,
+    required this.selectedServer,
+    required this.active,
+    required this.nativeUnavailable,
+    required this.canAttemptConnect,
+    required this.onConnectPressed,
+  });
+
+  final VpnState vpnState;
+  final String statusText;
+  final Color statusColor;
+  final _SelectedServerSummary selectedServer;
+  final bool active;
+  final bool nativeUnavailable;
+  final bool canAttemptConnect;
+  final VoidCallback? onConnectPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final stability =
+        (vpnState.stabilityScore * 100).clamp(0, 100).round().toString();
+
+    return SecureSurface(
+      variant: SecureSurfaceVariant.glass,
+      padding: const EdgeInsets.all(AppUIv1.space5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SecureStatePill(
+              label: statusText,
+              color: statusColor,
+              icon: _statusIcon(vpnState.status),
+            ),
+          ),
+          const SizedBox(height: AppUIv1.space4),
+          _ConnectionRingButton(
+            status: vpnState.status,
+            statusColor: statusColor,
+            isBusy: vpnState.isBusy,
+            onPressed: onConnectPressed,
+          ),
+          const SizedBox(height: AppUIv1.space5),
+          AnimatedSwitcher(
+            duration: AppUIv1.durationNormal,
+            child: Text(
+              _connectionHeadline(vpnState.status),
+              key: ValueKey(vpnState.status),
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: AppUIv1.space2),
+          Text(
+            _connectionBody(
+              status: vpnState.status,
+              nativeUnavailable: nativeUnavailable,
+              canAttemptConnect: canAttemptConnect,
+            ),
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          if (vpnState.errorMessage != null) ...[
+            const SizedBox(height: AppUIv1.space4),
+            _ErrorBanner(
+              message: vpnState.errorMessage!,
+              color: statusColor,
+              backendUnreachable:
+                  vpnState.errorKind == VpnErrorKind.backendUnreachable,
+            ),
+          ],
+          const SizedBox(height: AppUIv1.space5),
+          _OperationalBadges(
+            selectedServer: selectedServer,
+            protocol: vpnState.protocol,
+          ),
+          const SizedBox(height: AppUIv1.space4),
+          AnimatedOpacity(
+            duration: AppUIv1.durationNormal,
+            opacity: active ? 1 : 0.54,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MetricTile(
+                    icon: Icons.arrow_downward_rounded,
+                    label: 'Download',
+                    value: '${vpnState.dataRateDown.toStringAsFixed(1)} Mbps',
+                  ),
+                ),
+                const SizedBox(width: AppUIv1.space3),
+                Expanded(
+                  child: _MetricTile(
+                    icon: Icons.arrow_upward_rounded,
+                    label: 'Upload',
+                    value: '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps',
+                  ),
+                ),
+                const SizedBox(width: AppUIv1.space3),
+                Expanded(
+                  child: _MetricTile(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Stability',
+                    value: '$stability%',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppUIv1.space4),
+          TextButton.icon(
+            onPressed: () => ConnectionDiagnosticsSheet.show(context),
+            icon: const Icon(Icons.monitor_heart_outlined, size: 18),
+            label: const Text('Connection diagnostics'),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ── Hero connect button ────────────────────────────────────────────────
+class _SelectionColumn extends StatelessWidget {
+  const _SelectionColumn({
+    required this.selectedServer,
+    required this.protocol,
+    required this.onProtocolSelected,
+  });
 
-class _ConnectButton extends StatelessWidget {
-  const _ConnectButton({
+  final _SelectedServerSummary selectedServer;
+  final VpnProtocol protocol;
+  final ValueChanged<VpnProtocol> onProtocolSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _ServerSummaryCard(selectedServer: selectedServer),
+        const SizedBox(height: AppUIv1.space4),
+        SecureSurface(
+          variant: SecureSurfaceVariant.base,
+          padding: const EdgeInsets.all(AppUIv1.space4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Protocol', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppUIv1.space1),
+              Text(
+                'Public release selection remains locked to WireGuard.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppUIv1.space4),
+              ProtocolSelectionPanel(
+                selectedProtocol: protocol,
+                onSelect: onProtocolSelected,
+                dense: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ServerSummaryCard extends StatelessWidget {
+  const _ServerSummaryCard({required this.selectedServer});
+
+  final _SelectedServerSummary selectedServer;
+
+  @override
+  Widget build(BuildContext context) {
+    return SecureSurface(
+      variant: SecureSurfaceVariant.raised,
+      padding: const EdgeInsets.all(AppUIv1.space4),
+      onTap: () => context.go('/servers'),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppUIv1.accentBlue.withValues(alpha: 0.14),
+              border: Border.all(color: AppUIv1.borderStrong),
+            ),
+            child: Icon(
+              selectedServer.isAuto
+                  ? Icons.auto_awesome_rounded
+                  : Icons.public_rounded,
+              color: AppUIv1.accent,
+            ),
+          ),
+          const SizedBox(width: AppUIv1.space3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Server', style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  selectedServer.label,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppUIv1.space1),
+                Text(
+                  selectedServer.detail,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppUIv1.inkSoft),
+        ],
+      ),
+    );
+  }
+}
+
+class _OperationalBadges extends StatelessWidget {
+  const _OperationalBadges({
+    required this.selectedServer,
+    required this.protocol,
+  });
+
+  final _SelectedServerSummary selectedServer;
+  final VpnProtocol protocol;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stack = constraints.maxWidth < 520;
+        final serverBadge = _OperationalBadge(
+          icon: selectedServer.isAuto
+              ? Icons.auto_awesome_rounded
+              : Icons.public_rounded,
+          label: 'Server',
+          value: selectedServer.label,
+        );
+        final protocolBadge = _OperationalBadge(
+          icon: Icons.hub_outlined,
+          label: 'Protocol',
+          value: vpnProtocolLabel(protocol),
+        );
+        if (!stack) {
+          return Row(
+            children: [
+              Expanded(child: serverBadge),
+              const SizedBox(width: AppUIv1.space3),
+              Expanded(child: protocolBadge),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            serverBadge,
+            const SizedBox(height: AppUIv1.space3),
+            protocolBadge,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _OperationalBadge extends StatelessWidget {
+  const _OperationalBadge({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SecureSurface(
+      variant: SecureSurfaceVariant.base,
+      padding: const EdgeInsets.all(AppUIv1.space3),
+      child: Row(
+        children: [
+          Icon(icon, color: AppUIv1.accentCyan, size: 18),
+          const SizedBox(width: AppUIv1.space2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConnectionRingButton extends StatelessWidget {
+  const _ConnectionRingButton({
     required this.status,
     required this.statusColor,
     required this.isBusy,
@@ -358,23 +649,19 @@ class _ConnectButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isConnected = status == VpnStatus.connected;
+    final isDisconnecting = status == VpnStatus.disconnecting;
     final isWorking =
         status == VpnStatus.connecting || status == VpnStatus.disconnecting;
-    final isDisconnecting = status == VpnStatus.disconnecting;
-    final buttonColor =
-        (isConnected || isDisconnecting) ? AppUIv1.success : AppUIv1.accent;
-    final ringColor = statusColor.withValues(alpha: 0.15);
-
+    final enabled = onPressed != null;
     final label = isWorking
         ? isDisconnecting
-            ? 'Disconnecting'
+            ? 'Closing'
             : 'Connecting'
         : isConnected
             ? 'Disconnect'
             : 'Connect';
-
     final icon = isWorking
-        ? Icons.sync
+        ? Icons.sync_rounded
         : isConnected
             ? Icons.stop_rounded
             : Icons.power_settings_new_rounded;
@@ -382,81 +669,101 @@ class _ConnectButton extends StatelessWidget {
     return AnimatedContainer(
       duration: AppUIv1.durationSlow,
       curve: AppUIv1.curveDefault,
-      width: 160,
-      height: 160,
+      width: 226,
+      height: 226,
+      padding: const EdgeInsets.all(AppUIv1.space4),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: ringColor,
-        boxShadow: isConnected
-            ? [
-                BoxShadow(
-                  color: AppUIv1.success.withValues(alpha: 0.15),
-                  blurRadius: 32,
-                  spreadRadius: 4,
-                ),
-              ]
-            : [],
+        color: statusColor.withValues(alpha: isConnected ? 0.14 : 0.08),
+        border: Border.all(color: statusColor.withValues(alpha: 0.26)),
+        boxShadow: isConnected ? AppUIv1.glowSuccess : AppUIv1.shadowMd,
       ),
-      child: Center(
-        child: AnimatedContainer(
-          duration: AppUIv1.durationNormal,
-          curve: AppUIv1.curveDefault,
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: buttonColor,
-            boxShadow: AppUIv1.shadowMd,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onPressed,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedSwitcher(
-                    duration: AppUIv1.durationFast,
-                    child: isWorking
-                        ? SizedBox(
-                            key: const ValueKey('spinner'),
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          )
-                        : Icon(icon,
-                            key: ValueKey(icon), color: Colors.white, size: 32),
-                  ),
-                  const SizedBox(height: 6),
-                  AnimatedSwitcher(
-                    duration: AppUIv1.durationFast,
-                    child: Text(
-                      label,
-                      key: ValueKey(label),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ],
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(AppUIv1.space2),
+              child: CircularProgressIndicator(
+                value: isWorking
+                    ? null
+                    : isConnected
+                        ? 1
+                        : status == VpnStatus.error
+                            ? 0.72
+                            : 0.18,
+                strokeWidth: 5,
+                color: statusColor,
+                backgroundColor: AppUIv1.surfaceMuted.withValues(alpha: 0.72),
+                strokeCap: StrokeCap.round,
               ),
             ),
           ),
-        ),
+          AnimatedScale(
+            duration: AppUIv1.durationFast,
+            scale: isWorking ? 0.96 : 1,
+            child: SizedBox(
+              width: 142,
+              height: 142,
+              child: Material(
+                color: enabled
+                    ? statusColor.withValues(alpha: isConnected ? 0.92 : 0.96)
+                    : AppUIv1.surfaceMuted,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onPressed,
+                  child: Opacity(
+                    opacity: enabled ? 1 : 0.58,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: AppUIv1.durationFast,
+                          child: isBusy
+                              ? SizedBox(
+                                  key: const ValueKey('spinner'),
+                                  width: 30,
+                                  height: 30,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: AppUIv1.background
+                                        .withValues(alpha: 0.92),
+                                  ),
+                                )
+                              : Icon(
+                                  icon,
+                                  key: ValueKey(icon),
+                                  color: AppUIv1.background,
+                                  size: 34,
+                                ),
+                        ),
+                        const SizedBox(height: AppUIv1.space2),
+                        AnimatedSwitcher(
+                          duration: AppUIv1.durationFast,
+                          child: Text(
+                            label,
+                            key: ValueKey(label),
+                            style: const TextStyle(
+                              color: AppUIv1.background,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
-
-// ── Notice card ────────────────────────────────────────────────────────
 
 class _NoticeCard extends StatelessWidget {
   const _NoticeCard({
@@ -473,16 +780,13 @@ class _NoticeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SecureSurface(
+      variant: SecureSurfaceVariant.base,
       padding: const EdgeInsets.all(AppUIv1.space3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(AppUIv1.radiusM),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 18),
+          Icon(icon, color: color, size: 20),
           const SizedBox(width: AppUIv1.space2),
           Expanded(
             child: Column(
@@ -491,17 +795,13 @@ class _NoticeCard extends StatelessWidget {
                 if (title != null) ...[
                   Text(
                     title!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: color,
                         ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppUIv1.space1),
                 ],
-                Text(
-                  body,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                Text(body, style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),
@@ -510,8 +810,6 @@ class _NoticeCard extends StatelessWidget {
     );
   }
 }
-
-// ── Metric tile ────────────────────────────────────────────────────────
 
 class _MetricTile extends StatelessWidget {
   const _MetricTile({
@@ -526,34 +824,197 @@ class _MetricTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SecureSurface(
+      variant: SecureSurfaceVariant.base,
       padding: const EdgeInsets.all(AppUIv1.space3),
-      decoration: BoxDecoration(
-        color: AppUIv1.surface,
-        borderRadius: BorderRadius.circular(AppUIv1.radiusL),
-        border: Border.all(color: AppUIv1.border),
-      ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 18, color: AppUIv1.accent),
+          const SizedBox(height: AppUIv1.space2),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: AppUIv1.space1),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({
+    required this.message,
+    required this.color,
+    required this.backendUnreachable,
+  });
+
+  final String message;
+  final Color color;
+  final bool backendUnreachable;
+
+  @override
+  Widget build(BuildContext context) {
+    return SecureSurface(
+      variant: backendUnreachable
+          ? SecureSurfaceVariant.danger
+          : SecureSurfaceVariant.warning,
+      padding: const EdgeInsets.all(AppUIv1.space3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            backendUnreachable ? Icons.cloud_off : Icons.warning_amber_rounded,
+            size: 20,
+            color: color,
+          ),
           const SizedBox(width: AppUIv1.space2),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.bodySmall),
-                Text(
-                  value,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-              ],
+            child: Text(
+              message,
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+_SelectedServerSummary _selectedServerSummary({
+  required String? selectedServerId,
+  required List<ServerRegion>? servers,
+}) {
+  if (selectedServerId == null) {
+    return const _SelectedServerSummary(
+      label: 'Auto-select',
+      detail: 'SecureWave chooses the fastest available region.',
+      isAuto: true,
+    );
+  }
+
+  ServerRegion? match;
+  for (final server in servers ?? const <ServerRegion>[]) {
+    if (server.id == selectedServerId) {
+      match = server;
+      break;
+    }
+  }
+
+  if (match == null) {
+    return _SelectedServerSummary(
+      label: selectedServerId,
+      detail: servers == null
+          ? 'Saved region. Catalog is still loading.'
+          : 'Saved region is not in the current catalog.',
+      isAuto: false,
+    );
+  }
+
+  final detailParts = <String>[];
+  if (match.city != null && match.city!.isNotEmpty) {
+    detailParts.add(match.city!);
+  }
+  if (match.country != null && match.country!.isNotEmpty) {
+    detailParts.add(match.country!);
+  }
+  if (match.latencyMs != null) {
+    detailParts.add('${match.latencyMs} ms');
+  }
+
+  return _SelectedServerSummary(
+    label: match.name,
+    detail: detailParts.isEmpty ? 'Selected region' : detailParts.join(' • '),
+    isAuto: false,
+  );
+}
+
+String _statusText(VpnStatus status, bool backendUnreachable) {
+  return switch (status) {
+    VpnStatus.connected => 'Connected',
+    VpnStatus.connecting => 'Connecting',
+    VpnStatus.disconnecting => 'Disconnecting',
+    VpnStatus.error =>
+      backendUnreachable ? 'Backend unreachable' : 'Needs attention',
+    VpnStatus.disconnected => 'Disconnected',
+  };
+}
+
+Color _statusColor(VpnStatus status, bool backendUnreachable) {
+  return switch (status) {
+    VpnStatus.connected => AppUIv1.success,
+    VpnStatus.connecting => AppUIv1.accentSun,
+    VpnStatus.disconnecting => AppUIv1.accentSun,
+    VpnStatus.error => backendUnreachable ? AppUIv1.danger : AppUIv1.warning,
+    VpnStatus.disconnected => AppUIv1.accent,
+  };
+}
+
+IconData _statusIcon(VpnStatus status) {
+  return switch (status) {
+    VpnStatus.connected => Icons.verified_rounded,
+    VpnStatus.connecting => Icons.sync_rounded,
+    VpnStatus.disconnecting => Icons.sync_disabled_rounded,
+    VpnStatus.error => Icons.warning_amber_rounded,
+    VpnStatus.disconnected => Icons.power_settings_new_rounded,
+  };
+}
+
+IconData _statusIconForText(String statusText) {
+  if (statusText.contains('Connected')) return Icons.verified_rounded;
+  if (statusText.contains('Connecting')) return Icons.sync_rounded;
+  if (statusText.contains('attention') || statusText.contains('unreachable')) {
+    return Icons.warning_amber_rounded;
+  }
+  return Icons.power_settings_new_rounded;
+}
+
+String _connectionHeadline(VpnStatus status) {
+  return switch (status) {
+    VpnStatus.connected => 'Protected tunnel active',
+    VpnStatus.connecting => 'Establishing secure tunnel',
+    VpnStatus.disconnecting => 'Closing tunnel cleanly',
+    VpnStatus.error => 'Connection needs attention',
+    VpnStatus.disconnected => 'Ready to secure traffic',
+  };
+}
+
+String _connectionBody({
+  required VpnStatus status,
+  required bool nativeUnavailable,
+  required bool canAttemptConnect,
+}) {
+  if (!canAttemptConnect) {
+    return 'Native VPN support is required before this device can open a real tunnel.';
+  }
+  return switch (status) {
+    VpnStatus.connected =>
+      'Your selected tunnel is active. Live throughput reflects the current app state.',
+    VpnStatus.connecting =>
+      'SecureWave is requesting the profile and starting the tunnel.',
+    VpnStatus.disconnecting =>
+      'SecureWave is stopping the tunnel and clearing active transfer rates.',
+    VpnStatus.error =>
+      'Review the message below or open diagnostics for a read-only health check.',
+    VpnStatus.disconnected => nativeUnavailable
+        ? 'Demo mode can simulate the flow, but native VPN support is not active here.'
+        : 'Choose a region and press Connect when you are ready.',
+  };
+}
+
+class _SelectedServerSummary {
+  const _SelectedServerSummary({
+    required this.label,
+    required this.detail,
+    required this.isAuto,
+  });
+
+  final String label;
+  final String detail;
+  final bool isAuto;
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../ui/app_ui_v1.dart';
+import 'auth_entry_shell.dart';
 import 'auth_controller.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
@@ -18,6 +18,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
 
   @override
   void dispose() {
@@ -31,168 +33,143 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(authControllerProvider);
 
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppUIv1.authMaxWidth),
-            child: ListView(
-              padding: const EdgeInsets.all(AppUIv1.space5),
+    return AuthEntryShell(
+      title: 'New secure account',
+      subtitle: 'Create access for your SecureWave connection.',
+      formTitle: 'Create account',
+      formSubtitle: 'Set your credentials to continue.',
+      children: [
+        Form(
+          key: _formKey,
+          child: AutofillGroup(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: AppUIv1.space7),
-                Center(
-                  child: SvgPicture.asset(
-                    'assets/securewave_logo.svg',
-                    width: 56,
-                    height: 56,
-                  ),
+                SecureAuthTextField(
+                  label: 'Email address',
+                  controller: _emailController,
+                  hintText: 'you@example.com',
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [
+                    AutofillHints.username,
+                    AutofillHints.email,
+                  ],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Enter your email.';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Enter a valid email.';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: AppUIv1.space4),
-                Text(
-                  'Create your account',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppUIv1.space2),
-                Text(
-                  'SecureWave keeps your connection calm and reliable.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppUIv1.space6),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppUIv1.space5),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Email address',
-                              style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: AppUIv1.space2),
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            decoration:
-                                const InputDecoration(hintText: 'you@example.com'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Enter your email.';
-                              }
-                              if (!value.contains('@')) {
-                                return 'Enter a valid email.';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: AppUIv1.space4),
-                          Text('Password',
-                              style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: AppUIv1.space2),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: true,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                                hintText: 'Create a password'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Create a password.';
-                              }
-                              if (value.length < 8) {
-                                return 'Use at least 8 characters.';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: AppUIv1.space4),
-                          Text('Confirm password',
-                              style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: AppUIv1.space2),
-                          TextFormField(
-                            controller: _confirmController,
-                            obscureText: true,
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                                hintText: 'Repeat your password'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Confirm your password.';
-                              }
-                              if (value != _passwordController.text) {
-                                return 'Passwords do not match.';
-                              }
-                              return null;
-                            },
-                          ),
-                          if (state.errorMessage != null) ...[
-                            const SizedBox(height: AppUIv1.space3),
-                            Text(
-                              state.errorMessage!,
-                              style: const TextStyle(color: AppUIv1.warning),
-                            ),
-                          ],
-                          const SizedBox(height: AppUIv1.space5),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              onPressed: state.isLoading
-                                  ? null
-                                  : () async {
-                                      if (!_formKey.currentState!.validate()) {
-                                        return;
-                                      }
-                                      await ref
-                                          .read(authControllerProvider.notifier)
-                                          .register(
-                                            email:
-                                                _emailController.text.trim(),
-                                            password:
-                                                _passwordController.text.trim(),
-                                          );
-                                      if (!context.mounted) return;
-                                      if (ref
-                                              .read(authControllerProvider)
-                                              .errorMessage ==
-                                          null) {
-                                        context.go('/vpn');
-                                      }
-                                    },
-                              child: state.isLoading
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    )
-                                  : const Text('Create account'),
-                            ),
-                          ),
-                        ],
-                      ),
+                SecureAuthTextField(
+                  label: 'Password',
+                  controller: _passwordController,
+                  hintText: 'Create a password',
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.newPassword],
+                  suffixIcon: IconButton(
+                    tooltip:
+                        _obscurePassword ? 'Show password' : 'Hide password',
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
+                    onPressed: () {
+                      setState(() => _obscurePassword = !_obscurePassword);
+                    },
                   ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Create a password.';
+                    }
+                    if (value.length < 8) {
+                      return 'Use at least 8 characters.';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: AppUIv1.space4),
-                Center(
-                  child: TextButton(
+                SecureAuthTextField(
+                  label: 'Confirm password',
+                  controller: _confirmController,
+                  hintText: 'Repeat your password',
+                  obscureText: _obscureConfirm,
+                  textInputAction: TextInputAction.done,
+                  autofillHints: const [AutofillHints.newPassword],
+                  suffixIcon: IconButton(
+                    tooltip:
+                        _obscureConfirm ? 'Show password' : 'Hide password',
+                    icon: Icon(
+                      _obscureConfirm
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
                     onPressed: () {
-                      if (Navigator.of(context).canPop()) {
-                        context.pop();
-                        return;
-                      }
-                      context.go('/login');
+                      setState(() => _obscureConfirm = !_obscureConfirm);
                     },
-                    child: const Text('Already have an account? Sign in'),
                   ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Confirm your password.';
+                    }
+                    if (value != _passwordController.text) {
+                      return 'Passwords do not match.';
+                    }
+                    return null;
+                  },
+                ),
+                if (state.errorMessage != null) ...[
+                  const SizedBox(height: AppUIv1.space4),
+                  AuthErrorBanner(message: state.errorMessage!),
+                ],
+                const SizedBox(height: AppUIv1.space5),
+                SecureAuthPrimaryButton(
+                  label: 'Create account',
+                  isLoading: state.isLoading,
+                  onPressed: state.isLoading ? null : _submit,
                 ),
               ],
             ),
           ),
         ),
-      ),
+        const SizedBox(height: AppUIv1.space3),
+        Center(
+          child: TextButton.icon(
+            onPressed: _goToLogin,
+            icon: const Icon(Icons.arrow_back_rounded, size: 18),
+            label: const Text('Already have an account? Sign in'),
+          ),
+        ),
+      ],
     );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    await ref.read(authControllerProvider.notifier).register(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
+    if (!mounted) return;
+    if (ref.read(authControllerProvider).errorMessage == null) {
+      context.go('/vpn');
+    }
+  }
+
+  void _goToLogin() {
+    if (Navigator.of(context).canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/login');
   }
 }

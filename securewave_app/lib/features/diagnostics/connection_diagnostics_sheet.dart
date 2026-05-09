@@ -37,12 +37,20 @@ class ConnectionDiagnosticsSheet extends ConsumerStatefulWidget {
   static Future<void> show(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.46),
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (context) => const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(top: AppUIv1.space2),
-          child: ConnectionDiagnosticsSheet(),
+      builder: (context) => SafeArea(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: const Padding(
+              padding: EdgeInsets.only(top: AppUIv1.space2),
+              child: ConnectionDiagnosticsSheet(),
+            ),
+          ),
         ),
       ),
     );
@@ -346,59 +354,164 @@ class _ConnectionDiagnosticsSheetState
 
   @override
   Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.82;
+
     return Padding(
       padding: EdgeInsets.only(
         left: AppUIv1.space4,
         right: AppUIv1.space4,
         bottom: MediaQuery.of(context).viewInsets.bottom + AppUIv1.space4,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Connection diagnostics',
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppUIv1.space2),
-          Text(
-            'Quick, read-only checks to classify connection issues.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: AppUIv1.space3),
-          if (_running) const LinearProgressIndicator(minHeight: 2),
-          const SizedBox(height: AppUIv1.space3),
-          Card(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SecureSurface(
+          variant: SecureSurfaceVariant.glass,
+          padding: const EdgeInsets.all(AppUIv1.space4),
+          child: SingleChildScrollView(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final item in _items) ...[
-                  ListTile(
-                    leading: Icon(_statusIcon(item.status),
-                        color: _statusColor(item.status)),
-                    title: Text(item.title),
-                    subtitle: Text(item.message),
-                  ),
-                  const Divider(height: 1),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppUIv1.accentCyan.withValues(alpha: 0.14),
+                        border: Border.all(
+                          color: AppUIv1.accentCyan.withValues(alpha: 0.34),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.monitor_heart_rounded,
+                        color: AppUIv1.accentCyan,
+                      ),
+                    ),
+                    const SizedBox(width: AppUIv1.space3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Connection diagnostics',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: AppUIv1.space1),
+                          Text(
+                            'Quick, read-only checks for backend, auth, profile, and tunnel state.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Run checks again',
+                      onPressed: _running ? null : _runChecks,
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ],
+                ),
+                if (_running) ...[
+                  const SizedBox(height: AppUIv1.space4),
+                  const LinearProgressIndicator(minHeight: 3),
                 ],
+                const SizedBox(height: AppUIv1.space4),
                 if (_items.isEmpty)
-                  const ListTile(
-                    leading: Icon(Icons.info_outline),
-                    title: Text('Running checks…'),
+                  const _QuickCheckRow(
+                    color: AppUIv1.inkSoft,
+                    icon: Icons.info_outline,
+                    title: 'Running checks',
+                    message: 'Collecting current app and connection state.',
+                  )
+                else
+                  Column(
+                    children: [
+                      for (final item in _items) ...[
+                        _QuickCheckRow(
+                          color: _statusColor(item.status),
+                          icon: _statusIcon(item.status),
+                          title: item.title,
+                          message: item.message,
+                        ),
+                        if (item != _items.last)
+                          const SizedBox(height: AppUIv1.space2),
+                      ],
+                    ],
                   ),
+                if (_lastRunAt != null) ...[
+                  const SizedBox(height: AppUIv1.space3),
+                  Text(
+                    'Last updated: ${_lastRunAt!.toLocal()}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                const SizedBox(height: AppUIv1.space3),
+                SecureSurface(
+                  variant: SecureSurfaceVariant.base,
+                  padding: const EdgeInsets.all(AppUIv1.space3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.article_outlined,
+                        color: AppUIv1.inkSoft,
+                        size: 19,
+                      ),
+                      const SizedBox(width: AppUIv1.space2),
+                      Expanded(
+                        child: Text(
+                          'For full logs and advanced actions, use Settings > Run diagnostics.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-          if (_lastRunAt != null) ...[
-            const SizedBox(height: AppUIv1.space2),
-            Text(
-              'Last updated: ${_lastRunAt!.toLocal()}',
-              style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickCheckRow extends StatelessWidget {
+  const _QuickCheckRow({
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final Color color;
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return SecureSurface(
+      variant: SecureSurfaceVariant.base,
+      padding: const EdgeInsets.all(AppUIv1.space3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 21),
+          const SizedBox(width: AppUIv1.space3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: AppUIv1.space1),
+                Text(message, style: Theme.of(context).textTheme.bodySmall),
+              ],
             ),
-          ],
-          const SizedBox(height: AppUIv1.space3),
-          Text(
-            'For full logs and advanced actions, use Settings → Run diagnostics.',
-            style: Theme.of(context).textTheme.bodySmall,
           ),
-          const SizedBox(height: AppUIv1.space3),
         ],
       ),
     );

@@ -154,8 +154,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Text('Page not found', style: Theme.of(context).textTheme.titleLarge),
+      body: SecurePageBackground(
+        child: SafeArea(
+          child: SecureResponsiveFrame(
+            maxWidth: AppUIv1.contentMaxWidth,
+            alignment: Alignment.center,
+            child: SecureSurface(
+              variant: SecureSurfaceVariant.warning,
+              padding: const EdgeInsets.all(AppUIv1.space5),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.travel_explore_rounded,
+                    color: AppUIv1.warning,
+                  ),
+                  const SizedBox(width: AppUIv1.space3),
+                  Expanded(
+                    child: Text(
+                      'Page not found',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     ),
   );

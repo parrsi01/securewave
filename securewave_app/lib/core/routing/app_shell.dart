@@ -52,19 +52,19 @@ class AppShell extends ConsumerWidget {
 
         if (isDesktop) {
           return Scaffold(
-            body: SafeArea(
-              child: Row(
-                children: [
-                  // Desktop: NavigationRail with logo header
-                  _DesktopRail(
-                    currentIndex: currentIndex,
-                    statusColor: statusColor,
-                    vpnStatus: vpnState.status,
-                    onLogout: () => _logout(context, ref),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: child),
-                ],
+            body: SecurePageBackground(
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    _DesktopRail(
+                      currentIndex: currentIndex,
+                      statusColor: statusColor,
+                      vpnStatus: vpnState.status,
+                      onLogout: () => _logout(context, ref),
+                    ),
+                    Expanded(child: child),
+                  ],
+                ),
               ),
             ),
           );
@@ -125,17 +125,23 @@ class AppShell extends ConsumerWidget {
                       ref.read(externalLinksProvider).openUrl(url),
                 ),
           body: child,
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: currentIndex,
-            onDestinationSelected: (index) =>
-                context.go(_destinations[index].route),
-            destinations: _destinations
-                .map((d) => NavigationDestination(
-                      icon: Icon(d.icon),
-                      selectedIcon: Icon(d.selectedIcon),
-                      label: d.label,
-                    ))
-                .toList(),
+          bottomNavigationBar: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppUIv1.surface.withValues(alpha: 0.98),
+              border: const Border(top: BorderSide(color: AppUIv1.divider)),
+            ),
+            child: NavigationBar(
+              selectedIndex: currentIndex,
+              onDestinationSelected: (index) =>
+                  context.go(_destinations[index].route),
+              destinations: _destinations
+                  .map((d) => NavigationDestination(
+                        icon: Icon(d.icon),
+                        selectedIcon: Icon(d.selectedIcon),
+                        label: d.label,
+                      ))
+                  .toList(),
+            ),
           ),
         );
       },
@@ -148,7 +154,7 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-// ── Desktop NavigationRail with branding ──────────────────────────────
+// ── Desktop navigation rail with branding ──────────────────────────────
 
 class _DesktopRail extends StatelessWidget {
   const _DesktopRail({
@@ -166,53 +172,124 @@ class _DesktopRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 80,
-      child: Column(
-        children: [
-          const SizedBox(height: AppUIv1.space4),
-          // Logo
-          SvgPicture.asset(
-            'assets/securewave_logo.svg',
-            width: 32,
-            height: 32,
+      width: 112,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppUIv1.space4,
+          AppUIv1.space4,
+          AppUIv1.space3,
+          AppUIv1.space4,
+        ),
+        child: SecureSurface(
+          variant: SecureSurfaceVariant.glass,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppUIv1.space2,
+            vertical: AppUIv1.space3,
           ),
-          const SizedBox(height: AppUIv1.space2),
-          // Status dot
-          AnimatedContainer(
-            duration: AppUIv1.durationNormal,
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: statusColor,
-              shape: BoxShape.circle,
+          radius: AppUIv1.radiusXL,
+          child: Column(
+            children: [
+              SvgPicture.asset(
+                'assets/securewave_logo.svg',
+                width: 34,
+                height: 34,
+              ),
+              const SizedBox(height: AppUIv1.space3),
+              AnimatedContainer(
+                duration: AppUIv1.durationNormal,
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: statusColor.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      spreadRadius: -2,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppUIv1.space4),
+              Expanded(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < AppShell._destinations.length; i++) ...[
+                      _RailButton(
+                        destination: AppShell._destinations[i],
+                        selected: i == currentIndex,
+                        onTap: () =>
+                            context.go(AppShell._destinations[i].route),
+                      ),
+                      if (i != AppShell._destinations.length - 1)
+                        const SizedBox(height: AppUIv1.space2),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout, size: 20),
+                color: AppUIv1.inkSoft,
+                tooltip: 'Sign out',
+                onPressed: onLogout,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RailButton extends StatelessWidget {
+  const _RailButton({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _NavDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppUIv1.accentCyan : AppUIv1.inkSoft;
+
+    return Tooltip(
+      message: destination.label,
+      waitDuration: const Duration(milliseconds: 450),
+      child: SecureSurface(
+        variant:
+            selected ? SecureSurfaceVariant.accent : SecureSurfaceVariant.base,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppUIv1.space2,
+          vertical: AppUIv1.space3,
+        ),
+        radius: AppUIv1.radiusL,
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              selected ? destination.selectedIcon : destination.icon,
+              color: selected ? AppUIv1.background : color,
+              size: 21,
             ),
-          ),
-          const SizedBox(height: AppUIv1.space4),
-          // Navigation items
-          Expanded(
-            child: NavigationRail(
-              selectedIndex: currentIndex,
-              onDestinationSelected: (index) =>
-                  context.go(AppShell._destinations[index].route),
-              labelType: NavigationRailLabelType.all,
-              backgroundColor: Colors.transparent,
-              destinations: AppShell._destinations
-                  .map((d) => NavigationRailDestination(
-                        icon: Icon(d.icon),
-                        selectedIcon: Icon(d.selectedIcon),
-                        label: Text(d.label),
-                      ))
-                  .toList(),
+            const SizedBox(height: AppUIv1.space1),
+            Text(
+              destination.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: selected ? AppUIv1.background : color,
+                    fontSize: 10,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                  ),
             ),
-          ),
-          // Logout at bottom
-          IconButton(
-            icon: const Icon(Icons.logout, size: 20, color: AppUIv1.inkSoft),
-            tooltip: 'Sign out',
-            onPressed: onLogout,
-          ),
-          const SizedBox(height: AppUIv1.space4),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -239,6 +316,7 @@ class _AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
     final statusLabel = switch (vpnStatus) {
       VpnStatus.connected => 'Connected',
       VpnStatus.connecting => 'Connecting',
@@ -248,122 +326,163 @@ class _AppDrawer extends StatelessWidget {
     };
 
     return Drawer(
+      backgroundColor: AppUIv1.backgroundStrong,
       child: SafeArea(
         child: Column(
           children: [
-            // Header
             Padding(
-              padding: const EdgeInsets.all(AppUIv1.space5),
-              child: Row(
-                children: [
-                  SvgPicture.asset(
-                    'assets/securewave_logo.svg',
-                    width: 36,
-                    height: 36,
-                  ),
-                  const SizedBox(width: AppUIv1.space3),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'SecureWave',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                color: statusColor,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              statusLabel,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: statusColor),
-                            ),
-                          ],
-                        ),
-                      ],
+              padding: const EdgeInsets.all(AppUIv1.space4),
+              child: SecureSurface(
+                variant: SecureSurfaceVariant.glass,
+                radius: AppUIv1.radiusXL,
+                padding: const EdgeInsets.all(AppUIv1.space4),
+                child: Row(
+                  children: [
+                    SvgPicture.asset(
+                      'assets/securewave_logo.svg',
+                      width: 38,
+                      height: 38,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: AppUIv1.space3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'SecureWave',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: AppUIv1.space1),
+                          SecureStatePill(
+                            label: statusLabel,
+                            color: statusColor,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const Divider(height: 1),
-            // Navigation
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: AppUIv1.space2),
+                padding: const EdgeInsets.fromLTRB(
+                  AppUIv1.space4,
+                  0,
+                  AppUIv1.space4,
+                  AppUIv1.space4,
+                ),
                 children: [
-                  _drawerTile(context, Icons.shield, 'VPN Home',
-                      () => onNavigate('/vpn')),
-                  _drawerTile(context, Icons.public, 'Servers',
-                      () => onNavigate('/servers')),
-                  _drawerTile(context, Icons.person, 'Account',
-                      () => onNavigate('/account')),
-                  _drawerTile(context, Icons.settings, 'Settings',
-                      () => onNavigate('/settings')),
-                  const Divider(height: AppUIv1.space5),
-                  _drawerTile(
-                    context,
-                    Icons.language,
-                    'Language',
-                    () {
+                  for (final destination in AppShell._destinations) ...[
+                    _DrawerAction(
+                      icon: location.startsWith(destination.route)
+                          ? destination.selectedIcon
+                          : destination.icon,
+                      label: destination.label == 'Home'
+                          ? 'VPN Home'
+                          : destination.label,
+                      selected: location.startsWith(destination.route),
+                      onTap: () => onNavigate(destination.route),
+                    ),
+                    const SizedBox(height: AppUIv1.space2),
+                  ],
+                  const SizedBox(height: AppUIv1.space2),
+                  const Divider(height: AppUIv1.space4),
+                  const SizedBox(height: AppUIv1.space2),
+                  _DrawerAction(
+                    icon: Icons.language_rounded,
+                    label: 'Language',
+                    onTap: () {
                       Navigator.of(context).maybePop();
                       context.push('/settings/language');
                     },
                   ),
-                  _drawerTile(
-                    context,
-                    Icons.upgrade,
-                    'Upgrade plan',
-                    () => onExternalLink(config.upgradeUrl),
+                  const SizedBox(height: AppUIv1.space2),
+                  _DrawerAction(
+                    icon: Icons.workspace_premium_outlined,
+                    label: 'Premium updates',
+                    onTap: () => onExternalLink(config.upgradeUrl),
                   ),
-                  _drawerTile(
-                    context,
-                    Icons.open_in_new,
-                    'Web portal',
-                    () => onExternalLink(config.portalUrl),
+                  const SizedBox(height: AppUIv1.space2),
+                  _DrawerAction(
+                    icon: Icons.open_in_new_rounded,
+                    label: 'Web portal',
+                    onTap: () => onExternalLink(config.portalUrl),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
-            // Logout
-            ListTile(
-              leading: const Icon(Icons.logout, color: AppUIv1.inkSoft),
-              title: Text(
-                'Sign out',
-                style: Theme.of(context).textTheme.bodyMedium,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppUIv1.space4,
+                0,
+                AppUIv1.space4,
+                AppUIv1.space4,
               ),
-              onTap: onLogout,
+              child: _DrawerAction(
+                icon: Icons.logout_rounded,
+                label: 'Sign out',
+                color: AppUIv1.inkSoft,
+                onTap: onLogout,
+              ),
             ),
-            const SizedBox(height: AppUIv1.space2),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _drawerTile(
-    BuildContext context,
-    IconData icon,
-    String label,
-    VoidCallback onTap,
-  ) {
-    return ListTile(
-      leading: Icon(icon, size: 22),
-      title: Text(label),
-      dense: true,
+class _DrawerAction extends StatelessWidget {
+  const _DrawerAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        color ?? (selected ? AppUIv1.background : AppUIv1.inkMuted);
+
+    return SecureSurface(
+      variant:
+          selected ? SecureSurfaceVariant.accent : SecureSurfaceVariant.base,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppUIv1.space3,
+        vertical: AppUIv1.space3,
+      ),
+      radius: AppUIv1.radiusL,
       onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, color: foreground, size: 21),
+          const SizedBox(width: AppUIv1.space3),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: foreground,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                  ),
+            ),
+          ),
+          if (selected)
+            const Icon(
+              Icons.radio_button_checked_rounded,
+              color: AppUIv1.background,
+              size: 15,
+            ),
+        ],
+      ),
     );
   }
 }
