@@ -2,11 +2,11 @@ import pytest
 from fastapi import status
 
 
-def _create_free_server(db):
+def _create_free_server(db, *, server_id="profile-free-us-1", **overrides):
     from models.vpn_server import VPNServer
 
-    server = VPNServer(
-        server_id="profile-free-us-1",
+    data = dict(
+        server_id=server_id,
         location="New York, US",
         country="United States",
         country_code="US",
@@ -25,6 +25,8 @@ def _create_free_server(db):
         performance_score=99.0,
         hcloud_server_state="running",
     )
+    data.update(overrides)
+    server = VPNServer(**data)
     db.add(server)
     db.commit()
     db.refresh(server)
@@ -84,3 +86,77 @@ class TestVpnProfileProvisioning:
         assert resp.status_code == 200, resp.text
         config = resp.json().get("wireguard_config", "")
         assert "PostUp" not in config
+
+    def test_openvpn_profile_requires_server_support(self, client, auth_headers, db):
+        _create_free_server(db)
+
+        resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Linux Box",
+                "device_type": "linux",
+                "protocol": "openvpn",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 503, resp.text
+        assert "No openvpn VPN servers available" in resp.text
+
+    def test_openvpn_profile_returns_protocol_config_when_server_supports_it(self, client, auth_headers, db):
+        _create_free_server(
+            db,
+            server_id="profile-openvpn-us-1",
+            supports_openvpn=True,
+            openvpn_endpoint="10.0.0.9",
+            openvpn_port=1194,
+            openvpn_transport="udp",
+            openvpn_ca_cert_pem=(
+                "-----BEGIN CERTIFICATE-----\n"
+                "MIIBtest\n"
+                "-----END CERTIFICATE-----"
+            ),
+        )
+
+        resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Linux Box",
+                "device_type": "linux",
+                "protocol": "openvpn",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data.get("protocol") == "openvpn"
+        assert not data.get("wireguard_config")
+        assert "client" in data.get("openvpn_config", "")
+        assert "<ca>" in data.get("openvpn_config", "")
+
+    def test_ikev2_profile_returns_protocol_config_when_server_supports_it(self, client, auth_headers, db):
+        _create_free_server(
+            db,
+            server_id="profile-ikev2-us-1",
+            supports_ikev2=True,
+            ikev2_remote_id="vpn.securewave.test",
+            ikev2_ca_cert_pem=(
+                "-----BEGIN CERTIFICATE-----\n"
+                "MIIBtest\n"
+                "-----END CERTIFICATE-----"
+            ),
+        )
+
+        resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Linux Box",
+                "device_type": "linux",
+                "protocol": "ikev2",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data.get("protocol") == "ikev2"
+        assert "connections" in data.get("ikev2_config", "")
+        assert "vpn.securewave.test" in data.get("ikev2_config", "")

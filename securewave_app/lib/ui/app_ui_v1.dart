@@ -1,7 +1,5 @@
 import 'dart:io' show Platform;
-import 'dart:ui' show ImageFilter;
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,44 +15,45 @@ enum SecureSurfaceVariant {
 }
 
 class AppUIv1 {
-  // SecureWave app foundation: dark navy glass, restrained blue/cyan glow.
+  // SecureWave app foundation: graphite surfaces, electric lime actions,
+  // seawater status, and warm warning/coral failure states.
   // Keep these legacy names stable while future screens migrate to the
   // richer token helpers below.
-  static const Color background = Color(0xFF050914);
-  static const Color backgroundStrong = Color(0xFF08111F);
-  static const Color backgroundElevated = Color(0xFF0C1728);
-  static const Color surface = Color(0xFF101D31);
-  static const Color surfaceRaised = Color(0xFF13243A);
-  static const Color surfaceMuted = Color(0xFF172A43);
-  static const Color surfaceGlass = Color(0xB3182A43);
-  static const Color surfaceOverlay = Color(0x1A8FD3FF);
+  static const Color background = Color(0xFF0B0D0E);
+  static const Color backgroundStrong = Color(0xFF0F1213);
+  static const Color backgroundElevated = Color(0xFF141819);
+  static const Color surface = Color(0xFF161A1B);
+  static const Color surfaceRaised = Color(0xFF202526);
+  static const Color surfaceMuted = Color(0xFF303738);
+  static const Color surfaceGlass = Color(0xFF181D1E);
+  static const Color surfaceOverlay = Color(0x18D8FF5F);
 
-  static const Color accent = Color(0xFF47B9FF);
-  static const Color accentStrong = Color(0xFF1286D8);
-  static const Color accentSoft = Color(0x3329D6C7);
-  static const Color accentCyan = Color(0xFF29D6C7);
-  static const Color accentBlue = Color(0xFF3D7CFF);
-  static const Color accentSun = Color(0xFFF5C542);
+  static const Color accent = Color(0xFFD8FF5F);
+  static const Color accentStrong = Color(0xFFA7D934);
+  static const Color accentSoft = Color(0x33D8FF5F);
+  static const Color accentCyan = Color(0xFF53E0B8);
+  static const Color accentBlue = Color(0xFF9FAC9A);
+  static const Color accentSun = Color(0xFFFFB86B);
 
-  static const Color success = Color(0xFF48E0A4);
-  static const Color warning = Color(0xFFFFB454);
-  static const Color danger = Color(0xFFFF5F7A);
+  static const Color success = Color(0xFF6BF0B3);
+  static const Color warning = Color(0xFFFFC266);
+  static const Color danger = Color(0xFFFF6B5F);
 
-  static const Color ink = Color(0xFFF5F8FF);
-  static const Color inkMuted = Color(0xFFB8C7DA);
-  static const Color inkSoft = Color(0xFF7F91A8);
-  static const Color inkDisabled = Color(0xFF526277);
-  static const Color border = Color(0x3347B9FF);
-  static const Color borderStrong = Color(0x6647B9FF);
-  static const Color divider = Color(0x1F8FD3FF);
+  static const Color ink = Color(0xFFF4F7EF);
+  static const Color inkMuted = Color(0xFFC1CAB9);
+  static const Color inkSoft = Color(0xFF879080);
+  static const Color inkDisabled = Color(0xFF5B6258);
+  static const Color border = Color(0x2DF4F7EF);
+  static const Color borderStrong = Color(0x52D8FF5F);
+  static const Color divider = Color(0x1FF4F7EF);
 
   static const LinearGradient backgroundGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF061022),
-      Color(0xFF081B33),
-      Color(0xFF050914),
+      Color(0xFF0B0D0E),
+      Color(0xFF0F1213),
+      Color(0xFF0B0D0E),
     ],
     stops: [0, 0.48, 1],
   );
@@ -63,9 +62,9 @@ class AppUIv1 {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF4CC8FF),
-      Color(0xFF3D7CFF),
-      Color(0xFF29D6C7),
+      Color(0xFFE6FF76),
+      Color(0xFF53E0B8),
+      Color(0xFFFF7A6F),
     ],
   );
 
@@ -73,8 +72,8 @@ class AppUIv1 {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xE61A2E4A),
-      Color(0xCC0E1C30),
+      Color(0xFF1B2021),
+      Color(0xFF151819),
     ],
   );
 
@@ -82,8 +81,8 @@ class AppUIv1 {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF47B9FF),
-      Color(0xFF1868F2),
+      Color(0xFFD8FF5F),
+      Color(0xFF53E0B8),
     ],
   );
 
@@ -98,14 +97,13 @@ class AppUIv1 {
   static const double space8 = 64;
   static const double space9 = 88;
 
-  // Border radii. Card theme uses radiusCard; larger radii are reserved for
-  // controls, panels, and status primitives that need an iOS-like surface.
+  // Border radii. Keep app surfaces compact and utilitarian.
   static const double radiusXS = 6;
   static const double radiusS = 8;
-  static const double radiusM = 12;
-  static const double radiusL = 16;
-  static const double radiusXL = 20;
-  static const double radiusXXL = 28;
+  static const double radiusM = 10;
+  static const double radiusL = 10;
+  static const double radiusXL = 12;
+  static const double radiusXXL = 14;
   static const double radiusFull = 999;
   static const double radiusCard = 8;
 
@@ -119,40 +117,40 @@ class AppUIv1 {
   static List<BoxShadow> get shadowSm => [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.18),
-          blurRadius: 12,
-          offset: const Offset(0, 6),
+          blurRadius: 8,
+          offset: const Offset(0, 3),
         ),
       ];
 
   static List<BoxShadow> get shadowMd => [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.26),
-          blurRadius: 24,
-          offset: const Offset(0, 14),
+          color: Colors.black.withValues(alpha: 0.22),
+          blurRadius: 10,
+          offset: const Offset(0, 5),
         ),
       ];
 
   static List<BoxShadow> get glowAccent => [
         BoxShadow(
-          color: accent.withValues(alpha: 0.28),
-          blurRadius: 32,
-          spreadRadius: -4,
+          color: accent.withValues(alpha: 0.16),
+          blurRadius: 14,
+          spreadRadius: -8,
         ),
       ];
 
   static List<BoxShadow> get glowSuccess => [
         BoxShadow(
-          color: success.withValues(alpha: 0.26),
-          blurRadius: 30,
-          spreadRadius: -6,
+          color: success.withValues(alpha: 0.14),
+          blurRadius: 14,
+          spreadRadius: -8,
         ),
       ];
 
   static List<BoxShadow> get glowDanger => [
         BoxShadow(
-          color: danger.withValues(alpha: 0.22),
-          blurRadius: 28,
-          spreadRadius: -6,
+          color: danger.withValues(alpha: 0.12),
+          blurRadius: 14,
+          spreadRadius: -8,
         ),
       ];
 
@@ -403,7 +401,7 @@ class AppUIv1 {
             vertical: space4,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusFull),
+            borderRadius: BorderRadius.circular(radiusS),
           ),
           textStyle: const TextStyle(
             fontWeight: FontWeight.w800,
@@ -421,7 +419,7 @@ class AppUIv1 {
             vertical: space4,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusFull),
+            borderRadius: BorderRadius.circular(radiusS),
           ),
           side: const BorderSide(color: borderStrong),
           textStyle: const TextStyle(
@@ -547,10 +545,7 @@ class SecurePageBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(gradient: AppUIv1.backgroundGradient),
-      child: child,
-    );
+    return ColoredBox(color: AppUIv1.background, child: child);
   }
 }
 
@@ -635,45 +630,21 @@ class _SecureSurfaceState extends State<SecureSurface> {
               )!
             : colors.border,
       ),
-      boxShadow: active
-          ? [
-              ...colors.shadows,
-              BoxShadow(
-                color: AppUIv1.accentCyan.withValues(alpha: 0.12),
-                blurRadius: 22,
-                spreadRadius: -8,
-              ),
-            ]
-          : colors.shadows,
+      boxShadow: colors.shadows,
     );
 
     Widget content = AnimatedContainer(
       duration: AppUIv1.durationFast,
       curve: AppUIv1.curveDefault,
-      transform: Matrix4.translationValues(0, _pressed ? 1 : 0, 0),
       decoration: decoration,
       child: Padding(padding: widget.padding, child: widget.child),
     );
 
-    if (widget.variant == SecureSurfaceVariant.glass) {
-      content = ClipRRect(
-        borderRadius: borderRadius,
-        clipBehavior: widget.clipBehavior,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX: AppUIv1.blurGlass,
-            sigmaY: AppUIv1.blurGlass,
-          ),
-          child: content,
-        ),
-      );
-    } else {
-      content = ClipRRect(
-        borderRadius: borderRadius,
-        clipBehavior: widget.clipBehavior,
-        child: content,
-      );
-    }
+    content = ClipRRect(
+      borderRadius: borderRadius,
+      clipBehavior: widget.clipBehavior,
+      child: content,
+    );
 
     if (!interactive) return content;
     return Material(
@@ -713,10 +684,9 @@ class _SecureSurfaceState extends State<SecureSurface> {
         );
       case SecureSurfaceVariant.accent:
         return _SurfaceColors(
-          color: AppUIv1.accentSoft,
-          gradient: AppUIv1.controlGradient,
-          border: AppUIv1.borderStrong,
-          shadows: AppUIv1.glowAccent,
+          color: AppUIv1.accent,
+          border: AppUIv1.accent,
+          shadows: AppUIv1.shadowSm,
         );
       case SecureSurfaceVariant.success:
         return _SurfaceColors(

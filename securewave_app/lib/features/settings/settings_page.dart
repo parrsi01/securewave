@@ -126,21 +126,21 @@ class _SettingsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SecureSurface(
-      variant: SecureSurfaceVariant.glass,
+      variant: SecureSurfaceVariant.raised,
       padding: const EdgeInsets.all(AppUIv1.space5),
       child: Row(
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: AppUIv1.brandGradient,
-              boxShadow: AppUIv1.glowAccent,
+              color: AppUIv1.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppUIv1.radiusS),
+              border: Border.all(color: AppUIv1.border),
             ),
             child: const Icon(
               Icons.tune_rounded,
-              color: AppUIv1.background,
+              color: AppUIv1.accentCyan,
               size: 28,
             ),
           ),
@@ -153,7 +153,7 @@ class _SettingsHeader extends StatelessWidget {
                     style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: AppUIv1.space1),
                 Text(
-                  'Control preferences, protocol visibility, diagnostics, and app information.',
+                  'Preferences, diagnostics, and app information.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppUIv1.space2),
@@ -364,7 +364,7 @@ class _SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SecureSurface(
-      variant: SecureSurfaceVariant.glass,
+      variant: SecureSurfaceVariant.raised,
       padding: const EdgeInsets.all(AppUIv1.space4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -26,10 +26,24 @@ class AppConfig {
     // CRITICAL: Do NOT default to mock in release/profile builds
     const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
     return AppConfig(
-      apiBaseUrl: AppConstants.baseUrlFallback,
-      portalUrl: AppConstants.portalUrlFallback,
-      upgradeUrl: AppConstants.upgradeUrlFallback,
-      useMockApi: kIsDebugMode, // Only mock in debug by default
+      apiBaseUrl: _compileTimeOrFallback(
+        'SECUREWAVE_API_BASE_URL',
+        AppConstants.baseUrlFallback,
+      ),
+      portalUrl: _compileTimeOrFallback(
+        'SECUREWAVE_PORTAL_URL',
+        AppConstants.portalUrlFallback,
+      ),
+      upgradeUrl: _compileTimeOrFallback(
+        'SECUREWAVE_UPGRADE_URL',
+        AppConstants.upgradeUrlFallback,
+      ),
+      useMockApi: _parseBool(
+        const String.fromEnvironment(
+          'SECUREWAVE_USE_MOCK_API',
+          defaultValue: kIsDebugMode ? 'true' : 'false',
+        ),
+      ),
       resetSessionOnBoot: false,
     );
   }
@@ -42,24 +56,34 @@ class AppConfig {
       }
     } catch (error, stackTrace) {
       AppLogger.warning('Config: .env load failed, using defaults');
-      AppLogger.error('Config: .env load error', error: error, stackTrace: stackTrace);
+      AppLogger.error('Config: .env load error',
+          error: error, stackTrace: stackTrace);
     }
 
     final env = dotenv.isInitialized ? dotenv.env : const <String, String>{};
     final baseUrl = _envOrDefault(
       env,
       'SECUREWAVE_API_BASE_URL',
-      AppConstants.baseUrlFallback,
+      _compileTimeOrFallback(
+        'SECUREWAVE_API_BASE_URL',
+        AppConstants.baseUrlFallback,
+      ),
     );
     final portalUrl = _envOrDefault(
       env,
       'SECUREWAVE_PORTAL_URL',
-      AppConstants.portalUrlFallback,
+      _compileTimeOrFallback(
+        'SECUREWAVE_PORTAL_URL',
+        AppConstants.portalUrlFallback,
+      ),
     );
     final upgradeUrl = _envOrDefault(
       env,
       'SECUREWAVE_UPGRADE_URL',
-      AppConstants.upgradeUrlFallback,
+      _compileTimeOrFallback(
+        'SECUREWAVE_UPGRADE_URL',
+        AppConstants.upgradeUrlFallback,
+      ),
     );
     // CRITICAL: In release/profile, default to false unless explicitly enabled via env
     const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
@@ -67,7 +91,7 @@ class AppConfig {
     var useMock = _parseBool(
       env['SECUREWAVE_USE_MOCK_API'] ??
           const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
-            defaultValue: kIsDebugMode ? 'true' : 'false'),
+              defaultValue: kIsDebugMode ? 'true' : 'false'),
     );
     if (kIsReleaseMode && useMock) {
       AppLogger.warning('Config: mock API disabled in release builds.');
@@ -91,13 +115,29 @@ class AppConfig {
     return _cached!;
   }
 
-  static String _envOrDefault(Map<String, String> env, String key, String fallback) {
+  static String _envOrDefault(
+      Map<String, String> env, String key, String fallback) {
     final value = env[key];
     if (value == null || value.trim().isEmpty) return fallback;
     return value;
   }
 
+  static String _compileTimeOrFallback(String key, String fallback) {
+    final value = switch (key) {
+      'SECUREWAVE_API_BASE_URL' =>
+        const String.fromEnvironment('SECUREWAVE_API_BASE_URL'),
+      'SECUREWAVE_PORTAL_URL' =>
+        const String.fromEnvironment('SECUREWAVE_PORTAL_URL'),
+      'SECUREWAVE_UPGRADE_URL' =>
+        const String.fromEnvironment('SECUREWAVE_UPGRADE_URL'),
+      _ => '',
+    };
+    return value.trim().isEmpty ? fallback : value;
+  }
+
   static bool _parseBool(String value) {
-    return value.toLowerCase() == 'true' || value == '1' || value.toLowerCase() == 'yes';
+    return value.toLowerCase() == 'true' ||
+        value == '1' ||
+        value.toLowerCase() == 'yes';
   }
 }

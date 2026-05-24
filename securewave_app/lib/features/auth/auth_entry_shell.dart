@@ -57,7 +57,7 @@ class AuthEntryShell extends StatelessWidget {
                                   isCompact ? AppUIv1.space5 : AppUIv1.space6,
                             ),
                             SecureSurface(
-                              variant: SecureSurfaceVariant.glass,
+                              variant: SecureSurfaceVariant.raised,
                               padding: EdgeInsets.all(
                                 isCompact ? AppUIv1.space4 : AppUIv1.space5,
                               ),
@@ -205,44 +205,31 @@ class SecureAuthPrimaryButton extends StatefulWidget {
 }
 
 class _SecureAuthPrimaryButtonState extends State<SecureAuthPrimaryButton> {
-  bool _hovered = false;
-
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null && !widget.isLoading;
-    return MouseRegion(
-      onEnter: (_) {
-        if (enabled) setState(() => _hovered = true);
-      },
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedScale(
-        duration: AppUIv1.durationFast,
-        curve: AppUIv1.curveDefault,
-        scale: _hovered && enabled ? 1.012 : 1,
-        child: SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: FilledButton(
-            onPressed: enabled ? widget.onPressed : null,
-            child: AnimatedSwitcher(
-              duration: AppUIv1.durationFast,
-              child: widget.isLoading
-                  ? const SizedBox(
-                      key: ValueKey('loading'),
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(AppUIv1.background),
-                      ),
-                    )
-                  : Text(
-                      widget.label,
-                      key: ValueKey(widget.label),
-                    ),
-            ),
-          ),
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: FilledButton(
+        onPressed: enabled ? widget.onPressed : null,
+        child: AnimatedSwitcher(
+          duration: AppUIv1.durationFast,
+          child: widget.isLoading
+              ? const SizedBox(
+                  key: ValueKey('loading'),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(AppUIv1.background),
+                  ),
+                )
+              : Text(
+                  widget.label,
+                  key: ValueKey(widget.label),
+                ),
         ),
       ),
     );
@@ -290,21 +277,7 @@ class _AuthEntryMotion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: AppUIv1.durationSlow,
-      curve: AppUIv1.curveDefault,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 16 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: child,
-    );
+    return child;
   }
 }
 
@@ -324,19 +297,18 @@ class _AuthBrandHeader extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: compact ? 72 : 82,
-          height: compact ? 72 : 82,
+          width: compact ? 64 : 72,
+          height: compact ? 64 : 72,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: AppUIv1.surfaceGradient,
+            color: AppUIv1.surfaceRaised,
+            borderRadius: BorderRadius.circular(AppUIv1.radiusM),
             border: Border.all(color: AppUIv1.borderStrong),
-            boxShadow: AppUIv1.glowAccent,
           ),
           child: Center(
             child: SvgPicture.asset(
               'assets/securewave_logo.svg',
-              width: compact ? 44 : 50,
-              height: compact ? 44 : 50,
+              width: compact ? 40 : 46,
+              height: compact ? 40 : 46,
             ),
           ),
         ),
@@ -347,26 +319,13 @@ class _AuthBrandHeader extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: AppUIv1.space2),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.lock_outline_rounded,
-              color: AppUIv1.accentCyan,
-              size: 17,
-            ),
-            const SizedBox(width: AppUIv1.space2),
-            Flexible(
-              child: Text(
-                title,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.copyWith(color: AppUIv1.accentCyan),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
+        Text(
+          title,
+          style: Theme.of(context)
+              .textTheme
+              .titleSmall
+              ?.copyWith(color: AppUIv1.accent),
+          textAlign: TextAlign.center,
         ),
         const SizedBox(height: AppUIv1.space2),
         Text(

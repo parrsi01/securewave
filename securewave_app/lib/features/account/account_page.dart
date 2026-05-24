@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/logging/app_logger.dart';
+import '../../core/models/user_account.dart';
 import '../../core/models/user_plan.dart';
 import '../../core/state/app_state.dart';
 import '../../services/external_links.dart';
@@ -14,6 +15,7 @@ class AccountPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final plan = ref.watch(userPlanProvider);
+    final account = ref.watch(currentUserProvider);
     final config = ref.watch(appConfigProvider);
 
     return SecurePageBackground(
@@ -35,7 +37,7 @@ class AccountPage extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _AccountHeader(config: config),
+                      _AccountHeader(config: config, account: account),
                       const SizedBox(height: AppUIv1.space4),
                       plan.when(
                         data: (data) => isWide
@@ -76,28 +78,42 @@ class AccountPage extends ConsumerWidget {
 }
 
 class _AccountHeader extends ConsumerWidget {
-  const _AccountHeader({required this.config});
+  const _AccountHeader({
+    required this.config,
+    required this.account,
+  });
 
   final AppConfig config;
+  final AsyncValue<UserAccount> account;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final accountEmail = account.maybeWhen(
+      data: (user) => user.email.isEmpty ? 'Signed in' : user.email,
+      loading: () => 'Loading signed-in account...',
+      orElse: () => 'Signed-in account unavailable',
+    );
+    final emailVerified = account.maybeWhen(
+      data: (user) => user.emailVerified,
+      orElse: () => null,
+    );
+
     return SecureSurface(
-      variant: SecureSurfaceVariant.glass,
+      variant: SecureSurfaceVariant.raised,
       padding: const EdgeInsets.all(AppUIv1.space5),
       child: Row(
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: AppUIv1.brandGradient,
-              boxShadow: AppUIv1.glowAccent,
+              color: AppUIv1.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppUIv1.radiusS),
+              border: Border.all(color: AppUIv1.border),
             ),
             child: const Icon(
               Icons.person_rounded,
-              color: AppUIv1.background,
+              color: AppUIv1.accentCyan,
               size: 28,
             ),
           ),
@@ -110,9 +126,20 @@ class _AccountHeader extends ConsumerWidget {
                     style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: AppUIv1.space1),
                 Text(
-                  'Review your plan, usage, and account portal access.',
+                  accountEmail,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
+                if (emailVerified != null) ...[
+                  const SizedBox(height: AppUIv1.space2),
+                  SecureStatePill(
+                    label:
+                        emailVerified ? 'Email verified' : 'Email unverified',
+                    color: emailVerified ? AppUIv1.success : AppUIv1.warning,
+                    icon: emailVerified
+                        ? Icons.verified_rounded
+                        : Icons.mark_email_unread_outlined,
+                  ),
+                ],
               ],
             ),
           ),
@@ -154,7 +181,7 @@ class _PlanSummary extends StatelessWidget {
         : 'Renews ${_formatDate(plan.renewalDate!)}';
 
     return SecureSurface(
-      variant: SecureSurfaceVariant.glass,
+      variant: SecureSurfaceVariant.raised,
       padding: const EdgeInsets.all(AppUIv1.space5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

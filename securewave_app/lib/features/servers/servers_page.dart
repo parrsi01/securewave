@@ -151,21 +151,21 @@ class _ServersHeader extends StatelessWidget {
         : '$serverCount available regions';
 
     return SecureSurface(
-      variant: SecureSurfaceVariant.glass,
+      variant: SecureSurfaceVariant.raised,
       padding: const EdgeInsets.all(AppUIv1.space5),
       child: Row(
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: AppUIv1.brandGradient,
-              boxShadow: AppUIv1.glowAccent,
+              color: AppUIv1.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppUIv1.radiusS),
+              border: Border.all(color: AppUIv1.border),
             ),
             child: const Icon(
               Icons.public_rounded,
-              color: AppUIv1.background,
+              color: AppUIv1.accentCyan,
               size: 27,
             ),
           ),
@@ -175,12 +175,12 @@ class _ServersHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Server selection',
+                  'Servers',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: AppUIv1.space1),
                 Text(
-                  'Choose from $regionCopy. Auto-select keeps SecureWave in control.',
+                  'Choose from $regionCopy or keep automatic selection.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
@@ -268,7 +268,7 @@ class _ServerOptionCard extends StatelessWidget {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(AppUIv1.radiusS),
                         color: (option.isAuto
                                 ? AppUIv1.accentCyan
                                 : AppUIv1.accentBlue)

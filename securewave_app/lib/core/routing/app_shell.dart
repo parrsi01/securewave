@@ -8,6 +8,7 @@ import '../../services/external_links.dart';
 import '../config/app_config.dart';
 import '../services/auth_session.dart';
 import '../models/vpn_status.dart';
+import '../state/app_state.dart';
 import '../state/vpn_state.dart';
 
 class AppShell extends ConsumerWidget {
@@ -34,6 +35,12 @@ class AppShell extends ConsumerWidget {
     final currentIndex = _currentIndex(context);
     final vpnState = ref.watch(vpnStateProvider);
     final config = ref.watch(appConfigProvider);
+    final account = ref.watch(currentUserProvider);
+    final accountLabel = account.maybeWhen(
+      data: (user) => user.email.isEmpty ? 'Signed in' : user.email,
+      loading: () => 'Loading account',
+      orElse: () => 'Account unavailable',
+    );
 
     final backendUnreachable = vpnState.status == VpnStatus.error &&
         vpnState.errorKind == VpnErrorKind.backendUnreachable;
@@ -60,6 +67,7 @@ class AppShell extends ConsumerWidget {
                       currentIndex: currentIndex,
                       statusColor: statusColor,
                       vpnStatus: vpnState.status,
+                      accountLabel: accountLabel,
                       onLogout: () => _logout(context, ref),
                     ),
                     Expanded(child: child),
@@ -116,6 +124,7 @@ class AppShell extends ConsumerWidget {
                   config: config,
                   vpnStatus: vpnState.status,
                   statusColor: statusColor,
+                  accountLabel: accountLabel,
                   onLogout: () => _logout(context, ref),
                   onNavigate: (route) {
                     Navigator.of(context).maybePop();
@@ -161,57 +170,121 @@ class _DesktopRail extends StatelessWidget {
     required this.currentIndex,
     required this.statusColor,
     required this.vpnStatus,
+    required this.accountLabel,
     required this.onLogout,
   });
 
   final int currentIndex;
   final Color statusColor;
   final VpnStatus vpnStatus;
+  final String accountLabel;
   final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 112,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppUIv1.space4,
-          AppUIv1.space4,
-          AppUIv1.space3,
-          AppUIv1.space4,
-        ),
-        child: SecureSurface(
-          variant: SecureSurfaceVariant.glass,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppUIv1.space2,
-            vertical: AppUIv1.space3,
-          ),
-          radius: AppUIv1.radiusXL,
+    final statusLabel = switch (vpnStatus) {
+      VpnStatus.connected => 'Connected',
+      VpnStatus.connecting => 'Connecting',
+      VpnStatus.disconnecting => 'Disconnecting',
+      VpnStatus.error => 'Needs attention',
+      VpnStatus.disconnected => 'Disconnected',
+    };
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppUIv1.backgroundStrong,
+        border: Border(right: BorderSide(color: AppUIv1.divider)),
+      ),
+      child: SizedBox(
+        width: 248,
+        child: Padding(
+          padding: const EdgeInsets.all(AppUIv1.space4),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SvgPicture.asset(
-                'assets/securewave_logo.svg',
-                width: 34,
-                height: 34,
-              ),
-              const SizedBox(height: AppUIv1.space3),
-              AnimatedContainer(
-                duration: AppUIv1.durationNormal,
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: statusColor.withValues(alpha: 0.35),
-                      blurRadius: 16,
-                      spreadRadius: -2,
+              Row(
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppUIv1.surfaceRaised,
+                      borderRadius: BorderRadius.circular(AppUIv1.radiusS),
+                      border: Border.all(color: AppUIv1.border),
                     ),
-                  ],
-                ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppUIv1.space2),
+                      child: SvgPicture.asset(
+                        'assets/securewave_logo.svg',
+                        width: 28,
+                        height: 28,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppUIv1.space3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SecureWave',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: AppUIv1.space1),
+                        Text(
+                          accountLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppUIv1.inkSoft,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: AppUIv1.space4),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppUIv1.surface,
+                  borderRadius: BorderRadius.circular(AppUIv1.radiusS),
+                  border: Border.all(color: AppUIv1.border),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppUIv1.space3,
+                    vertical: AppUIv1.space2,
+                  ),
+                  child: Row(
+                    children: [
+                      AnimatedContainer(
+                        duration: AppUIv1.durationNormal,
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: AppUIv1.space2),
+                      Expanded(
+                        child: Text(
+                          statusLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppUIv1.inkMuted,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppUIv1.space5),
               Expanded(
                 child: Column(
                   children: [
@@ -223,16 +296,23 @@ class _DesktopRail extends StatelessWidget {
                             context.go(AppShell._destinations[i].route),
                       ),
                       if (i != AppShell._destinations.length - 1)
-                        const SizedBox(height: AppUIv1.space2),
+                        const SizedBox(height: AppUIv1.space1),
                     ],
                   ],
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.logout, size: 20),
+              const Divider(),
+              const SizedBox(height: AppUIv1.space2),
+              _RailButton(
+                destination: const _NavDestination(
+                  'Sign out',
+                  Icons.logout_rounded,
+                  Icons.logout_rounded,
+                  '',
+                ),
+                selected: false,
                 color: AppUIv1.inkSoft,
-                tooltip: 'Sign out',
-                onPressed: onLogout,
+                onTap: onLogout,
               ),
             ],
           ),
@@ -247,48 +327,64 @@ class _RailButton extends StatelessWidget {
     required this.destination,
     required this.selected,
     required this.onTap,
+    this.color,
   });
 
   final _NavDestination destination;
   final bool selected;
   final VoidCallback onTap;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppUIv1.accentCyan : AppUIv1.inkSoft;
+    final foreground =
+        color ?? (selected ? AppUIv1.background : AppUIv1.inkMuted);
+    final background = selected ? AppUIv1.accent : Colors.transparent;
+    final border = selected ? AppUIv1.accent : Colors.transparent;
 
     return Tooltip(
       message: destination.label,
       waitDuration: const Duration(milliseconds: 450),
-      child: SecureSurface(
-        variant:
-            selected ? SecureSurfaceVariant.accent : SecureSurfaceVariant.base,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppUIv1.space2,
-          vertical: AppUIv1.space3,
-        ),
-        radius: AppUIv1.radiusL,
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              selected ? destination.selectedIcon : destination.icon,
-              color: selected ? AppUIv1.background : color,
-              size: 21,
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(AppUIv1.radiusS),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppUIv1.radiusS),
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: AppUIv1.durationFast,
+            curve: AppUIv1.curveDefault,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppUIv1.space3,
+              vertical: AppUIv1.space3,
             ),
-            const SizedBox(height: AppUIv1.space1),
-            Text(
-              destination.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: selected ? AppUIv1.background : color,
-                    fontSize: 10,
-                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppUIv1.radiusS),
+              border: Border.all(color: border),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  selected ? destination.selectedIcon : destination.icon,
+                  color: foreground,
+                  size: 20,
+                ),
+                const SizedBox(width: AppUIv1.space3),
+                Expanded(
+                  child: Text(
+                    destination.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: foreground,
+                          fontWeight:
+                              selected ? FontWeight.w800 : FontWeight.w600,
+                        ),
                   ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -302,6 +398,7 @@ class _AppDrawer extends StatelessWidget {
     required this.config,
     required this.vpnStatus,
     required this.statusColor,
+    required this.accountLabel,
     required this.onLogout,
     required this.onNavigate,
     required this.onExternalLink,
@@ -310,6 +407,7 @@ class _AppDrawer extends StatelessWidget {
   final AppConfig config;
   final VpnStatus vpnStatus;
   final Color statusColor;
+  final String accountLabel;
   final VoidCallback onLogout;
   final ValueChanged<String> onNavigate;
   final ValueChanged<String> onExternalLink;
@@ -353,6 +451,16 @@ class _AppDrawer extends StatelessWidget {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: AppUIv1.space1),
+                          Text(
+                            accountLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppUIv1.inkSoft,
+                                    ),
+                          ),
+                          const SizedBox(height: AppUIv1.space2),
                           SecureStatePill(
                             label: statusLabel,
                             color: statusColor,

@@ -23,7 +23,8 @@ void main() {
     return dio;
   }
 
-  test('ApiClient does not fall back to mock data when mock API is disabled', () async {
+  test('ApiClient does not fall back to mock data when mock API is disabled',
+      () async {
     final config = AppConfig(
       apiBaseUrl: 'https://example.invalid',
       portalUrl: 'https://example.invalid',
@@ -49,6 +50,10 @@ void main() {
       client.fetchUserPlan(forceRefresh: true),
       throwsA(isA<DioException>()),
     );
+    await expectLater(
+      client.fetchCurrentUser(),
+      throwsA(isA<DioException>()),
+    );
   });
 
   test('ApiClient returns mock data when mock API is enabled', () async {
@@ -61,7 +66,8 @@ void main() {
     );
     final client = ApiClient(config, dio: failingDio(config.apiBaseUrl));
 
-    final tokens = await client.login(email: 'alice@example.com', password: 'pw');
+    final tokens =
+        await client.login(email: 'alice@example.com', password: 'pw');
     expect(tokens.accessToken, contains('mock-token-'));
 
     final servers = await client.fetchServers(forceRefresh: true);
@@ -69,5 +75,8 @@ void main() {
 
     final plan = await client.fetchUserPlan(forceRefresh: true);
     expect(plan.name, isNotEmpty);
+
+    final account = await client.fetchCurrentUser();
+    expect(account.email, isNotEmpty);
   });
 }

@@ -71,6 +71,9 @@ class ServerInfo(BaseModel):
     load_percent: Optional[float] = None
     status: str
     health_status: str
+    supports_wireguard: bool = True
+    supports_openvpn: bool = False
+    supports_ikev2: bool = False
 
 
 class AllocateConfigRequest(BaseModel):
@@ -149,7 +152,7 @@ class VpnProfileRequest(BaseModel):
         None,
         description="Client device type (windows, macos, linux, ios, android)",
     )
-    protocol: str = Field("wireguard", description="VPN protocol (wireguard only for now)")
+    protocol: str = Field("wireguard", description="VPN protocol (wireguard, openvpn, ikev2)")
     server_id: Optional[str] = Field(None, description="Preferred server ID (null = auto)")
     force_rotate_keys: bool = Field(False, description="Rotate device keys before issuing a profile")
 
@@ -177,7 +180,9 @@ class VpnProfileResponse(BaseModel):
     key_version: int
     issued_at: str
     expires_at: str
-    wireguard_config: str
+    wireguard_config: str = ""
+    openvpn_config: Optional[str] = None
+    ikev2_config: Optional[str] = None
     dns: VpnProfileDns
     kill_switch: VpnProfileKillSwitch
     peer_registered: bool = False
@@ -331,6 +336,115 @@ def _build_wireguard_profile_config(
     return prefix + "\n".join(interface_lines + peer_lines) + "\n"
 
 
+def _normalize_profile_protocol(raw: Optional[str]) -> str:
+    value = (raw or "wireguard").lower().strip().replace("_", "")
+    if value in ("wireguard", "wg"):
+        return "wireguard"
+    if value in ("openvpn", "ovpn"):
+        return "openvpn"
+    if value in ("ikev2", "ipsec", "ikev2/ipsec"):
+        return "ikev2"
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Unsupported VPN protocol: {raw}",
+    )
+
+
+def _endpoint_host(endpoint: str, fallback: str) -> str:
+    value = (endpoint or "").strip()
+    if not value:
+        return fallback
+    if value.startswith("[") and "]" in value:
+        return value[1:value.index("]")]
+    if value.count(":") == 1:
+        return value.rsplit(":", 1)[0]
+    return value
+
+
+def _build_openvpn_profile_config(server: VPNServer) -> str:
+    if not server.supports_openvpn:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OpenVPN is not enabled for this server.",
+        )
+    if not server.openvpn_ca_cert_pem:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenVPN server metadata is incomplete.",
+        )
+
+    host = server.openvpn_endpoint or server.public_ip
+    port = int(server.openvpn_port or 1194)
+    transport = (server.openvpn_transport or "udp").lower()
+    dns_lines = [f"dhcp-option DNS {dns}" for dns in _profile_dns_servers()]
+    return "\n".join([
+        "client",
+        "dev tun",
+        f"proto {transport}",
+        f"remote {host} {port}",
+        "resolv-retry infinite",
+        "nobind",
+        "persist-key",
+        "persist-tun",
+        "remote-cert-tls server",
+        "auth-user-pass",
+        "auth-nocache",
+        "redirect-gateway def1",
+        *dns_lines,
+        "verb 3",
+        "<ca>",
+        server.openvpn_ca_cert_pem.strip(),
+        "</ca>",
+        "",
+    ])
+
+
+def _build_ikev2_profile_config(server: VPNServer, current_user: User) -> str:
+    if not server.supports_ikev2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="IKEv2 is not enabled for this server.",
+        )
+    if not server.ikev2_ca_cert_pem:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="IKEv2 server metadata is incomplete.",
+        )
+
+    remote_id = server.ikev2_remote_id or server.public_ip
+    remote_addrs = _endpoint_host(server.endpoint, server.public_ip)
+    dns_servers = ",".join(_profile_dns_servers())
+    return "\n".join([
+        "connections {",
+        "  securewave {",
+        "    version = 2",
+        f"    remote_addrs = {remote_addrs}",
+        "    proposals = aes256-sha256-modp2048",
+        "    local {",
+        "      auth = eap-mschapv2",
+        f"      eap_id = {current_user.email}",
+        "    }",
+        "    remote {",
+        "      auth = pubkey",
+        f"      id = {remote_id}",
+        "      cacerts = securewave-ikev2-ca.pem",
+        "    }",
+        "    children {",
+        "      securewave {",
+        "        remote_ts = 0.0.0.0/0,::/0",
+        "        esp_proposals = aes256-sha256-modp2048",
+        "      }",
+        "    }",
+        "  }",
+        "}",
+        f"# dns = {dns_servers}",
+        "# ca_cert_pem_begin",
+        server.ikev2_ca_cert_pem.strip(),
+        "# ca_cert_pem_end",
+        "",
+    ])
+
+
 # =============================================================================
 # Server Listing Endpoints
 # =============================================================================
@@ -376,6 +490,9 @@ async def list_servers(
             load_percent=round(load_percent, 1),
             status=server.status,
             health_status=server.health_status,
+            supports_wireguard=bool(server.supports_wireguard),
+            supports_openvpn=bool(server.supports_openvpn),
+            supports_ikev2=bool(server.supports_ikev2),
         )
         server_list.append(server_info)
 
@@ -416,6 +533,9 @@ async def get_server(
         load_percent=round(load_percent, 1),
         status=server.status,
         health_status=server.health_status,
+        supports_wireguard=bool(server.supports_wireguard),
+        supports_openvpn=bool(server.supports_openvpn),
+        supports_ikev2=bool(server.supports_ikev2),
     )
 
 
@@ -624,12 +744,7 @@ async def provision_profile(
     """
     await require_active_subscription(db, current_user)
 
-    protocol = (payload.protocol or "wireguard").lower().strip()
-    if protocol not in ("wireguard", "wg", "wire_guard"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only WireGuard is available right now.",
-        )
+    protocol = _normalize_profile_protocol(payload.protocol)
 
     user_tier = get_user_tier(current_user, db)
     peer_manager = get_peer_manager(db)
@@ -693,8 +808,16 @@ async def provision_profile(
 
     if server is None:
         candidates = VPNServerService.get_active_servers(db, user_tier)
+        candidates = [
+            candidate for candidate in candidates
+            if (
+                (protocol == "wireguard" and bool(candidate.supports_wireguard))
+                or (protocol == "openvpn" and bool(candidate.supports_openvpn))
+                or (protocol == "ikev2" and bool(candidate.supports_ikev2))
+            )
+        ]
         if not candidates:
-            raise HTTPException(status_code=503, detail="No VPN servers available. Please try again later.")
+            raise HTTPException(status_code=503, detail=f"No {protocol} VPN servers available. Please try again later.")
         # Prefer healthy + high performance score.
         candidates.sort(
             key=lambda s: (
@@ -707,6 +830,13 @@ async def provision_profile(
         server = candidates[0]
 
     assert server is not None
+
+    if protocol == "wireguard" and not server.supports_wireguard:
+        raise HTTPException(status_code=400, detail="WireGuard is not enabled for this server.")
+    if protocol == "openvpn" and not server.supports_openvpn:
+        raise HTTPException(status_code=400, detail="OpenVPN is not enabled for this server.")
+    if protocol == "ikev2" and not server.supports_ikev2:
+        raise HTTPException(status_code=400, detail="IKEv2 is not enabled for this server.")
 
     # Optional key rotation
     if payload.force_rotate_keys:
@@ -741,15 +871,26 @@ async def provision_profile(
         db.commit()
         db.refresh(peer)
 
-    # Register peer on the data-plane server (best effort).
+    # Register WireGuard peers on the data-plane server (best effort).
     peer_registered = False
     registration_status: Optional[str] = None
-    if AUTO_REGISTER_PEERS:
+    if protocol == "wireguard" and AUTO_REGISTER_PEERS:
         success, message = await register_peer_on_server(server, peer.public_key, peer.ipv4_address)
         peer_registered = success
         registration_status = message
 
-    wireguard_config = _build_wireguard_profile_config(peer, server, device_type=payload.device_type)
+    wireguard_config = ""
+    openvpn_config: Optional[str] = None
+    ikev2_config: Optional[str] = None
+    if protocol == "wireguard":
+        wireguard_config = _build_wireguard_profile_config(peer, server, device_type=payload.device_type)
+    elif protocol == "openvpn":
+        openvpn_config = _build_openvpn_profile_config(server)
+        registration_status = "openvpn_profile_issued"
+    elif protocol == "ikev2":
+        ikev2_config = _build_ikev2_profile_config(server, current_user)
+        registration_status = "ikev2_profile_issued"
+
     dns_servers = _profile_dns_servers()
 
     device_type = (payload.device_type or peer.device_type or "").lower().strip() or None
@@ -773,13 +914,15 @@ async def provision_profile(
         device_id=peer.id,
         device_name=peer.device_name,
         device_type=peer.device_type,
-        protocol="wireguard",
+        protocol=protocol,
         server_id=server.server_id,
         server_location=f"{server.city}, {server.country}",
         key_version=peer.key_version or 1,
         issued_at=issued_at.isoformat(),
         expires_at=expires_at.isoformat(),
         wireguard_config=wireguard_config,
+        openvpn_config=openvpn_config,
+        ikev2_config=ikev2_config,
         dns=VpnProfileDns(servers=dns_servers, enforcement="config"),
         kill_switch=kill_switch,
         peer_registered=peer_registered,

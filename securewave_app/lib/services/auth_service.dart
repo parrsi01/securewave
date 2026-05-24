@@ -5,8 +5,8 @@ import '../core/services/auth_session.dart';
 import 'api_client.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
-  final api = ref.read(apiClientProvider);
-  final session = ref.read(authSessionProvider);
+  final api = ref.watch(apiClientProvider);
+  final session = ref.watch(authSessionProvider);
   return AuthService(api, session);
 });
 
@@ -24,11 +24,19 @@ class AuthService {
     );
   }
 
-  Future<void> register({required String email, required String password}) async {
-    final tokens = await _api.register(email: email, password: password);
+  Future<void> register(
+      {required String email, required String password}) async {
+    var tokens = await _api.register(email: email, password: password);
     if (tokens == null) {
-      AppLogger.warning('Registration completed without token payload.');
-      return;
+      AppLogger.warning(
+          'Registration completed without token payload; attempting sign-in.');
+      try {
+        tokens = await _api.login(email: email, password: password);
+      } catch (_) {
+        throw StateError(
+          'Registration completed, but automatic sign-in failed. Verify the account, then sign in.',
+        );
+      }
     }
     await _session.setSession(
       accessToken: tokens.accessToken,

@@ -74,6 +74,16 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# flutter_secure_storage_linux 1.2.x vendors an older nlohmann json.hpp that
+# Clang 21 warns about. Keep -Werror for app code while preventing that
+# third-party warning from blocking Linux launches.
+if(TARGET flutter_secure_storage_linux_plugin)
+  target_compile_options(
+    flutter_secure_storage_linux_plugin
+    PRIVATE -Wno-error=deprecated-literal-operator
+  )
+endif()
+
 
 # === Installation ===
 # Always install into the build bundle directory to avoid permission issues.

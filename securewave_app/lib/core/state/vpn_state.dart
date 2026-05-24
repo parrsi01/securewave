@@ -104,8 +104,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   DateTime? _lastAutoReconnectAt;
 
   Future<void> _loadProtocol() async {
-    final stored =
-        await SecureStorage().getString(SecureStorage.vpnProtocolKey);
+    final storage = SecureStorage();
+    final stored = await storage.getString(SecureStorage.vpnProtocolKey);
     state = state.copyWith(protocol: vpnProtocolFromStorage(stored));
   }
 
@@ -146,18 +146,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final api = _ref.read(apiClientProvider);
       String? config;
 
-      // Only WireGuard is implemented in the native bridges today.
-      if (state.protocol != VpnProtocol.wireGuard) {
-        throw VpnServiceException(
-          'protocol_unavailable',
-          'This protocol is not available yet. Please use WireGuard.',
-        );
-      }
-
       if (service.isNativeAvailable) {
         final identity = await DeviceIdentity.load();
         final storage = SecureStorage();
         final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
+        final protocolKey = vpnProtocolStorageValue(state.protocol);
+        final profileConfigKey = SecureStorage.vpnProfileConfigKeyFor(
+          protocolKey,
+        );
         try {
           final profile = await api.fetchVpnProfile(
             deviceId: deviceId,
@@ -170,15 +166,18 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             lastProfileFetchAt: DateTime.now(),
             lastProfileFetchOk: true,
           );
-          if (profile.wireguardConfig.trim().isEmpty) {
-            throw StateError('VPN profile missing configuration.');
+          config = profile.configForProtocol(state.protocol);
+          if (config.trim().isEmpty) {
+            throw VpnServiceException(
+              'protocol_unavailable',
+              '${vpnProtocolLabel(state.protocol)} profile did not include a runnable Linux configuration.',
+            );
           }
-          config = profile.wireguardConfig;
           if (profile.deviceId > 0) {
             await storage.saveInt(
                 SecureStorage.vpnDeviceIdKey, profile.deviceId);
           }
-          await storage.saveString(SecureStorage.vpnProfileConfigKey, config);
+          await storage.saveString(profileConfigKey, config);
           if (profile.expiresAt != null) {
             await storage.saveString(
               SecureStorage.vpnProfileExpiresAtKey,
@@ -195,11 +194,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             lastProfileFetchOk: false,
           );
           // Fallback: try last known config from secure storage for resilience.
-          final cached =
-              await storage.getString(SecureStorage.vpnProfileConfigKey);
+          final cached = await storage.getString(profileConfigKey);
           if (cached != null && cached.trim().isNotEmpty) {
             AppLogger.warning(
-                'Using cached VPN profile (profile fetch failed).');
+                'Using cached ${vpnProtocolLabel(state.protocol)} profile (profile fetch failed).');
             config = cached;
           } else {
             rethrow;
@@ -292,8 +290,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       // tunnel drops, traffic may be blocked, so "connected" becomes misleading.
       try {
         final storage = SecureStorage();
-        final config = await storage.getString(SecureStorage.vpnProfileConfigKey);
-        final hasKillSwitchHooks = (config ?? '').contains('PostUp') || (config ?? '').contains('PostDown');
+        final config = await storage.getString(
+          SecureStorage.vpnProfileConfigKeyFor('wireguard'),
+        );
+        final hasKillSwitchHooks = (config ?? '').contains('PostUp') ||
+            (config ?? '').contains('PostDown');
         if (!hasKillSwitchHooks) return;
       } catch (_) {
         return;
@@ -303,7 +304,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       _setStatus(VpnStatus.error);
       state = state.copyWith(
         errorKind: VpnErrorKind.unknown,
-        errorMessage: 'VPN tunnel appears down; kill switch may be blocking traffic.',
+        errorMessage:
+            'VPN tunnel appears down; kill switch may be blocking traffic.',
         lastTunnelStartOk: false,
       );
       return;

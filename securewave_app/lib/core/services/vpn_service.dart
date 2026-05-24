@@ -78,7 +78,7 @@ class ChannelVpnService implements VpnService {
       if (config == null || config.trim().isEmpty) {
         throw VpnServiceException(
           'invalid_config',
-          'Missing WireGuard configuration. Please refresh and try again.',
+          'Missing ${vpnProtocolLabel(protocol)} configuration. Please refresh and try again.',
         );
       }
       await _channel.invokeMethod('connect', {
@@ -233,7 +233,8 @@ class ChannelVpnService implements VpnService {
       }
     } on MissingPluginException {
       _nativeAvailable = false;
-      _lastNativeAvailabilityMessage = 'Native VPN plugin missing for this platform/build.';
+      _lastNativeAvailabilityMessage =
+          'Native VPN plugin missing for this platform/build.';
     } on PlatformException catch (error) {
       _lastNativeAvailabilityMessage = error.message;
       _nativeAvailable = false;

@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/bootstrap/boot_controller.dart';
+import 'package:securewave_app/core/constants/app_constants.dart';
 
 void main() {
-  testWidgets('SecureWave app config provider initializes', (WidgetTester tester) async {
+  testWidgets('SecureWave app config provider initializes',
+      (WidgetTester tester) async {
     final container = ProviderContainer(
       overrides: [
         appConfigProvider.overrideWith(
@@ -27,6 +29,17 @@ void main() {
     expect(config.resetSessionOnBoot, isFalse);
   });
 
+  test('AppConfig defaults honor API dart define when present', () {
+    const apiDefine = String.fromEnvironment('SECUREWAVE_API_BASE_URL');
+
+    final config = AppConfig.defaults();
+
+    expect(
+      config.apiBaseUrl,
+      apiDefine.isEmpty ? AppConstants.baseUrlFallback : apiDefine,
+    );
+  });
+
   test('BootState has correct initial values', () {
     const state = BootState(status: BootStatus.initializing);
     expect(state.status, BootStatus.initializing);
@@ -38,7 +51,8 @@ void main() {
     final ready = state.copyWith(status: BootStatus.ready);
     expect(ready.status, BootStatus.ready);
 
-    final failed = state.copyWith(status: BootStatus.failed, errorMessage: 'timeout');
+    final failed =
+        state.copyWith(status: BootStatus.failed, errorMessage: 'timeout');
     expect(failed.status, BootStatus.failed);
     expect(failed.errorMessage, 'timeout');
   });

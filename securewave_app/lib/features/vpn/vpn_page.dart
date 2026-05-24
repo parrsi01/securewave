@@ -303,12 +303,12 @@ class _DashboardHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'SecureWave control',
+                'VPN',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: AppUIv1.space1),
               Text(
-                'Operate your tunnel, region, and protocol from one trusted surface.',
+                'Live tunnel status, region, and protocol.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
@@ -410,32 +410,46 @@ class _ConnectionControlPanel extends StatelessWidget {
           AnimatedOpacity(
             duration: AppUIv1.durationNormal,
             opacity: active ? 1 : 0.54,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _MetricTile(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final tiles = [
+                  _MetricTile(
                     icon: Icons.arrow_downward_rounded,
                     label: 'Download',
                     value: '${vpnState.dataRateDown.toStringAsFixed(1)} Mbps',
                   ),
-                ),
-                const SizedBox(width: AppUIv1.space3),
-                Expanded(
-                  child: _MetricTile(
+                  _MetricTile(
                     icon: Icons.arrow_upward_rounded,
                     label: 'Upload',
                     value: '${vpnState.dataRateUp.toStringAsFixed(1)} Mbps',
                   ),
-                ),
-                const SizedBox(width: AppUIv1.space3),
-                Expanded(
-                  child: _MetricTile(
+                  _MetricTile(
                     icon: Icons.verified_user_outlined,
                     label: 'Stability',
                     value: '$stability%',
                   ),
-                ),
-              ],
+                ];
+                if (constraints.maxWidth < 520) {
+                  return Column(
+                    children: [
+                      for (final tile in tiles) ...[
+                        tile,
+                        if (tile != tiles.last)
+                          const SizedBox(height: AppUIv1.space3),
+                      ],
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    for (final tile in tiles) ...[
+                      Expanded(child: tile),
+                      if (tile != tiles.last)
+                        const SizedBox(width: AppUIv1.space3),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(height: AppUIv1.space4),
@@ -476,7 +490,7 @@ class _SelectionColumn extends StatelessWidget {
               Text('Protocol', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: AppUIv1.space1),
               Text(
-                'Public release selection remains locked to WireGuard.',
+                'WireGuard is the public Linux path in this build.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: AppUIv1.space4),
@@ -510,15 +524,15 @@ class _ServerSummaryCard extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppUIv1.accentBlue.withValues(alpha: 0.14),
+              color: AppUIv1.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppUIv1.radiusS),
               border: Border.all(color: AppUIv1.borderStrong),
             ),
             child: Icon(
               selectedServer.isAuto
                   ? Icons.auto_awesome_rounded
                   : Icons.public_rounded,
-              color: AppUIv1.accent,
+              color: AppUIv1.accentCyan,
             ),
           ),
           const SizedBox(width: AppUIv1.space3),
@@ -666,100 +680,126 @@ class _ConnectionRingButton extends StatelessWidget {
             ? Icons.stop_rounded
             : Icons.power_settings_new_rounded;
 
-    return AnimatedContainer(
-      duration: AppUIv1.durationSlow,
-      curve: AppUIv1.curveDefault,
-      width: 226,
-      height: 226,
-      padding: const EdgeInsets.all(AppUIv1.space4),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: statusColor.withValues(alpha: isConnected ? 0.14 : 0.08),
-        border: Border.all(color: statusColor.withValues(alpha: 0.26)),
-        boxShadow: isConnected ? AppUIv1.glowSuccess : AppUIv1.shadowMd,
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.all(AppUIv1.space2),
-              child: CircularProgressIndicator(
-                value: isWorking
-                    ? null
-                    : isConnected
-                        ? 1
-                        : status == VpnStatus.error
-                            ? 0.72
-                            : 0.18,
-                strokeWidth: 5,
-                color: statusColor,
-                backgroundColor: AppUIv1.surfaceMuted.withValues(alpha: 0.72),
-                strokeCap: StrokeCap.round,
-              ),
-            ),
-          ),
-          AnimatedScale(
-            duration: AppUIv1.durationFast,
-            scale: isWorking ? 0.96 : 1,
-            child: SizedBox(
-              width: 142,
-              height: 142,
-              child: Material(
-                color: enabled
-                    ? statusColor.withValues(alpha: isConnected ? 0.92 : 0.96)
-                    : AppUIv1.surfaceMuted,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: onPressed,
-                  child: Opacity(
-                    opacity: enabled ? 1 : 0.58,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+    final foreground = enabled ? AppUIv1.background : AppUIv1.inkSoft;
+    final background = enabled ? statusColor : AppUIv1.surfaceMuted;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(AppUIv1.radiusM),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppUIv1.radiusM),
+          onTap: onPressed,
+          child: SizedBox(
+            height: 112,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppUIv1.space4,
+                    ),
+                    child: Row(
                       children: [
-                        AnimatedSwitcher(
-                          duration: AppUIv1.durationFast,
-                          child: isBusy
-                              ? SizedBox(
-                                  key: const ValueKey('spinner'),
-                                  width: 30,
-                                  height: 30,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: AppUIv1.background
-                                        .withValues(alpha: 0.92),
-                                  ),
-                                )
-                              : Icon(
-                                  icon,
-                                  key: ValueKey(icon),
-                                  color: AppUIv1.background,
-                                  size: 34,
-                                ),
-                        ),
-                        const SizedBox(height: AppUIv1.space2),
-                        AnimatedSwitcher(
-                          duration: AppUIv1.durationFast,
-                          child: Text(
-                            label,
-                            key: ValueKey(label),
-                            style: const TextStyle(
-                              color: AppUIv1.background,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0,
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppUIv1.background.withValues(alpha: 0.12),
+                            borderRadius:
+                                BorderRadius.circular(AppUIv1.radiusS),
+                          ),
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Center(
+                              child: AnimatedSwitcher(
+                                duration: AppUIv1.durationFast,
+                                child: isBusy
+                                    ? SizedBox(
+                                        key: const ValueKey('spinner'),
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.4,
+                                          color: foreground,
+                                        ),
+                                      )
+                                    : Icon(
+                                        icon,
+                                        key: ValueKey(icon),
+                                        color: foreground,
+                                        size: 26,
+                                      ),
+                              ),
                             ),
+                          ),
+                        ),
+                        const SizedBox(width: AppUIv1.space4),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: AppUIv1.durationFast,
+                                child: Text(
+                                  label,
+                                  key: ValueKey(label),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(
+                                        color: foreground,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                ),
+                              ),
+                              const SizedBox(height: AppUIv1.space1),
+                              Text(
+                                isWorking
+                                    ? 'Waiting for tunnel state'
+                                    : isConnected
+                                        ? 'Press to disconnect'
+                                        : 'Press to start the tunnel',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: foreground.withValues(alpha: 0.72),
+                                    ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              ),
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(AppUIv1.radiusM),
+                  ),
+                  child: LinearProgressIndicator(
+                    value: isWorking
+                        ? null
+                        : isConnected
+                            ? 1
+                            : status == VpnStatus.error
+                                ? 0.65
+                                : 0.08,
+                    minHeight: 3,
+                    color: foreground.withValues(alpha: 0.86),
+                    backgroundColor: AppUIv1.background.withValues(alpha: 0.22),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

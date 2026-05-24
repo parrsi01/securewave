@@ -39,20 +39,20 @@ class BootScreen extends ConsumerWidget {
                           SecureSurface(
                             variant: isFailed
                                 ? SecureSurfaceVariant.warning
-                                : SecureSurfaceVariant.glass,
-                            radius: AppUIv1.radiusXXL,
+                                : SecureSurfaceVariant.raised,
+                            radius: AppUIv1.radiusM,
                             padding: const EdgeInsets.all(AppUIv1.space6),
                             child: Column(
                               children: [
                                 Container(
-                                  width: 76,
-                                  height: 76,
+                                  width: 72,
+                                  height: 72,
                                   decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: AppUIv1.brandGradient,
-                                    boxShadow: isFailed
-                                        ? AppUIv1.shadowMd
-                                        : AppUIv1.glowAccent,
+                                    color: AppUIv1.surfaceMuted,
+                                    borderRadius:
+                                        BorderRadius.circular(AppUIv1.radiusM),
+                                    border:
+                                        Border.all(color: AppUIv1.borderStrong),
                                   ),
                                   child: Center(
                                     child: SvgPicture.asset(

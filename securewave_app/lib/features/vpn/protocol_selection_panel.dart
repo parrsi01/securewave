@@ -32,19 +32,20 @@ class ProtocolSelectionPanel extends StatelessWidget {
         protocol: VpnProtocol.openVpn,
         icon: Icons.vpn_lock_rounded,
         name: 'OpenVPN',
-        status: 'Restricted',
+        status: 'Requires server support',
         description:
-            'Covered Linux helper path only. Not public-selectable here.',
-        enabled: false,
+            'Uses the Linux OpenVPN runtime when the backend issues a profile.',
+        enabled: true,
         color: AppUIv1.warning,
       ),
       _ProtocolOption(
         protocol: VpnProtocol.ikev2,
         icon: Icons.lock_clock_rounded,
         name: 'IKEv2/IPSec',
-        status: 'Not public v1',
-        description: 'Kept out of the public release-candidate UI.',
-        enabled: false,
+        status: 'Requires server support',
+        description:
+            'Uses Linux strongSwan tooling when the backend issues a profile.',
+        enabled: true,
         color: AppUIv1.inkSoft,
       ),
     ];
@@ -67,7 +68,7 @@ class ProtocolSelectionPanel extends StatelessWidget {
                 const SizedBox(width: AppUIv1.space2),
                 Expanded(
                   child: Text(
-                    'The saved protocol is not public-ready. Select WireGuard before connecting.',
+                    'The selected protocol must be backed by a live server profile before it can connect.',
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall

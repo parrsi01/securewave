@@ -2,13 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:platform_info/platform_info.dart';
 
 import '../models/server_region.dart';
+import '../models/user_account.dart';
 import '../models/user_plan.dart';
 import '../config/app_config.dart';
 import '../services/vpn_service.dart';
 import '../../services/api_client.dart';
 
 final vpnServiceProvider = Provider<VpnService>((ref) {
-  final config = ref.read(appConfigProvider);
+  final config = ref.watch(appConfigProvider);
   return ChannelVpnService(
     fallback: MockVpnService(),
     allowFallback: config.useMockApi,
@@ -22,16 +23,22 @@ final deviceInfoProvider = Provider<String>((ref) {
 });
 
 final serversProvider = FutureProvider<List<ServerRegion>>((ref) async {
-  final api = ref.read(apiClientProvider);
+  final api = ref.watch(apiClientProvider);
   return api.fetchServers();
 });
 
 final userPlanProvider = FutureProvider<UserPlan>((ref) async {
-  final api = ref.read(apiClientProvider);
+  final api = ref.watch(apiClientProvider);
   return api.fetchUserPlan();
 });
 
-final favoriteServersProvider = StateNotifierProvider<FavoriteServersNotifier, Set<String>>((ref) {
+final currentUserProvider = FutureProvider<UserAccount>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  return api.fetchCurrentUser();
+});
+
+final favoriteServersProvider =
+    StateNotifierProvider<FavoriteServersNotifier, Set<String>>((ref) {
   return FavoriteServersNotifier();
 });
 

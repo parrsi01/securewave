@@ -14,7 +14,12 @@ class SecureStorage {
   static const vpnProfileConfigKey = 'vpn_profile_wireguard_config';
   static const vpnProfileExpiresAtKey = 'vpn_profile_expires_at';
 
-  Future<void> saveTokens({required String accessToken, String? refreshToken}) async {
+  static String vpnProfileConfigKeyFor(String protocol) {
+    return 'vpn_profile_${protocol}_config';
+  }
+
+  Future<void> saveTokens(
+      {required String accessToken, String? refreshToken}) async {
     await _storage.write(key: _accessTokenKey, value: accessToken);
     if (refreshToken != null) {
       await _storage.write(key: _refreshTokenKey, value: refreshToken);
@@ -30,13 +35,15 @@ class SecureStorage {
     await _storage.delete(key: _refreshTokenKey);
   }
 
-  Future<void> saveString(String key, String value) => _storage.write(key: key, value: value);
+  Future<void> saveString(String key, String value) =>
+      _storage.write(key: key, value: value);
 
   Future<String?> getString(String key) => _storage.read(key: key);
 
   Future<void> delete(String key) => _storage.delete(key: key);
 
-  Future<void> saveBool(String key, bool value) => _storage.write(key: key, value: value.toString());
+  Future<void> saveBool(String key, bool value) =>
+      _storage.write(key: key, value: value.toString());
 
   Future<bool?> getBool(String key) async {
     final raw = await _storage.read(key: key);
@@ -44,7 +51,8 @@ class SecureStorage {
     return raw.toLowerCase() == 'true';
   }
 
-  Future<void> saveInt(String key, int value) => _storage.write(key: key, value: value.toString());
+  Future<void> saveInt(String key, int value) =>
+      _storage.write(key: key, value: value.toString());
 
   Future<int?> getInt(String key) async {
     final raw = await _storage.read(key: key);

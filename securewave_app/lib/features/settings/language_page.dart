@@ -29,21 +29,22 @@ class LanguagePage extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SecureSurface(
-                          variant: SecureSurfaceVariant.glass,
+                          variant: SecureSurfaceVariant.raised,
                           padding: const EdgeInsets.all(AppUIv1.space5),
                           child: Row(
                             children: [
                               Container(
-                                width: 54,
-                                height: 54,
+                                width: 52,
+                                height: 52,
                                 decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: AppUIv1.brandGradient,
-                                  boxShadow: AppUIv1.glowAccent,
+                                  color: AppUIv1.surfaceMuted,
+                                  borderRadius:
+                                      BorderRadius.circular(AppUIv1.radiusS),
+                                  border: Border.all(color: AppUIv1.border),
                                 ),
                                 child: const Icon(
                                   Icons.language_rounded,
-                                  color: AppUIv1.background,
+                                  color: AppUIv1.accentCyan,
                                   size: 28,
                                 ),
                               ),
@@ -73,7 +74,7 @@ class LanguagePage extends ConsumerWidget {
                         ),
                         const SizedBox(height: AppUIv1.space4),
                         SecureSurface(
-                          variant: SecureSurfaceVariant.glass,
+                          variant: SecureSurfaceVariant.raised,
                           padding: const EdgeInsets.all(AppUIv1.space3),
                           child: RadioGroup<String>(
                             groupValue: language,
