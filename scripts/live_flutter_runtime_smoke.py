@@ -83,9 +83,14 @@ def main() -> int:
     status, body = _json_request(
         "POST", f"{api_base}/auth/register", payload=register_payload
     )
-    _require(status, {201, 400}, "registration", body)
+    _require(status, {201, 400, 429}, "registration", body)
     if status == 400 and "registered" not in str(body).lower():
         raise RuntimeError(f"registration failed: HTTP {status} {body}")
+    if status == 429:
+        # This script is often rerun with an existing QA account while the live
+        # registration limiter is active. Continue to login so existing-account
+        # smoke checks remain usable without weakening production rate limits.
+        print("registration skipped: live rate limit active; continuing to login")
 
     status, body = _json_request(
         "POST",

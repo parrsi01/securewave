@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/logging/app_logger.dart';
 import '../core/services/auth_session.dart';
+import '../core/services/secure_storage.dart';
 import 'api_client.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
@@ -18,6 +19,7 @@ class AuthService {
 
   Future<void> login({required String email, required String password}) async {
     final tokens = await _api.login(email: email, password: password);
+    await SecureStorage().clearVpnRuntimeState();
     await _session.setSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -38,6 +40,7 @@ class AuthService {
         );
       }
     }
+    await SecureStorage().clearVpnRuntimeState();
     await _session.setSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,

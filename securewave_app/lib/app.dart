@@ -13,6 +13,7 @@ import 'core/models/user_plan.dart';
 import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
 import 'core/services/auth_session.dart';
+import 'core/services/secure_storage.dart';
 import 'core/state/app_state.dart';
 import 'core/state/vpn_state.dart';
 import 'core/utils/api_error.dart';
@@ -1722,7 +1723,9 @@ Future<void> _signOut(BuildContext context, WidgetRef ref) async {
   if (vpn.status == VpnStatus.connected || vpn.status == VpnStatus.connecting) {
     await ref.read(vpnStateProvider.notifier).disconnect();
   }
+  await SecureStorage().clearVpnRuntimeState();
   await ref.read(authSessionProvider).clearSession();
+  ref.read(vpnStateProvider.notifier).selectServer(null);
   ref.invalidate(currentUserProvider);
   ref.invalidate(userPlanProvider);
   ref.invalidate(serversProvider);

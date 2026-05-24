@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
+import '../models/vpn_profile.dart';
 import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 import '../optimization/marlxgb.dart';
@@ -156,16 +158,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           protocolKey,
         );
         try {
-          final profile = await api.fetchVpnProfile(
+          final profile = await _fetchProfileWithReferenceRecovery(
+            api: api,
+            storage: storage,
             deviceId: deviceId,
             deviceName: identity.name,
             deviceType: identity.type,
-            protocol: state.protocol,
-            serverId: state.selectedServerId,
-          );
-          state = state.copyWith(
-            lastProfileFetchAt: DateTime.now(),
-            lastProfileFetchOk: true,
+            profileConfigKey: profileConfigKey,
           );
           config = profile.configForProtocol(state.protocol);
           if (config.trim().isEmpty) {
@@ -194,6 +193,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             lastProfileFetchAt: DateTime.now(),
             lastProfileFetchOk: false,
           );
+          if (_isProfileReferenceNotFound(error)) {
+            await storage.delete(SecureStorage.vpnDeviceIdKey);
+            await storage.delete(profileConfigKey);
+            rethrow;
+          }
           // Fallback: try last known config from secure storage for resilience.
           final cached = await storage.getString(profileConfigKey);
           if (cached != null && cached.trim().isNotEmpty) {
@@ -339,6 +343,71 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     AppLogger.info('Connectivity restored; attempting VPN reconnect.');
     // Fire-and-forget: state.isBusy gate prevents overlap.
     unawaited(connect());
+  }
+
+  Future<VpnProfile> _fetchProfileWithReferenceRecovery({
+    required ApiClient api,
+    required SecureStorage storage,
+    required int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required String profileConfigKey,
+  }) async {
+    try {
+      final profile = await api.fetchVpnProfile(
+        deviceId: deviceId,
+        deviceName: deviceName,
+        deviceType: deviceType,
+        protocol: state.protocol,
+        serverId: state.selectedServerId,
+      );
+      state = state.copyWith(
+        lastProfileFetchAt: DateTime.now(),
+        lastProfileFetchOk: true,
+      );
+      return profile;
+    } catch (error) {
+      if (!_isProfileReferenceNotFound(error)) rethrow;
+
+      final staleDevice = deviceId != null;
+      final staleServer = state.selectedServerId != null;
+      if (!staleDevice && !staleServer) rethrow;
+
+      if (staleDevice) {
+        await storage.delete(SecureStorage.vpnDeviceIdKey);
+        await storage.delete(profileConfigKey);
+        AppLogger.warning(
+          'Stored VPN device was not accepted by the backend; requesting a fresh profile.',
+        );
+      }
+      if (staleServer) {
+        selectServer(null);
+        AppLogger.warning(
+          'Stored VPN server was not accepted by the backend; retrying with auto-select.',
+        );
+      }
+
+      final profile = await api.fetchVpnProfile(
+        deviceName: deviceName,
+        deviceType: deviceType,
+        protocol: state.protocol,
+        serverId: state.selectedServerId,
+      );
+      state = state.copyWith(
+        lastProfileFetchAt: DateTime.now(),
+        lastProfileFetchOk: true,
+      );
+      return profile;
+    }
+  }
+
+  bool _isProfileReferenceNotFound(Object error) {
+    if (error is DioException) {
+      if (error.response?.statusCode != 404) return false;
+      return true;
+    }
+    final message = error.toString().toLowerCase();
+    return message.contains('404') && message.contains('not found');
   }
 
   void _setStatus(VpnStatus status) {

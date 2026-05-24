@@ -1,13 +1,17 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:securewave_app/core/config/app_config.dart';
+import 'package:securewave_app/core/models/vpn_profile.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
+import 'package:securewave_app/services/api_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -122,6 +126,51 @@ void main() {
     expect(state.status, VpnStatus.error);
     expect(state.lastTunnelStartOk, isFalse);
   });
+
+  test('stale stored VPN device id is cleared and profile fetch retries',
+      () async {
+    final service = _NativeSuccessVpnService();
+    final api = _ReferenceRecoveryApiClient(
+        failFirstDetail: 'Device not found or revoked');
+    await SecureStorage().saveInt(SecureStorage.vpnDeviceIdKey, 999);
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).connect();
+
+    expect(api.deviceIds, <int?>[999, null]);
+    expect(await SecureStorage().getInt(SecureStorage.vpnDeviceIdKey), 321);
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+    expect(container.read(vpnStateProvider).lastProfileFetchOk, isTrue);
+  });
+
+  test('stale selected server is cleared and profile fetch retries', () async {
+    final service = _NativeSuccessVpnService();
+    final api =
+        _ReferenceRecoveryApiClient(failFirstDetail: 'Server not found');
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    notifier.selectServer('old-provider-server');
+    await notifier.connect();
+
+    expect(api.serverIds, <String?>['old-provider-server', null]);
+    expect(container.read(vpnStateProvider).selectedServerId, isNull);
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+  });
 }
 
 class _FailingVpnService implements VpnService {
@@ -144,4 +193,104 @@ class _FailingVpnService implements VpnService {
 
   @override
   VpnStatus getStatus() => VpnStatus.disconnected;
+}
+
+class _NativeSuccessVpnService implements VpnService {
+  VpnStatus _status = VpnStatus.disconnected;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    if (config == null || config.trim().isEmpty) {
+      throw VpnServiceException('invalid_config', 'missing config');
+    }
+    _status = VpnStatus.connected;
+    return _status;
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async {
+    _status = VpnStatus.disconnected;
+    return _status;
+  }
+
+  @override
+  VpnStatus getStatus() => _status;
+}
+
+class _ReferenceRecoveryApiClient extends ApiClient {
+  _ReferenceRecoveryApiClient({required this.failFirstDetail})
+      : super(AppConfig.defaults());
+
+  final String failFirstDetail;
+  final deviceIds = <int?>[];
+  final serverIds = <String?>[];
+  int _calls = 0;
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    _calls += 1;
+    deviceIds.add(deviceId);
+    serverIds.add(serverId);
+    if (_calls == 1) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/vpn/profile'),
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/vpn/profile'),
+          statusCode: 404,
+          data: {'detail': failFirstDetail},
+        ),
+      );
+    }
+    return VpnProfile.fromJson({
+      'device_id': 321,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'protocol': protocol == VpnProtocol.openVpn ? 'openvpn' : 'wireguard',
+      'server_id': 'de-nue-1',
+      'server_location': 'Nuremberg, Germany',
+      'issued_at': DateTime.now().toIso8601String(),
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'wireguard_config':
+          '[Interface]\nPrivateKey = test\n[Peer]\nPublicKey = test\n',
+      'openvpn_config': 'client\n',
+      'ikev2_config': '',
+      'dns': {
+        'servers': ['94.140.14.14'],
+        'enforcement': 'config',
+      },
+      'kill_switch': {
+        'mode': 'enabled',
+        'enforcement': 'best effort',
+      },
+      'peer_registered': true,
+      'registration_status': 'test',
+    });
+  }
+
+  @override
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {}
+
+  @override
+  Future<void> notifyVpnDisconnected() async {}
 }
