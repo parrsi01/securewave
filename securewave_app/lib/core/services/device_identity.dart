@@ -27,7 +27,8 @@ class DeviceIdentity {
     final type = _deviceType();
     var name = await storage.getString(SecureStorage.deviceNameKey);
     if (name == null || name.trim().isEmpty) {
-      final suffix = installId.replaceAll('-', '').substring(0, 4).toUpperCase();
+      final suffix =
+          installId.replaceAll('-', '').substring(0, 4).toUpperCase();
       name = '${_defaultDeviceName(type)} ($suffix)';
       await storage.saveString(SecureStorage.deviceNameKey, name);
     }
@@ -72,4 +73,3 @@ class DeviceIdentity {
     }
   }
 }
-

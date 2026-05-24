@@ -1,3 +1,50 @@
+# SecureWave Runtime Debug Checklist
+
+## Linux Runtime Quick Checks
+
+Use these checks before claiming Linux release readiness. For the full manual
+QA flow, see `LINUX_RUNTIME_QA.md`.
+
+### Startup / Duplicate Window
+
+```bash
+cd securewave_app
+flutter build linux --debug
+./build/linux/arm64/debug/bundle/securewave_app &
+./build/linux/arm64/debug/bundle/securewave_app &
+pgrep -af securewave_app
+```
+
+Expected: one app process and the existing window is presented.
+
+### Auth / Session
+
+- Registration and login must show visible form errors on failure.
+- Valid sessions should restore after app restart.
+- Sign out should clear the session, stop an active tunnel, and allow immediate
+  re-login without restarting.
+- The signed-in account should be visible on the VPN screen and navigation rail.
+
+### Protocol State
+
+- WireGuard is only connected after `wg-quick up` returns successfully and
+  interface `securewave` exists.
+- WireGuard disconnect is only clean after interface `securewave` is gone.
+- OpenVPN requires a non-empty `openvpn_config` from the backend and a live
+  `securewave-openvpn` process after startup.
+- IKEv2 is expected to return a visible unsupported error until Linux runner
+  profile import/start/status/cleanup are implemented.
+
+### Useful Commands
+
+```bash
+which wg-quick openvpn swanctl ipsec pkexec
+ip link show securewave
+wg show
+pgrep -af 'securewave-openvpn|securewave.ovpn'
+ip route
+```
+
 # SecureWave iOS White Screen Debug Checklist
 
 If you encounter a white screen or startup failure on iOS, follow this systematic debugging guide.

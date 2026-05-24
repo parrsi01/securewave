@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
@@ -18,7 +19,9 @@ void main() {
         .setMockMethodCallHandler(
       const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
       (MethodCall methodCall) async {
-        final args = methodCall.arguments is Map ? Map<String, dynamic>.from(methodCall.arguments as Map) : const <String, dynamic>{};
+        final args = methodCall.arguments is Map
+            ? Map<String, dynamic>.from(methodCall.arguments as Map)
+            : const <String, dynamic>{};
         final key = args['key']?.toString();
         switch (methodCall.method) {
           case 'read':
@@ -34,7 +37,9 @@ void main() {
             return null;
           case 'readAll':
             return Map<String, String>.fromEntries(
-              store.entries.where((e) => e.value != null).map((e) => MapEntry(e.key, e.value!)),
+              store.entries
+                  .where((e) => e.value != null)
+                  .map((e) => MapEntry(e.key, e.value!)),
             );
         }
         return null;
@@ -43,7 +48,8 @@ void main() {
   });
 
   test('VpnStateNotifier transitions through connect and disconnect', () async {
-    final service = MockVpnService(connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+    final service = MockVpnService(
+        connectDelay: Duration.zero, disconnectDelay: Duration.zero);
     final container = ProviderContainer(
       overrides: [vpnServiceProvider.overrideWithValue(service)],
     );
@@ -70,8 +76,11 @@ void main() {
     expect(state.status, VpnStatus.connected);
   });
 
-  test('VpnStateNotifier cannot remain connected when kill switch hooks present and network drops', () async {
-    final service = MockVpnService(connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+  test(
+      'VpnStateNotifier cannot remain connected when kill switch hooks present and network drops',
+      () async {
+    final service = MockVpnService(
+        connectDelay: Duration.zero, disconnectDelay: Duration.zero);
     final container = ProviderContainer(
       overrides: [vpnServiceProvider.overrideWithValue(service)],
     );
@@ -88,4 +97,36 @@ void main() {
     await notifier.handleConnectivityChange(hasNetwork: false);
     expect(container.read(vpnStateProvider).status, VpnStatus.error);
   });
+
+  test('VpnStateNotifier does not mark connected when native connect fails',
+      () async {
+    final service = _FailingVpnService();
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.lastTunnelStartOk, isFalse);
+  });
+}
+
+class _FailingVpnService implements VpnService {
+  @override
+  bool get isNativeAvailable => false;
+
+  @override
+  Future<VpnStatus> connect({required VpnProtocol protocol, String? config}) {
+    throw VpnServiceException('vpn_connect_failed', 'native connect failed');
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async => VpnStatus.disconnected;
+
+  @override
+  VpnStatus getStatus() => VpnStatus.disconnected;
 }

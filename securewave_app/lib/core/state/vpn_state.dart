@@ -216,6 +216,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           await service.connect(protocol: state.protocol, config: config);
       _setStatus(nextStatus);
       if (nextStatus == VpnStatus.connected) {
+        try {
+          await api.notifyVpnConnected(region: state.selectedServerId);
+        } catch (_) {
+          AppLogger.info('Backend connect notification skipped.');
+        }
         state = state.copyWith(
           lastTunnelStartAt: DateTime.now(),
           lastTunnelStartOk: true,

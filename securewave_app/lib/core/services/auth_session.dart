@@ -14,29 +14,47 @@ class AuthSession extends ChangeNotifier {
 
   final _storage = SecureStorage();
 
+  bool _isInitialized = false;
   bool _isAuthenticated = false;
   String? _accessToken;
+  Future<void>? _initializeFuture;
 
+  bool get isInitialized => _isInitialized;
   bool get isAuthenticated => _isAuthenticated;
   String? get accessToken => _accessToken;
 
   Future<void> _initializeSession() async {
-    final token = await _storage.getAccessToken();
-    if (token != null && token.isNotEmpty) {
-      _accessToken = token;
-      _isAuthenticated = true;
-    }
-    notifyListeners();
+    _initializeFuture ??= _restoreSession();
+    await _initializeFuture;
   }
 
-  Future<void> setSession({required String accessToken, String? refreshToken}) async {
+  Future<void> ensureInitialized() => _initializeSession();
+
+  Future<void> _restoreSession() async {
+    try {
+      final token = await _storage.getAccessToken();
+      if (token != null && token.isNotEmpty) {
+        _accessToken = token;
+        _isAuthenticated = true;
+      }
+    } finally {
+      _isInitialized = true;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setSession(
+      {required String accessToken, String? refreshToken}) async {
+    await ensureInitialized();
     _accessToken = accessToken;
     _isAuthenticated = true;
-    await _storage.saveTokens(accessToken: accessToken, refreshToken: refreshToken);
+    await _storage.saveTokens(
+        accessToken: accessToken, refreshToken: refreshToken);
     notifyListeners();
   }
 
   Future<void> clearSession() async {
+    await ensureInitialized();
     _accessToken = null;
     _isAuthenticated = false;
     await _storage.clearTokens();

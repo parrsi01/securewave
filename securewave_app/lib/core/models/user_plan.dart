@@ -13,13 +13,15 @@ class UserPlan {
   final double usedGb;
   final DateTime? renewalDate;
 
-  bool get isUnlimited => isPremium && dataCapGb == 0;
+  bool get isUnlimited => isPremium && dataCapGb <= 0;
 
-  double get remainingGb =>
-      isUnlimited ? 0 : (dataCapGb - usedGb).clamp(0, dataCapGb).toDouble();
+  double get remainingGb => isUnlimited || dataCapGb <= 0
+      ? 0
+      : (dataCapGb - usedGb).clamp(0, dataCapGb).toDouble();
 
-  double get usagePercent =>
-      isUnlimited ? 0 : (usedGb / dataCapGb).clamp(0, 1).toDouble();
+  double get usagePercent => isUnlimited || dataCapGb <= 0
+      ? 0
+      : (usedGb / dataCapGb).clamp(0, 1).toDouble();
 
   factory UserPlan.fromJson(Map<String, dynamic> json) {
     return UserPlan(

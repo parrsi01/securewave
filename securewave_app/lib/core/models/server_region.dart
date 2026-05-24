@@ -20,7 +20,9 @@ class ServerRegion {
           json['location']?.toString() ??
           json['name']?.toString() ??
           '',
-      name: json['location']?.toString() ?? json['name']?.toString() ?? 'Unknown region',
+      name: json['location']?.toString() ??
+          json['name']?.toString() ??
+          'Unknown region',
       city: json['city']?.toString(),
       country: json['country']?.toString(),
       latencyMs: json['latency_ms'] is int ? json['latency_ms'] as int : null,

@@ -24,7 +24,8 @@ class AppErrorEntry {
 class AppLogger {
   static final ValueNotifier<List<AppLogEntry>> logStream =
       ValueNotifier<List<AppLogEntry>>(<AppLogEntry>[]);
-  static final ValueNotifier<AppErrorEntry?> errorStream = ValueNotifier<AppErrorEntry?>(null);
+  static final ValueNotifier<AppErrorEntry?> errorStream =
+      ValueNotifier<AppErrorEntry?>(null);
 
   static void info(String message, {String tag = 'SecureWave'}) {
     _record(message, level: 500, tag: tag);
@@ -40,8 +41,10 @@ class AppLogger {
     StackTrace? stackTrace,
     String tag = 'SecureWave',
   }) {
-    _record(message, level: 1000, tag: tag, error: error, stackTrace: stackTrace);
-    errorStream.value = AppErrorEntry(message: message, error: error, stackTrace: stackTrace);
+    _record(message,
+        level: 1000, tag: tag, error: error, stackTrace: stackTrace);
+    errorStream.value =
+        AppErrorEntry(message: message, error: error, stackTrace: stackTrace);
   }
 
   static void captureFlutterError(FlutterErrorDetails details) {

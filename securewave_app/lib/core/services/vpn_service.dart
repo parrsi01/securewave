@@ -76,6 +76,7 @@ class ChannelVpnService implements VpnService {
         );
       }
       if (config == null || config.trim().isEmpty) {
+        _status = VpnStatus.disconnected;
         throw VpnServiceException(
           'invalid_config',
           'Missing ${vpnProtocolLabel(protocol)} configuration. Please refresh and try again.',
@@ -110,6 +111,7 @@ class ChannelVpnService implements VpnService {
           );
         }
       } else {
+        _status = VpnStatus.disconnected;
         throw VpnServiceException(
           error.code,
           error.message ?? 'Unable to start VPN tunnel.',
@@ -136,6 +138,9 @@ class ChannelVpnService implements VpnService {
           'Native VPN plugin missing for this platform/build.',
         );
       }
+    } catch (_) {
+      _status = VpnStatus.disconnected;
+      rethrow;
     }
     return _status;
   }

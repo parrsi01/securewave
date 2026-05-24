@@ -63,12 +63,13 @@ class BootController extends ChangeNotifier {
   }
 
   Future<void> _initializeWithTimeout() async {
-    await Future.any([
-      _doInitialize(),
-      Future.delayed(const Duration(seconds: 10), () {
-        throw TimeoutException('Boot initialization timed out after 10 seconds');
-      }),
-    ]);
+    await _doInitialize().timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        throw TimeoutException(
+            'Boot initialization timed out after 10 seconds');
+      },
+    );
   }
 
   Future<void> _doInitialize() async {
@@ -77,11 +78,15 @@ class BootController extends ChangeNotifier {
     _ref.read(appConfigProvider.notifier).state = config;
     AppLogger.info('Boot: config loaded');
     final storage = SecureStorage();
+    final session = _ref.read(authSessionProvider);
+    await session.ensureInitialized();
+    AppLogger.info('Boot: session restored');
 
     if (config.resetSessionOnBoot) {
-      final resetDone = await storage.getBool(SecureStorage.resetSessionDoneKey) ?? false;
+      final resetDone =
+          await storage.getBool(SecureStorage.resetSessionDoneKey) ?? false;
       if (!resetDone) {
-        await _ref.read(authSessionProvider).clearSession();
+        await session.clearSession();
         await storage.saveBool(SecureStorage.resetSessionDoneKey, true);
         AppLogger.info('Boot: session reset');
       }
@@ -89,7 +94,8 @@ class BootController extends ChangeNotifier {
 
     // Step 2: Restore VPN server selection (can fail gracefully)
     try {
-      final selectedServer = await storage.getString(SecureStorage.selectedServerKey);
+      final selectedServer =
+          await storage.getString(SecureStorage.selectedServerKey);
       if (selectedServer != null) {
         _ref.read(vpnStateProvider.notifier).selectServer(selectedServer);
         AppLogger.info('Boot: restored server $selectedServer');

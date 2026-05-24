@@ -107,10 +107,12 @@ typedef struct {
   gint ref_count;
   FlMethodCall* method_call;
   gchar* error_code;
+  gchar* action;
   GPid pid;
   guint timeout_id;
   guint timeout_ms;
   gboolean responded;
+  gboolean verify_wireguard_interface;
 } WgQuickSpawnContext;
 
 static WgQuickSpawnContext* wg_quick_spawn_context_ref(WgQuickSpawnContext* ctx) {
@@ -127,6 +129,7 @@ static void wg_quick_spawn_context_unref(WgQuickSpawnContext* ctx) {
   }
   g_clear_object(&ctx->method_call);
   g_clear_pointer(&ctx->error_code, g_free);
+  g_clear_pointer(&ctx->action, g_free);
   g_free(ctx);
 }
 
@@ -148,6 +151,25 @@ static void wg_quick_respond_error_once(WgQuickSpawnContext* ctx, const gchar* m
   respond_error(ctx->method_call, ctx->error_code, message, nullptr);
 }
 
+static gboolean wireguard_interface_exists() {
+  gint wait_status = 0;
+  g_autoptr(GError) error = nullptr;
+  const gchar* argv[] = {"ip", "link", "show", "securewave", nullptr};
+  if (!g_spawn_sync(nullptr,
+                    const_cast<gchar**>(argv),
+                    nullptr,
+                    G_SPAWN_SEARCH_PATH,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    &wait_status,
+                    &error)) {
+    return FALSE;
+  }
+  return g_spawn_check_wait_status(wait_status, nullptr);
+}
+
 static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_data) {
   WgQuickSpawnContext* ctx = static_cast<WgQuickSpawnContext*>(user_data);
   if (ctx->timeout_id != 0) {
@@ -158,6 +180,23 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
   if (!g_spawn_check_wait_status(wait_status, &error)) {
     wg_quick_respond_error_once(ctx, error ? error->message : "wg-quick failed.");
   } else {
+    if (ctx->verify_wireguard_interface) {
+      const gboolean exists = wireguard_interface_exists();
+      if (g_strcmp0(ctx->action, "up") == 0 && !exists) {
+        wg_quick_respond_error_once(
+            ctx,
+            "WireGuard command completed but interface securewave was not found.");
+        g_spawn_close_pid(pid);
+        return;
+      }
+      if (g_strcmp0(ctx->action, "down") == 0 && exists) {
+        wg_quick_respond_error_once(
+            ctx,
+            "WireGuard command completed but interface securewave is still present.");
+        g_spawn_close_pid(pid);
+        return;
+      }
+    }
     wg_quick_respond_ok_once(ctx);
   }
   g_spawn_close_pid(pid);
@@ -179,7 +218,8 @@ static void spawn_wg_quick_async(
     FlMethodCall* method_call,
     const gchar* error_code,
     const gchar* action,
-    const gchar* config_path) {
+    const gchar* config_path,
+    gboolean verify_interface) {
   g_autoptr(GError) error = nullptr;
   g_autofree gchar* wg_quick = g_find_program_in_path("wg-quick");
   if (wg_quick == nullptr) {
@@ -226,9 +266,11 @@ static void spawn_wg_quick_async(
   ctx->ref_count = 1;
   ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
   ctx->error_code = g_strdup(error_code);
+  ctx->action = g_strdup(action);
   ctx->pid = pid;
   ctx->timeout_ms = kWgQuickTimeoutMs;
   ctx->responded = FALSE;
+  ctx->verify_wireguard_interface = verify_interface;
   g_child_watch_add_full(
       G_PRIORITY_DEFAULT,
       pid,
@@ -329,7 +371,13 @@ static void spawn_openvpn_down_async(
     const gchar* pid_path) {
   g_autofree gchar* q_pid = g_shell_quote(pid_path);
   g_autofree gchar* script = g_strdup_printf(
-      "if test -s %s; then kill $(cat %s); rm -f %s; fi",
+      "if test -s %s; then "
+      "pid=$(cat %s); "
+      "kill \"$pid\" 2>/dev/null || true; "
+      "for i in 1 2 3 4 5; do kill -0 \"$pid\" 2>/dev/null || break; sleep 1; done; "
+      "kill -9 \"$pid\" 2>/dev/null || true; "
+      "rm -f %s; "
+      "fi",
       q_pid, q_pid, q_pid);
   spawn_shell_async(method_call, "vpn_disconnect_failed", script, kOpenVpnTimeoutMs);
 }
@@ -383,7 +431,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       g_chmod(state->config_path, 0600);
       g_clear_pointer(&state->active_protocol, g_free);
       state->active_protocol = g_strdup("wireguard");
-      spawn_wg_quick_async(method_call, "vpn_connect_failed", "up", state->config_path);
+      spawn_wg_quick_async(method_call, "vpn_connect_failed", "up", state->config_path, TRUE);
       return;
     }
 
@@ -476,7 +524,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       respond_error(method_call, "vpn_config_missing", "WireGuard config file not found.", nullptr);
       return;
     }
-    spawn_wg_quick_async(method_call, "vpn_disconnect_failed", "down", state->config_path);
+    spawn_wg_quick_async(method_call, "vpn_disconnect_failed", "down", state->config_path, TRUE);
     return;
   }
   g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
@@ -599,25 +647,19 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
-// Implements GApplication::local_command_line.
-static gboolean my_application_local_command_line(GApplication* application,
-                                                  gchar*** arguments,
-                                                  int* exit_status) {
+// Implements GApplication::command_line. Secondary launches are forwarded to
+// the primary process, which presents the existing window instead of creating
+// another Flutter engine.
+static int my_application_command_line(GApplication* application,
+                                       GApplicationCommandLine* command_line) {
   MyApplication* self = MY_APPLICATION(application);
-  // Strip out the first argument as it is the binary name.
-  self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
-
-  g_autoptr(GError) error = nullptr;
-  if (!g_application_register(application, nullptr, &error)) {
-    g_warning("Failed to register: %s", error->message);
-    *exit_status = 1;
-    return TRUE;
-  }
-
+  int argc = 0;
+  g_auto(GStrv) argv = g_application_command_line_get_arguments(command_line, &argc);
+  g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  self->dart_entrypoint_arguments =
+      argc > 1 ? g_strdupv(argv + 1) : g_new0(gchar*, 1);
   g_application_activate(application);
-  *exit_status = 0;
-
-  return TRUE;
+  return 0;
 }
 
 // Implements GApplication::startup.
@@ -647,8 +689,7 @@ static void my_application_dispose(GObject* object) {
 
 static void my_application_class_init(MyApplicationClass* klass) {
   G_APPLICATION_CLASS(klass)->activate = my_application_activate;
-  G_APPLICATION_CLASS(klass)->local_command_line =
-      my_application_local_command_line;
+  G_APPLICATION_CLASS(klass)->command_line = my_application_command_line;
   G_APPLICATION_CLASS(klass)->startup = my_application_startup;
   G_APPLICATION_CLASS(klass)->shutdown = my_application_shutdown;
   G_OBJECT_CLASS(klass)->dispose = my_application_dispose;
@@ -664,5 +705,7 @@ MyApplication* my_application_new() {
   g_set_prgname(APPLICATION_ID);
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
-                                     "application-id", APPLICATION_ID, nullptr));
+                                     "application-id", APPLICATION_ID,
+                                     "flags", G_APPLICATION_HANDLES_COMMAND_LINE,
+                                     nullptr));
 }
