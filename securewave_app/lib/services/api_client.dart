@@ -317,7 +317,10 @@ class ApiClient {
   ///
   /// In demo/mock mode this triggers the demo VPN session on the server so
   /// that the dashboard and status endpoints reflect a connected state.
-  Future<void> notifyVpnConnected({String? region}) async {
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {
     if (_config.useMockApi) {
       _logMockApi();
       return;
@@ -325,7 +328,13 @@ class ApiClient {
     try {
       await _dio.post<Map<String, dynamic>>(
         '/vpn/connect',
-        data: region != null ? {'region': region} : {},
+        data: {
+          if (serverId != null && serverId.isNotEmpty) ...{
+            'server_id': serverId,
+            'region': serverId,
+          },
+          if (protocol != null) 'protocol': vpnProtocolStorageValue(protocol),
+        },
       );
     } catch (error, stackTrace) {
       AppLogger.warning('Backend VPN connect notification failed (non-fatal).');

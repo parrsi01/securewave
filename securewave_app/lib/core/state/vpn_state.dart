@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -62,10 +61,13 @@ class VpnState {
     DateTime? lastTunnelStartAt,
     bool? lastTunnelStartOk,
     bool clearError = false,
+    bool clearSelectedServer = false,
   }) {
     return VpnState(
       status: status ?? this.status,
-      selectedServerId: selectedServerId ?? this.selectedServerId,
+      selectedServerId: clearSelectedServer
+          ? null
+          : (selectedServerId ?? this.selectedServerId),
       protocol: protocol ?? this.protocol,
       desiredOn: desiredOn ?? this.desiredOn,
       isBusy: isBusy ?? this.isBusy,
@@ -94,11 +96,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   final Ref _ref;
-  final _rng = Random();
   final _predictor = const MarLXGBPredictor();
-  Timer? _rateTimer;
-  double _lastDown = 0;
-  double _lastUp = 0;
   int _stabilitySuccesses = 0;
   int _stabilityFailures = 0;
   DateTime? _lastAutoReconnectAt;
@@ -110,7 +108,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   void selectServer(String? serverId) {
-    state = state.copyWith(selectedServerId: serverId);
+    state = state.copyWith(
+      selectedServerId: serverId,
+      clearSelectedServer: serverId == null,
+    );
     final storage = SecureStorage();
     if (serverId != null) {
       storage.saveString(SecureStorage.selectedServerKey, serverId);
@@ -207,7 +208,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         // Demo/mock path: notify the backend so it tracks the session,
         // but do not block on failures since the mock tunnel is local-only.
         try {
-          await api.notifyVpnConnected(region: state.selectedServerId);
+          await api.notifyVpnConnected(
+            serverId: state.selectedServerId,
+            protocol: state.protocol,
+          );
         } catch (_) {
           AppLogger.info('Backend connect notification skipped (demo mode).');
         }
@@ -217,7 +221,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       _setStatus(nextStatus);
       if (nextStatus == VpnStatus.connected) {
         try {
-          await api.notifyVpnConnected(region: state.selectedServerId);
+          await api.notifyVpnConnected(
+            serverId: state.selectedServerId,
+            protocol: state.protocol,
+          );
         } catch (_) {
           AppLogger.info('Backend connect notification skipped.');
         }
@@ -226,13 +233,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           lastTunnelStartOk: true,
         );
         _updateStability(success: true);
-        _startRateSimulation();
+        _startRateUpdates();
       } else {
         state = state.copyWith(
           lastTunnelStartAt: DateTime.now(),
           lastTunnelStartOk: false,
         );
-        _stopRateSimulation();
+        _stopRateUpdates();
       }
     } catch (error, stackTrace) {
       _setStatus(VpnStatus.error);
@@ -262,8 +269,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final service = _ref.read(vpnServiceProvider);
       final nextStatus = await service.disconnect();
       _setStatus(nextStatus);
-      _stopRateSimulation();
-      state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
+      _stopRateUpdates();
       _updateStability(success: true);
       // Notify the backend so demo/live session tracking stays in sync.
       try {
@@ -305,7 +311,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         return;
       }
 
-      _stopRateSimulation();
+      _stopRateUpdates();
       _setStatus(VpnStatus.error);
       state = state.copyWith(
         errorKind: VpnErrorKind.unknown,
@@ -342,41 +348,23 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     state = state.copyWith(status: status);
   }
 
-  void _startRateSimulation() {
-    _rateTimer?.cancel();
-    _rateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      final down = 25 + _rng.nextInt(120) + _rng.nextDouble();
-      final up = 10 + _rng.nextInt(60) + _rng.nextDouble();
-      _lastDown = _predictor.predictBandwidth(
-        previous: _lastDown,
-        sample: down,
-        min: 5,
-        max: 250,
-      );
-      _lastUp = _predictor.predictBandwidth(
-        previous: _lastUp,
-        sample: up,
-        min: 2,
-        max: 120,
-      );
-      state = state.copyWith(dataRateDown: _lastDown, dataRateUp: _lastUp);
-    });
+  void _startRateUpdates() {
+    // The Linux bridge does not currently expose verified byte counters to
+    // Dart. Keep rates at zero instead of showing synthetic traffic.
+    state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
   }
 
-  void _stopRateSimulation() {
-    _rateTimer?.cancel();
-    _rateTimer = null;
-    _lastDown = 0;
-    _lastUp = 0;
+  void _stopRateUpdates() {
+    state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
   }
 
   void pauseRateUpdates() {
-    _stopRateSimulation();
+    _stopRateUpdates();
   }
 
   void resumeRateUpdates() {
-    if (state.status == VpnStatus.connected && _rateTimer == null) {
-      _startRateSimulation();
+    if (state.status == VpnStatus.connected) {
+      _startRateUpdates();
     }
   }
 
@@ -453,12 +441,6 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       message: 'Unable to complete the VPN request right now. '
           'If this persists, check Diagnostics for details.',
     );
-  }
-
-  @override
-  void dispose() {
-    _rateTimer?.cancel();
-    super.dispose();
   }
 }
 

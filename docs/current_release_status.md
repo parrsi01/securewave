@@ -2,46 +2,47 @@
 
 ## Canonical v1 Release Statement
 
-SecureWave v1 is a Linux desktop first release with WireGuard as the primary
-protocol. OpenVPN is limited to the already certified Linux runtime/helper
-dataplane path unless normal backend and Linux client-path certification is
-separately proven. IKEv2 is experimental/manual or hidden unless provisioning
-and security hardening are complete. Windows, macOS, iOS, and Android VPN
-runtime work are out of scope for the public v1 go decision.
+SecureWave is currently a Linux desktop first app. WireGuard is the primary
+runtime path. OpenVPN is enabled only when the backend issues a real OpenVPN
+profile and the Linux helper confirms startup. IKEv2 is visible for diagnostics
+but is not counted as working on Linux unless the backend returns a Linux IKEv2
+profile and strongSwan start/status/cleanup are verified.
 
 Only protocols proven end-to-end through the normal backend and client path
-should be visible or enabled by default.
+should be called release-ready. The client must show backend/native errors
+instead of substituting fake connected states.
 
 ## Current Stable Release
 
 - Version: `4.0.0+2`
 - Platform: Linux
-- Status: Production-ready for the Linux/WireGuard-primary release path
+- Status: Fresh Flutter UI on `master` and `flutter`; Linux/WireGuard remains
+  the strongest runtime path
 
 ## Release-Ready
 
-- Login/auth-ready flow
-- Protocol-aware connect/readiness
-- Usage accounting under live traffic
-- Disconnect/cleanup
-- Reconnect stability
-- Domain/TLS correctness
-- API + download endpoints
-- Artifact integrity with checksum verification
-- Linux/WireGuard is the strongest current release path
+- Login/register against the live API with visible errors
+- Session restore/logout/re-login flow in the Flutter client
+- Account email shown after startup/login
+- Server catalog loading with empty/error states
+- Usage gauge on Connect, Account, and Settings screens
+- Native Linux single-instance window lifecycle
+- Domain/TLS correctness for `https://api.securewaveapp.com/api/health`
 
 ## Limited / Non-Public Release Evidence
 
-- OpenVPN Linux runtime/helper dataplane evidence exists, but public fallback
-  visibility beyond that covered path requires separate promotion.
-- IKEv2 dataplane evidence exists, but it is not public-release-ready.
+- OpenVPN profile issuance works on the live API for the verified Hetzner node;
+  full app connect still depends on local OpenVPN installation and privileges.
+- IKEv2 is still blocked for Linux on the live backend unless internal Linux
+  IKEv2 enablement is deliberately turned on and validated.
 
 ## Public Promotion Gated
 
-- OpenVPN remains limited to the certified Linux runtime/helper dataplane path
-  unless separately promoted.
-- IKEv2 remains unavailable for public release until provisioning and security
-  hardening are complete and the release decision is reopened.
+- The live backend currently suppresses synthetic region aliases that point at
+  the same Hetzner IP. Public catalog count should reflect verified inventory,
+  not placeholder region names.
+- IKEv2 remains unavailable for public Linux release until profile provisioning,
+  strongSwan start/status verification, and cleanup are proven.
 
 ## Experimental / Manual
 
@@ -64,15 +65,14 @@ readiness claims.
 
 ## Branch Model Summary
 
-- `release/linux-4.0.0+2` -> stable release branch
-- `develop/protocols-linux` -> Linux protocol work
-- `develop/apple-openvpn-runtime` -> Apple runtime work
+- `master` -> backend, docs, infra, app runtime truth, and release logistics
+- `flutter` -> current Flutter app design branch
 
 ## Contributor Rules
 
-- No experimental work on `release/linux-4.0.0+2`
-- All protocol work must go through the appropriate development branch
-- Promotion into a release branch requires the full Linux validation gate
+- Do not claim protocol readiness without normal backend + client-path proof.
+- Do not turn synthetic region aliases into public regions unless they are
+  explicitly labeled as placeholders or backed by real infrastructure.
 - Do not expose OpenVPN or IKEv2 as default-visible release protocols unless
   they are proven through the normal backend and client path.
 

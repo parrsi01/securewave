@@ -89,6 +89,11 @@ ssh securewave@<server-ip> 'sudo cat /etc/wireguard/keys/server_public.key'
 
 SecureWave issues real WireGuard profiles based on the VPN server registry in the database (`vpn_servers`).
 
+Production hides synthetic bootstrap aliases that point multiple city/country
+rows at the same public IP. To show 4-5 public regions, provision and register
+4-5 real data-plane nodes, or explicitly enable
+`SECUREWAVE_ALLOW_SYNTHETIC_SERVER_BOOTSTRAP=true` only for a labeled demo.
+
 Recommended (sync from Terraform outputs + Hetzner API + fetch WG public key over SSH):
 
 ```bash

@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime
 from typing import List, Dict, Optional
 
@@ -10,9 +11,103 @@ from models.user import User
 
 logger = logging.getLogger(__name__)
 
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+_SYNTHETIC_BOOTSTRAP_SERVER_IDS = frozenset(
+    {
+        "de-nue-1",
+        "de-fra-1",
+        "ch-zrh-1",
+        "nl-ams-1",
+        "fr-par-1",
+    }
+)
+_CANONICAL_SINGLE_NODE_BOOTSTRAP_ID = "de-nue-1"
+
 
 class VPNServerService:
     """Service for managing VPN server fleet and health monitoring"""
+
+    @staticmethod
+    def _synthetic_inventory_filter_enabled() -> bool:
+        if os.getenv("TESTING", "").strip().lower() in _TRUE_VALUES:
+            return False
+        if os.getenv("SECUREWAVE_TUNNEL_MODE", "").strip().lower() == "simulated":
+            return False
+        return (
+            os.getenv("SECUREWAVE_ALLOW_SYNTHETIC_SERVER_BOOTSTRAP", "")
+            .strip()
+            .lower()
+            not in _TRUE_VALUES
+        )
+
+    @staticmethod
+    def _filter_synthetic_bootstrap_aliases(
+        servers: List[VPNServer],
+    ) -> List[VPNServer]:
+        if not servers or not VPNServerService._synthetic_inventory_filter_enabled():
+            return servers
+
+        by_public_ip: Dict[str, List[VPNServer]] = {}
+        for server in servers:
+            public_ip = str(getattr(server, "public_ip", "") or "").strip()
+            if public_ip:
+                by_public_ip.setdefault(public_ip, []).append(server)
+
+        hidden_ids: set[str] = set()
+        for grouped in by_public_ip.values():
+            if len(grouped) < 2:
+                continue
+            distinct_locations = {
+                (
+                    str(
+                        getattr(item, "city", "")
+                        or getattr(item, "location", "")
+                        or ""
+                    )
+                    .strip()
+                    .lower(),
+                    str(
+                        getattr(item, "country_code", "")
+                        or getattr(item, "country", "")
+                        or ""
+                    )
+                    .strip()
+                    .lower(),
+                )
+                for item in grouped
+            }
+            if len(distinct_locations) < 2:
+                continue
+            has_non_bootstrap_row = any(
+                str(getattr(item, "server_id", "") or "")
+                not in _SYNTHETIC_BOOTSTRAP_SERVER_IDS
+                for item in grouped
+            )
+            for item in grouped:
+                server_id = str(getattr(item, "server_id", "") or "")
+                if server_id not in _SYNTHETIC_BOOTSTRAP_SERVER_IDS:
+                    continue
+                if (
+                    not has_non_bootstrap_row
+                    and server_id == _CANONICAL_SINGLE_NODE_BOOTSTRAP_ID
+                ):
+                    continue
+                hidden_ids.add(server_id)
+
+        if not hidden_ids:
+            return servers
+
+        logger.warning(
+            "Suppressing synthetic bootstrap alias rows from runtime inventory "
+            "(hidden_ids=%s original_count=%s)",
+            ",".join(sorted(hidden_ids)),
+            len(servers),
+        )
+        return [
+            server
+            for server in servers
+            if str(getattr(server, "server_id", "") or "") not in hidden_ids
+        ]
 
     @staticmethod
     def get_active_servers(db: Session, user_tier: str = "free") -> List[VPNServer]:
@@ -37,7 +132,7 @@ class VPNServerService:
                 (VPNServer.tier_restriction.is_(None)) | (VPNServer.tier_restriction == "")
             )
 
-        return query.all()
+        return VPNServerService._filter_synthetic_bootstrap_aliases(query.all())
 
     @staticmethod
     def get_server_by_id(db: Session, server_id: str) -> Optional[VPNServer]:

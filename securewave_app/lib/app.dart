@@ -95,21 +95,22 @@ class _AppRoot extends ConsumerWidget {
 }
 
 class FreshTheme {
-  static const background = Color(0xFF050914);
-  static const surface = Color(0xFF0C1424);
-  static const surfaceMuted = Color(0xFF121D31);
-  static const graphite = Color(0xFFF7FAFF);
-  static const graphiteMuted = Color(0xFFB7C4D8);
-  static const line = Color(0xFF23314B);
-  static const lineStrong = Color(0xFF34466A);
-  static const primary = Color(0xFF3B82F6);
-  static const primarySoft = Color(0xFF102A4D);
+  static const background = Color(0xFF020712);
+  static const surface = Color(0xFF071527);
+  static const surfaceMuted = Color(0xFF0D2238);
+  static const surfaceRaised = Color(0xFF102A44);
+  static const graphite = Color(0xFFF8FBFF);
+  static const graphiteMuted = Color(0xFFB6C8DE);
+  static const line = Color(0xFF1B3554);
+  static const lineStrong = Color(0xFF2A5C92);
+  static const primary = Color(0xFF2F80FF);
+  static const primarySoft = Color(0xFF082A55);
   static const amber = Color(0xFFF4B04B);
   static const amberSoft = Color(0xFF34270E);
   static const red = Color(0xFFFF6B6B);
   static const redSoft = Color(0xFF351417);
   static const secondary = Color(0xFFFFFFFF);
-  static const secondarySoft = Color(0xFF1C2A3E);
+  static const secondarySoft = Color(0xFF172B43);
 
   static const radius = 10.0;
   static const radiusSmall = 8.0;
@@ -119,7 +120,7 @@ class FreshTheme {
   static ThemeData get theme {
     final scheme = ColorScheme.fromSeed(
       seedColor: primary,
-      brightness: Brightness.light,
+      brightness: Brightness.dark,
     ).copyWith(
       primary: primary,
       onPrimary: Colors.white,
@@ -202,7 +203,7 @@ class FreshTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surface,
+        fillColor: surfaceMuted,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         border: OutlineInputBorder(
@@ -221,7 +222,7 @@ class FreshTheme {
       navigationBarTheme: NavigationBarThemeData(
         height: 64,
         elevation: 0,
-        backgroundColor: surface,
+        backgroundColor: background,
         indicatorColor: primarySoft,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
@@ -342,6 +343,11 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
                             }
                             if (value.length < 8) {
                               return 'Use at least 8 characters.';
+                            }
+                            if (!RegExp(r'[A-Za-z]').hasMatch(value) ||
+                                !RegExp(r'[0-9]').hasMatch(value) ||
+                                !RegExp(r'[^A-Za-z0-9]').hasMatch(value)) {
+                              return 'Use letters, numbers, and a special character.';
                             }
                             return null;
                           },
@@ -693,8 +699,10 @@ class _ConnectScreen extends ConsumerWidget {
                 _InfoRow('Server', selectedServer),
                 _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
                 _InfoRow(
-                    'Download', '${vpn.dataRateDown.toStringAsFixed(1)} Mbps'),
-                _InfoRow('Upload', '${vpn.dataRateUp.toStringAsFixed(1)} Mbps'),
+                  'Traffic',
+                  connected ? 'Metered by account usage' : 'Disconnected',
+                ),
+                const _InfoRow('Bridge rates', 'Not exposed'),
               ],
             ),
           ),
@@ -871,6 +879,7 @@ class _SettingsScreen extends ConsumerWidget {
     final config = ref.watch(appConfigProvider);
     final device = ref.watch(deviceInfoProvider);
     final vpn = ref.watch(vpnStateProvider);
+    final plan = ref.watch(userPlanProvider);
 
     return ListView(
       children: [
@@ -884,6 +893,25 @@ class _SettingsScreen extends ConsumerWidget {
               _InfoRow('API', config.apiBaseUrl),
               _InfoRow('Mock API', config.useMockApi ? 'On' : 'Off'),
               _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _PlainPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SectionTitle('Usage'),
+              const SizedBox(height: 12),
+              plan.when(
+                data: (value) => _UsageSummary(plan: value),
+                loading: () => const _LoadingLine('Loading usage'),
+                error: (_, __) => const _InlineMessage(
+                  icon: Icons.warning_amber_rounded,
+                  message: 'Usage could not be loaded.',
+                  tone: _Tone.warning,
+                ),
+              ),
             ],
           ),
         ),
@@ -996,8 +1024,8 @@ class _ProtocolPicker extends ConsumerWidget {
           protocol: VpnProtocol.ikev2,
           selected: selected == VpnProtocol.ikev2,
           title: 'IKEv2/IPSec',
-          detail: 'Not wired in the Linux runner yet.',
-          enabled: false,
+          detail: 'Requires a backend-issued IKEv2 profile and strongSwan.',
+          enabled: true,
         ),
       ],
     );
@@ -1142,6 +1170,13 @@ class _PlainPanel extends StatelessWidget {
         color: FreshTheme.surface,
         border: Border.all(color: FreshTheme.line),
         borderRadius: BorderRadius.circular(FreshTheme.radius),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x66000000),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Padding(padding: padding, child: child),
     );
@@ -1660,6 +1695,23 @@ String _serverSubtitle(ServerRegion server) {
     parts.add(server.country!);
   }
   if (server.latencyMs != null) parts.add('${server.latencyMs} ms');
+  if (server.loadPercent != null) {
+    parts.add('${server.loadPercent!.round()}% load');
+  }
+  final protocols = server.supportedProtocols
+      .map((item) => switch (item) {
+            'wireguard' => 'WG',
+            'openvpn' => 'OVPN',
+            'ikev2' => 'IKEv2',
+            _ => item,
+          })
+      .join('/');
+  if (protocols.isNotEmpty) parts.add(protocols);
+  final health = server.regionHealthStatus ?? server.healthStatus;
+  if (health != null && health.isNotEmpty && health != 'up') {
+    parts.add(health);
+  }
+  if (server.premiumOnly) parts.add('Premium');
   return parts.isEmpty ? 'Region endpoint' : parts.join(' · ');
 }
 

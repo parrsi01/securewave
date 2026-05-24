@@ -66,10 +66,19 @@ void main() {
   });
 
   test('VpnStateNotifier allows auto-select server', () async {
-    final container = ProviderContainer();
+    final service = MockVpnService(
+        connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
     addTearDown(container.dispose);
 
     final notifier = container.read(vpnStateProvider.notifier);
+    notifier.selectServer('de-nue-1');
+    expect(container.read(vpnStateProvider).selectedServerId, 'de-nue-1');
+    notifier.selectServer(null);
+    expect(container.read(vpnStateProvider).selectedServerId, isNull);
+
     await notifier.connect();
 
     final state = container.read(vpnStateProvider);

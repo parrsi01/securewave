@@ -23,8 +23,8 @@ class AppConfig {
   static AppConfig? _cached;
 
   factory AppConfig.defaults() {
-    // CRITICAL: Do NOT default to mock in release/profile builds
-    const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
+    // Daily-use builds default to the live control plane. Mock data is opt-in
+    // through SECUREWAVE_USE_MOCK_API for isolated UI tests and demos.
     return AppConfig(
       apiBaseUrl: _compileTimeOrFallback(
         'SECUREWAVE_API_BASE_URL',
@@ -41,7 +41,7 @@ class AppConfig {
       useMockApi: _parseBool(
         const String.fromEnvironment(
           'SECUREWAVE_USE_MOCK_API',
-          defaultValue: kIsDebugMode ? 'true' : 'false',
+          defaultValue: 'false',
         ),
       ),
       resetSessionOnBoot: false,
@@ -85,13 +85,12 @@ class AppConfig {
         AppConstants.upgradeUrlFallback,
       ),
     );
-    // CRITICAL: In release/profile, default to false unless explicitly enabled via env
-    const bool kIsDebugMode = bool.fromEnvironment('dart.vm.product') == false;
+    // Mock API must be explicitly requested in every build mode.
     const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
     var useMock = _parseBool(
       env['SECUREWAVE_USE_MOCK_API'] ??
           const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
-              defaultValue: kIsDebugMode ? 'true' : 'false'),
+              defaultValue: 'false'),
     );
     if (kIsReleaseMode && useMock) {
       AppLogger.warning('Config: mock API disabled in release builds.');

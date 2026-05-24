@@ -12,7 +12,8 @@ native helper has created the expected tunnel state.
 - `pkexec` available, or run the app with the required privileges.
 - `swanctl` and `ipsec` installed before testing IKEv2. The current Linux runner
   still blocks IKEv2 because profile import/start is not wired.
-- Live API URL configured with `SECUREWAVE_API_BASE_URL`.
+- Live API URL defaults to `https://api.securewaveapp.com/api`; override with
+  `SECUREWAVE_API_BASE_URL` only for staging/local testing.
 - Real test account available. Do not add credentials to the repo.
 
 ## Startup
@@ -34,21 +35,24 @@ pgrep -af securewave_app
 ## Auth And Session
 
 1. Register a new test account.
-2. Confirm registration either signs in automatically or shows a visible error.
-3. Sign out.
-4. Sign in with the same account without restarting the app.
-5. Close and relaunch the app.
-6. Confirm the app restores the session and routes to the VPN screen.
-7. Confirm the signed-in account email is visible in the side rail and VPN
-   header.
+2. Use a password with letters, numbers, and a special character.
+3. Confirm registration either signs in automatically or shows a visible error.
+4. Sign out.
+5. Sign in with the same account without restarting the app.
+6. Close and relaunch the app.
+7. Confirm the app restores the session and routes to the VPN screen.
+8. Confirm the signed-in account email is visible in the VPN header/account
+   screen.
 
 ## Servers And Usage
 
 1. Open the VPN screen and Servers screen.
 2. Confirm regions load from `/vpn/servers`.
 3. Confirm an empty catalog shows a visible empty state, not a broken picker.
-4. Select Auto, then a specific region, then Auto again.
-5. Open Account and confirm the usage gauge renders for free, capped, and
+4. Confirm synthetic alias rows that point at the same server are not presented
+   as real regions unless explicitly enabled for a demo.
+5. Select Auto, then a specific region, then Auto again.
+6. Open Account and Settings and confirm the usage gauge renders for free, capped, and
    zero-cap plans without NaN, overflow, or stuck loading.
 
 ## Protocols
@@ -95,9 +99,10 @@ ip route
 
 ### IKEv2
 
-IKEv2 is not release-ready in the Linux runner. The expected result today is a
-visible `protocol_unavailable` error unless a future patch wires profile import,
-strongSwan connection start, status verification, and cleanup.
+IKEv2 is selectable for diagnostics, but it is not release-ready in the Linux
+runner. The expected result today is a visible backend or native error unless a
+future patch wires profile import, strongSwan connection start, status
+verification, and cleanup.
 
 ## Repeatability
 

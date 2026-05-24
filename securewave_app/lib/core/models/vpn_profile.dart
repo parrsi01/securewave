@@ -56,6 +56,9 @@ class VpnProfile {
   }
 
   factory VpnProfile.fromJson(Map<String, dynamic> json) {
+    final nestedProfile = json['profile'] is Map
+        ? Map<String, dynamic>.from(json['profile'] as Map)
+        : const <String, dynamic>{};
     final dns = json['dns'] is Map
         ? Map<String, dynamic>.from(json['dns'] as Map)
         : const <String, dynamic>{};
@@ -87,9 +90,16 @@ class VpnProfile {
       expiresAt: json['expires_at'] != null
           ? DateTime.tryParse(json['expires_at'].toString())
           : null,
-      wireguardConfig: json['wireguard_config']?.toString() ?? '',
-      openVpnConfig: json['openvpn_config']?.toString() ?? '',
-      ikev2Config: json['ikev2_config']?.toString() ?? '',
+      wireguardConfig: json['wireguard_config']?.toString() ??
+          nestedProfile['wireguard_config']?.toString() ??
+          '',
+      openVpnConfig: json['openvpn_config']?.toString() ??
+          nestedProfile['openvpn_config']?.toString() ??
+          nestedProfile['ovpn_config']?.toString() ??
+          '',
+      ikev2Config: json['ikev2_config']?.toString() ??
+          nestedProfile['ikev2_config']?.toString() ??
+          _ikev2ProfileToConfig(nestedProfile),
       dnsServers: dnsServers,
       adMalwareBlocking: dns['ad_malware_blocking']?.toString() ?? 'on',
       dnsEnforcement: dns['enforcement']?.toString() ?? 'best_effort',
@@ -100,4 +110,21 @@ class VpnProfile {
       registrationStatus: json['registration_status']?.toString(),
     );
   }
+}
+
+String _ikev2ProfileToConfig(Map<String, dynamic> profile) {
+  if (profile['type']?.toString().toLowerCase() != 'ikev2') return '';
+  final server = profile['server']?.toString() ?? '';
+  final username = profile['username']?.toString() ?? '';
+  final password = profile['password']?.toString() ?? '';
+  if (server.isEmpty || username.isEmpty || password.isEmpty) return '';
+  final remoteId = profile['remote_id']?.toString() ?? server;
+  final ca = profile['ca_cert_pem']?.toString() ?? '';
+  return [
+    'server=$server',
+    'remote_id=$remoteId',
+    'username=$username',
+    'password=$password',
+    if (ca.isNotEmpty) 'ca_cert_pem<<EOF\n$ca\nEOF',
+  ].join('\n');
 }
