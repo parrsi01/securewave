@@ -11,6 +11,8 @@ abstract class VpnService {
   Future<VpnStatus> disconnect();
   VpnStatus getStatus();
   bool get isNativeAvailable;
+  bool canConnectProtocol(VpnProtocol protocol);
+  String? protocolUnavailableReason(VpnProtocol protocol);
 }
 
 class VpnServiceException implements Exception {
@@ -44,6 +46,26 @@ class ChannelVpnService implements VpnService {
   bool get isNativeAvailable => _nativeAvailable;
 
   @override
+  bool canConnectProtocol(VpnProtocol protocol) {
+    if (_allowFallback) return true;
+    final os = platform.operatingSystem.name.toLowerCase();
+    if (os == 'linux' && protocol == VpnProtocol.ikev2) {
+      return false;
+    }
+    return true;
+  }
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) {
+    if (canConnectProtocol(protocol)) return null;
+    final os = platform.operatingSystem.name.toLowerCase();
+    if (os == 'linux' && protocol == VpnProtocol.ikev2) {
+      return 'IKEv2 is blocked on Linux until the strongSwan profile import/start path is implemented.';
+    }
+    return '${vpnProtocolLabel(protocol)} is not available on this runtime.';
+  }
+
+  @override
   Future<VpnStatus> connect(
       {required VpnProtocol protocol, String? config}) async {
     if (_status == VpnStatus.connected ||
@@ -53,6 +75,14 @@ class ChannelVpnService implements VpnService {
     }
     _status = VpnStatus.connecting;
     try {
+      if (!canConnectProtocol(protocol)) {
+        _status = VpnStatus.disconnected;
+        throw VpnServiceException(
+          'protocol_unavailable',
+          protocolUnavailableReason(protocol) ??
+              '${vpnProtocolLabel(protocol)} is not available on this runtime.',
+        );
+      }
       final os = platform.operatingSystem.name.toLowerCase();
       final available = await _refreshNativeAvailability();
       if (!available) {
@@ -272,6 +302,12 @@ class MockVpnService implements VpnService {
 
   @override
   bool get isNativeAvailable => false;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
 
   @override
   Future<VpnStatus> connect(

@@ -10,8 +10,8 @@ native helper has created the expected tunnel state.
 - `wg-quick` installed for WireGuard.
 - `openvpn` installed for OpenVPN.
 - `pkexec` available, or run the app with the required privileges.
-- `swanctl` and `ipsec` installed before testing IKEv2. The current Linux runner
-  still blocks IKEv2 because profile import/start is not wired.
+- `swanctl` and `ipsec` installed before future IKEv2 testing. The current
+  Linux app disables IKEv2 because profile import/start is not wired.
 - Live API URL defaults to `https://api.securewaveapp.com/api`; override with
   `SECUREWAVE_API_BASE_URL` only for staging/local testing.
 - Real test account available. Do not add credentials to the repo.
@@ -99,9 +99,9 @@ ip route
 
 ### IKEv2
 
-IKEv2 is selectable for diagnostics, but it is not release-ready in the Linux
-runner. The expected result today is a visible backend or native error unless a
-future patch wires profile import, strongSwan connection start, status
+IKEv2 is not selectable in the Linux release runtime today. The expected result
+is an unavailable protocol tile with a visible reason. Do not override this
+until a future patch wires profile import, strongSwan connection start, status
 verification, and cleanup.
 
 ## Repeatability

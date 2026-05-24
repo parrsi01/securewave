@@ -33,3 +33,18 @@ pgrep -af 'securewave-openvpn|securewave.ovpn' || true
 
 Do not kill a system OpenVPN or WireGuard server process unless it is clearly a
 SecureWave client process from the current test run.
+
+## Live Control-Plane Smoke
+
+Before opening the app for a manual run, verify the live backend paths used by
+the Flutter client:
+
+```bash
+python3 scripts/live_flutter_runtime_smoke.py --profile-repeats 3
+```
+
+The script registers or reuses a disposable account, logs in, fetches account
+and usage state, lists servers, and requests WireGuard/OpenVPN/IKEv2 profiles.
+It never starts a local tunnel and does not print bearer tokens. Treat any
+non-200 WireGuard or OpenVPN profile result as a release blocker. IKEv2 may
+still return a typed non-200 until the Linux strongSwan path is implemented.

@@ -4,9 +4,9 @@ SecureWave is a full-stack VPN platform repository that combines a Python/FastAP
 
 Current app truth is Linux desktop first. WireGuard is the strongest verified
 runtime path, OpenVPN has a Linux helper path when the backend issues a real
-profile, and IKEv2 remains gated on Linux unless the backend and strongSwan
-runtime are enabled end to end. The Flutter client must never mark a VPN as
-connected unless the native runtime reports success.
+profile, and IKEv2 is disabled in the Linux release UI until the backend and
+strongSwan runtime are enabled end to end. The Flutter client must never mark a
+VPN as connected unless the native runtime reports success.
 
 The repository now targets **Hetzner Cloud only**. Older Azure-era assumptions are not part of the supported deployment story; provisioning and production operations are centered on the Terraform module in `infrastructure/hetzner/` and the Hetzner runbook in `docs/HETZNER_RUNBOOK.md`.
 

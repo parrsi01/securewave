@@ -1002,6 +1002,7 @@ class _ProtocolPicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final vpnService = ref.watch(vpnServiceProvider);
     return Column(
       children: [
         _ProtocolTile(
@@ -1009,7 +1010,7 @@ class _ProtocolPicker extends ConsumerWidget {
           selected: selected == VpnProtocol.wireGuard,
           title: 'WireGuard',
           detail: 'Primary Linux runtime path.',
-          enabled: true,
+          enabled: vpnService.canConnectProtocol(VpnProtocol.wireGuard),
         ),
         const SizedBox(height: 8),
         _ProtocolTile(
@@ -1017,15 +1018,16 @@ class _ProtocolPicker extends ConsumerWidget {
           selected: selected == VpnProtocol.openVpn,
           title: 'OpenVPN',
           detail: 'Requires a backend-issued OpenVPN profile.',
-          enabled: true,
+          enabled: vpnService.canConnectProtocol(VpnProtocol.openVpn),
         ),
         const SizedBox(height: 8),
         _ProtocolTile(
           protocol: VpnProtocol.ikev2,
           selected: selected == VpnProtocol.ikev2,
           title: 'IKEv2/IPSec',
-          detail: 'Requires a backend-issued IKEv2 profile and strongSwan.',
-          enabled: true,
+          detail: vpnService.protocolUnavailableReason(VpnProtocol.ikev2) ??
+              'Requires a backend-issued IKEv2 profile and strongSwan.',
+          enabled: vpnService.canConnectProtocol(VpnProtocol.ikev2),
         ),
       ],
     );

@@ -129,6 +129,12 @@ class _FailingVpnService implements VpnService {
   bool get isNativeAvailable => false;
 
   @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
   Future<VpnStatus> connect({required VpnProtocol protocol, String? config}) {
     throw VpnServiceException('vpn_connect_failed', 'native connect failed');
   }

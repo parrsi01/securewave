@@ -36,8 +36,8 @@ The Linux runner then hands the profile to the relevant local tool:
 
 - WireGuard uses `wg-quick`.
 - OpenVPN uses `openvpn`.
-- IKEv2 requires strongSwan tooling and is not counted as working until that
-  path is verified end to end.
+- IKEv2 is disabled in the Linux release app until strongSwan profile import,
+  connection start, status verification, and cleanup are verified end to end.
 
 The app should show an error if a profile is missing, a tool is not installed,
 permissions are missing, or the backend rejects the protocol.
