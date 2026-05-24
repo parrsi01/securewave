@@ -222,8 +222,7 @@ class _SecureAuthPrimaryButtonState extends State<SecureAuthPrimaryButton> {
                   height: 18,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(AppUIv1.background),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppUIv1.ink),
                   ),
                 )
               : Text(
@@ -300,7 +299,7 @@ class _AuthBrandHeader extends StatelessWidget {
           width: compact ? 64 : 72,
           height: compact ? 64 : 72,
           decoration: BoxDecoration(
-            color: AppUIv1.surfaceRaised,
+            color: AppUIv1.backgroundElevated,
             borderRadius: BorderRadius.circular(AppUIv1.radiusM),
             border: Border.all(color: AppUIv1.borderStrong),
           ),

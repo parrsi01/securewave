@@ -15,45 +15,43 @@ enum SecureSurfaceVariant {
 }
 
 class AppUIv1 {
-  // SecureWave app foundation: graphite surfaces, electric lime actions,
-  // seawater status, and warm warning/coral failure states.
-  // Keep these legacy names stable while future screens migrate to the
-  // richer token helpers below.
-  static const Color background = Color(0xFF0B0D0E);
-  static const Color backgroundStrong = Color(0xFF0F1213);
-  static const Color backgroundElevated = Color(0xFF141819);
-  static const Color surface = Color(0xFF161A1B);
-  static const Color surfaceRaised = Color(0xFF202526);
-  static const Color surfaceMuted = Color(0xFF303738);
-  static const Color surfaceGlass = Color(0xFF181D1E);
-  static const Color surfaceOverlay = Color(0x18D8FF5F);
+  // Website-aligned SecureWave app foundation: black, deep blue, white,
+  // and restrained violet accents from the live static site.
+  static const Color background = Color(0xFF05050D);
+  static const Color backgroundStrong = Color(0xFF080712);
+  static const Color backgroundElevated = Color(0xFF0A0F1F);
+  static const Color surface = Color(0xFF0D1020);
+  static const Color surfaceRaised = Color(0xFF12162A);
+  static const Color surfaceMuted = Color(0xFF20263C);
+  static const Color surfaceGlass = Color(0xFF171328);
+  static const Color surfaceOverlay = Color(0x1A8B5CF6);
 
-  static const Color accent = Color(0xFFD8FF5F);
-  static const Color accentStrong = Color(0xFFA7D934);
-  static const Color accentSoft = Color(0x33D8FF5F);
-  static const Color accentCyan = Color(0xFF53E0B8);
-  static const Color accentBlue = Color(0xFF9FAC9A);
-  static const Color accentSun = Color(0xFFFFB86B);
+  static const Color accent = Color(0xFF8B5CF6);
+  static const Color accentStrong = Color(0xFF6D3EF0);
+  static const Color accentSoft = Color(0x338B5CF6);
+  static const Color accentCyan = Color(0xFFF8F7FF);
+  static const Color accentBlue = Color(0xFF1E3A8A);
+  static const Color accentSun = Color(0xFFFBBF24);
 
-  static const Color success = Color(0xFF6BF0B3);
-  static const Color warning = Color(0xFFFFC266);
-  static const Color danger = Color(0xFFFF6B5F);
+  static const Color success = Color(0xFF4ADE80);
+  static const Color warning = Color(0xFFFBBF24);
+  static const Color danger = Color(0xFFFB7185);
 
-  static const Color ink = Color(0xFFF4F7EF);
-  static const Color inkMuted = Color(0xFFC1CAB9);
-  static const Color inkSoft = Color(0xFF879080);
-  static const Color inkDisabled = Color(0xFF5B6258);
-  static const Color border = Color(0x2DF4F7EF);
-  static const Color borderStrong = Color(0x52D8FF5F);
-  static const Color divider = Color(0x1FF4F7EF);
+  static const Color ink = Color(0xFFF8F7FF);
+  static const Color inkMuted = Color(0xFFCDC7EA);
+  static const Color inkSoft = Color(0xFF968FB8);
+  static const Color inkDisabled = Color(0xFF615B7A);
+  static const Color border = Color(0x24F8F7FF);
+  static const Color borderStrong = Color(0x528B5CF6);
+  static const Color divider = Color(0x1AF8F7FF);
 
   static const LinearGradient backgroundGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF0B0D0E),
-      Color(0xFF0F1213),
-      Color(0xFF0B0D0E),
+      Color(0xFF05050D),
+      Color(0xFF0A0F1F),
+      Color(0xFF05050D),
     ],
     stops: [0, 0.48, 1],
   );
@@ -62,9 +60,9 @@ class AppUIv1 {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFFE6FF76),
-      Color(0xFF53E0B8),
-      Color(0xFFFF7A6F),
+      Color(0xFFF8F7FF),
+      Color(0xFF8B5CF6),
+      Color(0xFF1E3A8A),
     ],
   );
 
@@ -72,8 +70,8 @@ class AppUIv1 {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF1B2021),
-      Color(0xFF151819),
+      Color(0xFF171328),
+      Color(0xFF0D1020),
     ],
   );
 
@@ -81,8 +79,8 @@ class AppUIv1 {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFFD8FF5F),
-      Color(0xFF53E0B8),
+      Color(0xFFF8F7FF),
+      Color(0xFF8B5CF6),
     ],
   );
 
@@ -104,7 +102,7 @@ class AppUIv1 {
   static const double radiusL = 10;
   static const double radiusXL = 12;
   static const double radiusXXL = 14;
-  static const double radiusFull = 999;
+  static const double radiusFull = 8;
   static const double radiusCard = 8;
 
   // Stroke, elevation, and glow tokens.
@@ -132,9 +130,9 @@ class AppUIv1 {
 
   static List<BoxShadow> get glowAccent => [
         BoxShadow(
-          color: accent.withValues(alpha: 0.16),
-          blurRadius: 14,
-          spreadRadius: -8,
+          color: accent.withValues(alpha: 0.18),
+          blurRadius: 10,
+          spreadRadius: -7,
         ),
       ];
 
@@ -230,8 +228,8 @@ class AppUIv1 {
       brightness: Brightness.dark,
     ).copyWith(
       primary: accent,
-      onPrimary: background,
-      secondary: accentCyan,
+      onPrimary: ink,
+      secondary: ink,
       onSecondary: background,
       tertiary: accentBlue,
       onTertiary: ink,
@@ -260,7 +258,7 @@ class AppUIv1 {
       scaffoldBackgroundColor: background,
       canvasColor: background,
       dividerColor: divider,
-      splashColor: accent.withValues(alpha: 0.10),
+      splashColor: ink.withValues(alpha: 0.08),
       highlightColor: accent.withValues(alpha: 0.08),
       textTheme: textTheme.copyWith(
         displaySmall: const TextStyle(
@@ -392,7 +390,7 @@ class AppUIv1 {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          foregroundColor: background,
+          foregroundColor: ink,
           backgroundColor: accent,
           disabledForegroundColor: inkDisabled,
           disabledBackgroundColor: surfaceMuted,
@@ -445,7 +443,7 @@ class AppUIv1 {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return accentCyan;
+          if (states.contains(WidgetState.selected)) return ink;
           return inkSoft;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
@@ -545,7 +543,10 @@ class SecurePageBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(color: AppUIv1.background, child: child);
+    return DecoratedBox(
+      decoration: const BoxDecoration(gradient: AppUIv1.backgroundGradient),
+      child: child,
+    );
   }
 }
 
@@ -625,7 +626,7 @@ class _SecureSurfaceState extends State<SecureSurface> {
         color: active
             ? Color.lerp(
                 colors.border,
-                AppUIv1.accentCyan,
+                AppUIv1.ink,
                 _pressed ? 0.42 : 0.28,
               )!
             : colors.border,
@@ -655,7 +656,7 @@ class _SecureSurfaceState extends State<SecureSurface> {
         onHover: (value) => setState(() => _hovered = value),
         onHighlightChanged: (value) => setState(() => _pressed = value),
         splashColor: AppUIv1.accent.withValues(alpha: 0.08),
-        highlightColor: AppUIv1.accentCyan.withValues(alpha: 0.06),
+        highlightColor: AppUIv1.ink.withValues(alpha: 0.06),
         child: content,
       ),
     );
@@ -686,7 +687,7 @@ class _SecureSurfaceState extends State<SecureSurface> {
         return _SurfaceColors(
           color: AppUIv1.accent,
           border: AppUIv1.accent,
-          shadows: AppUIv1.shadowSm,
+          shadows: AppUIv1.glowAccent,
         );
       case SecureSurfaceVariant.success:
         return _SurfaceColors(

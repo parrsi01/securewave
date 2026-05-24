@@ -94,11 +94,19 @@ class AppShell extends ConsumerWidget {
                       children: [
                         AnimatedContainer(
                           duration: AppUIv1.durationNormal,
-                          width: 8,
-                          height: 8,
+                          width: 24,
+                          height: 24,
                           decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
+                            color: AppUIv1.surfaceRaised,
+                            borderRadius:
+                                BorderRadius.circular(AppUIv1.radiusXS),
+                            border: Border.all(color: AppUIv1.border),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(3),
+                            child: SvgPicture.asset(
+                              'assets/securewave_logo.svg',
+                            ),
                           ),
                         ),
                         const SizedBox(width: AppUIv1.space2),
@@ -337,8 +345,7 @@ class _RailButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground =
-        color ?? (selected ? AppUIv1.background : AppUIv1.inkMuted);
+    final foreground = color ?? (selected ? AppUIv1.ink : AppUIv1.inkMuted);
     final background = selected ? AppUIv1.accent : Colors.transparent;
     final border = selected ? AppUIv1.accent : Colors.transparent;
 
@@ -558,8 +565,7 @@ class _DrawerAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground =
-        color ?? (selected ? AppUIv1.background : AppUIv1.inkMuted);
+    final foreground = color ?? (selected ? AppUIv1.ink : AppUIv1.inkMuted);
 
     return SecureSurface(
       variant:
@@ -586,7 +592,7 @@ class _DrawerAction extends StatelessWidget {
           if (selected)
             const Icon(
               Icons.radio_button_checked_rounded,
-              color: AppUIv1.background,
+              color: AppUIv1.ink,
               size: 15,
             ),
         ],

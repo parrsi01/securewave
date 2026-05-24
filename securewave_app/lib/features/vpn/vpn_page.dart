@@ -680,7 +680,11 @@ class _ConnectionRingButton extends StatelessWidget {
             ? Icons.stop_rounded
             : Icons.power_settings_new_rounded;
 
-    final foreground = enabled ? AppUIv1.background : AppUIv1.inkSoft;
+    final foreground = enabled
+        ? isConnected || isWorking
+            ? AppUIv1.background
+            : AppUIv1.ink
+        : AppUIv1.inkSoft;
     final background = enabled ? statusColor : AppUIv1.surfaceMuted;
 
     return ConstrainedBox(
