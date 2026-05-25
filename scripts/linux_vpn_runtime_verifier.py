@@ -65,6 +65,7 @@ def check_runner_contract() -> list[Check]:
     source = RUNNER_PATH.read_text(encoding="utf-8")
     expectations = {
         "runner:wireguard": "persist_active_protocol(state, \"wireguard\")",
+        "runner:wireguard_route_evidence": "route traffic was not using interface securewave",
         "runner:openvpn": "persist_active_protocol(state, \"openvpn\")",
         "runner:ikev2": "persist_active_protocol(state, \"ikev2\")",
         "runner:openvpn_tunnel_evidence": "OpenVPN process started but no tunnel interface or tunnel route was detected.",

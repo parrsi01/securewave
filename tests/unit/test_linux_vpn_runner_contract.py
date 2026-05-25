@@ -29,6 +29,15 @@ def test_openvpn_start_requires_tunnel_evidence_not_only_daemon_pid():
     assert "rm -f %s" in source
 
 
+def test_wireguard_start_requires_route_evidence_not_only_interface():
+    source = _runner_source()
+
+    assert "wireguard_route_exists" in source
+    assert '{"ip", "route", "get", "1.1.1.1", nullptr}' in source
+    assert '" dev securewave"' in source
+    assert "route traffic was not using interface securewave" in source
+
+
 def test_ikev2_start_verifies_strongswan_sa_after_initiate():
     source = _runner_source()
 

@@ -8,6 +8,7 @@ def test_runner_contract_covers_all_protocol_runtime_evidence():
     checks = {check.name: check for check in verifier.check_runner_contract()}
 
     assert checks["runner:wireguard"].ok
+    assert checks["runner:wireguard_route_evidence"].ok
     assert checks["runner:openvpn"].ok
     assert checks["runner:ikev2"].ok
     assert checks["runner:openvpn_tunnel_evidence"].ok

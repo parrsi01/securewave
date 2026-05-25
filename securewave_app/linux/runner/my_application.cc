@@ -211,6 +211,28 @@ static gboolean wireguard_interface_exists() {
   return g_spawn_check_wait_status(wait_status, nullptr);
 }
 
+static gboolean wireguard_route_exists() {
+  gint wait_status = 0;
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* output = nullptr;
+  const gchar* argv[] = {"ip", "route", "get", "1.1.1.1", nullptr};
+  if (!g_spawn_sync(nullptr,
+                    const_cast<gchar**>(argv),
+                    nullptr,
+                    G_SPAWN_SEARCH_PATH,
+                    nullptr,
+                    nullptr,
+                    &output,
+                    nullptr,
+                    &wait_status,
+                    &error)) {
+    return FALSE;
+  }
+  return g_spawn_check_wait_status(wait_status, nullptr) &&
+         output != nullptr &&
+         g_strstr_len(output, -1, " dev securewave") != nullptr;
+}
+
 static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_data) {
   WgQuickSpawnContext* ctx = static_cast<WgQuickSpawnContext*>(user_data);
   if (ctx->timeout_id != 0) {
@@ -227,6 +249,13 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
         wg_quick_respond_error_once(
             ctx,
             "WireGuard command completed but interface securewave was not found.");
+        g_spawn_close_pid(pid);
+        return;
+      }
+      if (g_strcmp0(ctx->action, "up") == 0 && !wireguard_route_exists()) {
+        wg_quick_respond_error_once(
+            ctx,
+            "WireGuard command completed but route traffic was not using interface securewave.");
         g_spawn_close_pid(pid);
         return;
       }
