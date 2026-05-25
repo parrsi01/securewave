@@ -32,4 +32,21 @@ void main() {
     expect(service.canConnectProtocol(VpnProtocol.ikev2), isTrue);
     expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNull);
   }, testOn: 'linux');
+
+  test('ChannelVpnService does not use mock fallback unless explicitly enabled',
+      () async {
+    final service = ChannelVpnService();
+
+    await expectLater(
+      service.connect(
+        protocol: VpnProtocol.wireGuard,
+        config: '[Interface]\nPrivateKey = test\n',
+      ),
+      throwsA(
+        isA<VpnServiceException>()
+            .having((error) => error.code, 'code', 'vpn_unavailable'),
+      ),
+    );
+    expect(service.getStatus(), VpnStatus.disconnected);
+  }, testOn: 'linux');
 }

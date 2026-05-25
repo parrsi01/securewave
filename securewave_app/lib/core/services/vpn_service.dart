@@ -27,7 +27,7 @@ class VpnServiceException implements Exception {
 }
 
 class ChannelVpnService implements VpnService {
-  ChannelVpnService({VpnService? fallback, bool allowFallback = true})
+  ChannelVpnService({VpnService? fallback, bool allowFallback = false})
       : _fallback = fallback ?? MockVpnService(),
         _allowFallback = allowFallback {
     _nativeAvailable = _supportsNativeChannel();
