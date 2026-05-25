@@ -24,6 +24,20 @@ void main() {
     expect(region.premiumOnly, isFalse);
   });
 
+  test('ServerRegion falls back to backend protocol booleans', () {
+    final region = ServerRegion.fromJson({
+      'server_id': 'de-nue-1',
+      'location': 'Nuremberg',
+      'supports_wireguard': true,
+      'supports_openvpn': true,
+      'supports_ikev2': false,
+    });
+
+    expect(region.supportsProtocol('wireguard'), isTrue);
+    expect(region.supportsProtocol('openvpn'), isTrue);
+    expect(region.supportsProtocol('ikev2'), isFalse);
+  });
+
   test('VpnProfile reads nested live OpenVPN profile payload', () {
     final profile = VpnProfile.fromJson({
       'device_id': 64,

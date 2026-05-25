@@ -293,6 +293,17 @@ class ApiClient {
       });
     }
     try {
+      final profileServerLabel =
+          serverId == null || serverId.isEmpty ? 'auto-select' : serverId;
+      final profileDeviceIdLabel =
+          deviceId != null && deviceId > 0 ? 'present' : 'none';
+      AppLogger.info(
+        'VPN profile request: protocol=${vpnProtocolStorageValue(protocol)} '
+        'device_type=$deviceType '
+        'server=$profileServerLabel '
+        'device_id=$profileDeviceIdLabel '
+        'api_base=${_config.apiBaseUrl}',
+      );
       final response = await _dio.post<Map<String, dynamic>>(
         '/vpn/profile',
         data: {

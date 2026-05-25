@@ -171,6 +171,35 @@ void main() {
     expect(container.read(vpnStateProvider).selectedServerId, isNull);
     expect(container.read(vpnStateProvider).status, VpnStatus.connected);
   });
+
+  test('device limit profile error remains precise', () async {
+    final service = _NativeSuccessVpnService();
+    final api = _AlwaysFailingProfileApiClient(
+      statusCode: 403,
+      body: {
+        'error': {
+          'code': 'device_limit_reached',
+          'message':
+              'Device limit reached (1). Upgrade your plan or revoke an existing device.',
+        },
+      },
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.deviceLimit);
+    expect(state.errorMessage, contains('Device limit reached'));
+  });
 }
 
 class _FailingVpnService implements VpnService {
@@ -293,4 +322,33 @@ class _ReferenceRecoveryApiClient extends ApiClient {
 
   @override
   Future<void> notifyVpnDisconnected() async {}
+}
+
+class _AlwaysFailingProfileApiClient extends ApiClient {
+  _AlwaysFailingProfileApiClient({
+    required this.statusCode,
+    required this.body,
+  }) : super(AppConfig.defaults());
+
+  final int statusCode;
+  final Map<String, dynamic> body;
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    throw DioException(
+      requestOptions: RequestOptions(path: '/vpn/profile'),
+      response: Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(path: '/vpn/profile'),
+        statusCode: statusCode,
+        data: body,
+      ),
+    );
+  }
 }

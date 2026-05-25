@@ -34,13 +34,19 @@ class ServerRegion {
 
   factory ServerRegion.fromJson(Map<String, dynamic> json) {
     final protocolsRaw = json['supported_protocols'];
-    final protocols = protocolsRaw is List
-        ? protocolsRaw
+    final protocols = <String>[];
+    if (protocolsRaw is List) {
+      protocols.addAll(
+        protocolsRaw
             .whereType<Object>()
             .map((item) => item.toString().trim().toLowerCase())
-            .where((item) => item.isNotEmpty)
-            .toList(growable: false)
-        : <String>[];
+            .where((item) => item.isNotEmpty),
+      );
+    } else {
+      if (json['supports_wireguard'] == true) protocols.add('wireguard');
+      if (json['supports_openvpn'] == true) protocols.add('openvpn');
+      if (json['supports_ikev2'] == true) protocols.add('ikev2');
+    }
     final latencyRaw = json['latency_ms'];
     final loadRaw = json['load_percent'];
 

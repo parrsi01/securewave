@@ -74,6 +74,7 @@ class ServerInfo(BaseModel):
     supports_wireguard: bool = True
     supports_openvpn: bool = False
     supports_ikev2: bool = False
+    supported_protocols: List[str] = Field(default_factory=list)
 
 
 class AllocateConfigRequest(BaseModel):
@@ -140,6 +141,21 @@ class ServerListResponse(BaseModel):
     servers: List[ServerInfo]
     total: int
     recommended_server_id: Optional[str] = None
+
+
+class VpnProtocolAvailability(BaseModel):
+    protocol: str
+    enabled: bool
+    server_enabled: bool
+    platform_supported: bool
+    health_status: str
+    reason: Optional[str] = None
+
+
+class VpnProtocolsResponse(BaseModel):
+    user_tier: str
+    device_type: Optional[str] = None
+    protocols: List[VpnProtocolAvailability]
 
 class VpnProfileRequest(BaseModel):
     """Provision an app-consumable VPN tunnel profile (no downloadable files)."""
@@ -350,6 +366,31 @@ def _normalize_profile_protocol(raw: Optional[str]) -> str:
     )
 
 
+def _platform_supported_protocols(device_type: Optional[str]) -> set[str]:
+    normalized = (device_type or "").lower().strip()
+    if normalized == "linux":
+        return {"wireguard", "openvpn"}
+    return {"wireguard", "openvpn"}
+
+
+def _server_supported_protocols(server: VPNServer) -> list[str]:
+    protocols: list[str] = []
+    if server.supports_wireguard and server.endpoint and server.wg_public_key:
+        protocols.append("wireguard")
+    if (
+        server.supports_openvpn
+        and (server.openvpn_endpoint or server.public_ip)
+        and server.openvpn_ca_cert_pem
+    ):
+        protocols.append("openvpn")
+    # IKEv2 remains internal/manual for Linux v1. Do not advertise it here.
+    return protocols
+
+
+def _server_supports_protocol(server: VPNServer, protocol: str) -> bool:
+    return protocol in _server_supported_protocols(server)
+
+
 def _endpoint_host(endpoint: str, fallback: str) -> str:
     value = (endpoint or "").strip()
     if not value:
@@ -452,6 +493,7 @@ def _build_ikev2_profile_config(server: VPNServer, current_user: User) -> str:
 @router.get("/servers", response_model=ServerListResponse)
 async def list_servers(
     region: Optional[str] = None,
+    device_type: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -465,6 +507,7 @@ async def list_servers(
 
     # Get active servers for this user's tier
     servers = VPNServerService.get_active_servers(db, user_tier)
+    platform_protocols = _platform_supported_protocols(device_type)
 
     # Filter by region if specified
     if region:
@@ -492,7 +535,12 @@ async def list_servers(
             health_status=server.health_status,
             supports_wireguard=bool(server.supports_wireguard),
             supports_openvpn=bool(server.supports_openvpn),
-            supports_ikev2=bool(server.supports_ikev2),
+            supports_ikev2=False,
+            supported_protocols=[
+                protocol
+                for protocol in _server_supported_protocols(server)
+                if protocol in platform_protocols
+            ],
         )
         server_list.append(server_info)
 
@@ -506,6 +554,45 @@ async def list_servers(
         servers=server_list,
         total=len(server_list),
         recommended_server_id=recommended_id,
+    )
+
+
+@router.get("/protocols", response_model=VpnProtocolsResponse)
+async def list_protocols(
+    device_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return protocol availability for the current user and device type."""
+    user_tier = get_user_tier(current_user, db)
+    platform_protocols = _platform_supported_protocols(device_type)
+    servers = VPNServerService.get_active_servers(db, user_tier)
+
+    protocol_rows: list[VpnProtocolAvailability] = []
+    for protocol in ("wireguard", "openvpn", "ikev2"):
+        platform_supported = protocol in platform_protocols
+        server_enabled = any(_server_supports_protocol(server, protocol) for server in servers)
+        enabled = platform_supported and server_enabled
+        reason = None
+        if not platform_supported:
+            reason = f"{protocol} is not release-ready for Linux."
+        elif not server_enabled:
+            reason = f"No usable {protocol} server metadata is configured."
+        protocol_rows.append(
+            VpnProtocolAvailability(
+                protocol=protocol,
+                enabled=enabled,
+                server_enabled=server_enabled,
+                platform_supported=platform_supported,
+                health_status="available" if enabled else "unavailable",
+                reason=reason,
+            )
+        )
+
+    return VpnProtocolsResponse(
+        user_tier=user_tier,
+        device_type=device_type,
+        protocols=protocol_rows,
     )
 
 
@@ -535,7 +622,8 @@ async def get_server(
         health_status=server.health_status,
         supports_wireguard=bool(server.supports_wireguard),
         supports_openvpn=bool(server.supports_openvpn),
-        supports_ikev2=bool(server.supports_ikev2),
+        supports_ikev2=False,
+        supported_protocols=_server_supported_protocols(server),
     )
 
 
@@ -745,6 +833,15 @@ async def provision_profile(
     await require_active_subscription(db, current_user)
 
     protocol = _normalize_profile_protocol(payload.protocol)
+    device_type = (payload.device_type or "").lower().strip() or None
+    if protocol not in _platform_supported_protocols(device_type):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"{protocol} is not release-ready for Linux. "
+                "Use WireGuard or OpenVPN on the Linux release path."
+            ),
+        )
 
     user_tier = get_user_tier(current_user, db)
     peer_manager = get_peer_manager(db)
@@ -758,8 +855,14 @@ async def provision_profile(
             WireGuardPeer.is_revoked == False,
         ).first()
         if not peer:
-            raise HTTPException(status_code=404, detail="Device not found or revoked")
-    else:
+            logger.warning(
+                "Ignoring stale VPN device reference user_id=%s device_id=%s; "
+                "falling back to device name lookup",
+                current_user.id,
+                payload.device_id,
+            )
+
+    if peer is None:
         device_name = (payload.device_name or "This device").strip()[:64]
         peer = db.query(WireGuardPeer).filter(
             WireGuardPeer.user_id == current_user.id,
@@ -810,14 +913,16 @@ async def provision_profile(
         candidates = VPNServerService.get_active_servers(db, user_tier)
         candidates = [
             candidate for candidate in candidates
-            if (
-                (protocol == "wireguard" and bool(candidate.supports_wireguard))
-                or (protocol == "openvpn" and bool(candidate.supports_openvpn))
-                or (protocol == "ikev2" and bool(candidate.supports_ikev2))
-            )
+            if _server_supports_protocol(candidate, protocol)
         ]
         if not candidates:
-            raise HTTPException(status_code=503, detail=f"No {protocol} VPN servers available. Please try again later.")
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"No usable {protocol} VPN servers available. "
+                    "Check server health and protocol endpoint metadata."
+                ),
+            )
         # Prefer healthy + high performance score.
         candidates.sort(
             key=lambda s: (
@@ -833,10 +938,18 @@ async def provision_profile(
 
     if protocol == "wireguard" and not server.supports_wireguard:
         raise HTTPException(status_code=400, detail="WireGuard is not enabled for this server.")
+    if protocol == "wireguard" and not _server_supports_protocol(server, "wireguard"):
+        raise HTTPException(
+            status_code=503,
+            detail="WireGuard server endpoint metadata is incomplete for the selected server.",
+        )
     if protocol == "openvpn" and not server.supports_openvpn:
         raise HTTPException(status_code=400, detail="OpenVPN is not enabled for this server.")
-    if protocol == "ikev2" and not server.supports_ikev2:
-        raise HTTPException(status_code=400, detail="IKEv2 is not enabled for this server.")
+    if protocol == "openvpn" and not _server_supports_protocol(server, "openvpn"):
+        raise HTTPException(
+            status_code=503,
+            detail="OpenVPN server endpoint or certificate metadata is incomplete for the selected server.",
+        )
 
     # Optional key rotation
     if payload.force_rotate_keys:

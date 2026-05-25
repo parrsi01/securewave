@@ -451,6 +451,50 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   ({VpnErrorKind kind, String message}) _classifyVpnError(Object error) {
+    if (error is DioException) {
+      final statusCode = error.response?.statusCode;
+      final apiCode = _apiErrorCode(error);
+      final apiMessage = _apiErrorMessage(error);
+      if (apiCode == 'device_limit_reached' ||
+          apiMessage.toLowerCase().contains('device limit reached')) {
+        return (
+          kind: VpnErrorKind.deviceLimit,
+          message: apiMessage.isNotEmpty
+              ? apiMessage
+              : 'Device limit reached. Revoke an old device or upgrade your plan.',
+        );
+      }
+      if (statusCode == 401 || apiCode == 'unauthorized') {
+        return (
+          kind: VpnErrorKind.auth,
+          message: 'Authentication failed. Please sign in again.',
+        );
+      }
+      if (statusCode == 403) {
+        return (
+          kind: VpnErrorKind.backendError,
+          message: apiMessage.isNotEmpty
+              ? apiMessage
+              : 'The VPN profile request was rejected by the backend.',
+        );
+      }
+      if (statusCode == 404) {
+        return (
+          kind: VpnErrorKind.profileNotFound,
+          message: apiMessage.isNotEmpty
+              ? 'Profile fetch failed. $apiMessage'
+              : 'Profile fetch failed. The backend could not resolve the selected VPN device or server.',
+        );
+      }
+      if (statusCode == 500 || statusCode == 502 || statusCode == 503) {
+        return (
+          kind: VpnErrorKind.backendError,
+          message: apiMessage.isNotEmpty
+              ? apiMessage
+              : 'Backend server error. The VPN service is experiencing issues. Please try again in a few minutes.',
+        );
+      }
+    }
     if (error is VpnServiceException) {
       if (error.code == 'protocol_unavailable') {
         return (kind: VpnErrorKind.protocolUnavailable, message: error.message);
@@ -511,11 +555,37 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           'If this persists, check Diagnostics for details.',
     );
   }
+
+  String _apiErrorCode(DioException error) {
+    final data = error.response?.data;
+    if (data is Map) {
+      final nested = data['error'];
+      if (nested is Map && nested['code'] != null) {
+        return nested['code'].toString();
+      }
+      if (data['code'] != null) return data['code'].toString();
+    }
+    return '';
+  }
+
+  String _apiErrorMessage(DioException error) {
+    final data = error.response?.data;
+    if (data is Map) {
+      final nested = data['error'];
+      if (nested is Map && nested['message'] != null) {
+        return nested['message'].toString();
+      }
+      if (data['detail'] != null) return data['detail'].toString();
+      if (data['message'] != null) return data['message'].toString();
+    }
+    return error.message ?? '';
+  }
 }
 
 enum VpnErrorKind {
   backendUnreachable,
   auth,
+  deviceLimit,
   profileNotFound,
   backendError,
   protocolUnavailable,
