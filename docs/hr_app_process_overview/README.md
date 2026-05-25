@@ -36,8 +36,8 @@ The Linux runner then hands the profile to the relevant local tool:
 
 - WireGuard uses `wg-quick`.
 - OpenVPN uses `openvpn`.
-- IKEv2 is disabled in the Linux release app until strongSwan profile import,
-  connection start, status verification, and cleanup are verified end to end.
+- IKEv2 uses strongSwan `swanctl`/`ipsec` when the backend returns a complete
+  Linux IKEv2 profile and the local strongSwan runtime is installed.
 
 The app should show an error if a profile is missing, a tool is not installed,
 permissions are missing, or the backend rejects the protocol.
@@ -50,4 +50,4 @@ permissions are missing, or the backend rejects the protocol.
   Hetzner IP. This prevents the app from pretending to have more real regions
   than it has.
 - The app must not show a connected state unless the native VPN path reports
-  success.
+  success with tunnel evidence.

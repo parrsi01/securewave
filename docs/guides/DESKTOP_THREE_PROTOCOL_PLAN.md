@@ -3,15 +3,15 @@
 ## Current Scope Note
 
 This document describes the broader desktop multi-protocol target. It does not
-override the active SecureWave v1 release scope. For v1, SecureWave is Linux
-desktop first with WireGuard primary; OpenVPN is limited to the already
-certified Linux runtime/helper dataplane path unless separately promoted after
-normal backend/client-path certification; IKEv2 is experimental/manual or hidden
-unless hardened; Windows, macOS, iOS, and Android runtime work is post-v1.
+override the active SecureWave release status. Linux backend control-plane
+support now covers WireGuard, OpenVPN, and IKEv2 when server metadata and
+credentials are complete; public release readiness still requires normal
+client-path proof and native tunnel evidence for each protocol. Windows, macOS,
+iOS, and Android runtime work remains independently gated.
 
-The desktop three-protocol target is post-v1 backlog only until each platform
-and protocol has release-grade backend, runtime, packaging, and validation
-evidence. It must not be used to broaden public v1 support claims.
+The cross-desktop three-protocol target remains backlog until each platform and
+protocol has release-grade backend, runtime, packaging, and validation evidence.
+It must not be used to broaden public support claims without that proof.
 
 ## Summary
 - Post-v1 target: evaluate `WireGuard`, `OpenVPN`, and `IKEv2` across desktop:

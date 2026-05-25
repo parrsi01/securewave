@@ -91,18 +91,20 @@ def _default_email() -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--api-base", default=DEFAULT_API_BASE)
-    parser.add_argument("--email", default=_default_email())
+    parser.add_argument("--email")
     parser.add_argument("--password", default=f"SwSmoke{secrets.token_hex(4)}!A1")
     parser.add_argument("--profile-repeats", type=int, default=1)
     args = parser.parse_args()
 
     api_base = args.api_base.rstrip("/")
+    email_was_supplied = bool(args.email)
+    email = args.email or _default_email()
 
     status, body = _json_request("GET", f"{api_base}/health")
     _require(status, {200}, "health", body)
 
     register_payload = {
-        "email": args.email,
+        "email": email,
         "password": args.password,
         "password_confirm": args.password,
     }
@@ -112,16 +114,21 @@ def main() -> int:
     _require(status, {201, 400, 429}, "registration", body)
     if status == 400 and "registered" not in str(body).lower():
         raise RuntimeError(f"registration failed: HTTP {status} {body}")
-    if status == 429:
+    if status == 429 and email_was_supplied:
         # This script is often rerun with an existing QA account while the live
         # registration limiter is active. Continue to login so existing-account
         # smoke checks remain usable without weakening production rate limits.
         print("registration skipped: live rate limit active; continuing to login")
+    elif status == 429:
+        raise RuntimeError(
+            "registration rate limit active before the generated QA account was created; "
+            "rerun with --email/--password for an existing QA account or retry after the limit resets"
+        )
 
     status, body = _json_request(
         "POST",
         f"{api_base}/auth/login",
-        payload={"email": args.email, "password": args.password},
+        payload={"email": email, "password": args.password},
     )
     _require(status, {200}, "login", body)
     token = body.get("access_token")
@@ -222,7 +229,7 @@ def main() -> int:
 
     summary = {
         "api_base": api_base,
-        "email": args.email,
+        "email": email,
         "account_email": account.get("email"),
         "plan": plan.get("plan_name") or plan.get("plan"),
         "usage": {

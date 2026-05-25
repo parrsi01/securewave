@@ -170,3 +170,71 @@ def test_live_smoke_rejects_200_profile_without_app_consumable_config(monkeypatc
 
     with pytest.raises(RuntimeError, match="app-consumable runtime config"):
         smoke.main()
+
+
+def test_live_smoke_does_not_login_generated_account_after_registration_rate_limit(monkeypatch):
+    calls = []
+
+    def fake_request(method, url, *, token=None, payload=None, timeout=20):
+        calls.append(url)
+        if url.endswith("/health"):
+            return 200, {}
+        if url.endswith("/auth/register"):
+            return 429, {"detail": "rate limited"}
+        if url.endswith("/auth/login"):
+            raise AssertionError("generated account was never registered")
+        raise AssertionError(f"unexpected request: {method} {url}")
+
+    monkeypatch.setattr(smoke, "_json_request", fake_request)
+    monkeypatch.setattr(sys, "argv", ["live_flutter_runtime_smoke.py"])
+
+    with pytest.raises(RuntimeError, match="registration rate limit active"):
+        smoke.main()
+    assert not any(url.endswith("/auth/login") for url in calls)
+
+
+def test_live_smoke_can_login_existing_account_after_registration_rate_limit(monkeypatch):
+    def fake_request(method, url, *, token=None, payload=None, timeout=20):
+        if url.endswith("/health"):
+            return 200, {}
+        if url.endswith("/auth/register"):
+            return 429, {"detail": "rate limited"}
+        if url.endswith("/auth/login"):
+            return 200, {"access_token": "token"}
+        if url.endswith("/auth/me"):
+            return 200, {"email": "qa@example.test"}
+        if url.endswith("/user/plan"):
+            return 200, {"plan": "Free"}
+        if url.endswith("/vpn/protocols?device_type=linux"):
+            return 200, {
+                "protocols": [
+                    {
+                        "protocol": protocol,
+                        "enabled": True,
+                        "platform_supported": True,
+                        "server_enabled": True,
+                    }
+                    for protocol in smoke.PROTOCOLS
+                ]
+            }
+        if url.endswith("/vpn/servers?device_type=linux"):
+            return 200, {
+                "servers": [
+                    {
+                        "server_id": "de-nue-1",
+                        "supported_protocols": list(smoke.PROTOCOLS),
+                    }
+                ]
+            }
+        if url.endswith("/vpn/profile"):
+            return 200, _ok_profile(payload["protocol"])
+        raise AssertionError(f"unexpected request: {method} {url}")
+
+    monkeypatch.setattr(smoke, "_json_request", fake_request)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["live_flutter_runtime_smoke.py", "--email", "qa@example.test", "--password", "Password1!"],
+    )
+
+    assert smoke.main() == 0

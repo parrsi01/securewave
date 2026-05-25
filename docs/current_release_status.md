@@ -4,8 +4,8 @@
 
 SecureWave is currently a Linux desktop first app. WireGuard is the primary
 runtime path. OpenVPN is enabled only when the backend issues a real OpenVPN
-profile and the Linux helper confirms startup. IKEv2 is disabled in the Linux
-release UI until the backend returns a Linux IKEv2 profile and strongSwan
+profile and the Linux helper confirms startup. IKEv2 is enabled only when the
+backend issues an app-consumable Linux IKEv2 profile and strongSwan
 start/status/cleanup are verified.
 
 Only protocols proven end-to-end through the normal backend and client path
@@ -35,10 +35,8 @@ instead of substituting fake connected states.
   full app connect still depends on local OpenVPN installation and privileges.
 - IKEv2 is selectable when the backend returns complete IKEv2 metadata and the
   Linux host has strongSwan `swanctl`/`ipsec` tooling installed.
-- To run the Linux app as a three-protocol target, production must also set
-  `SECUREWAVE_LINUX_INTERNAL_IKEV2=true`; otherwise `/vpn/protocols` can report
-  IKEv2 as `not_supported_on_platform` even when server inventory advertises
-  IKEv2 metadata.
+- The live backend smoke now requires all three Linux protocols to be enabled,
+  advertised by server inventory, and backed by app-consumable profile payloads.
 
 ## Public Promotion Gated
 
@@ -88,8 +86,6 @@ curl -fsS https://api.securewaveapp.com/api/health
 curl -fsS https://api.securewaveapp.com/api/downloads
 
 python3 scripts/live_flutter_runtime_smoke.py --profile-repeats 3
-
-SECUREWAVE_EXPECT_LINUX_IKEV2=true bash scripts/verify_production_env.sh --strict
 
 curl -fLo /tmp/securewave-linux-arm64-4.0.0-2.deb \
   https://securewaveapp.com/downloads/securewave-linux-arm64-4.0.0-2.deb

@@ -38,15 +38,6 @@ require_var() {
   fi
 }
 
-require_true_var() {
-  local name="$1"
-  local value="${!name-}"
-  local value_lower="${value,,}"
-  if [[ "$value_lower" != "true" ]]; then
-    log_error "$name must be true."
-  fi
-}
-
 require_port() {
   local name="$1"
   local value="${!name-}"
@@ -191,13 +182,6 @@ if [[ "$ENVIRONMENT_LOWER" == "production" ]]; then
   if [[ -z "${DATABASE_URL:-}" ]]; then
     log_error "DATABASE_URL is required for production (example: postgresql://user:pass@host:5432/securewave)."
   fi
-fi
-
-# The production API can keep Linux IKEv2 behind an internal gate while server
-# inventory still has IKEv2 metadata. Make the all-protocol Linux target
-# explicit so preflight catches that split before live smoke/profile checks.
-if [[ "${SECUREWAVE_EXPECT_LINUX_IKEV2:-}" == "true" || "${SECUREWAVE_ENABLE_ALL_LINUX_PROTOCOLS:-}" == "true" ]]; then
-  require_true_var SECUREWAVE_LINUX_INTERNAL_IKEV2
 fi
 
 echo "Verification mode: $([[ "$STRICT" == "true" ]] && echo strict || echo safe)"
