@@ -35,6 +35,10 @@ instead of substituting fake connected states.
   full app connect still depends on local OpenVPN installation and privileges.
 - IKEv2 is selectable when the backend returns complete IKEv2 metadata and the
   Linux host has strongSwan `swanctl`/`ipsec` tooling installed.
+- To run the Linux app as a three-protocol target, production must also set
+  `SECUREWAVE_LINUX_INTERNAL_IKEV2=true`; otherwise `/vpn/protocols` can report
+  IKEv2 as `not_supported_on_platform` even when server inventory advertises
+  IKEv2 metadata.
 
 ## Public Promotion Gated
 
@@ -84,6 +88,8 @@ curl -fsS https://api.securewaveapp.com/api/health
 curl -fsS https://api.securewaveapp.com/api/downloads
 
 python3 scripts/live_flutter_runtime_smoke.py --profile-repeats 3
+
+SECUREWAVE_EXPECT_LINUX_IKEV2=true bash scripts/verify_production_env.sh --strict
 
 curl -fLo /tmp/securewave-linux-arm64-4.0.0-2.deb \
   https://securewaveapp.com/downloads/securewave-linux-arm64-4.0.0-2.deb
