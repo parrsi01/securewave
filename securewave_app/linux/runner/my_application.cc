@@ -28,8 +28,9 @@ const char* kOpenVpnConfigFileName = "securewave.ovpn";
 const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
 const char* kOpenVpnLogFileName = "securewave-openvpn.log";
 const char* kIkev2ConfigFileName = "securewave-ikev2.conf";
+const char* kActiveProtocolFileName = "securewave-active-protocol";
 const guint kWgQuickTimeoutMs = 30000;
-const guint kOpenVpnTimeoutMs = 10000;
+const guint kOpenVpnTimeoutMs = 20000;
 const guint kIkev2TimeoutMs = 20000;
 
 typedef struct {
@@ -37,6 +38,7 @@ typedef struct {
   gchar* config_path;
   gchar* openvpn_pid_path;
   gchar* openvpn_log_path;
+  gchar* active_protocol_path;
   gchar* active_protocol;
 } VpnChannelState;
 
@@ -48,6 +50,7 @@ static void vpn_channel_state_free(VpnChannelState* state) {
   g_clear_pointer(&state->config_path, g_free);
   g_clear_pointer(&state->openvpn_pid_path, g_free);
   g_clear_pointer(&state->openvpn_log_path, g_free);
+  g_clear_pointer(&state->active_protocol_path, g_free);
   g_clear_pointer(&state->active_protocol, g_free);
   g_free(state);
 }
@@ -93,6 +96,42 @@ static gchar* build_state_path(const gchar* filename) {
     return nullptr;
   }
   return g_build_filename(config_dir, filename, nullptr);
+}
+
+static void persist_active_protocol(VpnChannelState* state, const gchar* protocol) {
+  if (!state->active_protocol_path) {
+    state->active_protocol_path = build_state_path(kActiveProtocolFileName);
+  }
+  if (state->active_protocol_path) {
+    g_file_set_contents(state->active_protocol_path, protocol, -1, nullptr);
+    g_chmod(state->active_protocol_path, 0600);
+  }
+  g_clear_pointer(&state->active_protocol, g_free);
+  state->active_protocol = g_strdup(protocol);
+}
+
+static const gchar* load_active_protocol(VpnChannelState* state) {
+  if (state->active_protocol && *state->active_protocol != '\0') {
+    return state->active_protocol;
+  }
+  if (!state->active_protocol_path) {
+    state->active_protocol_path = build_state_path(kActiveProtocolFileName);
+  }
+  if (!state->active_protocol_path) {
+    return "wireguard";
+  }
+  g_autofree gchar* stored = nullptr;
+  if (!g_file_get_contents(state->active_protocol_path, &stored, nullptr, nullptr) || !stored) {
+    return "wireguard";
+  }
+  g_strstrip(stored);
+  if (g_strcmp0(stored, "openvpn") == 0 ||
+      g_strcmp0(stored, "ikev2") == 0 ||
+      g_strcmp0(stored, "wireguard") == 0) {
+    state->active_protocol = g_strdup(stored);
+    return state->active_protocol;
+  }
+  return "wireguard";
 }
 
 static void respond_error(
@@ -363,7 +402,14 @@ static void spawn_openvpn_up_async(
   g_autofree gchar* q_log = g_shell_quote(log_path);
   g_autofree gchar* script = g_strdup_printf(
       "%s --config %s --daemon securewave-openvpn --writepid %s --log %s; "
-      "sleep 2; test -s %s && kill -0 $(cat %s)",
+      "for i in 1 2 3 4 5 6 7 8 9 10; do "
+      "test -s %s && kill -0 $(cat %s) || exit 1; "
+      "ip route get 1.1.1.1 2>/dev/null | grep -Eq ' dev tun[0-9A-Za-z_.-]+' && exit 0; "
+      "ip link show tun0 >/dev/null 2>&1 && exit 0; "
+      "sleep 1; "
+      "done; "
+      "echo 'OpenVPN process started but no tunnel interface or tunnel route was detected.' >&2; "
+      "exit 1",
       q_openvpn, q_config, q_pid, q_log, q_pid, q_pid);
   spawn_shell_async(method_call, "vpn_connect_failed", script, kOpenVpnTimeoutMs);
 }
@@ -405,7 +451,8 @@ static void spawn_ikev2_up_async(
       "awk '/# ca_cert_pem_begin/{capture=1; next} /# ca_cert_pem_end/{capture=0} capture{print}' %s > /etc/swanctl/x509ca/securewave-ikev2-ca.pem; "
       "sed '/# ca_cert_pem_begin/,/# ca_cert_pem_end/d' %s > /etc/swanctl/conf.d/securewave.conf; "
       "swanctl --load-all; "
-      "swanctl --initiate --child securewave",
+      "swanctl --initiate --child securewave; "
+      "swanctl --list-sas | grep -q securewave",
       q_config, q_config);
   spawn_shell_async(method_call, "vpn_connect_failed", script, kIkev2TimeoutMs);
 }
@@ -465,8 +512,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
         return;
       }
       g_chmod(state->config_path, 0600);
-      g_clear_pointer(&state->active_protocol, g_free);
-      state->active_protocol = g_strdup("wireguard");
+      persist_active_protocol(state, "wireguard");
       spawn_wg_quick_async(method_call, "vpn_connect_failed", "up", state->config_path, TRUE);
       return;
     }
@@ -496,8 +542,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
         return;
       }
       g_chmod(state->config_path, 0600);
-      g_clear_pointer(&state->active_protocol, g_free);
-      state->active_protocol = g_strdup("openvpn");
+      persist_active_protocol(state, "openvpn");
       spawn_openvpn_up_async(method_call, state->config_path, state->openvpn_pid_path, state->openvpn_log_path);
       return;
     }
@@ -523,8 +568,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
         return;
       }
       g_chmod(state->config_path, 0600);
-      g_clear_pointer(&state->active_protocol, g_free);
-      state->active_protocol = g_strdup("ikev2");
+      persist_active_protocol(state, "ikev2");
       spawn_ikev2_up_async(method_call, state->config_path);
       return;
     }
@@ -533,7 +577,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
     return;
   }
   if (g_strcmp0(method, "disconnect") == 0) {
-    const gchar* active_protocol = state->active_protocol ? state->active_protocol : "wireguard";
+    const gchar* active_protocol = load_active_protocol(state);
     if (g_strcmp0(active_protocol, "openvpn") == 0) {
       if (!state->openvpn_pid_path) {
         state->openvpn_pid_path = build_state_path(kOpenVpnPidFileName);

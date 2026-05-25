@@ -433,8 +433,6 @@ def _build_openvpn_profile_config(server: VPNServer) -> str:
         "persist-key",
         "persist-tun",
         "remote-cert-tls server",
-        "auth-user-pass",
-        "auth-nocache",
         "redirect-gateway def1",
         *dns_lines,
         "verb 3",

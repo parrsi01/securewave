@@ -192,8 +192,10 @@ class TestVpnProfileProvisioning:
         data = resp.json()
         assert data.get("protocol") == "openvpn"
         assert not data.get("wireguard_config")
-        assert "client" in data.get("openvpn_config", "")
-        assert "<ca>" in data.get("openvpn_config", "")
+        config = data.get("openvpn_config", "")
+        assert "client" in config
+        assert "<ca>" in config
+        assert "auth-user-pass" not in config
 
     def test_ikev2_profile_returns_protocol_config_when_server_supports_it(self, client, auth_headers, db):
         _create_free_server(
