@@ -9,10 +9,38 @@ import '../logging/app_logger.dart';
 abstract class VpnService {
   Future<VpnStatus> connect({required VpnProtocol protocol, String? config});
   Future<VpnStatus> disconnect();
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol);
   VpnStatus getStatus();
   bool get isNativeAvailable;
   bool canConnectProtocol(VpnProtocol protocol);
   String? protocolUnavailableReason(VpnProtocol protocol);
+}
+
+class VpnTrafficStats {
+  const VpnTrafficStats({
+    required this.rxBytes,
+    required this.txBytes,
+  });
+
+  final int rxBytes;
+  final int txBytes;
+
+  int get totalBytes => rxBytes + txBytes;
+
+  static const zero = VpnTrafficStats(rxBytes: 0, txBytes: 0);
+
+  factory VpnTrafficStats.fromJson(Map<Object?, Object?> json) {
+    int parse(Object? value) {
+      if (value is int) return value;
+      if (value is num) return value.round();
+      return int.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
+    return VpnTrafficStats(
+      rxBytes: parse(json['rx_bytes']),
+      txBytes: parse(json['tx_bytes']),
+    );
+  }
 }
 
 class VpnServiceException implements Exception {
@@ -231,6 +259,26 @@ class ChannelVpnService implements VpnService {
   }
 
   @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
+    if (!_nativeAvailable) return VpnTrafficStats.zero;
+    try {
+      final result = await _channel.invokeMapMethod<Object?, Object?>(
+        'getTrafficStats',
+        {'protocol': vpnProtocolStorageValue(protocol)},
+      );
+      if (result == null) return VpnTrafficStats.zero;
+      return VpnTrafficStats.fromJson(result);
+    } on PlatformException catch (error) {
+      AppLogger.warning('Native VPN traffic stats unavailable.');
+      AppLogger.error('VPN traffic stats error', error: error);
+      return VpnTrafficStats.zero;
+    } on MissingPluginException {
+      _nativeAvailable = false;
+      return VpnTrafficStats.zero;
+    }
+  }
+
+  @override
   VpnStatus getStatus() => _status;
 
   bool _supportsNativeChannel() {
@@ -290,6 +338,8 @@ class MockVpnService implements VpnService {
   final Duration connectDelay;
   final Duration disconnectDelay;
   VpnStatus _status = VpnStatus.disconnected;
+  int _rxBytes = 0;
+  int _txBytes = 0;
   bool _logged = false;
 
   @override
@@ -327,6 +377,14 @@ class MockVpnService implements VpnService {
     await Future.delayed(disconnectDelay);
     _status = VpnStatus.disconnected;
     return _status;
+  }
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
+    if (_status != VpnStatus.connected) return VpnTrafficStats.zero;
+    _rxBytes += 1024 * 128;
+    _txBytes += 1024 * 24;
+    return VpnTrafficStats(rxBytes: _rxBytes, txBytes: _txBytes);
   }
 
   @override

@@ -124,6 +124,87 @@ class TestVpnProfileProvisioning:
         assert server["supported_protocols"] == ["wireguard", "openvpn", "ikev2"]
         assert server["supports_ikev2"] is True
 
+    def test_usage_report_updates_free_plan_meter(self, client, auth_headers, db):
+        _create_free_server(db)
+
+        profile_resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Linux Box",
+                "device_type": "linux",
+                "protocol": "wireguard",
+            },
+            headers=auth_headers,
+        )
+        assert profile_resp.status_code == 200, profile_resp.text
+        device_id = profile_resp.json()["device_id"]
+
+        report_resp = client.post(
+            "/api/vpn/usage/report",
+            json={
+                "device_id": device_id,
+                "protocol": "wireguard",
+                "rx_bytes": 1024 * 1024 * 512,
+                "tx_bytes": 1024 * 1024 * 128,
+            },
+            headers=auth_headers,
+        )
+        assert report_resp.status_code == 200, report_resp.text
+        report = report_resp.json()
+        assert report["plan_tier"] == "free"
+        assert report["data_cap_gb"] == 5
+        assert report["used_gb"] == 0.625
+
+        plan_resp = client.get("/api/user/plan", headers=auth_headers)
+        assert plan_resp.status_code == 200, plan_resp.text
+        assert plan_resp.json()["used_gb"] == 0.625
+
+    def test_free_plan_cap_blocks_new_profile_after_usage_report(
+        self, client, auth_headers, db, monkeypatch
+    ):
+        monkeypatch.setenv("FREE_TIER_MONTHLY_GB", "1")
+        import services.subscription_access as subscription_access
+
+        monkeypatch.setattr(subscription_access, "DEMO_MODE", False)
+        monkeypatch.setattr(subscription_access, "WG_MOCK_MODE", False)
+        _create_free_server(db)
+
+        profile_resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Linux Box",
+                "device_type": "linux",
+                "protocol": "wireguard",
+            },
+            headers=auth_headers,
+        )
+        assert profile_resp.status_code == 200, profile_resp.text
+        device_id = profile_resp.json()["device_id"]
+
+        report_resp = client.post(
+            "/api/vpn/usage/report",
+            json={
+                "device_id": device_id,
+                "protocol": "wireguard",
+                "rx_bytes": 1024 * 1024 * 1024,
+                "tx_bytes": 1,
+            },
+            headers=auth_headers,
+        )
+        assert report_resp.status_code == 200, report_resp.text
+
+        blocked_resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Linux Box 2",
+                "device_type": "linux",
+                "protocol": "wireguard",
+            },
+            headers=auth_headers,
+        )
+        assert blocked_resp.status_code == 402, blocked_resp.text
+        assert "Free plan limit reached" in blocked_resp.text
+
     def test_linux_profile_includes_wg_quick_kill_switch_hooks(self, client, auth_headers, db):
         _create_free_server(db)
 

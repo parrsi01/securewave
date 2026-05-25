@@ -221,6 +221,10 @@ class _FailingVpnService implements VpnService {
   Future<VpnStatus> disconnect() async => VpnStatus.disconnected;
 
   @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async =>
+      VpnTrafficStats.zero;
+
+  @override
   VpnStatus getStatus() => VpnStatus.disconnected;
 }
 
@@ -251,6 +255,10 @@ class _NativeSuccessVpnService implements VpnService {
     _status = VpnStatus.disconnected;
     return _status;
   }
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async =>
+      const VpnTrafficStats(rxBytes: 1024, txBytes: 256);
 
   @override
   VpnStatus getStatus() => _status;

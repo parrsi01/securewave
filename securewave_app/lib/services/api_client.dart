@@ -18,6 +18,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 
 class ApiClient {
   ApiClient(this._config, {AuthSession? session, Dio? dio}) {
+    _session = session;
     _dio = dio ??
         Dio(
           BaseOptions(
@@ -41,6 +42,7 @@ class ApiClient {
   }
 
   final AppConfig _config;
+  late final AuthSession? _session;
   late final Dio _dio;
   List<ServerRegion>? _cachedServers;
   DateTime? _serversFetchedAt;
@@ -52,6 +54,7 @@ class ApiClient {
   static const Duration _planCacheTtl = Duration(minutes: 2);
 
   Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
+    await _session?.ensureInitialized();
     if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
       final age = DateTime.now().difference(_serversFetchedAt!);
       if (age < _serversCacheTtl) {
@@ -66,7 +69,10 @@ class ApiClient {
       return data;
     }
     try {
-      final response = await _dio.get<Map<String, dynamic>>('/vpn/servers');
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/vpn/servers',
+        queryParameters: {'device_type': 'linux'},
+      );
       final data = response.data ?? <String, dynamic>{};
       final rawList =
           data['servers'] is List ? data['servers'] as List : <dynamic>[];
@@ -97,6 +103,7 @@ class ApiClient {
   }
 
   Future<UserPlan> fetchUserPlan({bool forceRefresh = false}) async {
+    await _session?.ensureInitialized();
     if (!forceRefresh && _cachedPlan != null && _planFetchedAt != null) {
       final age = DateTime.now().difference(_planFetchedAt!);
       if (age < _planCacheTtl) {
@@ -134,6 +141,7 @@ class ApiClient {
   }
 
   Future<UserAccount> fetchCurrentUser() async {
+    await _session?.ensureInitialized();
     if (_config.useMockApi) {
       _logMockApi();
       return const UserAccount(
@@ -292,6 +300,7 @@ class ApiClient {
         'registration_status': 'mock',
       });
     }
+    await _session?.ensureInitialized();
     try {
       final profileServerLabel =
           serverId == null || serverId.isEmpty ? 'auto-select' : serverId;
@@ -336,6 +345,7 @@ class ApiClient {
       _logMockApi();
       return;
     }
+    await _session?.ensureInitialized();
     try {
       await _dio.post<Map<String, dynamic>>(
         '/vpn/connect',
@@ -360,6 +370,7 @@ class ApiClient {
       _logMockApi();
       return;
     }
+    await _session?.ensureInitialized();
     try {
       await _dio.post<Map<String, dynamic>>('/vpn/disconnect');
     } catch (error, stackTrace) {
@@ -367,6 +378,43 @@ class ApiClient {
           'Backend VPN disconnect notification failed (non-fatal).');
       AppLogger.error('VPN disconnect notify error',
           error: error, stackTrace: stackTrace);
+    }
+  }
+
+  Future<UserPlan?> reportVpnUsage({
+    int? deviceId,
+    String? serverId,
+    VpnProtocol? protocol,
+    required int rxBytes,
+    required int txBytes,
+  }) async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return null;
+    }
+    if (rxBytes <= 0 && txBytes <= 0) return _cachedPlan;
+    await _session?.ensureInitialized();
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/vpn/usage/report',
+        data: {
+          if (deviceId != null && deviceId > 0) 'device_id': deviceId,
+          if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
+          if (protocol != null) 'protocol': vpnProtocolStorageValue(protocol),
+          'rx_bytes': rxBytes,
+          'tx_bytes': txBytes,
+        },
+      );
+      final data = response.data ?? <String, dynamic>{};
+      final plan = UserPlan.fromJson(data);
+      _cachedPlan = plan;
+      _planFetchedAt = DateTime.now();
+      return plan;
+    } catch (error, stackTrace) {
+      AppLogger.warning('Backend VPN usage report failed.');
+      AppLogger.error('VPN usage report error',
+          error: error, stackTrace: stackTrace);
+      return null;
     }
   }
 

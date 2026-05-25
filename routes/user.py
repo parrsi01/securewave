@@ -35,7 +35,6 @@ def _bytes_used(db: Session, user_id: int) -> int:
         db.query(WireGuardPeer)
         .filter(
             WireGuardPeer.user_id == user_id,
-            WireGuardPeer.is_revoked == False,
         )
         .all()
     )
@@ -81,4 +80,3 @@ async def get_user_plan(
         "used_gb": round(used_gb, 3),
         "renewal_date": renewal,
     }
-

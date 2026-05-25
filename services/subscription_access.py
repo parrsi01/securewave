@@ -30,6 +30,14 @@ FREE_TIER_MONTHLY_BYTES = int(FREE_TIER_MONTHLY_GB * 1024 * 1024 * 1024)
 FREE_TIER_DEVICE_LIMIT = int(os.getenv("FREE_TIER_DEVICE_LIMIT", "1"))
 
 
+def _free_tier_monthly_gb() -> float:
+    return float(os.getenv("FREE_TIER_MONTHLY_GB", str(FREE_TIER_MONTHLY_GB)))
+
+
+def _free_tier_monthly_bytes() -> int:
+    return int(_free_tier_monthly_gb() * 1024 * 1024 * 1024)
+
+
 def _get_active_subscription(db: Session, user_id: int) -> Optional[Subscription]:
     return (
         db.query(Subscription)
@@ -165,18 +173,18 @@ async def enforce_free_tier_cap(db: Session, user: User) -> None:
         db.query(WireGuardPeer)
         .filter(
             WireGuardPeer.user_id == user.id,
-            WireGuardPeer.is_revoked == False
         )
         .all()
     )
     if not peers:
         return
     used_bytes = _user_bytes_used(peers)
-    if used_bytes >= FREE_TIER_MONTHLY_BYTES:
+    free_tier_monthly_bytes = _free_tier_monthly_bytes()
+    if used_bytes >= free_tier_monthly_bytes:
         await revoke_user_peers(db, user)
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Free plan limit reached ({FREE_TIER_MONTHLY_GB:.0f} GB/month). Upgrade to continue."
+            detail=f"Free plan limit reached ({_free_tier_monthly_gb():.0f} GB/month). Upgrade to continue."
         )
 
 

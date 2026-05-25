@@ -115,6 +115,23 @@ class VPNConnectRequest(BaseModel):
         None,
         description="Preferred region or server identifier (best effort)."
     )
+    server_id: Optional[str] = Field(
+        None,
+        description="Preferred server identifier."
+    )
+    protocol: Optional[str] = Field(
+        None,
+        description="VPN protocol reported by the client."
+    )
+
+
+class VpnUsageReportRequest(BaseModel):
+    """Client-reported Linux tunnel byte deltas."""
+    device_id: Optional[int] = Field(None, description="VPN device/peer ID")
+    server_id: Optional[str] = Field(None, description="Server ID selected by the app")
+    protocol: Optional[str] = Field(None, description="wireguard, openvpn, or ikev2")
+    rx_bytes: int = Field(0, ge=0, description="Bytes received since last report")
+    tx_bytes: int = Field(0, ge=0, description="Bytes sent since last report")
 
 
 class DeviceCreateRequest(BaseModel):
@@ -245,6 +262,50 @@ def get_user_tier(user: User, db: Session) -> str:
     if sub and sub.plan_id:
         return sub.plan_id  # 'basic', 'premium', 'ultra'
     return "free"
+
+
+def _bytes_used_for_user(db: Session, user_id: int) -> int:
+    peers = (
+        db.query(WireGuardPeer)
+        .filter(
+            WireGuardPeer.user_id == user_id,
+        )
+        .all()
+    )
+    return sum((p.total_data_sent or 0) + (p.total_data_received or 0) for p in peers)
+
+
+def _plan_payload(db: Session, user: User) -> dict:
+    from models.subscription import Subscription
+
+    sub = (
+        db.query(Subscription)
+        .filter(
+            Subscription.user_id == user.id,
+            Subscription.status.in_(["active", "trialing"]),
+        )
+        .order_by(Subscription.current_period_end.desc().nullslast())
+        .first()
+    )
+    used_gb = _bytes_used_for_user(db, user.id) / 1024 / 1024 / 1024
+    free_cap_gb = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
+    if not sub:
+        return {
+            "plan_name": "Free",
+            "plan_tier": "free",
+            "data_cap_gb": free_cap_gb,
+            "used_gb": round(used_gb, 3),
+            "renewal_date": None,
+        }
+    return {
+        "plan_name": sub.plan_name or (sub.plan_id or "premium").capitalize(),
+        "plan_tier": "premium",
+        "data_cap_gb": 0,
+        "used_gb": round(used_gb, 3),
+        "renewal_date": sub.current_period_end.isoformat()
+        if sub.current_period_end
+        else None,
+    }
 
 
 async def register_peer_on_server(
@@ -1246,9 +1307,14 @@ async def connect_vpn(
     wg_service = WireGuardService()
     user_tier = get_user_tier(current_user, db)
 
-    server = VPNServerService.allocate_server_for_user(
-        db, current_user, preferred_location=payload.region
-    )
+    server = None
+    preferred = payload.server_id or payload.region
+    if payload.server_id:
+        server = VPNServerService.get_server_by_id(db, payload.server_id)
+    if not server:
+        server = VPNServerService.allocate_server_for_user(
+            db, current_user, preferred_location=preferred
+        )
     if not server:
         servers = VPNServerService.get_active_servers(db, user_tier)
         if not servers:
@@ -1365,6 +1431,80 @@ async def disconnect_vpn(
         "status": "DISCONNECTED",
         "disconnected_at": datetime.utcnow().isoformat(),
     }
+
+
+@router.post("/usage/report")
+async def report_usage(
+    payload: VpnUsageReportRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Record app-observed Linux tunnel byte deltas for account metering."""
+    await require_active_subscription(db, current_user)
+
+    rx_bytes = max(0, int(payload.rx_bytes or 0))
+    tx_bytes = max(0, int(payload.tx_bytes or 0))
+
+    peer = None
+    if payload.device_id:
+        peer = (
+            db.query(WireGuardPeer)
+            .filter(
+                WireGuardPeer.id == payload.device_id,
+                WireGuardPeer.user_id == current_user.id,
+                WireGuardPeer.is_revoked == False,
+            )
+            .first()
+        )
+    if peer is None:
+        peer = (
+            db.query(WireGuardPeer)
+            .filter(
+                WireGuardPeer.user_id == current_user.id,
+                WireGuardPeer.is_revoked == False,
+            )
+            .order_by(WireGuardPeer.updated_at.desc())
+            .first()
+        )
+
+    if peer is None:
+        raise HTTPException(status_code=404, detail="Device not found or revoked")
+
+    peer.total_data_received = (peer.total_data_received or 0) + rx_bytes
+    peer.total_data_sent = (peer.total_data_sent or 0) + tx_bytes
+    peer.last_handshake_at = datetime.utcnow()
+    peer.connection_count = (peer.connection_count or 0) + 1
+
+    active_connection = (
+        db.query(VPNConnection)
+        .filter(
+            VPNConnection.user_id == current_user.id,
+            VPNConnection.disconnected_at.is_(None),
+        )
+        .order_by(VPNConnection.connected_at.desc())
+        .first()
+    )
+    if active_connection:
+        active_connection.total_bytes_received = (
+            active_connection.total_bytes_received or 0
+        ) + rx_bytes
+        active_connection.total_bytes_sent = (
+            active_connection.total_bytes_sent or 0
+        ) + tx_bytes
+        db.add(active_connection)
+
+    db.add(peer)
+    db.commit()
+
+    user_tier = get_user_tier(current_user, db)
+    used_bytes = _bytes_used_for_user(db, current_user.id)
+    free_cap_bytes = int(float(os.getenv("FREE_TIER_MONTHLY_GB", "5")) * 1024 * 1024 * 1024)
+    if user_tier == "free" and used_bytes >= free_cap_bytes:
+        from services.subscription_access import revoke_user_peers
+
+        await revoke_user_peers(db, current_user)
+
+    return _plan_payload(db, current_user)
 
 
 @router.get("/config")

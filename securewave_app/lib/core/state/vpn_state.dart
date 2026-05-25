@@ -102,6 +102,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   int _stabilitySuccesses = 0;
   int _stabilityFailures = 0;
   DateTime? _lastAutoReconnectAt;
+  Timer? _usageTimer;
+  VpnTrafficStats? _lastTrafficStats;
+  int? _activeDeviceId;
 
   Future<void> _loadProtocol() async {
     final storage = SecureStorage();
@@ -174,6 +177,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             );
           }
           if (profile.deviceId > 0) {
+            _activeDeviceId = profile.deviceId;
             await storage.saveInt(
                 SecureStorage.vpnDeviceIdKey, profile.deviceId);
           }
@@ -418,12 +422,20 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   void _startRateUpdates() {
-    // The Linux bridge does not currently expose verified byte counters to
-    // Dart. Keep rates at zero instead of showing synthetic traffic.
+    _usageTimer?.cancel();
+    _lastTrafficStats = null;
     state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
+    unawaited(_pollTrafficStats(report: false));
+    _usageTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_pollTrafficStats(report: true)),
+    );
   }
 
   void _stopRateUpdates() {
+    _usageTimer?.cancel();
+    _usageTimer = null;
+    unawaited(_pollTrafficStats(report: true));
     state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
   }
 
@@ -434,6 +446,50 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   void resumeRateUpdates() {
     if (state.status == VpnStatus.connected) {
       _startRateUpdates();
+    }
+  }
+
+  Future<void> _pollTrafficStats({required bool report}) async {
+    if (state.status != VpnStatus.connected &&
+        state.status != VpnStatus.disconnecting) {
+      return;
+    }
+    final service = _ref.read(vpnServiceProvider);
+    final stats = await service.getTrafficStats(state.protocol);
+    final previous = _lastTrafficStats;
+    _lastTrafficStats = stats;
+    if (previous == null) return;
+
+    final rxDelta = stats.rxBytes - previous.rxBytes;
+    final txDelta = stats.txBytes - previous.txBytes;
+    if (rxDelta < 0 || txDelta < 0) return;
+
+    state = state.copyWith(
+      dataRateDown: rxDelta / 5,
+      dataRateUp: txDelta / 5,
+    );
+
+    if (!report || (rxDelta == 0 && txDelta == 0)) return;
+    final api = _ref.read(apiClientProvider);
+    final plan = await api.reportVpnUsage(
+      deviceId: _activeDeviceId,
+      serverId: state.selectedServerId,
+      protocol: state.protocol,
+      rxBytes: rxDelta,
+      txBytes: txDelta,
+    );
+    if (plan != null) {
+      _ref.invalidate(userPlanProvider);
+      if (!plan.isUnlimited &&
+          plan.dataCapGb > 0 &&
+          plan.usedGb >= plan.dataCapGb) {
+        state = state.copyWith(
+          errorKind: VpnErrorKind.deviceLimit,
+          errorMessage:
+              'Free plan limit reached (${plan.dataCapGb.toStringAsFixed(0)} GB). Upgrade to continue.',
+        );
+        unawaited(disconnect());
+      }
     }
   }
 

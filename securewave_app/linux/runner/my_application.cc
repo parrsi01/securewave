@@ -233,6 +233,72 @@ static gboolean wireguard_route_exists() {
          g_strstr_len(output, -1, " dev securewave") != nullptr;
 }
 
+static guint64 read_interface_counter(const gchar* interface_name,
+                                      const gchar* counter_name) {
+  g_autofree gchar* path = g_build_filename(
+      "/sys/class/net", interface_name, "statistics", counter_name, nullptr);
+  g_autofree gchar* contents = nullptr;
+  if (!g_file_get_contents(path, &contents, nullptr, nullptr) || contents == nullptr) {
+    return 0;
+  }
+  g_strstrip(contents);
+  return g_ascii_strtoull(contents, nullptr, 10);
+}
+
+static gchar* traffic_interface_for_protocol(const gchar* protocol) {
+  if (g_strcmp0(protocol, "openvpn") == 0) {
+    if (g_file_test("/sys/class/net/tun0", G_FILE_TEST_IS_DIR)) {
+      return g_strdup("tun0");
+    }
+    g_autoptr(GDir) dir = g_dir_open("/sys/class/net", 0, nullptr);
+    if (dir != nullptr) {
+      const gchar* name = nullptr;
+      while ((name = g_dir_read_name(dir)) != nullptr) {
+        if (g_str_has_prefix(name, "tun")) {
+          return g_strdup(name);
+        }
+      }
+    }
+    return g_strdup("tun0");
+  }
+  if (g_strcmp0(protocol, "ikev2") == 0) {
+    g_autoptr(GDir) dir = g_dir_open("/sys/class/net", 0, nullptr);
+    if (dir != nullptr) {
+      const gchar* name = nullptr;
+      while ((name = g_dir_read_name(dir)) != nullptr) {
+        if (g_str_has_prefix(name, "ipsec") || g_str_has_prefix(name, "xfrm")) {
+          return g_strdup(name);
+        }
+      }
+    }
+    return g_strdup("ipsec0");
+  }
+  return g_strdup("securewave");
+}
+
+static void respond_traffic_stats(FlMethodCall* method_call, const gchar* protocol) {
+  g_autofree gchar* interface_name = traffic_interface_for_protocol(protocol);
+  guint64 rx_bytes = read_interface_counter(interface_name, "rx_bytes");
+  guint64 tx_bytes = read_interface_counter(interface_name, "tx_bytes");
+
+  g_autoptr(FlValue) response = fl_value_new_map();
+  fl_value_set_string_take(
+      response,
+      "interface",
+      fl_value_new_string(interface_name));
+  fl_value_set_string_take(
+      response,
+      "rx_bytes",
+      fl_value_new_int(static_cast<int64_t>(rx_bytes)));
+  fl_value_set_string_take(
+      response,
+      "tx_bytes",
+      fl_value_new_int(static_cast<int64_t>(tx_bytes)));
+  g_autoptr(FlMethodResponse) method_response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(response));
+  fl_method_call_respond(method_call, method_response, nullptr);
+}
+
 static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_data) {
   WgQuickSpawnContext* ctx = static_cast<WgQuickSpawnContext*>(user_data);
   if (ctx->timeout_id != 0) {
@@ -514,6 +580,15 @@ static void handle_vpn_call(FlMethodChannel* channel,
             elevated_runner_available() &&
             (wg_quick_available() || openvpn_available() || ikev2_available()))));
     fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+  if (g_strcmp0(method, "getTrafficStats") == 0) {
+    FlValue* args = fl_method_call_get_args(method_call);
+    const gchar* protocol = get_string_arg(args, "protocol");
+    if (!protocol || *protocol == '\0') {
+      protocol = load_active_protocol(state);
+    }
+    respond_traffic_stats(method_call, protocol);
     return;
   }
   if (g_strcmp0(method, "connect") == 0) {

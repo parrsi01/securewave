@@ -44,3 +44,13 @@ def test_ikev2_start_verifies_strongswan_sa_after_initiate():
     assert "swanctl --initiate --child securewave" in source
     assert "swanctl --list-sas | grep -q securewave" in source
     assert "swanctl --terminate --child securewave" in source
+
+
+def test_linux_runner_exposes_protocol_traffic_stats():
+    source = _runner_source()
+
+    assert 'getTrafficStats' in source
+    assert 'rx_bytes' in source
+    assert 'tx_bytes' in source
+    assert 'traffic_interface_for_protocol' in source
+    assert '"/sys/class/net"' in source
