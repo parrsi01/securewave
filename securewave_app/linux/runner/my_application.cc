@@ -408,9 +408,13 @@ static void spawn_openvpn_up_async(
       "ip link show tun0 >/dev/null 2>&1 && exit 0; "
       "sleep 1; "
       "done; "
+      "pid=$(cat %s 2>/dev/null || true); "
+      "test -n \"$pid\" && kill \"$pid\" 2>/dev/null || true; "
+      "test -n \"$pid\" && kill -9 \"$pid\" 2>/dev/null || true; "
+      "rm -f %s; "
       "echo 'OpenVPN process started but no tunnel interface or tunnel route was detected.' >&2; "
       "exit 1",
-      q_openvpn, q_config, q_pid, q_log, q_pid, q_pid);
+      q_openvpn, q_config, q_pid, q_log, q_pid, q_pid, q_pid, q_pid);
   spawn_shell_async(method_call, "vpn_connect_failed", script, kOpenVpnTimeoutMs);
 }
 
@@ -452,7 +456,11 @@ static void spawn_ikev2_up_async(
       "sed '/# ca_cert_pem_begin/,/# ca_cert_pem_end/d' %s > /etc/swanctl/conf.d/securewave.conf; "
       "swanctl --load-all; "
       "swanctl --initiate --child securewave; "
-      "swanctl --list-sas | grep -q securewave",
+      "swanctl --list-sas | grep -q securewave || { "
+      "swanctl --terminate --child securewave 2>/dev/null || true; "
+      "swanctl --terminate --ike securewave 2>/dev/null || true; "
+      "exit 1; "
+      "}",
       q_config, q_config);
   spawn_shell_async(method_call, "vpn_connect_failed", script, kIkev2TimeoutMs);
 }

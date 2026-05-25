@@ -10,6 +10,7 @@ This module provides endpoints for:
 
 import os
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Optional, List
 
@@ -53,6 +54,24 @@ def rate_limit(rule: str):
 DEMO_MODE = demo_mode_enabled() or IS_TESTING
 WG_MOCK_MODE = wg_mock_mode_enabled()
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
+
+
+def _ikev2_eap_secret() -> Optional[str]:
+    value = os.getenv("SECUREWAVE_IKEV2_EAP_SECRET", "").strip()
+    if value:
+        return value
+    if IS_TESTING:
+        return "securewave-test-ikev2-secret"
+    return None
+
+
+def _swanctl_quote(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _swanctl_secret_id(value: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip())
+    return normalized[:64] or "securewave-user"
 
 
 # =============================================================================
@@ -387,6 +406,7 @@ def _server_supported_protocols(server: VPNServer) -> list[str]:
         server.supports_ikev2
         and (server.ikev2_remote_id or server.public_ip)
         and server.ikev2_ca_cert_pem
+        and _ikev2_eap_secret()
     ):
         protocols.append("ikev2")
     return protocols
@@ -454,10 +474,18 @@ def _build_ikev2_profile_config(server: VPNServer, current_user: User) -> str:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="IKEv2 server metadata is incomplete.",
         )
+    eap_secret = _ikev2_eap_secret()
+    if not eap_secret:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="IKEv2 EAP secret issuance is not configured.",
+        )
 
     remote_id = server.ikev2_remote_id or server.public_ip
     remote_addrs = _endpoint_host(server.endpoint, server.public_ip)
     dns_servers = ",".join(_profile_dns_servers())
+    eap_id = current_user.email
+    secret_id = _swanctl_secret_id(eap_id)
     return "\n".join([
         "connections {",
         "  securewave {",
@@ -466,11 +494,11 @@ def _build_ikev2_profile_config(server: VPNServer, current_user: User) -> str:
         "    proposals = aes256-sha256-modp2048",
         "    local {",
         "      auth = eap-mschapv2",
-        f"      eap_id = {current_user.email}",
+        f"      eap_id = {_swanctl_quote(eap_id)}",
         "    }",
         "    remote {",
         "      auth = pubkey",
-        f"      id = {remote_id}",
+        f"      id = {_swanctl_quote(remote_id)}",
         "      cacerts = securewave-ikev2-ca.pem",
         "    }",
         "    children {",
@@ -479,6 +507,12 @@ def _build_ikev2_profile_config(server: VPNServer, current_user: User) -> str:
         "        esp_proposals = aes256-sha256-modp2048",
         "      }",
         "    }",
+        "  }",
+        "}",
+        "secrets {",
+        f"  eap-{secret_id} {{",
+        f"    id = {_swanctl_quote(eap_id)}",
+        f"    secret = {_swanctl_quote(eap_secret)}",
         "  }",
         "}",
         f"# dns = {dns_servers}",

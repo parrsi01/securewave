@@ -223,5 +223,9 @@ class TestVpnProfileProvisioning:
         data = resp.json()
         assert data.get("protocol") == "ikev2"
         assert not data.get("wireguard_config")
-        assert "connections {" in data.get("ikev2_config", "")
-        assert "securewave-ikev2-ca.pem" in data.get("ikev2_config", "")
+        config = data.get("ikev2_config", "")
+        assert "connections {" in config
+        assert "secrets {" in config
+        assert "auth = eap-mschapv2" in config
+        assert "securewave-ikev2-ca.pem" in config
+        assert "securewave-test-ikev2-secret" in config

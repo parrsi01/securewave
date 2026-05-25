@@ -85,8 +85,10 @@ void main() {
     });
 
     final config = profile.configForProtocol(VpnProtocol.ikev2);
-    expect(config, contains('server=138.199.204.139'));
-    expect(config, contains('username=sw-ikev2-user'));
-    expect(config, contains('ca_cert_pem<<EOF'));
+    expect(config, contains('connections {'));
+    expect(config, contains('remote_addrs = 138.199.204.139'));
+    expect(config, contains('eap_id = "sw-ikev2-user"'));
+    expect(config, contains('secret = "temporary-profile-secret"'));
+    expect(config, contains('# ca_cert_pem_begin'));
   });
 }

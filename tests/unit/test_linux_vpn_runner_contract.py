@@ -25,6 +25,8 @@ def test_openvpn_start_requires_tunnel_evidence_not_only_daemon_pid():
     assert "ip route get 1.1.1.1" in source
     assert "grep -Eq ' dev tun[0-9A-Za-z_.-]+'" in source
     assert "ip link show tun0" in source
+    assert 'kill -9 \\"$pid\\"' in source
+    assert "rm -f %s" in source
 
 
 def test_ikev2_start_verifies_strongswan_sa_after_initiate():
@@ -32,3 +34,4 @@ def test_ikev2_start_verifies_strongswan_sa_after_initiate():
 
     assert "swanctl --initiate --child securewave" in source
     assert "swanctl --list-sas | grep -q securewave" in source
+    assert "swanctl --terminate --child securewave" in source
