@@ -27,8 +27,10 @@ const char* kWireGuardConfigFileName = "securewave.conf";
 const char* kOpenVpnConfigFileName = "securewave.ovpn";
 const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
 const char* kOpenVpnLogFileName = "securewave-openvpn.log";
+const char* kIkev2ConfigFileName = "securewave-ikev2.conf";
 const guint kWgQuickTimeoutMs = 30000;
 const guint kOpenVpnTimeoutMs = 10000;
+const guint kIkev2TimeoutMs = 20000;
 
 typedef struct {
   FlMethodChannel* channel;
@@ -382,6 +384,40 @@ static void spawn_openvpn_down_async(
   spawn_shell_async(method_call, "vpn_disconnect_failed", script, kOpenVpnTimeoutMs);
 }
 
+static void spawn_ikev2_up_async(
+    FlMethodCall* method_call,
+    const gchar* config_path) {
+  g_autofree gchar* swanctl = g_find_program_in_path("swanctl");
+  g_autofree gchar* ipsec = g_find_program_in_path("ipsec");
+  if (swanctl == nullptr || ipsec == nullptr) {
+    respond_error(
+        method_call,
+        "vpn_unavailable",
+        "IKEv2 requires strongSwan swanctl and ipsec tooling. Install strongSwan and retry.",
+        fl_value_new_map());
+    return;
+  }
+
+  g_autofree gchar* q_config = g_shell_quote(config_path);
+  g_autofree gchar* script = g_strdup_printf(
+      "set -eu; "
+      "install -d -m 700 /etc/swanctl/conf.d /etc/swanctl/x509ca; "
+      "awk '/# ca_cert_pem_begin/{capture=1; next} /# ca_cert_pem_end/{capture=0} capture{print}' %s > /etc/swanctl/x509ca/securewave-ikev2-ca.pem; "
+      "sed '/# ca_cert_pem_begin/,/# ca_cert_pem_end/d' %s > /etc/swanctl/conf.d/securewave.conf; "
+      "swanctl --load-all; "
+      "swanctl --initiate --child securewave",
+      q_config, q_config);
+  spawn_shell_async(method_call, "vpn_connect_failed", script, kIkev2TimeoutMs);
+}
+
+static void spawn_ikev2_down_async(FlMethodCall* method_call) {
+  g_autofree gchar* script = g_strdup(
+      "swanctl --terminate --child securewave 2>/dev/null || "
+      "swanctl --terminate --ike securewave 2>/dev/null || "
+      "ipsec down securewave 2>/dev/null || true");
+  spawn_shell_async(method_call, "vpn_disconnect_failed", script, kIkev2TimeoutMs);
+}
+
 static void handle_vpn_call(FlMethodChannel* channel,
                             FlMethodCall* method_call,
                             gpointer user_data) {
@@ -475,11 +511,21 @@ static void handle_vpn_call(FlMethodChannel* channel,
             fl_value_new_map());
         return;
       }
-      respond_error(
-          method_call,
-          "protocol_unavailable",
-          "IKEv2 profile import/start is not wired in this Linux runner yet.",
-          nullptr);
+      g_clear_pointer(&state->config_path, g_free);
+      state->config_path = build_state_path(kIkev2ConfigFileName);
+      if (state->config_path == nullptr) {
+        respond_error(method_call, "vpn_config_write_failed", "Unable to write IKEv2 config file.", nullptr);
+        return;
+      }
+      g_autoptr(GError) error = nullptr;
+      if (!g_file_set_contents(state->config_path, config, -1, &error)) {
+        respond_error(method_call, "vpn_config_write_failed", error->message, nullptr);
+        return;
+      }
+      g_chmod(state->config_path, 0600);
+      g_clear_pointer(&state->active_protocol, g_free);
+      state->active_protocol = g_strdup("ikev2");
+      spawn_ikev2_up_async(method_call, state->config_path);
       return;
     }
 
@@ -501,11 +547,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
     }
 
     if (g_strcmp0(active_protocol, "ikev2") == 0) {
-      respond_error(
-          method_call,
-          "protocol_unavailable",
-          "IKEv2 profile cleanup is not wired in this Linux runner yet.",
-          nullptr);
+      spawn_ikev2_down_async(method_call);
       return;
     }
 

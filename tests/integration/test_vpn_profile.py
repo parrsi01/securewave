@@ -81,8 +81,16 @@ class TestVpnProfileProvisioning:
         assert data.get("protocol") == "wireguard"
         assert data.get("wireguard_config")
 
-    def test_protocols_endpoint_keeps_linux_ikev2_blocked(self, client, auth_headers, db):
-        _create_free_server(db, supports_openvpn=True, supports_ikev2=True)
+    def test_protocols_endpoint_exposes_linux_protocols_when_metadata_exists(self, client, auth_headers, db):
+        _create_free_server(
+            db,
+            supports_openvpn=True,
+            openvpn_endpoint="10.0.0.9",
+            openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+            supports_ikev2=True,
+            ikev2_remote_id="vpn.securewave.test",
+            ikev2_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+        )
 
         resp = client.get(
             "/api/vpn/protocols?device_type=linux",
@@ -92,9 +100,9 @@ class TestVpnProfileProvisioning:
         data = resp.json()
         protocols = {item["protocol"]: item for item in data["protocols"]}
         assert protocols["wireguard"]["enabled"] is True
-        assert protocols["openvpn"]["enabled"] is False
-        assert protocols["ikev2"]["enabled"] is False
-        assert protocols["ikev2"]["platform_supported"] is False
+        assert protocols["openvpn"]["enabled"] is True
+        assert protocols["ikev2"]["enabled"] is True
+        assert protocols["ikev2"]["platform_supported"] is True
 
     def test_servers_endpoint_returns_supported_protocols(self, client, auth_headers, db):
         _create_free_server(
@@ -103,6 +111,8 @@ class TestVpnProfileProvisioning:
             openvpn_endpoint="10.0.0.9",
             openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
             supports_ikev2=True,
+            ikev2_remote_id="vpn.securewave.test",
+            ikev2_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
         )
 
         resp = client.get(
@@ -111,8 +121,8 @@ class TestVpnProfileProvisioning:
         )
         assert resp.status_code == 200, resp.text
         server = resp.json()["servers"][0]
-        assert server["supported_protocols"] == ["wireguard", "openvpn"]
-        assert server["supports_ikev2"] is False
+        assert server["supported_protocols"] == ["wireguard", "openvpn", "ikev2"]
+        assert server["supports_ikev2"] is True
 
     def test_linux_profile_includes_wg_quick_kill_switch_hooks(self, client, auth_headers, db):
         _create_free_server(db)
@@ -185,7 +195,7 @@ class TestVpnProfileProvisioning:
         assert "client" in data.get("openvpn_config", "")
         assert "<ca>" in data.get("openvpn_config", "")
 
-    def test_ikev2_profile_is_blocked_on_linux_even_when_server_supports_it(self, client, auth_headers, db):
+    def test_ikev2_profile_returns_protocol_config_when_server_supports_it(self, client, auth_headers, db):
         _create_free_server(
             db,
             server_id="profile-ikev2-us-1",
@@ -207,5 +217,9 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert resp.status_code == 400, resp.text
-        assert "not release-ready" in resp.text
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data.get("protocol") == "ikev2"
+        assert not data.get("wireguard_config")
+        assert "connections {" in data.get("ikev2_config", "")
+        assert "securewave-ikev2-ca.pem" in data.get("ikev2_config", "")

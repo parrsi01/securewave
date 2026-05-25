@@ -33,16 +33,16 @@ instead of substituting fake connected states.
 
 - OpenVPN profile issuance works on the live API for the verified Hetzner node;
   full app connect still depends on local OpenVPN installation and privileges.
-- IKEv2 is blocked in the Linux client until native strongSwan
-  import/start/status/cleanup is implemented and validated.
+- IKEv2 is selectable when the backend returns complete IKEv2 metadata and the
+  Linux host has strongSwan `swanctl`/`ipsec` tooling installed.
 
 ## Public Promotion Gated
 
 - The live backend currently suppresses synthetic region aliases that point at
   the same Hetzner IP. Public catalog count should reflect verified inventory,
   not placeholder region names.
-- IKEv2 remains unavailable for public Linux release until profile provisioning,
-  strongSwan start/status verification, and cleanup are proven.
+- IKEv2 public promotion depends on live profile provisioning plus strongSwan
+  start/status verification and cleanup evidence.
 
 ## Experimental / Manual
 

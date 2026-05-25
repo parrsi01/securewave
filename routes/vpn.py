@@ -369,8 +369,8 @@ def _normalize_profile_protocol(raw: Optional[str]) -> str:
 def _platform_supported_protocols(device_type: Optional[str]) -> set[str]:
     normalized = (device_type or "").lower().strip()
     if normalized == "linux":
-        return {"wireguard", "openvpn"}
-    return {"wireguard", "openvpn"}
+        return {"wireguard", "openvpn", "ikev2"}
+    return {"wireguard", "openvpn", "ikev2"}
 
 
 def _server_supported_protocols(server: VPNServer) -> list[str]:
@@ -383,7 +383,12 @@ def _server_supported_protocols(server: VPNServer) -> list[str]:
         and server.openvpn_ca_cert_pem
     ):
         protocols.append("openvpn")
-    # IKEv2 remains internal/manual for Linux v1. Do not advertise it here.
+    if (
+        server.supports_ikev2
+        and (server.ikev2_remote_id or server.public_ip)
+        and server.ikev2_ca_cert_pem
+    ):
+        protocols.append("ikev2")
     return protocols
 
 
@@ -535,7 +540,7 @@ async def list_servers(
             health_status=server.health_status,
             supports_wireguard=bool(server.supports_wireguard),
             supports_openvpn=bool(server.supports_openvpn),
-            supports_ikev2=False,
+            supports_ikev2=bool(server.supports_ikev2),
             supported_protocols=[
                 protocol
                 for protocol in _server_supported_protocols(server)
@@ -575,7 +580,7 @@ async def list_protocols(
         enabled = platform_supported and server_enabled
         reason = None
         if not platform_supported:
-            reason = f"{protocol} is not release-ready for Linux."
+            reason = f"{protocol} is not available for this platform."
         elif not server_enabled:
             reason = f"No usable {protocol} server metadata is configured."
         protocol_rows.append(
@@ -622,7 +627,7 @@ async def get_server(
         health_status=server.health_status,
         supports_wireguard=bool(server.supports_wireguard),
         supports_openvpn=bool(server.supports_openvpn),
-        supports_ikev2=False,
+        supports_ikev2=bool(server.supports_ikev2),
         supported_protocols=_server_supported_protocols(server),
     )
 
@@ -837,10 +842,7 @@ async def provision_profile(
     if protocol not in _platform_supported_protocols(device_type):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"{protocol} is not release-ready for Linux. "
-                "Use WireGuard or OpenVPN on the Linux release path."
-            ),
+            detail=f"{protocol} is not available for this platform.",
         )
 
     user_tier = get_user_tier(current_user, db)
@@ -949,6 +951,13 @@ async def provision_profile(
         raise HTTPException(
             status_code=503,
             detail="OpenVPN server endpoint or certificate metadata is incomplete for the selected server.",
+        )
+    if protocol == "ikev2" and not server.supports_ikev2:
+        raise HTTPException(status_code=400, detail="IKEv2 is not enabled for this server.")
+    if protocol == "ikev2" and not _server_supports_protocol(server, "ikev2"):
+        raise HTTPException(
+            status_code=503,
+            detail="IKEv2 server endpoint or certificate metadata is incomplete for the selected server.",
         )
 
     # Optional key rotation

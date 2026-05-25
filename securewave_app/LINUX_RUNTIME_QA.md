@@ -10,8 +10,8 @@ native helper has created the expected tunnel state.
 - `wg-quick` installed for WireGuard.
 - `openvpn` installed for OpenVPN.
 - `pkexec` available, or run the app with the required privileges.
-- `swanctl` and `ipsec` installed before future IKEv2 testing. The current
-  Linux app disables IKEv2 because profile import/start is not wired.
+- `swanctl` and `ipsec` installed for IKEv2. The Linux runner imports the
+  backend-issued strongSwan profile and starts/stops the `securewave` child SA.
 - Live API URL defaults to `https://api.securewaveapp.com/api`; override with
   `SECUREWAVE_API_BASE_URL` only for staging/local testing.
 - Real test account available. Do not add credentials to the repo.
@@ -99,10 +99,21 @@ ip route
 
 ### IKEv2
 
-IKEv2 is not selectable in the Linux release runtime today. The expected result
-is an unavailable protocol tile with a visible reason. Do not override this
-until a future patch wires profile import, strongSwan connection start, status
-verification, and cleanup.
+1. Select IKEv2 only when the backend returns `ikev2_config`.
+2. Connect.
+3. Confirm `swanctl --load-all` and `swanctl --initiate --child securewave`
+   succeed.
+4. Browse in Chrome.
+5. Disconnect.
+6. Confirm the `securewave` IKE/child SA is terminated.
+
+Useful commands:
+
+```sh
+swanctl --list-sas
+ipsec statusall
+ip route
+```
 
 ## Repeatability
 

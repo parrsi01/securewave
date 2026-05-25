@@ -48,20 +48,12 @@ class ChannelVpnService implements VpnService {
   @override
   bool canConnectProtocol(VpnProtocol protocol) {
     if (_allowFallback) return true;
-    final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'linux' && protocol == VpnProtocol.ikev2) {
-      return false;
-    }
     return true;
   }
 
   @override
   String? protocolUnavailableReason(VpnProtocol protocol) {
     if (canConnectProtocol(protocol)) return null;
-    final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'linux' && protocol == VpnProtocol.ikev2) {
-      return 'IKEv2 is blocked on Linux until the strongSwan profile import/start path is implemented.';
-    }
     return '${vpnProtocolLabel(protocol)} is not available on this runtime.';
   }
 
