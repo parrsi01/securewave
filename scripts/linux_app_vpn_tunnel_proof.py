@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 import subprocess
 import sys
 import time
@@ -23,6 +24,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_ROOT = REPO_ROOT / "securewave_app"
 PROBE_TARGET = "lib/runtime_vpn_probe.dart"
 DEFAULT_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
+PLACEHOLDER_VALUES = {
+    "existing-live-email",
+    "existing-live-password",
+    "real@email.com",
+    "real-password",
+}
+AUTH_FAILURE_MARKERS = (
+    "ApiClient.login",
+    "ApiClient.register",
+    "status code of 401",
+    "status code of 422",
+    "status code of 429",
+)
 
 
 def _dart_define(name: str, value: object) -> str:
@@ -101,11 +115,50 @@ def _json_line(line: str) -> dict[str, object] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def _json_object(text: str) -> dict[str, object] | None:
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _new_probe_credentials() -> tuple[str, str]:
+    stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
+    suffix = secrets.token_hex(3)
+    return (
+        f"securewave.runtime.{stamp}.{suffix}@gmail.com",
+        f"SwRuntime{secrets.token_hex(4)}!A1",
+    )
+
+
+def _is_placeholder(value: str | None) -> bool:
+    if value is None:
+        return True
+    return value.strip().lower() in PLACEHOLDER_VALUES
+
+
+def _has_auth_failure(result: dict[str, object]) -> bool:
+    events = result.get("probe_events")
+    if not isinstance(events, list):
+        return False
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        if event.get("event") != "runtime_probe_error":
+            continue
+        text = f"{event.get('error', '')}\n{event.get('stack', '')}"
+        if any(marker in text for marker in AUTH_FAILURE_MARKERS):
+            return True
+    return False
+
+
 def run_protocol(
     *,
     protocol: str,
     email: str,
     password: str,
+    auth_mode: str,
     server_id: str | None,
     hold_seconds: int,
     evidence_timeout: int,
@@ -119,6 +172,7 @@ def run_protocol(
         PROBE_TARGET,
         _dart_define("SECUREWAVE_RUNTIME_PROBE_EMAIL", email),
         _dart_define("SECUREWAVE_RUNTIME_PROBE_PASSWORD", password),
+        _dart_define("SECUREWAVE_RUNTIME_PROBE_AUTH_MODE", auth_mode),
         _dart_define("SECUREWAVE_RUNTIME_PROBE_PROTOCOL", protocol),
         _dart_define("SECUREWAVE_RUNTIME_PROBE_HOLD_SECONDS", hold_seconds),
         _dart_define("SECUREWAVE_RUNTIME_PROBE_DISCONNECT_AFTER", "true"),
@@ -199,6 +253,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--email", default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_EMAIL"))
     parser.add_argument("--password", default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_PASSWORD"))
+    parser.add_argument(
+        "--auth-mode",
+        choices=("login", "register", "auto"),
+        default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_AUTH_MODE", "auto"),
+        help="login uses an existing account; register creates the supplied account; auto creates a disposable QA account when credentials are absent or placeholder values",
+    )
     parser.add_argument("--server-id", default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_SERVER_ID"))
     parser.add_argument("--protocol", action="append", choices=DEFAULT_PROTOCOLS)
     parser.add_argument("--hold-seconds", type=int, default=20)
@@ -206,29 +266,59 @@ def main() -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    if not args.email or not args.password:
-        print(
-            "SECUREWAVE_RUNTIME_PROBE_EMAIL/PASSWORD or --email/--password are required.",
-            file=sys.stderr,
-        )
-        return 2
+    email = args.email
+    password = args.password
+    auth_mode = args.auth_mode
+    if auth_mode == "auto":
+        if _is_placeholder(email) or _is_placeholder(password):
+            email, password = _new_probe_credentials()
+            auth_mode = "register"
+        else:
+            auth_mode = "login"
+    if not email or not password:
+        email, password = _new_probe_credentials()
+        auth_mode = "register"
 
     baseline = _run([sys.executable, "scripts/linux_vpn_runtime_verifier.py", "--json"], timeout=30)
+    baseline_body = _json_object(baseline.stdout)
+    if baseline.returncode != 0:
+        cleanup = _run([sys.executable, "scripts/linux_vpn_runtime_verifier.py", "--json"], timeout=30)
+        payload = {
+            "ok": False,
+            "account_email": email,
+            "auth_mode": auth_mode,
+            "baseline": baseline.as_dict(),
+            "baseline_checks": baseline_body,
+            "results": [],
+            "cleanup": cleanup.as_dict(),
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            print("FAIL baseline")
+        return 1
+
     protocols = args.protocol or list(DEFAULT_PROTOCOLS)
-    results = [
-        run_protocol(
+    results = []
+    for index, protocol in enumerate(protocols):
+        protocol_auth_mode = "login" if auth_mode == "register" and index > 0 else auth_mode
+        result = run_protocol(
             protocol=protocol,
-            email=args.email,
-            password=args.password,
+            email=email,
+            password=password,
+            auth_mode=protocol_auth_mode,
             server_id=args.server_id,
             hold_seconds=args.hold_seconds,
             evidence_timeout=args.evidence_timeout,
         )
-        for protocol in protocols
-    ]
+        results.append(result)
+        if _has_auth_failure(result):
+            break
     cleanup = _run([sys.executable, "scripts/linux_vpn_runtime_verifier.py", "--json"], timeout=30)
     payload = {
         "ok": all(result["ok"] for result in results) and cleanup.returncode == 0,
+        "account_email": email,
+        "auth_mode": auth_mode,
         "baseline": baseline.as_dict(),
         "results": results,
         "cleanup": cleanup.as_dict(),

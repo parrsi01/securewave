@@ -1,5 +1,5 @@
 from pathlib import Path
-from subprocess import CompletedProcess
+from subprocess import CompletedProcess, TimeoutExpired
 
 from scripts import linux_vpn_runtime_verifier as verifier
 
@@ -63,3 +63,18 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
 
 def test_verifier_paths_stay_inside_repo():
     assert verifier.RUNNER_PATH == Path("securewave_app/linux/runner/my_application.cc").resolve()
+
+
+def test_privilege_check_reports_pkexec_timeout(monkeypatch):
+    monkeypatch.setattr(verifier.shutil, "which", lambda tool: "/usr/bin/pkexec")
+    monkeypatch.setattr(verifier.os, "geteuid", lambda: 1000)
+
+    def fake_run(*args, **kwargs):
+        raise TimeoutExpired(cmd=["pkexec", "/usr/bin/true"], timeout=5)
+
+    monkeypatch.setattr(verifier.subprocess, "run", fake_run)
+
+    check = verifier.check_privilege_elevation()
+
+    assert not check.ok
+    assert "pkexec authorization timed out" in check.detail

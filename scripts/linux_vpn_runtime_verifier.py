@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -57,6 +58,43 @@ def check_tools() -> list[Check]:
             )
         )
     return checks
+
+
+def check_privilege_elevation() -> Check:
+    if shutil.which("pkexec") is None:
+        return Check(
+            "privilege:pkexec_authorization",
+            False,
+            "pkexec not found in PATH",
+        )
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        return Check(
+            "privilege:pkexec_authorization",
+            True,
+            "running as root; pkexec not required",
+        )
+    try:
+        completed = subprocess.run(
+            ["pkexec", "/usr/bin/true"],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5,
+        )
+    except subprocess.TimeoutExpired:
+        return Check(
+            "privilege:pkexec_authorization",
+            False,
+            "pkexec authorization timed out; start a PolicyKit authentication agent or run SecureWave with required privileges",
+        )
+    return Check(
+        "privilege:pkexec_authorization",
+        completed.returncode == 0,
+        "pkexec authorization works"
+        if completed.returncode == 0
+        else completed.stderr.strip() or f"pkexec exited {completed.returncode}",
+    )
 
 
 def check_runner_contract() -> list[Check]:
@@ -158,6 +196,7 @@ def main() -> int:
 
     checks = [
         *check_tools(),
+        check_privilege_elevation(),
         *check_runner_contract(),
         check_build_artifact(),
         *check_residue(),

@@ -13,6 +13,10 @@ import 'services/auth_service.dart';
 
 const _email = String.fromEnvironment('SECUREWAVE_RUNTIME_PROBE_EMAIL');
 const _password = String.fromEnvironment('SECUREWAVE_RUNTIME_PROBE_PASSWORD');
+const _authMode = String.fromEnvironment(
+  'SECUREWAVE_RUNTIME_PROBE_AUTH_MODE',
+  defaultValue: 'login',
+);
 const _protocol = String.fromEnvironment(
   'SECUREWAVE_RUNTIME_PROBE_PROTOCOL',
   defaultValue: 'wireguard',
@@ -74,9 +78,22 @@ class _RuntimeProbeAppState extends ConsumerState<_RuntimeProbeApp> {
 
       final protocol = vpnProtocolFromStorage(_protocol);
       final auth = ref.read(authServiceProvider);
-      await auth.login(email: _email, password: _password);
+      final authMode = _authMode.trim().toLowerCase();
+      if (authMode == 'register') {
+        await auth.register(email: _email, password: _password);
+      } else if (authMode == 'login') {
+        await auth.login(email: _email, password: _password);
+      } else {
+        throw StateError(
+          'SECUREWAVE_RUNTIME_PROBE_AUTH_MODE must be login or register.',
+        );
+      }
 
       final notifier = ref.read(vpnStateProvider.notifier);
+      // VpnStateNotifier restores the last stored protocol asynchronously.
+      // Let that complete before applying the probe protocol so the requested
+      // native runtime path is the one that is actually exercised.
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       await notifier.selectProtocol(protocol);
       if (_serverId.trim().isNotEmpty) {
         notifier.selectServer(_serverId.trim());

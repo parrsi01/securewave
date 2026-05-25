@@ -51,3 +51,52 @@ def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
     monkeypatch.setattr(proof, "_run", fake_run)
 
     assert proof._evidence_for("wireguard")["ok"] is False
+
+
+def test_placeholder_credentials_are_detected():
+    assert proof._is_placeholder("real@email.com") is True
+    assert proof._is_placeholder("existing-live-password") is True
+    assert proof._is_placeholder("qa@example.com") is False
+
+
+def test_generated_probe_credentials_are_live_registration_shape():
+    email, password = proof._new_probe_credentials()
+
+    assert email.startswith("securewave.runtime.")
+    assert email.endswith("@gmail.com")
+    assert password.startswith("SwRuntime")
+    assert password.endswith("!A1")
+
+
+def test_auth_failure_detection_stops_repeated_registration_attempts():
+    result = {
+        "probe_events": [
+            {
+                "event": "runtime_probe_error",
+                "error": "DioException bad response: status code of 429",
+                "stack": "#1 ApiClient.register",
+            }
+        ]
+    }
+
+    assert proof._has_auth_failure(result) is True
+
+
+def test_non_auth_runtime_error_is_not_auth_failure():
+    result = {
+        "probe_events": [
+            {
+                "event": "runtime_probe_error",
+                "error": "OpenVPN process started but no tunnel route was detected.",
+                "stack": "#1 ChannelVpnService.connect",
+            }
+        ]
+    }
+
+    assert proof._has_auth_failure(result) is False
+
+
+def test_json_object_parses_dict_only():
+    assert proof._json_object('{"ok": false}') == {"ok": False}
+    assert proof._json_object("[1, 2, 3]") is None
+    assert proof._json_object("not json") is None
