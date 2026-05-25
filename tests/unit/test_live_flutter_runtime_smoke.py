@@ -6,10 +6,20 @@ from scripts import live_flutter_runtime_smoke as smoke
 
 
 def _ok_profile(protocol: str) -> dict:
+    if protocol == "openvpn":
+        return {"profile": {"type": "openvpn", "ovpn_config": "client\nremote 10.0.0.1 1194\n"}}
+    if protocol == "ikev2":
+        return {
+            "profile": {
+                "type": "ikev2",
+                "server": "10.0.0.1",
+                "username": "user",
+                "password": "pass",
+                "ca_cert_pem": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+            }
+        }
     return {
         "wireguard_config": "wg" if protocol == "wireguard" else "",
-        "openvpn_config": "ovpn" if protocol == "openvpn" else "",
-        "ikev2_config": "ike" if protocol == "ikev2" else "",
     }
 
 
@@ -111,3 +121,52 @@ def test_live_smoke_requires_all_protocol_profiles_and_omits_password(monkeypatc
     assert "Password1!" not in output
     assert '"ikev2": [' in output
     assert '"profile_shapes"' in output
+    assert '"app_consumable_config": true' in output
+
+
+def test_live_smoke_rejects_200_profile_without_app_consumable_config(monkeypatch):
+    def fake_request(method, url, *, token=None, payload=None, timeout=20):
+        if url.endswith("/health"):
+            return 200, {}
+        if url.endswith("/auth/register"):
+            return 201, {}
+        if url.endswith("/auth/login"):
+            return 200, {"access_token": "token"}
+        if url.endswith("/auth/me"):
+            return 200, {"email": "qa@example.test"}
+        if url.endswith("/user/plan"):
+            return 200, {"plan": "Free"}
+        if url.endswith("/vpn/protocols?device_type=linux"):
+            return 200, {
+                "protocols": [
+                    {
+                        "protocol": protocol,
+                        "enabled": True,
+                        "platform_supported": True,
+                        "server_enabled": True,
+                    }
+                    for protocol in smoke.PROTOCOLS
+                ]
+            }
+        if url.endswith("/vpn/servers?device_type=linux"):
+            return 200, {
+                "servers": [
+                    {
+                        "server_id": "de-nue-1",
+                        "supported_protocols": list(smoke.PROTOCOLS),
+                    }
+                ]
+            }
+        if url.endswith("/vpn/profile"):
+            return 200, {"profile": {"type": payload["protocol"]}}
+        raise AssertionError(f"unexpected request: {method} {url}")
+
+    monkeypatch.setattr(smoke, "_json_request", fake_request)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["live_flutter_runtime_smoke.py", "--email", "qa@example.test", "--password", "Password1!"],
+    )
+
+    with pytest.raises(RuntimeError, match="app-consumable runtime config"):
+        smoke.main()

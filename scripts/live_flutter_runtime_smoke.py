@@ -56,6 +56,32 @@ def _require(status: int, expected: set[int], label: str, body: dict) -> None:
         raise RuntimeError(f"{label} failed: HTTP {status} {body}")
 
 
+def _app_consumable_config(protocol: str, body: dict) -> str:
+    profile = body.get("profile") if isinstance(body.get("profile"), dict) else {}
+    if protocol == "wireguard":
+        return str(body.get("wireguard_config") or profile.get("wireguard_config") or "")
+    if protocol == "openvpn":
+        return str(
+            body.get("openvpn_config")
+            or profile.get("openvpn_config")
+            or profile.get("ovpn_config")
+            or ""
+        )
+    if protocol == "ikev2":
+        direct = body.get("ikev2_config") or profile.get("ikev2_config")
+        if direct:
+            return str(direct)
+        if (
+            str(profile.get("type", "")).lower() == "ikev2"
+            and profile.get("server")
+            and profile.get("username")
+            and profile.get("password")
+            and profile.get("ca_cert_pem")
+        ):
+            return "nested_ikev2_profile"
+    return ""
+
+
 def _default_email() -> str:
     stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
     suffix = secrets.token_hex(3)
@@ -179,12 +205,18 @@ def main() -> int:
             )
             profile_results[protocol].append(status)
             _require(status, {200}, f"{protocol} profile", body)
+            runnable_config = bool(_app_consumable_config(protocol, body))
+            if not runnable_config:
+                raise RuntimeError(
+                    f"{protocol} profile did not include an app-consumable runtime config"
+                )
             profile_shapes[protocol].append(
                 {
                     "wireguard_config": bool(body.get("wireguard_config")),
                     "openvpn_config": bool(body.get("openvpn_config")),
                     "ikev2_config": bool(body.get("ikev2_config")),
                     "nested_profile": bool(body.get("profile")),
+                    "app_consumable_config": runnable_config,
                 }
             )
 
