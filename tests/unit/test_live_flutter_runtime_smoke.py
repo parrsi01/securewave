@@ -1,0 +1,113 @@
+import sys
+
+import pytest
+
+from scripts import live_flutter_runtime_smoke as smoke
+
+
+def _ok_profile(protocol: str) -> dict:
+    return {
+        "wireguard_config": "wg" if protocol == "wireguard" else "",
+        "openvpn_config": "ovpn" if protocol == "openvpn" else "",
+        "ikev2_config": "ike" if protocol == "ikev2" else "",
+    }
+
+
+def test_live_smoke_rejects_partial_linux_protocol_availability(monkeypatch):
+    def fake_request(method, url, *, token=None, payload=None, timeout=20):
+        if url.endswith("/health"):
+            return 200, {}
+        if url.endswith("/auth/register"):
+            return 201, {}
+        if url.endswith("/auth/login"):
+            return 200, {"access_token": "token"}
+        if url.endswith("/auth/me"):
+            return 200, {"email": "qa@example.test"}
+        if url.endswith("/user/plan"):
+            return 200, {"plan": "Free"}
+        if url.endswith("/vpn/protocols?device_type=linux"):
+            return 200, {
+                "protocols": [
+                    {
+                        "protocol": "wireguard",
+                        "enabled": True,
+                        "platform_supported": True,
+                        "server_enabled": True,
+                    },
+                    {
+                        "protocol": "openvpn",
+                        "enabled": True,
+                        "platform_supported": True,
+                        "server_enabled": True,
+                    },
+                    {
+                        "protocol": "ikev2",
+                        "enabled": False,
+                        "reason": "not_supported_on_platform",
+                        "platform_supported": False,
+                        "server_enabled": True,
+                    },
+                ]
+            }
+        raise AssertionError(f"unexpected request: {method} {url}")
+
+    monkeypatch.setattr(smoke, "_json_request", fake_request)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["live_flutter_runtime_smoke.py", "--email", "qa@example.test", "--password", "Password1!"],
+    )
+
+    with pytest.raises(RuntimeError, match="protocol availability is not enabled"):
+        smoke.main()
+
+
+def test_live_smoke_requires_all_protocol_profiles_and_omits_password(monkeypatch, capsys):
+    def fake_request(method, url, *, token=None, payload=None, timeout=20):
+        if url.endswith("/health"):
+            return 200, {}
+        if url.endswith("/auth/register"):
+            return 201, {}
+        if url.endswith("/auth/login"):
+            return 200, {"access_token": "token"}
+        if url.endswith("/auth/me"):
+            return 200, {"email": "qa@example.test"}
+        if url.endswith("/user/plan"):
+            return 200, {"plan": "Free", "used_gb": 0, "limit_gb": 5}
+        if url.endswith("/vpn/protocols?device_type=linux"):
+            return 200, {
+                "protocols": [
+                    {
+                        "protocol": protocol,
+                        "enabled": True,
+                        "platform_supported": True,
+                        "server_enabled": True,
+                    }
+                    for protocol in smoke.PROTOCOLS
+                ]
+            }
+        if url.endswith("/vpn/servers?device_type=linux"):
+            return 200, {
+                "servers": [
+                    {
+                        "server_id": "de-nue-1",
+                        "supported_protocols": list(smoke.PROTOCOLS),
+                    }
+                ]
+            }
+        if url.endswith("/vpn/profile"):
+            return 200, _ok_profile(payload["protocol"])
+        raise AssertionError(f"unexpected request: {method} {url}")
+
+    monkeypatch.setattr(smoke, "_json_request", fake_request)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["live_flutter_runtime_smoke.py", "--email", "qa@example.test", "--password", "Password1!"],
+    )
+
+    assert smoke.main() == 0
+    output = capsys.readouterr().out
+    assert "Password1!" not in output
+    assert '"ikev2": [' in output
+    assert '"profile_shapes"' in output

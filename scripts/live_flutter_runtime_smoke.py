@@ -108,13 +108,61 @@ def main() -> int:
     status, plan = _json_request("GET", f"{api_base}/user/plan", token=token)
     _require(status, {200}, "usage plan", plan)
 
-    status, servers = _json_request("GET", f"{api_base}/vpn/servers", token=token)
+    status, protocols_body = _json_request(
+        "GET", f"{api_base}/vpn/protocols?device_type=linux", token=token
+    )
+    _require(status, {200}, "protocol availability", protocols_body)
+    protocol_items = protocols_body.get("protocols") or []
+    protocol_map = {item.get("protocol"): item for item in protocol_items}
+    missing_protocols = [protocol for protocol in PROTOCOLS if protocol not in protocol_map]
+    if missing_protocols:
+        raise RuntimeError(f"protocol availability missing rows: {missing_protocols}")
+    unavailable_protocols = [
+        {
+            "protocol": protocol,
+            "reason": protocol_map[protocol].get("reason")
+            or protocol_map[protocol].get("health_reason"),
+            "platform_supported": protocol_map[protocol].get("platform_supported"),
+            "server_enabled": protocol_map[protocol].get("server_enabled"),
+        }
+        for protocol in PROTOCOLS
+        if protocol_map[protocol].get("enabled") is not True
+    ]
+    if unavailable_protocols:
+        raise RuntimeError(
+            "protocol availability is not enabled for all Linux protocols: "
+            f"{json.dumps(unavailable_protocols, sort_keys=True)}"
+        )
+
+    status, servers = _json_request(
+        "GET", f"{api_base}/vpn/servers?device_type=linux", token=token
+    )
     _require(status, {200}, "server inventory", servers)
     server_items = servers.get("servers") or []
     if not server_items:
         raise RuntimeError("server inventory returned zero servers")
+    advertised_mismatches = [
+        {
+            "server_id": item.get("id") or item.get("server_id"),
+            "missing_protocols": [
+                protocol
+                for protocol in PROTOCOLS
+                if protocol not in (item.get("supported_protocols") or [])
+            ],
+        }
+        for item in server_items
+        if any(protocol not in (item.get("supported_protocols") or []) for protocol in PROTOCOLS)
+    ]
+    if advertised_mismatches:
+        raise RuntimeError(
+            "server inventory does not advertise every Linux protocol: "
+            f"{json.dumps(advertised_mismatches, sort_keys=True)}"
+        )
 
     profile_results: dict[str, list[int]] = {protocol: [] for protocol in PROTOCOLS}
+    profile_shapes: dict[str, list[dict[str, bool]]] = {
+        protocol: [] for protocol in PROTOCOLS
+    }
     for repeat in range(args.profile_repeats):
         for protocol in PROTOCOLS:
             status, body = _json_request(
@@ -130,13 +178,19 @@ def main() -> int:
                 },
             )
             profile_results[protocol].append(status)
-            if protocol in {"wireguard", "openvpn"}:
-                _require(status, {200}, f"{protocol} profile", body)
+            _require(status, {200}, f"{protocol} profile", body)
+            profile_shapes[protocol].append(
+                {
+                    "wireguard_config": bool(body.get("wireguard_config")),
+                    "openvpn_config": bool(body.get("openvpn_config")),
+                    "ikev2_config": bool(body.get("ikev2_config")),
+                    "nested_profile": bool(body.get("profile")),
+                }
+            )
 
     summary = {
         "api_base": api_base,
         "email": args.email,
-        "password": args.password,
         "account_email": account.get("email"),
         "plan": plan.get("plan_name") or plan.get("plan"),
         "usage": {
@@ -150,7 +204,7 @@ def main() -> int:
             item.get("id") or item.get("server_id") for item in server_items
         ],
         "profile_statuses": profile_results,
-        "note": "IKEv2 may return a typed non-200 until Linux strongSwan issuance is live.",
+        "profile_shapes": profile_shapes,
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
