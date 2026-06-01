@@ -7,6 +7,7 @@ import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/vpn_profile.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/models/user_plan.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
@@ -172,6 +173,36 @@ void main() {
     expect(container.read(vpnStateProvider).status, VpnStatus.connected);
   });
 
+  test('auto-selected profile server is used for usage metering', () async {
+    final service = _MeteredNativeVpnService();
+    final api = _UsageTrackingApiClient(
+      profileServerId: 'de-nue-1',
+      profileProtocol: VpnProtocol.openVpn,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+    notifier.selectServer(null);
+
+    await notifier.connect();
+    await Future<void>.delayed(Duration.zero);
+    await notifier.disconnect();
+
+    expect(api.connectedServerIds, <String?>['de-nue-1']);
+    expect(api.usageServerIds, <String?>['de-nue-1']);
+    expect(api.usageProtocols, <VpnProtocol?>[VpnProtocol.openVpn]);
+    expect(api.rxBytes.single, greaterThan(0));
+    expect(api.txBytes.single, greaterThan(0));
+  });
+
   test('device limit profile error remains precise', () async {
     final service = _NativeSuccessVpnService();
     final api = _AlwaysFailingProfileApiClient(
@@ -259,6 +290,47 @@ class _NativeSuccessVpnService implements VpnService {
   @override
   Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async =>
       const VpnTrafficStats(rxBytes: 1024, txBytes: 256);
+
+  @override
+  VpnStatus getStatus() => _status;
+}
+
+class _MeteredNativeVpnService implements VpnService {
+  VpnStatus _status = VpnStatus.disconnected;
+  int _rxBytes = 1000;
+  int _txBytes = 200;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    if (config == null || config.trim().isEmpty) {
+      throw VpnServiceException('invalid_config', 'missing config');
+    }
+    _status = VpnStatus.connected;
+    return _status;
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async {
+    _status = VpnStatus.disconnected;
+    return _status;
+  }
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
+    _rxBytes += 4096;
+    _txBytes += 1024;
+    return VpnTrafficStats(rxBytes: _rxBytes, txBytes: _txBytes);
+  }
 
   @override
   VpnStatus getStatus() => _status;
@@ -358,5 +430,82 @@ class _AlwaysFailingProfileApiClient extends ApiClient {
         data: body,
       ),
     );
+  }
+}
+
+class _UsageTrackingApiClient extends ApiClient {
+  _UsageTrackingApiClient({
+    required this.profileServerId,
+    required this.profileProtocol,
+  }) : super(AppConfig.defaults());
+
+  final String profileServerId;
+  final VpnProtocol profileProtocol;
+  final connectedServerIds = <String?>[];
+  final usageServerIds = <String?>[];
+  final usageProtocols = <VpnProtocol?>[];
+  final rxBytes = <int>[];
+  final txBytes = <int>[];
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    return VpnProfile.fromJson({
+      'device_id': 777,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'protocol': vpnProtocolStorageValue(protocol),
+      'server_id': profileServerId,
+      'server_location': 'Nuremberg, Germany',
+      'issued_at': DateTime.now().toIso8601String(),
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'wireguard_config':
+          '[Interface]\nPrivateKey = test\n[Peer]\nPublicKey = test\n',
+      'openvpn_config': 'client\nremote vpn.example 1194\n',
+      'ikev2_config': 'connections { securewave { version = 2 } }\n',
+      'dns': {
+        'servers': ['94.140.14.14'],
+        'enforcement': 'config',
+      },
+      'kill_switch': {
+        'mode': 'enabled',
+        'enforcement': 'best effort',
+      },
+      'peer_registered': true,
+      'registration_status': 'test',
+    });
+  }
+
+  @override
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {
+    connectedServerIds.add(serverId);
+  }
+
+  @override
+  Future<void> notifyVpnDisconnected() async {}
+
+  @override
+  Future<UserPlan?> reportVpnUsage({
+    int? deviceId,
+    String? serverId,
+    VpnProtocol? protocol,
+    required int rxBytes,
+    required int txBytes,
+  }) async {
+    usageServerIds.add(serverId);
+    usageProtocols.add(protocol);
+    this.rxBytes.add(rxBytes);
+    this.txBytes.add(txBytes);
+    return null;
   }
 }

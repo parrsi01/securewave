@@ -104,11 +104,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   DateTime? _lastAutoReconnectAt;
   Timer? _usageTimer;
   VpnTrafficStats? _lastTrafficStats;
+  DateTime? _lastTrafficStatsAt;
   int? _activeDeviceId;
+  String? _activeServerId;
+  VpnProtocol? _activeProtocol;
+  bool _protocolChangedByUser = false;
 
   Future<void> _loadProtocol() async {
     final storage = SecureStorage();
     final stored = await storage.getString(SecureStorage.vpnProtocolKey);
+    if (_protocolChangedByUser) return;
     state = state.copyWith(protocol: vpnProtocolFromStorage(stored));
   }
 
@@ -126,6 +131,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> selectProtocol(VpnProtocol protocol) async {
+    _protocolChangedByUser = true;
     state = state.copyWith(protocol: protocol);
     await SecureStorage().saveString(
       SecureStorage.vpnProtocolKey,
@@ -151,6 +157,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final service = _ref.read(vpnServiceProvider);
       final api = _ref.read(apiClientProvider);
       String? config;
+      String? connectedServerId = state.selectedServerId;
+      var connectedProtocol = state.protocol;
+      final autoSelectRequested = state.selectedServerId == null;
 
       if (service.isNativeAvailable) {
         final identity = await DeviceIdentity.load();
@@ -180,6 +189,15 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             _activeDeviceId = profile.deviceId;
             await storage.saveInt(
                 SecureStorage.vpnDeviceIdKey, profile.deviceId);
+          }
+          _activeServerId = profile.serverId.trim().isNotEmpty
+              ? profile.serverId
+              : state.selectedServerId;
+          _activeProtocol = state.protocol;
+          connectedServerId = _activeServerId;
+          connectedProtocol = _activeProtocol ?? state.protocol;
+          if (autoSelectRequested && _activeServerId != null) {
+            state = state.copyWith(selectedServerId: _activeServerId);
           }
           await storage.saveString(profileConfigKey, config);
           if (profile.expiresAt != null) {
@@ -217,8 +235,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         // but do not block on failures since the mock tunnel is local-only.
         try {
           await api.notifyVpnConnected(
-            serverId: state.selectedServerId,
-            protocol: state.protocol,
+            serverId: connectedServerId,
+            protocol: connectedProtocol,
           );
         } catch (_) {
           AppLogger.info('Backend connect notification skipped (demo mode).');
@@ -275,9 +293,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _setStatus(VpnStatus.disconnecting);
     try {
       final service = _ref.read(vpnServiceProvider);
+      await _pollTrafficStats(report: true);
       final nextStatus = await service.disconnect();
       _setStatus(nextStatus);
       _stopRateUpdates();
+      _activeDeviceId = null;
+      _activeServerId = null;
+      _activeProtocol = null;
       _updateStability(success: true);
       // Notify the backend so demo/live session tracking stays in sync.
       try {
@@ -309,8 +331,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       // tunnel drops, traffic may be blocked, so "connected" becomes misleading.
       try {
         final storage = SecureStorage();
+        final protocolKey =
+            vpnProtocolStorageValue(_activeProtocol ?? state.protocol);
         final config = await storage.getString(
-          SecureStorage.vpnProfileConfigKeyFor('wireguard'),
+          SecureStorage.vpnProfileConfigKeyFor(protocolKey),
         );
         final hasKillSwitchHooks = (config ?? '').contains('PostUp') ||
             (config ?? '').contains('PostDown');
@@ -424,6 +448,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   void _startRateUpdates() {
     _usageTimer?.cancel();
     _lastTrafficStats = null;
+    _lastTrafficStatsAt = null;
     state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
     unawaited(_pollTrafficStats(report: false));
     _usageTimer = Timer.periodic(
@@ -435,7 +460,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   void _stopRateUpdates() {
     _usageTimer?.cancel();
     _usageTimer = null;
-    unawaited(_pollTrafficStats(report: true));
+    _lastTrafficStats = null;
+    _lastTrafficStatsAt = null;
     state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
   }
 
@@ -455,26 +481,33 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       return;
     }
     final service = _ref.read(vpnServiceProvider);
-    final stats = await service.getTrafficStats(state.protocol);
+    final protocol = _activeProtocol ?? state.protocol;
+    final stats = await service.getTrafficStats(protocol);
+    final sampledAt = DateTime.now();
     final previous = _lastTrafficStats;
+    final previousAt = _lastTrafficStatsAt;
     _lastTrafficStats = stats;
-    if (previous == null) return;
+    _lastTrafficStatsAt = sampledAt;
+    if (previous == null || previousAt == null) return;
 
     final rxDelta = stats.rxBytes - previous.rxBytes;
     final txDelta = stats.txBytes - previous.txBytes;
     if (rxDelta < 0 || txDelta < 0) return;
+    final elapsedSeconds =
+        sampledAt.difference(previousAt).inMilliseconds / 1000;
+    final rateWindowSeconds = elapsedSeconds > 0 ? elapsedSeconds : 5.0;
 
     state = state.copyWith(
-      dataRateDown: rxDelta / 5,
-      dataRateUp: txDelta / 5,
+      dataRateDown: rxDelta / rateWindowSeconds,
+      dataRateUp: txDelta / rateWindowSeconds,
     );
 
     if (!report || (rxDelta == 0 && txDelta == 0)) return;
     final api = _ref.read(apiClientProvider);
     final plan = await api.reportVpnUsage(
       deviceId: _activeDeviceId,
-      serverId: state.selectedServerId,
-      protocol: state.protocol,
+      serverId: _activeServerId ?? state.selectedServerId,
+      protocol: protocol,
       rxBytes: rxDelta,
       txBytes: txDelta,
     );
