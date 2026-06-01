@@ -27,8 +27,8 @@ def test_build_artifact_check_reports_missing_build(monkeypatch, tmp_path):
 
 def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
     outputs = {
-        ("ip", "link", "show", "securewave"): CompletedProcess(
-            args=[], returncode=0, stdout="7: securewave: <POINTOPOINT>\n", stderr=""
+        ("ip", "link", "show", "sw-wg"): CompletedProcess(
+            args=[], returncode=0, stdout="7: sw-wg: <POINTOPOINT>\n", stderr=""
         ),
         ("ip", "link", "show", "tun0"): CompletedProcess(
             args=[], returncode=0, stdout="8: tun0: <POINTOPOINT>\n", stderr=""
@@ -36,7 +36,7 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         ("ip", "route", "show"): CompletedProcess(
             args=[],
             returncode=0,
-            stdout="0.0.0.0/1 dev tun0\n128.0.0.0/1 dev tun0\n",
+            stdout="default dev sw-wg table 51820\n0.0.0.0/1 dev tun0\n128.0.0.0/1 dev tun0\n",
             stderr="",
         ),
         ("pgrep", "-af", "securewave-openvpn|openvpn.*securewave"): CompletedProcess(

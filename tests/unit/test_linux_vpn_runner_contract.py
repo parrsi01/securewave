@@ -32,10 +32,21 @@ def test_openvpn_start_requires_tunnel_evidence_not_only_daemon_pid():
 def test_wireguard_start_requires_route_evidence_not_only_interface():
     source = _runner_source()
 
+    assert 'kWireGuardInterfaceName = "sw-wg"' in source
+    assert 'kWireGuardConfigFileName = "sw-wg.conf"' in source
     assert "wireguard_route_exists" in source
     assert '{"ip", "route", "get", "1.1.1.1", nullptr}' in source
-    assert '" dev securewave"' in source
-    assert "route traffic was not using interface securewave" in source
+    assert '" dev sw-wg"' in source
+    assert "route traffic was not using interface %s" in source
+
+
+def test_wireguard_start_prefers_installed_securewave_helper():
+    source = _runner_source()
+
+    assert 'kWireGuardHelperPath = "/usr/local/libexec/securewave-wg-quick"' in source
+    assert "wireguard_helper_available()" in source
+    assert '"--disable-internal-agent"' in source
+    assert "g_ptr_array_add(argv_array, const_cast<gchar*>(kWireGuardHelperPath))" in source
 
 
 def test_ikev2_start_verifies_strongswan_sa_after_initiate():

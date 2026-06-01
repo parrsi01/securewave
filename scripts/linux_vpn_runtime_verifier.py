@@ -23,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = REPO_ROOT / "securewave_app/linux/runner/my_application.cc"
 BUILD_PATH = REPO_ROOT / "securewave_app/build/linux/arm64/debug/bundle/securewave_app"
 REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "swanctl", "ipsec", "ip", "pkexec")
+WIREGUARD_INTERFACE = "sw-wg"
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,8 @@ def check_runner_contract() -> list[Check]:
     source = RUNNER_PATH.read_text(encoding="utf-8")
     expectations = {
         "runner:wireguard": "persist_active_protocol(state, \"wireguard\")",
-        "runner:wireguard_route_evidence": "route traffic was not using interface securewave",
+        "runner:wireguard_route_evidence": "route traffic was not using interface %s",
+        "runner:wireguard_helper": "/usr/local/libexec/securewave-wg-quick",
         "runner:openvpn": "persist_active_protocol(state, \"openvpn\")",
         "runner:ikev2": "persist_active_protocol(state, \"ikev2\")",
         "runner:openvpn_tunnel_evidence": "OpenVPN process started but no tunnel interface or tunnel route was detected.",
@@ -127,14 +129,14 @@ def check_build_artifact() -> Check:
 def check_residue() -> list[Check]:
     checks: list[Check] = []
 
-    link = _run(["ip", "link", "show", "securewave"])
+    link = _run(["ip", "link", "show", WIREGUARD_INTERFACE])
     checks.append(
         Check(
             "residue:wireguard_interface",
             link.returncode != 0,
-            "securewave interface absent"
+            f"{WIREGUARD_INTERFACE} interface absent"
             if link.returncode != 0
-            else "securewave interface is still present",
+            else f"{WIREGUARD_INTERFACE} interface is still present",
         )
     )
 
@@ -151,7 +153,12 @@ def check_residue() -> list[Check]:
     securewave_routes = [
         line
         for line in routes.stdout.splitlines()
-        if "securewave" in line or "tun0" in line or line.startswith(("0.0.0.0/1 ", "128.0.0.0/1 "))
+        if (
+            WIREGUARD_INTERFACE in line
+            or "securewave" in line
+            or "tun0" in line
+            or line.startswith(("0.0.0.0/1 ", "128.0.0.0/1 "))
+        )
     ]
     checks.append(
         Check(

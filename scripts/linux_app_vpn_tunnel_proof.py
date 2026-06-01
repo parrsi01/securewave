@@ -24,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_ROOT = REPO_ROOT / "securewave_app"
 PROBE_TARGET = "lib/runtime_vpn_probe.dart"
 DEFAULT_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
+WIREGUARD_INTERFACE = "sw-wg"
 PLACEHOLDER_VALUES = {
     "existing-live-email",
     "existing-live-password",
@@ -76,9 +77,9 @@ def _run(argv: Iterable[str], *, timeout: int = 15) -> CommandResult:
 
 def _evidence_for(protocol: str) -> dict[str, object]:
     if protocol == "wireguard":
-        link = _run(["ip", "link", "show", "securewave"])
+        link = _run(["ip", "link", "show", WIREGUARD_INTERFACE])
         route = _run(["ip", "route", "get", "1.1.1.1"])
-        route_ok = route.returncode == 0 and " dev securewave" in route.stdout
+        route_ok = route.returncode == 0 and f" dev {WIREGUARD_INTERFACE}" in route.stdout
         return {
             "ok": link.returncode == 0 and route_ok,
             "interface": link.as_dict(),

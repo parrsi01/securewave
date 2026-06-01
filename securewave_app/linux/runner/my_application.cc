@@ -23,7 +23,9 @@ static inline gboolean g_spawn_check_wait_status(gint wait_status,
 
 namespace {
 const char* kChannelName = "securewave/vpn";
-const char* kWireGuardConfigFileName = "securewave.conf";
+const char* kWireGuardInterfaceName = "sw-wg";
+const char* kWireGuardConfigFileName = "sw-wg.conf";
+const char* kWireGuardHelperPath = "/usr/local/libexec/securewave-wg-quick";
 const char* kOpenVpnConfigFileName = "securewave.ovpn";
 const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
 const char* kOpenVpnLogFileName = "securewave-openvpn.log";
@@ -69,6 +71,10 @@ static const gchar* get_string_arg(FlValue* args, const gchar* key) {
 static gboolean wg_quick_available() {
   g_autofree gchar* wg_quick = g_find_program_in_path("wg-quick");
   return wg_quick != nullptr;
+}
+
+static gboolean wireguard_helper_available() {
+  return g_file_test(kWireGuardHelperPath, G_FILE_TEST_IS_EXECUTABLE);
 }
 
 static gboolean openvpn_available() {
@@ -195,7 +201,7 @@ static void wg_quick_respond_error_once(WgQuickSpawnContext* ctx, const gchar* m
 static gboolean wireguard_interface_exists() {
   gint wait_status = 0;
   g_autoptr(GError) error = nullptr;
-  const gchar* argv[] = {"ip", "link", "show", "securewave", nullptr};
+  const gchar* argv[] = {"ip", "link", "show", kWireGuardInterfaceName, nullptr};
   if (!g_spawn_sync(nullptr,
                     const_cast<gchar**>(argv),
                     nullptr,
@@ -230,7 +236,7 @@ static gboolean wireguard_route_exists() {
   }
   return g_spawn_check_wait_status(wait_status, nullptr) &&
          output != nullptr &&
-         g_strstr_len(output, -1, " dev securewave") != nullptr;
+         g_strstr_len(output, -1, " dev sw-wg") != nullptr;
 }
 
 static guint64 read_interface_counter(const gchar* interface_name,
@@ -273,7 +279,7 @@ static gchar* traffic_interface_for_protocol(const gchar* protocol) {
     }
     return g_strdup("ipsec0");
   }
-  return g_strdup("securewave");
+  return g_strdup(kWireGuardInterfaceName);
 }
 
 static void respond_traffic_stats(FlMethodCall* method_call, const gchar* protocol) {
@@ -312,23 +318,32 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
     if (ctx->verify_wireguard_interface) {
       const gboolean exists = wireguard_interface_exists();
       if (g_strcmp0(ctx->action, "up") == 0 && !exists) {
+        g_autofree gchar* message = g_strdup_printf(
+            "WireGuard command completed but interface %s was not found.",
+            kWireGuardInterfaceName);
         wg_quick_respond_error_once(
             ctx,
-            "WireGuard command completed but interface securewave was not found.");
+            message);
         g_spawn_close_pid(pid);
         return;
       }
       if (g_strcmp0(ctx->action, "up") == 0 && !wireguard_route_exists()) {
+        g_autofree gchar* message = g_strdup_printf(
+            "WireGuard command completed but route traffic was not using interface %s.",
+            kWireGuardInterfaceName);
         wg_quick_respond_error_once(
             ctx,
-            "WireGuard command completed but route traffic was not using interface securewave.");
+            message);
         g_spawn_close_pid(pid);
         return;
       }
       if (g_strcmp0(ctx->action, "down") == 0 && exists) {
+        g_autofree gchar* message = g_strdup_printf(
+            "WireGuard command completed but interface %s is still present.",
+            kWireGuardInterfaceName);
         wg_quick_respond_error_once(
             ctx,
-            "WireGuard command completed but interface securewave is still present.");
+            message);
         g_spawn_close_pid(pid);
         return;
       }
@@ -381,8 +396,15 @@ static void spawn_wg_quick_async(
       return;
     }
     g_ptr_array_add(argv_array, pkexec);
+    g_ptr_array_add(argv_array, const_cast<gchar*>("--disable-internal-agent"));
+    if (wireguard_helper_available()) {
+      g_ptr_array_add(argv_array, const_cast<gchar*>(kWireGuardHelperPath));
+    } else {
+      g_ptr_array_add(argv_array, wg_quick);
+    }
+  } else {
+    g_ptr_array_add(argv_array, wg_quick);
   }
-  g_ptr_array_add(argv_array, wg_quick);
   g_ptr_array_add(argv_array, const_cast<gchar*>(action));
   g_ptr_array_add(argv_array, const_cast<gchar*>(config_path));
   g_ptr_array_add(argv_array, nullptr);

@@ -1,12 +1,12 @@
 from scripts import linux_app_vpn_tunnel_proof as proof
 
 
-def test_wireguard_evidence_requires_securewave_route(monkeypatch):
+def test_wireguard_evidence_requires_sw_wg_route(monkeypatch):
     def fake_run(argv, *, timeout=15):
-        if argv[:4] == ["ip", "link", "show", "securewave"]:
-            return proof.CommandResult(0, "10: securewave: <POINTOPOINT>\n", "")
+        if argv[:4] == ["ip", "link", "show", "sw-wg"]:
+            return proof.CommandResult(0, "10: sw-wg: <POINTOPOINT>\n", "")
         if argv[:4] == ["ip", "route", "get", "1.1.1.1"]:
-            return proof.CommandResult(0, "1.1.1.1 dev securewave src 10.8.0.2\n", "")
+            return proof.CommandResult(0, "1.1.1.1 dev sw-wg src 10.8.0.2\n", "")
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
@@ -42,8 +42,8 @@ def test_ikev2_evidence_requires_securewave_sa(monkeypatch):
 
 def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
     def fake_run(argv, *, timeout=15):
-        if argv[:4] == ["ip", "link", "show", "securewave"]:
-            return proof.CommandResult(0, "10: securewave: <POINTOPOINT>\n", "")
+        if argv[:4] == ["ip", "link", "show", "sw-wg"]:
+            return proof.CommandResult(0, "10: sw-wg: <POINTOPOINT>\n", "")
         if argv[:4] == ["ip", "route", "get", "1.1.1.1"]:
             return proof.CommandResult(0, "1.1.1.1 via 192.168.64.1 dev enp0s1\n", "")
         raise AssertionError(argv)
