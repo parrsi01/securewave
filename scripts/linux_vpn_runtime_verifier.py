@@ -107,6 +107,8 @@ def check_runner_contract() -> list[Check]:
         "runner:wireguard_route_evidence": "route traffic was not using interface %s",
         "runner:wireguard_helper": "/usr/local/libexec/securewave-wg-quick",
         "runner:openvpn": "persist_active_protocol(state, \"openvpn\")",
+        "runner:openvpn_helper_start": "openvpn-start",
+        "runner:openvpn_helper_stop": "openvpn-stop",
         "runner:ikev2": "persist_active_protocol(state, \"ikev2\")",
         "runner:openvpn_tunnel_evidence": "OpenVPN process started but no tunnel interface or tunnel route was detected.",
         "runner:ikev2_sa_evidence": "swanctl --list-sas | grep -q securewave",

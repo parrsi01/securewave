@@ -203,6 +203,34 @@ void main() {
     expect(api.txBytes.single, greaterThan(0));
   });
 
+  test('OpenVPN connect uses OpenVPN profile config without WireGuard fallback',
+      () async {
+    final service = _CapturingNativeVpnService();
+    final api = _UsageTrackingApiClient(
+      profileServerId: 'de-nue-1',
+      profileProtocol: VpnProtocol.openVpn,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+
+    await notifier.connect();
+
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+    expect(service.connectedProtocol, VpnProtocol.openVpn);
+    expect(service.connectedConfig, startsWith('client\n'));
+    expect(service.connectedConfig, contains('remote vpn.example 1194'));
+    expect(service.connectedConfig, isNot(contains('[Interface]')));
+  });
+
   test('device limit profile error remains precise', () async {
     final service = _NativeSuccessVpnService();
     final api = _AlwaysFailingProfileApiClient(
@@ -331,6 +359,46 @@ class _MeteredNativeVpnService implements VpnService {
     _txBytes += 1024;
     return VpnTrafficStats(rxBytes: _rxBytes, txBytes: _txBytes);
   }
+
+  @override
+  VpnStatus getStatus() => _status;
+}
+
+class _CapturingNativeVpnService implements VpnService {
+  VpnStatus _status = VpnStatus.disconnected;
+  VpnProtocol? connectedProtocol;
+  String? connectedConfig;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    if (config == null || config.trim().isEmpty) {
+      throw VpnServiceException('invalid_config', 'missing config');
+    }
+    connectedProtocol = protocol;
+    connectedConfig = config;
+    _status = VpnStatus.connected;
+    return _status;
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async {
+    _status = VpnStatus.disconnected;
+    return _status;
+  }
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async =>
+      VpnTrafficStats.zero;
 
   @override
   VpnStatus getStatus() => _status;

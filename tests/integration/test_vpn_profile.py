@@ -275,8 +275,13 @@ class TestVpnProfileProvisioning:
         assert not data.get("wireguard_config")
         config = data.get("openvpn_config", "")
         assert "client" in config
+        assert "dev tun" in config
+        assert "remote 10.0.0.9 1194" in config
+        assert "redirect-gateway def1" in config
         assert "<ca>" in config
+        assert "MIIBtest" in config
         assert "auth-user-pass" not in config
+        assert "DEMO CONFIG" not in config
 
     def test_ikev2_profile_returns_protocol_config_when_server_supports_it(self, client, auth_headers, db):
         _create_free_server(

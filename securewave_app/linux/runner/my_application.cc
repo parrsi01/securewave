@@ -6,6 +6,7 @@
 #endif
 #include <gio/gio.h>
 #include <glib/gstdio.h>
+#include <errno.h>
 #include <signal.h>
 #include <unistd.h>
 
@@ -150,6 +151,12 @@ static void respond_error(
   fl_method_call_respond(method_call, response, nullptr);
 }
 
+static void respond_success(FlMethodCall* method_call) {
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(nullptr));
+  fl_method_call_respond(method_call, response, nullptr);
+}
+
 typedef struct {
   gint ref_count;
   FlMethodCall* method_call;
@@ -160,6 +167,9 @@ typedef struct {
   guint timeout_ms;
   gboolean responded;
   gboolean verify_wireguard_interface;
+  gboolean verify_openvpn_started;
+  gboolean verify_openvpn_stopped;
+  gchar* openvpn_pid_path;
 } WgQuickSpawnContext;
 
 static WgQuickSpawnContext* wg_quick_spawn_context_ref(WgQuickSpawnContext* ctx) {
@@ -177,6 +187,7 @@ static void wg_quick_spawn_context_unref(WgQuickSpawnContext* ctx) {
   g_clear_object(&ctx->method_call);
   g_clear_pointer(&ctx->error_code, g_free);
   g_clear_pointer(&ctx->action, g_free);
+  g_clear_pointer(&ctx->openvpn_pid_path, g_free);
   g_free(ctx);
 }
 
@@ -237,6 +248,112 @@ static gboolean wireguard_route_exists() {
   return g_spawn_check_wait_status(wait_status, nullptr) &&
          output != nullptr &&
          g_strstr_len(output, -1, " dev sw-wg") != nullptr;
+}
+
+static gboolean read_pid_from_file(const gchar* pid_path, GPid* pid) {
+  if (pid_path == nullptr || pid == nullptr) {
+    return FALSE;
+  }
+  g_autofree gchar* contents = nullptr;
+  if (!g_file_get_contents(pid_path, &contents, nullptr, nullptr) || contents == nullptr) {
+    return FALSE;
+  }
+  g_strstrip(contents);
+  if (*contents == '\0') {
+    return FALSE;
+  }
+  gchar* end = nullptr;
+  const gint64 parsed = g_ascii_strtoll(contents, &end, 10);
+  if (end == contents || *end != '\0' || parsed <= 0 || parsed > G_MAXINT) {
+    return FALSE;
+  }
+  *pid = static_cast<GPid>(parsed);
+  return TRUE;
+}
+
+static gboolean process_is_running(GPid pid) {
+  if (pid <= 0) {
+    return FALSE;
+  }
+  if (kill(pid, 0) == 0) {
+    return TRUE;
+  }
+  return errno == EPERM;
+}
+
+static gboolean openvpn_pid_running(const gchar* pid_path) {
+  GPid pid = 0;
+  return read_pid_from_file(pid_path, &pid) && process_is_running(pid);
+}
+
+static gboolean openvpn_tun_interface_exists() {
+  if (g_file_test("/sys/class/net/tun0", G_FILE_TEST_IS_DIR)) {
+    return TRUE;
+  }
+  g_autoptr(GDir) dir = g_dir_open("/sys/class/net", 0, nullptr);
+  if (dir == nullptr) {
+    return FALSE;
+  }
+  const gchar* name = nullptr;
+  while ((name = g_dir_read_name(dir)) != nullptr) {
+    if (g_str_has_prefix(name, "tun")) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+static gboolean openvpn_route_exists() {
+  gint wait_status = 0;
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* output = nullptr;
+  const gchar* argv[] = {"ip", "route", "get", "1.1.1.1", nullptr};
+  if (!g_spawn_sync(nullptr,
+                    const_cast<gchar**>(argv),
+                    nullptr,
+                    G_SPAWN_SEARCH_PATH,
+                    nullptr,
+                    nullptr,
+                    &output,
+                    nullptr,
+                    &wait_status,
+                    &error)) {
+    return FALSE;
+  }
+  return g_spawn_check_wait_status(wait_status, nullptr) &&
+         output != nullptr &&
+         g_strstr_len(output, -1, " dev tun") != nullptr;
+}
+
+static gboolean openvpn_runtime_evidence_exists(const gchar* pid_path) {
+  return openvpn_pid_running(pid_path) &&
+         (openvpn_route_exists() || openvpn_tun_interface_exists());
+}
+
+static gboolean wait_for_openvpn_runtime_evidence(const gchar* pid_path) {
+  for (guint i = 0; i < 20; i++) {
+    if (openvpn_runtime_evidence_exists(pid_path)) {
+      return TRUE;
+    }
+    g_usleep(500000);
+  }
+  return FALSE;
+}
+
+static gboolean wait_for_openvpn_stop_evidence(const gchar* pid_path) {
+  for (guint i = 0; i < 10; i++) {
+    if (!openvpn_pid_running(pid_path) && !openvpn_route_exists()) {
+      return TRUE;
+    }
+    g_usleep(500000);
+  }
+  return !openvpn_pid_running(pid_path) && !openvpn_route_exists();
+}
+
+static void remove_openvpn_pid_file(const gchar* pid_path) {
+  if (pid_path != nullptr) {
+    g_unlink(pid_path);
+  }
 }
 
 static guint64 read_interface_counter(const gchar* interface_name,
@@ -347,6 +464,25 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
         g_spawn_close_pid(pid);
         return;
       }
+    }
+    if (ctx->verify_openvpn_started) {
+      if (!wait_for_openvpn_runtime_evidence(ctx->openvpn_pid_path)) {
+        wg_quick_respond_error_once(
+            ctx,
+            "OpenVPN process started but no tunnel interface or tunnel route was detected.");
+        g_spawn_close_pid(pid);
+        return;
+      }
+    }
+    if (ctx->verify_openvpn_stopped) {
+      if (!wait_for_openvpn_stop_evidence(ctx->openvpn_pid_path)) {
+        wg_quick_respond_error_once(
+            ctx,
+            "OpenVPN stop command completed but process or tunnel route evidence remains.");
+        g_spawn_close_pid(pid);
+        return;
+      }
+      remove_openvpn_pid_file(ctx->openvpn_pid_path);
     }
     wg_quick_respond_ok_once(ctx);
   }
@@ -506,49 +642,163 @@ static void spawn_shell_async(
 static void spawn_openvpn_up_async(
     FlMethodCall* method_call,
     const gchar* config_path,
-    const gchar* pid_path,
-    const gchar* log_path) {
+    const gchar* pid_path) {
   g_autofree gchar* openvpn = g_find_program_in_path("openvpn");
   if (openvpn == nullptr) {
     respond_error(method_call, "vpn_unavailable", "openvpn not found. Install OpenVPN and retry.", nullptr);
     return;
   }
-  g_autofree gchar* q_openvpn = g_shell_quote(openvpn);
-  g_autofree gchar* q_config = g_shell_quote(config_path);
-  g_autofree gchar* q_pid = g_shell_quote(pid_path);
-  g_autofree gchar* q_log = g_shell_quote(log_path);
-  g_autofree gchar* script = g_strdup_printf(
-      "%s --config %s --daemon securewave-openvpn --writepid %s --log %s; "
-      "for i in 1 2 3 4 5 6 7 8 9 10; do "
-      "test -s %s && kill -0 $(cat %s) || exit 1; "
-      "ip route get 1.1.1.1 2>/dev/null | grep -Eq ' dev tun[0-9A-Za-z_.-]+' && exit 0; "
-      "ip link show tun0 >/dev/null 2>&1 && exit 0; "
-      "sleep 1; "
-      "done; "
-      "pid=$(cat %s 2>/dev/null || true); "
-      "test -n \"$pid\" && kill \"$pid\" 2>/dev/null || true; "
-      "test -n \"$pid\" && kill -9 \"$pid\" 2>/dev/null || true; "
-      "rm -f %s; "
-      "echo 'OpenVPN process started but no tunnel interface or tunnel route was detected.' >&2; "
-      "exit 1",
-      q_openvpn, q_config, q_pid, q_log, q_pid, q_pid, q_pid, q_pid);
-  spawn_shell_async(method_call, "vpn_connect_failed", script, kOpenVpnTimeoutMs);
+  if (!wireguard_helper_available()) {
+    respond_error(
+        method_call,
+        "vpn_unavailable",
+        "SecureWave VPN helper not found. Reinstall SecureWave and retry.",
+        nullptr);
+    return;
+  }
+
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* pkexec = nullptr;
+  GPtrArray* argv_array = g_ptr_array_new();
+  if (geteuid() != 0) {
+    pkexec = g_find_program_in_path("pkexec");
+    if (pkexec == nullptr) {
+      g_ptr_array_free(argv_array, TRUE);
+      respond_error(
+          method_call,
+          "vpn_permission_required",
+          "Starting OpenVPN requires administrator privileges. Install PolicyKit/pkexec or run SecureWave with the required permissions.",
+          nullptr);
+      return;
+    }
+    g_ptr_array_add(argv_array, pkexec);
+    g_ptr_array_add(argv_array, const_cast<gchar*>("--disable-internal-agent"));
+  }
+  g_ptr_array_add(argv_array, const_cast<gchar*>(kWireGuardHelperPath));
+  g_ptr_array_add(argv_array, const_cast<gchar*>("openvpn-start"));
+  g_ptr_array_add(argv_array, const_cast<gchar*>(config_path));
+  g_ptr_array_add(argv_array, const_cast<gchar*>(pid_path));
+  g_ptr_array_add(argv_array, nullptr);
+  gchar** argv = reinterpret_cast<gchar**>(argv_array->pdata);
+
+  GPid pid = 0;
+  if (!g_spawn_async(nullptr, argv, nullptr,
+                     static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
+                     nullptr, nullptr, &pid, &error)) {
+    g_ptr_array_free(argv_array, TRUE);
+    respond_error(method_call, "vpn_connect_failed", error ? error->message : "Failed to spawn OpenVPN helper.", nullptr);
+    return;
+  }
+  g_ptr_array_free(argv_array, TRUE);
+
+  WgQuickSpawnContext* ctx = g_new0(WgQuickSpawnContext, 1);
+  ctx->ref_count = 1;
+  ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
+  ctx->error_code = g_strdup("vpn_connect_failed");
+  ctx->action = g_strdup("openvpn-up");
+  ctx->pid = pid;
+  ctx->timeout_ms = kOpenVpnTimeoutMs;
+  ctx->responded = FALSE;
+  ctx->verify_openvpn_started = TRUE;
+  ctx->openvpn_pid_path = g_strdup(pid_path);
+  g_child_watch_add_full(
+      G_PRIORITY_DEFAULT,
+      pid,
+      wg_quick_child_watch_cb,
+      wg_quick_spawn_context_ref(ctx),
+      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
+  ctx->timeout_id = g_timeout_add_full(
+      G_PRIORITY_DEFAULT,
+      ctx->timeout_ms,
+      wg_quick_timeout_cb,
+      wg_quick_spawn_context_ref(ctx),
+      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
+  wg_quick_spawn_context_unref(ctx);
 }
 
 static void spawn_openvpn_down_async(
     FlMethodCall* method_call,
     const gchar* pid_path) {
-  g_autofree gchar* q_pid = g_shell_quote(pid_path);
-  g_autofree gchar* script = g_strdup_printf(
-      "if test -s %s; then "
-      "pid=$(cat %s); "
-      "kill \"$pid\" 2>/dev/null || true; "
-      "for i in 1 2 3 4 5; do kill -0 \"$pid\" 2>/dev/null || break; sleep 1; done; "
-      "kill -9 \"$pid\" 2>/dev/null || true; "
-      "rm -f %s; "
-      "fi",
-      q_pid, q_pid, q_pid);
-  spawn_shell_async(method_call, "vpn_disconnect_failed", script, kOpenVpnTimeoutMs);
+  GPid openvpn_pid = 0;
+  if (!read_pid_from_file(pid_path, &openvpn_pid)) {
+    if (openvpn_route_exists()) {
+      respond_error(
+          method_call,
+          "vpn_disconnect_failed",
+          "OpenVPN PID file is missing but tunnel route evidence remains.",
+          nullptr);
+      return;
+    }
+    remove_openvpn_pid_file(pid_path);
+    respond_success(method_call);
+    return;
+  }
+  if (!wireguard_helper_available()) {
+    respond_error(
+        method_call,
+        "vpn_unavailable",
+        "SecureWave VPN helper not found. Reinstall SecureWave and retry.",
+        nullptr);
+    return;
+  }
+
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* pkexec = nullptr;
+  g_autofree gchar* pid_arg = g_strdup_printf("%d", static_cast<int>(openvpn_pid));
+  GPtrArray* argv_array = g_ptr_array_new();
+  if (geteuid() != 0) {
+    pkexec = g_find_program_in_path("pkexec");
+    if (pkexec == nullptr) {
+      g_ptr_array_free(argv_array, TRUE);
+      respond_error(
+          method_call,
+          "vpn_permission_required",
+          "Stopping OpenVPN requires administrator privileges. Install PolicyKit/pkexec or run SecureWave with the required permissions.",
+          nullptr);
+      return;
+    }
+    g_ptr_array_add(argv_array, pkexec);
+    g_ptr_array_add(argv_array, const_cast<gchar*>("--disable-internal-agent"));
+  }
+  g_ptr_array_add(argv_array, const_cast<gchar*>(kWireGuardHelperPath));
+  g_ptr_array_add(argv_array, const_cast<gchar*>("openvpn-stop"));
+  g_ptr_array_add(argv_array, pid_arg);
+  g_ptr_array_add(argv_array, nullptr);
+  gchar** argv = reinterpret_cast<gchar**>(argv_array->pdata);
+
+  GPid pid = 0;
+  if (!g_spawn_async(nullptr, argv, nullptr,
+                     static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
+                     nullptr, nullptr, &pid, &error)) {
+    g_ptr_array_free(argv_array, TRUE);
+    respond_error(method_call, "vpn_disconnect_failed", error ? error->message : "Failed to spawn OpenVPN helper.", nullptr);
+    return;
+  }
+  g_ptr_array_free(argv_array, TRUE);
+
+  WgQuickSpawnContext* ctx = g_new0(WgQuickSpawnContext, 1);
+  ctx->ref_count = 1;
+  ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
+  ctx->error_code = g_strdup("vpn_disconnect_failed");
+  ctx->action = g_strdup("openvpn-down");
+  ctx->pid = pid;
+  ctx->timeout_ms = kOpenVpnTimeoutMs;
+  ctx->responded = FALSE;
+  ctx->verify_openvpn_stopped = TRUE;
+  ctx->openvpn_pid_path = g_strdup(pid_path);
+  g_child_watch_add_full(
+      G_PRIORITY_DEFAULT,
+      pid,
+      wg_quick_child_watch_cb,
+      wg_quick_spawn_context_ref(ctx),
+      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
+  ctx->timeout_id = g_timeout_add_full(
+      G_PRIORITY_DEFAULT,
+      ctx->timeout_ms,
+      wg_quick_timeout_cb,
+      wg_quick_spawn_context_ref(ctx),
+      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
+  wg_quick_spawn_context_unref(ctx);
 }
 
 static void spawn_ikev2_up_async(
@@ -677,7 +927,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       }
       g_chmod(state->config_path, 0600);
       persist_active_protocol(state, "openvpn");
-      spawn_openvpn_up_async(method_call, state->config_path, state->openvpn_pid_path, state->openvpn_log_path);
+      spawn_openvpn_up_async(method_call, state->config_path, state->openvpn_pid_path);
       return;
     }
 

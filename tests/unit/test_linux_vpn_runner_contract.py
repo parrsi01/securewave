@@ -21,12 +21,23 @@ def test_linux_runner_persists_active_protocol_for_restart_cleanup():
 def test_openvpn_start_requires_tunnel_evidence_not_only_daemon_pid():
     source = _runner_source()
 
+    assert "openvpn_runtime_evidence_exists" in source
+    assert "openvpn_pid_running(pid_path)" in source
     assert "OpenVPN process started but no tunnel interface or tunnel route was detected." in source
-    assert "ip route get 1.1.1.1" in source
-    assert "grep -Eq ' dev tun[0-9A-Za-z_.-]+'" in source
-    assert "ip link show tun0" in source
-    assert 'kill -9 \\"$pid\\"' in source
-    assert "rm -f %s" in source
+    assert '{"ip", "route", "get", "1.1.1.1", nullptr}' in source
+    assert '" dev tun"' in source
+    assert '"/sys/class/net/tun0"' in source
+
+
+def test_openvpn_start_and_stop_use_scoped_securewave_helper():
+    source = _runner_source()
+
+    assert 'const_cast<gchar*>("--disable-internal-agent")' in source
+    assert 'const_cast<gchar*>("openvpn-start")' in source
+    assert 'const_cast<gchar*>("openvpn-stop")' in source
+    assert "verify_openvpn_started = TRUE" in source
+    assert "verify_openvpn_stopped = TRUE" in source
+    assert "OpenVPN stop command completed but process or tunnel route evidence remains." in source
 
 
 def test_wireguard_start_requires_route_evidence_not_only_interface():

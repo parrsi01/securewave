@@ -10,6 +10,8 @@ def test_runner_contract_covers_all_protocol_runtime_evidence():
     assert checks["runner:wireguard"].ok
     assert checks["runner:wireguard_route_evidence"].ok
     assert checks["runner:openvpn"].ok
+    assert checks["runner:openvpn_helper_start"].ok
+    assert checks["runner:openvpn_helper_stop"].ok
     assert checks["runner:ikev2"].ok
     assert checks["runner:openvpn_tunnel_evidence"].ok
     assert checks["runner:ikev2_sa_evidence"].ok
