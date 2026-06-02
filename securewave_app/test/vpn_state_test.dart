@@ -201,6 +201,70 @@ void main() {
     expect(api.usageProtocols, <VpnProtocol?>[VpnProtocol.openVpn]);
     expect(api.rxBytes.single, greaterThan(0));
     expect(api.txBytes.single, greaterThan(0));
+    final state = container.read(vpnStateProvider);
+    expect(state.sessionRxBytes, api.rxBytes.single);
+    expect(state.sessionTxBytes, api.txBytes.single);
+    expect(state.sessionTotalBytes, api.rxBytes.single + api.txBytes.single);
+    expect(state.sessionCountersAvailable, isTrue);
+    expect(state.sessionCounterInterface, 'tun0');
+  });
+
+  test('missing tunnel counters show unavailable state without usage report',
+      () async {
+    final service = _UnavailableStatsVpnService();
+    final api = _UsageTrackingApiClient(
+      profileServerId: 'de-nue-1',
+      profileProtocol: VpnProtocol.ikev2,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.selectProtocol(VpnProtocol.ikev2);
+    await notifier.connect();
+    await Future<void>.delayed(Duration.zero);
+    await notifier.disconnect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.sessionCountersAvailable, isFalse);
+    expect(state.sessionUsageReady, isFalse);
+    expect(state.sessionTotalBytes, 0);
+    expect(state.sessionCounterInterface, 'ipsec0');
+    expect(state.sessionUsageUnavailableReason, contains('No readable'));
+    expect(api.rxBytes, isEmpty);
+    expect(api.txBytes, isEmpty);
+  });
+
+  test('VpnTrafficStats parses native counter availability metadata', () {
+    final available = VpnTrafficStats.fromJson({
+      'interface': 'sw-wg',
+      'rx_bytes': '2048',
+      'tx_bytes': 1024,
+      'counters_available': true,
+    });
+
+    expect(available.rxBytes, 2048);
+    expect(available.txBytes, 1024);
+    expect(available.countersAvailable, isTrue);
+    expect(available.interfaceName, 'sw-wg');
+
+    final missing = VpnTrafficStats.fromJson({
+      'interface': 'ipsec0',
+      'rx_bytes': 0,
+      'tx_bytes': 0,
+      'counters_available': false,
+      'unavailable_reason': 'No readable ipsec0 counters found.',
+    });
+
+    expect(missing.countersAvailable, isFalse);
+    expect(missing.interfaceName, 'ipsec0');
+    expect(missing.unavailableReason, contains('ipsec0'));
   });
 
   test('OpenVPN connect uses OpenVPN profile config without WireGuard fallback',
@@ -387,7 +451,54 @@ class _MeteredNativeVpnService implements VpnService {
   Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
     _rxBytes += 4096;
     _txBytes += 1024;
-    return VpnTrafficStats(rxBytes: _rxBytes, txBytes: _txBytes);
+    return VpnTrafficStats(
+      rxBytes: _rxBytes,
+      txBytes: _txBytes,
+      interfaceName: 'tun0',
+    );
+  }
+
+  @override
+  VpnStatus getStatus() => _status;
+}
+
+class _UnavailableStatsVpnService implements VpnService {
+  VpnStatus _status = VpnStatus.disconnected;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    if (config == null || config.trim().isEmpty) {
+      throw VpnServiceException('invalid_config', 'missing config');
+    }
+    _status = VpnStatus.connected;
+    return _status;
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async {
+    _status = VpnStatus.disconnected;
+    return _status;
+  }
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
+    return const VpnTrafficStats(
+      rxBytes: 0,
+      txBytes: 0,
+      countersAvailable: false,
+      interfaceName: 'ipsec0',
+      unavailableReason: 'No readable ipsec0 rx_bytes/tx_bytes counters found.',
+    );
   }
 
   @override

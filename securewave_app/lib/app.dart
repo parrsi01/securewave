@@ -17,6 +17,7 @@ import 'core/services/secure_storage.dart';
 import 'core/state/app_state.dart';
 import 'core/state/vpn_state.dart';
 import 'core/utils/api_error.dart';
+import 'core/utils/formatters.dart';
 import 'services/auth_service.dart';
 import 'services/external_links.dart';
 
@@ -699,11 +700,10 @@ class _ConnectScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _InfoRow('Server', selectedServer),
                 _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
-                _InfoRow(
-                  'Traffic',
-                  connected ? 'Metered by account usage' : 'Disconnected',
-                ),
-                const _InfoRow('Bridge rates', 'Not exposed'),
+                _InfoRow('Session data', _sessionUsageText(vpn)),
+                _InfoRow('Down rate', formatByteRate(vpn.dataRateDown)),
+                _InfoRow('Up rate', formatByteRate(vpn.dataRateUp)),
+                _InfoRow('Counter source', _counterSourceText(vpn)),
               ],
             ),
           ),
@@ -714,7 +714,11 @@ class _ConnectScreen extends ConsumerWidget {
                 const _SectionTitle('Data'),
                 const SizedBox(height: 12),
                 plan.when(
-                  data: (value) => _UsageSummary(plan: value),
+                  data: (value) => _UsageSummary(
+                    plan: value,
+                    vpn: vpn,
+                    showMonthlyUsage: !config.useMockApi,
+                  ),
                   loading: () => const _LoadingLine('Loading usage'),
                   error: (_, __) => const _InlineMessage(
                     icon: Icons.warning_amber_rounded,
@@ -814,6 +818,8 @@ class _AccountScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final plan = ref.watch(userPlanProvider);
+    final config = ref.watch(appConfigProvider);
+    final vpn = ref.watch(vpnStateProvider);
 
     return ListView(
       children: [
@@ -856,7 +862,11 @@ class _AccountScreen extends ConsumerWidget {
               const _SectionTitle('Usage'),
               const SizedBox(height: 12),
               plan.when(
-                data: (value) => _UsageSummary(plan: value),
+                data: (value) => _UsageSummary(
+                  plan: value,
+                  vpn: vpn,
+                  showMonthlyUsage: !config.useMockApi,
+                ),
                 loading: () => const _LoadingLine('Loading usage'),
                 error: (_, __) => const _InlineMessage(
                   icon: Icons.warning_amber_rounded,
@@ -905,7 +915,11 @@ class _SettingsScreen extends ConsumerWidget {
               const _SectionTitle('Usage'),
               const SizedBox(height: 12),
               plan.when(
-                data: (value) => _UsageSummary(plan: value),
+                data: (value) => _UsageSummary(
+                  plan: value,
+                  vpn: vpn,
+                  showMonthlyUsage: !config.useMockApi,
+                ),
                 loading: () => const _LoadingLine('Loading usage'),
                 error: (_, __) => const _InlineMessage(
                   icon: Icons.warning_amber_rounded,
@@ -1108,9 +1122,15 @@ class _ConnectionStrip extends StatelessWidget {
 }
 
 class _UsageSummary extends StatelessWidget {
-  const _UsageSummary({required this.plan});
+  const _UsageSummary({
+    required this.plan,
+    required this.vpn,
+    required this.showMonthlyUsage,
+  });
 
   final UserPlan plan;
+  final VpnState vpn;
+  final bool showMonthlyUsage;
 
   @override
   Widget build(BuildContext context) {
@@ -1126,35 +1146,83 @@ class _UsageSummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                plan.name,
-                style: Theme.of(context).textTheme.titleMedium,
+        _InfoRow('Session data', _sessionUsageText(vpn)),
+        _InfoRow('Down rate', formatByteRate(vpn.dataRateDown)),
+        _InfoRow('Up rate', formatByteRate(vpn.dataRateUp)),
+        _InfoRow('Counter source', _counterSourceText(vpn)),
+        if (!vpn.sessionCountersAvailable &&
+            vpn.sessionUsageUnavailableReason != null) ...[
+          const SizedBox(height: 6),
+          _InlineMessage(
+            icon: Icons.info_outline_rounded,
+            message: vpn.sessionUsageUnavailableReason!,
+            tone: _Tone.warning,
+          ),
+        ],
+        const SizedBox(height: 12),
+        if (!showMonthlyUsage) ...[
+          const _InlineMessage(
+            icon: Icons.info_outline_rounded,
+            message: 'Monthly usage is unavailable in demo mode.',
+            tone: _Tone.warning,
+          ),
+        ] else ...[
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  plan.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
-            ),
-            _StatusChip(
-              label: plan.isPremium ? 'Premium' : 'Free',
-              tone: plan.isPremium ? _Tone.info : _Tone.neutral,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        LinearProgressIndicator(
-          value: plan.isUnlimited ? 1 : percent,
-          minHeight: 8,
-          borderRadius: BorderRadius.circular(4),
-          color: FreshTheme.primary,
-          backgroundColor: FreshTheme.surfaceMuted,
-        ),
-        const SizedBox(height: 12),
-        _InfoRow('Used', '${plan.usedGb.toStringAsFixed(1)} GB'),
-        _InfoRow('Cap', cap),
-        _InfoRow('Usage', percentText),
+              _StatusChip(
+                label: plan.isPremium ? 'Premium' : 'Free',
+                tone: plan.isPremium ? _Tone.info : _Tone.neutral,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: plan.isUnlimited ? 1 : percent,
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(4),
+            color: FreshTheme.primary,
+            backgroundColor: FreshTheme.surfaceMuted,
+          ),
+          const SizedBox(height: 12),
+          _InfoRow('Used', '${plan.usedGb.toStringAsFixed(1)} GB'),
+          _InfoRow('Cap', cap),
+          _InfoRow('Usage', percentText),
+        ],
       ],
     );
   }
+}
+
+String _sessionUsageText(VpnState vpn) {
+  if (vpn.sessionCountersAvailable && vpn.sessionUsageReady) {
+    return formatBytes(vpn.sessionTotalBytes);
+  }
+  if (vpn.status == VpnStatus.connected || vpn.status == VpnStatus.connecting) {
+    return 'Waiting for counters';
+  }
+  if (vpn.sessionTotalBytes > 0) {
+    return formatBytes(vpn.sessionTotalBytes);
+  }
+  return 'No active session';
+}
+
+String _counterSourceText(VpnState vpn) {
+  if (vpn.sessionCountersAvailable) {
+    return vpn.sessionCounterInterface ?? 'Tunnel interface';
+  }
+  if (vpn.status == VpnStatus.connected || vpn.status == VpnStatus.connecting) {
+    return 'Unavailable';
+  }
+  if (vpn.sessionCounterInterface != null) {
+    return vpn.sessionCounterInterface!;
+  }
+  return 'Not connected';
 }
 
 class _PlainPanel extends StatelessWidget {

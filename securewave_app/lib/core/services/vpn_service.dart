@@ -20,14 +20,25 @@ class VpnTrafficStats {
   const VpnTrafficStats({
     required this.rxBytes,
     required this.txBytes,
+    this.countersAvailable = true,
+    this.interfaceName,
+    this.unavailableReason,
   });
 
   final int rxBytes;
   final int txBytes;
+  final bool countersAvailable;
+  final String? interfaceName;
+  final String? unavailableReason;
 
   int get totalBytes => rxBytes + txBytes;
 
   static const zero = VpnTrafficStats(rxBytes: 0, txBytes: 0);
+  static const unavailable = VpnTrafficStats(
+    rxBytes: 0,
+    txBytes: 0,
+    countersAvailable: false,
+  );
 
   factory VpnTrafficStats.fromJson(Map<Object?, Object?> json) {
     int parse(Object? value) {
@@ -36,9 +47,29 @@ class VpnTrafficStats {
       return int.tryParse(value?.toString() ?? '') ?? 0;
     }
 
+    bool parseBool(Object? value) {
+      if (value is bool) return value;
+      final normalized = value?.toString().toLowerCase();
+      return normalized == 'true' || normalized == '1';
+    }
+
+    final hasAvailability =
+        json.containsKey('counters_available') || json.containsKey('available');
+    final available = hasAvailability
+        ? parseBool(json['counters_available'] ?? json['available'])
+        : true;
+    final interfaceName = json['interface']?.toString();
+    final unavailableReason = json['unavailable_reason']?.toString();
+
     return VpnTrafficStats(
       rxBytes: parse(json['rx_bytes']),
       txBytes: parse(json['tx_bytes']),
+      countersAvailable: available,
+      interfaceName:
+          interfaceName == null || interfaceName.isEmpty ? null : interfaceName,
+      unavailableReason: unavailableReason == null || unavailableReason.isEmpty
+          ? null
+          : unavailableReason,
     );
   }
 }
@@ -260,21 +291,21 @@ class ChannelVpnService implements VpnService {
 
   @override
   Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
-    if (!_nativeAvailable) return VpnTrafficStats.zero;
+    if (!_nativeAvailable) return VpnTrafficStats.unavailable;
     try {
       final result = await _channel.invokeMapMethod<Object?, Object?>(
         'getTrafficStats',
         {'protocol': vpnProtocolStorageValue(protocol)},
       );
-      if (result == null) return VpnTrafficStats.zero;
+      if (result == null) return VpnTrafficStats.unavailable;
       return VpnTrafficStats.fromJson(result);
     } on PlatformException catch (error) {
       AppLogger.warning('Native VPN traffic stats unavailable.');
       AppLogger.error('VPN traffic stats error', error: error);
-      return VpnTrafficStats.zero;
+      return VpnTrafficStats.unavailable;
     } on MissingPluginException {
       _nativeAvailable = false;
-      return VpnTrafficStats.zero;
+      return VpnTrafficStats.unavailable;
     }
   }
 
@@ -338,8 +369,6 @@ class MockVpnService implements VpnService {
   final Duration connectDelay;
   final Duration disconnectDelay;
   VpnStatus _status = VpnStatus.disconnected;
-  int _rxBytes = 0;
-  int _txBytes = 0;
   bool _logged = false;
 
   @override
@@ -381,10 +410,13 @@ class MockVpnService implements VpnService {
 
   @override
   Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
-    if (_status != VpnStatus.connected) return VpnTrafficStats.zero;
-    _rxBytes += 1024 * 128;
-    _txBytes += 1024 * 24;
-    return VpnTrafficStats(rxBytes: _rxBytes, txBytes: _txBytes);
+    if (_status != VpnStatus.connected) return VpnTrafficStats.unavailable;
+    return const VpnTrafficStats(
+      rxBytes: 0,
+      txBytes: 0,
+      countersAvailable: false,
+      unavailableReason: 'Mock tunnel does not expose real interface counters.',
+    );
   }
 
   @override

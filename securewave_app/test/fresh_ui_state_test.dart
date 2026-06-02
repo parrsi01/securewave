@@ -14,7 +14,10 @@ void main() {
   late Map<String, String?> store;
 
   setUp(() {
-    store = <String, String?>{'access_token': 'test-token'};
+    store = <String, String?>{
+      'access_token': 'test-token',
+      'reset_session_done': 'true',
+    };
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),

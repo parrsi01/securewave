@@ -23,6 +23,12 @@ class VpnState {
     this.isBusy = false,
     this.dataRateDown = 0,
     this.dataRateUp = 0,
+    this.sessionRxBytes = 0,
+    this.sessionTxBytes = 0,
+    this.sessionUsageReady = false,
+    this.sessionCountersAvailable = false,
+    this.sessionCounterInterface,
+    this.sessionUsageUnavailableReason,
     this.stabilityScore = 1.0,
     this.errorMessage,
     this.errorKind,
@@ -39,6 +45,12 @@ class VpnState {
   final bool isBusy;
   final double dataRateDown;
   final double dataRateUp;
+  final int sessionRxBytes;
+  final int sessionTxBytes;
+  final bool sessionUsageReady;
+  final bool sessionCountersAvailable;
+  final String? sessionCounterInterface;
+  final String? sessionUsageUnavailableReason;
   final double stabilityScore;
   final String? errorMessage;
   final VpnErrorKind? errorKind;
@@ -46,6 +58,8 @@ class VpnState {
   final bool? lastProfileFetchOk;
   final DateTime? lastTunnelStartAt;
   final bool? lastTunnelStartOk;
+
+  int get sessionTotalBytes => sessionRxBytes + sessionTxBytes;
 
   VpnState copyWith({
     VpnStatus? status,
@@ -55,6 +69,12 @@ class VpnState {
     bool? isBusy,
     double? dataRateDown,
     double? dataRateUp,
+    int? sessionRxBytes,
+    int? sessionTxBytes,
+    bool? sessionUsageReady,
+    bool? sessionCountersAvailable,
+    String? sessionCounterInterface,
+    String? sessionUsageUnavailableReason,
     double? stabilityScore,
     String? errorMessage,
     VpnErrorKind? errorKind,
@@ -64,6 +84,8 @@ class VpnState {
     bool? lastTunnelStartOk,
     bool clearError = false,
     bool clearSelectedServer = false,
+    bool clearSessionCounterInterface = false,
+    bool clearSessionUsageUnavailableReason = false,
   }) {
     return VpnState(
       status: status ?? this.status,
@@ -75,6 +97,18 @@ class VpnState {
       isBusy: isBusy ?? this.isBusy,
       dataRateDown: dataRateDown ?? this.dataRateDown,
       dataRateUp: dataRateUp ?? this.dataRateUp,
+      sessionRxBytes: sessionRxBytes ?? this.sessionRxBytes,
+      sessionTxBytes: sessionTxBytes ?? this.sessionTxBytes,
+      sessionUsageReady: sessionUsageReady ?? this.sessionUsageReady,
+      sessionCountersAvailable:
+          sessionCountersAvailable ?? this.sessionCountersAvailable,
+      sessionCounterInterface: clearSessionCounterInterface
+          ? null
+          : (sessionCounterInterface ?? this.sessionCounterInterface),
+      sessionUsageUnavailableReason: clearSessionUsageUnavailableReason
+          ? null
+          : (sessionUsageUnavailableReason ??
+              this.sessionUsageUnavailableReason),
       stabilityScore: stabilityScore ?? this.stabilityScore,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       errorKind: clearError ? null : (errorKind ?? this.errorKind),
@@ -449,7 +483,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _usageTimer?.cancel();
     _lastTrafficStats = null;
     _lastTrafficStatsAt = null;
-    state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
+    state = state.copyWith(
+      dataRateDown: 0,
+      dataRateUp: 0,
+      sessionRxBytes: 0,
+      sessionTxBytes: 0,
+      sessionUsageReady: false,
+      sessionCountersAvailable: false,
+      sessionUsageUnavailableReason: 'Waiting for tunnel counters.',
+      clearSessionCounterInterface: true,
+    );
     unawaited(_pollTrafficStats(report: false));
     _usageTimer = Timer.periodic(
       const Duration(seconds: 5),
@@ -484,15 +527,51 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final protocol = _activeProtocol ?? state.protocol;
     final stats = await service.getTrafficStats(protocol);
     final sampledAt = DateTime.now();
+    if (!stats.countersAvailable) {
+      _lastTrafficStats = null;
+      _lastTrafficStatsAt = null;
+      state = state.copyWith(
+        dataRateDown: 0,
+        dataRateUp: 0,
+        sessionUsageReady: false,
+        sessionCountersAvailable: false,
+        sessionCounterInterface: stats.interfaceName,
+        sessionUsageUnavailableReason: stats.unavailableReason ??
+            'No readable ${vpnProtocolLabel(protocol)} tunnel counters are available.',
+        clearSessionCounterInterface: stats.interfaceName == null,
+      );
+      return;
+    }
+
     final previous = _lastTrafficStats;
     final previousAt = _lastTrafficStatsAt;
     _lastTrafficStats = stats;
     _lastTrafficStatsAt = sampledAt;
-    if (previous == null || previousAt == null) return;
+    if (previous == null || previousAt == null) {
+      state = state.copyWith(
+        dataRateDown: 0,
+        dataRateUp: 0,
+        sessionUsageReady: true,
+        sessionCountersAvailable: true,
+        sessionCounterInterface: stats.interfaceName,
+        clearSessionUsageUnavailableReason: true,
+      );
+      return;
+    }
 
     final rxDelta = stats.rxBytes - previous.rxBytes;
     final txDelta = stats.txBytes - previous.txBytes;
-    if (rxDelta < 0 || txDelta < 0) return;
+    if (rxDelta < 0 || txDelta < 0) {
+      state = state.copyWith(
+        dataRateDown: 0,
+        dataRateUp: 0,
+        sessionUsageReady: true,
+        sessionCountersAvailable: true,
+        sessionCounterInterface: stats.interfaceName,
+        clearSessionUsageUnavailableReason: true,
+      );
+      return;
+    }
     final elapsedSeconds =
         sampledAt.difference(previousAt).inMilliseconds / 1000;
     final rateWindowSeconds = elapsedSeconds > 0 ? elapsedSeconds : 5.0;
@@ -500,6 +579,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     state = state.copyWith(
       dataRateDown: rxDelta / rateWindowSeconds,
       dataRateUp: txDelta / rateWindowSeconds,
+      sessionRxBytes: state.sessionRxBytes + rxDelta,
+      sessionTxBytes: state.sessionTxBytes + txDelta,
+      sessionUsageReady: true,
+      sessionCountersAvailable: true,
+      sessionCounterInterface: stats.interfaceName,
+      clearSessionUsageUnavailableReason: true,
     );
 
     if (!report || (rxDelta == 0 && txDelta == 0)) return;

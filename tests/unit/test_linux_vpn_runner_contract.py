@@ -81,5 +81,8 @@ def test_linux_runner_exposes_protocol_traffic_stats():
     assert 'getTrafficStats' in source
     assert 'rx_bytes' in source
     assert 'tx_bytes' in source
+    assert 'interface_counter_available' in source
+    assert 'counters_available' in source
+    assert 'unavailable_reason' in source
     assert 'traffic_interface_for_protocol' in source
     assert '"/sys/class/net"' in source

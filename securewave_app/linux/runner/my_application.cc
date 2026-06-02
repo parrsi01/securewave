@@ -619,6 +619,18 @@ static guint64 read_interface_counter(const gchar* interface_name,
   return g_ascii_strtoull(contents, nullptr, 10);
 }
 
+static gboolean interface_counter_available(const gchar* interface_name) {
+  if (interface_name == nullptr || *interface_name == '\0') {
+    return FALSE;
+  }
+  g_autofree gchar* rx_path = g_build_filename(
+      "/sys/class/net", interface_name, "statistics", "rx_bytes", nullptr);
+  g_autofree gchar* tx_path = g_build_filename(
+      "/sys/class/net", interface_name, "statistics", "tx_bytes", nullptr);
+  return g_file_test(rx_path, G_FILE_TEST_IS_REGULAR) &&
+         g_file_test(tx_path, G_FILE_TEST_IS_REGULAR);
+}
+
 static gchar* traffic_interface_for_protocol(const gchar* protocol) {
   if (g_strcmp0(protocol, "openvpn") == 0) {
     if (g_file_test("/sys/class/net/tun0", G_FILE_TEST_IS_DIR)) {
@@ -652,8 +664,13 @@ static gchar* traffic_interface_for_protocol(const gchar* protocol) {
 
 static void respond_traffic_stats(FlMethodCall* method_call, const gchar* protocol) {
   g_autofree gchar* interface_name = traffic_interface_for_protocol(protocol);
-  guint64 rx_bytes = read_interface_counter(interface_name, "rx_bytes");
-  guint64 tx_bytes = read_interface_counter(interface_name, "tx_bytes");
+  const gboolean counters_available = interface_counter_available(interface_name);
+  guint64 rx_bytes = counters_available
+      ? read_interface_counter(interface_name, "rx_bytes")
+      : 0;
+  guint64 tx_bytes = counters_available
+      ? read_interface_counter(interface_name, "tx_bytes")
+      : 0;
 
   g_autoptr(FlValue) response = fl_value_new_map();
   fl_value_set_string_take(
@@ -668,6 +685,19 @@ static void respond_traffic_stats(FlMethodCall* method_call, const gchar* protoc
       response,
       "tx_bytes",
       fl_value_new_int(static_cast<int64_t>(tx_bytes)));
+  fl_value_set_string_take(
+      response,
+      "counters_available",
+      fl_value_new_bool(counters_available));
+  if (!counters_available) {
+    g_autofree gchar* reason = g_strdup_printf(
+        "No readable %s rx_bytes/tx_bytes counters found.",
+        interface_name);
+    fl_value_set_string_take(
+        response,
+        "unavailable_reason",
+        fl_value_new_string(reason));
+  }
   g_autoptr(FlMethodResponse) method_response = FL_METHOD_RESPONSE(
       fl_method_success_response_new(response));
   fl_method_call_respond(method_call, method_response, nullptr);
