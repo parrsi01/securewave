@@ -86,3 +86,6 @@ def test_linux_runner_exposes_protocol_traffic_stats():
     assert 'unavailable_reason' in source
     assert 'traffic_interface_for_protocol' in source
     assert '"/sys/class/net"' in source
+    assert 'read_ikev2_xfrm_counters' in source
+    assert '"ip", "-s", "xfrm", "state"' in source
+    assert '"xfrm"' in source

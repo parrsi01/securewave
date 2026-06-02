@@ -34,7 +34,7 @@ Full live WireGuard/OpenVPN/IKEv2 connect-disconnect regression could not comple
 | Counter availability | Native response now includes `counters_available` and `unavailable_reason` |
 | WireGuard interface | `sw-wg` |
 | OpenVPN interface | `tun0`, then first `tun*` |
-| IKEv2 interface | first `ipsec*` or `xfrm*`; otherwise unavailable |
+| IKEv2 interface | first `ipsec*` or `xfrm*`; otherwise `ip -s xfrm state` lifetime bytes when readable and classifiable |
 | Session baseline | First available sample after connect becomes the baseline |
 | Session deltas | Subsequent positive rx/tx deltas are added to session totals |
 | Counter reset | Negative deltas are treated as counter reset and are not added |
@@ -66,7 +66,7 @@ What is proven:
 What is not proven:
 
 - No live tunnel traffic increase was observed because no protocol could be started in this non-interactive shell.
-- IKEv2 usage may remain unavailable on NetworkManager/strongSwan policy-based tunnels unless an `ipsec*` or `xfrm*` interface exists.
+- IKEv2 usage may remain unavailable on NetworkManager/strongSwan policy-based tunnels unless an `ipsec*`/`xfrm*` interface exists or XFRM state byte counters are readable and match local tunnel direction.
 - These counters are session-display counters, not billing-grade accounting. Billing-grade accuracy would require server-side authoritative counters.
 
 ## Validation results
@@ -95,19 +95,37 @@ What is not proven:
 | `.venv/bin/python scripts/linux_app_vpn_tunnel_proof.py --json --hold-seconds 8 --evidence-timeout 30` | Fails before protocol attempts because baseline verifier fails on `pkexec` authorization |
 | `timeout 12s securewave_app/build/linux/arm64/debug/bundle/securewave_app` | App launched to Dart VM service, then stopped by timeout |
 
+## Follow-up 1-4 execution
+
+Date: 2026-06-02
+
+| Requested item | Result |
+| --- | --- |
+| 1. Run app-driven proof from auth-capable desktop PolicyKit/root-like session | Blocked on this shell. `sudo -n true` returns `sudo: a password is required`; `timeout 8s pkexec /usr/bin/true` exits `124`. |
+| 2. Re-run all three protocol connect/disconnect proofs | Blocked before protocol attempts. `scripts/linux_app_vpn_tunnel_proof.py --json --hold-seconds 8 --evidence-timeout 30` fails at baseline `privilege:pkexec_authorization`. |
+| 3. Verify route/DNS/IP change and counter growth | Not proven because no tunnel could be started. No `sw-wg`, `tun0`, `ipsec0`, or `xfrm0` interface was present during the follow-up. |
+| 4. Add IKEv2-specific counter source if NetworkManager strongSwan does not expose a netdev | Implemented a truthful fallback in the Linux runner: IKEv2 traffic stats now try `ip -s xfrm state`, classify lifetime bytes as rx/tx using local `ip -o addr show` addresses, and report unavailable if XFRM counters are not readable or not classifiable. |
+
+Additional follow-up evidence:
+
+- `pkexec --disable-internal-agent /usr/local/libexec/securewave-wg-quick probe wireguard` exits `0`.
+- `pkexec --disable-internal-agent /usr/local/libexec/securewave-wg-quick probe openvpn` exits `0`.
+- `pkexec --disable-internal-agent /usr/local/libexec/securewave-wg-quick probe ikev2` exits `0`.
+- `ip -s xfrm state` and `ip -s xfrm policy` as the current user fail with `RTNETLINK answers: Operation not permitted`, so the fallback will truthfully report unavailable on this host unless the app/helper is run with sufficient network privileges.
+
 ## Blocking issues remaining
 
 | Blocker | Impact |
 | --- | --- |
 | `pkexec /usr/bin/true` times out in this non-interactive shell | App-driven proof cannot start WireGuard, OpenVPN, or IKEv2 |
 | No active tunnel interfaces | Cannot prove IP change, route change, DNS change, or traffic counter increase |
-| IKEv2 NetworkManager path may not expose a netdev | Session usage can truthfully show unavailable for IKEv2 until an `ipsec*`/`xfrm*` counter source exists |
+| IKEv2 XFRM counters require sufficient privileges | Session usage can truthfully show unavailable for IKEv2 until an `ipsec*`/`xfrm*` interface exists or XFRM state counters are readable |
 | Backend/server reachability not exercised by live proof | Profile issuance and tunnel data plane were not proven in this pass |
 
 ## Recommended remediation order
 
 1. Run the app-driven proof from an auth-capable desktop PolicyKit session or as a controlled root test where the SecureWave helper can start tunnels.
 2. Re-run `scripts/linux_app_vpn_tunnel_proof.py --json` for all three protocols and capture route/DNS/IP/counter evidence during the holding window.
-3. If IKEv2 connects but counters remain unavailable, add a real IKEv2 counter source through an XFRM interface, NetworkManager statistics, or server-side session counters.
+3. If IKEv2 connects but counters remain unavailable, verify whether `ip -s xfrm state` is readable in the app/helper context; otherwise use a real XFRM interface, NetworkManager statistics, or server-side session counters.
 4. Add server-side authoritative usage counters before making billing-grade usage claims.
 5. Keep UI wording as session-observed usage until server-side billing counters are proven.

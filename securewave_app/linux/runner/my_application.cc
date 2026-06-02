@@ -631,6 +631,204 @@ static gboolean interface_counter_available(const gchar* interface_name) {
          g_file_test(tx_path, G_FILE_TEST_IS_REGULAR);
 }
 
+static gchar* parse_address_token(const gchar* line, const gchar* key) {
+  if (line == nullptr || key == nullptr) {
+    return nullptr;
+  }
+  g_auto(GStrv) parts = g_strsplit_set(line, " \t", -1);
+  for (guint i = 0; parts[i] != nullptr; i++) {
+    if (*parts[i] == '\0' || g_strcmp0(parts[i], key) != 0) {
+      continue;
+    }
+    for (guint j = i + 1; parts[j] != nullptr; j++) {
+      if (*parts[j] != '\0') {
+        return g_strdup(parts[j]);
+      }
+    }
+  }
+  return nullptr;
+}
+
+static GPtrArray* collect_local_ip_addresses() {
+  GPtrArray* addresses = g_ptr_array_new_with_free_func(g_free);
+  gint wait_status = 0;
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* output = nullptr;
+  const gchar* argv[] = {"ip", "-o", "addr", "show", nullptr};
+  if (!g_spawn_sync(nullptr,
+                    const_cast<gchar**>(argv),
+                    nullptr,
+                    G_SPAWN_SEARCH_PATH,
+                    nullptr,
+                    nullptr,
+                    &output,
+                    nullptr,
+                    &wait_status,
+                    &error) ||
+      !g_spawn_check_wait_status(wait_status, nullptr) ||
+      output == nullptr) {
+    return addresses;
+  }
+
+  g_auto(GStrv) lines = g_strsplit(output, "\n", -1);
+  for (guint i = 0; lines[i] != nullptr; i++) {
+    g_auto(GStrv) parts = g_strsplit_set(lines[i], " \t", -1);
+    for (guint j = 0; parts[j] != nullptr; j++) {
+      if (g_strcmp0(parts[j], "inet") != 0 &&
+          g_strcmp0(parts[j], "inet6") != 0) {
+        continue;
+      }
+      for (guint k = j + 1; parts[k] != nullptr; k++) {
+        if (*parts[k] == '\0') {
+          continue;
+        }
+        g_autofree gchar* address = g_strdup(parts[k]);
+        gchar* slash = strchr(address, '/');
+        if (slash != nullptr) {
+          *slash = '\0';
+        }
+        if (*address != '\0') {
+          g_ptr_array_add(addresses, g_strdup(address));
+        }
+        break;
+      }
+      break;
+    }
+  }
+  return addresses;
+}
+
+static gboolean address_list_contains(GPtrArray* addresses, const gchar* value) {
+  if (addresses == nullptr || value == nullptr || *value == '\0') {
+    return FALSE;
+  }
+  for (guint i = 0; i < addresses->len; i++) {
+    const gchar* address = static_cast<const gchar*>(g_ptr_array_index(addresses, i));
+    if (g_strcmp0(address, value) == 0) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+static gboolean parse_xfrm_lifetime_bytes(const gchar* line, guint64* bytes) {
+  if (line == nullptr || bytes == nullptr) {
+    return FALSE;
+  }
+  const gchar* marker = strstr(line, "(bytes)");
+  if (marker == nullptr) {
+    return FALSE;
+  }
+  const gchar* start = marker;
+  while (start > line && g_ascii_isdigit(*(start - 1))) {
+    start--;
+  }
+  if (start == marker) {
+    return FALSE;
+  }
+  *bytes = g_ascii_strtoull(start, nullptr, 10);
+  return TRUE;
+}
+
+static gboolean read_ikev2_xfrm_counters(
+    guint64* rx_bytes,
+    guint64* tx_bytes,
+    gchar** detail) {
+  if (rx_bytes == nullptr || tx_bytes == nullptr) {
+    return FALSE;
+  }
+  *rx_bytes = 0;
+  *tx_bytes = 0;
+
+  gint wait_status = 0;
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* output = nullptr;
+  g_autofree gchar* stderr_text = nullptr;
+  const gchar* argv[] = {"ip", "-s", "xfrm", "state", nullptr};
+  if (!g_spawn_sync(nullptr,
+                    const_cast<gchar**>(argv),
+                    nullptr,
+                    G_SPAWN_SEARCH_PATH,
+                    nullptr,
+                    nullptr,
+                    &output,
+                    &stderr_text,
+                    &wait_status,
+                    &error)) {
+    if (detail != nullptr) {
+      *detail = g_strdup(error ? error->message : "Unable to read IKEv2 XFRM counters.");
+    }
+    return FALSE;
+  }
+  if (!g_spawn_check_wait_status(wait_status, nullptr)) {
+    if (detail != nullptr) {
+      g_autofree gchar* clean = g_strdup(stderr_text ? stderr_text : "");
+      g_strstrip(clean);
+      *detail = g_strdup(*clean != '\0'
+                             ? clean
+                             : "IKEv2 XFRM counters require elevated network privileges.");
+    }
+    return FALSE;
+  }
+  if (output == nullptr || *output == '\0') {
+    if (detail != nullptr) {
+      *detail = g_strdup("No IKEv2 XFRM state counters found.");
+    }
+    return FALSE;
+  }
+
+  g_autoptr(GPtrArray) local_addresses = collect_local_ip_addresses();
+  g_auto(GStrv) lines = g_strsplit(output, "\n", -1);
+  g_autofree gchar* current_src = nullptr;
+  g_autofree gchar* current_dst = nullptr;
+  gboolean awaiting_current_lifetime = FALSE;
+  guint classified_states = 0;
+  guint unclassified_states = 0;
+
+  for (guint i = 0; lines[i] != nullptr; i++) {
+    g_autofree gchar* line = g_strdup(lines[i]);
+    g_strstrip(line);
+    if (g_str_has_prefix(line, "src ")) {
+      g_clear_pointer(&current_src, g_free);
+      g_clear_pointer(&current_dst, g_free);
+      current_src = parse_address_token(line, "src");
+      current_dst = parse_address_token(line, "dst");
+      awaiting_current_lifetime = FALSE;
+      continue;
+    }
+    if (strstr(line, "lifetime current:") != nullptr) {
+      awaiting_current_lifetime = TRUE;
+    }
+    if (!awaiting_current_lifetime) {
+      continue;
+    }
+    guint64 state_bytes = 0;
+    if (!parse_xfrm_lifetime_bytes(line, &state_bytes)) {
+      continue;
+    }
+    if (address_list_contains(local_addresses, current_dst)) {
+      *rx_bytes += state_bytes;
+      classified_states++;
+    } else if (address_list_contains(local_addresses, current_src)) {
+      *tx_bytes += state_bytes;
+      classified_states++;
+    } else {
+      unclassified_states++;
+    }
+    awaiting_current_lifetime = FALSE;
+  }
+
+  if (classified_states > 0) {
+    return TRUE;
+  }
+  if (detail != nullptr) {
+    *detail = g_strdup(unclassified_states > 0
+                           ? "IKEv2 XFRM counters were present but could not be matched to local tunnel direction."
+                           : "No IKEv2 XFRM lifetime byte counters found.");
+  }
+  return FALSE;
+}
+
 static gchar* traffic_interface_for_protocol(const gchar* protocol) {
   if (g_strcmp0(protocol, "openvpn") == 0) {
     if (g_file_test("/sys/class/net/tun0", G_FILE_TEST_IS_DIR)) {
@@ -664,13 +862,26 @@ static gchar* traffic_interface_for_protocol(const gchar* protocol) {
 
 static void respond_traffic_stats(FlMethodCall* method_call, const gchar* protocol) {
   g_autofree gchar* interface_name = traffic_interface_for_protocol(protocol);
-  const gboolean counters_available = interface_counter_available(interface_name);
+  gboolean counters_available = interface_counter_available(interface_name);
   guint64 rx_bytes = counters_available
       ? read_interface_counter(interface_name, "rx_bytes")
       : 0;
   guint64 tx_bytes = counters_available
       ? read_interface_counter(interface_name, "tx_bytes")
       : 0;
+  g_autofree gchar* unavailable_reason = nullptr;
+  if (!counters_available && g_strcmp0(protocol, "ikev2") == 0) {
+    g_autofree gchar* xfrm_detail = nullptr;
+    if (read_ikev2_xfrm_counters(&rx_bytes, &tx_bytes, &xfrm_detail)) {
+      counters_available = TRUE;
+      g_free(interface_name);
+      interface_name = g_strdup("xfrm");
+    } else {
+      unavailable_reason = g_strdup(xfrm_detail != nullptr
+                                        ? xfrm_detail
+                                        : "No readable IKEv2 tunnel counters found.");
+    }
+  }
 
   g_autoptr(FlValue) response = fl_value_new_map();
   fl_value_set_string_take(
@@ -690,13 +901,15 @@ static void respond_traffic_stats(FlMethodCall* method_call, const gchar* protoc
       "counters_available",
       fl_value_new_bool(counters_available));
   if (!counters_available) {
-    g_autofree gchar* reason = g_strdup_printf(
-        "No readable %s rx_bytes/tx_bytes counters found.",
-        interface_name);
+    if (unavailable_reason == nullptr) {
+      unavailable_reason = g_strdup_printf(
+          "No readable %s rx_bytes/tx_bytes counters found.",
+          interface_name);
+    }
     fl_value_set_string_take(
         response,
         "unavailable_reason",
-        fl_value_new_string(reason));
+        fl_value_new_string(unavailable_reason));
   }
   g_autoptr(FlMethodResponse) method_response = FL_METHOD_RESPONSE(
       fl_method_success_response_new(response));
