@@ -29,10 +29,12 @@ def test_openvpn_evidence_requires_tun_route_and_process(monkeypatch):
     assert proof._evidence_for("openvpn")["ok"] is True
 
 
-def test_ikev2_evidence_requires_securewave_sa(monkeypatch):
+def test_ikev2_evidence_requires_nm_vpn_route_or_dns(monkeypatch):
     def fake_run(argv, *, timeout=15):
-        if argv[:2] == ["swanctl", "--list-sas"]:
-            return proof.CommandResult(0, "securewave: #1, ESTABLISHED\n", "")
+        if argv[:5] == ["nmcli", "-t", "-f", "NAME,TYPE", "connection"]:
+            return proof.CommandResult(0, "SecureWave-IKEv2:vpn\n", "")
+        if argv[:5] == ["nmcli", "-t", "-f", "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE", "connection"]:
+            return proof.CommandResult(0, "IP4.DNS[1]:94.140.14.14\n", "")
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)

@@ -25,6 +25,7 @@ APP_ROOT = REPO_ROOT / "securewave_app"
 PROBE_TARGET = "lib/runtime_vpn_probe.dart"
 DEFAULT_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
 WIREGUARD_INTERFACE = "sw-wg"
+IKEV2_CONNECTION = "SecureWave-IKEv2"
 PLACEHOLDER_VALUES = {
     "existing-live-email",
     "existing-live-password",
@@ -97,10 +98,26 @@ def _evidence_for(protocol: str) -> dict[str, object]:
             "process": procs.as_dict(),
         }
     if protocol == "ikev2":
-        sas = _run(["swanctl", "--list-sas"])
+        active = _run(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"])
+        route_dns = _run([
+            "nmcli",
+            "-t",
+            "-f",
+            "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE",
+            "connection",
+            "show",
+            IKEV2_CONNECTION,
+        ])
+        active_ok = active.returncode == 0 and f"{IKEV2_CONNECTION}:vpn" in active.stdout.splitlines()
+        route_dns_ok = route_dns.returncode == 0 and any(
+            line.partition(":")[2].strip() not in ("", "--")
+            for line in route_dns.stdout.splitlines()
+            if ":" in line
+        )
         return {
-            "ok": sas.returncode == 0 and "securewave" in sas.stdout,
-            "sas": sas.as_dict(),
+            "ok": active_ok and route_dns_ok,
+            "active_connection": active.as_dict(),
+            "route_dns": route_dns.as_dict(),
         }
     raise ValueError(f"unsupported protocol: {protocol}")
 

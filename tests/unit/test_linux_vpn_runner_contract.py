@@ -60,12 +60,19 @@ def test_wireguard_start_prefers_installed_securewave_helper():
     assert "g_ptr_array_add(argv_array, const_cast<gchar*>(kWireGuardHelperPath))" in source
 
 
-def test_ikev2_start_verifies_strongswan_sa_after_initiate():
+def test_ikev2_start_uses_networkmanager_helper_and_runtime_evidence():
     source = _runner_source()
 
-    assert "swanctl --initiate --child securewave" in source
-    assert "swanctl --list-sas | grep -q securewave" in source
-    assert "swanctl --terminate --child securewave" in source
+    assert 'kIkev2ConnectionName = "SecureWave-IKEv2"' in source
+    assert '"ikev2-add-eap"' in source
+    assert '"ikev2-up"' in source
+    assert '"ikev2-down"' in source
+    assert '"ikev2-delete"' in source
+    assert "parse_config_value(config, \"remote_addrs\")" in source
+    assert "parse_config_value(config, \"eap_id\")" in source
+    assert "parse_config_value(config, \"secret\")" in source
+    assert "ikev2_runtime_evidence_exists" in source
+    assert "active NetworkManager VPN route or DNS evidence was not detected" in source
 
 
 def test_linux_runner_exposes_protocol_traffic_stats():

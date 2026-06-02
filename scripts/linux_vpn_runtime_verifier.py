@@ -22,8 +22,9 @@ from typing import Iterable
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = REPO_ROOT / "securewave_app/linux/runner/my_application.cc"
 BUILD_PATH = REPO_ROOT / "securewave_app/build/linux/arm64/debug/bundle/securewave_app"
-REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "swanctl", "ipsec", "ip", "pkexec")
+REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "pkexec")
 WIREGUARD_INTERFACE = "sw-wg"
+IKEV2_CONNECTION = "SecureWave-IKEv2"
 
 
 @dataclass(frozen=True)
@@ -110,8 +111,10 @@ def check_runner_contract() -> list[Check]:
         "runner:openvpn_helper_start": "openvpn-start",
         "runner:openvpn_helper_stop": "openvpn-stop",
         "runner:ikev2": "persist_active_protocol(state, \"ikev2\")",
+        "runner:ikev2_helper_add": "ikev2-add-eap",
+        "runner:ikev2_helper_up": "ikev2-up",
         "runner:openvpn_tunnel_evidence": "OpenVPN process started but no tunnel interface or tunnel route was detected.",
-        "runner:ikev2_sa_evidence": "swanctl --list-sas | grep -q securewave",
+        "runner:ikev2_runtime_evidence": "active NetworkManager VPN route or DNS evidence was not detected",
         "runner:no_implicit_mock": "securewave/vpn",
     }
     return [
@@ -192,6 +195,22 @@ def check_residue() -> list[Check]:
             "no SecureWave IKEv2 SA"
             if not securewave_sas
             else "\n".join(securewave_sas),
+        )
+    )
+
+    active = _run(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"])
+    active_ikev2 = [
+        line
+        for line in active.stdout.splitlines()
+        if line == f"{IKEV2_CONNECTION}:vpn"
+    ]
+    checks.append(
+        Check(
+            "residue:ikev2_nm_connection",
+            active.returncode == 0 and not active_ikev2,
+            f"no active {IKEV2_CONNECTION} NetworkManager VPN"
+            if active.returncode == 0 and not active_ikev2
+            else "\n".join(active_ikev2) or active.stderr.strip() or "nmcli active connection check failed",
         )
     )
 

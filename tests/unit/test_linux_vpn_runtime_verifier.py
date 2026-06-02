@@ -13,8 +13,10 @@ def test_runner_contract_covers_all_protocol_runtime_evidence():
     assert checks["runner:openvpn_helper_start"].ok
     assert checks["runner:openvpn_helper_stop"].ok
     assert checks["runner:ikev2"].ok
+    assert checks["runner:ikev2_helper_add"].ok
+    assert checks["runner:ikev2_helper_up"].ok
     assert checks["runner:openvpn_tunnel_evidence"].ok
-    assert checks["runner:ikev2_sa_evidence"].ok
+    assert checks["runner:ikev2_runtime_evidence"].ok
 
 
 def test_build_artifact_check_reports_missing_build(monkeypatch, tmp_path):
@@ -47,6 +49,9 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         ("swanctl", "--list-sas"): CompletedProcess(
             args=[], returncode=0, stdout="securewave: #1, ESTABLISHED\n", stderr=""
         ),
+        ("nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"): CompletedProcess(
+            args=[], returncode=0, stdout="SecureWave-IKEv2:vpn\n", stderr=""
+        ),
     }
 
     def fake_run(argv):
@@ -61,6 +66,7 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
     assert not checks["residue:tunnel_routes"].ok
     assert not checks["residue:openvpn_process"].ok
     assert not checks["residue:ikev2_sa"].ok
+    assert not checks["residue:ikev2_nm_connection"].ok
 
 
 def test_verifier_paths_stay_inside_repo():

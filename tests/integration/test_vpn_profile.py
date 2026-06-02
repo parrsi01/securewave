@@ -311,7 +311,10 @@ class TestVpnProfileProvisioning:
         assert not data.get("wireguard_config")
         config = data.get("ikev2_config", "")
         assert "connections {" in config
+        assert "remote_addrs =" in config
         assert "secrets {" in config
         assert "auth = eap-mschapv2" in config
+        assert "eap_id =" in config
+        assert "secret =" in config
         assert "securewave-ikev2-ca.pem" in config
         assert "securewave-test-ikev2-secret" in config

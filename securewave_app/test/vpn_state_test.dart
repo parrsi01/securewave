@@ -231,6 +231,36 @@ void main() {
     expect(service.connectedConfig, isNot(contains('[Interface]')));
   });
 
+  test('IKEv2 connect uses IKEv2 profile config without protocol fallback',
+      () async {
+    final service = _CapturingNativeVpnService();
+    final api = _UsageTrackingApiClient(
+      profileServerId: 'de-nue-1',
+      profileProtocol: VpnProtocol.ikev2,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.selectProtocol(VpnProtocol.ikev2);
+
+    await notifier.connect();
+
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+    expect(service.connectedProtocol, VpnProtocol.ikev2);
+    expect(service.connectedConfig, contains('remote_addrs = vpn.example'));
+    expect(service.connectedConfig, contains('eap_id = "ikev2-user"'));
+    expect(service.connectedConfig, contains('secret = "ikev2-secret"'));
+    expect(service.connectedConfig, isNot(contains('[Interface]')));
+    expect(service.connectedConfig, isNot(startsWith('client\n')));
+  });
+
   test('device limit profile error remains precise', () async {
     final service = _NativeSuccessVpnService();
     final api = _AlwaysFailingProfileApiClient(
@@ -537,7 +567,28 @@ class _UsageTrackingApiClient extends ApiClient {
       'wireguard_config':
           '[Interface]\nPrivateKey = test\n[Peer]\nPublicKey = test\n',
       'openvpn_config': 'client\nremote vpn.example 1194\n',
-      'ikev2_config': 'connections { securewave { version = 2 } }\n',
+      'ikev2_config': [
+        'connections {',
+        '  securewave {',
+        '    version = 2',
+        '    remote_addrs = vpn.example',
+        '    local {',
+        '      auth = eap-mschapv2',
+        '      eap_id = "ikev2-user"',
+        '    }',
+        '    remote {',
+        '      auth = pubkey',
+        '      id = "vpn.example"',
+        '    }',
+        '  }',
+        '}',
+        'secrets {',
+        '  eap-ikev2-user {',
+        '    id = "ikev2-user"',
+        '    secret = "ikev2-secret"',
+        '  }',
+        '}',
+      ].join('\n'),
       'dns': {
         'servers': ['94.140.14.14'],
         'enforcement': 'config',
