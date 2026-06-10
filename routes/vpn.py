@@ -916,6 +916,7 @@ async def allocate_config(
 @router.post("/profile", response_model=VpnProfileResponse)
 @rate_limit("30/minute")
 async def provision_profile(
+    request: Request,
     payload: VpnProfileRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

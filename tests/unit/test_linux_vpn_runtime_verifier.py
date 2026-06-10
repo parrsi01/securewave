@@ -78,11 +78,28 @@ def test_privilege_check_reports_pkexec_timeout(monkeypatch):
     monkeypatch.setattr(verifier.os, "geteuid", lambda: 1000)
 
     def fake_run(*args, **kwargs):
-        raise TimeoutExpired(cmd=["pkexec", "/usr/bin/true"], timeout=5)
+        raise TimeoutExpired(cmd=["pkexec", "/usr/bin/true"], timeout=60)
 
     monkeypatch.setattr(verifier.subprocess, "run", fake_run)
 
     check = verifier.check_privilege_elevation()
 
     assert not check.ok
-    assert "pkexec authorization timed out" in check.detail
+    assert "pkexec authorization timed out after 60s" in check.detail
+
+
+def test_privilege_check_uses_configurable_timeout(monkeypatch):
+    monkeypatch.setattr(verifier.shutil, "which", lambda tool: "/usr/bin/pkexec")
+    monkeypatch.setattr(verifier.os, "geteuid", lambda: 1000)
+    seen = {}
+
+    def fake_run(*args, **kwargs):
+        seen["timeout"] = kwargs["timeout"]
+        return CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(verifier.subprocess, "run", fake_run)
+
+    check = verifier.check_privilege_elevation(17)
+
+    assert check.ok
+    assert seen["timeout"] == 17

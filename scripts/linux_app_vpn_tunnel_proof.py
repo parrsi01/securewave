@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import select
 import secrets
 import subprocess
 import sys
@@ -31,6 +32,8 @@ PLACEHOLDER_VALUES = {
     "existing-live-password",
     "real@email.com",
     "real-password",
+    "your-real-test-account@example.com",
+    "your-real-test-password",
 }
 AUTH_FAILURE_MARKERS = (
     "ApiClient.login",
@@ -43,6 +46,47 @@ AUTH_FAILURE_MARKERS = (
 
 def _dart_define(name: str, value: object) -> str:
     return "--dart-define=" + name + "=" + str(value)
+
+
+def _env_default(*names: str) -> str | None:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
+
+
+def _build_flutter_command(
+    *,
+    protocol: str,
+    email: str,
+    password: str,
+    auth_mode: str,
+    server_id: str | None,
+    hold_seconds: int,
+    api_base: str | None,
+    use_mock_api: str,
+) -> list[str]:
+    command = [
+        "flutter",
+        "run",
+        "-d",
+        "linux",
+        "-t",
+        PROBE_TARGET,
+        _dart_define("SECUREWAVE_RUNTIME_PROBE_EMAIL", email),
+        _dart_define("SECUREWAVE_RUNTIME_PROBE_PASSWORD", password),
+        _dart_define("SECUREWAVE_RUNTIME_PROBE_AUTH_MODE", auth_mode),
+        _dart_define("SECUREWAVE_RUNTIME_PROBE_PROTOCOL", protocol),
+        _dart_define("SECUREWAVE_RUNTIME_PROBE_HOLD_SECONDS", hold_seconds),
+        _dart_define("SECUREWAVE_RUNTIME_PROBE_DISCONNECT_AFTER", "true"),
+        _dart_define("SECUREWAVE_USE_MOCK_API", use_mock_api),
+    ]
+    if api_base:
+        command.append(_dart_define("SECUREWAVE_API_BASE_URL", api_base))
+    if server_id:
+        command.append(_dart_define("SECUREWAVE_RUNTIME_PROBE_SERVER_ID", server_id))
+    return command
 
 
 @dataclass(frozen=True)
@@ -180,23 +224,19 @@ def run_protocol(
     server_id: str | None,
     hold_seconds: int,
     evidence_timeout: int,
+    api_base: str | None,
+    use_mock_api: str,
 ) -> dict[str, object]:
-    command = [
-        "flutter",
-        "run",
-        "-d",
-        "linux",
-        "-t",
-        PROBE_TARGET,
-        _dart_define("SECUREWAVE_RUNTIME_PROBE_EMAIL", email),
-        _dart_define("SECUREWAVE_RUNTIME_PROBE_PASSWORD", password),
-        _dart_define("SECUREWAVE_RUNTIME_PROBE_AUTH_MODE", auth_mode),
-        _dart_define("SECUREWAVE_RUNTIME_PROBE_PROTOCOL", protocol),
-        _dart_define("SECUREWAVE_RUNTIME_PROBE_HOLD_SECONDS", hold_seconds),
-        _dart_define("SECUREWAVE_RUNTIME_PROBE_DISCONNECT_AFTER", "true"),
-    ]
-    if server_id:
-        command.append(_dart_define("SECUREWAVE_RUNTIME_PROBE_SERVER_ID", server_id))
+    command = _build_flutter_command(
+        protocol=protocol,
+        email=email,
+        password=password,
+        auth_mode=auth_mode,
+        server_id=server_id,
+        hold_seconds=hold_seconds,
+        api_base=api_base,
+        use_mock_api=use_mock_api,
+    )
 
     env = os.environ.copy()
     env.setdefault("DISPLAY", ":0")
@@ -218,17 +258,19 @@ def run_protocol(
     assert process.stdout is not None
     try:
         while True:
-            line = process.stdout.readline()
-            if line:
-                output.append(line.rstrip())
-                event = _json_line(line)
-                if event is not None:
-                    probe_events.append(event)
-                    if event.get("event") == "holding_for_evidence":
-                        evidence = _evidence_for(protocol)
-                if process.poll() is not None:
+            ready, _, _ = select.select([process.stdout], [], [], 0.25)
+            if ready:
+                line = process.stdout.readline()
+                if line:
+                    output.append(line.rstrip())
+                    event = _json_line(line)
+                    if event is not None:
+                        probe_events.append(event)
+                        if event.get("event") == "holding_for_evidence":
+                            evidence = _evidence_for(protocol)
+                elif process.poll() is not None:
                     break
-            elif process.poll() is not None:
+            if process.poll() is not None:
                 break
 
             if evidence is None and time.monotonic() - started_at > evidence_timeout:
@@ -269,8 +311,14 @@ def run_protocol(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--email", default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_EMAIL"))
-    parser.add_argument("--password", default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_PASSWORD"))
+    parser.add_argument(
+        "--email",
+        default=_env_default("SECUREWAVE_TEST_EMAIL", "SECUREWAVE_RUNTIME_PROBE_EMAIL"),
+    )
+    parser.add_argument(
+        "--password",
+        default=_env_default("SECUREWAVE_TEST_PASSWORD", "SECUREWAVE_RUNTIME_PROBE_PASSWORD"),
+    )
     parser.add_argument(
         "--auth-mode",
         choices=("login", "register", "auto"),
@@ -278,6 +326,16 @@ def main() -> int:
         help="login uses an existing account; register creates the supplied account; auto creates a disposable QA account when credentials are absent or placeholder values",
     )
     parser.add_argument("--server-id", default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_SERVER_ID"))
+    parser.add_argument("--api-base", default=os.environ.get("SECUREWAVE_API_BASE_URL"))
+    parser.add_argument(
+        "--use-mock-api",
+        default=os.environ.get("SECUREWAVE_USE_MOCK_API", "false"),
+    )
+    parser.add_argument(
+        "--pkexec-timeout",
+        type=int,
+        default=int(os.environ.get("SECUREWAVE_PKEXEC_TIMEOUT", "60")),
+    )
     parser.add_argument("--protocol", action="append", choices=DEFAULT_PROTOCOLS)
     parser.add_argument("--hold-seconds", type=int, default=20)
     parser.add_argument("--evidence-timeout", type=int, default=90)
@@ -296,11 +354,30 @@ def main() -> int:
     if not email or not password:
         email, password = _new_probe_credentials()
         auth_mode = "register"
+    os.environ.setdefault("SECUREWAVE_PKEXEC_TIMEOUT", str(args.pkexec_timeout))
 
-    baseline = _run([sys.executable, "scripts/linux_vpn_runtime_verifier.py", "--json"], timeout=30)
+    baseline = _run(
+        [
+            sys.executable,
+            "scripts/linux_vpn_runtime_verifier.py",
+            "--json",
+            "--pkexec-timeout",
+            str(args.pkexec_timeout),
+        ],
+        timeout=max(args.pkexec_timeout + 10, 30),
+    )
     baseline_body = _json_object(baseline.stdout)
     if baseline.returncode != 0:
-        cleanup = _run([sys.executable, "scripts/linux_vpn_runtime_verifier.py", "--json"], timeout=30)
+        cleanup = _run(
+            [
+                sys.executable,
+                "scripts/linux_vpn_runtime_verifier.py",
+                "--json",
+                "--pkexec-timeout",
+                str(args.pkexec_timeout),
+            ],
+            timeout=max(args.pkexec_timeout + 10, 30),
+        )
         payload = {
             "ok": False,
             "account_email": email,
@@ -328,11 +405,22 @@ def main() -> int:
             server_id=args.server_id,
             hold_seconds=args.hold_seconds,
             evidence_timeout=args.evidence_timeout,
+            api_base=args.api_base,
+            use_mock_api=args.use_mock_api,
         )
         results.append(result)
         if _has_auth_failure(result):
             break
-    cleanup = _run([sys.executable, "scripts/linux_vpn_runtime_verifier.py", "--json"], timeout=30)
+    cleanup = _run(
+        [
+            sys.executable,
+            "scripts/linux_vpn_runtime_verifier.py",
+            "--json",
+            "--pkexec-timeout",
+            str(args.pkexec_timeout),
+        ],
+        timeout=max(args.pkexec_timeout + 10, 30),
+    )
     payload = {
         "ok": all(result["ok"] for result in results) and cleanup.returncode == 0,
         "account_email": email,

@@ -25,6 +25,7 @@ BUILD_PATH = REPO_ROOT / "securewave_app/build/linux/arm64/debug/bundle/securewa
 REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "pkexec")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
+DEFAULT_PKEXEC_TIMEOUT_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -62,7 +63,18 @@ def check_tools() -> list[Check]:
     return checks
 
 
-def check_privilege_elevation() -> Check:
+def _pkexec_timeout(default: int = DEFAULT_PKEXEC_TIMEOUT_SECONDS) -> int:
+    raw = os.environ.get("SECUREWAVE_PKEXEC_TIMEOUT")
+    if raw is None:
+        return default
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return default
+
+
+def check_privilege_elevation(timeout_seconds: int | None = None) -> Check:
+    timeout_seconds = timeout_seconds or _pkexec_timeout()
     if shutil.which("pkexec") is None:
         return Check(
             "privilege:pkexec_authorization",
@@ -82,13 +94,13 @@ def check_privilege_elevation() -> Check:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=5,
+            timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired:
         return Check(
             "privilege:pkexec_authorization",
             False,
-            "pkexec authorization timed out; start a PolicyKit authentication agent or run SecureWave with required privileges",
+            f"pkexec authorization timed out after {timeout_seconds}s; start a PolicyKit authentication agent or run SecureWave with required privileges",
         )
     return Check(
         "privilege:pkexec_authorization",
@@ -220,11 +232,17 @@ def check_residue() -> list[Check]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    parser.add_argument(
+        "--pkexec-timeout",
+        type=int,
+        default=_pkexec_timeout(),
+        help="seconds to wait for interactive PolicyKit authorization",
+    )
     args = parser.parse_args()
 
     checks = [
         *check_tools(),
-        check_privilege_elevation(),
+        check_privilege_elevation(args.pkexec_timeout),
         *check_runner_contract(),
         check_build_artifact(),
         *check_residue(),

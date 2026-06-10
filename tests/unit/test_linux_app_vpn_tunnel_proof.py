@@ -58,7 +58,36 @@ def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
 def test_placeholder_credentials_are_detected():
     assert proof._is_placeholder("real@email.com") is True
     assert proof._is_placeholder("existing-live-password") is True
+    assert proof._is_placeholder("your-real-test-account@example.com") is True
+    assert proof._is_placeholder("your-real-test-password") is True
     assert proof._is_placeholder("qa@example.com") is False
+
+
+def test_env_default_accepts_test_account_aliases(monkeypatch):
+    monkeypatch.delenv("SECUREWAVE_RUNTIME_PROBE_EMAIL", raising=False)
+    monkeypatch.setenv("SECUREWAVE_TEST_EMAIL", "qa@example.com")
+
+    assert proof._env_default(
+        "SECUREWAVE_TEST_EMAIL",
+        "SECUREWAVE_RUNTIME_PROBE_EMAIL",
+    ) == "qa@example.com"
+
+
+def test_flutter_command_includes_api_and_mock_dart_defines():
+    command = proof._build_flutter_command(
+        protocol="wireguard",
+        email="qa@example.com",
+        password="secret",
+        auth_mode="login",
+        server_id=None,
+        hold_seconds=12,
+        api_base="http://localhost:8000/api",
+        use_mock_api="false",
+    )
+
+    assert "--dart-define=SECUREWAVE_API_BASE_URL=http://localhost:8000/api" in command
+    assert "--dart-define=SECUREWAVE_USE_MOCK_API=false" in command
+    assert "--dart-define=SECUREWAVE_RUNTIME_PROBE_PROTOCOL=wireguard" in command
 
 
 def test_generated_probe_credentials_are_live_registration_shape():
