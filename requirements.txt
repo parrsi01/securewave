@@ -17,7 +17,7 @@ alembic==1.13.1
 python-jose[cryptography]==3.4.0
 passlib==1.7.4
 bcrypt==3.2.2
-cryptography==44.0.1
+cryptography==48.0.1
 pyotp==2.9.0
 
 # Payment Processing
