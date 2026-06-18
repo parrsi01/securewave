@@ -2,6 +2,9 @@ from pathlib import Path
 
 
 RUNNER = Path("securewave_app/linux/runner/my_application.cc")
+HELPER = Path("securewave_app/packaging/linux/securewave-wg-quick")
+HELPER_CONTRACT = Path("securewave_app/packaging/linux/securewave-wg-quick.contract")
+BUILD_DEB = Path("securewave_app/scripts/build_deb.sh")
 
 
 def _runner_source() -> str:
@@ -23,7 +26,10 @@ def test_openvpn_start_requires_tunnel_evidence_not_only_daemon_pid():
 
     assert "openvpn_runtime_evidence_exists" in source
     assert "openvpn_pid_running(pid_path)" in source
-    assert "OpenVPN process started but no tunnel interface or tunnel route was detected." in source
+    assert "openvpn_initialization_completed" in source
+    assert "Initialization Sequence Completed" in source
+    assert "openvpn_log_tail" in source
+    assert "OpenVPN process started but Initialization Sequence Completed" in source
     assert '{"ip", "route", "get", "1.1.1.1", nullptr}' in source
     assert '" dev tun"' in source
     assert '"/sys/class/net/tun0"' in source
@@ -34,6 +40,7 @@ def test_openvpn_start_and_stop_use_scoped_securewave_helper():
 
     assert 'const_cast<gchar*>("--disable-internal-agent")' in source
     assert 'const_cast<gchar*>("openvpn-start")' in source
+    assert "g_ptr_array_add(argv_array, const_cast<gchar*>(log_path))" in source
     assert 'const_cast<gchar*>("openvpn-stop")' in source
     assert "verify_openvpn_started = TRUE" in source
     assert "verify_openvpn_stopped = TRUE" in source
@@ -86,6 +93,29 @@ def test_linux_runner_exposes_protocol_traffic_stats():
     assert 'unavailable_reason' in source
     assert 'traffic_interface_for_protocol' in source
     assert '"/sys/class/net"' in source
+    assert 'read_wireguard_transfer_counters' in source
+    assert '"wireguard-transfer"' in source
+    assert 'run_securewave_helper_capture_sync' in source
     assert 'read_ikev2_xfrm_counters' in source
     assert '"ip", "-s", "xfrm", "state"' in source
+    assert '"xfrm-state"' in source
     assert '"xfrm"' in source
+
+
+
+def test_linux_package_installs_privileged_helper_and_runtime_dependencies():
+    helper = HELPER.read_text(encoding="utf-8")
+    helper_contract = HELPER_CONTRACT.read_text(encoding="utf-8").strip()
+    build = BUILD_DEB.read_text(encoding="utf-8")
+
+    assert "securewave-wg-quick openvpn-start <config-path> <pid-path> <log-path> [auth-path]" in helper
+    assert "wireguard-transfer" in helper
+    assert "xfrm-state" in helper
+    assert '--log "$log_file"' in helper
+    assert 'rm -f "$pid_file" "$log_file"' in helper
+    assert helper_contract == "5"
+    assert "securewave-wg-quick.contract" in build
+    assert "50-securewave-wg.rules" in build
+    assert "postinst" in build
+    assert "postrm" in build
+    assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, policykit-1" in build

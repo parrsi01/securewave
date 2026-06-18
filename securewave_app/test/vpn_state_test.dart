@@ -209,6 +209,38 @@ void main() {
     expect(state.sessionCounterInterface, 'tun0');
   });
 
+  test('traffic polling updates live speed and reports every second', () async {
+    final service = _MeteredNativeVpnService();
+    final api = _UsageTrackingApiClient(
+      profileServerId: 'de-nue-1',
+      profileProtocol: VpnProtocol.wireGuard,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.connect();
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+
+    var state = container.read(vpnStateProvider);
+    expect(state.dataRateDown, greaterThan(0));
+    expect(state.dataRateUp, greaterThan(0));
+    expect(state.sessionTotalBytes, greaterThan(0));
+    expect(api.rxBytes, isNotEmpty);
+    expect(api.txBytes, isNotEmpty);
+
+    await notifier.disconnect();
+    state = container.read(vpnStateProvider);
+    expect(state.dataRateDown, 0);
+    expect(state.dataRateUp, 0);
+  });
+
   test('missing tunnel counters show unavailable state without usage report',
       () async {
     final service = _UnavailableStatsVpnService();

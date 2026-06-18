@@ -54,9 +54,14 @@ mkdir -p "$staging_dir/DEBIAN" \
   "$staging_dir/usr/lib/securewave" \
   "$staging_dir/usr/bin" \
   "$staging_dir/usr/share/applications" \
-  "$staging_dir/usr/share/icons/hicolor/256x256/apps"
+  "$staging_dir/usr/share/icons/hicolor/256x256/apps" \
+  "$staging_dir/usr/share/securewave/packaging/linux"
 
 cp -a "$bundle_dir/"* "$staging_dir/usr/lib/securewave/"
+cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick" "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick"
+cp -f "$ROOT_DIR/packaging/linux/50-securewave-wg.rules" "$staging_dir/usr/share/securewave/packaging/linux/50-securewave-wg.rules"
+cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
+chmod 0755 "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick"
 
 cat <<CONTROL > "$staging_dir/DEBIAN/control"
 Package: $package_name
@@ -64,6 +69,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
+Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, policykit-1
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave VPN desktop client
 CONTROL
@@ -88,6 +94,56 @@ set -euo pipefail
 exec /usr/lib/securewave/securewave_app "$@"
 WRAPPER
 chmod 0755 "$staging_dir/usr/bin/securewave-vpn"
+
+cat <<'POSTINST' > "$staging_dir/DEBIAN/postinst"
+#!/bin/bash
+set -e
+HELPER_DIR=/usr/local/libexec
+HELPER=$HELPER_DIR/securewave-wg-quick
+HELPER_CONTRACT=$HELPER_DIR/securewave-wg-quick.contract
+SOURCE_DIR=/usr/share/securewave/packaging/linux
+SOURCE_HELPER=$SOURCE_DIR/securewave-wg-quick
+SOURCE_CONTRACT=$SOURCE_DIR/securewave-wg-quick.contract
+SOURCE_POLKIT_RULE=$SOURCE_DIR/50-securewave-wg.rules
+install -d -m 0755 "$HELPER_DIR"
+install -m 0755 "$SOURCE_HELPER" "$HELPER"
+
+render_polkit_rule() {
+  local allow_user="${1:-}"
+  if [[ -z "$allow_user" || "$allow_user" == "root" ]]; then
+    install -m 0644 "$SOURCE_POLKIT_RULE" "$POLKIT_RULE"
+    return 0
+  fi
+
+  local escaped_user="$allow_user"
+  escaped_user="${escaped_user//\\/\\\\}"
+  escaped_user="${escaped_user//&/\\&}"
+  escaped_user="${escaped_user//\//\\/}"
+
+  sed "s/__SECUREWAVE_ALLOWED_USER__/${escaped_user}/g" \
+    "$SOURCE_POLKIT_RULE" > "$POLKIT_RULE"
+  chmod 0644 "$POLKIT_RULE"
+}
+
+POLKIT_RULES_DIR=/etc/polkit-1/rules.d
+POLKIT_RULE=$POLKIT_RULES_DIR/50-securewave-wg.rules
+mkdir -p "$POLKIT_RULES_DIR"
+ALLOW_USER="${SUDO_USER:-}"
+if [[ -z "$ALLOW_USER" ]]; then
+  ALLOW_USER="$(logname 2>/dev/null || true)"
+fi
+render_polkit_rule "$ALLOW_USER"
+install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"
+POSTINST
+
+cat <<'POSTRM' > "$staging_dir/DEBIAN/postrm"
+#!/bin/bash
+set -e
+rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
+rm -f /usr/local/libexec/securewave-wg-quick.contract
+rm -f /usr/local/libexec/securewave-wg-quick
+POSTRM
+chmod 0755 "$staging_dir/DEBIAN/postinst" "$staging_dir/DEBIAN/postrm"
 
 mkdir -p "$output_dir"
 output_file="$output_dir/${package_name}_${version}_${arch}.deb"

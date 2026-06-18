@@ -170,6 +170,7 @@ typedef struct {
   gboolean verify_openvpn_started;
   gboolean verify_openvpn_stopped;
   gchar* openvpn_pid_path;
+  gchar* openvpn_log_path;
 } WgQuickSpawnContext;
 
 static WgQuickSpawnContext* wg_quick_spawn_context_ref(WgQuickSpawnContext* ctx) {
@@ -188,6 +189,7 @@ static void wg_quick_spawn_context_unref(WgQuickSpawnContext* ctx) {
   g_clear_pointer(&ctx->error_code, g_free);
   g_clear_pointer(&ctx->action, g_free);
   g_clear_pointer(&ctx->openvpn_pid_path, g_free);
+  g_clear_pointer(&ctx->openvpn_log_path, g_free);
   g_free(ctx);
 }
 
@@ -325,14 +327,59 @@ static gboolean openvpn_route_exists() {
          g_strstr_len(output, -1, " dev tun") != nullptr;
 }
 
-static gboolean openvpn_runtime_evidence_exists(const gchar* pid_path) {
+static gboolean openvpn_initialization_completed(const gchar* log_path) {
+  if (log_path == nullptr || *log_path == '\0') {
+    return FALSE;
+  }
+  g_autofree gchar* contents = nullptr;
+  if (!g_file_get_contents(log_path, &contents, nullptr, nullptr) || contents == nullptr) {
+    return FALSE;
+  }
+  return g_strstr_len(contents, -1, "Initialization Sequence Completed") != nullptr;
+}
+
+static gchar* openvpn_log_tail(const gchar* log_path) {
+  if (log_path == nullptr || *log_path == '\0') {
+    return nullptr;
+  }
+  g_autofree gchar* contents = nullptr;
+  if (!g_file_get_contents(log_path, &contents, nullptr, nullptr) || contents == nullptr) {
+    return nullptr;
+  }
+  g_auto(GStrv) lines = g_strsplit(contents, "\n", -1);
+  guint count = 0;
+  while (lines[count] != nullptr) {
+    count++;
+  }
+  const guint start = count > 12 ? count - 12 : 0;
+  GString* tail = g_string_new(nullptr);
+  for (guint i = start; lines[i] != nullptr; i++) {
+    g_autofree gchar* line = g_strdup(lines[i]);
+    g_strstrip(line);
+    if (*line == '\0') {
+      continue;
+    }
+    if (tail->len > 0) {
+      g_string_append(tail, " | ");
+    }
+    g_string_append(tail, line);
+  }
+  if (tail->len == 0) {
+    g_string_free(tail, TRUE);
+    return nullptr;
+  }
+  return g_string_free(tail, FALSE);
+}
+
+static gboolean openvpn_runtime_evidence_exists(const gchar* pid_path, const gchar* log_path) {
   return openvpn_pid_running(pid_path) &&
+         openvpn_initialization_completed(log_path) &&
          (openvpn_route_exists() || openvpn_tun_interface_exists());
 }
 
-static gboolean wait_for_openvpn_runtime_evidence(const gchar* pid_path) {
+static gboolean wait_for_openvpn_runtime_evidence(const gchar* pid_path, const gchar* log_path) {
   for (guint i = 0; i < 20; i++) {
-    if (openvpn_runtime_evidence_exists(pid_path)) {
+    if (openvpn_runtime_evidence_exists(pid_path, log_path)) {
       return TRUE;
     }
     g_usleep(500000);
@@ -439,10 +486,14 @@ static gchar* parse_ikev2_remote_id(const gchar* config) {
   return nullptr;
 }
 
-static gboolean run_securewave_helper_sync(
+static gboolean run_securewave_helper_capture_sync(
     const gchar* action,
     const gchar* const* args,
+    gchar** stdout_out,
     gchar** detail) {
+  if (stdout_out != nullptr) {
+    *stdout_out = nullptr;
+  }
   if (!wireguard_helper_available()) {
     if (detail != nullptr) {
       *detail = g_strdup("SecureWave VPN helper not found. Reinstall SecureWave and retry.");
@@ -507,7 +558,17 @@ static gboolean run_securewave_helper_sync(
     }
     return FALSE;
   }
+  if (stdout_out != nullptr) {
+    *stdout_out = g_steal_pointer(&stdout_text);
+  }
   return TRUE;
+}
+
+static gboolean run_securewave_helper_sync(
+    const gchar* action,
+    const gchar* const* args,
+    gchar** detail) {
+  return run_securewave_helper_capture_sync(action, args, nullptr, detail);
 }
 
 static gboolean nmcli_active_connection_exists(const gchar* connection_name) {
@@ -730,7 +791,7 @@ static gboolean parse_xfrm_lifetime_bytes(const gchar* line, guint64* bytes) {
   return TRUE;
 }
 
-static gboolean read_ikev2_xfrm_counters(
+static gboolean read_wireguard_transfer_counters(
     guint64* rx_bytes,
     guint64* tx_bytes,
     gchar** detail) {
@@ -740,36 +801,64 @@ static gboolean read_ikev2_xfrm_counters(
   *rx_bytes = 0;
   *tx_bytes = 0;
 
-  gint wait_status = 0;
-  g_autoptr(GError) error = nullptr;
   g_autofree gchar* output = nullptr;
-  g_autofree gchar* stderr_text = nullptr;
-  const gchar* argv[] = {"ip", "-s", "xfrm", "state", nullptr};
-  if (!g_spawn_sync(nullptr,
-                    const_cast<gchar**>(argv),
-                    nullptr,
-                    G_SPAWN_SEARCH_PATH,
-                    nullptr,
-                    nullptr,
-                    &output,
-                    &stderr_text,
-                    &wait_status,
-                    &error)) {
+  g_autofree gchar* helper_detail = nullptr;
+  const gchar* no_args[] = {nullptr};
+  if (!run_securewave_helper_capture_sync(
+          "wireguard-transfer", no_args, &output, &helper_detail)) {
     if (detail != nullptr) {
-      *detail = g_strdup(error ? error->message : "Unable to read IKEv2 XFRM counters.");
+      *detail = g_strdup(helper_detail != nullptr
+                             ? helper_detail
+                             : "Unable to read WireGuard transfer counters.");
     }
     return FALSE;
   }
-  if (!g_spawn_check_wait_status(wait_status, nullptr)) {
+  if (output == nullptr || *output == '\0') {
     if (detail != nullptr) {
-      g_autofree gchar* clean = g_strdup(stderr_text ? stderr_text : "");
-      g_strstrip(clean);
-      *detail = g_strdup(*clean != '\0'
-                             ? clean
-                             : "IKEv2 XFRM counters require elevated network privileges.");
+      *detail = g_strdup("No WireGuard transfer counters found.");
     }
     return FALSE;
   }
+
+  guint peers = 0;
+  g_auto(GStrv) lines = g_strsplit(output, "\n", -1);
+  for (guint i = 0; lines[i] != nullptr; i++) {
+    g_auto(GStrv) parts = g_strsplit_set(lines[i], " \t", -1);
+    guint field = 0;
+    guint64 rx = 0;
+    guint64 tx = 0;
+    for (guint j = 0; parts[j] != nullptr; j++) {
+      if (*parts[j] == '\0') {
+        continue;
+      }
+      field++;
+      if (field == 2) {
+        rx = g_ascii_strtoull(parts[j], nullptr, 10);
+      } else if (field == 3) {
+        tx = g_ascii_strtoull(parts[j], nullptr, 10);
+      }
+    }
+    if (field >= 3) {
+      *rx_bytes += rx;
+      *tx_bytes += tx;
+      peers++;
+    }
+  }
+
+  if (peers > 0) {
+    return TRUE;
+  }
+  if (detail != nullptr) {
+    *detail = g_strdup("No parseable WireGuard peer transfer counters found.");
+  }
+  return FALSE;
+}
+
+static gboolean parse_ikev2_xfrm_counter_output(
+    const gchar* output,
+    guint64* rx_bytes,
+    guint64* tx_bytes,
+    gchar** detail) {
   if (output == nullptr || *output == '\0') {
     if (detail != nullptr) {
       *detail = g_strdup("No IKEv2 XFRM state counters found.");
@@ -777,6 +866,8 @@ static gboolean read_ikev2_xfrm_counters(
     return FALSE;
   }
 
+  *rx_bytes = 0;
+  *tx_bytes = 0;
   g_autoptr(GPtrArray) local_addresses = collect_local_ip_addresses();
   g_auto(GStrv) lines = g_strsplit(output, "\n", -1);
   g_autofree gchar* current_src = nullptr;
@@ -829,6 +920,73 @@ static gboolean read_ikev2_xfrm_counters(
   return FALSE;
 }
 
+static gboolean read_ikev2_xfrm_counters(
+    guint64* rx_bytes,
+    guint64* tx_bytes,
+    gchar** detail) {
+  if (rx_bytes == nullptr || tx_bytes == nullptr) {
+    return FALSE;
+  }
+  *rx_bytes = 0;
+  *tx_bytes = 0;
+
+  gint wait_status = 0;
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* output = nullptr;
+  g_autofree gchar* stderr_text = nullptr;
+  const gchar* argv[] = {"ip", "-s", "xfrm", "state", nullptr};
+  const gboolean direct_spawned = g_spawn_sync(nullptr,
+                                              const_cast<gchar**>(argv),
+                                              nullptr,
+                                              G_SPAWN_SEARCH_PATH,
+                                              nullptr,
+                                              nullptr,
+                                              &output,
+                                              &stderr_text,
+                                              &wait_status,
+                                              &error);
+  if (direct_spawned && g_spawn_check_wait_status(wait_status, nullptr)) {
+    g_autofree gchar* parse_detail = nullptr;
+    if (parse_ikev2_xfrm_counter_output(output, rx_bytes, tx_bytes, &parse_detail)) {
+      return TRUE;
+    }
+    if (detail != nullptr && parse_detail != nullptr) {
+      *detail = g_strdup(parse_detail);
+    }
+  }
+
+  g_autofree gchar* direct_detail = nullptr;
+  if (!direct_spawned) {
+    direct_detail = g_strdup(error ? error->message : "Unable to read IKEv2 XFRM counters.");
+  } else if (!g_spawn_check_wait_status(wait_status, nullptr)) {
+    g_autofree gchar* clean = g_strdup(stderr_text ? stderr_text : "");
+    g_strstrip(clean);
+    direct_detail = g_strdup(*clean != '\0'
+                                 ? clean
+                                 : "IKEv2 XFRM counters require elevated network privileges.");
+  } else if (detail != nullptr && *detail != nullptr) {
+    direct_detail = g_strdup(*detail);
+    g_clear_pointer(detail, g_free);
+  }
+
+  g_autofree gchar* helper_output = nullptr;
+  g_autofree gchar* helper_detail = nullptr;
+  const gchar* no_args[] = {nullptr};
+  if (run_securewave_helper_capture_sync("xfrm-state", no_args, &helper_output, &helper_detail) &&
+      parse_ikev2_xfrm_counter_output(helper_output, rx_bytes, tx_bytes, detail)) {
+    return TRUE;
+  }
+
+  if (detail != nullptr && *detail == nullptr) {
+    *detail = g_strdup(helper_detail != nullptr
+                           ? helper_detail
+                           : (direct_detail != nullptr
+                                  ? direct_detail
+                                  : "No readable IKEv2 tunnel counters found."));
+  }
+  return FALSE;
+}
+
 static gchar* traffic_interface_for_protocol(const gchar* protocol) {
   if (g_strcmp0(protocol, "openvpn") == 0) {
     if (g_file_test("/sys/class/net/tun0", G_FILE_TEST_IS_DIR)) {
@@ -862,21 +1020,43 @@ static gchar* traffic_interface_for_protocol(const gchar* protocol) {
 
 static void respond_traffic_stats(FlMethodCall* method_call, const gchar* protocol) {
   g_autofree gchar* interface_name = traffic_interface_for_protocol(protocol);
-  gboolean counters_available = interface_counter_available(interface_name);
-  guint64 rx_bytes = counters_available
-      ? read_interface_counter(interface_name, "rx_bytes")
-      : 0;
-  guint64 tx_bytes = counters_available
-      ? read_interface_counter(interface_name, "tx_bytes")
-      : 0;
+  gboolean counters_available = FALSE;
+  guint64 rx_bytes = 0;
+  guint64 tx_bytes = 0;
   g_autofree gchar* unavailable_reason = nullptr;
+
+  if (g_strcmp0(protocol, "wireguard") == 0) {
+    g_autofree gchar* wg_detail = nullptr;
+    if (read_wireguard_transfer_counters(&rx_bytes, &tx_bytes, &wg_detail)) {
+      counters_available = TRUE;
+      g_free(interface_name);
+      interface_name = g_strdup(kWireGuardInterfaceName);
+    } else {
+      unavailable_reason = g_strdup(wg_detail != nullptr
+                                        ? wg_detail
+                                        : "No readable WireGuard transfer counters found.");
+    }
+  }
+
+  if (!counters_available) {
+    counters_available = interface_counter_available(interface_name);
+    rx_bytes = counters_available
+        ? read_interface_counter(interface_name, "rx_bytes")
+        : 0;
+    tx_bytes = counters_available
+        ? read_interface_counter(interface_name, "tx_bytes")
+        : 0;
+  }
+
   if (!counters_available && g_strcmp0(protocol, "ikev2") == 0) {
     g_autofree gchar* xfrm_detail = nullptr;
     if (read_ikev2_xfrm_counters(&rx_bytes, &tx_bytes, &xfrm_detail)) {
       counters_available = TRUE;
       g_free(interface_name);
       interface_name = g_strdup("xfrm");
+      g_clear_pointer(&unavailable_reason, g_free);
     } else {
+      g_clear_pointer(&unavailable_reason, g_free);
       unavailable_reason = g_strdup(xfrm_detail != nullptr
                                         ? xfrm_detail
                                         : "No readable IKEv2 tunnel counters found.");
@@ -960,10 +1140,13 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
       }
     }
     if (ctx->verify_openvpn_started) {
-      if (!wait_for_openvpn_runtime_evidence(ctx->openvpn_pid_path)) {
-        wg_quick_respond_error_once(
-            ctx,
-            "OpenVPN process started but no tunnel interface or tunnel route was detected.");
+      if (!wait_for_openvpn_runtime_evidence(ctx->openvpn_pid_path, ctx->openvpn_log_path)) {
+        g_autofree gchar* log_tail = openvpn_log_tail(ctx->openvpn_log_path);
+        g_autofree gchar* message = g_strdup_printf(
+            "OpenVPN process started but Initialization Sequence Completed and tunnel route evidence were not detected.%s%s",
+            log_tail != nullptr ? " Last log lines: " : "",
+            log_tail != nullptr ? log_tail : "");
+        wg_quick_respond_error_once(ctx, message);
         g_spawn_close_pid(pid);
         return;
       }
@@ -1077,7 +1260,8 @@ static void spawn_wg_quick_async(
 static void spawn_openvpn_up_async(
     FlMethodCall* method_call,
     const gchar* config_path,
-    const gchar* pid_path) {
+    const gchar* pid_path,
+    const gchar* log_path) {
   g_autofree gchar* openvpn = g_find_program_in_path("openvpn");
   if (openvpn == nullptr) {
     respond_error(method_call, "vpn_unavailable", "openvpn not found. Install OpenVPN and retry.", nullptr);
@@ -1113,6 +1297,7 @@ static void spawn_openvpn_up_async(
   g_ptr_array_add(argv_array, const_cast<gchar*>("openvpn-start"));
   g_ptr_array_add(argv_array, const_cast<gchar*>(config_path));
   g_ptr_array_add(argv_array, const_cast<gchar*>(pid_path));
+  g_ptr_array_add(argv_array, const_cast<gchar*>(log_path));
   g_ptr_array_add(argv_array, nullptr);
   gchar** argv = reinterpret_cast<gchar**>(argv_array->pdata);
 
@@ -1136,6 +1321,7 @@ static void spawn_openvpn_up_async(
   ctx->responded = FALSE;
   ctx->verify_openvpn_started = TRUE;
   ctx->openvpn_pid_path = g_strdup(pid_path);
+  ctx->openvpn_log_path = g_strdup(log_path);
   g_child_watch_add_full(
       G_PRIORITY_DEFAULT,
       pid,
@@ -1502,7 +1688,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
       }
       g_chmod(state->config_path, 0600);
       persist_active_protocol(state, "openvpn");
-      spawn_openvpn_up_async(method_call, state->config_path, state->openvpn_pid_path);
+      spawn_openvpn_up_async(method_call, state->config_path, state->openvpn_pid_path, state->openvpn_log_path);
       return;
     }
 

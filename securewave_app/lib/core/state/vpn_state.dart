@@ -131,6 +131,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _loadProtocol();
   }
 
+  static const _trafficPollInterval = Duration(seconds: 1);
+
   final Ref _ref;
   final _predictor = const MarLXGBPredictor();
   int _stabilitySuccesses = 0;
@@ -144,10 +146,19 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   VpnProtocol? _activeProtocol;
   bool _protocolChangedByUser = false;
 
+  @override
+  void dispose() {
+    _usageTimer?.cancel();
+    _usageTimer = null;
+    _lastTrafficStats = null;
+    _lastTrafficStatsAt = null;
+    super.dispose();
+  }
+
   Future<void> _loadProtocol() async {
     final storage = SecureStorage();
     final stored = await storage.getString(SecureStorage.vpnProtocolKey);
-    if (_protocolChangedByUser) return;
+    if (!mounted || _protocolChangedByUser) return;
     state = state.copyWith(protocol: vpnProtocolFromStorage(stored));
   }
 
@@ -495,7 +506,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
     unawaited(_pollTrafficStats(report: false));
     _usageTimer = Timer.periodic(
-      const Duration(seconds: 5),
+      _trafficPollInterval,
       (_) => unawaited(_pollTrafficStats(report: true)),
     );
   }
@@ -519,6 +530,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> _pollTrafficStats({required bool report}) async {
+    if (!mounted) return;
     if (state.status != VpnStatus.connected &&
         state.status != VpnStatus.disconnecting) {
       return;
@@ -526,6 +538,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final service = _ref.read(vpnServiceProvider);
     final protocol = _activeProtocol ?? state.protocol;
     final stats = await service.getTrafficStats(protocol);
+    if (!mounted) return;
     final sampledAt = DateTime.now();
     if (!stats.countersAvailable) {
       _lastTrafficStats = null;
@@ -574,7 +587,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     final elapsedSeconds =
         sampledAt.difference(previousAt).inMilliseconds / 1000;
-    final rateWindowSeconds = elapsedSeconds > 0 ? elapsedSeconds : 5.0;
+    final rateWindowSeconds =
+        elapsedSeconds > 0 ? elapsedSeconds : _trafficPollInterval.inSeconds;
 
     state = state.copyWith(
       dataRateDown: rxDelta / rateWindowSeconds,
@@ -596,6 +610,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       rxBytes: rxDelta,
       txBytes: txDelta,
     );
+    if (!mounted) return;
     if (plan != null) {
       _ref.invalidate(userPlanProvider);
       if (!plan.isUnlimited &&

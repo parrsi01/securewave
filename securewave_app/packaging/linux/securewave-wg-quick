@@ -1,0 +1,312 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONNECTION_NAME="SecureWave-IKEv2"
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  securewave-wg-quick probe <wireguard|openvpn|ikev2>
+  securewave-wg-quick <up|down|policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset> <config-path|iface>
+  securewave-wg-quick openvpn-start <config-path> <pid-path> <log-path> [auth-path]
+  securewave-wg-quick openvpn-stop <pid>
+  securewave-wg-quick wireguard-transfer
+  securewave-wg-quick xfrm-state
+  securewave-wg-quick <ikev2-up|ikev2-down|ikev2-delete>
+  securewave-wg-quick ikev2-add-eap <server> <username> <password> [remote-id]
+EOF
+}
+
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 64
+fi
+
+action="$1"
+shift
+
+is_safe_runtime_path() {
+  local path="$1"
+  case "$path" in
+    /home/*/.config/securewave/*|/root/.config/securewave/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+require_safe_config_path() {
+  local path="$1"
+  case "$path" in
+    /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf|/etc/wireguard/*.conf|/home/*/.config/securewave/*.ovpn|/root/.config/securewave/*.ovpn)
+      return 0
+      ;;
+    *)
+      echo "securewave-wg-quick: refusing unsafe config path '$path'" >&2
+      exit 64
+      ;;
+  esac
+}
+
+require_safe_runtime_file() {
+  local path="$1"
+  local label="$2"
+  if ! is_safe_runtime_path "$path"; then
+    echo "securewave-wg-quick: refusing unsafe ${label} path '$path'" >&2
+    exit 64
+  fi
+}
+
+require_sw_wg_iface() {
+  local iface="$1"
+  if [[ "$iface" != "sw-wg" ]]; then
+    echo "securewave-wg-quick: refusing unsafe interface '$iface'" >&2
+    exit 64
+  fi
+}
+
+require_nonempty_single_line() {
+  local value="$1"
+  local label="$2"
+  if [[ -z "$value" || "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+    echo "securewave-wg-quick: refusing invalid ${label}" >&2
+    exit 64
+  fi
+}
+
+case "$action" in
+  probe)
+    if [[ $# -ne 1 ]]; then
+      usage
+      exit 64
+    fi
+    case "$1" in
+      wireguard)
+        command -v wg-quick >/dev/null 2>&1
+        ;;
+      openvpn)
+        command -v openvpn >/dev/null 2>&1
+        ;;
+      ikev2)
+        command -v nmcli >/dev/null 2>&1
+        command -v ipsec >/dev/null 2>&1
+        ;;
+      *)
+        echo "securewave-wg-quick: invalid probe target '$1'" >&2
+        exit 64
+        ;;
+    esac
+    exit 0
+    ;;
+  up|down)
+    if [[ $# -ne 1 ]]; then
+      usage
+      exit 64
+    fi
+    config="$1"
+    require_safe_config_path "$config"
+    ;;
+  policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset)
+    if [[ $# -ne 1 ]]; then
+      usage
+      exit 64
+    fi
+    iface="$1"
+    require_sw_wg_iface "$iface"
+    ;;
+  openvpn-start)
+    if [[ $# -lt 3 || $# -gt 4 ]]; then
+      usage
+      exit 64
+    fi
+    config="$1"
+    pid_file="$2"
+    log_file="$3"
+    auth_file="${4:-}"
+    require_safe_config_path "$config"
+    require_safe_runtime_file "$pid_file" "pid"
+    require_safe_runtime_file "$log_file" "log"
+    if [[ -n "$auth_file" ]]; then
+      require_safe_runtime_file "$auth_file" "auth"
+    fi
+    ;;
+  openvpn-stop)
+    if [[ $# -ne 1 ]]; then
+      usage
+      exit 64
+    fi
+    pid="$1"
+    [[ "$pid" =~ ^[0-9]+$ ]] || {
+      echo "securewave-wg-quick: refusing invalid pid '$pid'" >&2
+      exit 64
+    }
+    ;;
+  wireguard-transfer|xfrm-state)
+    if [[ $# -ne 0 ]]; then
+      usage
+      exit 64
+    fi
+    ;;
+  ikev2-add-eap)
+    if [[ $# -lt 3 || $# -gt 4 ]]; then
+      usage
+      exit 64
+    fi
+    server="$1"
+    username="$2"
+    password="$3"
+    remote_id="${4:-}"
+    require_nonempty_single_line "$server" "server"
+    require_nonempty_single_line "$username" "username"
+    require_nonempty_single_line "$password" "password"
+    if [[ -n "$remote_id" ]]; then
+      require_nonempty_single_line "$remote_id" "remote-id"
+    fi
+    ;;
+  ikev2-up|ikev2-down|ikev2-delete)
+    if [[ $# -ne 0 ]]; then
+      usage
+      exit 64
+    fi
+    ;;
+  *)
+    echo "securewave-wg-quick: invalid action '$action'" >&2
+    exit 64
+    ;;
+ esac
+
+policy_rule_count() {
+  ip rule show | awk '/lookup 51820/ && /fwmark/ && /not/ { count++ } END { print count + 0 }'
+}
+
+main_suppress_count() {
+  ip rule show | awk '/lookup main/ && /suppress_prefixlength 0/ { count++ } END { print count + 0 }'
+}
+
+table_route_present() {
+  ip -4 route show table 51820 | grep -q "^default dev ${iface}( |$)"
+}
+
+clear_policy_state() {
+  local remove_link="${1:-0}"
+  while ip rule del not fwmark 51820 table 51820 priority 32764 >/dev/null 2>&1; do :; done
+  while ip rule del table main suppress_prefixlength 0 priority 32765 >/dev/null 2>&1; do :; done
+  ip -4 route flush table 51820 >/dev/null 2>&1 || true
+  ip -6 route flush table 51820 >/dev/null 2>&1 || true
+  if [[ "$remove_link" == "1" ]]; then
+    ip link delete "$iface" >/dev/null 2>&1 || true
+  fi
+  ip route flush cache >/dev/null 2>&1 || true
+}
+
+if [[ "$action" == "up" ]]; then
+  STATE_DIR=/run/securewave
+  POLICY_FILE=$STATE_DIR/sw-wg.output-policy
+  ENDPOINT_FILE=$STATE_DIR/sw-wg.endpoint-ips
+  if [[ -f "$ENDPOINT_FILE" ]]; then
+    while IFS= read -r ip; do
+      [[ -n "$ip" ]] || continue
+      iptables -D OUTPUT -d "$ip" -j ACCEPT >/dev/null 2>&1 || true
+      ip route del "$ip/32" >/dev/null 2>&1 || true
+    done < "$ENDPOINT_FILE"
+  fi
+  iptables -D OUTPUT -o sw-wg -j ACCEPT >/dev/null 2>&1 || true
+  if [[ -f "$POLICY_FILE" ]]; then
+    prev_policy="$(tr -d '[:space:]' < "$POLICY_FILE")"
+    [[ -n "$prev_policy" ]] || prev_policy=ACCEPT
+    iptables -P OUTPUT "$prev_policy" >/dev/null 2>&1 || true
+  else
+    iptables -P OUTPUT ACCEPT >/dev/null 2>&1 || true
+  fi
+  rm -f "$POLICY_FILE" "$ENDPOINT_FILE"
+  wg-quick down "$config" >/dev/null 2>&1 || true
+  iface="sw-wg"
+  clear_policy_state 1
+fi
+
+if [[ "$action" == "openvpn-start" ]]; then
+  rm -f "$pid_file" "$log_file"
+  argv=(openvpn --config "$config" --writepid "$pid_file" --daemon --log "$log_file")
+  if [[ -n "${auth_file:-}" ]]; then
+    argv+=(--auth-user-pass "$auth_file")
+  fi
+  exec "${argv[@]}"
+fi
+
+if [[ "$action" == "openvpn-stop" ]]; then
+  kill -TERM "$pid" >/dev/null 2>&1 || true
+  exit 0
+fi
+
+if [[ "$action" == "wireguard-transfer" ]]; then
+  exec wg show sw-wg transfer
+fi
+
+if [[ "$action" == "xfrm-state" ]]; then
+  exec ip -s xfrm state
+fi
+
+if [[ "$action" == "policy-ensure" ]]; then
+  wg set "$iface" fwmark 51820
+  if ! table_route_present; then
+    ip -4 route flush table 51820 >/dev/null 2>&1 || true
+    ip -6 route flush table 51820 >/dev/null 2>&1 || true
+    ip route add default dev "$iface" table 51820
+  fi
+  if (( $(policy_rule_count) > 1 || $(main_suppress_count) > 1 )); then
+    clear_policy_state 0
+  fi
+  if (( $(policy_rule_count) == 0 )); then
+    ip rule add not fwmark 51820 table 51820 priority 32764
+  fi
+  if (( $(main_suppress_count) == 0 )); then
+    ip rule add table main suppress_prefixlength 0 priority 32765
+  fi
+  ip route flush cache >/dev/null 2>&1 || true
+  exit 0
+fi
+
+if [[ "$action" == "policy-clear" ]]; then
+  clear_policy_state 0
+  exit 0
+fi
+
+if [[ "$action" == "policy-clear-link" ]]; then
+  clear_policy_state 1
+  exit 0
+fi
+
+if [[ "$action" == "nm-unmanaged" ]]; then
+  nmcli device set "$iface" managed no
+  exit 0
+fi
+
+if [[ "$action" == "nm-reset" ]]; then
+  systemctl restart NetworkManager >/dev/null 2>&1 || nmcli general reload >/dev/null 2>&1 || true
+  nmcli device set "$iface" managed no >/dev/null 2>&1 || true
+  exit 0
+fi
+
+if [[ "$action" == "ikev2-add-eap" ]]; then
+  vpn_data="address=${server},user=${username},method=eap,virtual=yes,encap=no,ipcomp=no"
+  if [[ -n "${remote_id:-}" ]]; then
+    vpn_data="${vpn_data},remote-identity=${remote_id}"
+  fi
+  vpn_secrets="password=${password}"
+  exec nmcli connection add type vpn ifname '*' con-name "$CONNECTION_NAME" \
+    vpn-type strongswan vpn.data "$vpn_data" vpn.secrets "$vpn_secrets"
+fi
+
+if [[ "$action" == "ikev2-up" ]]; then
+  exec nmcli connection up id "$CONNECTION_NAME"
+fi
+
+if [[ "$action" == "ikev2-down" ]]; then
+  nmcli connection down id "$CONNECTION_NAME" >/dev/null 2>&1 || true
+  exit 0
+fi
+
+if [[ "$action" == "ikev2-delete" ]]; then
+  nmcli connection delete id "$CONNECTION_NAME" >/dev/null 2>&1 || true
+  exit 0
+fi
+
+exec wg-quick "$action" "$config"
