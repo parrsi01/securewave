@@ -13,7 +13,7 @@ Usage:
   securewave-wg-quick wireguard-transfer
   securewave-wg-quick xfrm-state
   securewave-wg-quick <ikev2-up|ikev2-down|ikev2-delete>
-  securewave-wg-quick ikev2-add-eap <server> <username> <password> [remote-id]
+  securewave-wg-quick ikev2-add-eap <server> <username> <password> [remote-id] [ca-cert-path]
 EOF
 }
 
@@ -146,7 +146,7 @@ case "$action" in
     fi
     ;;
   ikev2-add-eap)
-    if [[ $# -lt 3 || $# -gt 4 ]]; then
+    if [[ $# -lt 3 || $# -gt 5 ]]; then
       usage
       exit 64
     fi
@@ -154,11 +154,19 @@ case "$action" in
     username="$2"
     password="$3"
     remote_id="${4:-}"
+    ca_cert="${5:-}"
     require_nonempty_single_line "$server" "server"
     require_nonempty_single_line "$username" "username"
     require_nonempty_single_line "$password" "password"
     if [[ -n "$remote_id" ]]; then
       require_nonempty_single_line "$remote_id" "remote-id"
+    fi
+    if [[ -n "$ca_cert" ]]; then
+      require_safe_runtime_file "$ca_cert" "ca certificate"
+      if [[ ! -f "$ca_cert" ]]; then
+        echo "securewave-wg-quick: CA certificate file '$ca_cert' not found" >&2
+        exit 64
+      fi
     fi
     ;;
   ikev2-up|ikev2-down|ikev2-delete)
@@ -289,6 +297,9 @@ if [[ "$action" == "ikev2-add-eap" ]]; then
   vpn_data="address=${server},user=${username},method=eap,virtual=yes,encap=no,ipcomp=no"
   if [[ -n "${remote_id:-}" ]]; then
     vpn_data="${vpn_data},remote-identity=${remote_id}"
+  fi
+  if [[ -n "${ca_cert:-}" ]]; then
+    vpn_data="${vpn_data},certificate=${ca_cert},cert-source=file"
   fi
   vpn_secrets="password=${password}"
   exec nmcli connection add type vpn ifname '*' con-name "$CONNECTION_NAME" \

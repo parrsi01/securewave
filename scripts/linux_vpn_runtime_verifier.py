@@ -22,9 +22,12 @@ from typing import Iterable
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = REPO_ROOT / "securewave_app/linux/runner/my_application.cc"
 BUILD_PATH = REPO_ROOT / "securewave_app/build/linux/arm64/debug/bundle/securewave_app"
+HELPER_PATH = Path("/usr/local/libexec/securewave-wg-quick")
+HELPER_CONTRACT_PATH = Path("/usr/local/libexec/securewave-wg-quick.contract")
 REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "pkexec")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
+EXPECTED_IKEV2_HELPER_CONTRACT = 6
 DEFAULT_PKEXEC_TIMEOUT_SECONDS = 60
 
 
@@ -77,19 +80,31 @@ def check_privilege_elevation(timeout_seconds: int | None = None) -> Check:
     timeout_seconds = timeout_seconds or _pkexec_timeout()
     if shutil.which("pkexec") is None:
         return Check(
-            "privilege:pkexec_authorization",
+            "privilege:securewave_helper_authorization",
             False,
             "pkexec not found in PATH",
         )
+    if not HELPER_PATH.exists():
+        return Check(
+            "privilege:securewave_helper_authorization",
+            False,
+            f"{HELPER_PATH} not installed",
+        )
     if hasattr(os, "geteuid") and os.geteuid() == 0:
         return Check(
-            "privilege:pkexec_authorization",
+            "privilege:securewave_helper_authorization",
             True,
             "running as root; pkexec not required",
         )
     try:
         completed = subprocess.run(
-            ["pkexec", "/usr/bin/true"],
+            [
+                "pkexec",
+                "--disable-internal-agent",
+                str(HELPER_PATH),
+                "probe",
+                "ikev2",
+            ],
             check=False,
             text=True,
             stdout=subprocess.PIPE,
@@ -98,16 +113,40 @@ def check_privilege_elevation(timeout_seconds: int | None = None) -> Check:
         )
     except subprocess.TimeoutExpired:
         return Check(
-            "privilege:pkexec_authorization",
+            "privilege:securewave_helper_authorization",
             False,
             f"pkexec authorization timed out after {timeout_seconds}s; start a PolicyKit authentication agent or run SecureWave with required privileges",
         )
     return Check(
-        "privilege:pkexec_authorization",
+        "privilege:securewave_helper_authorization",
         completed.returncode == 0,
-        "pkexec authorization works"
+        "SecureWave helper authorization works"
         if completed.returncode == 0
         else completed.stderr.strip() or f"pkexec exited {completed.returncode}",
+    )
+
+
+def check_installed_helper_contract() -> Check:
+    if not HELPER_CONTRACT_PATH.exists():
+        return Check(
+            "privilege:securewave_helper_contract",
+            False,
+            f"{HELPER_CONTRACT_PATH} not installed",
+        )
+    raw = HELPER_CONTRACT_PATH.read_text(encoding="utf-8").strip()
+    try:
+        installed = int(raw)
+    except ValueError:
+        return Check(
+            "privilege:securewave_helper_contract",
+            False,
+            f"invalid helper contract {raw!r}",
+        )
+    ok = installed >= EXPECTED_IKEV2_HELPER_CONTRACT
+    return Check(
+        "privilege:securewave_helper_contract",
+        ok,
+        f"installed contract {installed}; required {EXPECTED_IKEV2_HELPER_CONTRACT}",
     )
 
 
@@ -125,8 +164,10 @@ def check_runner_contract() -> list[Check]:
         "runner:ikev2": "persist_active_protocol(state, \"ikev2\")",
         "runner:ikev2_helper_add": "ikev2-add-eap",
         "runner:ikev2_helper_up": "ikev2-up",
-        "runner:openvpn_tunnel_evidence": "OpenVPN process started but no tunnel interface or tunnel route was detected.",
-        "runner:ikev2_runtime_evidence": "active NetworkManager VPN route or DNS evidence was not detected",
+        "runner:openvpn_tunnel_evidence": "OpenVPN process started but Initialization Sequence Completed and tunnel route evidence were not detected.",
+        "runner:ikev2_runtime_evidence": "active NetworkManager VPN route/DNS and XFRM ESP evidence was not detected",
+        "runner:ikev2_helper_contract": "kIkev2HelperContractVersion = 6",
+        "runner:ikev2_ca_profile": "parse_ikev2_ca_cert_pem(config)",
         "runner:no_implicit_mock": "securewave/vpn",
     }
     return [
@@ -243,6 +284,7 @@ def main() -> int:
     checks = [
         *check_tools(),
         check_privilege_elevation(args.pkexec_timeout),
+        check_installed_helper_contract(),
         *check_runner_contract(),
         check_build_artifact(),
         *check_residue(),

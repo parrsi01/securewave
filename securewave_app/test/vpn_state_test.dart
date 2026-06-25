@@ -353,6 +353,7 @@ void main() {
     expect(service.connectedConfig, contains('remote_addrs = vpn.example'));
     expect(service.connectedConfig, contains('eap_id = "ikev2-user"'));
     expect(service.connectedConfig, contains('secret = "ikev2-secret"'));
+    expect(service.connectedConfig, contains('# ca_cert_pem_begin'));
     expect(service.connectedConfig, isNot(contains('[Interface]')));
     expect(service.connectedConfig, isNot(startsWith('client\n')));
   });
@@ -722,6 +723,7 @@ class _UsageTrackingApiClient extends ApiClient {
         '    remote {',
         '      auth = pubkey',
         '      id = "vpn.example"',
+        '      cacerts = securewave-ikev2-ca.pem',
         '    }',
         '  }',
         '}',
@@ -731,6 +733,11 @@ class _UsageTrackingApiClient extends ApiClient {
         '    secret = "ikev2-secret"',
         '  }',
         '}',
+        '# ca_cert_pem_begin',
+        '-----BEGIN CERTIFICATE-----',
+        'MIIB',
+        '-----END CERTIFICATE-----',
+        '# ca_cert_pem_end',
       ].join('\n'),
       'dns': {
         'servers': ['94.140.14.14'],

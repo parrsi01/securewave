@@ -67,6 +67,16 @@ def test_wireguard_start_prefers_installed_securewave_helper():
     assert "g_ptr_array_add(argv_array, const_cast<gchar*>(kWireGuardHelperPath))" in source
 
 
+def test_linux_runner_preserves_helper_stdout_stderr_on_failures():
+    source = _runner_source()
+
+    assert "g_spawn_async_with_pipes" in source
+    assert "read_fd_to_string(&ctx->stdout_fd)" in source
+    assert "read_fd_to_string(&ctx->stderr_fd)" in source
+    assert "command_failure_message" in source
+    assert "VPN helper command failed." in source
+
+
 def test_ikev2_start_uses_networkmanager_helper_and_runtime_evidence():
     source = _runner_source()
 
@@ -78,8 +88,13 @@ def test_ikev2_start_uses_networkmanager_helper_and_runtime_evidence():
     assert "parse_config_value(config, \"remote_addrs\")" in source
     assert "parse_config_value(config, \"eap_id\")" in source
     assert "parse_config_value(config, \"secret\")" in source
+    assert "parse_ikev2_ca_cert_pem(config)" in source
+    assert 'kIkev2CaFileName = "securewave-ikev2-ca.pem"' in source
+    assert "ctx->ca_cert_path" in source
+    assert "kIkev2HelperContractVersion = 6" in source
     assert "ikev2_runtime_evidence_exists" in source
-    assert "active NetworkManager VPN route or DNS evidence was not detected" in source
+    assert "ikev2_xfrm_state_evidence_exists" in source
+    assert "active NetworkManager VPN route/DNS and XFRM ESP evidence was not detected" in source
 
 
 def test_linux_runner_exposes_protocol_traffic_stats():
@@ -111,9 +126,12 @@ def test_linux_package_installs_privileged_helper_and_runtime_dependencies():
     assert "securewave-wg-quick openvpn-start <config-path> <pid-path> <log-path> [auth-path]" in helper
     assert "wireguard-transfer" in helper
     assert "xfrm-state" in helper
+    assert "ikev2-add-eap <server> <username> <password> [remote-id] [ca-cert-path]" in helper
+    assert "cert-source=file" in helper
+    assert "certificate=${ca_cert}" in helper
     assert '--log "$log_file"' in helper
     assert 'rm -f "$pid_file" "$log_file"' in helper
-    assert helper_contract == "5"
+    assert helper_contract == "6"
     assert "securewave-wg-quick.contract" in build
     assert "50-securewave-wg.rules" in build
     assert "postinst" in build

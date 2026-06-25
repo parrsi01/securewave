@@ -27,6 +27,7 @@ PROBE_TARGET = "lib/runtime_vpn_probe.dart"
 DEFAULT_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
+SECUREWAVE_HELPER = "/usr/local/libexec/securewave-wg-quick"
 PLACEHOLDER_VALUES = {
     "existing-live-email",
     "existing-live-password",
@@ -120,6 +121,13 @@ def _run(argv: Iterable[str], *, timeout: int = 15) -> CommandResult:
     )
 
 
+def _securewave_helper_command(action: str) -> list[str]:
+    command = [SECUREWAVE_HELPER, action]
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        return command
+    return ["pkexec", "--disable-internal-agent", *command]
+
+
 def _evidence_for(protocol: str) -> dict[str, object]:
     if protocol == "wireguard":
         link = _run(["ip", "link", "show", WIREGUARD_INTERFACE])
@@ -152,16 +160,19 @@ def _evidence_for(protocol: str) -> dict[str, object]:
             "show",
             IKEV2_CONNECTION,
         ])
+        xfrm_state = _run(_securewave_helper_command("xfrm-state"))
         active_ok = active.returncode == 0 and f"{IKEV2_CONNECTION}:vpn" in active.stdout.splitlines()
         route_dns_ok = route_dns.returncode == 0 and any(
             line.partition(":")[2].strip() not in ("", "--")
             for line in route_dns.stdout.splitlines()
             if ":" in line
         )
+        xfrm_ok = xfrm_state.returncode == 0 and "proto esp" in xfrm_state.stdout
         return {
-            "ok": active_ok and route_dns_ok,
+            "ok": active_ok and route_dns_ok and xfrm_ok,
             "active_connection": active.as_dict(),
             "route_dns": route_dns.as_dict(),
+            "xfrm_state": xfrm_state.as_dict(),
         }
     raise ValueError(f"unsupported protocol: {protocol}")
 

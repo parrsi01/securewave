@@ -27,12 +27,15 @@ const char* kChannelName = "securewave/vpn";
 const char* kWireGuardInterfaceName = "sw-wg";
 const char* kWireGuardConfigFileName = "sw-wg.conf";
 const char* kWireGuardHelperPath = "/usr/local/libexec/securewave-wg-quick";
+const char* kWireGuardHelperContractPath = "/usr/local/libexec/securewave-wg-quick.contract";
 const char* kOpenVpnConfigFileName = "securewave.ovpn";
 const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
 const char* kOpenVpnLogFileName = "securewave-openvpn.log";
 const char* kIkev2ConfigFileName = "securewave-ikev2.conf";
+const char* kIkev2CaFileName = "securewave-ikev2-ca.pem";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
 const char* kActiveProtocolFileName = "securewave-active-protocol";
+const guint kIkev2HelperContractVersion = 6;
 const guint kWgQuickTimeoutMs = 30000;
 const guint kOpenVpnTimeoutMs = 20000;
 
@@ -78,15 +81,52 @@ static gboolean wireguard_helper_available() {
   return g_file_test(kWireGuardHelperPath, G_FILE_TEST_IS_EXECUTABLE);
 }
 
+static guint securewave_helper_contract_version() {
+  g_autofree gchar* contents = nullptr;
+  if (!g_file_get_contents(kWireGuardHelperContractPath, &contents, nullptr, nullptr) ||
+      contents == nullptr) {
+    return 0;
+  }
+  g_strstrip(contents);
+  if (*contents == '\0') {
+    return 0;
+  }
+  return static_cast<guint>(g_ascii_strtoull(contents, nullptr, 10));
+}
+
+static gboolean ikev2_helper_contract_available(gchar** detail) {
+  if (!wireguard_helper_available()) {
+    if (detail != nullptr) {
+      *detail = g_strdup("SecureWave VPN helper not found. Reinstall SecureWave and retry.");
+    }
+    return FALSE;
+  }
+  const guint contract_version = securewave_helper_contract_version();
+  if (contract_version < kIkev2HelperContractVersion) {
+    if (detail != nullptr) {
+      *detail = g_strdup_printf(
+          "SecureWave VPN helper is out of date (contract %u, need %u). Reinstall SecureWave to update /usr/local/libexec/securewave-wg-quick.",
+          contract_version,
+          kIkev2HelperContractVersion);
+    }
+    return FALSE;
+  }
+  return TRUE;
+}
+
 static gboolean openvpn_available() {
   g_autofree gchar* openvpn = g_find_program_in_path("openvpn");
   return openvpn != nullptr;
 }
 
-static gboolean ikev2_available() {
+static gboolean ikev2_tooling_available() {
   g_autofree gchar* nmcli = g_find_program_in_path("nmcli");
   g_autofree gchar* ipsec = g_find_program_in_path("ipsec");
-  return nmcli != nullptr && ipsec != nullptr && wireguard_helper_available();
+  return nmcli != nullptr && ipsec != nullptr;
+}
+
+static gboolean ikev2_available() {
+  return ikev2_tooling_available() && ikev2_helper_contract_available(nullptr);
 }
 
 static gboolean elevated_runner_available() {
@@ -171,6 +211,8 @@ typedef struct {
   gboolean verify_openvpn_stopped;
   gchar* openvpn_pid_path;
   gchar* openvpn_log_path;
+  gint stdout_fd;
+  gint stderr_fd;
 } WgQuickSpawnContext;
 
 static WgQuickSpawnContext* wg_quick_spawn_context_ref(WgQuickSpawnContext* ctx) {
@@ -190,6 +232,14 @@ static void wg_quick_spawn_context_unref(WgQuickSpawnContext* ctx) {
   g_clear_pointer(&ctx->action, g_free);
   g_clear_pointer(&ctx->openvpn_pid_path, g_free);
   g_clear_pointer(&ctx->openvpn_log_path, g_free);
+  if (ctx->stdout_fd >= 0) {
+    close(ctx->stdout_fd);
+    ctx->stdout_fd = -1;
+  }
+  if (ctx->stderr_fd >= 0) {
+    close(ctx->stderr_fd);
+    ctx->stderr_fd = -1;
+  }
   g_free(ctx);
 }
 
@@ -209,6 +259,45 @@ static void wg_quick_respond_error_once(WgQuickSpawnContext* ctx, const gchar* m
   }
   ctx->responded = TRUE;
   respond_error(ctx->method_call, ctx->error_code, message, nullptr);
+}
+
+static gchar* read_fd_to_string(gint* fd) {
+  if (fd == nullptr || *fd < 0) {
+    return g_strdup("");
+  }
+  GString* contents = g_string_new(nullptr);
+  gchar buffer[4096];
+  while (true) {
+    const ssize_t bytes_read = read(*fd, buffer, sizeof(buffer));
+    if (bytes_read > 0) {
+      g_string_append_len(contents, buffer, bytes_read);
+      continue;
+    }
+    if (bytes_read < 0 && errno == EINTR) {
+      continue;
+    }
+    break;
+  }
+  close(*fd);
+  *fd = -1;
+  return g_string_free(contents, FALSE);
+}
+
+static gchar* command_failure_message(
+    const gchar* fallback,
+    const gchar* stdout_text,
+    const gchar* stderr_text) {
+  g_autofree gchar* stderr_clean = g_strdup(stderr_text ? stderr_text : "");
+  g_autofree gchar* stdout_clean = g_strdup(stdout_text ? stdout_text : "");
+  g_strstrip(stderr_clean);
+  g_strstrip(stdout_clean);
+  if (*stderr_clean != '\0') {
+    return g_strdup_printf("%s: %s", fallback, stderr_clean);
+  }
+  if (*stdout_clean != '\0') {
+    return g_strdup_printf("%s: %s", fallback, stdout_clean);
+  }
+  return g_strdup(fallback);
 }
 
 static gboolean wireguard_interface_exists() {
@@ -486,6 +575,38 @@ static gchar* parse_ikev2_remote_id(const gchar* config) {
   return nullptr;
 }
 
+static gchar* parse_ikev2_ca_cert_pem(const gchar* config) {
+  if (config == nullptr) {
+    return nullptr;
+  }
+  g_auto(GStrv) lines = g_strsplit(config, "\n", -1);
+  GString* pem = g_string_new(nullptr);
+  gboolean in_ca_block = FALSE;
+  for (guint i = 0; lines[i] != nullptr; i++) {
+    g_autofree gchar* line = g_strdup(lines[i]);
+    g_strstrip(line);
+    if (g_strcmp0(line, "# ca_cert_pem_begin") == 0) {
+      in_ca_block = TRUE;
+      continue;
+    }
+    if (g_strcmp0(line, "# ca_cert_pem_end") == 0) {
+      break;
+    }
+    if (!in_ca_block || *line == '\0') {
+      continue;
+    }
+    g_string_append(pem, line);
+    g_string_append_c(pem, '\n');
+  }
+  if (pem->len == 0 ||
+      strstr(pem->str, "-----BEGIN CERTIFICATE-----") == nullptr ||
+      strstr(pem->str, "-----END CERTIFICATE-----") == nullptr) {
+    g_string_free(pem, TRUE);
+    return nullptr;
+  }
+  return g_string_free(pem, FALSE);
+}
+
 static gboolean run_securewave_helper_capture_sync(
     const gchar* action,
     const gchar* const* args,
@@ -643,9 +764,55 @@ static gboolean ikev2_route_or_dns_evidence_exists() {
   return FALSE;
 }
 
+static gboolean xfrm_state_output_has_esp(const gchar* output) {
+  if (output == nullptr) {
+    return FALSE;
+  }
+  g_auto(GStrv) lines = g_strsplit(output, "\n", -1);
+  for (guint i = 0; lines[i] != nullptr; i++) {
+    g_autofree gchar* line = g_strdup(lines[i]);
+    g_strstrip(line);
+    if (strstr(line, "proto esp") != nullptr) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+static gboolean ikev2_xfrm_state_evidence_exists() {
+  const gchar* no_args[] = {nullptr};
+  g_autofree gchar* helper_output = nullptr;
+  g_autofree gchar* helper_detail = nullptr;
+  if (run_securewave_helper_capture_sync(
+          "xfrm-state", no_args, &helper_output, &helper_detail) &&
+      xfrm_state_output_has_esp(helper_output)) {
+    return TRUE;
+  }
+
+  gint wait_status = 0;
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* output = nullptr;
+  const gchar* argv[] = {"ip", "xfrm", "state", nullptr};
+  if (!g_spawn_sync(nullptr,
+                    const_cast<gchar**>(argv),
+                    nullptr,
+                    G_SPAWN_SEARCH_PATH,
+                    nullptr,
+                    nullptr,
+                    &output,
+                    nullptr,
+                    &wait_status,
+                    &error)) {
+    return FALSE;
+  }
+  return g_spawn_check_wait_status(wait_status, nullptr) &&
+         xfrm_state_output_has_esp(output);
+}
+
 static gboolean ikev2_runtime_evidence_exists() {
   return nmcli_active_connection_exists(kIkev2ConnectionName) &&
-         ikev2_route_or_dns_evidence_exists();
+         ikev2_route_or_dns_evidence_exists() &&
+         ikev2_xfrm_state_evidence_exists();
 }
 
 static gboolean wait_for_ikev2_runtime_evidence() {
@@ -1102,9 +1269,15 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
     g_source_remove(ctx->timeout_id);
     ctx->timeout_id = 0;
   }
+  g_autofree gchar* stdout_text = read_fd_to_string(&ctx->stdout_fd);
+  g_autofree gchar* stderr_text = read_fd_to_string(&ctx->stderr_fd);
   g_autoptr(GError) error = nullptr;
   if (!g_spawn_check_wait_status(wait_status, &error)) {
-    wg_quick_respond_error_once(ctx, error ? error->message : "wg-quick failed.");
+    g_autofree gchar* message = command_failure_message(
+        error ? error->message : "VPN helper command failed.",
+        stdout_text,
+        stderr_text);
+    wg_quick_respond_error_once(ctx, message);
   } else {
     if (ctx->verify_wireguard_interface) {
       const gboolean exists = wireguard_interface_exists();
@@ -1224,9 +1397,20 @@ static void spawn_wg_quick_async(
   gchar** argv = reinterpret_cast<gchar**>(argv_array->pdata);
 
   GPid pid = 0;
-  if (!g_spawn_async(nullptr, argv, nullptr,
-                     static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
-                     nullptr, nullptr, &pid, &error)) {
+  gint stdout_fd = -1;
+  gint stderr_fd = -1;
+  if (!g_spawn_async_with_pipes(
+          nullptr,
+          argv,
+          nullptr,
+          static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
+          nullptr,
+          nullptr,
+          &pid,
+          nullptr,
+          &stdout_fd,
+          &stderr_fd,
+          &error)) {
     g_ptr_array_free(argv_array, TRUE);
     respond_error(method_call, error_code, error ? error->message : "Failed to spawn wg-quick.", nullptr);
     return;
@@ -1242,6 +1426,8 @@ static void spawn_wg_quick_async(
   ctx->timeout_ms = kWgQuickTimeoutMs;
   ctx->responded = FALSE;
   ctx->verify_wireguard_interface = verify_interface;
+  ctx->stdout_fd = stdout_fd;
+  ctx->stderr_fd = stderr_fd;
   g_child_watch_add_full(
       G_PRIORITY_DEFAULT,
       pid,
@@ -1302,9 +1488,20 @@ static void spawn_openvpn_up_async(
   gchar** argv = reinterpret_cast<gchar**>(argv_array->pdata);
 
   GPid pid = 0;
-  if (!g_spawn_async(nullptr, argv, nullptr,
-                     static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
-                     nullptr, nullptr, &pid, &error)) {
+  gint stdout_fd = -1;
+  gint stderr_fd = -1;
+  if (!g_spawn_async_with_pipes(
+          nullptr,
+          argv,
+          nullptr,
+          static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
+          nullptr,
+          nullptr,
+          &pid,
+          nullptr,
+          &stdout_fd,
+          &stderr_fd,
+          &error)) {
     g_ptr_array_free(argv_array, TRUE);
     respond_error(method_call, "vpn_connect_failed", error ? error->message : "Failed to spawn OpenVPN helper.", nullptr);
     return;
@@ -1322,6 +1519,8 @@ static void spawn_openvpn_up_async(
   ctx->verify_openvpn_started = TRUE;
   ctx->openvpn_pid_path = g_strdup(pid_path);
   ctx->openvpn_log_path = g_strdup(log_path);
+  ctx->stdout_fd = stdout_fd;
+  ctx->stderr_fd = stderr_fd;
   g_child_watch_add_full(
       G_PRIORITY_DEFAULT,
       pid,
@@ -1388,9 +1587,20 @@ static void spawn_openvpn_down_async(
   gchar** argv = reinterpret_cast<gchar**>(argv_array->pdata);
 
   GPid pid = 0;
-  if (!g_spawn_async(nullptr, argv, nullptr,
-                     static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
-                     nullptr, nullptr, &pid, &error)) {
+  gint stdout_fd = -1;
+  gint stderr_fd = -1;
+  if (!g_spawn_async_with_pipes(
+          nullptr,
+          argv,
+          nullptr,
+          static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
+          nullptr,
+          nullptr,
+          &pid,
+          nullptr,
+          &stdout_fd,
+          &stderr_fd,
+          &error)) {
     g_ptr_array_free(argv_array, TRUE);
     respond_error(method_call, "vpn_disconnect_failed", error ? error->message : "Failed to spawn OpenVPN helper.", nullptr);
     return;
@@ -1407,6 +1617,8 @@ static void spawn_openvpn_down_async(
   ctx->responded = FALSE;
   ctx->verify_openvpn_stopped = TRUE;
   ctx->openvpn_pid_path = g_strdup(pid_path);
+  ctx->stdout_fd = stdout_fd;
+  ctx->stderr_fd = stderr_fd;
   g_child_watch_add_full(
       G_PRIORITY_DEFAULT,
       pid,
@@ -1430,6 +1642,7 @@ typedef struct {
   gchar* username;
   gchar* password;
   gchar* remote_id;
+  gchar* ca_cert_path;
 } Ikev2TaskContext;
 
 static void ikev2_task_context_free(Ikev2TaskContext* ctx) {
@@ -1442,6 +1655,7 @@ static void ikev2_task_context_free(Ikev2TaskContext* ctx) {
   g_clear_pointer(&ctx->username, g_free);
   g_clear_pointer(&ctx->password, g_free);
   g_clear_pointer(&ctx->remote_id, g_free);
+  g_clear_pointer(&ctx->ca_cert_path, g_free);
   g_free(ctx);
 }
 
@@ -1458,20 +1672,14 @@ static void ikev2_task_worker(GTask* task,
     const gchar* delete_args[] = {nullptr};
     run_securewave_helper_sync("ikev2-delete", delete_args, nullptr);
 
-    const gchar* add_args_with_remote[] = {
-        ctx->server, ctx->username, ctx->password, ctx->remote_id, nullptr};
-    const gchar* add_args_without_remote[] = {
-        ctx->server, ctx->username, ctx->password, nullptr};
-    const gchar* const* add_args =
-        (ctx->remote_id != nullptr && *ctx->remote_id != '\0')
-            ? add_args_with_remote
-            : add_args_without_remote;
+    const gchar* add_args[] = {
+        ctx->server, ctx->username, ctx->password, ctx->remote_id, ctx->ca_cert_path, nullptr};
     if (!run_securewave_helper_sync("ikev2-add-eap", add_args, &detail)) {
       g_task_return_new_error(
           task,
           G_IO_ERROR,
           G_IO_ERROR_FAILED,
-          "Failed to configure IKEv2 NetworkManager profile: %s",
+          "Failed to configure IKEv2 NetworkManager profile with CA certificate: %s",
           detail ? detail : "unknown helper error");
       return;
     }
@@ -1497,7 +1705,7 @@ static void ikev2_task_worker(GTask* task,
           task,
           G_IO_ERROR,
           G_IO_ERROR_FAILED,
-          "IKEv2 command completed but active NetworkManager VPN route or DNS evidence was not detected.");
+          "IKEv2 command completed but active NetworkManager VPN route/DNS and XFRM ESP evidence was not detected.");
       return;
     }
 
@@ -1547,11 +1755,20 @@ static void run_ikev2_task(Ikev2TaskContext* ctx) {
 static void spawn_ikev2_up_async(
     FlMethodCall* method_call,
     const gchar* config_path) {
-  if (!ikev2_available()) {
+  if (!ikev2_tooling_available()) {
     respond_error(
         method_call,
         "vpn_unavailable",
         "IKEv2 requires NetworkManager strongSwan tooling, ipsec, and the SecureWave helper. Install network-manager-strongswan and retry.",
+        fl_value_new_map());
+    return;
+  }
+  g_autofree gchar* helper_detail = nullptr;
+  if (!ikev2_helper_contract_available(&helper_detail)) {
+    respond_error(
+        method_call,
+        "vpn_unavailable",
+        helper_detail ? helper_detail : "SecureWave VPN helper is unavailable.",
         fl_value_new_map());
     return;
   }
@@ -1571,16 +1788,34 @@ static void spawn_ikev2_up_async(
   g_autofree gchar* username = parse_config_value(config, "eap_id");
   g_autofree gchar* password = parse_config_value(config, "secret");
   g_autofree gchar* remote_id = parse_ikev2_remote_id(config);
+  g_autofree gchar* ca_cert_pem = parse_ikev2_ca_cert_pem(config);
   if (server == nullptr || *server == '\0' ||
       username == nullptr || *username == '\0' ||
-      password == nullptr || *password == '\0') {
+      password == nullptr || *password == '\0' ||
+      ca_cert_pem == nullptr || *ca_cert_pem == '\0') {
     respond_error(
         method_call,
         "invalid_config",
-        "IKEv2 profile is missing server, username, or EAP secret.",
+        "IKEv2 profile is missing server, username, EAP secret, or CA certificate.",
         nullptr);
     return;
   }
+
+  g_autofree gchar* ca_cert_path = build_state_path(kIkev2CaFileName);
+  if (ca_cert_path == nullptr) {
+    respond_error(method_call, "vpn_config_write_failed", "Unable to write IKEv2 CA certificate file.", nullptr);
+    return;
+  }
+  g_autoptr(GError) write_error = nullptr;
+  if (!g_file_set_contents(ca_cert_path, ca_cert_pem, -1, &write_error)) {
+    respond_error(
+        method_call,
+        "vpn_config_write_failed",
+        write_error ? write_error->message : "Unable to write IKEv2 CA certificate file.",
+        nullptr);
+    return;
+  }
+  g_chmod(ca_cert_path, 0600);
 
   Ikev2TaskContext* ctx = g_new0(Ikev2TaskContext, 1);
   ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
@@ -1590,6 +1825,7 @@ static void spawn_ikev2_up_async(
   ctx->username = g_strdup(username);
   ctx->password = g_strdup(password);
   ctx->remote_id = g_strdup(remote_id != nullptr ? remote_id : server);
+  ctx->ca_cert_path = g_strdup(ca_cert_path);
   run_ikev2_task(ctx);
 }
 
