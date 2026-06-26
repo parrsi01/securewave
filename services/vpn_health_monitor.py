@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import secrets
-import subprocess  # nosec B404 - controlled subprocess usage
+import subprocess  # nosec B404
 import shutil
 from datetime import datetime
 from typing import Dict

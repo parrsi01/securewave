@@ -278,7 +278,7 @@ class GDPRComplianceService:
                 if user:
                     user.email = f"deleted_user_{user_id}@anonymized.local"
                     user.full_name = f"Deleted User {user_id}"
-                    user.password_hash = ""  # nosec B105 - clearing password hash for GDPR anonymization
+                    user.password_hash = ""  # nosec B105
                     user.totp_secret = None
 
                     summary["anonymized_records"]["user"] = 1

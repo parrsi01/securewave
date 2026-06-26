@@ -4,7 +4,7 @@ import os
 import secrets
 import shutil
 import stat
-import subprocess  # nosec B404 - controlled subprocess usage
+import subprocess  # nosec B404
 from io import BytesIO
 from pathlib import Path
 from typing import Tuple

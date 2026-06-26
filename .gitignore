@@ -195,3 +195,14 @@ static/downloads/releases/
 # Local private material and operational scratch state
 securewave_private/
 vpn_diagnostics/
+data/usage/
+PROJECT_STATUS_REPORT.txt
+securewaveapp_mobile/
+
+# Generated validation reports. Tracked files under artifacts/ remain tracked;
+# new generated reports can be force-added when they are intentionally durable.
+artifacts/
+
+# Local helper scratch
+tools/
+tools/__pycache__/

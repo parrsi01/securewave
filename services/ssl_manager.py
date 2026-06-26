@@ -6,7 +6,7 @@ Handles SSL certificate provisioning, renewal, and management using Let's Encryp
 import os
 import logging
 import shutil
-import subprocess  # nosec B404 - controlled subprocess usage with validated args
+import subprocess  # nosec B404
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple

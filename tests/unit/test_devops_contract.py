@@ -36,3 +36,14 @@ def test_ci_runs_on_active_flutter_branch_and_devops_gates():
     assert "security-audit" in jobs
     assert "website-static" in jobs
     assert "flutter-android" in jobs
+
+
+def test_release_workflows_cover_mobile_and_container_delivery():
+    apple = yaml.safe_load((ROOT / ".github/workflows/apple-release.yml").read_text())
+    container = yaml.safe_load((ROOT / ".github/workflows/container-release.yml").read_text())
+
+    assert "ios-unsigned" in apple["jobs"]
+    assert "publish-image" in container["jobs"]
+    assert container["permissions"]["packages"] == "write"
+    build_step = container["jobs"]["publish-image"]["steps"][-1]
+    assert build_step["uses"] == "docker/build-push-action@v6"

@@ -12,7 +12,7 @@ import argparse
 import json
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,7 +42,7 @@ class Check:
 
 
 def _run(argv: Iterable[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    return subprocess.run(  # nosec B603
         list(argv),
         check=False,
         text=True,
@@ -78,7 +78,8 @@ def _pkexec_timeout(default: int = DEFAULT_PKEXEC_TIMEOUT_SECONDS) -> int:
 
 def check_privilege_elevation(timeout_seconds: int | None = None) -> Check:
     timeout_seconds = timeout_seconds or _pkexec_timeout()
-    if shutil.which("pkexec") is None:
+    pkexec_path = shutil.which("pkexec")
+    if pkexec_path is None:
         return Check(
             "privilege:securewave_helper_authorization",
             False,
@@ -97,9 +98,9 @@ def check_privilege_elevation(timeout_seconds: int | None = None) -> Check:
             "running as root; pkexec not required",
         )
     try:
-        completed = subprocess.run(
+        completed = subprocess.run(  # nosec B603
             [
-                "pkexec",
+                pkexec_path,
                 "--disable-internal-agent",
                 str(HELPER_PATH),
                 "probe",

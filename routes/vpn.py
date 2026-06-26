@@ -1030,7 +1030,11 @@ async def provision_profile(
         )
         server = candidates[0]
 
-    assert server is not None
+    if server is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No usable {protocol} VPN server selected.",
+        )
 
     if protocol == "wireguard" and not server.supports_wireguard:
         raise HTTPException(status_code=400, detail="WireGuard is not enabled for this server.")

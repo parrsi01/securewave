@@ -116,7 +116,7 @@ def test_privilege_check_uses_configurable_timeout(monkeypatch, tmp_path):
     assert check.ok
     assert seen["timeout"] == 17
     assert seen["argv"] == [
-        "pkexec",
+        "/usr/bin/pkexec",
         "--disable-internal-agent",
         str(verifier.HELPER_PATH),
         "probe",

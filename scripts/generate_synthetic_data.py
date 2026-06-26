@@ -62,65 +62,71 @@ def classify_qos(latency: float, loss: float, jitter: float, bandwidth: float) -
         return "poor"
 
 
-def generate_normal_session() -> Tuple[float, float, float, float, float, int]:
+def generate_normal_session(rng: random.Random) -> Tuple[float, float, float, float, float, int]:
     """Generate metrics for a normal, healthy connection"""
-    latency = random.gauss(45, 15)  # Mean 45ms, std 15
+    latency = rng.gauss(45, 15)  # Mean 45ms, std 15
     latency = max(10, min(150, latency))
 
-    packet_loss = random.uniform(0, 0.02)  # 0-2%
+    packet_loss = rng.uniform(0, 0.02)  # 0-2%
 
-    jitter = random.gauss(3, 2)
+    jitter = rng.gauss(3, 2)
     jitter = max(0.5, min(15, jitter))
 
-    bandwidth = random.gauss(80, 20)
+    bandwidth = rng.gauss(80, 20)
     bandwidth = max(20, min(150, bandwidth))
 
-    stability = random.uniform(0.85, 1.0)
-    disconnects = random.choices([0, 1], weights=[0.9, 0.1])[0]
+    stability = rng.uniform(0.85, 1.0)
+    disconnects = rng.choices([0, 1], weights=[0.9, 0.1])[0]
 
     return latency, packet_loss, jitter, bandwidth, stability, disconnects
 
 
-def generate_degraded_session() -> Tuple[float, float, float, float, float, int]:
+def generate_degraded_session(rng: random.Random) -> Tuple[float, float, float, float, float, int]:
     """Generate metrics for a degraded connection"""
-    latency = random.gauss(150, 50)
+    latency = rng.gauss(150, 50)
     latency = max(80, min(400, latency))
 
-    packet_loss = random.uniform(0.02, 0.08)  # 2-8%
+    packet_loss = rng.uniform(0.02, 0.08)  # 2-8%
 
-    jitter = random.gauss(25, 10)
+    jitter = rng.gauss(25, 10)
     jitter = max(10, min(60, jitter))
 
-    bandwidth = random.gauss(40, 15)
+    bandwidth = rng.gauss(40, 15)
     bandwidth = max(10, min(80, bandwidth))
 
-    stability = random.uniform(0.5, 0.85)
-    disconnects = random.choices([0, 1, 2, 3], weights=[0.4, 0.3, 0.2, 0.1])[0]
+    stability = rng.uniform(0.5, 0.85)
+    disconnects = rng.choices([0, 1, 2, 3], weights=[0.4, 0.3, 0.2, 0.1])[0]
 
     return latency, packet_loss, jitter, bandwidth, stability, disconnects
 
 
-def generate_poor_session() -> Tuple[float, float, float, float, float, int]:
+def generate_poor_session(rng: random.Random) -> Tuple[float, float, float, float, float, int]:
     """Generate metrics for a poor connection"""
-    latency = random.gauss(350, 100)
+    latency = rng.gauss(350, 100)
     latency = max(200, min(800, latency))
 
-    packet_loss = random.uniform(0.08, 0.25)  # 8-25%
+    packet_loss = rng.uniform(0.08, 0.25)  # 8-25%
 
-    jitter = random.gauss(50, 20)
+    jitter = rng.gauss(50, 20)
     jitter = max(30, min(100, jitter))
 
-    bandwidth = random.gauss(15, 10)
+    bandwidth = rng.gauss(15, 10)
     bandwidth = max(1, min(40, bandwidth))
 
-    stability = random.uniform(0.2, 0.5)
-    disconnects = random.choices([1, 2, 3, 4, 5], weights=[0.2, 0.25, 0.25, 0.2, 0.1])[0]
+    stability = rng.uniform(0.2, 0.5)
+    disconnects = rng.choices([1, 2, 3, 4, 5], weights=[0.2, 0.25, 0.25, 0.2, 0.1])[0]
 
     return latency, packet_loss, jitter, bandwidth, stability, disconnects
 
 
-def generate_risk_score(disconnects: int, stability: float, unusual: bool = False) -> float:
+def generate_risk_score(
+    disconnects: int,
+    stability: float,
+    unusual: bool = False,
+    rng: random.Random | None = None,
+) -> float:
     """Generate risk score based on behavioral signals"""
+    rng = rng or random.Random()  # nosec B311
     base_risk = 0.05
 
     # Disconnects increase risk
@@ -131,14 +137,14 @@ def generate_risk_score(disconnects: int, stability: float, unusual: bool = Fals
 
     # Unusual patterns
     if unusual:
-        base_risk += random.uniform(0.1, 0.3)
+        base_risk += rng.uniform(0.1, 0.3)
 
     return max(0, min(1, base_risk))
 
 
 def generate_dataset(num_samples: int, seed: int = 42) -> List[TelemetryRecord]:
     """Generate synthetic telemetry dataset"""
-    random.seed(seed)
+    rng = random.Random(seed)  # nosec B311
 
     records = []
     servers = ["us-east-1", "us-west-1", "eu-west-1", "eu-central-1", "ap-southeast-1", "ap-northeast-1"]
@@ -153,34 +159,34 @@ def generate_dataset(num_samples: int, seed: int = 42) -> List[TelemetryRecord]:
     start_time = datetime.now() - timedelta(days=30)
 
     for i in range(num_samples):
-        session_type = random.choice(session_types)
+        session_type = rng.choice(session_types)
 
         if session_type == "normal":
-            latency, loss, jitter, bandwidth, stability, disconnects = generate_normal_session()
+            latency, loss, jitter, bandwidth, stability, disconnects = generate_normal_session(rng)
         elif session_type == "degraded":
-            latency, loss, jitter, bandwidth, stability, disconnects = generate_degraded_session()
+            latency, loss, jitter, bandwidth, stability, disconnects = generate_degraded_session(rng)
         else:
-            latency, loss, jitter, bandwidth, stability, disconnects = generate_poor_session()
+            latency, loss, jitter, bandwidth, stability, disconnects = generate_poor_session(rng)
 
         # Random user and server
-        user_id = random.randint(1, 500)
-        server_id = random.choice(servers)
+        user_id = rng.randint(1, 500)
+        server_id = rng.choice(servers)
 
         # Random timestamp over 30 days
         timestamp = start_time + timedelta(
-            days=random.uniform(0, 30),
-            hours=random.uniform(0, 24)
+            days=rng.uniform(0, 30),
+            hours=rng.uniform(0, 24)
         )
 
         # Session duration (5 min to 8 hours)
-        duration = random.randint(5, 480)
+        duration = rng.randint(5, 480)
 
         # Classify QoS
         qos_label = classify_qos(latency, loss, jitter, bandwidth)
 
         # Risk score
-        unusual = random.random() < 0.05  # 5% unusual behavior
-        risk = generate_risk_score(disconnects, stability, unusual)
+        unusual = rng.random() < 0.05  # 5% unusual behavior
+        risk = generate_risk_score(disconnects, stability, unusual, rng)
 
         record = TelemetryRecord(
             timestamp=timestamp.isoformat(),

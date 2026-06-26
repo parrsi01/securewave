@@ -13,7 +13,7 @@ import json
 import os
 import select
 import secrets
-import subprocess
+import subprocess  # nosec B404
 import sys
 import time
 from dataclasses import dataclass
@@ -105,7 +105,7 @@ class CommandResult:
 
 
 def _run(argv: Iterable[str], *, timeout: int = 15) -> CommandResult:
-    completed = subprocess.run(
+    completed = subprocess.run(  # nosec B603
         list(argv),
         cwd=REPO_ROOT,
         check=False,
@@ -252,7 +252,7 @@ def run_protocol(
     env = os.environ.copy()
     env.setdefault("DISPLAY", ":0")
     started_at = time.monotonic()
-    process = subprocess.Popen(
+    process = subprocess.Popen(  # nosec B603
         command,
         cwd=APP_ROOT,
         env=env,
@@ -266,7 +266,9 @@ def run_protocol(
     probe_events: list[dict[str, object]] = []
     evidence: dict[str, object] | None = None
 
-    assert process.stdout is not None
+    if process.stdout is None:
+        process.kill()
+        raise RuntimeError("Flutter process stdout pipe was not created.")
     try:
         while True:
             ready, _, _ = select.select([process.stdout], [], [], 0.25)

@@ -18,8 +18,8 @@ class EventType(str, Enum):
     LOGIN = "login"
     LOGOUT = "logout"
     LOGIN_FAILED = "login_failed"
-    PASSWORD_RESET = "password_reset"  # nosec B105 - event label, not a password
-    PASSWORD_CHANGED = "password_changed"  # nosec B105 - event label, not a password
+    PASSWORD_RESET = "password_reset"  # nosec B105
+    PASSWORD_CHANGED = "password_changed"  # nosec B105
     EMAIL_VERIFIED = "email_verified"
     TWO_FACTOR_ENABLED = "2fa_enabled"
     TWO_FACTOR_DISABLED = "2fa_disabled"

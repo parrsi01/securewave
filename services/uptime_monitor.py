@@ -390,7 +390,7 @@ class UptimeMonitorService:
         Returns:
             Tuple of (is_reachable, avg_response_time_ms, error_message)
         """
-        import subprocess  # nosec B404 - controlled subprocess usage
+        import subprocess  # nosec B404
         import platform
 
         try:

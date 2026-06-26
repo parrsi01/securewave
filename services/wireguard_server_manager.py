@@ -11,7 +11,7 @@ This service is the bridge between the FastAPI backend and the actual WireGuard 
 import os
 import json
 import logging
-import subprocess  # nosec B404 - controlled subprocess usage
+import subprocess  # nosec B404
 import asyncio
 import shutil
 import re

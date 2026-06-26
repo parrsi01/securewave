@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime
 from typing import Optional, List
@@ -12,6 +13,7 @@ from models.vpn_demo_session import VPNDemoSession
 from services.jwt_service import get_current_user
 
 router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
+logger = logging.getLogger(__name__)
 
 
 # ============================================
@@ -78,8 +80,8 @@ def ingest_telemetry(
                 "packet_loss": payload.packet_loss,
                 "jitter_ms": payload.jitter_ms,
             })
-        except Exception:
-            pass  # Non-critical
+        except Exception as exc:
+            logger.debug("Telemetry optimizer update skipped: %s", exc)
 
     return {"status": "accepted", "record_id": len(_telemetry_store)}
 

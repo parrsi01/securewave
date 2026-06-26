@@ -1,0 +1,104 @@
+name: Apple Release Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_signing:
+        description: "Fail when Apple signing secrets are missing"
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  ios-unsigned:
+    name: iOS No-Codesign Build
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install Apple build prerequisites
+        run: |
+          set -euo pipefail
+          if ! command -v go >/dev/null 2>&1; then
+            brew install go
+          fi
+          if ! command -v pod >/dev/null 2>&1; then
+            sudo gem install cocoapods
+          fi
+
+      - name: Fetch Flutter dependencies
+        run: |
+          cd securewave_app
+          flutter pub get
+
+      - name: Install CocoaPods
+        run: |
+          cd securewave_app/ios
+          pod install
+
+      - name: Verify iOS workspace and store metadata
+        run: |
+          bash securewave_app/ios/scripts/ensure_workspace.sh
+          bash securewave_app/scripts/verify_ios_build.sh
+          bash scripts/verify_ios_store_compliance.sh
+
+      - name: Check signing secret readiness
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.require_signing }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          IOS_SIGNING_CERTIFICATE_P12: ${{ secrets.IOS_SIGNING_CERTIFICATE_P12 }}
+          IOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.IOS_SIGNING_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in \
+            APPLE_TEAM_ID \
+            APP_STORE_CONNECT_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            APP_STORE_CONNECT_PRIVATE_KEY \
+            IOS_SIGNING_CERTIFICATE_P12 \
+            IOS_SIGNING_CERTIFICATE_PASSWORD \
+            IOS_PROVISIONING_PROFILE
+          do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required signing secret: $name" >&2
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Build unsigned iOS release
+        run: |
+          cd securewave_app
+          flutter build ios --release --no-codesign
+
+      - name: Upload unsigned iOS app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: securewave-ios-unsigned-${{ github.ref_name }}
+          path: securewave_app/build/ios/iphoneos/Runner.app
+          if-no-files-found: error
