@@ -16,6 +16,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 
 
 DEFAULT_API_BASE = "https://api.securewaveapp.com/api"
@@ -30,6 +31,10 @@ def _json_request(
     payload: dict | None = None,
     timeout: int = 20,
 ) -> tuple[int, dict]:
+    scheme = urlparse(url).scheme.lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"Unsupported URL scheme for smoke request: {scheme or '<missing>'}")
+
     headers = {"Accept": "application/json"}
     data = None
     if payload is not None:
@@ -39,7 +44,7 @@ def _json_request(
         headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
             body = response.read().decode("utf-8")
             return response.status, json.loads(body) if body else {}
     except urllib.error.HTTPError as error:

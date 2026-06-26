@@ -37,6 +37,9 @@ env/
 *~
 .DS_Store
 .claude/
+.agents/
+.codex/
+.preview/
 
 # Environment Variables
 .env
@@ -164,3 +167,31 @@ securewave-tests/results/*.json
 !securewave_app/lib/
 !securewave_app/lib/**/*
 !securewave_app/pubspec.yaml
+
+# Generated Flutter/runtime copies that should never be committed from local runs
+securewave_app/.dart_tool/
+securewave_app/build/
+securewave_app/logs/
+securewave_app/android/.gradle/
+securewave_app/android/local.properties
+securewave_app/ios/Flutter/ephemeral/
+securewave_app/macos/Flutter/ephemeral/
+securewave_app/linux/flutter/ephemeral/
+securewave_app/windows/flutter/ephemeral/
+static/.dart_tool/
+static/.flutter-plugins-dependencies
+static/build/
+static/android/
+static/ios/
+static/linux/
+static/macos/
+static/windows/
+static/third_party/
+static/securewave_app.iml
+static/logs/
+static/.env
+static/downloads/releases/
+
+# Local private material and operational scratch state
+securewave_private/
+vpn_diagnostics/
