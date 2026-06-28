@@ -134,6 +134,10 @@ def test_linux_package_installs_privileged_helper_and_runtime_dependencies():
     assert helper_contract == "6"
     assert "securewave-wg-quick.contract" in build
     assert "50-securewave-wg.rules" in build
+    assert "render_polkit_rule" in build
+    assert "__SECUREWAVE_ALLOWED_USER__" in build
+    assert "reload_polkit" in build
+    assert "try-reload-or-restart polkit.service" in build
     assert "postinst" in build
     assert "postrm" in build
     assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, policykit-1" in build

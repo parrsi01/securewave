@@ -1,3 +1,9 @@
+function commandHasArg(commandLine, arg) {
+    var escaped = arg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    var pattern = new RegExp("(^|\\s)" + escaped + "(\\s|$)");
+    return pattern.test(commandLine);
+}
+
 polkit.addRule(function(action, subject) {
     if (action.id != "org.freedesktop.policykit.exec") {
         return polkit.Result.NOT_HANDLED;
@@ -22,7 +28,7 @@ polkit.addRule(function(action, subject) {
     }
 
     if ((program == "/usr/bin/wg" || program == "/bin/wg") &&
-        commandLine.indexOf(" show ") >= 0) {
+        commandHasArg(commandLine, "show")) {
         return polkit.Result.YES;
     }
 

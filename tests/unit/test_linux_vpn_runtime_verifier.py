@@ -84,7 +84,7 @@ def test_privilege_check_reports_pkexec_timeout(monkeypatch, tmp_path):
 
     def fake_run(*args, **kwargs):
         raise TimeoutExpired(
-            cmd=["pkexec", "--disable-internal-agent", str(verifier.HELPER_PATH), "probe", "ikev2"],
+            cmd=["pkexec", "--disable-internal-agent", str(verifier.HELPER_PATH), "probe", "wireguard"],
             timeout=60,
         )
 
@@ -120,7 +120,7 @@ def test_privilege_check_uses_configurable_timeout(monkeypatch, tmp_path):
         "--disable-internal-agent",
         str(verifier.HELPER_PATH),
         "probe",
-        "ikev2",
+        "wireguard",
     ]
 
 
@@ -133,3 +133,32 @@ def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path
 
     assert not check.ok
     assert "required 6" in check.detail
+
+
+def test_polkit_rule_source_scopes_prompt_free_actions(monkeypatch, tmp_path):
+    rule = tmp_path / "50-securewave-wg.rules"
+    rule.write_text(
+        """
+polkit.addRule(function(action, subject) {
+  if (action.id != "org.freedesktop.policykit.exec") return polkit.Result.NOT_HANDLED;
+  var configuredUser = "__SECUREWAVE_ALLOWED_USER__";
+  if (subject.user == "securewave" || subject.isInGroup("sudo")) {
+    var commandLine = action.lookup("command_line") || "";
+    if (program == "/usr/local/libexec/securewave-wg-quick") return polkit.Result.YES;
+    if (commandHasArg(commandLine, "show")) return polkit.Result.YES;
+  }
+});
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(verifier, "POLKIT_RULE_SOURCE_PATH", rule)
+
+    checks = {check.name: check for check in verifier.check_polkit_rule_source()}
+
+    assert checks["privilege:polkit_exec_action"].ok
+    assert checks["privilege:polkit_helper_path"].ok
+    assert checks["privilege:polkit_sudo_group"].ok
+    assert checks["privilege:polkit_securewave_user"].ok
+    assert checks["privilege:polkit_install_user_template"].ok
+    assert checks["privilege:polkit_wg_show_boundary"].ok
+    assert checks["privilege:polkit_prompt_free"].ok

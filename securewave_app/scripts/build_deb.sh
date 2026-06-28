@@ -125,6 +125,12 @@ render_polkit_rule() {
   chmod 0644 "$POLKIT_RULE"
 }
 
+reload_polkit() {
+  if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+    systemctl try-reload-or-restart polkit.service >/dev/null 2>&1 || true
+  fi
+}
+
 POLKIT_RULES_DIR=/etc/polkit-1/rules.d
 POLKIT_RULE=$POLKIT_RULES_DIR/50-securewave-wg.rules
 mkdir -p "$POLKIT_RULES_DIR"
@@ -133,6 +139,7 @@ if [[ -z "$ALLOW_USER" ]]; then
   ALLOW_USER="$(logname 2>/dev/null || true)"
 fi
 render_polkit_rule "$ALLOW_USER"
+reload_polkit
 install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"
 POSTINST
 

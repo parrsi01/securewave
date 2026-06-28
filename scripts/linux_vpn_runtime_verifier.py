@@ -24,6 +24,7 @@ RUNNER_PATH = REPO_ROOT / "securewave_app/linux/runner/my_application.cc"
 BUILD_PATH = REPO_ROOT / "securewave_app/build/linux/arm64/debug/bundle/securewave_app"
 HELPER_PATH = Path("/usr/local/libexec/securewave-wg-quick")
 HELPER_CONTRACT_PATH = Path("/usr/local/libexec/securewave-wg-quick.contract")
+POLKIT_RULE_SOURCE_PATH = REPO_ROOT / "securewave_app/packaging/linux/50-securewave-wg.rules"
 REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "pkexec")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
@@ -66,6 +67,31 @@ def check_tools() -> list[Check]:
     return checks
 
 
+def check_polkit_rule_source() -> list[Check]:
+    if not POLKIT_RULE_SOURCE_PATH.exists():
+        return [
+            Check(
+                "privilege:polkit_rule_source",
+                False,
+                f"{POLKIT_RULE_SOURCE_PATH} not found",
+            )
+        ]
+    source = POLKIT_RULE_SOURCE_PATH.read_text(encoding="utf-8")
+    expectations = {
+        "privilege:polkit_exec_action": 'action.id != "org.freedesktop.policykit.exec"',
+        "privilege:polkit_helper_path": str(HELPER_PATH),
+        "privilege:polkit_sudo_group": 'subject.isInGroup("sudo")',
+        "privilege:polkit_securewave_user": 'subject.user == "securewave"',
+        "privilege:polkit_install_user_template": "__SECUREWAVE_ALLOWED_USER__",
+        "privilege:polkit_wg_show_boundary": 'commandHasArg(commandLine, "show")',
+        "privilege:polkit_prompt_free": "polkit.Result.YES",
+    }
+    return [
+        Check(name, token in source, "present" if token in source else f"missing {token!r}")
+        for name, token in expectations.items()
+    ]
+
+
 def _pkexec_timeout(default: int = DEFAULT_PKEXEC_TIMEOUT_SECONDS) -> int:
     raw = os.environ.get("SECUREWAVE_PKEXEC_TIMEOUT")
     if raw is None:
@@ -104,7 +130,7 @@ def check_privilege_elevation(timeout_seconds: int | None = None) -> Check:
                 "--disable-internal-agent",
                 str(HELPER_PATH),
                 "probe",
-                "ikev2",
+                "wireguard",
             ],
             check=False,
             text=True,
@@ -116,14 +142,15 @@ def check_privilege_elevation(timeout_seconds: int | None = None) -> Check:
         return Check(
             "privilege:securewave_helper_authorization",
             False,
-            f"pkexec authorization timed out after {timeout_seconds}s; start a PolicyKit authentication agent or run SecureWave with required privileges",
+            f"pkexec authorization timed out after {timeout_seconds}s; install /etc/polkit-1/rules.d/50-securewave-wg.rules or start a PolicyKit authentication agent",
         )
     return Check(
         "privilege:securewave_helper_authorization",
         completed.returncode == 0,
-        "SecureWave helper authorization works"
+        "prompt-free SecureWave helper authorization works"
         if completed.returncode == 0
-        else completed.stderr.strip() or f"pkexec exited {completed.returncode}",
+        else completed.stderr.strip()
+        or f"pkexec exited {completed.returncode}; install /etc/polkit-1/rules.d/50-securewave-wg.rules",
     )
 
 
@@ -284,6 +311,7 @@ def main() -> int:
 
     checks = [
         *check_tools(),
+        *check_polkit_rule_source(),
         check_privilege_elevation(args.pkexec_timeout),
         check_installed_helper_contract(),
         *check_runner_contract(),

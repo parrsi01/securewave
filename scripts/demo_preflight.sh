@@ -3,16 +3,19 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 API_BASE="${SECUREWAVE_API_BASE_URL:-https://api.securewaveapp.com/api}"
+WIREGUARD_INTERFACE="sw-wg"
 DEMO_EMAIL="${DEMO_EMAIL:-}"
 DEMO_PASSWORD="${DEMO_PASSWORD:-}"
 CLEANUP=false
 REVOKE_DEVICES=false
 SKIP_BUILD=false
+REQUIRE_REAL_TUNNEL=false
+REQUIRE_EMAIL_HEALTH=false
 BLOCKERS=0
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/demo_preflight.sh [--cleanup] [--revoke-devices] [--skip-build]
+Usage: bash scripts/demo_preflight.sh [--cleanup] [--revoke-devices] [--skip-build] [--require-real-tunnel] [--require-email-health] [--live-go-no-go]
 
 Environment:
   SECUREWAVE_API_BASE_URL  API base URL. Defaults to https://api.securewaveapp.com/api
@@ -22,6 +25,10 @@ Environment:
 If DEMO_EMAIL/DEMO_PASSWORD are omitted, the script provisions a disposable
 QA account for inventory checks. Device revocation only runs with
 --revoke-devices.
+
+Use --live-go-no-go after connecting the real tunnel. It requires tunnel egress
+and email health in addition to the default live API, inventory, residue, helper,
+polkit, and build checks.
 EOF
 }
 
@@ -37,6 +44,19 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-build)
       SKIP_BUILD=true
+      shift
+      ;;
+    --require-real-tunnel)
+      REQUIRE_REAL_TUNNEL=true
+      shift
+      ;;
+    --require-email-health)
+      REQUIRE_EMAIL_HEALTH=true
+      shift
+      ;;
+    --live-go-no-go)
+      REQUIRE_REAL_TUNNEL=true
+      REQUIRE_EMAIL_HEALTH=true
       shift
       ;;
     -h|--help)
@@ -105,6 +125,101 @@ check_helper_contract() {
   fi
 }
 
+check_polkit_authorization() {
+  local helper="/usr/local/libexec/securewave-wg-quick"
+  if [[ ! -x "$helper" ]]; then
+    fail "$helper is missing or not executable"
+    return
+  fi
+
+  local output
+  local code
+  set +e
+  output="$(timeout 20 pkexec --disable-internal-agent "$helper" probe wireguard 2>&1)"
+  code=$?
+  set -e
+
+  if (( code == 0 )); then
+    pass "prompt-free SecureWave helper authorization works"
+  elif (( code == 124 )); then
+    fail "SecureWave helper authorization timed out; install /etc/polkit-1/rules.d/50-securewave-wg.rules or start a PolicyKit agent"
+  else
+    fail "SecureWave helper authorization failed: ${output:-pkexec exited $code}"
+  fi
+}
+
+api_hostname() {
+  python3 - "$API_BASE" <<'PY'
+import sys
+from urllib.parse import urlparse
+
+print(urlparse(sys.argv[1]).hostname or "")
+PY
+}
+
+check_email_health() {
+  local url="$API_BASE/health/email"
+  if curl -fsS --max-time 20 "$url" >/dev/null; then
+    pass "email health endpoint ok"
+  elif [[ "$REQUIRE_EMAIL_HEALTH" == "true" ]]; then
+    fail "email health endpoint is not ok at $url"
+  else
+    warn "email health endpoint is not ok at $url; use --require-email-health for release go/no-go"
+  fi
+}
+
+check_real_tunnel_egress() {
+  if ! ip -o link show "$WIREGUARD_INTERFACE" >/dev/null 2>&1; then
+    if [[ "$REQUIRE_REAL_TUNNEL" == "true" ]]; then
+      fail "real tunnel egress was required but $WIREGUARD_INTERFACE is not active"
+    else
+      warn "real tunnel egress skipped because $WIREGUARD_INTERFACE is not active; rerun with --live-go-no-go while connected"
+    fi
+    return
+  fi
+
+  pass "real WireGuard interface active: $WIREGUARD_INTERFACE"
+
+  local route
+  route="$(ip route get 1.1.1.1 2>&1 || true)"
+  if [[ "$route" == *" dev $WIREGUARD_INTERFACE "* ]]; then
+    pass "default egress route uses $WIREGUARD_INTERFACE"
+  else
+    fail "default egress route does not use $WIREGUARD_INTERFACE: $route"
+  fi
+
+  local host
+  host="$(api_hostname)"
+  if [[ -n "$host" ]] && getent ahosts "$host" >/dev/null; then
+    pass "DNS resolves live API host: $host"
+  else
+    fail "DNS did not resolve live API host: ${host:-unknown}"
+  fi
+
+  if curl -fsS --max-time 20 "$API_BASE/health" >/dev/null; then
+    pass "live API reachable through active tunnel"
+  else
+    fail "live API unreachable through active tunnel"
+  fi
+
+  local egress_ip
+  if egress_ip="$(curl -fsS --max-time 20 https://api.ipify.org 2>/dev/null)" && [[ -n "$egress_ip" ]]; then
+    pass "public egress IP visible through active tunnel: $egress_ip"
+  else
+    fail "public egress IP lookup failed through active tunnel"
+  fi
+
+  if command -v resolvectl >/dev/null 2>&1; then
+    local dns_status
+    dns_status="$(resolvectl dns "$WIREGUARD_INTERFACE" 2>/dev/null || true)"
+    if [[ -n "$dns_status" ]]; then
+      pass "resolvectl has DNS state for $WIREGUARD_INTERFACE"
+    else
+      warn "resolvectl has no DNS state for $WIREGUARD_INTERFACE; DNS may be managed outside systemd-resolved"
+    fi
+  fi
+}
+
 cleanup_wireguard_interfaces() {
   local links
   links="$(ip -o link show type wireguard 2>/dev/null || true)"
@@ -115,6 +230,24 @@ cleanup_wireguard_interfaces() {
 
   warn "WireGuard interfaces are present:"
   printf '%s\n' "$links" | sed 's/^/  /'
+
+  if [[ "$REQUIRE_REAL_TUNNEL" == "true" ]]; then
+    local unexpected=""
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      local iface
+      iface="$(awk -F': ' '{print $2}' <<<"$line" | cut -d@ -f1)"
+      if [[ "$iface" != "$WIREGUARD_INTERFACE" ]]; then
+        unexpected+="$line"$'\n'
+      fi
+    done <<<"$links"
+    if [[ -z "$unexpected" ]]; then
+      pass "$WIREGUARD_INTERFACE is active for the required real-tunnel egress check"
+      return
+    fi
+    fail "unexpected WireGuard interfaces are present during real-tunnel check: ${unexpected//$'\n'/; }"
+    return
+  fi
 
   if [[ "$CLEANUP" != "true" ]]; then
     while IFS= read -r line; do
@@ -236,7 +369,7 @@ if generated:
         expected=(201,),
     )
     print(f"[PASS] disposable demo account provisioned: {email}")
-    print(f"[WARN] disposable demo password: {password}")
+    print("[WARN] disposable demo password generated for this run only; not printed")
     if not auth.get("access_token"):
         _, auth = request(
             "POST",
@@ -330,13 +463,19 @@ require_command python3
 require_command ip
 require_command systemctl
 require_command flutter
+require_command pkexec
+require_command timeout
+require_command getent
 
 check_url "/health" "live API health"
+check_email_health
 check_url "/downloads" "download manifest"
 run_live_account_checks
 cleanup_wireguard_interfaces
 cleanup_wg_quick_units
 check_helper_contract
+check_polkit_authorization
+check_real_tunnel_egress
 prebuild_linux_bundle
 
 if (( BLOCKERS > 0 )); then

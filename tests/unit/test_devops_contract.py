@@ -49,12 +49,16 @@ def test_release_workflows_cover_mobile_and_container_delivery():
     assert build_step["uses"] == "docker/build-push-action@v6"
 
 
-def test_demo_preflight_and_runbook_cover_presentation_mode():
+def test_demo_preflight_and_runbook_cover_live_tunnel_go_no_go():
     script = (ROOT / "scripts/demo_preflight.sh").read_text()
     runbook = (ROOT / "docs/DEMO_RUNBOOK.md").read_text()
 
+    assert "--live-go-no-go" in script
+    assert "check_polkit_authorization" in script
+    assert "check_real_tunnel_egress" in script
+    assert "real tunnel" in runbook.lower()
+    assert "fallback" in runbook.lower()
     assert "SECUREWAVE_SIMULATE_TUNNEL" in runbook
-    assert "Simulated tunnel" in runbook
     assert "/vpn/servers?device_type=linux" in script
     assert "--revoke-devices" in script
     assert "flutter build linux --release" in script
