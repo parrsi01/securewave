@@ -1,7 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:securewave_app/core/config/app_config.dart';
+import 'package:securewave_app/core/models/vpn_protocol.dart';
+import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/services/api_client.dart';
 
 void main() {
@@ -30,6 +34,7 @@ void main() {
       portalUrl: 'https://example.invalid',
       upgradeUrl: 'https://example.invalid',
       useMockApi: false,
+      simulateTunnel: false,
       resetSessionOnBoot: false,
     );
     final client = ApiClient(config, dio: failingDio(config.apiBaseUrl));
@@ -62,6 +67,7 @@ void main() {
       portalUrl: 'https://example.invalid',
       upgradeUrl: 'https://example.invalid',
       useMockApi: true,
+      simulateTunnel: false,
       resetSessionOnBoot: false,
     );
     final client = ApiClient(config, dio: failingDio(config.apiBaseUrl));
@@ -78,5 +84,39 @@ void main() {
 
     final account = await client.fetchCurrentUser();
     expect(account.email, isNotEmpty);
+  });
+
+  test('Presentation Mode keeps live API and simulates only the tunnel',
+      () async {
+    final config = AppConfig(
+      apiBaseUrl: 'https://example.invalid',
+      portalUrl: 'https://example.invalid',
+      upgradeUrl: 'https://example.invalid',
+      useMockApi: false,
+      simulateTunnel: true,
+      resetSessionOnBoot: false,
+    );
+    final client = ApiClient(config, dio: failingDio(config.apiBaseUrl));
+
+    await expectLater(
+      client.login(email: 'alice@example.com', password: 'pw'),
+      throwsA(isA<DioException>()),
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        appConfigProvider.overrideWith((ref) => config),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final vpn = container.read(vpnServiceProvider);
+    expect(vpn.isNativeAvailable, isFalse);
+    expect(
+      await vpn.connect(protocol: VpnProtocol.wireGuard),
+      VpnStatus.connected,
+    );
+    final stats = await vpn.getTrafficStats(VpnProtocol.wireGuard);
+    expect(stats.countersAvailable, isFalse);
   });
 }

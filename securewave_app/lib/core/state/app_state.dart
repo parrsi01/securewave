@@ -10,6 +10,9 @@ import '../../services/api_client.dart';
 
 final vpnServiceProvider = Provider<VpnService>((ref) {
   final config = ref.watch(appConfigProvider);
+  if (config.simulateTunnel) {
+    return MockVpnService();
+  }
   return ChannelVpnService(
     fallback: MockVpnService(),
     allowFallback: config.useMockApi,

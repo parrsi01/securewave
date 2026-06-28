@@ -12,6 +12,7 @@ class AppConfig {
     required this.portalUrl,
     required this.upgradeUrl,
     required this.useMockApi,
+    required this.simulateTunnel,
     required this.resetSessionOnBoot,
   });
 
@@ -19,12 +20,48 @@ class AppConfig {
   final String portalUrl;
   final String upgradeUrl;
   final bool useMockApi;
+  final bool simulateTunnel;
   final bool resetSessionOnBoot;
   static AppConfig? _cached;
+
+  AppConfig copyWith({
+    String? apiBaseUrl,
+    String? portalUrl,
+    String? upgradeUrl,
+    bool? useMockApi,
+    bool? simulateTunnel,
+    bool? resetSessionOnBoot,
+  }) {
+    return AppConfig(
+      apiBaseUrl: apiBaseUrl ?? this.apiBaseUrl,
+      portalUrl: portalUrl ?? this.portalUrl,
+      upgradeUrl: upgradeUrl ?? this.upgradeUrl,
+      useMockApi: useMockApi ?? this.useMockApi,
+      simulateTunnel: simulateTunnel ?? this.simulateTunnel,
+      resetSessionOnBoot: resetSessionOnBoot ?? this.resetSessionOnBoot,
+    );
+  }
 
   factory AppConfig.defaults() {
     // Daily-use builds default to the live control plane. Mock data is opt-in
     // through SECUREWAVE_USE_MOCK_API for isolated UI tests and demos.
+    const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
+    var useMock = _parseBool(
+      const String.fromEnvironment(
+        'SECUREWAVE_USE_MOCK_API',
+        defaultValue: 'false',
+      ),
+    );
+    var simulateTunnel = _parseBool(
+      const String.fromEnvironment(
+        'SECUREWAVE_SIMULATE_TUNNEL',
+        defaultValue: 'false',
+      ),
+    );
+    if (kIsReleaseMode) {
+      useMock = false;
+      simulateTunnel = false;
+    }
     return AppConfig(
       apiBaseUrl: _compileTimeOrFallback(
         'SECUREWAVE_API_BASE_URL',
@@ -38,12 +75,8 @@ class AppConfig {
         'SECUREWAVE_UPGRADE_URL',
         AppConstants.upgradeUrlFallback,
       ),
-      useMockApi: _parseBool(
-        const String.fromEnvironment(
-          'SECUREWAVE_USE_MOCK_API',
-          defaultValue: 'false',
-        ),
-      ),
+      useMockApi: useMock,
+      simulateTunnel: simulateTunnel,
       resetSessionOnBoot: false,
     );
   }
@@ -96,6 +129,15 @@ class AppConfig {
       AppLogger.warning('Config: mock API disabled in release builds.');
       useMock = false;
     }
+    var simulateTunnel = _parseBool(
+      env['SECUREWAVE_SIMULATE_TUNNEL'] ??
+          const String.fromEnvironment('SECUREWAVE_SIMULATE_TUNNEL',
+              defaultValue: 'false'),
+    );
+    if (kIsReleaseMode && simulateTunnel) {
+      AppLogger.warning('Config: simulated tunnel disabled in release builds.');
+      simulateTunnel = false;
+    }
     final resetSessionOnBoot = _parseBool(
       env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
           const String.fromEnvironment(
@@ -109,6 +151,7 @@ class AppConfig {
       portalUrl: portalUrl,
       upgradeUrl: upgradeUrl,
       useMockApi: useMock,
+      simulateTunnel: simulateTunnel,
       resetSessionOnBoot: resetSessionOnBoot,
     );
     return _cached!;

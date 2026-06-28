@@ -47,3 +47,14 @@ def test_release_workflows_cover_mobile_and_container_delivery():
     assert container["permissions"]["packages"] == "write"
     build_step = container["jobs"]["publish-image"]["steps"][-1]
     assert build_step["uses"] == "docker/build-push-action@v6"
+
+
+def test_demo_preflight_and_runbook_cover_presentation_mode():
+    script = (ROOT / "scripts/demo_preflight.sh").read_text()
+    runbook = (ROOT / "docs/DEMO_RUNBOOK.md").read_text()
+
+    assert "SECUREWAVE_SIMULATE_TUNNEL" in runbook
+    assert "Simulated tunnel" in runbook
+    assert "/vpn/servers?device_type=linux" in script
+    assert "--revoke-devices" in script
+    assert "flutter build linux --release" in script

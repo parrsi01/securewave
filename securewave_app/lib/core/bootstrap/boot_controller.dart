@@ -74,7 +74,12 @@ class BootController extends ChangeNotifier {
 
   Future<void> _doInitialize() async {
     // Step 1: Load config (must succeed)
-    final config = await AppConfig.load();
+    final loadedConfig = await AppConfig.load();
+    final currentConfig = _ref.read(appConfigProvider);
+    final config = loadedConfig.copyWith(
+      simulateTunnel:
+          currentConfig.simulateTunnel || loadedConfig.simulateTunnel,
+    );
     _ref.read(appConfigProvider.notifier).state = config;
     AppLogger.info('Boot: config loaded');
     final storage = SecureStorage();

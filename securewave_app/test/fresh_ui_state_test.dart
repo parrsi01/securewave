@@ -6,7 +6,9 @@ import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
+import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/state/app_state.dart';
+import 'package:securewave_app/core/state/vpn_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -108,12 +110,45 @@ void main() {
     expect(find.text('Unlimited'), findsOneWidget);
     expect(find.textContaining('NaN'), findsNothing);
   });
+
+  testWidgets('presentation mode renders simulated tunnel disclosure',
+      (tester) async {
+    await _pumpApp(tester, simulateTunnel: true);
+
+    expect(
+      find.text(
+        'Simulated tunnel — presentation mode. Not a real VPN.',
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('VPN connected'), findsNothing);
+  });
+
+  testWidgets('presentation mode labels connected state honestly',
+      (tester) async {
+    await _pumpApp(
+      tester,
+      simulateTunnel: true,
+      vpnOverride: vpnStateProvider.overrideWith(
+        (ref) => _ConnectedVpnStateNotifier(ref),
+      ),
+    );
+
+    expect(
+      find.text('Simulated (not encrypted)', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(find.text('VPN connected'), findsNothing);
+  });
 }
 
 Future<void> _pumpApp(
   WidgetTester tester, {
   Override? serversOverride,
   Override? planOverride,
+  Override? vpnOverride,
+  bool simulateTunnel = false,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -129,6 +164,7 @@ Future<void> _pumpApp(
             portalUrl: 'https://portal.example.test',
             upgradeUrl: 'https://upgrade.example.test',
             useMockApi: false,
+            simulateTunnel: simulateTunnel,
             resetSessionOnBoot: false,
           ),
         ),
@@ -162,9 +198,16 @@ Future<void> _pumpApp(
                 ),
               ],
             ),
+        if (vpnOverride != null) vpnOverride,
       ],
       child: const SecureWaveApp(),
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _ConnectedVpnStateNotifier extends VpnStateNotifier {
+  _ConnectedVpnStateNotifier(super.ref) {
+    state = const VpnState(status: VpnStatus.connected);
+  }
 }

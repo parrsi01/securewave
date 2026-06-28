@@ -73,6 +73,7 @@ void main() {
               portalUrl: 'https://portal.example.test',
               upgradeUrl: 'https://upgrade.example.test',
               useMockApi: false,
+              simulateTunnel: false,
               resetSessionOnBoot: false,
             ),
           ),

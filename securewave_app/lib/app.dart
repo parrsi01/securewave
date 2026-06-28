@@ -57,8 +57,13 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
 
   Future<void> _handleLifecycle(AppLifecycleState state) async {
     if (state == AppLifecycleState.resumed) {
-      final config = await AppConfig.load();
+      final loadedConfig = await AppConfig.load();
       if (!mounted) return;
+      final currentConfig = ref.read(appConfigProvider);
+      final config = loadedConfig.copyWith(
+        simulateTunnel:
+            currentConfig.simulateTunnel || loadedConfig.simulateTunnel,
+      );
       ref.read(appConfigProvider.notifier).state = config;
       ref.read(vpnStateProvider.notifier).resumeRateUpdates();
     } else if (state == AppLifecycleState.paused ||
@@ -487,7 +492,8 @@ class _ConnectScreen extends ConsumerWidget {
       orElse: () => const <ServerRegion>[],
     );
     final selectedServer = _serverLabel(vpn.selectedServerId, serverList);
-    final status = _statusDescriptor(vpn);
+    final status =
+        _statusDescriptor(vpn, simulateTunnel: config.simulateTunnel);
     final connected = vpn.status == VpnStatus.connected;
     final busy = vpn.isBusy ||
         vpn.status == VpnStatus.connecting ||
@@ -544,6 +550,15 @@ class _ConnectScreen extends ConsumerWidget {
                   icon: Icons.info_outline_rounded,
                   message:
                       'Demo API mode is enabled. Do not treat a demo connection as a real tunnel.',
+                  tone: _Tone.warning,
+                ),
+              ],
+              if (config.simulateTunnel) ...[
+                const SizedBox(height: 12),
+                const _InlineMessage(
+                  icon: Icons.info_outline_rounded,
+                  message:
+                      'Simulated tunnel — presentation mode. Not a real VPN.',
                   tone: _Tone.warning,
                 ),
               ],
@@ -763,6 +778,10 @@ class _SettingsScreen extends ConsumerWidget {
               _InfoRow('Device', device),
               _InfoRow('API', config.apiBaseUrl),
               _InfoRow('Mock API', config.useMockApi ? 'On' : 'Off'),
+              _InfoRow(
+                'Presentation mode',
+                config.simulateTunnel ? 'On' : 'Off',
+              ),
               _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
             ],
           ),
@@ -833,7 +852,13 @@ class _DiagnosticsView extends ConsumerWidget {
     return ListView(
       shrinkWrap: true,
       children: [
-        _InfoRow('VPN state', _statusDescriptor(vpn).label),
+        _InfoRow(
+          'VPN state',
+          _statusDescriptor(
+            vpn,
+            simulateTunnel: ref.watch(appConfigProvider).simulateTunnel,
+          ).label,
+        ),
         _InfoRow('Native bridge',
             service.isNativeAvailable ? 'Available' : 'Unavailable'),
         _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
@@ -1558,17 +1583,20 @@ enum _Tone { neutral, info, success, warning, error }
   };
 }
 
-_StatusDescriptor _statusDescriptor(VpnState vpn) {
+_StatusDescriptor _statusDescriptor(
+  VpnState vpn, {
+  bool simulateTunnel = false,
+}) {
   final backendUnreachable = vpn.status == VpnStatus.error &&
       vpn.errorKind == VpnErrorKind.backendUnreachable;
   return switch (vpn.status) {
-    VpnStatus.connected => const _StatusDescriptor(
-        label: 'VPN connected',
-        shortLabel: 'On',
+    VpnStatus.connected => _StatusDescriptor(
+        label: simulateTunnel ? 'Simulated (not encrypted)' : 'VPN connected',
+        shortLabel: simulateTunnel ? 'Demo' : 'On',
         icon: Icons.verified_rounded,
         color: FreshTheme.primary,
         background: FreshTheme.primarySoft,
-        border: Color(0xFF2F61A6),
+        border: const Color(0xFF2F61A6),
         tone: _Tone.success,
       ),
     VpnStatus.connecting => const _StatusDescriptor(

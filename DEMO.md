@@ -1,5 +1,9 @@
 # SecureWave Demo Flow
 
+For the Flutter Linux desktop live-API demo, use
+[`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md). This older flow covers the web
+dashboard and external WireGuard-client demo.
+
 ## Preconditions
 - App running locally or on the supported Hetzner-backed deployment
 - WG server reachable at `WG_ENDPOINT`
