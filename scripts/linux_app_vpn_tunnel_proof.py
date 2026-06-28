@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import select
+import signal
 import secrets
 import subprocess  # nosec B404
 import sys
@@ -25,6 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_ROOT = REPO_ROOT / "securewave_app"
 PROBE_TARGET = "lib/runtime_vpn_probe.dart"
 DEFAULT_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
+DEFAULT_API_BASE = "https://api.securewaveapp.com/api"
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
 SECUREWAVE_HELPER = "/usr/local/libexec/securewave-wg-quick"
@@ -55,6 +57,10 @@ def _env_default(*names: str) -> str | None:
         if value:
             return value
     return None
+
+
+def _default_api_base() -> str:
+    return _env_default("SECUREWAVE_API_BASE_URL") or DEFAULT_API_BASE
 
 
 def _build_flutter_command(
@@ -126,6 +132,24 @@ def _securewave_helper_command(action: str) -> list[str]:
     if hasattr(os, "geteuid") and os.geteuid() == 0:
         return command
     return ["pkexec", "--disable-internal-agent", *command]
+
+
+def _cleanup_protocol_residue(protocol: str, pkexec_timeout: int) -> list[dict[str, object]]:
+    commands: list[list[str]] = []
+    if protocol == "wireguard":
+        commands.append([*_securewave_helper_command("policy-clear-link"), WIREGUARD_INTERFACE])
+    elif protocol == "ikev2":
+        commands.append(_securewave_helper_command("ikev2-down"))
+        commands.append(_securewave_helper_command("ikev2-delete"))
+
+    return [
+        {
+            "protocol": protocol,
+            "command": command,
+            "result": _run(command, timeout=max(pkexec_timeout, 15)).as_dict(),
+        }
+        for command in commands
+    ]
 
 
 def _evidence_for(protocol: str) -> dict[str, object]:
@@ -226,6 +250,39 @@ def _has_auth_failure(result: dict[str, object]) -> bool:
     return False
 
 
+def _stop_process_group(process: subprocess.Popen[str], *, force: bool = False) -> None:
+    sig = signal.SIGKILL if force else signal.SIGTERM
+    try:
+        os.killpg(os.getpgid(process.pid), sig)
+    except ProcessLookupError:
+        return
+    except Exception:
+        if force:
+            process.kill()
+        else:
+            process.terminate()
+
+
+def _drain_available_stdout(
+    process: subprocess.Popen[str],
+    output: list[str],
+    probe_events: list[dict[str, object]],
+) -> None:
+    if process.stdout is None:
+        return
+    while True:
+        ready, _, _ = select.select([process.stdout], [], [], 0)
+        if not ready:
+            break
+        line = process.stdout.readline()
+        if not line:
+            break
+        output.append(line.rstrip())
+        event = _json_line(line)
+        if event is not None:
+            probe_events.append(event)
+
+
 def run_protocol(
     *,
     protocol: str,
@@ -260,6 +317,7 @@ def run_protocol(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         bufsize=1,
+        start_new_session=True,
     )
 
     output: list[str] = []
@@ -291,23 +349,16 @@ def run_protocol(
                     "ok": False,
                     "error": f"no holding_for_evidence event within {evidence_timeout}s",
                 }
-                process.terminate()
+                _stop_process_group(process)
                 break
     finally:
         try:
             returncode = process.wait(timeout=max(hold_seconds + 30, 45))
         except subprocess.TimeoutExpired:
-            process.kill()
+            _stop_process_group(process, force=True)
             returncode = process.wait(timeout=10)
 
-    while True:
-        line = process.stdout.readline()
-        if not line:
-            break
-        output.append(line.rstrip())
-        event = _json_line(line)
-        if event is not None:
-            probe_events.append(event)
+    _drain_available_stdout(process, output, probe_events)
 
     if evidence is None:
         evidence = {"ok": False, "error": "probe exited before evidence window"}
@@ -339,7 +390,7 @@ def main() -> int:
         help="login uses an existing account; register creates the supplied account; auto creates a disposable QA account when credentials are absent or placeholder values",
     )
     parser.add_argument("--server-id", default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_SERVER_ID"))
-    parser.add_argument("--api-base", default=os.environ.get("SECUREWAVE_API_BASE_URL"))
+    parser.add_argument("--api-base", default=_default_api_base())
     parser.add_argument(
         "--use-mock-api",
         default=os.environ.get("SECUREWAVE_USE_MOCK_API", "false"),
@@ -408,6 +459,7 @@ def main() -> int:
 
     protocols = args.protocol or list(DEFAULT_PROTOCOLS)
     results = []
+    cleanup_actions: list[dict[str, object]] = []
     for index, protocol in enumerate(protocols):
         protocol_auth_mode = "login" if auth_mode == "register" and index > 0 else auth_mode
         result = run_protocol(
@@ -422,6 +474,7 @@ def main() -> int:
             use_mock_api=args.use_mock_api,
         )
         results.append(result)
+        cleanup_actions.extend(_cleanup_protocol_residue(protocol, args.pkexec_timeout))
         if _has_auth_failure(result):
             break
     cleanup = _run(
@@ -440,6 +493,7 @@ def main() -> int:
         "auth_mode": auth_mode,
         "baseline": baseline.as_dict(),
         "results": results,
+        "cleanup_actions": cleanup_actions,
         "cleanup": cleanup.as_dict(),
     }
     if args.json:

@@ -1,5 +1,66 @@
 {
     "chatgpt.openOnStartup": false,
     "chatgpt.commentCodeLensEnabled": false,
-    "cmake.sourceDirectory": "/home/sp/cyber-course/projects/securewave/securewave_app/linux"
+    "cmake.sourceDirectory": "/home/sp/cyber-course/projects/securewave/securewave_app/linux",
+    "FSharp.suggestGitignore": false,
+    "search.followSymlinks": false,
+    "search.exclude": {
+        "**/.dart_tool": true,
+        "**/.gradle": true,
+        "**/.mypy_cache": true,
+        "**/.pytest_cache": true,
+        "**/.ruff_cache": true,
+        "**/.venv": true,
+        "**/__pycache__": true,
+        "**/build": true,
+        "**/coverage": true,
+        "**/dist": true,
+        "**/node_modules": true,
+        "**/venv": true,
+        "artifacts": true,
+        "static/.dart_tool": true,
+        "static/build": true,
+        "static/downloads": true,
+        "static/third_party": true
+    },
+    "files.watcherExclude": {
+        "**/.dart_tool/**": true,
+        "**/.gradle/**": true,
+        "**/.mypy_cache/**": true,
+        "**/.pytest_cache/**": true,
+        "**/.ruff_cache/**": true,
+        "**/.venv/**": true,
+        "**/__pycache__/**": true,
+        "**/build/**": true,
+        "**/coverage/**": true,
+        "**/dist/**": true,
+        "**/node_modules/**": true,
+        "**/venv/**": true,
+        "artifacts/**": true,
+        "static/.dart_tool/**": true,
+        "static/build/**": true,
+        "static/downloads/**": true,
+        "static/third_party/**": true
+    },
+    "python.analysis.exclude": [
+        "**/.venv/**",
+        "**/__pycache__/**",
+        "**/artifacts/**",
+        "**/build/**",
+        "**/venv/**"
+    ],
+    "dart.analysisExcludedFolders": [
+        ".dart_tool",
+        "build",
+        "securewave_app/.dart_tool",
+        "securewave_app/build",
+        "securewaveapp_mobile/.dart_tool",
+        "static/.dart_tool",
+        "static/build",
+        "static/third_party"
+    ],
+    "terminal.integrated.enablePersistentSessions": false,
+    "terminal.integrated.persistentSessionScrollback": 0,
+    "terminal.integrated.scrollback": 5000,
+    "terminal.integrated.gpuAcceleration": "off"
 }

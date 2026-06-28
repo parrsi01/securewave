@@ -33,7 +33,10 @@ const _disconnectAfter = bool.fromEnvironment(
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final config = await AppConfig.load();
+  // Runtime proof runs must be deterministic and should not inherit local
+  // developer .env placeholders. The harness passes live or local API targets
+  // with --dart-define, so defaults() is the correct source for this entrypoint.
+  final config = AppConfig.defaults();
   runApp(
     ProviderScope(
       overrides: [

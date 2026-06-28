@@ -44,6 +44,32 @@ def test_ikev2_evidence_requires_nm_vpn_route_dns_and_xfrm_state(monkeypatch):
     assert proof._evidence_for("ikev2")["ok"] is True
 
 
+def test_wireguard_cleanup_removes_securewave_link(monkeypatch):
+    calls = []
+
+    def fake_run(argv, *, timeout=15):
+        calls.append((argv, timeout))
+        return proof.CommandResult(0, "", "")
+
+    monkeypatch.setattr(proof, "_run", fake_run)
+
+    actions = proof._cleanup_protocol_residue("wireguard", pkexec_timeout=60)
+
+    assert actions[0]["protocol"] == "wireguard"
+    assert calls == [
+        (
+            [
+                "pkexec",
+                "--disable-internal-agent",
+                "/usr/local/libexec/securewave-wg-quick",
+                "policy-clear-link",
+                "sw-wg",
+            ],
+            60,
+        )
+    ]
+
+
 def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
     def fake_run(argv, *, timeout=15):
         if argv[:4] == ["ip", "link", "show", "sw-wg"]:
@@ -75,6 +101,18 @@ def test_env_default_accepts_test_account_aliases(monkeypatch):
     ) == "qa@example.com"
 
 
+def test_default_api_base_uses_live_api_when_env_missing(monkeypatch):
+    monkeypatch.delenv("SECUREWAVE_API_BASE_URL", raising=False)
+
+    assert proof._default_api_base() == "https://api.securewaveapp.com/api"
+
+
+def test_default_api_base_prefers_explicit_env(monkeypatch):
+    monkeypatch.setenv("SECUREWAVE_API_BASE_URL", "http://localhost:8000/api")
+
+    assert proof._default_api_base() == "http://localhost:8000/api"
+
+
 def test_flutter_command_includes_api_and_mock_dart_defines():
     command = proof._build_flutter_command(
         protocol="wireguard",
@@ -90,6 +128,24 @@ def test_flutter_command_includes_api_and_mock_dart_defines():
     assert "--dart-define=SECUREWAVE_API_BASE_URL=http://localhost:8000/api" in command
     assert "--dart-define=SECUREWAVE_USE_MOCK_API=false" in command
     assert "--dart-define=SECUREWAVE_RUNTIME_PROBE_PROTOCOL=wireguard" in command
+
+
+def test_flutter_command_uses_default_api_base():
+    command = proof._build_flutter_command(
+        protocol="wireguard",
+        email="qa@example.com",
+        password="secret",
+        auth_mode="login",
+        server_id=None,
+        hold_seconds=12,
+        api_base=proof._default_api_base(),
+        use_mock_api="false",
+    )
+
+    assert (
+        "--dart-define=SECUREWAVE_API_BASE_URL=https://api.securewaveapp.com/api"
+        in command
+    )
 
 
 def test_generated_probe_credentials_are_live_registration_shape():
