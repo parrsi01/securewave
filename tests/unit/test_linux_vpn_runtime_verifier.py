@@ -17,7 +17,7 @@ def test_runner_contract_covers_all_protocol_runtime_evidence():
     assert checks["runner:ikev2_helper_up"].ok
     assert checks["runner:openvpn_tunnel_evidence"].ok
     assert checks["runner:ikev2_runtime_evidence"].ok
-    assert checks["runner:ikev2_helper_contract"].ok
+    assert checks["runner:securewave_helper_contract"].ok
     assert checks["runner:ikev2_ca_profile"].ok
 
 
@@ -132,7 +132,7 @@ def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path
     check = verifier.check_installed_helper_contract()
 
     assert not check.ok
-    assert "required 6" in check.detail
+    assert "required 7" in check.detail
 
 
 def test_polkit_rule_source_scopes_prompt_free_actions(monkeypatch, tmp_path):

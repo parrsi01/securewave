@@ -55,6 +55,49 @@ require_safe_runtime_file() {
   fi
 }
 
+prepare_owned_runtime_file() {
+  local path="$1"
+  local label="$2"
+  local owner_ref="$3"
+  local owner_group
+  local owner
+  local group
+  local dir
+  local tmp
+
+  owner_group="$(stat -c '%u:%g' "$owner_ref" 2>/dev/null)" || {
+    echo "securewave-wg-quick: unable to stat ${label} owner reference '$owner_ref'" >&2
+    exit 64
+  }
+  owner="${owner_group%%:*}"
+  group="${owner_group##*:}"
+  dir="$(dirname "$path")"
+  if [[ ! -d "$dir" ]]; then
+    echo "securewave-wg-quick: ${label} directory '$dir' not found" >&2
+    exit 64
+  fi
+
+  tmp="$(mktemp "${dir}/.${label}.XXXXXX")" || {
+    echo "securewave-wg-quick: unable to create ${label} file" >&2
+    exit 64
+  }
+  chown "$owner:$group" "$tmp" || {
+    rm -f "$tmp"
+    echo "securewave-wg-quick: unable to set ${label} ownership" >&2
+    exit 64
+  }
+  chmod 0600 "$tmp" || {
+    rm -f "$tmp"
+    echo "securewave-wg-quick: unable to set ${label} permissions" >&2
+    exit 64
+  }
+  mv -fT "$tmp" "$path" || {
+    rm -f "$tmp"
+    echo "securewave-wg-quick: unable to install ${label} file" >&2
+    exit 64
+  }
+}
+
 require_sw_wg_iface() {
   local iface="$1"
   if [[ "$iface" != "sw-wg" ]]; then
@@ -231,7 +274,8 @@ if [[ "$action" == "up" ]]; then
 fi
 
 if [[ "$action" == "openvpn-start" ]]; then
-  rm -f "$pid_file" "$log_file"
+  prepare_owned_runtime_file "$pid_file" "pid" "$config"
+  prepare_owned_runtime_file "$log_file" "log" "$config"
   argv=(openvpn --config "$config" --writepid "$pid_file" --daemon --log "$log_file")
   if [[ -n "${auth_file:-}" ]]; then
     argv+=(--auth-user-pass "$auth_file")

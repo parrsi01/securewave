@@ -35,7 +35,7 @@ const char* kIkev2ConfigFileName = "securewave-ikev2.conf";
 const char* kIkev2CaFileName = "securewave-ikev2-ca.pem";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
 const char* kActiveProtocolFileName = "securewave-active-protocol";
-const guint kIkev2HelperContractVersion = 6;
+const guint kSecureWaveHelperContractVersion = 7;
 const guint kWgQuickTimeoutMs = 30000;
 const guint kOpenVpnTimeoutMs = 20000;
 
@@ -94,7 +94,7 @@ static guint securewave_helper_contract_version() {
   return static_cast<guint>(g_ascii_strtoull(contents, nullptr, 10));
 }
 
-static gboolean ikev2_helper_contract_available(gchar** detail) {
+static gboolean securewave_helper_contract_available(gchar** detail) {
   if (!wireguard_helper_available()) {
     if (detail != nullptr) {
       *detail = g_strdup("SecureWave VPN helper not found. Reinstall SecureWave and retry.");
@@ -102,12 +102,12 @@ static gboolean ikev2_helper_contract_available(gchar** detail) {
     return FALSE;
   }
   const guint contract_version = securewave_helper_contract_version();
-  if (contract_version < kIkev2HelperContractVersion) {
+  if (contract_version < kSecureWaveHelperContractVersion) {
     if (detail != nullptr) {
       *detail = g_strdup_printf(
           "SecureWave VPN helper is out of date (contract %u, need %u). Reinstall SecureWave to update /usr/local/libexec/securewave-wg-quick.",
           contract_version,
-          kIkev2HelperContractVersion);
+          kSecureWaveHelperContractVersion);
     }
     return FALSE;
   }
@@ -126,7 +126,7 @@ static gboolean ikev2_tooling_available() {
 }
 
 static gboolean ikev2_available() {
-  return ikev2_tooling_available() && ikev2_helper_contract_available(nullptr);
+  return ikev2_tooling_available() && securewave_helper_contract_available(nullptr);
 }
 
 static gboolean elevated_runner_available() {
@@ -1474,6 +1474,15 @@ static void spawn_openvpn_up_async(
         nullptr);
     return;
   }
+  g_autofree gchar* helper_detail = nullptr;
+  if (!securewave_helper_contract_available(&helper_detail)) {
+    respond_error(
+        method_call,
+        "vpn_unavailable",
+        helper_detail != nullptr ? helper_detail : "SecureWave VPN helper is out of date. Reinstall SecureWave and retry.",
+        nullptr);
+    return;
+  }
 
   g_autoptr(GError) error = nullptr;
   g_autofree gchar* pkexec = nullptr;
@@ -1777,7 +1786,7 @@ static void spawn_ikev2_up_async(
     return;
   }
   g_autofree gchar* helper_detail = nullptr;
-  if (!ikev2_helper_contract_available(&helper_detail)) {
+  if (!securewave_helper_contract_available(&helper_detail)) {
     respond_error(
         method_call,
         "vpn_unavailable",

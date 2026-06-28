@@ -47,6 +47,7 @@ def test_openvpn_start_and_stop_use_scoped_securewave_helper():
     assert "verify_openvpn_started = TRUE" in source
     assert "verify_openvpn_stopped = TRUE" in source
     assert "OpenVPN stop command completed but process or tunnel route evidence remains." in source
+    assert "securewave_helper_contract_available(&helper_detail)" in source
 
 
 def test_wireguard_start_requires_route_evidence_not_only_interface():
@@ -93,7 +94,7 @@ def test_ikev2_start_uses_networkmanager_helper_and_runtime_evidence():
     assert "parse_ikev2_ca_cert_pem(config)" in source
     assert 'kIkev2CaFileName = "securewave-ikev2-ca.pem"' in source
     assert "ctx->ca_cert_path" in source
-    assert "kIkev2HelperContractVersion = 6" in source
+    assert "kSecureWaveHelperContractVersion = 7" in source
     assert "ikev2_runtime_evidence_exists" in source
     assert "ikev2_xfrm_state_evidence_exists" in source
     assert "active NetworkManager VPN route/DNS and XFRM ESP evidence was not detected" in source
@@ -132,8 +133,13 @@ def test_linux_package_installs_privileged_helper_and_runtime_dependencies():
     assert "cert-source=file" in helper
     assert "certificate=${ca_cert}" in helper
     assert '--log "$log_file"' in helper
-    assert 'rm -f "$pid_file" "$log_file"' in helper
-    assert helper_contract == "6"
+    assert "prepare_owned_runtime_file" in helper
+    assert 'prepare_owned_runtime_file "$pid_file" "pid" "$config"' in helper
+    assert 'prepare_owned_runtime_file "$log_file" "log" "$config"' in helper
+    assert "stat -c '%u:%g'" in helper
+    assert 'chmod 0600 "$tmp"' in helper
+    assert 'mv -fT "$tmp" "$path"' in helper
+    assert helper_contract == "7"
     assert "securewave-wg-quick.contract" in build
     assert "50-securewave-wg.rules" in build
     assert "render_polkit_rule" in build

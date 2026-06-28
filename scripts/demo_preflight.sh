@@ -118,10 +118,10 @@ check_helper_contract() {
 
   local contract
   contract="$(tr -d '[:space:]' < "$contract_file")"
-  if [[ "$contract" =~ ^[0-9]+$ ]] && (( contract >= 6 )); then
-    pass "SecureWave helper contract $contract >= 6"
+  if [[ "$contract" =~ ^[0-9]+$ ]] && (( contract >= 7 )); then
+    pass "SecureWave helper contract $contract >= 7"
   else
-    fail "SecureWave helper contract '$contract' is below required version 6"
+    fail "SecureWave helper contract '$contract' is below required version 7"
   fi
 }
 

@@ -28,7 +28,7 @@ POLKIT_RULE_SOURCE_PATH = REPO_ROOT / "securewave_app/packaging/linux/50-securew
 REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "pkexec")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
-EXPECTED_IKEV2_HELPER_CONTRACT = 6
+EXPECTED_SECUREWAVE_HELPER_CONTRACT = 7
 DEFAULT_PKEXEC_TIMEOUT_SECONDS = 60
 
 
@@ -170,11 +170,11 @@ def check_installed_helper_contract() -> Check:
             False,
             f"invalid helper contract {raw!r}",
         )
-    ok = installed >= EXPECTED_IKEV2_HELPER_CONTRACT
+    ok = installed >= EXPECTED_SECUREWAVE_HELPER_CONTRACT
     return Check(
         "privilege:securewave_helper_contract",
         ok,
-        f"installed contract {installed}; required {EXPECTED_IKEV2_HELPER_CONTRACT}",
+        f"installed contract {installed}; required {EXPECTED_SECUREWAVE_HELPER_CONTRACT}",
     )
 
 
@@ -194,7 +194,7 @@ def check_runner_contract() -> list[Check]:
         "runner:ikev2_helper_up": "ikev2-up",
         "runner:openvpn_tunnel_evidence": "OpenVPN process started but Initialization Sequence Completed and tunnel route evidence were not detected.",
         "runner:ikev2_runtime_evidence": "active NetworkManager VPN route/DNS and XFRM ESP evidence was not detected",
-        "runner:ikev2_helper_contract": "kIkev2HelperContractVersion = 6",
+        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 7",
         "runner:ikev2_ca_profile": "parse_ikev2_ca_cert_pem(config)",
         "runner:no_implicit_mock": "securewave/vpn",
     }
