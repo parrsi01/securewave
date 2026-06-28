@@ -29,6 +29,8 @@ def test_openvpn_start_requires_tunnel_evidence_not_only_daemon_pid():
     assert "openvpn_initialization_completed" in source
     assert "Initialization Sequence Completed" in source
     assert "openvpn_log_tail" in source
+    assert "stop_openvpn_after_failed_start" in source
+    assert 'run_securewave_helper_sync("openvpn-stop", stop_args, nullptr)' in source
     assert "OpenVPN process started but Initialization Sequence Completed" in source
     assert '{"ip", "route", "get", "1.1.1.1", nullptr}' in source
     assert '" dev tun"' in source

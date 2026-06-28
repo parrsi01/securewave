@@ -692,6 +692,17 @@ static gboolean run_securewave_helper_sync(
   return run_securewave_helper_capture_sync(action, args, nullptr, detail);
 }
 
+static void stop_openvpn_after_failed_start(const gchar* pid_path) {
+  GPid openvpn_pid = 0;
+  if (!read_pid_from_file(pid_path, &openvpn_pid)) {
+    return;
+  }
+  g_autofree gchar* pid_arg = g_strdup_printf("%d", static_cast<int>(openvpn_pid));
+  const gchar* stop_args[] = {pid_arg, nullptr};
+  run_securewave_helper_sync("openvpn-stop", stop_args, nullptr);
+  wait_for_openvpn_stop_evidence(pid_path);
+}
+
 static gboolean nmcli_active_connection_exists(const gchar* connection_name) {
   gint wait_status = 0;
   g_autoptr(GError) error = nullptr;
@@ -1319,6 +1330,8 @@ static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_da
             "OpenVPN process started but Initialization Sequence Completed and tunnel route evidence were not detected.%s%s",
             log_tail != nullptr ? " Last log lines: " : "",
             log_tail != nullptr ? log_tail : "");
+        stop_openvpn_after_failed_start(ctx->openvpn_pid_path);
+        remove_openvpn_pid_file(ctx->openvpn_pid_path);
         wg_quick_respond_error_once(ctx, message);
         g_spawn_close_pid(pid);
         return;
