@@ -36,9 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   if (navActions) {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then((res) => {
-        if (!res.ok) return;
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then((res) => res.ok ? res.json() : null)
+      .then((session) => {
+        if (!session?.authenticated) return;
         navActions.innerHTML =
           '<a class="btn btn-ghost btn-sm" href="/dashboard">Dashboard</a>' +
           '<button class="btn btn-secondary btn-sm" type="button" data-logout>Sign out</button>';
