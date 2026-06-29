@@ -14,6 +14,7 @@ import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
 import 'core/services/auth_session.dart';
 import 'core/services/secure_storage.dart';
+import 'core/services/vpn_service.dart';
 import 'core/state/app_state.dart';
 import 'core/state/vpn_state.dart';
 import 'core/utils/api_error.dart';
@@ -23,6 +24,10 @@ import 'services/external_links.dart';
 import 'ui/app_ui_v1.dart';
 
 typedef FreshTheme = AppUIv1;
+
+final nativeRuntimeStatusProvider = FutureProvider<VpnRuntimeStatus>((ref) {
+  return ref.read(vpnServiceProvider).refreshRuntimeStatus();
+});
 
 class SecureWaveApp extends ConsumerStatefulWidget {
   const SecureWaveApp({super.key});
@@ -65,6 +70,7 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
             currentConfig.simulateTunnel || loadedConfig.simulateTunnel,
       );
       ref.read(appConfigProvider.notifier).state = config;
+      ref.invalidate(nativeRuntimeStatusProvider);
       ref.read(vpnStateProvider.notifier).resumeRateUpdates();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
@@ -486,6 +492,7 @@ class _ConnectScreen extends ConsumerWidget {
     final plan = ref.watch(userPlanProvider);
     final servers = ref.watch(serversProvider);
     final config = ref.watch(appConfigProvider);
+    final nativeRuntime = ref.watch(nativeRuntimeStatusProvider);
 
     final serverList = servers.maybeWhen(
       data: (value) => value,
@@ -508,6 +515,23 @@ class _ConnectScreen extends ConsumerWidget {
               _AccountLine(user: user),
               const SizedBox(height: 18),
               _ConnectionStrip(status: status, protocol: vpn.protocol),
+              nativeRuntime.maybeWhen(
+                data: (runtime) {
+                  if (runtime.status != VpnStatus.connected) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _InlineMessage(
+                      icon: Icons.verified_rounded,
+                      message:
+                          'Runtime verified: ${vpnProtocolLabel(runtime.protocol ?? vpn.protocol)} tunnel is active.',
+                      tone: _Tone.success,
+                    ),
+                  );
+                },
+                orElse: () => const SizedBox.shrink(),
+              ),
               const SizedBox(height: 18),
               Row(
                 children: [
@@ -518,9 +542,12 @@ class _ConnectScreen extends ConsumerWidget {
                           : () {
                               final notifier =
                                   ref.read(vpnStateProvider.notifier);
-                              connected
-                                  ? unawaited(notifier.disconnect())
-                                  : unawaited(notifier.connect());
+                              unawaited(() async {
+                                connected
+                                    ? await notifier.disconnect()
+                                    : await notifier.connect();
+                                ref.invalidate(nativeRuntimeStatusProvider);
+                              }());
                             },
                       icon: Icon(connected
                           ? Icons.stop_rounded

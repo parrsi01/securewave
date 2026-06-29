@@ -6,7 +6,9 @@ import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
+import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
 
@@ -141,6 +143,24 @@ void main() {
     );
     expect(find.text('VPN connected'), findsNothing);
   });
+
+  testWidgets('connect screen shows native runtime verified status',
+      (tester) async {
+    await _pumpApp(
+      tester,
+      runtimeStatusOverride: nativeRuntimeStatusProvider.overrideWith(
+        (ref) async => const VpnRuntimeStatus(
+          status: VpnStatus.connected,
+          protocol: VpnProtocol.openVpn,
+        ),
+      ),
+    );
+
+    expect(
+      find.text('Runtime verified: OpenVPN tunnel is active.'),
+      findsOneWidget,
+    );
+  });
 }
 
 Future<void> _pumpApp(
@@ -148,6 +168,7 @@ Future<void> _pumpApp(
   Override? serversOverride,
   Override? planOverride,
   Override? vpnOverride,
+  Override? runtimeStatusOverride,
   bool simulateTunnel = false,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
@@ -199,6 +220,7 @@ Future<void> _pumpApp(
               ],
             ),
         if (vpnOverride != null) vpnOverride,
+        if (runtimeStatusOverride != null) runtimeStatusOverride,
       ],
       child: const SecureWaveApp(),
     ),
