@@ -576,8 +576,10 @@ class _ConnectScreen extends ConsumerWidget {
                 _InfoRow('Server', selectedServer),
                 _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
                 _InfoRow('Session data', _sessionUsageText(vpn)),
-                _InfoRow('Down rate', formatByteRate(vpn.dataRateDown)),
-                _InfoRow('Up rate', formatByteRate(vpn.dataRateUp)),
+                _InfoRow('Down rate',
+                    formatMbpsFromBytesPerSecond(vpn.dataRateDown)),
+                _InfoRow(
+                    'Up rate', formatMbpsFromBytesPerSecond(vpn.dataRateUp)),
                 _InfoRow('Counter source', _counterSourceText(vpn)),
               ],
             ),
@@ -1032,8 +1034,8 @@ class _UsageSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _InfoRow('Session data', _sessionUsageText(vpn)),
-        _InfoRow('Down rate', formatByteRate(vpn.dataRateDown)),
-        _InfoRow('Up rate', formatByteRate(vpn.dataRateUp)),
+        _InfoRow('Down rate', formatMbpsFromBytesPerSecond(vpn.dataRateDown)),
+        _InfoRow('Up rate', formatMbpsFromBytesPerSecond(vpn.dataRateUp)),
         _InfoRow('Counter source', _counterSourceText(vpn)),
         if (!vpn.sessionCountersAvailable &&
             vpn.sessionUsageUnavailableReason != null) ...[

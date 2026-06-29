@@ -115,8 +115,8 @@ void main() {
     expect(find.text('Session data'), findsWidgets);
     expect(find.text('3.0 KB'), findsWidgets);
     expect(find.text('sw-wg'), findsWidgets);
-    expect(find.text('1.0 KB/s'), findsWidgets);
-    expect(find.text('512 B/s'), findsWidgets);
+    expect(find.text('55.3 Mbps'), findsWidgets);
+    expect(find.text('12.4 Mbps'), findsWidgets);
   });
 }
 
@@ -129,8 +129,8 @@ class _SeededVpnStateNotifier extends VpnStateNotifier {
       sessionUsageReady: true,
       sessionCountersAvailable: true,
       sessionCounterInterface: 'sw-wg',
-      dataRateDown: 1024,
-      dataRateUp: 512,
+      dataRateDown: 6912500,
+      dataRateUp: 1550000,
     );
   }
 }

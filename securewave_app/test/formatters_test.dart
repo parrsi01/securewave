@@ -18,4 +18,10 @@ void main() {
     expect(formatByteRate(1024), '1.0 KB/s');
     expect(formatByteRate(1536.4), '1.5 KB/s');
   });
+
+  test('formatMbpsFromBytesPerSecond renders network throughput', () {
+    expect(formatMbpsFromBytesPerSecond(0), '0.0 Mbps');
+    expect(formatMbpsFromBytesPerSecond(6912500), '55.3 Mbps');
+    expect(formatMbpsFromBytesPerSecond(-1), '0.0 Mbps');
+  });
 }

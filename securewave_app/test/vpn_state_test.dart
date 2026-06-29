@@ -265,11 +265,16 @@ void main() {
     final notifier = container.read(vpnStateProvider.notifier);
     await notifier.connect();
     await Future<void>.delayed(Duration.zero);
+
+    var state = container.read(vpnStateProvider);
+    expect(state.dataRateDown, greaterThan(0));
+    expect(state.dataRateUp, greaterThan(0));
+
     await notifier.disconnect();
 
     expect(api.rxBytes, <int>[firstRxBytes]);
     expect(api.txBytes, <int>[firstTxBytes]);
-    final state = container.read(vpnStateProvider);
+    state = container.read(vpnStateProvider);
     expect(state.sessionRxBytes, firstRxBytes);
     expect(state.sessionTxBytes, firstTxBytes);
     expect(state.sessionTotalBytes, firstRxBytes + firstTxBytes);

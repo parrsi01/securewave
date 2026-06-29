@@ -1,5 +1,10 @@
 String formatMbps(double value) => '${value.toStringAsFixed(1)} Mbps';
 
+String formatMbpsFromBytesPerSecond(double bytesPerSecond) {
+  final clamped = bytesPerSecond < 0 ? 0 : bytesPerSecond;
+  return formatMbps((clamped * 8) / 1000000);
+}
+
 String formatBytes(num bytes) {
   final value = bytes < 0 ? 0 : bytes.toDouble();
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
