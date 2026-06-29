@@ -80,6 +80,8 @@ def test_final_linux_gate_provisions_stable_account_without_churn_in_preflight()
 
     assert "--provision-live-account" in gate
     assert "--allow-active-tunnel" in gate
+    assert "connected runtime snapshot" in gate
+    assert "git_head=" in gate
     assert "--allow-active-tunnel" in runtime_verifier
     assert "SECUREWAVE_PROVISION_EMAIL" in gate
     assert "SECUREWAVE_PROVISION_PASSWORD" in gate

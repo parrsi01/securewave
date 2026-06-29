@@ -405,6 +405,49 @@ run_app_proof() {
   run_required "app_tunnel_proof" "${args[@]}"
 }
 
+print_connected_snapshot() {
+  if [[ "$CONNECTED" != "true" ]]; then
+    return
+  fi
+
+  printf '\n== connected runtime snapshot ==\n'
+  local head
+  head="$(git rev-parse --short HEAD 2>/dev/null || true)"
+  if [[ -n "$head" ]]; then
+    printf 'git_head=%s\n' "$head"
+  fi
+
+  local active_protocol_file="$HOME/.config/securewave/securewave-active-protocol"
+  if [[ -f "$active_protocol_file" ]]; then
+    printf 'active_protocol=%s\n' "$(tr -d '[:space:]' < "$active_protocol_file")"
+  else
+    printf 'active_protocol=unknown\n'
+  fi
+
+  local app_processes
+  app_processes="$(pgrep -a securewave_app 2>/dev/null || true)"
+  if [[ -n "$app_processes" ]]; then
+    printf 'app_processes:\n%s\n' "$app_processes" | sed 's/^/  /'
+  else
+    printf 'app_processes=none\n'
+  fi
+
+  local openvpn_processes
+  openvpn_processes="$(pgrep -a openvpn 2>/dev/null || true)"
+  if [[ -n "$openvpn_processes" ]]; then
+    printf 'openvpn_processes:\n%s\n' "$openvpn_processes" | sed 's/^/  /'
+  fi
+
+  ip route get 1.1.1.1 2>/dev/null | sed 's/^/route_1.1.1.1=/' || true
+  ip -o link show tun0 2>/dev/null | sed 's/^/tun0=/' || true
+  ip -o link show sw-wg 2>/dev/null | sed 's/^/sw-wg=/' || true
+
+  local egress_ip
+  if egress_ip="$(curl -fsS --max-time 20 https://api.ipify.org 2>/dev/null)" && [[ -n "$egress_ip" ]]; then
+    printf 'egress_ip=%s\n' "$egress_ip"
+  fi
+}
+
 run_full_tests() {
   run_required "devops_preflight" bash scripts/devops_preflight.sh
   local python_bin="python3"
@@ -432,6 +475,7 @@ fi
 run_required "runtime_verifier" "${runtime_verifier_args[@]}"
 check_version_alignment
 run_demo_preflight
+print_connected_snapshot
 
 if [[ "$FULL_TESTS" == "true" ]]; then
   run_full_tests
