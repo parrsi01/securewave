@@ -165,7 +165,7 @@ def _evidence_for(protocol: str) -> dict[str, object]:
     if protocol == "openvpn":
         tun0 = _run(["ip", "link", "show", "tun0"])
         route = _run(["ip", "route", "get", "1.1.1.1"])
-        procs = _run(["pgrep", "-af", "securewave-openvpn|openvpn.*securewave"])
+        procs = _run(["pgrep", "-x", "openvpn"])
         route_ok = route.returncode == 0 and " dev tun" in route.stdout
         return {
             "ok": tun0.returncode == 0 and route_ok and procs.returncode == 0,

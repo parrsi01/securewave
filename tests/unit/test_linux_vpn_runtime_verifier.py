@@ -45,8 +45,8 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
             stdout="default dev sw-wg table 51820\n0.0.0.0/1 dev tun0\n128.0.0.0/1 dev tun0\n",
             stderr="",
         ),
-        ("pgrep", "-af", "securewave-openvpn|openvpn.*securewave"): CompletedProcess(
-            args=[], returncode=0, stdout="123 openvpn --daemon securewave-openvpn\n", stderr=""
+        ("pgrep", "-x", "openvpn"): CompletedProcess(
+            args=[], returncode=0, stdout="123\n", stderr=""
         ),
         ("swanctl", "--list-sas"): CompletedProcess(
             args=[], returncode=0, stdout="securewave: #1, ESTABLISHED\n", stderr=""

@@ -256,7 +256,7 @@ def check_residue() -> list[Check]:
         )
     )
 
-    procs = _run(["pgrep", "-af", "securewave-openvpn|openvpn.*securewave"])
+    procs = _run(["pgrep", "-x", "openvpn"])
     checks.append(
         Check(
             "residue:openvpn_process",

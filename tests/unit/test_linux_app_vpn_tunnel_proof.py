@@ -20,8 +20,8 @@ def test_openvpn_evidence_requires_tun_route_and_process(monkeypatch):
             return proof.CommandResult(0, "11: tun0: <POINTOPOINT>\n", "")
         if argv[:4] == ["ip", "route", "get", "1.1.1.1"]:
             return proof.CommandResult(0, "1.1.1.1 dev tun0 src 10.9.0.2\n", "")
-        if argv[:2] == ["pgrep", "-af"]:
-            return proof.CommandResult(0, "123 openvpn --config securewave-openvpn.ovpn\n", "")
+        if argv[:2] == ["pgrep", "-x"]:
+            return proof.CommandResult(0, "123\n", "")
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
