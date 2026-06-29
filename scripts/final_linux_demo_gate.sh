@@ -11,6 +11,8 @@ AUTH_FILE="${SECUREWAVE_CERT_AUTH_FILE:-${SECUREWAVE_LIVE_ACCOUNT_FILE:-$DEFAULT
 PKEXEC_TIMEOUT="${SECUREWAVE_PKEXEC_TIMEOUT:-20}"
 HOLD_SECONDS="${SECUREWAVE_PROOF_HOLD_SECONDS:-20}"
 EVIDENCE_TIMEOUT="${SECUREWAVE_EVIDENCE_TIMEOUT:-180}"
+TRANSFER_PROOF_BYTES="${SECUREWAVE_TRANSFER_PROOF_BYTES:-1048576}"
+TRANSFER_PROOF_URL="${SECUREWAVE_TRANSFER_PROOF_URL:-https://speed.cloudflare.com/__down?bytes=$TRANSFER_PROOF_BYTES}"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_DIR="${SECUREWAVE_GATE_LOG_DIR:-$ROOT_DIR/artifacts/final-linux-demo-gate/$TIMESTAMP}"
 
@@ -448,6 +450,106 @@ print_connected_snapshot() {
   fi
 }
 
+run_connected_transfer_proof() {
+  if [[ "$CONNECTED" != "true" ]]; then
+    return
+  fi
+
+  local label="connected_transfer_proof"
+  local log="$LOG_DIR/${label}.log"
+  STEP_COUNT=$((STEP_COUNT + 1))
+  printf '\n== %s ==\n' "$label"
+
+  set +e
+  SECUREWAVE_TRANSFER_PROOF_BYTES="$TRANSFER_PROOF_BYTES" \
+    SECUREWAVE_TRANSFER_PROOF_URL="$TRANSFER_PROOF_URL" \
+    python3 - >"$log" 2>&1 <<'PY'
+import os
+import re
+import subprocess
+from pathlib import Path
+
+
+def run(command: list[str]) -> str:
+    return subprocess.run(
+        command,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    ).stdout.strip()
+
+
+def link_bytes(interface: str) -> tuple[int, int]:
+    output = run(["ip", "-s", "link", "show", interface])
+    lines = output.splitlines()
+    rx = tx = None
+    for index, line in enumerate(lines):
+        value_line = lines[index + 1].split() if index + 1 < len(lines) else []
+        if line.strip().startswith("RX:") and value_line:
+            rx = int(value_line[0])
+        if line.strip().startswith("TX:") and value_line:
+            tx = int(value_line[0])
+    if rx is None or tx is None:
+        raise SystemExit(f"could not read byte counters for {interface}")
+    return rx, tx
+
+
+route = run(["ip", "route", "get", "1.1.1.1"])
+match = re.search(r"\bdev\s+(\S+)", route)
+interface = match.group(1) if match else ""
+if interface not in {"tun0", "sw-wg"}:
+    raise SystemExit(f"route to 1.1.1.1 is not using a SecureWave tunnel: {route}")
+
+url = os.environ["SECUREWAVE_TRANSFER_PROOF_URL"]
+expected_bytes = int(os.environ["SECUREWAVE_TRANSFER_PROOF_BYTES"])
+target = Path("/tmp/securewave-transfer-proof.bin")
+target.unlink(missing_ok=True)
+
+before_rx, before_tx = link_bytes(interface)
+egress_ip = run(["curl", "-fsS", "--max-time", "20", "https://api.ipify.org"])
+download = subprocess.run(
+    ["curl", "-fsS", "--max-time", "45", "-o", str(target), url],
+    check=False,
+)
+size = target.stat().st_size if target.exists() else 0
+after_rx, after_tx = link_bytes(interface)
+target.unlink(missing_ok=True)
+
+rx_delta = after_rx - before_rx
+tx_delta = after_tx - before_tx
+
+print(f"route={route}")
+print(f"interface={interface}")
+print(f"egress_ip={egress_ip}")
+print(f"download_url={url}")
+print(f"download_code={download.returncode}")
+print(f"download_size={size}")
+print(f"expected_bytes={expected_bytes}")
+print(f"{interface}_rx_before={before_rx}")
+print(f"{interface}_rx_after={after_rx}")
+print(f"{interface}_rx_delta={rx_delta}")
+print(f"{interface}_tx_delta={tx_delta}")
+
+if download.returncode != 0:
+    raise SystemExit("transfer proof download failed")
+if size <= 0:
+    raise SystemExit("transfer proof download produced no data")
+if rx_delta <= 0:
+    raise SystemExit(f"no received-byte increase observed on {interface}")
+PY
+  local code=$?
+  set -e
+
+  if (( code == 0 )); then
+    pass "$label"
+    sed 's/^/  /' "$log"
+  else
+    blocker "$label failed; see $log"
+    tail -n 40 "$log" | sed 's/^/  /' >&2 || true
+  fi
+}
+
 run_full_tests() {
   run_required "devops_preflight" bash scripts/devops_preflight.sh
   local python_bin="python3"
@@ -476,6 +578,7 @@ run_required "runtime_verifier" "${runtime_verifier_args[@]}"
 check_version_alignment
 run_demo_preflight
 print_connected_snapshot
+run_connected_transfer_proof
 
 if [[ "$FULL_TESTS" == "true" ]]; then
   run_full_tests
