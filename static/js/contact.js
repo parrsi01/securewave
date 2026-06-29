@@ -55,7 +55,7 @@
       headers['X-CSRF-Token'] = csrfToken;
     }
 
-    fetch('/api/contact', {
+    fetch('/api/contact/submit', {
       method: 'POST',
       headers: headers,
       credentials: 'same-origin',
