@@ -108,6 +108,32 @@ void main() {
     expect(state.lastTunnelStartOk, isTrue);
   });
 
+  test('connect reconciles already active native tunnel before starting',
+      () async {
+    final service = _ConnectRefreshVpnService();
+    final api = _AlwaysFailingProfileApiClient(
+      statusCode: 500,
+      body: {'detail': 'profile fetch should not run'},
+    );
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await Future<void>.delayed(Duration.zero);
+    await notifier.connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.connected);
+    expect(state.protocol, VpnProtocol.openVpn);
+    expect(service.connectCalls, 0);
+    expect(state.lastTunnelStartOk, isTrue);
+  });
+
   test(
       'VpnStateNotifier cannot remain connected when kill switch hooks present and network drops',
       () async {
@@ -497,6 +523,54 @@ class _RestoredRuntimeVpnService extends MockVpnService {
       rxBytes: 4096,
       txBytes: 1024,
       interfaceName: 'tun0',
+    );
+  }
+}
+
+class _ConnectRefreshVpnService implements VpnService {
+  int refreshCalls = 0;
+  int connectCalls = 0;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    connectCalls += 1;
+    throw VpnServiceException('unexpected_connect', 'connect should not run');
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async => VpnStatus.disconnected;
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
+    return const VpnTrafficStats(
+      rxBytes: 2048,
+      txBytes: 512,
+      interfaceName: 'tun0',
+    );
+  }
+
+  @override
+  VpnStatus getStatus() => VpnStatus.disconnected;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    refreshCalls += 1;
+    if (refreshCalls == 1) {
+      return const VpnRuntimeStatus(status: VpnStatus.disconnected);
+    }
+    return const VpnRuntimeStatus(
+      status: VpnStatus.connected,
+      protocol: VpnProtocol.openVpn,
     );
   }
 }

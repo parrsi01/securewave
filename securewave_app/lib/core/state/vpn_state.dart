@@ -239,6 +239,22 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     try {
       final service = _ref.read(vpnServiceProvider);
       final api = _ref.read(apiClientProvider);
+      final runtimeSnapshot = await service.refreshRuntimeStatus();
+      if (runtimeSnapshot.status == VpnStatus.connected) {
+        final protocol = runtimeSnapshot.protocol ?? state.protocol;
+        _activeProtocol = protocol;
+        state = state.copyWith(
+          status: VpnStatus.connected,
+          protocol: protocol,
+          desiredOn: true,
+          lastTunnelStartAt: DateTime.now(),
+          lastTunnelStartOk: true,
+          clearError: true,
+        );
+        _updateStability(success: true);
+        _startRateUpdates();
+        return;
+      }
       String? config;
       String? connectedServerId = state.selectedServerId;
       var connectedProtocol = state.protocol;
