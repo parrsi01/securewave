@@ -87,6 +87,11 @@ class TestAuthenticatedEndpoints:
         response = client.get("/api/auth/me")
         assert response.status_code in (401, 403)
 
+    def test_session_is_public_safe_for_static_site(self, client: TestClient):
+        response = client.get("/api/auth/session")
+        assert response.status_code == 200
+        assert response.json() == {"authenticated": False}
+
     def test_dashboard_user_requires_auth(self, client: TestClient):
         response = client.get("/api/dashboard/user")
         assert response.status_code in (401, 403)
@@ -108,6 +113,13 @@ class TestAuthenticatedUserEndpoints:
         response = client.get("/api/auth/me", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
+        assert "email" in data
+
+    def test_session_returns_user_info_when_authenticated(self, client: TestClient, auth_headers):
+        response = client.get("/api/auth/session", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["authenticated"] is True
         assert "email" in data
 
     def test_dashboard_user(self, client: TestClient, auth_headers):

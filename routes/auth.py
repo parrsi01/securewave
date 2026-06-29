@@ -23,6 +23,8 @@ from utils.env_validation import demo_mode_enabled
 from services.jwt_service import (
     ACCESS_EXPIRE_MINUTES,
     REFRESH_EXPIRE_MINUTES,
+    ACCESS_SECRET,
+    decode_token,
     create_access_token,
     create_refresh_token,
     verify_refresh_token,
@@ -94,6 +96,28 @@ def record_login_success(user_id: int, ip_address: Optional[str]) -> None:
         AuthService(db).record_login_attempt(user, success=True, ip_address=ip_address)
     finally:
         db.close()
+
+
+def optional_current_user(request: Request, db: Session) -> Optional[User]:
+    """Return the current user when a valid session exists; never raise for anonymous visitors."""
+    token = request.cookies.get("access_token")
+    if not token:
+        authorization = request.headers.get("Authorization", "")
+        scheme, _, value = authorization.partition(" ")
+        if scheme.lower() == "bearer" and value:
+            token = value
+    if not token:
+        return None
+    try:
+        payload = decode_token(token, ACCESS_SECRET)
+        if payload.get("type") != "access":
+            return None
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+        return db.query(User).filter(User.id == int(user_id)).first()
+    except Exception:
+        return None
 
 
 # ===========================
@@ -430,6 +454,25 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         "subscription_active": current_user.subscription_status == "active",
         "subscription_status": current_user.subscription_status,
         "last_login": current_user.last_login.isoformat() if current_user.last_login else None,
+    }
+
+
+@router.get("/session")
+async def get_session_info(request: Request, db: Session = Depends(get_db)):
+    """Public-safe session probe for static pages that only need nav/auth UI state."""
+    current_user = optional_current_user(request, db)
+    if current_user is None:
+        return {"authenticated": False}
+    return {
+        "authenticated": True,
+        "id": current_user.id,
+        "email": current_user.email,
+        "is_active": current_user.is_active,
+        "account_status": "active" if current_user.is_active else "inactive",
+        "email_verified": current_user.email_verified,
+        "has_2fa": current_user.has_2fa_enabled,
+        "subscription_active": current_user.subscription_status == "active",
+        "subscription_status": current_user.subscription_status,
     }
 
 

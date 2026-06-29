@@ -91,9 +91,10 @@ async function handleAuth(event) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  fetch('/api/auth/me', { credentials: 'include' })
-    .then((res) => {
-      if (res.ok) {
+  fetch('/api/auth/session', { credentials: 'include' })
+    .then((res) => res.ok ? res.json() : null)
+    .then((session) => {
+      if (session?.authenticated) {
         window.location.href = '/dashboard';
       }
     })
