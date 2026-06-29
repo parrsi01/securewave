@@ -67,7 +67,7 @@ validate_fernet() {
   local name="$1"
   local value="${!name-}"
   if [[ -z "$value" ]]; then
-    fail_with_fix "$name is required for release." "export ${name}=\"\\$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')\""
+    fail_with_fix "$name is required for release." "Run: bash scripts/generate_keys.sh; then export ${name}=<generated-fernet-key>"
     return
   fi
   local python_bin
