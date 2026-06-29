@@ -51,11 +51,20 @@ def test_release_workflows_cover_mobile_and_container_delivery():
 
 def test_demo_preflight_and_runbook_cover_live_tunnel_go_no_go():
     script = (ROOT / "scripts/demo_preflight.sh").read_text()
+    proof = (ROOT / "scripts/linux_app_vpn_tunnel_proof.py").read_text()
     runbook = (ROOT / "docs/DEMO_RUNBOOK.md").read_text()
 
     assert "--live-go-no-go" in script
     assert "check_polkit_authorization" in script
     assert "check_real_tunnel_egress" in script
+    assert "/auth/login" in script
+    assert "/auth/register" not in script
+    assert "disposable demo account" not in script
+    assert "SECUREWAVE_TEST_EMAIL" in script
+    assert "SECUREWAVE_CERT_AUTH_FILE" in script
+    assert '"DEMO_EMAIL"' in proof
+    assert '"DEMO_PASSWORD"' in proof
+    assert "SECUREWAVE_CERT_AUTH_FILE" in proof
     assert "real tunnel" in runbook.lower()
     assert "fallback" in runbook.lower()
     assert "SECUREWAVE_SIMULATE_TUNNEL" in runbook

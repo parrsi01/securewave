@@ -13,7 +13,6 @@ import json
 import os
 import select
 import signal
-import secrets
 import subprocess  # nosec B404
 import sys
 import time
@@ -25,6 +24,7 @@ from typing import Iterable
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_ROOT = REPO_ROOT / "securewave_app"
 PROBE_TARGET = "lib/runtime_vpn_probe.dart"
+DEFAULT_AUTH_FILE = REPO_ROOT / "securewave_private" / "live_certification_account.env"
 DEFAULT_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
 DEFAULT_API_BASE = "https://api.securewaveapp.com/api"
 WIREGUARD_INTERFACE = "sw-wg"
@@ -57,6 +57,56 @@ def _env_default(*names: str) -> str | None:
         if value:
             return value
     return None
+
+
+def _parse_env_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("export "):
+            stripped = stripped[len("export ") :].strip()
+        if "=" not in stripped:
+            continue
+        key, raw_value = stripped.split("=", 1)
+        key = key.strip()
+        if key not in {
+            "DEMO_EMAIL",
+            "DEMO_PASSWORD",
+            "SECUREWAVE_TEST_EMAIL",
+            "SECUREWAVE_TEST_PASSWORD",
+            "SECUREWAVE_RUNTIME_PROBE_EMAIL",
+            "SECUREWAVE_RUNTIME_PROBE_PASSWORD",
+        }:
+            continue
+        value = raw_value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
+def _credential_file_path(auth_file: str | None) -> Path | None:
+    if auth_file:
+        return Path(auth_file).expanduser()
+    return DEFAULT_AUTH_FILE if DEFAULT_AUTH_FILE.is_file() else None
+
+
+def _file_default(values: dict[str, str], *names: str) -> str | None:
+    for name in names:
+        value = values.get(name)
+        if value:
+            return value
+    return None
+
+
+def _redact_email(email: str) -> str:
+    local, separator, domain = email.partition("@")
+    if not separator:
+        return "configured"
+    prefix = local[:1] if local else "*"
+    return f"{prefix}***@{domain}"
 
 
 def _default_api_base() -> str:
@@ -220,19 +270,26 @@ def _json_object(text: str) -> dict[str, object] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def _new_probe_credentials() -> tuple[str, str]:
-    stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
-    suffix = secrets.token_hex(3)
-    return (
-        f"securewave.runtime.{stamp}.{suffix}@gmail.com",
-        f"SwRuntime{secrets.token_hex(4)}!A1",
-    )
-
-
 def _is_placeholder(value: str | None) -> bool:
     if value is None:
         return True
     return value.strip().lower() in PLACEHOLDER_VALUES
+
+
+def _credential_error(email: str | None, password: str | None) -> str | None:
+    if email is None or not email.strip() or password is None or not password.strip():
+        return (
+            "existing live account credentials are required via --email/--password, "
+            "DEMO_EMAIL/DEMO_PASSWORD, SECUREWAVE_TEST_EMAIL/SECUREWAVE_TEST_PASSWORD, or "
+            "SECUREWAVE_RUNTIME_PROBE_EMAIL/SECUREWAVE_RUNTIME_PROBE_PASSWORD; "
+            "SECUREWAVE_CERT_AUTH_FILE may point to a local key-value credential file"
+        )
+    if _is_placeholder(email) or _is_placeholder(password):
+        return (
+            "placeholder live account credentials are not valid for certification; "
+            "configure a stable existing test account"
+        )
+    return None
 
 
 def _has_auth_failure(result: dict[str, object]) -> bool:
@@ -377,20 +434,40 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--email",
-        default=_env_default("SECUREWAVE_TEST_EMAIL", "SECUREWAVE_RUNTIME_PROBE_EMAIL"),
+        default=_env_default(
+            "DEMO_EMAIL",
+            "SECUREWAVE_TEST_EMAIL",
+            "SECUREWAVE_RUNTIME_PROBE_EMAIL",
+        ),
     )
     parser.add_argument(
         "--password",
-        default=_env_default("SECUREWAVE_TEST_PASSWORD", "SECUREWAVE_RUNTIME_PROBE_PASSWORD"),
+        default=_env_default(
+            "DEMO_PASSWORD",
+            "SECUREWAVE_TEST_PASSWORD",
+            "SECUREWAVE_RUNTIME_PROBE_PASSWORD",
+        ),
     )
     parser.add_argument(
         "--auth-mode",
         choices=("login", "register", "auto"),
-        default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_AUTH_MODE", "auto"),
-        help="login uses an existing account; register creates the supplied account; auto creates a disposable QA account when credentials are absent or placeholder values",
+        default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_AUTH_MODE", "login"),
+        help=(
+            "login uses an existing account; register creates the supplied account; "
+            "auto is retained for compatibility and resolves to login without "
+            "generating disposable credentials"
+        ),
     )
     parser.add_argument("--server-id", default=os.environ.get("SECUREWAVE_RUNTIME_PROBE_SERVER_ID"))
     parser.add_argument("--api-base", default=_default_api_base())
+    parser.add_argument(
+        "--auth-file",
+        default=_env_default("SECUREWAVE_CERT_AUTH_FILE", "SECUREWAVE_LIVE_ACCOUNT_FILE"),
+        help=(
+            "Optional key=value file for stable live credentials. Defaults to "
+            "securewave_private/live_certification_account.env when present."
+        ),
+    )
     parser.add_argument(
         "--use-mock-api",
         default=os.environ.get("SECUREWAVE_USE_MOCK_API", "false"),
@@ -406,18 +483,55 @@ def main() -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    email = args.email
-    password = args.password
+    credential_values: dict[str, str] = {}
+    auth_file_path = _credential_file_path(args.auth_file)
+    if auth_file_path is not None:
+        if not auth_file_path.is_file():
+            payload = {
+                "ok": False,
+                "account_email": None,
+                "auth_mode": args.auth_mode,
+                "error": f"credential file does not exist: {auth_file_path}",
+                "results": [],
+            }
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print(f"FAIL auth: {payload['error']}")
+            return 2
+        credential_values = _parse_env_file(auth_file_path)
+
+    email = args.email or _file_default(
+        credential_values,
+        "DEMO_EMAIL",
+        "SECUREWAVE_TEST_EMAIL",
+        "SECUREWAVE_RUNTIME_PROBE_EMAIL",
+    )
+    password = args.password or _file_default(
+        credential_values,
+        "DEMO_PASSWORD",
+        "SECUREWAVE_TEST_PASSWORD",
+        "SECUREWAVE_RUNTIME_PROBE_PASSWORD",
+    )
     auth_mode = args.auth_mode
     if auth_mode == "auto":
-        if _is_placeholder(email) or _is_placeholder(password):
-            email, password = _new_probe_credentials()
-            auth_mode = "register"
+        auth_mode = "login"
+    credential_error = _credential_error(email, password)
+    if credential_error:
+        payload = {
+            "ok": False,
+            "account_email": None,
+            "auth_mode": auth_mode,
+            "error": credential_error,
+            "results": [],
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True))
         else:
-            auth_mode = "login"
-    if not email or not password:
-        email, password = _new_probe_credentials()
-        auth_mode = "register"
+            print(f"FAIL auth: {credential_error}")
+        return 2
+    email = email.strip()
+    password = password.strip()
     os.environ.setdefault("SECUREWAVE_PKEXEC_TIMEOUT", str(args.pkexec_timeout))
 
     baseline = _run(
@@ -444,7 +558,7 @@ def main() -> int:
         )
         payload = {
             "ok": False,
-            "account_email": email,
+            "account_email": _redact_email(email),
             "auth_mode": auth_mode,
             "baseline": baseline.as_dict(),
             "baseline_checks": baseline_body,
@@ -489,7 +603,7 @@ def main() -> int:
     )
     payload = {
         "ok": all(result["ok"] for result in results) and cleanup.returncode == 0,
-        "account_email": email,
+        "account_email": _redact_email(email),
         "auth_mode": auth_mode,
         "baseline": baseline.as_dict(),
         "results": results,

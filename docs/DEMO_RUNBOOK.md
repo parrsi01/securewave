@@ -41,13 +41,31 @@ fake tunnel usage to the backend.
 Run this before rehearsals and before the demo:
 
 ```bash
-bash scripts/demo_preflight.sh
+DEMO_EMAIL="demo@example.com" DEMO_PASSWORD="..." bash scripts/demo_preflight.sh
 ```
 
-For a dedicated demo account:
+`SECUREWAVE_TEST_EMAIL` and `SECUREWAVE_TEST_PASSWORD` are accepted as fallback
+aliases when `DEMO_EMAIL` and `DEMO_PASSWORD` are unset. Preflight uses a stable
+existing account and does not create disposable accounts, because live
+registration can be rate-limited. The Linux runtime proof accepts the same
+account aliases.
+
+For demo hosts, the same values can be stored in the ignored local file
+`securewave_private/live_certification_account.env`:
 
 ```bash
-DEMO_EMAIL="demo@example.com" DEMO_PASSWORD="..." bash scripts/demo_preflight.sh
+DEMO_EMAIL="demo@example.com"
+DEMO_PASSWORD="..."
+```
+
+Set `SECUREWAVE_CERT_AUTH_FILE` to use a different key-value file. The scripts
+parse this file as data and only read known account keys.
+
+For the same account with explicit test-account aliases:
+
+```bash
+SECUREWAVE_TEST_EMAIL="demo@example.com" SECUREWAVE_TEST_PASSWORD="..." \
+  bash scripts/demo_preflight.sh
 ```
 
 To clear stale demo-account devices:
@@ -72,7 +90,8 @@ Linux release bundle.
 For final go/no-go, connect the real tunnel first and then run:
 
 ```bash
-bash scripts/demo_preflight.sh --live-go-no-go
+DEMO_EMAIL="demo@example.com" DEMO_PASSWORD="..." \
+  bash scripts/demo_preflight.sh --live-go-no-go
 ```
 
 That mode fails if the active `sw-wg` tunnel is missing, DNS does not resolve,

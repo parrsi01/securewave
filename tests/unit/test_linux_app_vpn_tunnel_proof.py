@@ -101,6 +101,49 @@ def test_env_default_accepts_test_account_aliases(monkeypatch):
     ) == "qa@example.com"
 
 
+def test_env_default_prefers_demo_account_alias(monkeypatch):
+    monkeypatch.setenv("DEMO_EMAIL", "demo@example.com")
+    monkeypatch.setenv("SECUREWAVE_TEST_EMAIL", "qa@example.com")
+
+    assert proof._env_default(
+        "DEMO_EMAIL",
+        "SECUREWAVE_TEST_EMAIL",
+        "SECUREWAVE_RUNTIME_PROBE_EMAIL",
+    ) == "demo@example.com"
+
+
+def test_credential_file_supplies_stable_account_aliases(tmp_path):
+    auth_file = tmp_path / "live.env"
+    auth_file.write_text(
+        """
+        # Stable certification account.
+        export DEMO_EMAIL="demo@example.com"
+        DEMO_PASSWORD='SwRuntimeSecret!A1'
+        IGNORED_KEY=ignored
+        """,
+        encoding="utf-8",
+    )
+
+    values = proof._parse_env_file(auth_file)
+
+    assert proof._file_default(
+        values,
+        "DEMO_EMAIL",
+        "SECUREWAVE_TEST_EMAIL",
+    ) == "demo@example.com"
+    assert proof._file_default(
+        values,
+        "DEMO_PASSWORD",
+        "SECUREWAVE_TEST_PASSWORD",
+    ) == "SwRuntimeSecret!A1"
+    assert "IGNORED_KEY" not in values
+
+
+def test_redact_email_keeps_domain_only():
+    assert proof._redact_email("demo@example.com") == "d***@example.com"
+    assert proof._redact_email("not-an-email") == "configured"
+
+
 def test_default_api_base_uses_live_api_when_env_missing(monkeypatch):
     monkeypatch.delenv("SECUREWAVE_API_BASE_URL", raising=False)
 
@@ -148,13 +191,23 @@ def test_flutter_command_uses_default_api_base():
     )
 
 
-def test_generated_probe_credentials_are_live_registration_shape():
-    email, password = proof._new_probe_credentials()
+def test_missing_probe_credentials_fail_before_runtime_registration():
+    error = proof._credential_error(None, "secret")
 
-    assert email.startswith("securewave.runtime.")
-    assert email.endswith("@gmail.com")
-    assert password.startswith("SwRuntime")
-    assert password.endswith("!A1")
+    assert error is not None
+    assert "existing live account credentials are required" in error
+    assert "DEMO_EMAIL/DEMO_PASSWORD" in error
+
+
+def test_placeholder_probe_credentials_fail_before_runtime_registration():
+    error = proof._credential_error("real@email.com", "real-password")
+
+    assert error is not None
+    assert "placeholder live account credentials" in error
+
+
+def test_real_probe_credentials_are_accepted():
+    assert proof._credential_error("qa@example.com", "SwRuntimeSecret!A1") is None
 
 
 def test_auth_failure_detection_stops_repeated_registration_attempts():

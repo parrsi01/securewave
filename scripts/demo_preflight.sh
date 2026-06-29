@@ -4,8 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 API_BASE="${SECUREWAVE_API_BASE_URL:-https://api.securewaveapp.com/api}"
 WIREGUARD_INTERFACE="sw-wg"
-DEMO_EMAIL="${DEMO_EMAIL:-}"
-DEMO_PASSWORD="${DEMO_PASSWORD:-}"
+DEFAULT_AUTH_FILE="$ROOT_DIR/securewave_private/live_certification_account.env"
+AUTH_FILE="${SECUREWAVE_CERT_AUTH_FILE:-${SECUREWAVE_LIVE_ACCOUNT_FILE:-}}"
+if [[ -z "$AUTH_FILE" && -f "$DEFAULT_AUTH_FILE" ]]; then
+  AUTH_FILE="$DEFAULT_AUTH_FILE"
+fi
+DEMO_EMAIL="${DEMO_EMAIL:-${SECUREWAVE_TEST_EMAIL:-${SECUREWAVE_RUNTIME_PROBE_EMAIL:-}}}"
+DEMO_PASSWORD="${DEMO_PASSWORD:-${SECUREWAVE_TEST_PASSWORD:-${SECUREWAVE_RUNTIME_PROBE_PASSWORD:-}}}"
 CLEANUP=false
 REVOKE_DEVICES=false
 SKIP_BUILD=false
@@ -19,12 +24,17 @@ Usage: bash scripts/demo_preflight.sh [--cleanup] [--revoke-devices] [--skip-bui
 
 Environment:
   SECUREWAVE_API_BASE_URL  API base URL. Defaults to https://api.securewaveapp.com/api
-  DEMO_EMAIL               Dedicated demo account email. Optional.
-  DEMO_PASSWORD            Dedicated demo account password. Optional.
+  DEMO_EMAIL               Dedicated demo account email. Required for live account checks.
+  DEMO_PASSWORD            Dedicated demo account password. Required for live account checks.
+  SECUREWAVE_TEST_EMAIL / SECUREWAVE_TEST_PASSWORD
+                           Fallback aliases when DEMO_EMAIL/DEMO_PASSWORD are unset.
+  SECUREWAVE_CERT_AUTH_FILE Optional key=value credential file. If unset,
+                           securewave_private/live_certification_account.env
+                           is used when present.
 
-If DEMO_EMAIL/DEMO_PASSWORD are omitted, the script provisions a disposable
-QA account for inventory checks. Device revocation only runs with
---revoke-devices.
+Live account checks log in with a stable existing account. They do not create
+disposable accounts because live registration can be rate-limited. Device
+revocation only runs with --revoke-devices.
 
 Use --live-go-no-go after connecting the real tunnel. It requires tunnel egress
 and email health in addition to the default live API, inventory, residue, helper,
@@ -312,16 +322,61 @@ run_live_account_checks() {
   local output
   set +e
   output="$(
-    python3 - "$API_BASE" "$DEMO_EMAIL" "$DEMO_PASSWORD" "$REVOKE_DEVICES" <<'PY'
+    python3 - "$API_BASE" "$DEMO_EMAIL" "$DEMO_PASSWORD" "$REVOKE_DEVICES" "$AUTH_FILE" <<'PY'
 import json
-import secrets
+from pathlib import Path
 import sys
-import time
 import urllib.error
 import urllib.request
 
-api_base, email, password, revoke_devices = sys.argv[1:5]
+api_base, email, password, revoke_devices, auth_file = sys.argv[1:6]
 revoke_devices = revoke_devices.lower() == "true"
+placeholder_values = {
+    "existing-live-email",
+    "existing-live-password",
+    "real@email.com",
+    "real-password",
+    "your-real-test-account@example.com",
+    "your-real-test-password",
+}
+
+def is_placeholder(value):
+    return value.strip().lower() in placeholder_values
+
+def parse_env_file(path):
+    values = {}
+    allowed = {
+        "DEMO_EMAIL",
+        "DEMO_PASSWORD",
+        "SECUREWAVE_TEST_EMAIL",
+        "SECUREWAVE_TEST_PASSWORD",
+        "SECUREWAVE_RUNTIME_PROBE_EMAIL",
+        "SECUREWAVE_RUNTIME_PROBE_PASSWORD",
+    }
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("export "):
+            stripped = stripped[len("export "):].strip()
+        if "=" not in stripped:
+            continue
+        key, raw_value = stripped.split("=", 1)
+        key = key.strip()
+        if key not in allowed:
+            continue
+        value = raw_value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+def file_default(values, *names):
+    for name in names:
+        value = values.get(name)
+        if value:
+            return value
+    return None
 
 def request(method, path, token=None, payload=None, expected=(200,)):
     headers = {"Accept": "application/json"}
@@ -350,41 +405,44 @@ def request(method, path, token=None, payload=None, expected=(200,)):
         raise RuntimeError(f"{method} {path} failed HTTP {status}: {parsed}")
     return status, parsed
 
-generated = False
-if not email or not password:
-    stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
-    email = f"securewave.demo.{stamp}.{secrets.token_hex(3)}@gmail.com"
-    password = f"SwDemo{secrets.token_hex(4)}!A1"
-    generated = True
+credential_values = {}
+if auth_file:
+    auth_path = Path(auth_file).expanduser()
+    if not auth_path.is_file():
+        raise SystemExit(f"credential file does not exist: {auth_path}")
+    credential_values = parse_env_file(auth_path)
 
-if generated:
-    _, auth = request(
-        "POST",
-        "/auth/register",
-        payload={
-            "email": email,
-            "password": password,
-            "password_confirm": password,
-        },
-        expected=(201,),
+email = email or file_default(
+    credential_values,
+    "DEMO_EMAIL",
+    "SECUREWAVE_TEST_EMAIL",
+    "SECUREWAVE_RUNTIME_PROBE_EMAIL",
+)
+password = password or file_default(
+    credential_values,
+    "DEMO_PASSWORD",
+    "SECUREWAVE_TEST_PASSWORD",
+    "SECUREWAVE_RUNTIME_PROBE_PASSWORD",
+)
+
+if not email or not password:
+    raise SystemExit(
+        "stable live account credentials are required via DEMO_EMAIL/DEMO_PASSWORD "
+        "or SECUREWAVE_TEST_EMAIL/SECUREWAVE_TEST_PASSWORD; "
+        "SECUREWAVE_CERT_AUTH_FILE may point to a local key-value credential file"
     )
-    print(f"[PASS] disposable demo account provisioned: {email}")
-    print("[WARN] disposable demo password generated for this run only; not printed")
-    if not auth.get("access_token"):
-        _, auth = request(
-            "POST",
-            "/auth/login",
-            payload={"email": email, "password": password},
-            expected=(200,),
-        )
-else:
-    _, auth = request(
-        "POST",
-        "/auth/login",
-        payload={"email": email, "password": password},
-        expected=(200,),
+if is_placeholder(email) or is_placeholder(password):
+    raise SystemExit(
+        "placeholder live account credentials are not valid; configure a stable existing test account"
     )
-    print(f"[PASS] dedicated demo account login succeeded: {email}")
+
+_, auth = request(
+    "POST",
+    "/auth/login",
+    payload={"email": email, "password": password},
+    expected=(200,),
+)
+print("[PASS] dedicated demo account login succeeded")
 
 token = auth.get("access_token")
 if not token:
