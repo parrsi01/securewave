@@ -324,6 +324,35 @@ void main() {
     expect(state.sessionTotalBytes, firstRxBytes + firstTxBytes);
   });
 
+  test('disconnect stops native tunnel before final usage report', () async {
+    final events = <String>[];
+    final service = _OrderedDisconnectVpnService(events);
+    final api = _OrderingUsageApiClient(events);
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.connect();
+    await Future<void>.delayed(Duration.zero);
+
+    await notifier.disconnect();
+
+    expect(
+        events,
+        containsAllInOrder(<String>[
+          'native_disconnect',
+          'usage_report',
+          'backend_disconnect',
+        ]));
+    expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
+  });
+
   test('missing tunnel counters show unavailable state without usage report',
       () async {
     final service = _UnavailableStatsVpnService();
@@ -719,6 +748,53 @@ class _FirstSampleOnlyNativeVpnService implements VpnService {
   }
 }
 
+class _OrderedDisconnectVpnService implements VpnService {
+  _OrderedDisconnectVpnService(this.events);
+
+  final List<String> events;
+  VpnStatus _status = VpnStatus.disconnected;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    _status = VpnStatus.connected;
+    return _status;
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async {
+    events.add('native_disconnect');
+    _status = VpnStatus.disconnected;
+    return _status;
+  }
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
+    return const VpnTrafficStats(
+      rxBytes: 1024,
+      txBytes: 256,
+      interfaceName: 'tun0',
+    );
+  }
+
+  @override
+  VpnStatus getStatus() => _status;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return VpnRuntimeStatus(status: _status);
+  }
+}
+
 class _UnavailableStatsVpnService implements VpnService {
   VpnStatus _status = VpnStatus.disconnected;
 
@@ -1009,6 +1085,68 @@ class _UsageTrackingApiClient extends ApiClient {
     usageProtocols.add(protocol);
     this.rxBytes.add(rxBytes);
     this.txBytes.add(txBytes);
+    return const UserPlan(
+      name: 'Free',
+      isPremium: false,
+      dataCapGb: 5,
+      usedGb: 0.1,
+    );
+  }
+}
+
+class _OrderingUsageApiClient extends ApiClient {
+  _OrderingUsageApiClient(this.events) : super(AppConfig.defaults());
+
+  final List<String> events;
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    return VpnProfile.fromJson({
+      'device_id': 888,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'protocol': vpnProtocolStorageValue(protocol),
+      'server_id': 'de-nue-1',
+      'server_location': 'Nuremberg, Germany',
+      'issued_at': DateTime.now().toIso8601String(),
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'wireguard_config':
+          '[Interface]\nPrivateKey = test\n[Peer]\nPublicKey = test\n',
+      'openvpn_config': 'client\nremote vpn.example 1194\n',
+      'ikev2_config': '',
+      'peer_registered': true,
+      'registration_status': 'test',
+    });
+  }
+
+  @override
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {}
+
+  @override
+  Future<void> notifyVpnDisconnected() async {
+    events.add('backend_disconnect');
+  }
+
+  @override
+  Future<UserPlan?> reportVpnUsage({
+    int? deviceId,
+    String? serverId,
+    VpnProtocol? protocol,
+    required int rxBytes,
+    required int txBytes,
+  }) async {
+    events.add('usage_report');
     return const UserPlan(
       name: 'Free',
       isPremium: false,

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
+import '../models/user_plan.dart';
 import '../models/vpn_profile.dart';
 import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
@@ -132,6 +133,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   static const _trafficPollInterval = Duration(seconds: 1);
+  static const _disconnectStatsTimeout = Duration(seconds: 2);
+  static const _disconnectBackendTimeout = Duration(seconds: 5);
 
   final Ref _ref;
   final _predictor = const MarLXGBPredictor();
@@ -392,21 +395,37 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _setStatus(VpnStatus.disconnecting);
     try {
       final service = _ref.read(vpnServiceProvider);
-      await _pollTrafficStats(report: true);
+      final api = _ref.read(apiClientProvider);
+      _usageTimer?.cancel();
+      _usageTimer = null;
+      await _sampleTrafficStatsForDisconnect();
+      final pendingRxBytes = _unreportedRxBytes;
+      final pendingTxBytes = _unreportedTxBytes;
+      final usageDeviceId = _activeDeviceId;
+      final usageServerId = _activeServerId ?? state.selectedServerId;
+      final usageProtocol = _activeProtocol ?? state.protocol;
       final nextStatus = await service.disconnect();
       _setStatus(nextStatus);
       _stopRateUpdates();
-      _activeDeviceId = null;
-      _activeServerId = null;
-      _activeProtocol = null;
       _updateStability(success: true);
+      await _reportUsageSnapshot(
+        api: api,
+        deviceId: usageDeviceId,
+        serverId: usageServerId,
+        protocol: usageProtocol,
+        rxBytes: pendingRxBytes,
+        txBytes: pendingTxBytes,
+        timeout: _disconnectBackendTimeout,
+      );
       // Notify the backend so demo/live session tracking stays in sync.
       try {
-        final api = _ref.read(apiClientProvider);
-        await api.notifyVpnDisconnected();
+        await api.notifyVpnDisconnected().timeout(_disconnectBackendTimeout);
       } catch (_) {
         AppLogger.info('Backend disconnect notification skipped.');
       }
+      _activeDeviceId = null;
+      _activeServerId = null;
+      _activeProtocol = null;
     } catch (error, stackTrace) {
       _setStatus(VpnStatus.error);
       final classified = _classifyVpnError(error);
@@ -681,33 +700,91 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     final reportRxBytes = _unreportedRxBytes;
     final reportTxBytes = _unreportedTxBytes;
-    final api = _ref.read(apiClientProvider);
-    final plan = await api.reportVpnUsage(
+    final plan = await _reportAccumulatedUsage(
       deviceId: _activeDeviceId,
       serverId: _activeServerId ?? state.selectedServerId,
       protocol: protocol,
       rxBytes: reportRxBytes,
       txBytes: reportTxBytes,
     );
-    if (!mounted) return;
-    if (plan != null) {
-      _unreportedRxBytes = _unreportedRxBytes > reportRxBytes
-          ? _unreportedRxBytes - reportRxBytes
-          : 0;
-      _unreportedTxBytes = _unreportedTxBytes > reportTxBytes
-          ? _unreportedTxBytes - reportTxBytes
-          : 0;
-      _ref.invalidate(userPlanProvider);
-      if (!plan.isUnlimited &&
-          plan.dataCapGb > 0 &&
-          plan.usedGb >= plan.dataCapGb) {
-        state = state.copyWith(
-          errorKind: VpnErrorKind.deviceLimit,
-          errorMessage:
-              'Free plan limit reached (${plan.dataCapGb.toStringAsFixed(0)} GB). Upgrade to continue.',
-        );
-        unawaited(disconnect());
-      }
+    if (!mounted || plan == null) return;
+    _applyUsagePlan(plan);
+  }
+
+  Future<void> _sampleTrafficStatsForDisconnect() async {
+    try {
+      await _pollTrafficStatsOnce(report: false)
+          .timeout(_disconnectStatsTimeout);
+    } catch (error, stackTrace) {
+      AppLogger.warning('Final VPN traffic sample skipped before disconnect.');
+      AppLogger.error('Final VPN traffic sample error',
+          error: error, stackTrace: stackTrace);
+    }
+  }
+
+  Future<UserPlan?> _reportAccumulatedUsage({
+    int? deviceId,
+    String? serverId,
+    VpnProtocol? protocol,
+    required int rxBytes,
+    required int txBytes,
+  }) async {
+    final api = _ref.read(apiClientProvider);
+    final plan = await api.reportVpnUsage(
+      deviceId: deviceId,
+      serverId: serverId,
+      protocol: protocol,
+      rxBytes: rxBytes,
+      txBytes: txBytes,
+    );
+    if (!mounted || plan == null) return plan;
+    _unreportedRxBytes =
+        _unreportedRxBytes > rxBytes ? _unreportedRxBytes - rxBytes : 0;
+    _unreportedTxBytes =
+        _unreportedTxBytes > txBytes ? _unreportedTxBytes - txBytes : 0;
+    return plan;
+  }
+
+  Future<void> _reportUsageSnapshot({
+    required ApiClient api,
+    int? deviceId,
+    String? serverId,
+    VpnProtocol? protocol,
+    required int rxBytes,
+    required int txBytes,
+    required Duration timeout,
+  }) async {
+    if (rxBytes <= 0 && txBytes <= 0) return;
+    try {
+      final plan = await api
+          .reportVpnUsage(
+            deviceId: deviceId,
+            serverId: serverId,
+            protocol: protocol,
+            rxBytes: rxBytes,
+            txBytes: txBytes,
+          )
+          .timeout(timeout);
+      if (!mounted || plan == null) return;
+      _applyUsagePlan(plan);
+    } catch (error, stackTrace) {
+      AppLogger.info('Final VPN usage report skipped.');
+      AppLogger.error('Final VPN usage report error',
+          error: error, stackTrace: stackTrace);
+    }
+  }
+
+  void _applyUsagePlan(UserPlan plan) {
+    _ref.invalidate(userPlanProvider);
+    if (!plan.isUnlimited &&
+        plan.dataCapGb > 0 &&
+        plan.usedGb >= plan.dataCapGb) {
+      state = state.copyWith(
+        errorKind: VpnErrorKind.deviceLimit,
+        errorMessage:
+            'Free plan limit reached (${plan.dataCapGb.toStringAsFixed(0)} GB). Upgrade to continue.',
+      );
+      unawaited(disconnect());
     }
   }
 
