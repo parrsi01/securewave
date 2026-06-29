@@ -1859,6 +1859,45 @@ static void spawn_ikev2_down_async(FlMethodCall* method_call) {
   run_ikev2_task(ctx);
 }
 
+static gboolean active_runtime_evidence_exists(
+    VpnChannelState* state,
+    const gchar* protocol) {
+  if (g_strcmp0(protocol, "openvpn") == 0) {
+    if (!state->openvpn_pid_path) {
+      state->openvpn_pid_path = build_state_path(kOpenVpnPidFileName);
+    }
+    if (!state->openvpn_log_path) {
+      state->openvpn_log_path = build_state_path(kOpenVpnLogFileName);
+    }
+    return state->openvpn_pid_path != nullptr &&
+           state->openvpn_log_path != nullptr &&
+           openvpn_runtime_evidence_exists(state->openvpn_pid_path, state->openvpn_log_path);
+  }
+  if (g_strcmp0(protocol, "ikev2") == 0) {
+    return ikev2_runtime_evidence_exists();
+  }
+  return wireguard_interface_exists() && wireguard_route_exists();
+}
+
+static void respond_runtime_status(
+    FlMethodCall* method_call,
+    VpnChannelState* state) {
+  const gchar* protocol = load_active_protocol(state);
+  const gboolean connected = active_runtime_evidence_exists(state, protocol);
+  g_autoptr(FlValue) response = fl_value_new_map();
+  fl_value_set_string_take(
+      response,
+      "status",
+      fl_value_new_string(connected ? "connected" : "disconnected"));
+  fl_value_set_string_take(
+      response,
+      "protocol",
+      fl_value_new_string(protocol));
+  g_autoptr(FlMethodResponse) method_response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(response));
+  fl_method_call_respond(method_call, method_response, nullptr);
+}
+
 static void handle_vpn_call(FlMethodChannel* channel,
                             FlMethodCall* method_call,
                             gpointer user_data) {
@@ -1871,6 +1910,10 @@ static void handle_vpn_call(FlMethodChannel* channel,
             elevated_runner_available() &&
             (wg_quick_available() || openvpn_available() || ikev2_available()))));
     fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+  if (g_strcmp0(method, "getStatus") == 0) {
+    respond_runtime_status(method_call, state);
     return;
   }
   if (g_strcmp0(method, "getTrafficStats") == 0) {

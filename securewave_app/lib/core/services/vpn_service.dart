@@ -11,9 +11,40 @@ abstract class VpnService {
   Future<VpnStatus> disconnect();
   Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol);
   VpnStatus getStatus();
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return VpnRuntimeStatus(status: getStatus());
+  }
+
   bool get isNativeAvailable;
   bool canConnectProtocol(VpnProtocol protocol);
   String? protocolUnavailableReason(VpnProtocol protocol);
+}
+
+class VpnRuntimeStatus {
+  const VpnRuntimeStatus({
+    required this.status,
+    this.protocol,
+  });
+
+  final VpnStatus status;
+  final VpnProtocol? protocol;
+
+  factory VpnRuntimeStatus.fromJson(Map<Object?, Object?> json) {
+    final status = switch (json['status']?.toString()) {
+      'connected' => VpnStatus.connected,
+      'connecting' => VpnStatus.connecting,
+      'disconnecting' => VpnStatus.disconnecting,
+      'error' => VpnStatus.error,
+      _ => VpnStatus.disconnected,
+    };
+    final rawProtocol = json['protocol']?.toString();
+    return VpnRuntimeStatus(
+      status: status,
+      protocol: rawProtocol == null || rawProtocol.isEmpty
+          ? null
+          : vpnProtocolFromStorage(rawProtocol),
+    );
+  }
 }
 
 class VpnTrafficStats {
@@ -312,6 +343,30 @@ class ChannelVpnService implements VpnService {
   @override
   VpnStatus getStatus() => _status;
 
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    if (!_supportsNativeChannel()) {
+      _nativeAvailable = false;
+      return VpnRuntimeStatus(status: _status);
+    }
+    try {
+      final result = await _channel.invokeMapMethod<Object?, Object?>(
+        'getStatus',
+      );
+      if (result == null) return VpnRuntimeStatus(status: _status);
+      final snapshot = VpnRuntimeStatus.fromJson(result);
+      _status = snapshot.status;
+      return snapshot;
+    } on MissingPluginException {
+      _nativeAvailable = false;
+      return VpnRuntimeStatus(status: _status);
+    } on PlatformException catch (error) {
+      AppLogger.warning('Native VPN status unavailable.');
+      AppLogger.error('VPN status error', error: error);
+      return VpnRuntimeStatus(status: _status);
+    }
+  }
+
   bool _supportsNativeChannel() {
     if (kIsWeb) return false;
     final os = platform.operatingSystem.name.toLowerCase();
@@ -421,6 +476,11 @@ class MockVpnService implements VpnService {
 
   @override
   VpnStatus getStatus() => _status;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return VpnRuntimeStatus(status: _status);
+  }
 
   void _logMockUse() {
     if (_logged) return;

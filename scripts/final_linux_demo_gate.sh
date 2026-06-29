@@ -425,7 +425,11 @@ if [[ "$PROVISION_LIVE_ACCOUNT" == "true" ]]; then
 fi
 export_auth_file_if_present
 
-run_required "runtime_verifier" python3 scripts/linux_vpn_runtime_verifier.py --json --pkexec-timeout "$PKEXEC_TIMEOUT"
+runtime_verifier_args=(python3 scripts/linux_vpn_runtime_verifier.py --json --pkexec-timeout "$PKEXEC_TIMEOUT")
+if [[ "$CONNECTED" == "true" ]]; then
+  runtime_verifier_args+=(--allow-active-tunnel)
+fi
+run_required "runtime_verifier" "${runtime_verifier_args[@]}"
 check_version_alignment
 run_demo_preflight
 

@@ -90,6 +90,24 @@ void main() {
     expect(state.status, VpnStatus.connected);
   });
 
+  test('VpnStateNotifier restores active OpenVPN runtime status', () async {
+    final service = _RestoredRuntimeVpnService();
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    container.read(vpnStateProvider.notifier);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.connected);
+    expect(state.protocol, VpnProtocol.openVpn);
+    expect(state.desiredOn, isTrue);
+    expect(state.lastTunnelStartOk, isTrue);
+  });
+
   test(
       'VpnStateNotifier cannot remain connected when kill switch hooks present and network drops',
       () async {
@@ -451,6 +469,36 @@ class _FailingVpnService implements VpnService {
 
   @override
   VpnStatus getStatus() => VpnStatus.disconnected;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return VpnRuntimeStatus(status: getStatus());
+  }
+}
+
+class _RestoredRuntimeVpnService extends MockVpnService {
+  _RestoredRuntimeVpnService()
+      : super(connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return const VpnRuntimeStatus(
+      status: VpnStatus.connected,
+      protocol: VpnProtocol.openVpn,
+    );
+  }
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
+    return const VpnTrafficStats(
+      rxBytes: 4096,
+      txBytes: 1024,
+      interfaceName: 'tun0',
+    );
+  }
 }
 
 class _NativeSuccessVpnService implements VpnService {
@@ -487,6 +535,11 @@ class _NativeSuccessVpnService implements VpnService {
 
   @override
   VpnStatus getStatus() => _status;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return VpnRuntimeStatus(status: _status);
+  }
 }
 
 class _MeteredNativeVpnService implements VpnService {
@@ -532,6 +585,11 @@ class _MeteredNativeVpnService implements VpnService {
 
   @override
   VpnStatus getStatus() => _status;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return VpnRuntimeStatus(status: _status);
+  }
 }
 
 class _FirstSampleOnlyNativeVpnService implements VpnService {
@@ -580,6 +638,11 @@ class _FirstSampleOnlyNativeVpnService implements VpnService {
 
   @override
   VpnStatus getStatus() => _status;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return VpnRuntimeStatus(status: _status);
+  }
 }
 
 class _UnavailableStatsVpnService implements VpnService {
@@ -623,6 +686,11 @@ class _UnavailableStatsVpnService implements VpnService {
 
   @override
   VpnStatus getStatus() => _status;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return VpnRuntimeStatus(status: _status);
+  }
 }
 
 class _CapturingNativeVpnService implements VpnService {
@@ -663,6 +731,11 @@ class _CapturingNativeVpnService implements VpnService {
 
   @override
   VpnStatus getStatus() => _status;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async {
+    return VpnRuntimeStatus(status: _status);
+  }
 }
 
 class _ReferenceRecoveryApiClient extends ApiClient {

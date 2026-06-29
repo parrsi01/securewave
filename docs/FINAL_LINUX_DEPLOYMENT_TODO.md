@@ -5,7 +5,7 @@ Status date: 2026-06-29
 ## Current Count
 
 - Immediate Linux demo-testing blockers on this host: 0
-- Final Linux deployment/release blockers: 2
+- Final Linux deployment/release blockers: 1
 - Non-blocking cleanup backlog: 1
 
 ## Verified Ready
@@ -24,16 +24,15 @@ Status date: 2026-06-29
 - A stable live certification account has been provisioned on this host and
   stored in the ignored local credential file. The default final Linux gate now
   passes with `0` blockers.
+- Connected real-tunnel proof passed through the automated gate with SecureWave
+  OpenVPN active on `tun0`, verified tunnel routing, live API reachability, DNS,
+  and public egress.
+- The Flutter Linux runner now exposes native runtime status so the UI can
+  restore connected state when a real tunnel is already active.
 
 ## Remaining Blockers
 
-1. Connected real-tunnel proof still needs to be run after the app connects.
-
-   The host is clean and helper authorization works, but `demo_preflight`
-   warns that real tunnel egress was skipped because `sw-wg` is not active.
-   Rerun the go/no-go check while the app is connected.
-
-2. Production release prerequisites are not configured locally.
+1. Production release prerequisites are not configured locally.
 
    `scripts/release_preflight.sh` correctly blocks without production SMTP
    settings, `AUTH_ENCRYPTION_KEY`, `WG_ENCRYPTION_KEY`, and a `v*` release

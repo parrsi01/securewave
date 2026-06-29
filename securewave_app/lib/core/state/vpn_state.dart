@@ -128,7 +128,7 @@ final vpnStateProvider =
 class VpnStateNotifier extends StateNotifier<VpnState> {
   VpnStateNotifier(this._ref)
       : super(VpnState(status: _ref.read(vpnServiceProvider).getStatus())) {
-    _loadProtocol();
+    unawaited(_initialize());
   }
 
   static const _trafficPollInterval = Duration(seconds: 1);
@@ -166,6 +166,38 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final stored = await storage.getString(SecureStorage.vpnProtocolKey);
     if (!mounted || _protocolChangedByUser) return;
     state = state.copyWith(protocol: vpnProtocolFromStorage(stored));
+  }
+
+  Future<void> _initialize() async {
+    await _loadProtocol();
+    await _restoreRuntimeStatus();
+  }
+
+  Future<void> _restoreRuntimeStatus() async {
+    try {
+      final service = _ref.read(vpnServiceProvider);
+      final snapshot = await service.refreshRuntimeStatus();
+      if (!mounted || state.isBusy || snapshot.status != VpnStatus.connected) {
+        return;
+      }
+      final protocol = snapshot.protocol ?? state.protocol;
+      _activeProtocol = protocol;
+      state = state.copyWith(
+        status: VpnStatus.connected,
+        protocol: protocol,
+        desiredOn: true,
+        lastTunnelStartAt: DateTime.now(),
+        lastTunnelStartOk: true,
+        clearError: true,
+      );
+      _startRateUpdates();
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'VPN runtime status restore failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   void selectServer(String? serverId) {

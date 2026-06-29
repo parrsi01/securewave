@@ -307,6 +307,11 @@ def main() -> int:
         default=_pkexec_timeout(),
         help="seconds to wait for interactive PolicyKit authorization",
     )
+    parser.add_argument(
+        "--allow-active-tunnel",
+        action="store_true",
+        help="skip residue checks when the caller is intentionally verifying an active tunnel",
+    )
     args = parser.parse_args()
 
     checks = [
@@ -316,8 +321,9 @@ def main() -> int:
         check_installed_helper_contract(),
         *check_runner_contract(),
         check_build_artifact(),
-        *check_residue(),
     ]
+    if not args.allow_active_tunnel:
+        checks.extend(check_residue())
     payload = {
         "ok": all(check.ok for check in checks),
         "checks": [check.as_dict() for check in checks],

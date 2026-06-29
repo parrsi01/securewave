@@ -179,23 +179,34 @@ check_email_health() {
 }
 
 check_real_tunnel_egress() {
-  if ! ip -o link show "$WIREGUARD_INTERFACE" >/dev/null 2>&1; then
+  local tunnel_interface=""
+  local tunnel_protocol=""
+
+  if ip -o link show "$WIREGUARD_INTERFACE" >/dev/null 2>&1; then
+    tunnel_interface="$WIREGUARD_INTERFACE"
+    tunnel_protocol="WireGuard"
+  elif ip -o link show tun0 >/dev/null 2>&1 && pgrep -af 'openvpn .*securewave\.ovpn' >/dev/null 2>&1; then
+    tunnel_interface="tun0"
+    tunnel_protocol="OpenVPN"
+  fi
+
+  if [[ -z "$tunnel_interface" ]]; then
     if [[ "$REQUIRE_REAL_TUNNEL" == "true" ]]; then
-      fail "real tunnel egress was required but $WIREGUARD_INTERFACE is not active"
+      fail "real tunnel egress was required but no SecureWave WireGuard/OpenVPN tunnel is active"
     else
-      warn "real tunnel egress skipped because $WIREGUARD_INTERFACE is not active; rerun with --live-go-no-go while connected"
+      warn "real tunnel egress skipped because no SecureWave tunnel is active; rerun with --live-go-no-go while connected"
     fi
     return
   fi
 
-  pass "real WireGuard interface active: $WIREGUARD_INTERFACE"
+  pass "real $tunnel_protocol interface active: $tunnel_interface"
 
   local route
   route="$(ip route get 1.1.1.1 2>&1 || true)"
-  if [[ "$route" == *" dev $WIREGUARD_INTERFACE "* ]]; then
-    pass "default egress route uses $WIREGUARD_INTERFACE"
+  if [[ "$route" == *" dev $tunnel_interface "* ]]; then
+    pass "default egress route uses $tunnel_interface"
   else
-    fail "default egress route does not use $WIREGUARD_INTERFACE: $route"
+    fail "default egress route does not use $tunnel_interface: $route"
   fi
 
   local host
@@ -221,11 +232,11 @@ check_real_tunnel_egress() {
 
   if command -v resolvectl >/dev/null 2>&1; then
     local dns_status
-    dns_status="$(resolvectl dns "$WIREGUARD_INTERFACE" 2>/dev/null || true)"
+    dns_status="$(resolvectl dns "$tunnel_interface" 2>/dev/null || true)"
     if [[ -n "$dns_status" ]]; then
-      pass "resolvectl has DNS state for $WIREGUARD_INTERFACE"
+      pass "resolvectl has DNS state for $tunnel_interface"
     else
-      warn "resolvectl has no DNS state for $WIREGUARD_INTERFACE; DNS may be managed outside systemd-resolved"
+      warn "resolvectl has no DNS state for $tunnel_interface; DNS may be managed outside systemd-resolved"
     fi
   fi
 }
