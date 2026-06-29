@@ -71,3 +71,14 @@ def test_demo_preflight_and_runbook_cover_live_tunnel_go_no_go():
     assert "/vpn/servers?device_type=linux" in script
     assert "--revoke-devices" in script
     assert "flutter build linux --release" in script
+
+
+def test_final_linux_gate_provisions_stable_account_without_churn_in_preflight():
+    gate = (ROOT / "scripts/final_linux_demo_gate.sh").read_text()
+    demo_preflight = (ROOT / "scripts/demo_preflight.sh").read_text()
+
+    assert "--provision-live-account" in gate
+    assert "SECUREWAVE_PROVISION_EMAIL" in gate
+    assert "SECUREWAVE_PROVISION_PASSWORD" in gate
+    assert "/auth/register" in gate
+    assert "/auth/register" not in demo_preflight

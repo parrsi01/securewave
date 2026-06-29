@@ -20,6 +20,7 @@ BUILD=false
 CLEANUP=false
 CONNECTED=false
 FULL_TESTS=false
+PROVISION_LIVE_ACCOUNT=false
 RELEASE=false
 REVOKE_DEVICES=false
 WRITE_AUTH_FILE=false
@@ -40,6 +41,9 @@ count at the end.
 Options:
   --write-auth-file       Write securewave_private/live_certification_account.env
                           from DEMO_EMAIL/DEMO_PASSWORD or fallback aliases.
+  --provision-live-account
+                          Register one stable live certification account when
+                          no credential file exists, then save it locally.
   --connected             Require active real-tunnel egress with --live-go-no-go.
   --app-proof             Run the app-driven tunnel proof after preflight.
   --protocol NAME         Protocol for --app-proof. Repeat for multiple values.
@@ -59,6 +63,9 @@ Credential environment:
   SECUREWAVE_TEST_EMAIL / SECUREWAVE_TEST_PASSWORD
   SECUREWAVE_RUNTIME_PROBE_EMAIL / SECUREWAVE_RUNTIME_PROBE_PASSWORD
   SECUREWAVE_CERT_AUTH_FILE or SECUREWAVE_LIVE_ACCOUNT_FILE
+  SECUREWAVE_PROVISION_EMAIL / SECUREWAVE_PROVISION_PASSWORD
+                          Optional values for --provision-live-account.
+                          If omitted, a generated account is created and saved.
 EOF
 }
 
@@ -66,6 +73,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --write-auth-file)
       WRITE_AUTH_FILE=true
+      shift
+      ;;
+    --provision-live-account)
+      PROVISION_LIVE_ACCOUNT=true
       shift
       ;;
     --connected)
@@ -202,6 +213,113 @@ PY
   fi
 }
 
+provision_live_account() {
+  local log="$LOG_DIR/provision_live_account.log"
+  if [[ -f "$AUTH_FILE" && "${SECUREWAVE_FORCE_PROVISION:-false}" != "true" ]]; then
+    pass "credential file already exists; skipping live account provisioning"
+    export SECUREWAVE_CERT_AUTH_FILE="$AUTH_FILE"
+    return 0
+  fi
+
+  set +e
+  SECUREWAVE_PROVISION_AUTH_FILE="$AUTH_FILE" \
+    SECUREWAVE_PROVISION_API_BASE="$API_BASE" \
+    python3 - >"$log" 2>&1 <<'PY'
+import json
+import os
+import secrets
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+api_base = os.environ.get("SECUREWAVE_PROVISION_API_BASE", "").rstrip("/")
+auth_file = Path(os.environ["SECUREWAVE_PROVISION_AUTH_FILE"]).expanduser()
+email_value = os.environ.get("SECUREWAVE_PROVISION_EMAIL", "").strip()
+cred_value = os.environ.get("SECUREWAVE_PROVISION_PASSWORD", "")
+
+if not api_base:
+    raise SystemExit("SECUREWAVE_PROVISION_API_BASE is required")
+
+if not email_value:
+    email_value = f"securewave-linux-cert+{secrets.token_hex(6)}@example.com"
+if not cred_value:
+    cred_value = "SwCert-" + secrets.token_urlsafe(18) + "!A1"
+
+def redacted_email(value: str) -> str:
+    local, separator, domain = value.partition("@")
+    if not separator:
+        return "configured"
+    return f"{local[:1]}***@{domain}"
+
+def request(method: str, path: str, payload: dict | None = None, token: str | None = None):
+    headers = {"Accept": "application/json"}
+    data = None
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(payload).encode("utf-8")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(f"{api_base}{path}", data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            body = response.read().decode("utf-8")
+            return response.status, json.loads(body) if body else {}
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8")
+        try:
+            parsed = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            parsed = {"detail": body}
+        return exc.code, parsed
+
+register_payload = {
+    "email": email_value,
+    "password": cred_value,
+    "password_confirm": cred_value,
+}
+status, body = request("POST", "/auth/register", register_payload)
+if status == 201:
+    print(f"registered stable account: {redacted_email(email_value)}")
+elif status == 400 and "registered" in str(body).lower():
+    print(f"account already exists; validating login: {redacted_email(email_value)}")
+elif status == 429:
+    raise SystemExit(
+        "live registration is rate limited; rerun with SECUREWAVE_PROVISION_EMAIL "
+        "and SECUREWAVE_PROVISION_PASSWORD for an existing account, or retry after the limiter resets"
+    )
+else:
+    raise SystemExit(f"registration failed HTTP {status}: {body}")
+
+login_status, login_body = request(
+    "POST",
+    "/auth/login",
+    {"email": email_value, "password": cred_value},
+)
+if login_status != 200 or not login_body.get("access_token"):
+    raise SystemExit(f"login validation failed HTTP {login_status}: {login_body}")
+
+auth_file.parent.mkdir(parents=True, exist_ok=True)
+fd = os.open(auth_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w", encoding="utf-8") as handle:
+    handle.write("# Local SecureWave live certification credentials. Do not commit.\n")
+    handle.write(f"DEMO_EMAIL={email_value}\n")
+    handle.write(f"DEMO_PASSWORD={cred_value}\n")
+os.chmod(auth_file, 0o600)
+print(f"saved credential file: {auth_file}")
+PY
+  local code=$?
+  set -e
+  if (( code == 0 )); then
+    export SECUREWAVE_CERT_AUTH_FILE="$AUTH_FILE"
+    pass "provisioned stable live certification account"
+    grep -E '^(registered|account already exists|saved credential file)' "$log" | sed 's/^/  /' || true
+  else
+    blocker "failed to provision stable live account; see $log"
+    tail -n 30 "$log" | sed 's/^/  /' >&2 || true
+  fi
+}
+
 export_auth_file_if_present() {
   if [[ -f "$AUTH_FILE" ]]; then
     export SECUREWAVE_CERT_AUTH_FILE="$AUTH_FILE"
@@ -302,6 +420,9 @@ printf 'Logs: %s\n' "$LOG_DIR"
 if [[ "$WRITE_AUTH_FILE" == "true" ]]; then
   write_auth_file
 fi
+if [[ "$PROVISION_LIVE_ACCOUNT" == "true" ]]; then
+  provision_live_account
+fi
 export_auth_file_if_present
 
 run_required "runtime_verifier" python3 scripts/linux_vpn_runtime_verifier.py --json --pkexec-timeout "$PKEXEC_TIMEOUT"
@@ -330,6 +451,7 @@ summary="$LOG_DIR/summary.txt"
   echo "connected=$CONNECTED"
   echo "app_proof=$APP_PROOF"
   echo "full_tests=$FULL_TESTS"
+  echo "provision_live_account=$PROVISION_LIVE_ACCOUNT"
   echo "release=$RELEASE"
   echo "logs=$LOG_DIR"
 } >"$summary"

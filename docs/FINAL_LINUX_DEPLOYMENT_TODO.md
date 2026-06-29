@@ -4,8 +4,8 @@ Status date: 2026-06-29
 
 ## Current Count
 
-- Immediate Linux demo-testing blockers: 1
-- Final Linux deployment/release blockers: 3
+- Immediate Linux demo-testing blockers on this host: 0
+- Final Linux deployment/release blockers: 2
 - Non-blocking cleanup backlog: 1
 
 ## Verified Ready
@@ -21,22 +21,19 @@ Status date: 2026-06-29
 - The branch app package version is aligned with the live download manifest at
   `4.0.0+2`.
 - `scripts/final_linux_demo_gate.sh` automates the repeatable Linux demo gate.
+- A stable live certification account has been provisioned on this host and
+  stored in the ignored local credential file. The default final Linux gate now
+  passes with `0` blockers.
 
 ## Remaining Blockers
 
-1. Stable live demo credentials are not configured on this machine.
-
-   `scripts/demo_preflight.sh --skip-build` currently has one blocker: no
-   `DEMO_EMAIL` / `DEMO_PASSWORD`, no `SECUREWAVE_TEST_EMAIL` /
-   `SECUREWAVE_TEST_PASSWORD`, and no `SECUREWAVE_CERT_AUTH_FILE`.
-
-2. Connected real-tunnel proof still needs to be run after credentials exist.
+1. Connected real-tunnel proof still needs to be run after the app connects.
 
    The host is clean and helper authorization works, but `demo_preflight`
    warns that real tunnel egress was skipped because `sw-wg` is not active.
    Rerun the go/no-go check while the app is connected.
 
-3. Production release prerequisites are not configured locally.
+2. Production release prerequisites are not configured locally.
 
    `scripts/release_preflight.sh` correctly blocks without production SMTP
    settings, `AUTH_ENCRYPTION_KEY`, `WG_ENCRYPTION_KEY`, and a `v*` release
@@ -62,7 +59,14 @@ DEMO_EMAIL="demo@example.com" DEMO_PASSWORD="..." \
   bash scripts/final_linux_demo_gate.sh --write-auth-file
 ```
 
-After creating the stable live credential file:
+To provision one stable live certification account automatically on a fresh
+machine:
+
+```bash
+bash scripts/final_linux_demo_gate.sh --provision-live-account
+```
+
+After creating or provisioning the stable live credential file:
 
 ```bash
 export SECUREWAVE_CERT_AUTH_FILE=securewave_private/live_certification_account.env
