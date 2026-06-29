@@ -141,6 +141,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   Timer? _usageTimer;
   VpnTrafficStats? _lastTrafficStats;
   DateTime? _lastTrafficStatsAt;
+  Future<void>? _trafficPollFuture;
+  int _unreportedRxBytes = 0;
+  int _unreportedTxBytes = 0;
   int? _activeDeviceId;
   String? _activeServerId;
   VpnProtocol? _activeProtocol;
@@ -152,6 +155,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _usageTimer = null;
     _lastTrafficStats = null;
     _lastTrafficStatsAt = null;
+    _trafficPollFuture = null;
+    _unreportedRxBytes = 0;
+    _unreportedTxBytes = 0;
     super.dispose();
   }
 
@@ -494,6 +500,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _usageTimer?.cancel();
     _lastTrafficStats = null;
     _lastTrafficStatsAt = null;
+    _trafficPollFuture = null;
+    _unreportedRxBytes = 0;
+    _unreportedTxBytes = 0;
     state = state.copyWith(
       dataRateDown: 0,
       dataRateUp: 0,
@@ -516,6 +525,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _usageTimer = null;
     _lastTrafficStats = null;
     _lastTrafficStatsAt = null;
+    _trafficPollFuture = null;
+    _unreportedRxBytes = 0;
+    _unreportedTxBytes = 0;
     state = state.copyWith(dataRateDown: 0, dataRateUp: 0);
   }
 
@@ -530,6 +542,23 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> _pollTrafficStats({required bool report}) async {
+    final runningPoll = _trafficPollFuture;
+    if (runningPoll != null) {
+      if (!report) return runningPoll;
+      await runningPoll;
+      if (!mounted) return;
+    }
+    late final Future<void> poll;
+    poll = _pollTrafficStatsOnce(report: report).whenComplete(() {
+      if (identical(_trafficPollFuture, poll)) {
+        _trafficPollFuture = null;
+      }
+    });
+    _trafficPollFuture = poll;
+    return poll;
+  }
+
+  Future<void> _pollTrafficStatsOnce({required bool report}) async {
     if (!mounted) return;
     if (state.status != VpnStatus.connected &&
         state.status != VpnStatus.disconnecting) {
@@ -560,20 +589,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final previousAt = _lastTrafficStatsAt;
     _lastTrafficStats = stats;
     _lastTrafficStatsAt = sampledAt;
-    if (previous == null || previousAt == null) {
-      state = state.copyWith(
-        dataRateDown: 0,
-        dataRateUp: 0,
-        sessionUsageReady: true,
-        sessionCountersAvailable: true,
-        sessionCounterInterface: stats.interfaceName,
-        clearSessionUsageUnavailableReason: true,
-      );
-      return;
-    }
-
-    final rxDelta = stats.rxBytes - previous.rxBytes;
-    final txDelta = stats.txBytes - previous.txBytes;
+    final firstSample = previous == null || previousAt == null;
+    final rxDelta =
+        firstSample ? stats.rxBytes : stats.rxBytes - previous.rxBytes;
+    final txDelta =
+        firstSample ? stats.txBytes : stats.txBytes - previous.txBytes;
     if (rxDelta < 0 || txDelta < 0) {
       state = state.copyWith(
         dataRateDown: 0,
@@ -585,10 +605,17 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       );
       return;
     }
-    final elapsedSeconds =
-        sampledAt.difference(previousAt).inMilliseconds / 1000;
+    final elapsedSeconds = firstSample
+        ? sampledAt
+                .difference(state.lastTunnelStartAt ?? sampledAt)
+                .inMilliseconds /
+            1000
+        : sampledAt.difference(previousAt).inMilliseconds / 1000;
     final rateWindowSeconds =
         elapsedSeconds > 0 ? elapsedSeconds : _trafficPollInterval.inSeconds;
+
+    _unreportedRxBytes += rxDelta;
+    _unreportedTxBytes += txDelta;
 
     state = state.copyWith(
       dataRateDown: rxDelta / rateWindowSeconds,
@@ -601,17 +628,27 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       clearSessionUsageUnavailableReason: true,
     );
 
-    if (!report || (rxDelta == 0 && txDelta == 0)) return;
+    if (!report || (_unreportedRxBytes == 0 && _unreportedTxBytes == 0)) {
+      return;
+    }
+    final reportRxBytes = _unreportedRxBytes;
+    final reportTxBytes = _unreportedTxBytes;
     final api = _ref.read(apiClientProvider);
     final plan = await api.reportVpnUsage(
       deviceId: _activeDeviceId,
       serverId: _activeServerId ?? state.selectedServerId,
       protocol: protocol,
-      rxBytes: rxDelta,
-      txBytes: txDelta,
+      rxBytes: reportRxBytes,
+      txBytes: reportTxBytes,
     );
     if (!mounted) return;
     if (plan != null) {
+      _unreportedRxBytes = _unreportedRxBytes > reportRxBytes
+          ? _unreportedRxBytes - reportRxBytes
+          : 0;
+      _unreportedTxBytes = _unreportedTxBytes > reportTxBytes
+          ? _unreportedTxBytes - reportTxBytes
+          : 0;
       _ref.invalidate(userPlanProvider);
       if (!plan.isUnlimited &&
           plan.dataCapGb > 0 &&

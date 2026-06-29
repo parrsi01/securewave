@@ -241,6 +241,40 @@ void main() {
     expect(state.dataRateUp, 0);
   });
 
+  test('first traffic sample is flushed to usage meter on short sessions',
+      () async {
+    const firstRxBytes = 2 * 1024 * 1024;
+    const firstTxBytes = 512 * 1024;
+    final service = _FirstSampleOnlyNativeVpnService(
+      rxBytes: firstRxBytes,
+      txBytes: firstTxBytes,
+    );
+    final api = _UsageTrackingApiClient(
+      profileServerId: 'de-nue-1',
+      profileProtocol: VpnProtocol.wireGuard,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.connect();
+    await Future<void>.delayed(Duration.zero);
+    await notifier.disconnect();
+
+    expect(api.rxBytes, <int>[firstRxBytes]);
+    expect(api.txBytes, <int>[firstTxBytes]);
+    final state = container.read(vpnStateProvider);
+    expect(state.sessionRxBytes, firstRxBytes);
+    expect(state.sessionTxBytes, firstTxBytes);
+    expect(state.sessionTotalBytes, firstRxBytes + firstTxBytes);
+  });
+
   test('missing tunnel counters show unavailable state without usage report',
       () async {
     final service = _UnavailableStatsVpnService();
@@ -488,6 +522,54 @@ class _MeteredNativeVpnService implements VpnService {
       rxBytes: _rxBytes,
       txBytes: _txBytes,
       interfaceName: 'tun0',
+    );
+  }
+
+  @override
+  VpnStatus getStatus() => _status;
+}
+
+class _FirstSampleOnlyNativeVpnService implements VpnService {
+  _FirstSampleOnlyNativeVpnService({
+    required this.rxBytes,
+    required this.txBytes,
+  });
+
+  final int rxBytes;
+  final int txBytes;
+  VpnStatus _status = VpnStatus.disconnected;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    if (config == null || config.trim().isEmpty) {
+      throw VpnServiceException('invalid_config', 'missing config');
+    }
+    _status = VpnStatus.connected;
+    return _status;
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async {
+    _status = VpnStatus.disconnected;
+    return _status;
+  }
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
+    return VpnTrafficStats(
+      rxBytes: rxBytes,
+      txBytes: txBytes,
+      interfaceName: 'sw-wg',
     );
   }
 
@@ -775,6 +857,11 @@ class _UsageTrackingApiClient extends ApiClient {
     usageProtocols.add(protocol);
     this.rxBytes.add(rxBytes);
     this.txBytes.add(txBytes);
-    return null;
+    return const UserPlan(
+      name: 'Free',
+      isPremium: false,
+      dataCapGb: 5,
+      usedGb: 0.1,
+    );
   }
 }
