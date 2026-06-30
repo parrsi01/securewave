@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from database.session import get_db
-from utils.env_validation import demo_mode_enabled
+from utils.env_validation import demo_mode_enabled, is_production
 from services.subscription_manager import SubscriptionManager
 from services.billing_automation import BillingAutomationService
 from services.stripe_service import StripeService
@@ -25,15 +25,29 @@ from services.jwt_service import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
-DEMO_BILLING = os.getenv("DEMO_BILLING", "").lower() == "true" or demo_mode_enabled()
+
+
+def _env_true(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _demo_billing_enabled() -> bool:
+    return _env_true("DEMO_BILLING") or demo_mode_enabled()
 
 
 def _missing_provider_config(provider: str) -> bool:
     if provider == "stripe":
-        return not os.getenv("STRIPE_SECRET_KEY")
+        return bool(StripeService.config_status()["missing"])
     if provider == "paypal":
         return not os.getenv("PAYPAL_CLIENT_ID") or not os.getenv("PAYPAL_CLIENT_SECRET")
     return True
+
+
+def _provider_unavailable(provider: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=f"{provider} billing is not configured for production",
+    )
 
 
 def _base_url(request: Request) -> str:
@@ -41,6 +55,14 @@ def _base_url(request: Request) -> str:
     if app_url:
         return app_url
     return str(request.base_url).rstrip("/")
+
+
+def _checkout_success_url(base_url: str) -> str:
+    return f"{base_url}/dashboard?payment=success&session_id={{CHECKOUT_SESSION_ID}}"
+
+
+def _checkout_cancel_url(base_url: str) -> str:
+    return f"{base_url}/subscription.html?payment=canceled"
 
 
 def _create_demo_subscription(
@@ -90,8 +112,8 @@ class CreateSubscriptionRequest(BaseModel):
     payment_method_id: Optional[str] = Field(None, description="Stripe payment method ID (for Stripe)")
     trial_days: int = Field(default=0, description="Trial period in days")
     provider: str = Field(default="stripe", description="Payment provider: stripe or paypal")
-    return_url: Optional[str] = Field(None, description="Return URL (for PayPal)")
-    cancel_url: Optional[str] = Field(None, description="Cancel URL (for PayPal)")
+    return_url: Optional[str] = Field(None, description="Return URL (for PayPal or Stripe Checkout success)")
+    cancel_url: Optional[str] = Field(None, description="Cancel URL (for PayPal or Stripe Checkout cancel)")
 
 
 class UpgradeSubscriptionRequest(BaseModel):
@@ -126,6 +148,38 @@ class SubscriptionResponse(BaseModel):
 # SUBSCRIPTION ENDPOINTS
 # ===========================
 
+@router.get("/health")
+async def get_billing_health():
+    """Return billing provider readiness without exposing secrets."""
+    stripe_status = StripeService.config_status()
+    paypal_missing = []
+    if not os.getenv("PAYPAL_CLIENT_ID"):
+        paypal_missing.append("PAYPAL_CLIENT_ID")
+    if not os.getenv("PAYPAL_CLIENT_SECRET"):
+        paypal_missing.append("PAYPAL_CLIENT_SECRET")
+    if os.getenv("PAYPAL_MODE", "").lower() != "live" and is_production():
+        paypal_missing.append("PAYPAL_MODE(live)")
+
+    billing_demo = _demo_billing_enabled()
+    production_ready = (
+        not billing_demo
+        and not stripe_status["missing"]
+        and os.getenv("PAYMENTS_MOCK", "false").lower() == "false"
+    )
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if production_ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "status": "ok" if production_ready else "not_configured",
+            "demo_billing": billing_demo,
+            "payments_mock": os.getenv("PAYMENTS_MOCK", "false").lower() == "true",
+            "stripe": stripe_status,
+            "paypal": {
+                "enabled": not paypal_missing,
+                "missing": paypal_missing,
+            },
+        },
+    )
+
 @router.post("/subscriptions", response_model=Dict, status_code=status.HTTP_201_CREATED)
 async def create_subscription(
     payload: CreateSubscriptionRequest,
@@ -150,7 +204,10 @@ async def create_subscription(
                 detail="User already has an active subscription"
             )
 
-        demo_mode = DEMO_BILLING or _missing_provider_config(payload.provider)
+        demo_mode = _demo_billing_enabled()
+        if _missing_provider_config(payload.provider) and not demo_mode:
+            raise _provider_unavailable(payload.provider)
+
         if demo_mode:
             demo_subscription = _create_demo_subscription(
                 db=db,
@@ -168,20 +225,24 @@ async def create_subscription(
             }
 
         if payload.provider == "stripe":
-            # Create Stripe subscription
-            subscription = subscription_manager.create_subscription_stripe(
+            base_url = _base_url(request)
+            success_url = payload.return_url or _checkout_success_url(base_url)
+            cancel_url = payload.cancel_url or _checkout_cancel_url(base_url)
+            checkout_session = subscription_manager.create_stripe_checkout_session(
                 user_id=current_user.id,
                 plan_id=payload.plan_id,
                 billing_cycle=payload.billing_cycle,
-                payment_method_id=payload.payment_method_id,
-                trial_days=payload.trial_days
+                success_url=success_url,
+                cancel_url=cancel_url,
+                trial_days=payload.trial_days,
             )
 
             return {
-                "subscription_id": subscription.id,
-                "status": subscription.status,
+                "checkout_url": checkout_session.url,
+                "session_id": checkout_session.id,
+                "status": "checkout_required",
                 "provider": "stripe",
-                "message": "Subscription created successfully"
+                "message": "Complete payment in Stripe Checkout"
             }
 
         elif payload.provider == "paypal":
@@ -213,6 +274,8 @@ async def create_subscription(
                 detail=f"Unsupported payment provider: {payload.provider}"
             )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -253,6 +316,8 @@ async def get_current_subscription(
             }
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"✗ Failed to get subscription: {e}")
         raise HTTPException(
@@ -287,6 +352,8 @@ async def get_subscription_history(
             ]
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"✗ Failed to get subscription history: {e}")
         raise HTTPException(
@@ -311,7 +378,9 @@ async def upgrade_subscription(
         if not subscription or subscription.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
-        demo_mode = DEMO_BILLING or _missing_provider_config(subscription.provider)
+        demo_mode = _demo_billing_enabled()
+        if _missing_provider_config(subscription.provider) and not demo_mode:
+            raise _provider_unavailable(subscription.provider)
         if demo_mode:
             billing_cycle = request.billing_cycle or subscription.billing_cycle
             plan = StripeService.get_plan_details(request.new_plan_id) if subscription.provider == "stripe" else PayPalService.get_plan_details(request.new_plan_id)
@@ -346,6 +415,8 @@ async def upgrade_subscription(
             }
         }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -372,7 +443,9 @@ async def cancel_subscription(
         if not subscription or subscription.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
-        demo_mode = DEMO_BILLING or _missing_provider_config(subscription.provider)
+        demo_mode = _demo_billing_enabled()
+        if _missing_provider_config(subscription.provider) and not demo_mode:
+            raise _provider_unavailable(subscription.provider)
         if demo_mode:
             if request.cancel_at_period_end:
                 subscription.cancel_at_period_end = True
@@ -405,6 +478,8 @@ async def cancel_subscription(
             }
         }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -430,7 +505,9 @@ async def reactivate_subscription(
         if not subscription or subscription.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
-        demo_mode = DEMO_BILLING or _missing_provider_config(subscription.provider)
+        demo_mode = _demo_billing_enabled()
+        if _missing_provider_config(subscription.provider) and not demo_mode:
+            raise _provider_unavailable(subscription.provider)
         if demo_mode:
             subscription.status = "active"
             subscription.cancel_at_period_end = False
@@ -453,6 +530,8 @@ async def reactivate_subscription(
             }
         }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -480,7 +559,9 @@ async def create_billing_portal_session(
     try:
         subscription_manager = SubscriptionManager(db)
 
-        demo_mode = DEMO_BILLING or _missing_provider_config("stripe")
+        demo_mode = _demo_billing_enabled()
+        if _missing_provider_config("stripe") and not demo_mode:
+            raise _provider_unavailable("stripe")
         if demo_mode:
             return {"url": return_url, "message": "Billing portal unavailable in demo mode", "demo": True}
 
@@ -497,6 +578,8 @@ async def create_billing_portal_session(
 
         return {"url": portal_url}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"✗ Failed to create billing portal session: {e}")
         raise HTTPException(
@@ -524,6 +607,8 @@ async def get_invoices(
             "invoices": [invoice.to_dict() for invoice in invoices]
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"✗ Failed to get invoices: {e}")
         raise HTTPException(
@@ -548,6 +633,8 @@ async def get_invoice(
 
         return {"invoice": invoice.to_dict()}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"✗ Failed to get invoice: {e}")
         raise HTTPException(
@@ -614,6 +701,8 @@ async def stripe_webhook(
     try:
         # Get raw body
         payload = await request.body()
+        if not stripe_signature:
+            raise ValueError("Missing Stripe-Signature header")
 
         # Verify webhook signature
         stripe_service = StripeService()
@@ -626,6 +715,8 @@ async def stripe_webhook(
         logger.info(f"✓ Processed Stripe webhook: {event['type']}")
         return JSONResponse(content={"status": "success", "result": result})
 
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.error(f"✗ Invalid Stripe webhook signature: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature")

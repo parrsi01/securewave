@@ -109,3 +109,16 @@ def test_email_release_gate_automates_private_env_preflight_and_live_proof():
     assert "/auth/password-reset/confirm" in proof
     assert "SECUREWAVE_EMAIL_PROOF_RESET_TOKEN" in proof
     assert "scripts/email_release_gate.sh" in report
+
+
+def test_billing_release_gate_automates_private_stripe_env_validation():
+    gate = (ROOT / "scripts/billing_release_gate.sh").read_text()
+
+    assert "securewave_private/billing_release.env" in gate
+    assert "payment_config_issues" in gate
+    assert "StripeService.config_status" in gate
+    assert "STRIPE_SECRET_KEY" in gate
+    assert "STRIPE_WEBHOOK_SECRET" in gate
+    assert "STRIPE_PRICE_BASIC_MONTHLY" in gate
+    assert "--release-preflight" in gate
+    assert "scripts/release_preflight.sh" in gate

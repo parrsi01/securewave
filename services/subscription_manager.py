@@ -70,7 +70,7 @@ class SubscriptionManager:
             if not stripe_customer_id:
                 customer = self.stripe.create_customer(
                     email=user.email,
-                    name=user.full_name,
+                    name=getattr(user, "full_name", None),
                     metadata={"user_id": user_id}
                 )
                 stripe_customer_id = customer.id
@@ -129,6 +129,64 @@ class SubscriptionManager:
             logger.error(f"✗ Failed to create Stripe subscription: {e}")
             raise
 
+    def create_stripe_checkout_session(
+        self,
+        user_id: int,
+        plan_id: str,
+        billing_cycle: str = "monthly",
+        success_url: str = "",
+        cancel_url: str = "",
+        trial_days: int = 0,
+    ):
+        """
+        Create a Stripe-hosted Checkout Session for a subscription.
+
+        Production subscription signup should complete in Stripe Checkout. The
+        local Subscription row is created or synchronized from verified Stripe
+        webhooks after payment/session completion.
+        """
+        try:
+            user = self.db.query(User).filter_by(id=user_id).first()
+            if not user:
+                raise ValueError(f"User not found: {user_id}")
+
+            plan = self.stripe.get_plan_details(plan_id)
+            if not plan:
+                raise ValueError(f"Invalid plan ID: {plan_id}")
+            if plan_id == "free":
+                raise ValueError("Free plan does not require checkout")
+            if billing_cycle not in ("monthly", "yearly"):
+                raise ValueError("billing_cycle must be monthly or yearly")
+            if not self.stripe.price_id_for_plan(plan_id, billing_cycle):
+                raise ValueError(f"Stripe Price ID not configured for {plan_id}/{billing_cycle}")
+
+            stripe_customer_id = user.stripe_customer_id
+            if not stripe_customer_id:
+                customer = self.stripe.create_customer(
+                    email=user.email,
+                    name=getattr(user, "full_name", None),
+                    metadata={"securewave_user_id": str(user_id)},
+                )
+                stripe_customer_id = customer.id
+                user.stripe_customer_id = stripe_customer_id
+                self.db.commit()
+
+            return self.stripe.create_checkout_session(
+                customer_id=stripe_customer_id,
+                plan_id=plan_id,
+                billing_cycle=billing_cycle,
+                success_url=success_url,
+                cancel_url=cancel_url,
+                trial_days=trial_days,
+                metadata={"securewave_user_id": str(user_id)},
+                client_reference_id=str(user_id),
+            )
+
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"✗ Failed to create Stripe checkout session: {e}")
+            raise
+
     def create_subscription_paypal(
         self,
         user_id: int,
@@ -162,8 +220,8 @@ class SubscriptionManager:
                 billing_cycle=billing_cycle,
                 subscriber_email=user.email,
                 subscriber_name={
-                    "given_name": user.full_name.split()[0] if user.full_name else "",
-                    "surname": " ".join(user.full_name.split()[1:]) if user.full_name else ""
+                    "given_name": getattr(user, "full_name", "").split()[0] if getattr(user, "full_name", "") else "",
+                    "surname": " ".join(getattr(user, "full_name", "").split()[1:]) if getattr(user, "full_name", "") else ""
                 },
                 return_url=return_url,
                 cancel_url=cancel_url

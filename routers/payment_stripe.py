@@ -28,14 +28,26 @@ from utils.env_validation import demo_mode_enabled
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-stripe_service = StripeService()
 
-DEMO_MODE = os.getenv("DEMO_BILLING", "").lower() == "true" or demo_mode_enabled()
+
+def _env_true(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _demo_billing_enabled() -> bool:
+    return _env_true("DEMO_BILLING") or demo_mode_enabled()
 
 
 def _stripe_configured() -> bool:
-    """Return True if the Stripe secret key is set."""
-    return bool(os.getenv("STRIPE_SECRET_KEY"))
+    """Return True if Stripe has all required production config."""
+    return not StripeService.config_status()["missing"]
+
+
+def _stripe_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Stripe billing is not configured for production",
+    )
 
 
 def _base_url(request: Request) -> str:
@@ -76,6 +88,7 @@ async def create_checkout_session(
     Returns the checkout session URL that the frontend should redirect to.
     In demo mode (no Stripe keys), returns a simulated success response.
     """
+    stripe_service = StripeService()
     plan = stripe_service.get_plan_details(payload.plan_id)
     if not plan:
         raise HTTPException(
@@ -93,7 +106,10 @@ async def create_checkout_session(
 
     base = _base_url(request)
 
-    if not _stripe_configured() or DEMO_MODE:
+    if not _stripe_configured() and not _demo_billing_enabled():
+        raise _stripe_unavailable()
+
+    if not _stripe_configured() or _demo_billing_enabled():
         logger.info("Stripe not configured -- returning demo checkout response")
         return {
             "checkout_url": f"{base}/subscription?demo=success&plan={payload.plan_id}",
@@ -122,6 +138,8 @@ async def create_checkout_session(
             success_url=f"{base}/dashboard?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{base}/subscription?payment=canceled",
             trial_days=payload.trial_days,
+            metadata={"securewave_user_id": str(current_user.id)},
+            client_reference_id=str(current_user.id),
         )
 
         return {
@@ -163,7 +181,7 @@ async def stripe_webhook(
     payload = await request.body()
 
     try:
-        event = stripe_service.construct_webhook_event(payload, stripe_signature)
+        event = StripeService().construct_webhook_event(payload, stripe_signature)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -203,7 +221,7 @@ async def get_stripe_plans():
     display plans to unauthenticated visitors.
     """
     plans = []
-    for plan_id, plan_data in stripe_service.PLANS.items():
+    for plan_id, plan_data in StripeService.PLANS.items():
         monthly = plan_data["price_monthly"]
         yearly = plan_data["price_yearly"]
 
@@ -248,7 +266,10 @@ async def create_portal_session(
     base = _base_url(request)
     return_url = payload.return_url or f"{base}/settings"
 
-    if not _stripe_configured() or DEMO_MODE:
+    if not _stripe_configured() and not _demo_billing_enabled():
+        raise _stripe_unavailable()
+
+    if not _stripe_configured() or _demo_billing_enabled():
         return {
             "url": return_url,
             "demo": True,
@@ -263,6 +284,7 @@ async def create_portal_session(
         )
 
     try:
+        stripe_service = StripeService()
         session = stripe_service.create_billing_portal_session(
             customer_id=customer_id,
             return_url=return_url,

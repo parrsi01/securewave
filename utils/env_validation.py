@@ -92,6 +92,55 @@ def email_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str]]
     return resolved, missing
 
 
+def payment_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str]]:
+    """Return payment provider name and list of missing release config variables."""
+    resolved = (provider or os.getenv("PAYMENT_PROVIDER") or "stripe").strip().lower()
+    missing: List[str] = []
+
+    def require(name: str, value: Optional[str]) -> None:
+        if not value:
+            missing.append(name)
+
+    if os.getenv("PAYMENTS_MOCK", "false").strip().lower() == "true":
+        missing.append("PAYMENTS_MOCK(false)")
+    if os.getenv("DEMO_BILLING", "false").strip().lower() == "true":
+        missing.append("DEMO_BILLING(false)")
+
+    if resolved == "stripe":
+        stripe_secret = os.getenv("STRIPE_SECRET_KEY") or os.getenv("STRIPE_SECRET")
+        require("STRIPE_SECRET_KEY", stripe_secret)
+        require("STRIPE_WEBHOOK_SECRET", os.getenv("STRIPE_WEBHOOK_SECRET"))
+        require("STRIPE_PUBLISHABLE_KEY", os.getenv("STRIPE_PUBLISHABLE_KEY"))
+
+        if stripe_secret and not (
+            stripe_secret.startswith("sk_live_") or stripe_secret.startswith("rk_live_")
+        ):
+            missing.append("STRIPE_SECRET_KEY(live)")
+        webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+        if webhook_secret and not webhook_secret.startswith("whsec_"):
+            missing.append("STRIPE_WEBHOOK_SECRET(whsec)")
+        publishable_key = os.getenv("STRIPE_PUBLISHABLE_KEY")
+        if publishable_key and not publishable_key.startswith("pk_live_"):
+            missing.append("STRIPE_PUBLISHABLE_KEY(live)")
+
+        for plan in ("BASIC", "PREMIUM", "ULTRA"):
+            for cycle in ("MONTHLY", "YEARLY"):
+                price_key = f"STRIPE_PRICE_{plan}_{cycle}"
+                price_id = os.getenv(price_key)
+                require(price_key, price_id)
+                if price_id and not price_id.startswith("price_"):
+                    missing.append(f"{price_key}(price_)")
+    elif resolved == "paypal":
+        require("PAYPAL_CLIENT_ID", os.getenv("PAYPAL_CLIENT_ID"))
+        require("PAYPAL_CLIENT_SECRET", os.getenv("PAYPAL_CLIENT_SECRET"))
+        if os.getenv("PAYPAL_MODE", "").strip().lower() != "live":
+            missing.append("PAYPAL_MODE(live)")
+    else:
+        missing.append(f"PAYMENT_PROVIDER({resolved})")
+
+    return resolved, missing
+
+
 def production_env_errors() -> List[str]:
     """Collect hard errors for production mode."""
     if not is_production():
@@ -107,6 +156,10 @@ def production_env_errors() -> List[str]:
     provider, missing = email_config_issues()
     if missing:
         errors.append(f"EMAIL_PROVIDER({provider}) missing: {', '.join(missing)}")
+
+    payment_provider, payment_missing = payment_config_issues()
+    if payment_missing:
+        errors.append(f"PAYMENT_PROVIDER({payment_provider}) missing: {', '.join(payment_missing)}")
 
     for flag in ("DEMO_MODE", "WG_MOCK_MODE"):
         value = os.getenv(flag)

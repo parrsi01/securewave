@@ -17,12 +17,44 @@ load_dotenv(".env.production")
 
 logger = logging.getLogger(__name__)
 
-# Configure Stripe
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-stripe.api_version = "2023-10-16"  # Latest stable version
+LATEST_STRIPE_API_VERSION = "2026-02-25.clover"
 
-# Webhook secret for signature verification
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+def _env(name: str, default: Optional[str] = None) -> Optional[str]:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    value = value.strip()
+    return value or default
+
+
+def _stripe_secret_key() -> Optional[str]:
+    return _env("STRIPE_SECRET_KEY") or _env("STRIPE_SECRET")
+
+
+def _stripe_webhook_secret() -> Optional[str]:
+    return _env("STRIPE_WEBHOOK_SECRET")
+
+
+def _stripe_publishable_key() -> Optional[str]:
+    return _env("STRIPE_PUBLISHABLE_KEY")
+
+
+def _stripe_api_version() -> str:
+    return _env("STRIPE_API_VERSION", LATEST_STRIPE_API_VERSION) or LATEST_STRIPE_API_VERSION
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = _env(name)
+    if value is None:
+        return default
+    return value.lower() in ("1", "true", "yes", "on")
+
+
+# Configure Stripe for modules that call stripe.* directly. Each service
+# instance refreshes these values again so tests and loaded env files stay live.
+stripe.api_key = _stripe_secret_key()
+stripe.api_version = _stripe_api_version()
 
 
 class StripeService:
@@ -95,18 +127,82 @@ class StripeService:
 
     def __init__(self):
         """Initialize Stripe service"""
-        if not stripe.api_key:
-            logger.warning("STRIPE_SECRET_KEY not configured - Stripe integration disabled")
+        self.secret_key = _stripe_secret_key()
+        self.webhook_secret = _stripe_webhook_secret()
+        self.publishable_key = _stripe_publishable_key()
+        self.api_version = _stripe_api_version()
+        stripe.api_key = self.secret_key
+        stripe.api_version = self.api_version
+        if not self.secret_key:
+            logger.warning("STRIPE_SECRET_KEY/STRIPE_SECRET not configured - Stripe integration disabled")
+
+    @classmethod
+    def price_id_for_plan(cls, plan_id: str, billing_cycle: str) -> Optional[str]:
+        plan = cls.get_plan_details(plan_id)
+        if not plan:
+            return None
+        return plan.get(f"stripe_price_id_{billing_cycle}")
+
+    @classmethod
+    def find_plan_by_price_id(cls, price_id: Optional[str]) -> tuple[Optional[str], Optional[str], Optional[Dict]]:
+        if not price_id:
+            return None, None, None
+        for plan_id, plan in cls.PLANS.items():
+            for billing_cycle in ("monthly", "yearly"):
+                if plan.get(f"stripe_price_id_{billing_cycle}") == price_id:
+                    return plan_id, billing_cycle, plan
+        return None, None, None
+
+    @classmethod
+    def config_status(cls) -> Dict[str, object]:
+        """Return production Stripe configuration status without network calls."""
+        secret_key = _stripe_secret_key()
+        webhook_secret = _stripe_webhook_secret()
+        publishable_key = _stripe_publishable_key()
+        missing: List[str] = []
+
+        if not secret_key:
+            missing.append("STRIPE_SECRET_KEY")
+        if not webhook_secret:
+            missing.append("STRIPE_WEBHOOK_SECRET")
+        if not publishable_key:
+            missing.append("STRIPE_PUBLISHABLE_KEY")
+
+        for plan_id in cls.PLANS:
+            if plan_id == "free":
+                continue
+            plan = cls.get_plan_details(plan_id) or {}
+            for billing_cycle in ("monthly", "yearly"):
+                if not plan.get(f"stripe_price_id_{billing_cycle}"):
+                    missing.append(f"STRIPE_PRICE_{plan_id.upper()}_{billing_cycle.upper()}")
+
+        return {
+            "enabled": not missing,
+            "missing": missing,
+            "api_version": _stripe_api_version(),
+            "secret_key_configured": bool(secret_key),
+            "publishable_key_configured": bool(publishable_key),
+            "webhook_secret_configured": bool(webhook_secret),
+            "automatic_tax": _env_bool("STRIPE_AUTOMATIC_TAX", False),
+        }
 
     @classmethod
     def get_plan_details(cls, plan_id: str) -> Optional[Dict]:
         """Get plan configuration"""
-        return cls.PLANS.get(plan_id)
+        plan = cls.PLANS.get(plan_id)
+        if not plan:
+            return None
+        resolved = dict(plan)
+        if plan_id != "free":
+            prefix = plan_id.upper()
+            resolved["stripe_price_id_monthly"] = _env(f"STRIPE_PRICE_{prefix}_MONTHLY")
+            resolved["stripe_price_id_yearly"] = _env(f"STRIPE_PRICE_{prefix}_YEARLY")
+        return resolved
 
     @classmethod
     def get_all_plans(cls) -> Dict:
         """Get all available plans"""
-        return cls.PLANS
+        return {plan_id: cls.get_plan_details(plan_id) for plan_id in cls.PLANS}
 
     # ===========================
     # CUSTOMER MANAGEMENT
@@ -276,8 +372,7 @@ class StripeService:
                 raise ValueError(f"Invalid plan ID: {plan_id}")
 
             # Get price ID based on billing cycle
-            price_key = f"stripe_price_id_{billing_cycle}"
-            price_id = plan.get(price_key)
+            price_id = self.price_id_for_plan(plan_id, billing_cycle)
 
             if not price_id:
                 raise ValueError(f"Price ID not configured for {plan_id}/{billing_cycle}")
@@ -299,8 +394,8 @@ class StripeService:
             if payment_method_id:
                 subscription_data["default_payment_method"] = payment_method_id
 
-            # Automatic tax calculation (if configured)
-            subscription_data["automatic_tax"] = {"enabled": True}
+            if _env_bool("STRIPE_AUTOMATIC_TAX", False):
+                subscription_data["automatic_tax"] = {"enabled": True}
 
             # Create subscription
             subscription = stripe.Subscription.create(**subscription_data)
@@ -348,9 +443,7 @@ class StripeService:
 
             # Update plan
             if plan_id and billing_cycle:
-                plan = self.get_plan_details(plan_id)
-                price_key = f"stripe_price_id_{billing_cycle}"
-                price_id = plan.get(price_key)
+                price_id = self.price_id_for_plan(plan_id, billing_cycle)
 
                 if price_id:
                     subscription = stripe.Subscription.retrieve(subscription_id)
@@ -480,8 +573,8 @@ class StripeService:
     # WEBHOOK HANDLING
     # ===========================
 
-    @staticmethod
     def construct_webhook_event(
+        self,
         payload: bytes,
         signature: str
     ) -> stripe.Event:
@@ -502,7 +595,7 @@ class StripeService:
             event = stripe.Webhook.construct_event(
                 payload,
                 signature,
-                STRIPE_WEBHOOK_SECRET
+                self.webhook_secret
             )
             logger.info(f"✓ Webhook event verified: {event['type']}")
             return event
@@ -604,7 +697,9 @@ class StripeService:
         billing_cycle: str = "monthly",
         success_url: str = "",
         cancel_url: str = "",
-        trial_days: int = 0
+        trial_days: int = 0,
+        metadata: Optional[Dict] = None,
+        client_reference_id: Optional[str] = None,
     ) -> stripe.checkout.Session:
         """
         Create Stripe Checkout session (hosted payment page)
@@ -622,8 +717,11 @@ class StripeService:
         """
         try:
             plan = self.get_plan_details(plan_id)
-            price_key = f"stripe_price_id_{billing_cycle}"
-            price_id = plan.get(price_key)
+            if not plan:
+                raise ValueError(f"Invalid plan ID: {plan_id}")
+            price_id = self.price_id_for_plan(plan_id, billing_cycle)
+            if not price_id:
+                raise ValueError(f"Price ID not configured for {plan_id}/{billing_cycle}")
 
             session_data = {
                 "customer": customer_id,
@@ -634,13 +732,28 @@ class StripeService:
                 }],
                 "success_url": success_url,
                 "cancel_url": cancel_url,
+                "metadata": {
+                    "plan_id": plan_id,
+                    "billing_cycle": billing_cycle,
+                    **(metadata or {}),
+                },
+                "subscription_data": {
+                    "metadata": {
+                        "plan_id": plan_id,
+                        "billing_cycle": billing_cycle,
+                        **(metadata or {}),
+                    }
+                },
             }
+            if client_reference_id:
+                session_data["client_reference_id"] = client_reference_id
 
             # Add trial
             if trial_days > 0:
-                session_data["subscription_data"] = {
-                    "trial_period_days": trial_days
-                }
+                session_data["subscription_data"]["trial_period_days"] = trial_days
+
+            if _env_bool("STRIPE_AUTOMATIC_TAX", False):
+                session_data["automatic_tax"] = {"enabled": True}
 
             session = stripe.checkout.Session.create(**session_data)
             logger.info(f"✓ Checkout session created: {session.id}")

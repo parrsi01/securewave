@@ -16,6 +16,7 @@ from utils.env_validation import (
     demo_mode_enabled,
     wg_mock_mode_enabled,
     email_config_issues,
+    payment_config_issues,
     production_env_errors,
 )
 
@@ -208,6 +209,57 @@ class TestEmailConfigIssues:
             assert "SMTP_PORT(valid integer)" in missing
 
 
+class TestPaymentConfigIssues:
+    def test_stripe_requires_live_keys_and_prices(self):
+        with patch.dict(os.environ, {"PAYMENT_PROVIDER": "stripe"}, clear=True):
+            provider, missing = payment_config_issues()
+            assert provider == "stripe"
+            assert "STRIPE_SECRET_KEY" in missing
+            assert "STRIPE_WEBHOOK_SECRET" in missing
+            assert "STRIPE_PUBLISHABLE_KEY" in missing
+            assert "STRIPE_PRICE_BASIC_MONTHLY" in missing
+            assert "STRIPE_PRICE_ULTRA_YEARLY" in missing
+
+    def test_stripe_rejects_test_mode_keys_for_release(self):
+        env = {
+            "PAYMENT_PROVIDER": "stripe",
+            "STRIPE_SECRET_KEY": "sk_test_123",
+            "STRIPE_WEBHOOK_SECRET": "not_whsec",
+            "STRIPE_PUBLISHABLE_KEY": "pk_test_123",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
+            "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
+            "STRIPE_PRICE_PREMIUM_YEARLY": "price_premium_yearly",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra_monthly",
+            "STRIPE_PRICE_ULTRA_YEARLY": "price_ultra_yearly",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            _, missing = payment_config_issues()
+            assert "STRIPE_SECRET_KEY(live)" in missing
+            assert "STRIPE_WEBHOOK_SECRET(whsec)" in missing
+            assert "STRIPE_PUBLISHABLE_KEY(live)" in missing
+
+    def test_stripe_no_issues_when_release_configured(self):
+        env = {
+            "PAYMENT_PROVIDER": "stripe",
+            "PAYMENTS_MOCK": "false",
+            "DEMO_BILLING": "false",
+            "STRIPE_SECRET_KEY": "sk_live_test",
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
+            "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
+            "STRIPE_PRICE_PREMIUM_YEARLY": "price_premium_yearly",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra_monthly",
+            "STRIPE_PRICE_ULTRA_YEARLY": "price_ultra_yearly",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            provider, missing = payment_config_issues()
+            assert provider == "stripe"
+            assert missing == []
+
+
 class TestProductionEnvErrors:
     def test_no_errors_in_development(self):
         with patch.dict(os.environ, {"ENVIRONMENT": "development"}):
@@ -226,6 +278,18 @@ class TestProductionEnvErrors:
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
             "APP_URL": "https://securewave.app",
+            "PAYMENTS_MOCK": "false",
+            "DEMO_BILLING": "false",
+            "PAYMENT_PROVIDER": "stripe",
+            "STRIPE_SECRET_KEY": "sk_live_test",
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
+            "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
+            "STRIPE_PRICE_PREMIUM_YEARLY": "price_premium_yearly",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra_monthly",
+            "STRIPE_PRICE_ULTRA_YEARLY": "price_ultra_yearly",
         }
         with patch.dict(os.environ, env, clear=True):
             os.environ.pop("AUTH_ENCRYPTION_KEY", None)
@@ -250,6 +314,18 @@ class TestProductionEnvErrors:
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
             "APP_URL": "https://securewave.app",
+            "PAYMENTS_MOCK": "false",
+            "DEMO_BILLING": "false",
+            "PAYMENT_PROVIDER": "stripe",
+            "STRIPE_SECRET_KEY": "sk_live_test",
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
+            "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
+            "STRIPE_PRICE_PREMIUM_YEARLY": "price_premium_yearly",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra_monthly",
+            "STRIPE_PRICE_ULTRA_YEARLY": "price_ultra_yearly",
         }
         with patch.dict(os.environ, env):
             errors = production_env_errors()
@@ -271,6 +347,18 @@ class TestProductionEnvErrors:
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
             "APP_URL": "https://securewave.app",
+            "PAYMENTS_MOCK": "false",
+            "DEMO_BILLING": "false",
+            "PAYMENT_PROVIDER": "stripe",
+            "STRIPE_SECRET_KEY": "sk_live_test",
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
+            "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
+            "STRIPE_PRICE_PREMIUM_YEARLY": "price_premium_yearly",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra_monthly",
+            "STRIPE_PRICE_ULTRA_YEARLY": "price_ultra_yearly",
         }
         with patch.dict(os.environ, env):
             errors = production_env_errors()
@@ -292,6 +380,18 @@ class TestProductionEnvErrors:
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
             "APP_URL": "https://securewave.app",
+            "PAYMENTS_MOCK": "false",
+            "DEMO_BILLING": "false",
+            "PAYMENT_PROVIDER": "stripe",
+            "STRIPE_SECRET_KEY": "sk_live_test",
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
+            "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
+            "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
+            "STRIPE_PRICE_PREMIUM_YEARLY": "price_premium_yearly",
+            "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra_monthly",
+            "STRIPE_PRICE_ULTRA_YEARLY": "price_ultra_yearly",
         }
         with patch.dict(os.environ, env):
             errors = production_env_errors()

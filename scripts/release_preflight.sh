@@ -69,6 +69,54 @@ if [[ "$app_url" == *"example.com"* ]]; then
   fail_with_fix "APP_URL must not point at an example domain." 'export APP_URL="https://securewave.app"'
 fi
 
+# Guard against fake or incomplete production billing.
+payment_provider="${PAYMENT_PROVIDER:-stripe}"
+payment_provider="${payment_provider,,}"
+if [[ "${PAYMENTS_MOCK:-false}" =~ ^([Tt][Rr][Uu][Ee])$ ]]; then
+  fail_with_fix "PAYMENTS_MOCK must be false for release." "export PAYMENTS_MOCK=false"
+fi
+if [[ "${DEMO_BILLING:-false}" =~ ^([Tt][Rr][Uu][Ee])$ ]]; then
+  fail_with_fix "DEMO_BILLING must be false for release." "export DEMO_BILLING=false"
+fi
+
+case "$payment_provider" in
+  stripe)
+    stripe_key_value="${STRIPE_SECRET_KEY:-${STRIPE_SECRET:-}}"
+    require_value "STRIPE_SECRET_KEY or STRIPE_SECRET" "$stripe_key_value" 'export STRIPE_SECRET_KEY="sk_live_..."'
+    require_var "STRIPE_WEBHOOK_SECRET" 'export STRIPE_WEBHOOK_SECRET="whsec_..."'
+    require_var "STRIPE_PUBLISHABLE_KEY" 'export STRIPE_PUBLISHABLE_KEY="pk_live_..."'
+    if [[ -n "$stripe_key_value" && ! "$stripe_key_value" =~ ^(sk_live_|rk_live_) ]]; then
+      fail_with_fix "Stripe secret key must be a live-mode key." 'export STRIPE_SECRET_KEY="sk_live_..."'
+    fi
+    if [[ -n "${STRIPE_WEBHOOK_SECRET:-}" && ! "${STRIPE_WEBHOOK_SECRET}" =~ ^whsec_ ]]; then
+      fail_with_fix "STRIPE_WEBHOOK_SECRET must be a webhook signing secret." 'export STRIPE_WEBHOOK_SECRET="whsec_..."'
+    fi
+    if [[ -n "${STRIPE_PUBLISHABLE_KEY:-}" && ! "${STRIPE_PUBLISHABLE_KEY}" =~ ^pk_live_ ]]; then
+      fail_with_fix "STRIPE_PUBLISHABLE_KEY must be a live-mode publishable key." 'export STRIPE_PUBLISHABLE_KEY="pk_live_..."'
+    fi
+    for plan in BASIC PREMIUM ULTRA; do
+      for cycle in MONTHLY YEARLY; do
+        price_var="STRIPE_PRICE_${plan}_${cycle}"
+        price_value="${!price_var-}"
+        require_var "$price_var" "export ${price_var}=price_..."
+        if [[ -n "$price_value" && ! "$price_value" =~ ^price_ ]]; then
+          fail_with_fix "$price_var must be a Stripe Price ID." "export ${price_var}=price_..."
+        fi
+      done
+    done
+    ;;
+  paypal)
+    require_var "PAYPAL_CLIENT_ID" 'export PAYPAL_CLIENT_ID="..."'
+    require_var "PAYPAL_CLIENT_SECRET" 'export PAYPAL_CLIENT_SECRET="..."'
+    if [[ "${PAYPAL_MODE:-}" != "live" ]]; then
+      fail_with_fix "PAYPAL_MODE must be live for release." 'export PAYPAL_MODE=live'
+    fi
+    ;;
+  *)
+    fail_with_fix "PAYMENT_PROVIDER '${payment_provider}' is not supported." 'export PAYMENT_PROVIDER="stripe"'
+    ;;
+esac
+
 ensure_python() {
   local python_bin="${PYTHON_BIN:-python3}"
   if ! command -v "$python_bin" >/dev/null 2>&1; then

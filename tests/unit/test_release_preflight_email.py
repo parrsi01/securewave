@@ -24,6 +24,18 @@ def _release_env(**overrides):
         "SMTP_PASSWORD": "smtp-password",
         "FROM_EMAIL": "noreply@securewave.app",
         "APP_URL": "https://securewave.app",
+        "PAYMENTS_MOCK": "false",
+        "DEMO_BILLING": "false",
+        "PAYMENT_PROVIDER": "stripe",
+        "STRIPE_SECRET_KEY": "sk_live_test",
+        "STRIPE_WEBHOOK_SECRET": "whsec_test",
+        "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+        "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
+        "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
+        "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
+        "STRIPE_PRICE_PREMIUM_YEARLY": "price_premium_yearly",
+        "STRIPE_PRICE_ULTRA_MONTHLY": "price_ultra_monthly",
+        "STRIPE_PRICE_ULTRA_YEARLY": "price_ultra_yearly",
     })
     env.update(overrides)
     return env

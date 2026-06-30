@@ -65,6 +65,115 @@ class PaymentWebhookHandler:
         text_content = f"{heading}\n\n{message}\n{action_url or ''}\n\nSecureWave Billing"
         self.email_service.send_email(to_email=to_email, subject=subject, html_content=html_content, text_content=text_content)
 
+    @staticmethod
+    def _field(source: Dict, name: str, default=None):
+        if source is None:
+            return default
+        if isinstance(source, dict):
+            return source.get(name, default)
+        return getattr(source, name, default)
+
+    def _extract_subscription_price_id(self, subscription_data: Dict) -> Optional[str]:
+        items = self._field(subscription_data, "items") or {}
+        data = self._field(items, "data") or []
+        if not data:
+            return None
+        first_item = data[0]
+        price = self._field(first_item, "price") or {}
+        return self._field(price, "id")
+
+    def _timestamp_or_none(self, value) -> Optional[datetime]:
+        return datetime.fromtimestamp(value) if value else None
+
+    def _sync_stripe_subscription_record(
+        self,
+        subscription_data: Dict,
+        user_id: Optional[int] = None,
+        customer_id: Optional[str] = None,
+    ) -> Optional[Subscription]:
+        stripe_sub_id = self._field(subscription_data, "id")
+        if not stripe_sub_id:
+            return None
+
+        metadata = self._field(subscription_data, "metadata") or {}
+        if user_id is None:
+            raw_user_id = metadata.get("securewave_user_id") or metadata.get("user_id")
+            user_id = int(raw_user_id) if raw_user_id else None
+
+        customer_id = customer_id or self._field(subscription_data, "customer")
+        price_id = self._extract_subscription_price_id(subscription_data)
+        plan_id = metadata.get("plan_id")
+        billing_cycle = metadata.get("billing_cycle")
+        plan = None
+        if not plan_id or not billing_cycle:
+            plan_id, billing_cycle, plan = self.stripe.find_plan_by_price_id(price_id)
+        else:
+            plan = self.stripe.get_plan_details(plan_id)
+
+        if not user_id or not plan_id or not billing_cycle or not plan:
+            logger.warning("Stripe subscription missing SecureWave metadata: %s", stripe_sub_id)
+            return None
+
+        user = self.db.query(User).filter_by(id=user_id).first()
+        if not user:
+            logger.warning("Stripe subscription user not found: %s", user_id)
+            return None
+        if customer_id and not user.stripe_customer_id:
+            user.stripe_customer_id = customer_id
+
+        subscription = self.db.query(Subscription).filter_by(
+            stripe_subscription_id=stripe_sub_id
+        ).first()
+        if not subscription:
+            subscription = Subscription(
+                user_id=user_id,
+                plan_id=plan_id,
+                plan_name=plan["name"],
+                provider="stripe",
+                stripe_customer_id=customer_id,
+                stripe_subscription_id=stripe_sub_id,
+                stripe_price_id=price_id,
+                amount=plan[f"price_{billing_cycle}"],
+                currency="usd",
+                billing_cycle=billing_cycle,
+                auto_renew=True,
+            )
+            self.db.add(subscription)
+
+        subscription.status = self._field(subscription_data, "status", subscription.status)
+        subscription.plan_id = plan_id
+        subscription.plan_name = plan["name"]
+        subscription.stripe_customer_id = customer_id
+        subscription.stripe_price_id = price_id
+        subscription.amount = plan[f"price_{billing_cycle}"]
+        subscription.billing_cycle = billing_cycle
+        subscription.current_period_start = self._timestamp_or_none(
+            self._field(subscription_data, "current_period_start")
+        )
+        subscription.current_period_end = self._timestamp_or_none(
+            self._field(subscription_data, "current_period_end")
+        )
+        subscription.next_billing_date = subscription.current_period_end
+        subscription.cancel_at_period_end = bool(
+            self._field(subscription_data, "cancel_at_period_end", False)
+        )
+        trial_start = self._field(subscription_data, "trial_start")
+        trial_end = self._field(subscription_data, "trial_end")
+        subscription.trial_start = self._timestamp_or_none(trial_start)
+        subscription.trial_end = self._timestamp_or_none(trial_end)
+        if subscription.status in ("active", "trialing"):
+            subscription.activated_at = subscription.activated_at or datetime.utcnow()
+            user.subscription_status = "active"
+        elif subscription.status in ("canceled", "incomplete_expired", "unpaid"):
+            user.subscription_status = "inactive"
+        subscription.extra_data = {
+            **(subscription.extra_data or {}),
+            "last_stripe_sync": datetime.utcnow().isoformat(),
+        }
+        self.db.commit()
+        self.db.refresh(subscription)
+        return subscription
+
     # ===========================
     # STRIPE WEBHOOK HANDLERS
     # ===========================
@@ -90,6 +199,7 @@ class PaymentWebhookHandler:
             "customer.created": self._stripe_customer_created,
             "customer.updated": self._stripe_customer_updated,
             "customer.deleted": self._stripe_customer_deleted,
+            "checkout.session.completed": self._stripe_checkout_completed,
 
             # Subscription events
             "customer.subscription.created": self._stripe_subscription_created,
@@ -128,23 +238,45 @@ class PaymentWebhookHandler:
             logger.info(f"Unhandled Stripe event type: {event_type}")
             return {"status": "ignored", "event_type": event_type}
 
+    def _stripe_checkout_completed(self, session_data: Dict) -> Dict:
+        """Handle hosted Checkout completion for subscription signup."""
+        if self._field(session_data, "mode") != "subscription":
+            return {"status": "ignored", "reason": "not_subscription"}
+
+        stripe_sub_id = self._field(session_data, "subscription")
+        customer_id = self._field(session_data, "customer")
+        raw_user_id = self._field(session_data, "client_reference_id")
+        metadata = self._field(session_data, "metadata") or {}
+        if not raw_user_id:
+            raw_user_id = metadata.get("securewave_user_id")
+        user_id = int(raw_user_id) if raw_user_id else None
+
+        subscription_data = self.stripe.get_subscription(stripe_sub_id) if stripe_sub_id else None
+        if not subscription_data:
+            return {"status": "not_found", "subscription_id": stripe_sub_id}
+
+        subscription = self._sync_stripe_subscription_record(
+            subscription_data,
+            user_id=user_id,
+            customer_id=customer_id,
+        )
+        if not subscription:
+            return {"status": "not_synced", "subscription_id": stripe_sub_id}
+        return {"status": "synced", "subscription_id": subscription.id}
+
     def _stripe_subscription_created(self, subscription_data: Dict) -> Dict:
         """Handle subscription.created event"""
         stripe_sub_id = subscription_data["id"]
-        customer_id = subscription_data["customer"]
+        customer_id = self._field(subscription_data, "customer")
+        subscription = self._sync_stripe_subscription_record(
+            subscription_data,
+            customer_id=customer_id,
+        )
 
-        # Subscription should already exist from API call
-        # But update status if needed
-        subscription = self.db.query(Subscription).filter_by(
-            stripe_subscription_id=stripe_sub_id
-        ).first()
-
-        if subscription:
-            subscription.status = subscription_data["status"]
-            subscription.activated_at = datetime.utcnow()
-            self.db.commit()
-
-        return {"subscription_id": stripe_sub_id, "status": subscription_data["status"]}
+        return {
+            "subscription_id": subscription.id if subscription else stripe_sub_id,
+            "status": self._field(subscription_data, "status"),
+        }
 
     def _stripe_subscription_updated(self, subscription_data: Dict) -> Dict:
         """Handle subscription.updated event"""
