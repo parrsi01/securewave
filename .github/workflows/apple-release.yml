@@ -41,6 +41,9 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
 
+      - name: Configure Flutter for CocoaPods project
+        run: flutter config --no-enable-swift-package-manager
+
       - name: Install Apple build prerequisites
         run: |
           set -euo pipefail
@@ -53,6 +56,7 @@ jobs:
 
       - name: Fetch Flutter dependencies
         run: |
+          FORCE_FLUTTER_ENV=true bash scripts/prepare_flutter_env.sh
           cd securewave_app
           flutter pub get
 
@@ -178,6 +182,9 @@ jobs:
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
+
+      - name: Configure Flutter for CocoaPods project
+        run: flutter config --no-enable-swift-package-manager
 
       - name: Install Apple build prerequisites
         run: |

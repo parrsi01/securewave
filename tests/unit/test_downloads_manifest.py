@@ -59,6 +59,8 @@ def test_apple_review_page_and_handoff_docs_are_public():
     assert "publish_macos_demo" in apple_workflow
     assert "macOS UI Demo Package" in apple_workflow
     assert "static/downloads/securewave-macos-*-ui-demo.zip" in apple_workflow
+    assert "--no-enable-swift-package-manager" in apple_workflow
+    assert "scripts/prepare_flutter_env.sh" in apple_workflow
 
 
 def test_macos_detection_can_recommend_universal_handoff():
