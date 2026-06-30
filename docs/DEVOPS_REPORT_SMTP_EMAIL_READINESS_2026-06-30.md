@@ -65,6 +65,42 @@ For SendGrid, use `EMAIL_PROVIDER=sendgrid`, `SENDGRID_API_KEY`, `FROM_EMAIL`,
 `FROM_NAME`, and `APP_URL`. For SES, use `EMAIL_PROVIDER=ses`,
 `AWS_SES_REGION`, `FROM_EMAIL`, `FROM_NAME`, and `APP_URL`.
 
+## Automation
+
+Use the ignored private env file path for release email settings:
+
+```bash
+bash scripts/email_release_gate.sh \
+  --env-file securewave_private/release_email.env \
+  --generate-missing-keys \
+  --write-env-file \
+  --dry-run-tag
+```
+
+After replacing the SMTP placeholders in
+`securewave_private/release_email.env`, rerun:
+
+```bash
+bash scripts/email_release_gate.sh \
+  --env-file securewave_private/release_email.env \
+  --dry-run-tag
+```
+
+To run the live API proof after the provider is configured, use a controlled
+mailbox and paste the received verification/reset links when prompted:
+
+```bash
+bash scripts/email_release_gate.sh \
+  --env-file securewave_private/release_email.env \
+  --dry-run-tag \
+  --live-proof \
+  --api-base https://api.securewaveapp.com/api \
+  --email proof@example.com
+```
+
+The script automates the API calls and reset confirmation. It does not read the
+inbox or create provider credentials; those remain external release operations.
+
 ## Validation performed
 
 - `.venv/bin/python -m pytest tests/unit/test_email_config.py tests/unit/test_auth_email_flows.py tests/unit/test_env_validation.py tests/unit/test_release_preflight_email.py -q`

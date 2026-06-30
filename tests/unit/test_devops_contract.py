@@ -91,3 +91,21 @@ def test_final_linux_gate_provisions_stable_account_without_churn_in_preflight()
     assert "/auth/register" in gate
     assert "/auth/register" not in demo_preflight
     assert "securewave\\.ovpn" in demo_preflight
+
+
+def test_email_release_gate_automates_private_env_preflight_and_live_proof():
+    gate = (ROOT / "scripts/email_release_gate.sh").read_text()
+    proof = (ROOT / "scripts/email_live_proof.py").read_text()
+    report = (ROOT / "docs/DEVOPS_REPORT_SMTP_EMAIL_READINESS_2026-06-30.md").read_text()
+
+    assert "securewave_private/release_email.env" in gate
+    assert "scripts/release_preflight.sh" in gate
+    assert "scripts/email_live_proof.py" in gate
+    assert "--generate-missing-keys" in gate
+    assert "--dry-run-tag" in gate
+    assert "getpass.getpass" in proof
+    assert "/auth/verify-email" in proof
+    assert "/auth/password-reset/request" in proof
+    assert "/auth/password-reset/confirm" in proof
+    assert "SECUREWAVE_EMAIL_PROOF_RESET_TOKEN" in proof
+    assert "scripts/email_release_gate.sh" in report
