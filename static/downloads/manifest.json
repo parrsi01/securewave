@@ -14,7 +14,7 @@
       "architecture": "arm64",
       "filename": "securewave-macos-arm64-ui-demo.zip",
       "url": "/downloads/securewave-macos-arm64-ui-demo.zip",
-      "status": "coming_soon",
+      "status": "available",
       "notes": "macOS UI demo app package. Build this on an Apple Silicon Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo."
     },
     {
