@@ -113,6 +113,20 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "url": "/downloads/securewave-apple-release-handoff.zip",
         "notes": "Mac/Xcode handoff kit for producing the signed macOS/iOS archive. Not a notarized app bundle.",
     },
+    {
+        "platform": "macos",
+        "architecture": "arm64",
+        "filename": "securewave-macos-arm64-ui-demo.zip",
+        "url": "/downloads/securewave-macos-arm64-ui-demo.zip",
+        "notes": "macOS UI demo app package. Build this on an Apple Silicon Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
+    },
+    {
+        "platform": "macos",
+        "architecture": "x64",
+        "filename": "securewave-macos-x64-ui-demo.zip",
+        "url": "/downloads/securewave-macos-x64-ui-demo.zip",
+        "notes": "macOS UI demo app package. Build this on an Intel Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
+    },
     # Windows
     {
         "platform": "windows",
@@ -246,14 +260,18 @@ async def detect_user_platform(request: Request):
     detected = detect_platform(user_agent)
 
     recommended = None
-    for item in _load_download_manifest():
-        if item["platform"] == detected["platform"]:
-            if item["architecture"] in (detected["architecture"], "universal"):
-                if item["filename"]:
-                    file_path = DOWNLOADS_DIR / item["filename"]
-                    if file_path.exists():
-                        recommended = item["url"]
-                        break
+    entries = [
+        entry for entry in _build_download_entries()
+        if entry.platform == detected["platform"]
+        and entry.status == "available"
+        and entry.url
+        and entry.url != "#"
+    ]
+    exact = next((entry for entry in entries if entry.architecture == detected["architecture"]), None)
+    universal = next((entry for entry in entries if entry.architecture == "universal"), None)
+    selected = exact or universal or (entries[0] if entries else None)
+    if selected:
+        recommended = selected.url
 
     return PlatformDetectResponse(
         platform=detected["platform"],

@@ -35,6 +35,26 @@ metadata, archives the `Runner` scheme, and exports the signed artifact to:
 securewave_app/build/ios/export/
 ```
 
+## macOS Website Demo Build
+
+The repository also includes a Mac-only script that packages the current macOS
+UI/account demo app for the website:
+
+```bash
+bash securewave_app/scripts/package_macos_ui_demo.sh
+```
+
+That script writes one of these files, depending on the Mac architecture:
+
+```text
+static/downloads/securewave-macos-arm64-ui-demo.zip
+static/downloads/securewave-macos-x64-ui-demo.zip
+```
+
+This is not a production macOS VPN release. The current macOS app returns
+`vpn_not_configured` for tunnel start/stop until a signed macOS Network
+Extension target is added.
+
 ## Public Review URLs
 
 - Product website: `https://securewaveapp.com`
