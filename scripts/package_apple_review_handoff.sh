@@ -24,9 +24,12 @@ copy_file "docs/APPLE_REVIEW_HANDOFF.md" "README.md"
 copy_file "docs/APP_STORE_REVIEW_NOTES.md" "docs/APP_STORE_REVIEW_NOTES.md"
 copy_file "docs/APPLE_RELEASE.md" "docs/APPLE_RELEASE.md"
 copy_file "securewave_app/IOS_VPN_SETUP.md" "securewave_app/IOS_VPN_SETUP.md"
+copy_file "securewave_app/MACOS_VPN_SETUP.md" "securewave_app/MACOS_VPN_SETUP.md"
 copy_file "securewave_app/scripts/archive_ios_release.sh" "securewave_app/scripts/archive_ios_release.sh"
+copy_file "securewave_app/scripts/package_macos_ui_demo.sh" "securewave_app/scripts/package_macos_ui_demo.sh"
 copy_file "securewave_app/ios/Runner/Runner.entitlements" "securewave_app/ios/Runner/Runner.entitlements"
 copy_file "securewave_app/ios/PacketTunnel/PacketTunnel.entitlements" "securewave_app/ios/PacketTunnel/PacketTunnel.entitlements"
+copy_file "static/downloads/manifest.json" "static/downloads/manifest.json"
 
 if command -v zip >/dev/null 2>&1; then
   (cd "$TMP_DIR" && zip -qr "$OUT_FILE" securewave-apple-release-handoff)

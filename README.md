@@ -14,6 +14,10 @@ Packet Tunnel Provider entitlement scope, not Hotspot Helper. Final signed
 archive/export must be run on macOS with Xcode via
 `securewave_app/scripts/archive_ios_release.sh`.
 
+The macOS target can be packaged as a UI/account demo on a Mac with
+`securewave_app/scripts/package_macos_ui_demo.sh`; macOS VPN tunneling remains
+disabled until a signed macOS Network Extension target is added.
+
 The repository now targets **Hetzner Cloud only**. Older Azure-era assumptions are not part of the supported deployment story; provisioning and production operations are centered on the Terraform module in `infrastructure/hetzner/` and the Hetzner runbook in `docs/HETZNER_RUNBOOK.md`.
 
 If you encounter legacy Azure-named files elsewhere in the repository or older history, treat them as archival context rather than the supported deployment path.
@@ -37,7 +41,7 @@ This project demonstrates work across:
 - **Payments:** Stripe, PayPal
 - **VPN/Infra:** WireGuard, OpenVPN/IKEv2 support code, Terraform, Docker, systemd, Nginx
 - **Tooling:** pytest, Flutter test/analyze, GitHub Actions, gitleaks-oriented secret hygiene
-- **Apple packaging:** Xcode workspace guardrails, Packet Tunnel extension metadata, signed archive/export handoff script
+- **Apple packaging:** Xcode workspace guardrails, Packet Tunnel extension metadata, signed iOS archive/export handoff, macOS UI demo package script
 
 ## Current Deployment Model
 

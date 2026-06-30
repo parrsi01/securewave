@@ -169,18 +169,23 @@ bash securewave_app/ios/scripts/ensure_workspace.sh
 
 ---
 
-## 7) macOS (Stub Only)
+## 7) macOS UI Demo (Mac/Xcode)
 
 ```bash
-bash securewave_app/scripts/build_macos_release.sh
+bash securewave_app/scripts/package_macos_ui_demo.sh
 ```
 
 **Expected output:**
 ```
-build/macos/Build/Products/Release/
+static/downloads/securewave-macos-arm64-ui-demo.zip
+# or
+static/downloads/securewave-macos-x64-ui-demo.zip
 ```
 
 **Runtime behavior:** `connect` returns `vpn_not_configured` until a macOS VPN extension is added.
+
+**Production macOS VPN release:** still blocked until a signed macOS Network
+Extension target is added and validated.
 
 ---
 

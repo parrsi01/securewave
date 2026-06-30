@@ -10,6 +10,22 @@
       "notes": "Mac/Xcode handoff kit for producing the signed macOS/iOS archive. Not a notarized app bundle."
     },
     {
+      "platform": "macos",
+      "architecture": "arm64",
+      "filename": "securewave-macos-arm64-ui-demo.zip",
+      "url": "/downloads/securewave-macos-arm64-ui-demo.zip",
+      "status": "coming_soon",
+      "notes": "macOS UI demo app package. Build this on an Apple Silicon Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo."
+    },
+    {
+      "platform": "macos",
+      "architecture": "x64",
+      "filename": "securewave-macos-x64-ui-demo.zip",
+      "url": "/downloads/securewave-macos-x64-ui-demo.zip",
+      "status": "coming_soon",
+      "notes": "macOS UI demo app package. Build this on an Intel Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo."
+    },
+    {
       "platform": "windows",
       "architecture": "x64",
       "filename": "securewave-windows-x64-setup.exe",

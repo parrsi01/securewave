@@ -18,11 +18,29 @@ def test_download_manifest_exposes_apple_handoff_zip():
     assert handoff.url == "/downloads/securewave-apple-release-handoff.zip"
 
 
+def test_download_manifest_exposes_macos_demo_slots():
+    entries = downloads._build_download_entries()
+    by_name = {entry.filename: entry for entry in entries}
+
+    arm64_demo = by_name["securewave-macos-arm64-ui-demo.zip"]
+    x64_demo = by_name["securewave-macos-x64-ui-demo.zip"]
+
+    assert arm64_demo.platform == "macos"
+    assert arm64_demo.architecture == "arm64"
+    assert arm64_demo.status == "coming_soon"
+    assert arm64_demo.url == "#"
+    assert x64_demo.platform == "macos"
+    assert x64_demo.architecture == "x64"
+    assert x64_demo.status == "coming_soon"
+    assert x64_demo.url == "#"
+
+
 def test_apple_review_page_and_handoff_docs_are_public():
     apple_page = (ROOT / "static/apple-review.html").read_text()
     downloads_page = (ROOT / "static/download.html").read_text()
     manifest = (ROOT / "static/downloads/manifest.json").read_text()
     handoff = (ROOT / "docs/APPLE_REVIEW_HANDOFF.md").read_text()
+    macos_script = (ROOT / "securewave_app/scripts/package_macos_ui_demo.sh").read_text()
 
     assert "Packet Tunnel Provider" in apple_page
     assert "Hotspot Helper" in apple_page
@@ -30,7 +48,10 @@ def test_apple_review_page_and_handoff_docs_are_public():
     assert "/contact.html" in apple_page
     assert "/apple-review.html" in downloads_page
     assert "securewave-apple-release-handoff.zip" in manifest
+    assert "securewave-macos-arm64-ui-demo.zip" in manifest
+    assert "package_macos_ui_demo.sh" in handoff
     assert "com.securewave.vpn.PacketTunnel" in handoff
+    assert "vpn_not_configured" in macos_script
 
 
 def test_macos_detection_can_recommend_universal_handoff():

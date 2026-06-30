@@ -40,6 +40,10 @@ instead of substituting fake connected states.
   `com.securewave.vpn` and `com.securewave.vpn.PacketTunnel`, with the Packet
   Tunnel Provider Network Extension entitlement. A signed iOS archive/export
   still must be produced on macOS with Xcode and Apple signing assets.
+- The macOS Flutter target can be packaged as a website-downloadable UI demo on
+  a Mac with `securewave_app/scripts/package_macos_ui_demo.sh`. macOS VPN
+  tunneling is still not enabled; connect/disconnect returns
+  `vpn_not_configured` until a macOS Network Extension target exists.
 
 ## Apple Release Packaging Handoff
 
@@ -50,11 +54,21 @@ instead of substituting fake connected states.
   downloads.
 - The public download manifest is `static/downloads/manifest.json`; the Apple
   handoff download is `static/downloads/securewave-apple-release-handoff.zip`.
+- macOS demo package slots are present for
+  `securewave-macos-arm64-ui-demo.zip` and
+  `securewave-macos-x64-ui-demo.zip`; they become available on the site after a
+  Mac creates and publishes the matching zip.
 - Local Mac archive/export command:
 
 ```bash
 export APPLE_TEAM_ID="<team-id>"
 bash securewave_app/scripts/archive_ios_release.sh
+```
+
+- Local Mac website demo package command:
+
+```bash
+bash securewave_app/scripts/package_macos_ui_demo.sh
 ```
 
 - GitHub Actions can run unsigned iOS validation by default and signed

@@ -22,6 +22,17 @@ The script archives from `securewave_app/ios/Runner.xcworkspace`, never
 `Runner.xcodeproj`, and exports signed output to
 `securewave_app/build/ios/export/`.
 
+For the website-downloadable macOS UI demo package, run on a Mac:
+
+```bash
+bash securewave_app/scripts/package_macos_ui_demo.sh
+```
+
+That writes `static/downloads/securewave-macos-arm64-ui-demo.zip` or
+`static/downloads/securewave-macos-x64-ui-demo.zip`. The demo app is
+UI/account-only; macOS VPN tunnel start/stop still returns `vpn_not_configured`
+until a signed macOS Network Extension target is added.
+
 Signed App Store/TestFlight archive automation requires these repository
 secrets:
 

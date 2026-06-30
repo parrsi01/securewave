@@ -70,9 +70,26 @@ async function fetchDownloadData() {
   return { downloads: [] };
 }
 
-function bestDownloadForPlatform(downloads, platform) {
-  const matches = downloads.filter((entry) => entry.platform === platform);
-  return matches.find((entry) => entry.status === 'available' && entry.url && entry.url !== '#') || null;
+function detectClientPlatform() {
+  const userAgent = navigator.userAgent;
+  if (/iPhone|iPad/.test(userAgent)) return { platform: 'ios', architecture: 'arm64' };
+  if (/Mac/.test(userAgent)) return { platform: 'macos', architecture: /arm64|aarch64/i.test(userAgent) ? 'arm64' : 'x64' };
+  if (/Android/.test(userAgent)) return { platform: 'android', architecture: /arm64|aarch64/i.test(userAgent) ? 'arm64' : 'universal' };
+  if (/Win/.test(userAgent)) return { platform: 'windows', architecture: /arm64|aarch64/i.test(userAgent) ? 'arm64' : 'x64' };
+  return { platform: 'linux', architecture: /arm64|aarch64/i.test(userAgent) ? 'arm64' : 'x64' };
+}
+
+function bestDownloadForPlatform(downloads, platform, architecture) {
+  const matches = downloads.filter((entry) => (
+    entry.platform === platform
+    && entry.status === 'available'
+    && entry.url
+    && entry.url !== '#'
+  ));
+  return matches.find((entry) => entry.architecture === architecture)
+    || matches.find((entry) => entry.architecture === 'universal')
+    || matches[0]
+    || null;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -105,10 +122,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!grid) return;
 
     if (recoCard && recoCard.style.display === 'none') {
-      const platform = /Mac|iPhone|iPad/.test(navigator.userAgent)
-        ? (/iPhone|iPad/.test(navigator.userAgent) ? 'ios' : 'macos')
-        : (/Android/.test(navigator.userAgent) ? 'android' : (/Win/.test(navigator.userAgent) ? 'windows' : 'linux'));
-      const recommended = bestDownloadForPlatform(downloads, platform);
+      const detected = detectClientPlatform();
+      const recommended = bestDownloadForPlatform(downloads, detected.platform, detected.architecture);
       if (recommended) {
         recoCard.style.display = '';
         const link = document.querySelector('[data-reco-link]');
