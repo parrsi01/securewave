@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
 MACOS_DIR="$ROOT_DIR/macos"
 BUILD_DIR="$ROOT_DIR/build/macos/Build/Products/Release"
 DOWNLOADS_DIR="$REPO_ROOT/static/downloads"
+MANIFEST_PATH="$DOWNLOADS_DIR/manifest.json"
 
 usage() {
   cat <<'EOF'
@@ -39,7 +40,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 2
 fi
 
-for tool in flutter pod xcodebuild ditto codesign; do
+for tool in flutter pod xcodebuild ditto codesign python3; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "ERROR: required tool not found: $tool" >&2
     exit 2
@@ -60,7 +61,8 @@ case "${MACOS_DEMO_ARCH:-$HOST_ARCH}" in
     ;;
 esac
 
-OUT_FILE="${MACOS_DEMO_OUT:-$DOWNLOADS_DIR/securewave-macos-${ARCH_LABEL}-ui-demo.zip}"
+DEFAULT_OUT_FILE="$DOWNLOADS_DIR/securewave-macos-${ARCH_LABEL}-ui-demo.zip"
+OUT_FILE="${MACOS_DEMO_OUT:-$DEFAULT_OUT_FILE}"
 
 cd "$ROOT_DIR"
 flutter pub get
@@ -93,3 +95,27 @@ ditto -c -k --keepParent "$APP_BUNDLE" "$OUT_FILE"
 echo "OK: macOS UI demo package created."
 echo "Output: $OUT_FILE"
 shasum -a 256 "$OUT_FILE"
+
+if [[ "$OUT_FILE" == "$DEFAULT_OUT_FILE" && -f "$MANIFEST_PATH" ]]; then
+  python3 - "$MANIFEST_PATH" "$ARCH_LABEL" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest_path = Path(sys.argv[1])
+arch = sys.argv[2]
+filename = f"securewave-macos-{arch}-ui-demo.zip"
+payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+for entry in payload.get("downloads", []):
+    if entry.get("platform") == "macos" and entry.get("filename") == filename:
+        entry["status"] = "available"
+        entry["url"] = f"/downloads/{filename}"
+        break
+else:
+    raise SystemExit(f"macOS demo entry not found in manifest: {filename}")
+
+manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+  echo "OK: updated $MANIFEST_PATH for $ARCH_LABEL macOS demo availability."
+fi

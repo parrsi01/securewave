@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      publish_macos_demo:
+        description: "Commit the generated macOS UI demo zip back to this branch"
+        required: false
+        type: boolean
+        default: false
   push:
     tags:
       - "v*"
@@ -158,3 +163,55 @@ jobs:
           name: securewave-ios-signed-export-${{ github.ref_name }}
           path: securewave_app/build/ios/export/
           if-no-files-found: error
+
+  macos-ui-demo:
+    name: macOS UI Demo Package
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install Apple build prerequisites
+        run: |
+          set -euo pipefail
+          if ! command -v pod >/dev/null 2>&1; then
+            sudo gem install cocoapods
+          fi
+
+      - name: Build macOS UI demo package
+        run: bash securewave_app/scripts/package_macos_ui_demo.sh
+
+      - name: Upload macOS UI demo package
+        uses: actions/upload-artifact@v4
+        with:
+          name: securewave-macos-ui-demo-${{ github.ref_name }}
+          path: |
+            static/downloads/securewave-macos-*-ui-demo.zip
+            static/downloads/manifest.json
+          if-no-files-found: error
+
+      - name: Publish macOS UI demo to branch
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_macos_demo }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE:-}" != "branch" ]; then
+            echo "macOS demo publishing must be run from a branch ref." >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add static/downloads/securewave-macos-*-ui-demo.zip static/downloads/manifest.json
+          if git diff --cached --quiet; then
+            echo "No macOS demo package changes to publish."
+          else
+            git commit -m "Publish macOS UI demo package"
+            git push origin HEAD:"$GITHUB_REF_NAME"
+          fi

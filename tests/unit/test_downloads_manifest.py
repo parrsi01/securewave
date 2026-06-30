@@ -27,12 +27,15 @@ def test_download_manifest_exposes_macos_demo_slots():
 
     assert arm64_demo.platform == "macos"
     assert arm64_demo.architecture == "arm64"
-    assert arm64_demo.status == "coming_soon"
-    assert arm64_demo.url == "#"
     assert x64_demo.platform == "macos"
     assert x64_demo.architecture == "x64"
-    assert x64_demo.status == "coming_soon"
-    assert x64_demo.url == "#"
+    for demo in (arm64_demo, x64_demo):
+        if (downloads.DOWNLOADS_DIR / demo.filename).exists():
+            assert demo.status == "available"
+            assert demo.url == f"/downloads/{demo.filename}"
+        else:
+            assert demo.status == "coming_soon"
+            assert demo.url == "#"
 
 
 def test_apple_review_page_and_handoff_docs_are_public():
@@ -41,6 +44,7 @@ def test_apple_review_page_and_handoff_docs_are_public():
     manifest = (ROOT / "static/downloads/manifest.json").read_text()
     handoff = (ROOT / "docs/APPLE_REVIEW_HANDOFF.md").read_text()
     macos_script = (ROOT / "securewave_app/scripts/package_macos_ui_demo.sh").read_text()
+    apple_workflow = (ROOT / ".github/workflows/apple-release.yml").read_text()
 
     assert "Packet Tunnel Provider" in apple_page
     assert "Hotspot Helper" in apple_page
@@ -52,6 +56,9 @@ def test_apple_review_page_and_handoff_docs_are_public():
     assert "package_macos_ui_demo.sh" in handoff
     assert "com.securewave.vpn.PacketTunnel" in handoff
     assert "vpn_not_configured" in macos_script
+    assert "publish_macos_demo" in apple_workflow
+    assert "macOS UI Demo Package" in apple_workflow
+    assert "static/downloads/securewave-macos-*-ui-demo.zip" in apple_workflow
 
 
 def test_macos_detection_can_recommend_universal_handoff():
