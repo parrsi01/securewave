@@ -78,11 +78,23 @@ bash scripts/email_release_gate.sh \
 ```
 
 After replacing the SMTP placeholders in
-`securewave_private/release_email.env`, rerun:
+`securewave_private/release_email.env` and creating
+`securewave_private/billing_release.env`, rerun:
 
 ```bash
 bash scripts/email_release_gate.sh \
   --env-file securewave_private/release_email.env \
+  --billing-env-file securewave_private/billing_release.env \
+  --dry-run-tag
+```
+
+For the composed release go/no-go pass across email, billing, Fernet keys, demo
+flags, and release tag checks:
+
+```bash
+bash scripts/release_go_no_go.sh \
+  --email-env-file securewave_private/release_email.env \
+  --billing-env-file securewave_private/billing_release.env \
   --dry-run-tag
 ```
 
@@ -101,16 +113,19 @@ bash scripts/email_release_gate.sh \
 The script automates the API calls and reset confirmation. It does not read the
 inbox or create provider credentials; those remain external release operations.
 
-## Validation performed
+## Latest validation performed
 
-- `.venv/bin/python -m pytest tests/unit/test_email_config.py tests/unit/test_auth_email_flows.py tests/unit/test_env_validation.py tests/unit/test_release_preflight_email.py -q`
-  - `52 passed`
+- `.venv/bin/python -m pytest tests/unit/test_release_preflight_email.py tests/unit/test_devops_contract.py -q`
+  - `15 passed`
 - `.venv/bin/python -m pytest -q`
-  - `336 passed`
-- `python3 -m py_compile services/email_service.py services/enhanced_email_service.py services/auth_service.py routes/auth.py utils/env_validation.py models/email_log.py`
+  - `361 passed`
+- `bash -n scripts/email_release_gate.sh scripts/billing_release_gate.sh scripts/release_go_no_go.sh scripts/release_preflight.sh`
   - passed
 - `git diff --check`
   - passed
+- `bash scripts/release_go_no_go.sh --dry-run-tag`
+  - failed as expected because `securewave_private/release_email.env` and
+    `securewave_private/billing_release.env` are not present on this machine
 - `env -i PATH="$PATH" HOME="$HOME" bash scripts/release_preflight.sh`
   - failed as expected with clear missing SMTP/app URL/key/tag errors
 - Dummy complete SMTP-shaped release env:

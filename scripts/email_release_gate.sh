@@ -6,11 +6,14 @@ cd "$ROOT_DIR"
 
 DEFAULT_ENV_FILE="$ROOT_DIR/securewave_private/release_email.env"
 ENV_FILE="${SECUREWAVE_RELEASE_EMAIL_ENV_FILE:-$DEFAULT_ENV_FILE}"
+DEFAULT_BILLING_ENV_FILE="$ROOT_DIR/securewave_private/billing_release.env"
+BILLING_ENV_FILE="${SECUREWAVE_BILLING_RELEASE_ENV_FILE:-$DEFAULT_BILLING_ENV_FILE}"
 RUN_PREFLIGHT=true
 RUN_LIVE_PROOF=false
 WRITE_ENV_FILE=false
 GENERATE_MISSING_KEYS=false
 DRY_RUN_TAG=false
+LOAD_BILLING_ENV=true
 API_BASE="${SECUREWAVE_API_BASE_URL:-http://127.0.0.1:8000/api}"
 PROOF_EMAIL="${SECUREWAVE_EMAIL_PROOF_EMAIL:-}"
 PROOF_PASSWORD="${SECUREWAVE_EMAIL_PROOF_PASSWORD:-}"
@@ -21,11 +24,14 @@ usage() {
 Usage: bash scripts/email_release_gate.sh [options]
 
 Automates the repeatable SecureWave email release checks without committing
-secrets. By default it loads securewave_private/release_email.env when present
-and runs scripts/release_preflight.sh.
+secrets. By default it loads securewave_private/release_email.env when present.
+When preflight is enabled, it also loads securewave_private/billing_release.env
+so scripts/release_preflight.sh sees both email and billing configuration.
 
 Options:
   --env-file PATH              Load/write this private env file.
+  --billing-env-file PATH      Load this private billing env before preflight.
+  --skip-billing-env           Do not load the private billing env before preflight.
   --write-env-file             Write the current email/release env to PATH.
   --generate-missing-keys      Generate missing AUTH/WG Fernet keys for this run.
   --dry-run-tag                Use GITHUB_REF=refs/tags/v0.0.0 when no release
@@ -54,6 +60,14 @@ while [[ $# -gt 0 ]]; do
     --env-file)
       ENV_FILE="$2"
       shift 2
+      ;;
+    --billing-env-file)
+      BILLING_ENV_FILE="$2"
+      shift 2
+      ;;
+    --skip-billing-env)
+      LOAD_BILLING_ENV=false
+      shift
       ;;
     --write-env-file)
       WRITE_ENV_FILE=true
@@ -119,22 +133,24 @@ PY
 }
 
 load_env_file() {
-  if [[ -f "$ENV_FILE" ]]; then
+  local path="$1"
+  local label="$2"
+  if [[ -f "$path" ]]; then
     set +e
     set -a
     # shellcheck disable=SC1090
-    source "$ENV_FILE"
+    source "$path"
     local source_code=$?
     set +a
     set -e
     if (( source_code != 0 )); then
-      echo "ERROR: failed to load private env file: $ENV_FILE" >&2
+      echo "ERROR: failed to load private $label env file: $path" >&2
       echo "FIX: quote values that contain spaces, for example FROM_NAME=\"SecureWave VPN\"" >&2
       exit 1
     fi
-    echo "[PASS] loaded private env file: $ENV_FILE"
+    echo "[PASS] loaded private $label env file: $path"
   else
-    echo "[WARN] private env file not found: $ENV_FILE"
+    echo "[WARN] private $label env file not found: $path"
   fi
 }
 
@@ -198,7 +214,11 @@ print(f"[INFO] app url configured: {status.get('app_url_configured')}")
 PY
 }
 
-load_env_file
+load_env_file "$ENV_FILE" "email"
+
+if [[ "$RUN_PREFLIGHT" == "true" && "$LOAD_BILLING_ENV" == "true" ]]; then
+  load_env_file "$BILLING_ENV_FILE" "billing"
+fi
 
 if [[ "$GENERATE_MISSING_KEYS" == "true" ]]; then
   generate_missing_keys

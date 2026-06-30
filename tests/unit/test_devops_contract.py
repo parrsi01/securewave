@@ -101,6 +101,8 @@ def test_email_release_gate_automates_private_env_preflight_and_live_proof():
     assert "securewave_private/release_email.env" in gate
     assert "scripts/release_preflight.sh" in gate
     assert "scripts/email_live_proof.py" in gate
+    assert "--billing-env-file" in gate
+    assert "securewave_private/billing_release.env" in gate
     assert "--generate-missing-keys" in gate
     assert "--dry-run-tag" in gate
     assert "getpass.getpass" in proof
@@ -124,8 +126,22 @@ def test_billing_release_gate_automates_private_stripe_env_validation():
     assert "STRIPE_PRICE_BASIC_MONTHLY" in gate
     assert "STRIPE_PORTAL_CONFIG_ID" in gate
     assert "--release-preflight" in gate
+    assert "--release-env-file" in gate
+    assert "securewave_private/release_email.env" in gate
     assert "scripts/release_preflight.sh" in gate
     assert "StripeBillingProvisioner" in provision
     assert "--confirm-live" in provision
     assert "checkout.session.completed" in provisioning_service
     assert "billing_portal.Configuration" in provisioning_service
+
+
+def test_release_go_no_go_composes_private_email_and_billing_gates():
+    gate = (ROOT / "scripts/release_go_no_go.sh").read_text()
+
+    assert "securewave_private/release_email.env" in gate
+    assert "securewave_private/billing_release.env" in gate
+    assert "scripts/email_release_gate.sh" in gate
+    assert "scripts/billing_release_gate.sh" in gate
+    assert "scripts/release_preflight.sh" in gate
+    assert "--email-live-proof" in gate
+    assert "OK: composed release go/no-go checks passed." in gate

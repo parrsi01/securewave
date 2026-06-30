@@ -82,6 +82,15 @@ If the webhook already exists and the provisioner warns that
 Stripe Dashboard into `securewave_private/billing_release.env`, then rerun the
 gate.
 
+For a composed release go/no-go pass after email and billing env files exist:
+
+```bash
+bash scripts/release_go_no_go.sh \
+  --email-env-file securewave_private/release_email.env \
+  --billing-env-file securewave_private/billing_release.env \
+  --dry-run-tag
+```
+
 For the full release gate, combine this env with the SMTP/Fernet release env and
 run:
 
@@ -97,11 +106,18 @@ bash scripts/billing_release_gate.sh \
 - `.venv/bin/python -m pytest tests/unit/test_stripe_billing_provisioning.py tests/unit/test_billing_production_readiness.py tests/unit/test_env_validation.py tests/unit/test_release_preflight_email.py tests/unit/test_devops_contract.py -q`
   - `54 passed`
 - `.venv/bin/python -m pytest -q`
-  - `356 passed`
+  - `361 passed`
+- `.venv/bin/python -m pytest tests/unit/test_release_preflight_email.py tests/unit/test_devops_contract.py -q`
+  - `15 passed`
 - `python3 -m py_compile services/stripe_provisioning.py services/stripe_service.py utils/env_validation.py scripts/stripe_billing_provision.py`
+  - passed
+- `bash -n scripts/email_release_gate.sh scripts/billing_release_gate.sh scripts/release_go_no_go.sh scripts/release_preflight.sh`
   - passed
 - `bash scripts/billing_release_gate.sh --env-file <temporary-complete-env>`
   - passed with `stripe missing: none` and `release missing: none`
+- `bash scripts/release_go_no_go.sh --dry-run-tag`
+  - failed as expected until private email and billing env files exist on this
+    machine
 - `git diff --check`
   - passed
 
