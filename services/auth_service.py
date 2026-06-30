@@ -8,8 +8,10 @@ import secrets
 import logging
 import json
 import base64
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 from cryptography.hazmat.primitives.twofactor.totp import TOTP
 from cryptography.hazmat.primitives.hashes import SHA1
@@ -20,7 +22,7 @@ import qrcode
 from io import BytesIO
 
 from models.user import User
-from services.email_service import EmailService
+from services.email_service import EmailService, redact_email
 from services.hashing_service import hash_password
 from utils.password_policy import validate_password_strength
 
@@ -54,6 +56,37 @@ class AuthService:
         """Generate secure verification token"""
         return secrets.token_urlsafe(32)
 
+    @staticmethod
+    def _hash_token(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    def _find_user_by_email_verification_token(self, token: str) -> Optional[User]:
+        token_hash = self._hash_token(token)
+        return self.db.query(User).filter(
+            or_(
+                User.email_verification_token == token_hash,
+                User.email_verification_token == token,
+            )
+        ).first()
+
+    def _find_user_by_password_reset_token(self, token: str) -> Optional[User]:
+        token_hash = self._hash_token(token)
+        return self.db.query(User).filter(
+            or_(
+                User.password_reset_token == token_hash,
+                User.password_reset_token == token,
+            )
+        ).first()
+
+    def _clear_email_verification_token(self, user: User) -> None:
+        user.email_verification_token = None
+        user.email_verification_token_expires = None
+
+    def _clear_password_reset_token(self, user: User) -> None:
+        user.password_reset_token = None
+        user.password_reset_token_expires = None
+        user.password_reset_requested_at = None
+
     def send_verification_email(self, user: User) -> bool:
         """
         Send email verification link to user
@@ -70,7 +103,7 @@ class AuthService:
             expires_at = datetime.utcnow() + timedelta(hours=EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS)
 
             # Update user
-            user.email_verification_token = token
+            user.email_verification_token = self._hash_token(token)
             user.email_verification_token_expires = expires_at
             self.db.commit()
 
@@ -81,9 +114,9 @@ class AuthService:
             )
 
             if success:
-                logger.info(f"✓ Verification email sent to {user.email}")
+                logger.info("Verification email sent to %s", redact_email(user.email))
             else:
-                logger.warning(f"✗ Failed to send verification email to {user.email}")
+                logger.warning("Failed to send verification email to %s", redact_email(user.email))
 
             return success
 
@@ -103,24 +136,28 @@ class AuthService:
             Tuple of (success, error_message)
         """
         try:
-            user = self.db.query(User).filter(
-                User.email_verification_token == token
-            ).first()
+            user = self._find_user_by_email_verification_token(token)
 
             if not user:
                 return False, "Invalid verification token"
 
             # Check if token expired
+            if not user.email_verification_token_expires:
+                self._clear_email_verification_token(user)
+                self.db.commit()
+                return False, "Invalid verification token"
+
             if datetime.utcnow() > user.email_verification_token_expires:
+                self._clear_email_verification_token(user)
+                self.db.commit()
                 return False, "Verification token has expired"
 
             # Verify email
             user.email_verified = True
-            user.email_verification_token = None
-            user.email_verification_token_expires = None
+            self._clear_email_verification_token(user)
             self.db.commit()
 
-            logger.info(f"✓ Email verified for user: {user.email}")
+            logger.info("Email verified for user: %s", redact_email(user.email))
             return True, None
 
         except Exception as e:
@@ -143,18 +180,27 @@ class AuthService:
             Always returns True for security (don't reveal if email exists)
         """
         try:
-            user = self.db.query(User).filter(User.email == email).first()
+            normalized_email = email.strip().lower()
+            user = self.db.query(User).filter(
+                func.lower(User.email) == normalized_email
+            ).first()
 
             if not user:
                 # Don't reveal that email doesn't exist
-                logger.info(f"Password reset requested for non-existent email: {email}")
+                logger.info(
+                    "Password reset requested for non-existent email: %s",
+                    redact_email(normalized_email),
+                )
                 return True
 
             # Check rate limiting (prevent abuse)
             if user.password_reset_requested_at:
                 time_since_last_request = datetime.utcnow() - user.password_reset_requested_at
                 if time_since_last_request < timedelta(minutes=5):
-                    logger.warning(f"Rate limit: Password reset requested too frequently for {email}")
+                    logger.warning(
+                        "Rate limit: Password reset requested too frequently for %s",
+                        redact_email(normalized_email),
+                    )
                     return True  # Don't reveal rate limiting
 
             # Generate reset token
@@ -162,7 +208,7 @@ class AuthService:
             expires_at = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRY_MINUTES)
 
             # Update user
-            user.password_reset_token = token
+            user.password_reset_token = self._hash_token(token)
             user.password_reset_token_expires = expires_at
             user.password_reset_requested_at = datetime.utcnow()
             self.db.commit()
@@ -174,9 +220,9 @@ class AuthService:
             )
 
             if success:
-                logger.info(f"✓ Password reset email sent to {email}")
+                logger.info("Password reset email sent to %s", redact_email(normalized_email))
             else:
-                logger.warning(f"✗ Failed to send password reset email to {email}")
+                logger.warning("Failed to send password reset email to %s", redact_email(normalized_email))
 
             return True
 
@@ -197,15 +243,20 @@ class AuthService:
             Tuple of (success, error_message)
         """
         try:
-            user = self.db.query(User).filter(
-                User.password_reset_token == token
-            ).first()
+            user = self._find_user_by_password_reset_token(token)
 
             if not user:
                 return False, "Invalid reset token"
 
             # Check if token expired
+            if not user.password_reset_token_expires:
+                self._clear_password_reset_token(user)
+                self.db.commit()
+                return False, "Invalid reset token"
+
             if datetime.utcnow() > user.password_reset_token_expires:
+                self._clear_password_reset_token(user)
+                self.db.commit()
                 return False, "Reset token has expired"
 
             # Validate password strength
@@ -215,14 +266,12 @@ class AuthService:
 
             # Update password
             user.hashed_password = hash_password(new_password)
-            user.password_reset_token = None
-            user.password_reset_token_expires = None
-            user.password_reset_requested_at = None
+            self._clear_password_reset_token(user)
             user.failed_login_attempts = 0  # Reset failed attempts
             user.account_locked_until = None  # Unlock account
             self.db.commit()
 
-            logger.info(f"✓ Password reset successfully for user: {user.email}")
+            logger.info("Password reset successfully for user: %s", redact_email(user.email))
             return True, None
 
         except Exception as e:
@@ -329,7 +378,7 @@ class AuthService:
             user.totp_enabled = False  # Don't enable until verified
             self.db.commit()
 
-            logger.info(f"✓ 2FA setup initiated for user: {user.email}")
+            logger.info("2FA setup initiated for user: %s", redact_email(user.email))
             return secret, provisioning_uri, backup_codes
 
         except Exception as e:
@@ -386,7 +435,7 @@ class AuthService:
             # Send confirmation email
             self.email_service.send_2fa_enabled_email(user.email)
 
-            logger.info(f"✓ 2FA enabled for user: {user.email}")
+            logger.info("2FA enabled for user: %s", redact_email(user.email))
             return True, None
 
         except Exception as e:
@@ -438,7 +487,7 @@ class AuthService:
                 user.totp_backup_codes = self._encrypt_value(json.dumps(backup_codes))
                 self.db.commit()
 
-                logger.info(f"✓ Backup code used for user: {user.email}")
+                logger.info("Backup code used for user: %s", redact_email(user.email))
                 return True
 
             return False
@@ -463,7 +512,7 @@ class AuthService:
             user.totp_backup_codes = None
             self.db.commit()
 
-            logger.info(f"✓ 2FA disabled for user: {user.email}")
+            logger.info("2FA disabled for user: %s", redact_email(user.email))
             return True
 
         except Exception as e:
@@ -506,7 +555,8 @@ class AuthService:
                         minutes=ACCOUNT_LOCK_DURATION_MINUTES
                     )
                     logger.warning(
-                        f"⚠️ Account locked due to failed login attempts: {user.email}"
+                        "Account locked due to failed login attempts: %s",
+                        redact_email(user.email),
                     )
 
             self.db.commit()
@@ -534,7 +584,7 @@ class AuthService:
             user.account_locked_until = None
             self.db.commit()
 
-            logger.info(f"✓ Account unlocked: {user.email}")
+            logger.info("Account unlocked: %s", redact_email(user.email))
             return True
 
         except Exception as e:

@@ -65,10 +65,17 @@ def email_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str]]
         or os.getenv("SMTP_FROM_EMAIL")
         or os.getenv("SMTP_USER")
     )
+    app_url = os.getenv("APP_URL") or os.getenv("APP_BASE_URL")
 
     if resolved == "smtp":
         require("SMTP_HOST", os.getenv("SMTP_HOST"))
-        require("SMTP_PORT", os.getenv("SMTP_PORT"))
+        smtp_port = os.getenv("SMTP_PORT")
+        require("SMTP_PORT", smtp_port)
+        if smtp_port:
+            try:
+                int(smtp_port)
+            except ValueError:
+                missing.append("SMTP_PORT(valid integer)")
         require("SMTP_USER", os.getenv("SMTP_USER"))
         require("SMTP_PASSWORD", os.getenv("SMTP_PASSWORD"))
         require("FROM_EMAIL", from_email)
@@ -80,6 +87,7 @@ def email_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str]]
         require("AWS_SES_REGION", os.getenv("AWS_SES_REGION"))
     else:
         missing.append(f"EMAIL_PROVIDER({resolved})")
+    require("APP_URL", app_url)
 
     return resolved, missing
 

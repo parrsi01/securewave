@@ -40,7 +40,7 @@ class EmailLog(Base):
     error_message = Column(Text, nullable=True)
 
     # Extra data
-    extra_data = Column(JSON, nullable=True)  # Additional data (template vars, tracking info, etc.)
+    extra_data = Column("metadata", JSON, nullable=True)  # Additional data (template vars, tracking info, etc.)
 
     # Engagement tracking
     sent_at = Column(DateTime, nullable=True)

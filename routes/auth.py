@@ -12,6 +12,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Re
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from io import BytesIO
 
@@ -31,6 +32,7 @@ from services.jwt_service import (
     get_current_user,
 )
 from services.auth_service import AuthService
+from services.email_service import redact_email
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -199,7 +201,8 @@ async def register(
     """
     try:
         # Check if email already exists
-        existing = db.query(User).filter(User.email == payload.email).first()
+        email = payload.email.strip().lower()
+        existing = db.query(User).filter(func.lower(User.email) == email).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -222,7 +225,7 @@ async def register(
 
         # Create user
         user = User(
-            email=payload.email,
+            email=email,
             hashed_password=hash_password(payload.password),
             created_at=datetime.utcnow(),
             subscription_status="basic",
@@ -239,9 +242,9 @@ async def register(
             email_sent = auth_service.send_verification_email(user)
 
             if not email_sent:
-                logger.warning(f"Failed to send verification email to {user.email}")
+                logger.warning("Failed to send verification email to %s", redact_email(user.email))
 
-        logger.info(f"✓ New user registered: {user.email}")
+        logger.info("New user registered: %s", redact_email(user.email))
 
         if DEMO_MODE:
             access_token = create_access_token(user)
@@ -288,7 +291,8 @@ async def login(
     """
     try:
         # Get user
-        user: Optional[User] = db.query(User).filter(User.email == payload.email).first()
+        email = payload.email.strip().lower()
+        user: Optional[User] = db.query(User).filter(func.lower(User.email) == email).first()
 
         is_valid = False
         if user:
@@ -358,9 +362,9 @@ async def login(
         if admin_email and user.email.lower() == admin_email and not user.is_admin:
             user.is_admin = True
             db.commit()
-            logger.info(f"Admin access granted to {user.email} via ADMIN_EMAIL")
+            logger.info("Admin access granted to %s via ADMIN_EMAIL", redact_email(user.email))
 
-        logger.info(f"✓ User logged in: {user.email}")
+        logger.info("User logged in: %s", redact_email(user.email))
 
         access_token = create_access_token(user)
         refresh_token = create_refresh_token(user)
@@ -509,7 +513,7 @@ async def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db
 
 
 @router.post("/resend-verification")
-@limiter.limit("3/hour")
+@rate_limit("3/hour")
 async def resend_verification_email(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -542,7 +546,7 @@ async def resend_verification_email(
 
 
 @router.post("/update-email")
-@limiter.limit("5/hour")
+@rate_limit("5/hour")
 async def update_email(
     request: Request,
     payload: UpdateEmailRequest,
@@ -564,7 +568,7 @@ async def update_email(
                 detail="New email must be different"
             )
 
-        existing = db.query(User).filter(User.email == new_email).first()
+        existing = db.query(User).filter(func.lower(User.email) == new_email).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -599,7 +603,7 @@ async def update_email(
 
 
 @router.post("/update-password")
-@limiter.limit("5/hour")
+@rate_limit("5/hour")
 async def update_password(
     request: Request,
     payload: UpdatePasswordRequest,
@@ -652,7 +656,7 @@ async def logout_all():
 # ===========================
 
 @router.post("/password-reset/request")
-@limiter.limit("3/hour")  # Prevent abuse
+@rate_limit("3/hour")  # Prevent abuse
 async def request_password_reset(
     request: Request,
     payload: PasswordResetRequestModel,
@@ -662,7 +666,7 @@ async def request_password_reset(
     try:
         auth_service = AuthService(db)
         # Always returns success to prevent email enumeration
-        auth_service.request_password_reset(payload.email)
+        auth_service.request_password_reset(payload.email.strip().lower())
 
         return {
             "message": "If the email exists, a password reset link has been sent"
@@ -677,7 +681,7 @@ async def request_password_reset(
 
 
 @router.post("/password-reset/confirm")
-@limiter.limit("5/hour")
+@rate_limit("5/hour")
 async def confirm_password_reset(
     request: Request,
     payload: PasswordResetConfirmModel,

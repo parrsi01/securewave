@@ -133,6 +133,7 @@ class TestEmailConfigIssues:
             assert "SMTP_USER" in missing
             assert "SMTP_PASSWORD" in missing
             assert "FROM_EMAIL" in missing
+            assert "APP_URL" in missing
 
     def test_smtp_no_issues_when_configured(self):
         env = {
@@ -142,6 +143,7 @@ class TestEmailConfigIssues:
             "SMTP_USER": "user@example.com",
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env):
             provider, missing = email_config_issues()
@@ -156,6 +158,7 @@ class TestEmailConfigIssues:
             assert provider == "sendgrid"
             assert "SENDGRID_API_KEY" in missing
             assert "FROM_EMAIL" in missing
+            assert "APP_URL" in missing
 
     def test_ses_requires_region_and_from(self):
         with patch.dict(os.environ, {"EMAIL_PROVIDER": "ses"}, clear=True):
@@ -164,6 +167,8 @@ class TestEmailConfigIssues:
             provider, missing = email_config_issues()
             assert provider == "ses"
             assert "FROM_EMAIL" in missing
+            assert "AWS_SES_REGION" in missing
+            assert "APP_URL" in missing
 
     def test_unknown_provider_reported(self):
         with patch.dict(os.environ, {"EMAIL_PROVIDER": "unknown_provider"}, clear=True):
@@ -178,6 +183,7 @@ class TestEmailConfigIssues:
             "SMTP_PORT": "587",
             "SMTP_USER": "user@example.com",
             "SMTP_PASSWORD": "password",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env, clear=True):
             os.environ.pop("FROM_EMAIL", None)
@@ -185,6 +191,21 @@ class TestEmailConfigIssues:
             provider, missing = email_config_issues()
             # FROM_EMAIL should NOT be in missing because SMTP_USER is set
             assert "FROM_EMAIL" not in missing
+
+    def test_smtp_port_must_be_numeric(self):
+        env = {
+            "EMAIL_PROVIDER": "smtp",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_PORT": "not-a-port",
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "FROM_EMAIL": "noreply@example.com",
+            "APP_URL": "https://securewave.app",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            provider, missing = email_config_issues()
+            assert provider == "smtp"
+            assert "SMTP_PORT(valid integer)" in missing
 
 
 class TestProductionEnvErrors:
@@ -204,6 +225,7 @@ class TestProductionEnvErrors:
             "SMTP_USER": "user@example.com",
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env, clear=True):
             os.environ.pop("AUTH_ENCRYPTION_KEY", None)
@@ -227,6 +249,7 @@ class TestProductionEnvErrors:
             "SMTP_USER": "user@example.com",
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env):
             errors = production_env_errors()
@@ -247,6 +270,7 @@ class TestProductionEnvErrors:
             "SMTP_USER": "user@example.com",
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env):
             errors = production_env_errors()
@@ -267,6 +291,7 @@ class TestProductionEnvErrors:
             "SMTP_USER": "user@example.com",
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env):
             errors = production_env_errors()

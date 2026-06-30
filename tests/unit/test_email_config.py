@@ -9,6 +9,8 @@ import os
 import pytest
 from unittest.mock import patch
 
+from models.email_log import EmailLog
+
 
 class TestEmailServiceConfigStatus:
     """Test EmailService.config_status() method."""
@@ -43,6 +45,7 @@ class TestEmailServiceConfigStatus:
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
             "FROM_NAME": "SecureWave",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env):
             # Need to reload the module to pick up new env vars
@@ -66,6 +69,7 @@ class TestEmailServiceConfigStatus:
             "SMTP_USER": "user@example.com",
             "SMTP_PASSWORD": "password",
             "FROM_EMAIL": "noreply@example.com",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env):
             import importlib
@@ -84,6 +88,7 @@ class TestEmailServiceConfigStatus:
             "EMAIL_PROVIDER": "sendgrid",
             "SENDGRID_API_KEY": "SG.test-key",
             "FROM_EMAIL": "noreply@example.com",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env):
             import importlib
@@ -102,6 +107,7 @@ class TestEmailServiceConfigStatus:
             "EMAIL_PROVIDER": "ses",
             "FROM_EMAIL": "noreply@example.com",
             "AWS_SES_REGION": "us-east-1",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env):
             import importlib
@@ -120,8 +126,11 @@ class TestEmailServiceProviderReady:
     def test_smtp_not_ready_without_password(self):
         env = {
             "EMAIL_PROVIDER": "smtp",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_PORT": "587",
             "SMTP_USER": "user@example.com",
             "FROM_EMAIL": "noreply@example.com",
+            "APP_URL": "https://securewave.app",
         }
         with patch.dict(os.environ, env, clear=True):
             os.environ.pop("SMTP_PASSWORD", None)
@@ -142,6 +151,26 @@ class TestEmailServiceProviderReady:
 
             service = email_module.EmailService()
             assert service.enabled is False
+
+    def test_smtp_not_ready_without_app_url(self):
+        env = {
+            "EMAIL_PROVIDER": "smtp",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "FROM_EMAIL": "noreply@example.com",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            import importlib
+            import services.email_service as email_module
+            importlib.reload(email_module)
+
+            service = email_module.EmailService()
+            status = service.config_status()
+
+            assert service.enabled is False
+            assert "APP_URL" in status["missing"]
 
 
 class TestEmailServiceDisabledBehavior:
@@ -183,3 +212,41 @@ class TestEmailServiceDisabledBehavior:
             )
 
             assert result is False
+
+    def test_disabled_send_logs_redacted_recipient(self, caplog):
+        env = {"EMAIL_PROVIDER": "smtp"}
+        with patch.dict(os.environ, env, clear=True):
+            import importlib
+            import services.email_service as email_module
+            importlib.reload(email_module)
+
+            service = email_module.EmailService()
+            service.send_email(
+                to_email="test@example.com",
+                subject="Test",
+                html_content="<p>Test</p>",
+            )
+
+            assert "test@example.com" not in caplog.text
+            assert "t***@example.com" in caplog.text
+
+
+def test_enhanced_email_log_uses_model_extra_data_mapping(db, monkeypatch):
+    import services.enhanced_email_service as enhanced_email_module
+
+    monkeypatch.setattr(enhanced_email_module, "FROM_EMAIL", "noreply@example.com")
+    service = enhanced_email_module.EnhancedEmailService(db)
+
+    service._log_email(
+        to_email="recipient@example.com",
+        subject="Billing notice",
+        status="sent",
+        template_name="billing_notice",
+        category="billing",
+        metadata={"invoice_id": "inv_test"},
+    )
+
+    log = db.query(EmailLog).first()
+    assert log is not None
+    assert log.extra_data == {"invoice_id": "inv_test"}
+    assert "metadata" in EmailLog.__table__.c

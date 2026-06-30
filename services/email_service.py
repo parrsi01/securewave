@@ -6,29 +6,170 @@ Handles sending transactional emails for verification, password reset, and notif
 import os
 import logging
 import smtplib
+import re
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional, Dict
 from dotenv import load_dotenv
+from jinja2 import Environment, select_autoescape
 
 load_dotenv()
 load_dotenv(".env.production")
 
 logger = logging.getLogger(__name__)
 
-# Email configuration from environment
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL")
-SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME")
-FROM_EMAIL = os.getenv("FROM_EMAIL") or SMTP_FROM_EMAIL or SMTP_USER
-FROM_NAME = os.getenv("FROM_NAME") or SMTP_FROM_NAME or "SecureWave VPN"
-EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp").strip().lower()
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
-APP_URL = os.getenv("APP_URL", "https://securewave.example.com")
+_EMAIL_RE = re.compile(r"(?P<first>[^@\s])[^@\s]*@(?P<domain>[^@\s]+)")
+_HTML_ENV = Environment(autoescape=select_autoescape(["html", "xml"]))
+_TEXT_ENV = Environment(autoescape=False)
+
+
+def _env(name: str, default: Optional[str] = None) -> Optional[str]:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    value = value.strip()
+    return value or default
+
+
+def _env_int(name: str) -> Optional[int]:
+    value = _env(name)
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def redact_email(value: Optional[str]) -> str:
+    """Redact email addresses before writing application logs."""
+    if not value:
+        return ""
+    return _EMAIL_RE.sub(r"\g<first>***@\g<domain>", value)
+
+
+def _transactional_app_url() -> Optional[str]:
+    app_url = _env("APP_URL") or _env("APP_BASE_URL")
+    if not app_url:
+        return None
+    return app_url.rstrip("/")
+
+
+VERIFICATION_HTML_TEMPLATE = _HTML_ENV.from_string("""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #2563eb; color: white; padding: 30px; text-align: center; }
+        .content { background: #f9f9f9; padding: 30px; }
+        .button { display: inline-block; background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to SecureWave VPN</h1>
+        </div>
+        <div class="content">
+            <p>Hi{% if user_name %} {{ user_name }}{% endif %},</p>
+            <p>Thank you for registering with SecureWave VPN. Please verify your email address to activate your account.</p>
+            <p style="text-align: center;">
+                <a href="{{ verification_url }}" class="button">Verify Email Address</a>
+            </p>
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #2563eb;">{{ verification_url }}</p>
+            <p><strong>This link will expire in {{ expiry_hours }} hours.</strong></p>
+            <p>If you did not create an account with SecureWave VPN, you can ignore this email.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 SecureWave VPN. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+""")
+
+VERIFICATION_TEXT_TEMPLATE = _TEXT_ENV.from_string("""Welcome to SecureWave VPN
+
+Hi{% if user_name %} {{ user_name }}{% endif %},
+
+Thank you for registering with SecureWave VPN. Please verify your email address to activate your account.
+
+Verification Link:
+{{ verification_url }}
+
+This link will expire in {{ expiry_hours }} hours.
+
+If you did not create an account with SecureWave VPN, you can ignore this email.
+
+---
+SecureWave VPN
+""")
+
+PASSWORD_RESET_HTML_TEMPLATE = _HTML_ENV.from_string("""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #2563eb; color: white; padding: 30px; text-align: center; }
+        .content { background: #f9f9f9; padding: 30px; }
+        .button { display: inline-block; background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Password Reset Request</h1>
+        </div>
+        <div class="content">
+            <p>Hi{% if user_name %} {{ user_name }}{% endif %},</p>
+            <p>We received a request to reset your password for your SecureWave VPN account.</p>
+            <p style="text-align: center;">
+                <a href="{{ reset_url }}" class="button">Reset Password</a>
+            </p>
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #2563eb;">{{ reset_url }}</p>
+            <div class="warning">
+                <strong>Important:</strong>
+                <ul>
+                    <li>This link will expire in {{ expiry_minutes }} minutes</li>
+                    <li>This link can only be used once</li>
+                    <li>If you did not request this reset, ignore this email and your password will remain unchanged</li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 SecureWave VPN. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+""")
+
+PASSWORD_RESET_TEXT_TEMPLATE = _TEXT_ENV.from_string("""Password Reset Request
+
+Hi{% if user_name %} {{ user_name }}{% endif %},
+
+We received a request to reset your password for your SecureWave VPN account.
+
+Reset Link:
+{{ reset_url }}
+
+Important:
+- This link will expire in {{ expiry_minutes }} minutes
+- This link can only be used once
+- If you did not request this reset, ignore this email
+
+---
+SecureWave VPN
+""")
 
 
 class EmailService:
@@ -39,7 +180,18 @@ class EmailService:
 
     def __init__(self):
         """Initialize email service"""
-        self.provider = EMAIL_PROVIDER
+        self.provider = (_env("EMAIL_PROVIDER", "smtp") or "smtp").lower()
+        self.smtp_host = _env("SMTP_HOST")
+        self.smtp_port = _env_int("SMTP_PORT")
+        self.smtp_user = _env("SMTP_USER")
+        self.smtp_password = _env("SMTP_PASSWORD")
+        self.smtp_from_email = _env("SMTP_FROM_EMAIL")
+        self.smtp_from_name = _env("SMTP_FROM_NAME")
+        self.from_email = _env("FROM_EMAIL") or self.smtp_from_email or self.smtp_user
+        self.from_name = _env("FROM_NAME") or self.smtp_from_name or "SecureWave VPN"
+        self.sendgrid_api_key = _env("SENDGRID_API_KEY")
+        self.aws_ses_region = _env("AWS_SES_REGION")
+        self.app_url = _transactional_app_url()
         self.enabled = self._provider_ready()
         if not self.enabled:
             logger.warning("Email provider not configured - Email functionality disabled")
@@ -54,28 +206,30 @@ class EmailService:
                 missing.append(name)
 
         if provider == "smtp":
-            require("SMTP_HOST", os.getenv("SMTP_HOST"))
-            require("SMTP_PORT", os.getenv("SMTP_PORT"))
-            require("SMTP_USER", SMTP_USER)
-            require("SMTP_PASSWORD", SMTP_PASSWORD)
-            require("FROM_EMAIL", FROM_EMAIL)
+            require("SMTP_HOST", self.smtp_host)
+            require("SMTP_PORT", str(self.smtp_port) if self.smtp_port else None)
+            require("SMTP_USER", self.smtp_user)
+            require("SMTP_PASSWORD", self.smtp_password)
+            require("FROM_EMAIL", self.from_email)
         elif provider == "sendgrid":
-            require("SENDGRID_API_KEY", SENDGRID_API_KEY)
-            require("FROM_EMAIL", FROM_EMAIL)
+            require("SENDGRID_API_KEY", self.sendgrid_api_key)
+            require("FROM_EMAIL", self.from_email)
         elif provider in ("ses", "aws_ses"):
-            require("FROM_EMAIL", FROM_EMAIL)
-            require("AWS_SES_REGION", AWS_SES_REGION)
+            require("FROM_EMAIL", self.from_email)
+            require("AWS_SES_REGION", self.aws_ses_region)
         else:
             missing.append(f"EMAIL_PROVIDER({provider})")
+        require("APP_URL", self.app_url)
 
         return {
             "provider": provider,
             "enabled": self.enabled,
             "missing": missing,
-            "from_email": FROM_EMAIL,
-            "from_name": FROM_NAME,
-            "smtp_host": SMTP_HOST if provider == "smtp" else None,
-            "smtp_port": SMTP_PORT if provider == "smtp" else None,
+            "from_email": self.from_email,
+            "from_name": self.from_name,
+            "smtp_host": self.smtp_host if provider == "smtp" else None,
+            "smtp_port": self.smtp_port if provider == "smtp" else None,
+            "app_url_configured": bool(self.app_url),
         }
 
     def send_email(
@@ -98,7 +252,11 @@ class EmailService:
             True if successful, False otherwise
         """
         if not self.enabled:
-            logger.warning(f"Email service disabled - Would send: {subject} to {to_email}")
+            logger.warning(
+                "Email service disabled - suppressed %s email to %s",
+                subject,
+                redact_email(to_email),
+            )
             return False
 
         try:
@@ -113,22 +271,34 @@ class EmailService:
                 return False
 
             if success:
-                logger.info(f"✓ Email sent successfully: {subject} to {to_email}")
+                logger.info(
+                    "Email sent successfully: %s to %s",
+                    subject,
+                    redact_email(to_email),
+                )
             else:
-                logger.error(f"✗ Failed to send email to {to_email}")
+                logger.error("Failed to send email to %s", redact_email(to_email))
             return success
 
         except Exception as e:
-            logger.error(f"✗ Failed to send email to {to_email}: {e}")
+            logger.error("Failed to send email to %s: %s", redact_email(to_email), e)
             return False
 
     def _provider_ready(self) -> bool:
+        if not self.app_url:
+            return False
         if self.provider == "smtp":
-            return bool(SMTP_USER and SMTP_PASSWORD and FROM_EMAIL)
+            return bool(
+                self.smtp_host
+                and self.smtp_port
+                and self.smtp_user
+                and self.smtp_password
+                and self.from_email
+            )
         if self.provider == "sendgrid":
-            return bool(SENDGRID_API_KEY and FROM_EMAIL)
+            return bool(self.sendgrid_api_key and self.from_email)
         if self.provider in ("ses", "aws_ses"):
-            return bool(FROM_EMAIL)
+            return bool(self.from_email and self.aws_ses_region)
         logger.error(f"Unknown email provider: {self.provider}")
         return False
 
@@ -141,17 +311,17 @@ class EmailService:
     ) -> bool:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
+        message["From"] = f"{self.from_name} <{self.from_email}>"
         message["To"] = to_email
 
         if text_content:
             message.attach(MIMEText(text_content, "plain"))
         message.attach(MIMEText(html_content, "html"))
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
             server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(FROM_EMAIL, to_email, message.as_string())
+            server.login(self.smtp_user, self.smtp_password)
+            server.sendmail(self.from_email, to_email, message.as_string())
         return True
 
     def _send_via_sendgrid(
@@ -161,7 +331,7 @@ class EmailService:
         html_content: str,
         text_content: Optional[str],
     ) -> bool:
-        if not SENDGRID_API_KEY:
+        if not self.sendgrid_api_key:
             logger.error("SENDGRID_API_KEY not configured")
             return False
         try:
@@ -172,7 +342,7 @@ class EmailService:
             return False
 
         mail = Mail(
-            from_email=Email(FROM_EMAIL, FROM_NAME),
+            from_email=Email(self.from_email, self.from_name),
             to_emails=To(to_email),
             subject=subject,
             html_content=Content("text/html", html_content),
@@ -180,7 +350,7 @@ class EmailService:
         if text_content:
             mail.add_content(Content("text/plain", text_content))
 
-        client = SendGridAPIClient(SENDGRID_API_KEY)
+        client = SendGridAPIClient(self.sendgrid_api_key)
         response = client.send(mail)
         return 200 <= response.status_code < 300
 
@@ -197,12 +367,12 @@ class EmailService:
             logger.error(f"boto3 not installed: {exc}")
             return False
 
-        client = boto3.client("ses", region_name=AWS_SES_REGION)
+        client = boto3.client("ses", region_name=self.aws_ses_region)
         body = {"Html": {"Data": html_content}}
         if text_content:
             body["Text"] = {"Data": text_content}
         response = client.send_email(
-            Source=f"{FROM_NAME} <{FROM_EMAIL}>",
+            Source=f"{self.from_name} <{self.from_email}>",
             Destination={"ToAddresses": [to_email]},
             Message={
                 "Subject": {"Data": subject},
@@ -228,62 +398,18 @@ class EmailService:
         Returns:
             True if successful
         """
-        verification_url = f"{APP_URL}/verify-email?token={verification_token}"
+        if not self.app_url:
+            logger.error("Cannot send verification email without APP_URL/APP_BASE_URL")
+            return False
 
-        html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }}
-        .content {{ background: #f9f9f9; padding: 30px; }}
-        .button {{ display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Welcome to SecureWave VPN!</h1>
-        </div>
-        <div class="content">
-            <p>Hi{' ' + user_name if user_name else ''},</p>
-            <p>Thank you for registering with SecureWave VPN. Please verify your email address to activate your account.</p>
-            <p style="text-align: center;">
-                <a href="{verification_url}" class="button">Verify Email Address</a>
-            </p>
-            <p>Or copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #667eea;">{verification_url}</p>
-            <p><strong>This link will expire in 24 hours.</strong></p>
-            <p>If you didn't create an account with SecureWave VPN, please ignore this email.</p>
-        </div>
-        <div class="footer">
-            <p>&copy; 2024 SecureWave VPN. All rights reserved.</p>
-        </div>
-    </div>
-</body>
-</html>
-"""
-
-        text_content = f"""
-Welcome to SecureWave VPN!
-
-Hi{' ' + user_name if user_name else ''},
-
-Thank you for registering with SecureWave VPN. Please verify your email address to activate your account.
-
-Verification Link:
-{verification_url}
-
-This link will expire in 24 hours.
-
-If you didn't create an account with SecureWave VPN, please ignore this email.
-
----
-SecureWave VPN
-"""
+        verification_url = f"{self.app_url}/verify-email?token={verification_token}"
+        context = {
+            "verification_url": verification_url,
+            "user_name": user_name,
+            "expiry_hours": 24,
+        }
+        html_content = VERIFICATION_HTML_TEMPLATE.render(**context)
+        text_content = VERIFICATION_TEXT_TEMPLATE.render(**context)
 
         return self.send_email(
             to_email=to_email,
@@ -309,70 +435,18 @@ SecureWave VPN
         Returns:
             True if successful
         """
-        reset_url = f"{APP_URL}/reset-password?token={reset_token}"
+        if not self.app_url:
+            logger.error("Cannot send password reset email without APP_URL/APP_BASE_URL")
+            return False
 
-        html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }}
-        .content {{ background: #f9f9f9; padding: 30px; }}
-        .button {{ display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-        .warning {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Password Reset Request</h1>
-        </div>
-        <div class="content">
-            <p>Hi{' ' + user_name if user_name else ''},</p>
-            <p>We received a request to reset your password for your SecureWave VPN account.</p>
-            <p style="text-align: center;">
-                <a href="{reset_url}" class="button">Reset Password</a>
-            </p>
-            <p>Or copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #667eea;">{reset_url}</p>
-            <div class="warning">
-                <strong>Important:</strong>
-                <ul>
-                    <li>This link will expire in 15 minutes</li>
-                    <li>This link can only be used once</li>
-                    <li>If you didn't request this reset, please ignore this email and your password will remain unchanged</li>
-                </ul>
-            </div>
-        </div>
-        <div class="footer">
-            <p>&copy; 2024 SecureWave VPN. All rights reserved.</p>
-        </div>
-    </div>
-</body>
-</html>
-"""
-
-        text_content = f"""
-Password Reset Request
-
-Hi{' ' + user_name if user_name else ''},
-
-We received a request to reset your password for your SecureWave VPN account.
-
-Reset Link:
-{reset_url}
-
-IMPORTANT:
-- This link will expire in 15 minutes
-- This link can only be used once
-- If you didn't request this reset, please ignore this email
-
----
-SecureWave VPN
-"""
+        reset_url = f"{self.app_url}/reset-password?token={reset_token}"
+        context = {
+            "reset_url": reset_url,
+            "user_name": user_name,
+            "expiry_minutes": 15,
+        }
+        html_content = PASSWORD_RESET_HTML_TEMPLATE.render(**context)
+        text_content = PASSWORD_RESET_TEXT_TEMPLATE.render(**context)
 
         return self.send_email(
             to_email=to_email,

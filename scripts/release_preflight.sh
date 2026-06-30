@@ -24,15 +24,49 @@ require_var() {
   fi
 }
 
-# Guard against misconfigured SMTP, which breaks password reset and billing flows.
-require_var "SMTP_HOST" 'export SMTP_HOST="smtp.example.com"'
-require_var "SMTP_PORT" 'export SMTP_PORT="587"'
-require_var "SMTP_USER" 'export SMTP_USER="smtp-user"'
-require_var "SMTP_PASSWORD" 'export SMTP_PASSWORD="smtp-password"'
+require_value() {
+  local label="$1"
+  local value="$2"
+  local fix="$3"
+  if [[ -z "$value" ]]; then
+    fail_with_fix "$label is required for release." "$fix"
+  fi
+}
 
-from_email="${FROM_EMAIL:-${SMTP_FROM_EMAIL:-}}"
-if [[ -z "$from_email" ]]; then
-  fail_with_fix "FROM_EMAIL is required for SMTP." 'export FROM_EMAIL="noreply@securewave.app"'
+# Guard against misconfigured transactional email, which breaks verification,
+# password reset, and billing flows.
+email_provider="${EMAIL_PROVIDER:-smtp}"
+email_provider="${email_provider,,}"
+from_email="${FROM_EMAIL:-${SMTP_FROM_EMAIL:-${SMTP_USER:-}}}"
+app_url="${APP_URL:-${APP_BASE_URL:-}}"
+
+case "$email_provider" in
+  smtp)
+    require_var "SMTP_HOST" 'export SMTP_HOST="smtp.example.com"'
+    require_var "SMTP_PORT" 'export SMTP_PORT="587"'
+    require_var "SMTP_USER" 'export SMTP_USER="smtp-user"'
+    require_var "SMTP_PASSWORD" 'export SMTP_PASSWORD="smtp-password"'
+    if [[ -n "${SMTP_PORT:-}" && ! "${SMTP_PORT}" =~ ^[0-9]+$ ]]; then
+      fail_with_fix "SMTP_PORT must be a numeric TCP port." 'export SMTP_PORT="587"'
+    fi
+    require_value "FROM_EMAIL or SMTP_FROM_EMAIL" "$from_email" 'export FROM_EMAIL="noreply@securewave.app"'
+    ;;
+  sendgrid)
+    require_var "SENDGRID_API_KEY" 'export SENDGRID_API_KEY="SG...."'
+    require_value "FROM_EMAIL or SMTP_FROM_EMAIL" "$from_email" 'export FROM_EMAIL="noreply@securewave.app"'
+    ;;
+  ses|aws_ses)
+    require_var "AWS_SES_REGION" 'export AWS_SES_REGION="us-east-1"'
+    require_value "FROM_EMAIL or SMTP_FROM_EMAIL" "$from_email" 'export FROM_EMAIL="noreply@securewave.app"'
+    ;;
+  *)
+    fail_with_fix "EMAIL_PROVIDER '${email_provider}' is not supported." 'export EMAIL_PROVIDER="smtp" # or sendgrid / ses'
+    ;;
+esac
+
+require_value "APP_URL or APP_BASE_URL" "$app_url" 'export APP_URL="https://securewave.app"'
+if [[ "$app_url" == *"example.com"* ]]; then
+  fail_with_fix "APP_URL must not point at an example domain." 'export APP_URL="https://securewave.app"'
 fi
 
 ensure_python() {
@@ -78,10 +112,12 @@ validate_fernet() {
   if ! ensure_cryptography "$python_bin"; then
     return
   fi
-  if ! "$python_bin" - <<PY
+  if ! NAME="$name" VALUE="$value" "$python_bin" - <<'PY'
 from cryptography.fernet import Fernet
+import os
 import sys
-value = "${value}"
+name = os.environ["NAME"]
+value = os.environ["VALUE"]
 try:
     Fernet(value.encode())
 except Exception as exc:

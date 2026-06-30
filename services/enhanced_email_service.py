@@ -12,23 +12,42 @@ from typing import Optional, Dict, List
 from datetime import datetime
 from dotenv import load_dotenv
 from jinja2 import Template
+from services.email_service import redact_email
 
 load_dotenv()
 load_dotenv(".env.production")
 
 logger = logging.getLogger(__name__)
 
+
+def _env(name: str, default: Optional[str] = None) -> Optional[str]:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    value = value.strip()
+    return value or default
+
+
+def _env_int(name: str) -> Optional[int]:
+    value = _env(name)
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
 # Email configuration
-EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")  # smtp, sendgrid, aws_ses
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
-FROM_EMAIL = os.getenv("FROM_EMAIL") or os.getenv("SMTP_FROM_EMAIL") or SMTP_USER
-FROM_NAME = os.getenv("FROM_NAME") or os.getenv("SMTP_FROM_NAME") or "SecureWave VPN"
-APP_URL = os.getenv("APP_URL", "https://securewave.example.com")
+EMAIL_PROVIDER = (_env("EMAIL_PROVIDER", "smtp") or "smtp").lower()  # smtp, sendgrid, aws_ses
+SMTP_HOST = _env("SMTP_HOST")
+SMTP_PORT = _env_int("SMTP_PORT")
+SMTP_USER = _env("SMTP_USER")
+SMTP_PASSWORD = _env("SMTP_PASSWORD")
+SENDGRID_API_KEY = _env("SENDGRID_API_KEY")
+AWS_SES_REGION = _env("AWS_SES_REGION")
+FROM_EMAIL = _env("FROM_EMAIL") or _env("SMTP_FROM_EMAIL") or SMTP_USER
+FROM_NAME = _env("FROM_NAME") or _env("SMTP_FROM_NAME") or "SecureWave VPN"
+APP_URL = (_env("APP_URL") or _env("APP_BASE_URL") or "").rstrip("/")
 
 
 class EnhancedEmailService:
@@ -48,15 +67,17 @@ class EnhancedEmailService:
 
     def _check_provider_config(self) -> bool:
         """Check if provider is properly configured"""
+        if not APP_URL:
+            return False
         if self.provider == "smtp":
-            return SMTP_USER and SMTP_PASSWORD and FROM_EMAIL
+            return bool(SMTP_HOST and SMTP_PORT and SMTP_USER and SMTP_PASSWORD and FROM_EMAIL)
         elif self.provider == "sendgrid":
-            return SENDGRID_API_KEY is not None and FROM_EMAIL
-        elif self.provider == "aws_ses":
+            return bool(SENDGRID_API_KEY and FROM_EMAIL)
+        elif self.provider in ("aws_ses", "ses"):
             # AWS SES uses boto3 with environment credentials
             try:
                 import boto3
-                return True
+                return bool(AWS_SES_REGION and FROM_EMAIL)
             except ImportError:
                 logger.error("boto3 not installed - required for AWS SES")
                 return False
@@ -94,7 +115,11 @@ class EnhancedEmailService:
             True if successful
         """
         if not self.enabled:
-            logger.warning(f"Email not sent - service disabled: {subject} to {to_email}")
+            logger.warning(
+                "Email not sent - service disabled: %s to %s",
+                subject,
+                redact_email(to_email),
+            )
             return False
 
         try:
@@ -103,7 +128,7 @@ class EnhancedEmailService:
                 success, message_id = self._send_via_smtp(to_email, subject, html_content, text_content)
             elif self.provider == "sendgrid":
                 success, message_id = self._send_via_sendgrid(to_email, subject, html_content, text_content)
-            elif self.provider == "aws_ses":
+            elif self.provider in ("aws_ses", "ses"):
                 success, message_id = self._send_via_ses(to_email, subject, html_content, text_content)
             else:
                 logger.error(f"Unknown email provider: {self.provider}")
@@ -123,9 +148,19 @@ class EnhancedEmailService:
                 )
 
             if success:
-                logger.info(f"✓ Email sent via {self.provider}: {subject} to {to_email}")
+                logger.info(
+                    "Email sent via %s: %s to %s",
+                    self.provider,
+                    subject,
+                    redact_email(to_email),
+                )
             else:
-                logger.error(f"✗ Email failed via {self.provider}: {subject} to {to_email}")
+                logger.error(
+                    "Email failed via %s: %s to %s",
+                    self.provider,
+                    subject,
+                    redact_email(to_email),
+                )
 
             return success
 
@@ -285,7 +320,7 @@ class EnhancedEmailService:
                 provider_message_id=provider_message_id,
                 status=status,
                 error_message=error_message,
-                metadata=metadata,
+                extra_data=metadata,
                 sent_at=datetime.utcnow() if status == "sent" else None,
                 failed_at=datetime.utcnow() if status == "failed" else None,
             )
