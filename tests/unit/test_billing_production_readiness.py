@@ -17,6 +17,7 @@ def _stripe_env(monkeypatch):
         "STRIPE_SECRET_KEY": "sk_live_test",
         "STRIPE_WEBHOOK_SECRET": "whsec_test",
         "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+        "STRIPE_PORTAL_CONFIG_ID": "bpc_test",
         "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
         "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
         "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
@@ -47,6 +48,18 @@ def test_stripe_plan_details_read_current_env(monkeypatch):
     plan = StripeService.get_plan_details("basic")
 
     assert plan["stripe_price_id_monthly"] == "price_current_basic"
+
+
+def test_stripe_price_lookup_reads_current_env(monkeypatch):
+    monkeypatch.setenv("STRIPE_PRICE_PREMIUM_YEARLY", "price_current_premium_yearly")
+
+    plan_id, billing_cycle, plan = StripeService.find_plan_by_price_id(
+        "price_current_premium_yearly",
+    )
+
+    assert plan_id == "premium"
+    assert billing_cycle == "yearly"
+    assert plan["name"] == "Premium Plan"
 
 
 def test_billing_health_blocks_without_production_stripe_config(client, monkeypatch):
@@ -156,3 +169,26 @@ def test_checkout_completed_webhook_creates_local_subscription(db, test_user, mo
     assert subscription.billing_cycle == "monthly"
     assert subscription.status == "active"
     assert subscription.stripe_price_id == "price_basic_monthly"
+
+
+def test_billing_portal_session_uses_configured_portal(monkeypatch):
+    import services.stripe_service as stripe_module
+
+    captured = {}
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live_test")
+    monkeypatch.setenv("STRIPE_PORTAL_CONFIG_ID", "bpc_test")
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(id="bps_test", url="https://billing.stripe.com/session")
+
+    monkeypatch.setattr(stripe_module.stripe.billing_portal.Session, "create", fake_create)
+
+    session = StripeService().create_billing_portal_session(
+        customer_id="cus_test",
+        return_url="https://securewaveapp.com/account",
+    )
+
+    assert session.id == "bps_test"
+    assert captured["customer"] == "cus_test"
+    assert captured["configuration"] == "bpc_test"

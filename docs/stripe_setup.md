@@ -25,7 +25,7 @@ from account creation through production launch.
 ## 2. Products and Prices
 
 Create three subscription products in the Stripe Dashboard under
-**Products > Add product**, or use the Stripe CLI.
+**Products > Add product**, or use the automated SecureWave provisioning script.
 
 ### Basic Plan
 
@@ -54,7 +54,30 @@ Create three subscription products in the Stripe Dashboard under
 | Annual price   | $249.99/year        |
 | Description    | Unlimited devices, dedicated servers, MARL-optimized routing, 24/7 support |
 
-### Using the Stripe CLI
+### Recommended: automated provisioning
+
+The production path is the repo script below. It creates or reuses the Stripe
+Products, recurring Prices, webhook endpoint, and Customer Portal configuration,
+then writes the ignored private release env file with `0600` permissions.
+
+```bash
+export STRIPE_SECRET_KEY="sk_live_..."
+export STRIPE_PUBLISHABLE_KEY="pk_live_..."
+export APP_URL="https://securewaveapp.com"
+
+python scripts/stripe_billing_provision.py --confirm-live
+bash scripts/billing_release_gate.sh --env-file securewave_private/billing_release.env
+```
+
+For a Stripe test-mode rehearsal, use `sk_test_...`, `pk_test_...`, a local or
+staging app URL, and pass `--allow-test-mode` instead of `--confirm-live`.
+
+If the webhook endpoint already exists, Stripe does not expose its signing
+secret through the API. In that case, copy the endpoint's `whsec_...` value from
+the Stripe Dashboard into `securewave_private/billing_release.env`, then rerun
+the billing release gate.
+
+### Manual Stripe CLI alternative
 
 ```bash
 # Basic Plan
@@ -131,19 +154,30 @@ Configure the webhook endpoint to receive the following events:
 
 | Event                              | Purpose                                      |
 |------------------------------------|----------------------------------------------|
-| `payment_intent.succeeded`         | Confirm successful payment                   |
-| `payment_intent.payment_failed`    | Handle failed payment attempts               |
+| `checkout.session.completed`       | Sync paid Checkout subscriptions locally      |
+| `customer.created`                 | Track Stripe customer lifecycle events        |
+| `customer.updated`                 | Track Stripe customer lifecycle events        |
+| `customer.deleted`                 | Track Stripe customer lifecycle events        |
 | `customer.subscription.created`    | Activate new subscription in our database     |
 | `customer.subscription.updated`    | Handle plan changes, renewals, pauses         |
 | `customer.subscription.deleted`    | Deactivate subscription on cancellation       |
+| `customer.subscription.trial_will_end` | Notify before a trial ends                 |
+| `invoice.created`                  | Create local invoice records                  |
+| `invoice.finalized`                | Track finalized invoices                      |
 | `invoice.paid`                     | Confirm recurring payment success             |
 | `invoice.payment_failed`           | Handle failed recurring payment               |
+| `invoice.payment_action_required`  | Handle 3D Secure/action-required invoices     |
+| `payment_intent.succeeded`         | Confirm successful payment                    |
+| `payment_intent.payment_failed`    | Handle failed payment attempts                |
+| `charge.succeeded`                 | Track charge success                          |
+| `charge.failed`                    | Track charge failure                          |
+| `charge.refunded`                  | Sync refunds                                  |
 
 ### Dashboard Steps
 
 1. Go to **Developers > Webhooks > Add endpoint**.
 2. Enter the endpoint URL above.
-3. Select the seven events listed in the table.
+3. Select the events listed in the table.
 4. Click **Add endpoint**.
 5. Copy the **Signing secret** (`whsec_...`) for your environment variables.
 
@@ -155,23 +189,29 @@ Add the following variables to your `.env` file or deployment environment.
 All values below are placeholders -- replace them with your actual keys.
 
 ```bash
-# Stripe API Keys (replace with your actual keys from Stripe Dashboard)
-STRIPE_SECRET_KEY=sk_test_YOUR_SECRET_KEY_HERE
-STRIPE_PUBLISHABLE_KEY=pk_test_YOUR_PUBLISHABLE_KEY_HERE
+PAYMENTS_MOCK=false
+DEMO_BILLING=false
+PAYMENT_PROVIDER=stripe
+
+# Stripe API Keys (replace with your actual live keys from Stripe Dashboard)
+STRIPE_SECRET_KEY=sk_live_YOUR_SECRET_KEY_HERE
+STRIPE_PUBLISHABLE_KEY=pk_live_YOUR_PUBLISHABLE_KEY_HERE
+STRIPE_API_VERSION=2026-02-25.clover
 
 # Webhook Signing Secret (from Stripe Dashboard -> Developers -> Webhooks)
 STRIPE_WEBHOOK_SECRET=whsec_YOUR_WEBHOOK_SECRET_HERE
 
 # Price IDs (from product creation above)
 STRIPE_PRICE_BASIC_MONTHLY=price_XXXXXXXXXXXXXXXXXXXXXXXX
-STRIPE_PRICE_BASIC_ANNUAL=price_XXXXXXXXXXXXXXXXXXXXXXXX
+STRIPE_PRICE_BASIC_YEARLY=price_XXXXXXXXXXXXXXXXXXXXXXXX
 STRIPE_PRICE_PREMIUM_MONTHLY=price_XXXXXXXXXXXXXXXXXXXXXXXX
-STRIPE_PRICE_PREMIUM_ANNUAL=price_XXXXXXXXXXXXXXXXXXXXXXXX
+STRIPE_PRICE_PREMIUM_YEARLY=price_XXXXXXXXXXXXXXXXXXXXXXXX
 STRIPE_PRICE_ULTRA_MONTHLY=price_XXXXXXXXXXXXXXXXXXXXXXXX
-STRIPE_PRICE_ULTRA_ANNUAL=price_XXXXXXXXXXXXXXXXXXXXXXXX
+STRIPE_PRICE_ULTRA_YEARLY=price_XXXXXXXXXXXXXXXXXXXXXXXX
 
-# Optional: Stripe Customer Portal
+# Required: Stripe Customer Portal
 STRIPE_PORTAL_CONFIG_ID=bpc_XXXXXXXXXXXXXXXXXXXXXXXX
+STRIPE_AUTOMATIC_TAX=false
 ```
 
 **Security rules:**
@@ -237,10 +277,12 @@ Before switching from test mode to production:
 
 - [ ] Replace `sk_test_*` with `sk_live_*` in your production secrets.
 - [ ] Replace `pk_test_*` with `pk_live_*` in your frontend configuration.
-- [ ] Create a **new** webhook endpoint pointing to your production URL.
+- [ ] Run `python scripts/stripe_billing_provision.py --confirm-live`.
+- [ ] Create or verify a webhook endpoint pointing to your production URL.
 - [ ] Copy the new live **webhook signing secret** (`whsec_...`) to production.
-- [ ] Update all `price_*` IDs to their live equivalents (products and prices
-      must be recreated in live mode or transferred).
+- [ ] Update all `price_*` IDs and `STRIPE_PORTAL_CONFIG_ID` in
+      `securewave_private/billing_release.env`.
+- [ ] Run `bash scripts/billing_release_gate.sh --env-file securewave_private/billing_release.env`.
 - [ ] Enable **Stripe Radar** for fraud prevention under **More > Radar > Settings**.
 - [ ] Enable **3D Secure** for cards that support it (Radar rules).
 - [ ] Configure **Stripe Tax** if required for your jurisdiction.

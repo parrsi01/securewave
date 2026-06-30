@@ -16,7 +16,9 @@ Usage: bash scripts/billing_release_gate.sh [options]
 
 Validates SecureWave billing/Stripe release configuration without committing
 secrets. By default it loads securewave_private/billing_release.env when present
-and checks Stripe keys, webhook secret, and Price IDs.
+and checks Stripe keys, webhook secret, Price IDs, and Customer Portal config.
+Use scripts/stripe_billing_provision.py to create/reuse those Stripe resources
+and write the private env file.
 
 Options:
   --env-file PATH          Load/write this private env file.
@@ -40,6 +42,7 @@ Expected private env file keys:
   STRIPE_PRICE_PREMIUM_YEARLY=price_...
   STRIPE_PRICE_ULTRA_MONTHLY=price_...
   STRIPE_PRICE_ULTRA_YEARLY=price_...
+  STRIPE_PORTAL_CONFIG_ID=bpc_...
 EOF
 }
 
@@ -118,6 +121,7 @@ write_env_file() {
     printf 'STRIPE_PRICE_PREMIUM_YEARLY=%q\n' "${STRIPE_PRICE_PREMIUM_YEARLY:-}"
     printf 'STRIPE_PRICE_ULTRA_MONTHLY=%q\n' "${STRIPE_PRICE_ULTRA_MONTHLY:-}"
     printf 'STRIPE_PRICE_ULTRA_YEARLY=%q\n' "${STRIPE_PRICE_ULTRA_YEARLY:-}"
+    printf 'STRIPE_PORTAL_CONFIG_ID=%q\n' "${STRIPE_PORTAL_CONFIG_ID:-}"
     printf 'STRIPE_AUTOMATIC_TAX=%q\n' "${STRIPE_AUTOMATIC_TAX:-false}"
   } >"$ENV_FILE"
   chmod 600 "$ENV_FILE"

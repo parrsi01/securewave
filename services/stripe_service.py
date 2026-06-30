@@ -40,6 +40,10 @@ def _stripe_publishable_key() -> Optional[str]:
     return _env("STRIPE_PUBLISHABLE_KEY")
 
 
+def _stripe_portal_config_id() -> Optional[str]:
+    return _env("STRIPE_PORTAL_CONFIG_ID")
+
+
 def _stripe_api_version() -> str:
     return _env("STRIPE_API_VERSION", LATEST_STRIPE_API_VERSION) or LATEST_STRIPE_API_VERSION
 
@@ -147,7 +151,7 @@ class StripeService:
     def find_plan_by_price_id(cls, price_id: Optional[str]) -> tuple[Optional[str], Optional[str], Optional[Dict]]:
         if not price_id:
             return None, None, None
-        for plan_id, plan in cls.PLANS.items():
+        for plan_id, plan in cls.get_all_plans().items():
             for billing_cycle in ("monthly", "yearly"):
                 if plan.get(f"stripe_price_id_{billing_cycle}") == price_id:
                     return plan_id, billing_cycle, plan
@@ -159,6 +163,7 @@ class StripeService:
         secret_key = _stripe_secret_key()
         webhook_secret = _stripe_webhook_secret()
         publishable_key = _stripe_publishable_key()
+        portal_config_id = _stripe_portal_config_id()
         missing: List[str] = []
 
         if not secret_key:
@@ -167,6 +172,8 @@ class StripeService:
             missing.append("STRIPE_WEBHOOK_SECRET")
         if not publishable_key:
             missing.append("STRIPE_PUBLISHABLE_KEY")
+        if not portal_config_id:
+            missing.append("STRIPE_PORTAL_CONFIG_ID")
 
         for plan_id in cls.PLANS:
             if plan_id == "free":
@@ -183,6 +190,7 @@ class StripeService:
             "secret_key_configured": bool(secret_key),
             "publishable_key_configured": bool(publishable_key),
             "webhook_secret_configured": bool(webhook_secret),
+            "portal_configured": bool(portal_config_id),
             "automatic_tax": _env_bool("STRIPE_AUTOMATIC_TAX", False),
         }
 
@@ -676,10 +684,15 @@ class StripeService:
             BillingPortal.Session with url
         """
         try:
-            session = stripe.billing_portal.Session.create(
-                customer=customer_id,
-                return_url=return_url,
-            )
+            session_data = {
+                "customer": customer_id,
+                "return_url": return_url,
+            }
+            portal_config_id = _stripe_portal_config_id()
+            if portal_config_id:
+                session_data["configuration"] = portal_config_id
+
+            session = stripe.billing_portal.Session.create(**session_data)
             logger.info(f"✓ Billing portal session created for customer: {customer_id}")
             return session
         except stripe.error.StripeError as e:

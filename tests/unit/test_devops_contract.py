@@ -113,6 +113,8 @@ def test_email_release_gate_automates_private_env_preflight_and_live_proof():
 
 def test_billing_release_gate_automates_private_stripe_env_validation():
     gate = (ROOT / "scripts/billing_release_gate.sh").read_text()
+    provision = (ROOT / "scripts/stripe_billing_provision.py").read_text()
+    provisioning_service = (ROOT / "services/stripe_provisioning.py").read_text()
 
     assert "securewave_private/billing_release.env" in gate
     assert "payment_config_issues" in gate
@@ -120,5 +122,10 @@ def test_billing_release_gate_automates_private_stripe_env_validation():
     assert "STRIPE_SECRET_KEY" in gate
     assert "STRIPE_WEBHOOK_SECRET" in gate
     assert "STRIPE_PRICE_BASIC_MONTHLY" in gate
+    assert "STRIPE_PORTAL_CONFIG_ID" in gate
     assert "--release-preflight" in gate
     assert "scripts/release_preflight.sh" in gate
+    assert "StripeBillingProvisioner" in provision
+    assert "--confirm-live" in provision
+    assert "checkout.session.completed" in provisioning_service
+    assert "billing_portal.Configuration" in provisioning_service

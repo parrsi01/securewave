@@ -111,6 +111,7 @@ def payment_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str
         require("STRIPE_SECRET_KEY", stripe_secret)
         require("STRIPE_WEBHOOK_SECRET", os.getenv("STRIPE_WEBHOOK_SECRET"))
         require("STRIPE_PUBLISHABLE_KEY", os.getenv("STRIPE_PUBLISHABLE_KEY"))
+        require("STRIPE_PORTAL_CONFIG_ID", os.getenv("STRIPE_PORTAL_CONFIG_ID"))
 
         if stripe_secret and not (
             stripe_secret.startswith("sk_live_") or stripe_secret.startswith("rk_live_")
@@ -122,6 +123,9 @@ def payment_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str
         publishable_key = os.getenv("STRIPE_PUBLISHABLE_KEY")
         if publishable_key and not publishable_key.startswith("pk_live_"):
             missing.append("STRIPE_PUBLISHABLE_KEY(live)")
+        portal_config_id = os.getenv("STRIPE_PORTAL_CONFIG_ID")
+        if portal_config_id and not portal_config_id.startswith("bpc_"):
+            missing.append("STRIPE_PORTAL_CONFIG_ID(bpc_)")
 
         for plan in ("BASIC", "PREMIUM", "ULTRA"):
             for cycle in ("MONTHLY", "YEARLY"):

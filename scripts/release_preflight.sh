@@ -85,6 +85,7 @@ case "$payment_provider" in
     require_value "STRIPE_SECRET_KEY or STRIPE_SECRET" "$stripe_key_value" 'export STRIPE_SECRET_KEY="sk_live_..."'
     require_var "STRIPE_WEBHOOK_SECRET" 'export STRIPE_WEBHOOK_SECRET="whsec_..."'
     require_var "STRIPE_PUBLISHABLE_KEY" 'export STRIPE_PUBLISHABLE_KEY="pk_live_..."'
+    require_var "STRIPE_PORTAL_CONFIG_ID" 'export STRIPE_PORTAL_CONFIG_ID="bpc_..."'
     if [[ -n "$stripe_key_value" && ! "$stripe_key_value" =~ ^(sk_live_|rk_live_) ]]; then
       fail_with_fix "Stripe secret key must be a live-mode key." 'export STRIPE_SECRET_KEY="sk_live_..."'
     fi
@@ -93,6 +94,9 @@ case "$payment_provider" in
     fi
     if [[ -n "${STRIPE_PUBLISHABLE_KEY:-}" && ! "${STRIPE_PUBLISHABLE_KEY}" =~ ^pk_live_ ]]; then
       fail_with_fix "STRIPE_PUBLISHABLE_KEY must be a live-mode publishable key." 'export STRIPE_PUBLISHABLE_KEY="pk_live_..."'
+    fi
+    if [[ -n "${STRIPE_PORTAL_CONFIG_ID:-}" && ! "${STRIPE_PORTAL_CONFIG_ID}" =~ ^bpc_ ]]; then
+      fail_with_fix "STRIPE_PORTAL_CONFIG_ID must be a Stripe Customer Portal configuration ID." 'export STRIPE_PORTAL_CONFIG_ID="bpc_..."'
     fi
     for plan in BASIC PREMIUM ULTRA; do
       for cycle in MONTHLY YEARLY; do

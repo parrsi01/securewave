@@ -217,6 +217,7 @@ class TestPaymentConfigIssues:
             assert "STRIPE_SECRET_KEY" in missing
             assert "STRIPE_WEBHOOK_SECRET" in missing
             assert "STRIPE_PUBLISHABLE_KEY" in missing
+            assert "STRIPE_PORTAL_CONFIG_ID" in missing
             assert "STRIPE_PRICE_BASIC_MONTHLY" in missing
             assert "STRIPE_PRICE_ULTRA_YEARLY" in missing
 
@@ -226,6 +227,7 @@ class TestPaymentConfigIssues:
             "STRIPE_SECRET_KEY": "sk_test_123",
             "STRIPE_WEBHOOK_SECRET": "not_whsec",
             "STRIPE_PUBLISHABLE_KEY": "pk_test_123",
+            "STRIPE_PORTAL_CONFIG_ID": "not_bpc",
             "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
             "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
             "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
@@ -238,6 +240,7 @@ class TestPaymentConfigIssues:
             assert "STRIPE_SECRET_KEY(live)" in missing
             assert "STRIPE_WEBHOOK_SECRET(whsec)" in missing
             assert "STRIPE_PUBLISHABLE_KEY(live)" in missing
+            assert "STRIPE_PORTAL_CONFIG_ID(bpc_)" in missing
 
     def test_stripe_no_issues_when_release_configured(self):
         env = {
@@ -247,6 +250,7 @@ class TestPaymentConfigIssues:
             "STRIPE_SECRET_KEY": "sk_live_test",
             "STRIPE_WEBHOOK_SECRET": "whsec_test",
             "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PORTAL_CONFIG_ID": "bpc_test",
             "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
             "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
             "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
@@ -284,6 +288,7 @@ class TestProductionEnvErrors:
             "STRIPE_SECRET_KEY": "sk_live_test",
             "STRIPE_WEBHOOK_SECRET": "whsec_test",
             "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PORTAL_CONFIG_ID": "bpc_test",
             "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
             "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
             "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
@@ -320,6 +325,7 @@ class TestProductionEnvErrors:
             "STRIPE_SECRET_KEY": "sk_live_test",
             "STRIPE_WEBHOOK_SECRET": "whsec_test",
             "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PORTAL_CONFIG_ID": "bpc_test",
             "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
             "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
             "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
@@ -353,6 +359,7 @@ class TestProductionEnvErrors:
             "STRIPE_SECRET_KEY": "sk_live_test",
             "STRIPE_WEBHOOK_SECRET": "whsec_test",
             "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PORTAL_CONFIG_ID": "bpc_test",
             "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
             "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
             "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
@@ -386,6 +393,7 @@ class TestProductionEnvErrors:
             "STRIPE_SECRET_KEY": "sk_live_test",
             "STRIPE_WEBHOOK_SECRET": "whsec_test",
             "STRIPE_PUBLISHABLE_KEY": "pk_live_test",
+            "STRIPE_PORTAL_CONFIG_ID": "bpc_test",
             "STRIPE_PRICE_BASIC_MONTHLY": "price_basic_monthly",
             "STRIPE_PRICE_BASIC_YEARLY": "price_basic_yearly",
             "STRIPE_PRICE_PREMIUM_MONTHLY": "price_premium_monthly",
