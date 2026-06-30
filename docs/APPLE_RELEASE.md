@@ -33,6 +33,17 @@ That writes `static/downloads/securewave-macos-arm64-ui-demo.zip` or
 UI/account-only; macOS VPN tunnel start/stop still returns `vpn_not_configured`
 until a signed macOS Network Extension target is added.
 
+To let GitHub Actions build the macOS UI demo on a macOS runner and commit the
+generated zip plus updated manifest back to the branch:
+
+```bash
+gh workflow run apple-release.yml --ref flutter -f publish_macos_demo=true
+```
+
+The workflow also uploads the generated macOS zip as a run artifact. Use this
+path when a Mac is not available locally but a website-downloadable demo build
+is needed.
+
 Signed App Store/TestFlight archive automation requires these repository
 secrets:
 

@@ -55,6 +55,14 @@ This is not a production macOS VPN release. The current macOS app returns
 `vpn_not_configured` for tunnel start/stop until a signed macOS Network
 Extension target is added.
 
+If a local Mac is not available, GitHub Actions can build the same demo on a
+macOS runner and commit the generated zip plus updated manifest back to the
+branch:
+
+```bash
+gh workflow run apple-release.yml --ref flutter -f publish_macos_demo=true
+```
+
 ## Public Review URLs
 
 - Product website: `https://securewaveapp.com`

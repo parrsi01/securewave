@@ -75,6 +75,9 @@ bash securewave_app/scripts/package_macos_ui_demo.sh
 
 - GitHub Actions can run unsigned iOS validation by default and signed
   archive/export when manually dispatched with Apple signing secrets.
+- GitHub Actions can build the macOS UI demo on a macOS runner and optionally
+  publish the generated zip back to the branch with
+  `publish_macos_demo=true`.
 
 ## Public Promotion Gated
 
