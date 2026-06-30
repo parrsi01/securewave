@@ -36,6 +36,19 @@ jobs:
           WG_ENCRYPTION_KEY: ${{ secrets.WG_ENCRYPTION_KEY }}
           DEMO_MODE: "false"
           WG_MOCK_MODE: "false"
+          PAYMENTS_MOCK: "false"
+          DEMO_BILLING: "false"
+          PAYMENT_PROVIDER: "stripe"
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_PORTAL_CONFIG_ID: ${{ secrets.STRIPE_PORTAL_CONFIG_ID }}
+          STRIPE_PRICE_BASIC_MONTHLY: ${{ secrets.STRIPE_PRICE_BASIC_MONTHLY }}
+          STRIPE_PRICE_BASIC_YEARLY: ${{ secrets.STRIPE_PRICE_BASIC_YEARLY }}
+          STRIPE_PRICE_PREMIUM_MONTHLY: ${{ secrets.STRIPE_PRICE_PREMIUM_MONTHLY }}
+          STRIPE_PRICE_PREMIUM_YEARLY: ${{ secrets.STRIPE_PRICE_PREMIUM_YEARLY }}
+          STRIPE_PRICE_ULTRA_MONTHLY: ${{ secrets.STRIPE_PRICE_ULTRA_MONTHLY }}
+          STRIPE_PRICE_ULTRA_YEARLY: ${{ secrets.STRIPE_PRICE_ULTRA_YEARLY }}
         run: bash scripts/release_preflight.sh
 
   package-linux:

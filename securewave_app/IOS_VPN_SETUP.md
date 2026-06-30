@@ -45,10 +45,13 @@ Xcode requirements:
 1. Set the same Apple Team for **Runner** and **PacketTunnel**
 2. Ensure the **Network Extensions** capability is enabled (Packet Tunnel)
 3. Ensure bundle identifiers are consistent:
-   - Runner: `com.yourcompany.securewave`
-   - PacketTunnel: `com.yourcompany.securewave.PacketTunnel`
+   - Runner: `com.securewave.vpn`
+   - PacketTunnel: `com.securewave.vpn.PacketTunnel`
 
 Important: the **Network Extension entitlement** is granted by Apple. Without it, preference load/save/start will fail and the app will return a descriptive error.
+
+SecureWave does not use Hotspot Helper. The iOS VPN request should be scoped to
+NetworkExtension / Packet Tunnel Provider.
 
 ## 4) Build verification (CLI)
 
@@ -78,3 +81,10 @@ xcodebuild -project securewave_app/ios/Runner.xcodeproj -scheme Runner -configur
 - Confirm connect/disconnect works on a physical device
 - Confirm failures are explicit (no silent “mock success”)
 - Archive from Xcode with valid signing for both targets
+
+Mac CLI archive/export:
+
+```bash
+export APPLE_TEAM_ID="<team-id>"
+bash securewave_app/scripts/archive_ios_release.sh
+```

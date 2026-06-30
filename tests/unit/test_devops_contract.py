@@ -41,12 +41,35 @@ def test_ci_runs_on_active_flutter_branch_and_devops_gates():
 def test_release_workflows_cover_mobile_and_container_delivery():
     apple = yaml.safe_load((ROOT / ".github/workflows/apple-release.yml").read_text())
     container = yaml.safe_load((ROOT / ".github/workflows/container-release.yml").read_text())
+    archive_script = (ROOT / "securewave_app/scripts/archive_ios_release.sh").read_text()
 
     assert "ios-unsigned" in apple["jobs"]
+    apple_steps = apple["jobs"]["ios-unsigned"]["steps"]
+    assert any(step.get("name") == "Install Apple signing assets" for step in apple_steps)
+    assert any("securewave_app/scripts/archive_ios_release.sh" in str(step.get("run", "")) for step in apple_steps)
     assert "publish-image" in container["jobs"]
     assert container["permissions"]["packages"] == "write"
     build_step = container["jobs"]["publish-image"]["steps"][-1]
     assert build_step["uses"] == "docker/build-push-action@v6"
+    assert "Runner.xcworkspace" in archive_script
+    assert "xcodebuild archive" in archive_script
+    assert "xcodebuild -exportArchive" in archive_script
+    assert "APPLE_TEAM_ID" in archive_script
+
+
+def test_apple_review_website_and_handoff_download_are_public():
+    apple_page = (ROOT / "static/apple-review.html").read_text()
+    downloads_page = (ROOT / "static/download.html").read_text()
+    manifest = (ROOT / "static/downloads/manifest.json").read_text()
+    handoff = (ROOT / "docs/APPLE_REVIEW_HANDOFF.md").read_text()
+
+    assert "Packet Tunnel Provider" in apple_page
+    assert "Hotspot Helper" in apple_page
+    assert "/privacy.html" in apple_page
+    assert "/contact.html" in apple_page
+    assert "/apple-review.html" in downloads_page
+    assert "securewave-apple-release-handoff.zip" in manifest
+    assert "com.securewave.vpn.PacketTunnel" in handoff
 
 
 def test_demo_preflight_and_runbook_cover_live_tunnel_go_no_go():

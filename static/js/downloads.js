@@ -58,9 +58,27 @@ async function safeJson(res) {
   return res.json().catch(() => ({}));
 }
 
+async function fetchDownloadData() {
+  const apiRes = await fetch('/api/downloads');
+  const apiData = await safeJson(apiRes);
+  if (apiRes.ok && Array.isArray(apiData.downloads)) return apiData;
+
+  const staticRes = await fetch('/downloads/manifest.json', { cache: 'no-store' });
+  const staticData = await safeJson(staticRes);
+  if (staticRes.ok && Array.isArray(staticData.downloads)) return staticData;
+
+  return { downloads: [] };
+}
+
+function bestDownloadForPlatform(downloads, platform) {
+  const matches = downloads.filter((entry) => entry.platform === platform);
+  return matches.find((entry) => entry.status === 'available' && entry.url && entry.url !== '#') || null;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const recoCard = document.getElementById('recommendation-card');
   const grid = document.querySelector('[data-download-grid]');
+  let downloadData = null;
 
   // Recommendation (best-effort)
   try {
@@ -76,15 +94,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (link) link.setAttribute('href', data.recommended_download);
     }
   } catch (_) {
-    // ignore
+    // fallback below once the manifest loads
   }
 
   // Full list
   try {
-    const res = await fetch('/api/downloads');
-    const data = await safeJson(res);
+    const data = downloadData || await fetchDownloadData();
+    downloadData = data;
     const downloads = Array.isArray(data.downloads) ? data.downloads : [];
     if (!grid) return;
+
+    if (recoCard && recoCard.style.display === 'none') {
+      const platform = /Mac|iPhone|iPad/.test(navigator.userAgent)
+        ? (/iPhone|iPad/.test(navigator.userAgent) ? 'ios' : 'macos')
+        : (/Android/.test(navigator.userAgent) ? 'android' : (/Win/.test(navigator.userAgent) ? 'windows' : 'linux'));
+      const recommended = bestDownloadForPlatform(downloads, platform);
+      if (recommended) {
+        recoCard.style.display = '';
+        const link = document.querySelector('[data-reco-link]');
+        const platformEl = document.querySelector('[data-reco-platform]');
+        const notesEl = document.querySelector('[data-reco-notes]');
+        if (platformEl) platformEl.textContent = platformLabel(recommended.platform);
+        if (notesEl) notesEl.textContent = recommended.notes || 'Recommended for this device.';
+        if (link) link.setAttribute('href', recommended.url);
+      }
+    }
+
     if (downloads.length === 0) {
       grid.innerHTML = `
         <div class="card card-elevated">
@@ -110,4 +145,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 });
-

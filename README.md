@@ -8,6 +8,12 @@ profile, and IKEv2 is disabled in the Linux release UI until the backend and
 strongSwan runtime are enabled end to end. The Flutter client must never mark a
 VPN as connected unless the native runtime reports success.
 
+Apple/iOS work currently means signed archive preparation and App Store review
+support, not a public mobile release. The iOS target uses NetworkExtension
+Packet Tunnel Provider entitlement scope, not Hotspot Helper. Final signed
+archive/export must be run on macOS with Xcode via
+`securewave_app/scripts/archive_ios_release.sh`.
+
 The repository now targets **Hetzner Cloud only**. Older Azure-era assumptions are not part of the supported deployment story; provisioning and production operations are centered on the Terraform module in `infrastructure/hetzner/` and the Hetzner runbook in `docs/HETZNER_RUNBOOK.md`.
 
 If you encounter legacy Azure-named files elsewhere in the repository or older history, treat them as archival context rather than the supported deployment path.
@@ -31,6 +37,7 @@ This project demonstrates work across:
 - **Payments:** Stripe, PayPal
 - **VPN/Infra:** WireGuard, OpenVPN/IKEv2 support code, Terraform, Docker, systemd, Nginx
 - **Tooling:** pytest, Flutter test/analyze, GitHub Actions, gitleaks-oriented secret hygiene
+- **Apple packaging:** Xcode workspace guardrails, Packet Tunnel extension metadata, signed archive/export handoff script
 
 ## Current Deployment Model
 
@@ -110,4 +117,6 @@ Do not commit real values for:
 - `docs/HETZNER_RUNBOOK.md`
 - `docs/hr_app_process_overview/README.md`
 - `securewave_app/README.md`
+- `docs/APPLE_REVIEW_HANDOFF.md`
+- `docs/APPLE_RELEASE.md`
 - `docs/SECRET_REMEDIATION.md`

@@ -129,7 +129,7 @@ bash scripts/run_smoke_tests.sh
 
 ---
 
-## 6) iOS (Manual Xcode)
+## 6) iOS (Mac/Xcode Archive)
 
 **IMPORTANT: Always use Runner.xcworkspace, never Runner.xcodeproj.**
 
@@ -139,17 +139,22 @@ bash scripts/run_smoke_tests.sh
   ```
 - [ ] Enable Network Extension capability (Packet Tunnel)
 - [ ] Configure signing + team for both Runner and PacketTunnel targets
+- [ ] Confirm bundle identifiers:
+  - `com.securewave.vpn`
+  - `com.securewave.vpn.PacketTunnel`
 - [ ] Build and validate device install
 
 **App Store compliance requirements:**
 - [ ] `securewave_app/ios/Runner/PrivacyInfo.xcprivacy` present and in Runner resources
 - [ ] `securewave_app/ios/PacketTunnel/PrivacyInfo.xcprivacy` present and in PacketTunnel resources
 - [ ] `NSVPNUsageDescription` set in `securewave_app/ios/Runner/Info.plist`
-- [ ] Entitlements are still configured manually in Xcode (no automation here)
+- [ ] Entitlements contain NetworkExtension `packet-tunnel-provider`
+- [ ] Do not request Hotspot Helper; SecureWave is not a captive Wi-Fi helper app
 
-**Verify compliance (macOS only):**
+**Verify compliance and archive (macOS only):**
 ```bash
 bash scripts/verify_ios_store_compliance.sh
+bash securewave_app/scripts/archive_ios_release.sh
 ```
 
 **Expected output:**

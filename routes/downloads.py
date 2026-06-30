@@ -9,6 +9,7 @@ Provides:
 """
 
 import os
+import json
 import logging
 from pathlib import Path
 from typing import Optional, List
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/api/downloads", tags=["downloads"])
 
 APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
 DOWNLOADS_DIR = Path(__file__).resolve().parent.parent / "static" / "downloads"
+DOWNLOAD_MANIFEST_PATH = DOWNLOADS_DIR / "manifest.json"
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +104,15 @@ def _format_size(size_bytes: int) -> str:
 # Download manifest -- canonical list of all platform builds
 # ---------------------------------------------------------------------------
 
-DOWNLOAD_MANIFEST = [
+DEFAULT_DOWNLOAD_MANIFEST = [
+    # Apple handoff
+    {
+        "platform": "macos",
+        "architecture": "universal",
+        "filename": "securewave-apple-release-handoff.zip",
+        "url": "/downloads/securewave-apple-release-handoff.zip",
+        "notes": "Mac/Xcode handoff kit for producing the signed macOS/iOS archive. Not a notarized app bundle.",
+    },
     # Windows
     {
         "platform": "windows",
@@ -142,13 +152,6 @@ DOWNLOAD_MANIFEST = [
     },
     # Apple
     {
-        "platform": "macos",
-        "architecture": "arm64",
-        "filename": "securewave-macos-arm64.dmg",
-        "url": "#",
-        "notes": "Coming soon. Requires Apple Developer signing and notarization.",
-    },
-    {
         "platform": "ios",
         "architecture": "arm64",
         "filename": "",
@@ -166,10 +169,27 @@ DOWNLOAD_MANIFEST = [
 ]
 
 
+def _load_download_manifest() -> List[dict]:
+    """Load the public download manifest, falling back to the built-in list."""
+    if not DOWNLOAD_MANIFEST_PATH.exists():
+        return DEFAULT_DOWNLOAD_MANIFEST
+    try:
+        payload = json.loads(DOWNLOAD_MANIFEST_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Failed to read download manifest %s: %s", DOWNLOAD_MANIFEST_PATH, exc)
+        return DEFAULT_DOWNLOAD_MANIFEST
+
+    downloads = payload.get("downloads")
+    if not isinstance(downloads, list):
+        logger.warning("Download manifest did not contain a downloads list")
+        return DEFAULT_DOWNLOAD_MANIFEST
+    return downloads
+
+
 def _build_download_entries() -> List[DownloadEntry]:
     """Build download list, checking which files actually exist on disk."""
     entries = []
-    for item in DOWNLOAD_MANIFEST:
+    for item in _load_download_manifest():
         filename = item["filename"]
 
         # Check if the file actually exists on disk
@@ -226,7 +246,7 @@ async def detect_user_platform(request: Request):
     detected = detect_platform(user_agent)
 
     recommended = None
-    for item in DOWNLOAD_MANIFEST:
+    for item in _load_download_manifest():
         if item["platform"] == detected["platform"]:
             if item["architecture"] in (detected["architecture"], "universal"):
                 if item["filename"]:

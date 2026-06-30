@@ -17,7 +17,8 @@ instead of substituting fake connected states.
 - Version: `4.0.0+2`
 - Platform: Linux
 - Status: Fresh Flutter UI on `master` and `flutter`; Linux/WireGuard remains
-  the strongest runtime path
+  the strongest runtime path. Apple packaging is prepared for Mac/Xcode
+  finalization but is not yet runtime-certified through App Store review.
 
 ## Release-Ready
 
@@ -37,6 +38,29 @@ instead of substituting fake connected states.
   Linux host has strongSwan `swanctl`/`ipsec` tooling installed.
 - The live backend smoke now requires all three Linux protocols to be enabled,
   advertised by server inventory, and backed by app-consumable profile payloads.
+- The iOS project now uses production-style bundle identifiers
+  `com.securewave.vpn` and `com.securewave.vpn.PacketTunnel`, with the Packet
+  Tunnel Provider Network Extension entitlement. A signed iOS archive/export
+  still must be produced on macOS with Xcode and Apple signing assets.
+
+## Apple Release Packaging Handoff
+
+- SecureWave's Apple VPN path is NetworkExtension Packet Tunnel Provider, not
+  Hotspot Helper.
+- Public Apple reviewer support content is available at
+  `static/apple-review.html`, with links to privacy, terms, support, and
+  downloads.
+- The public download manifest is `static/downloads/manifest.json`; the Apple
+  handoff download is `static/downloads/securewave-apple-release-handoff.zip`.
+- Local Mac archive/export command:
+
+```bash
+export APPLE_TEAM_ID="<team-id>"
+bash securewave_app/scripts/archive_ios_release.sh
+```
+
+- GitHub Actions can run unsigned iOS validation by default and signed
+  archive/export when manually dispatched with Apple signing secrets.
 
 ## Public Promotion Gated
 
@@ -57,7 +81,8 @@ These items are deferred backlog only. They do not change the public v1 release
 scope, platform support, protocol visibility, packaging behavior, or release
 readiness claims.
 
-- macOS runtime enablement, including any Network Extension work.
+- macOS runtime enablement, including a separate signed macOS Network Extension
+  target if macOS VPN support is promoted beyond the iOS handoff path.
 - Mobile OpenVPN/IKEv2 expansion after platform-specific evidence exists.
 - Automated live multi-protocol CI with controlled test infrastructure.
 - IKEv2 hardening, including provisioning, packaging, and EAP-TLS evaluation.
