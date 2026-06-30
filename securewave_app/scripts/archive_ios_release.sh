@@ -81,6 +81,10 @@ for tool in flutter pod xcodebuild go; do
   fi
 done
 
+if [[ ! -f "$ROOT_DIR/.env" ]]; then
+  bash "$REPO_ROOT/scripts/prepare_flutter_env.sh"
+fi
+
 if [[ ! -d "$WORKSPACE" ]]; then
   echo "ERROR: missing workspace: $WORKSPACE" >&2
   echo "Run: cd $IOS_DIR && pod install" >&2

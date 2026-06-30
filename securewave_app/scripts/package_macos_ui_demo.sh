@@ -64,6 +64,10 @@ esac
 DEFAULT_OUT_FILE="$DOWNLOADS_DIR/securewave-macos-${ARCH_LABEL}-ui-demo.zip"
 OUT_FILE="${MACOS_DEMO_OUT:-$DEFAULT_OUT_FILE}"
 
+if [[ ! -f "$ROOT_DIR/.env" ]]; then
+  bash "$REPO_ROOT/scripts/prepare_flutter_env.sh"
+fi
+
 cd "$ROOT_DIR"
 flutter pub get
 
