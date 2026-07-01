@@ -24,6 +24,11 @@ from models.wireguard_peer import WireGuardPeer
 from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
 from services.jwt_service import get_current_user
+from services.usage_metering import (
+    current_period_usage_bytes,
+    plan_payload,
+    record_usage_delta,
+)
 from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 from services.subscription_access import require_active_subscription
 from services.vpn_peer_manager import get_peer_manager
@@ -262,50 +267,6 @@ def get_user_tier(user: User, db: Session) -> str:
     if sub and sub.plan_id:
         return sub.plan_id  # 'basic', 'premium', 'ultra'
     return "free"
-
-
-def _bytes_used_for_user(db: Session, user_id: int) -> int:
-    peers = (
-        db.query(WireGuardPeer)
-        .filter(
-            WireGuardPeer.user_id == user_id,
-        )
-        .all()
-    )
-    return sum((p.total_data_sent or 0) + (p.total_data_received or 0) for p in peers)
-
-
-def _plan_payload(db: Session, user: User) -> dict:
-    from models.subscription import Subscription
-
-    sub = (
-        db.query(Subscription)
-        .filter(
-            Subscription.user_id == user.id,
-            Subscription.status.in_(["active", "trialing"]),
-        )
-        .order_by(Subscription.current_period_end.desc().nullslast())
-        .first()
-    )
-    used_gb = _bytes_used_for_user(db, user.id) / 1024 / 1024 / 1024
-    free_cap_gb = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
-    if not sub:
-        return {
-            "plan_name": "Free",
-            "plan_tier": "free",
-            "data_cap_gb": free_cap_gb,
-            "used_gb": round(used_gb, 3),
-            "renewal_date": None,
-        }
-    return {
-        "plan_name": sub.plan_name or (sub.plan_id or "premium").capitalize(),
-        "plan_tier": "premium",
-        "data_cap_gb": 0,
-        "used_gb": round(used_gb, 3),
-        "renewal_date": sub.current_period_end.isoformat()
-        if sub.current_period_end
-        else None,
-    }
 
 
 async def register_peer_on_server(
@@ -1498,18 +1459,25 @@ async def report_usage(
         ) + tx_bytes
         db.add(active_connection)
 
+    record_usage_delta(
+        db,
+        user_id=current_user.id,
+        rx_bytes=rx_bytes,
+        tx_bytes=tx_bytes,
+        server_id=payload.server_id,
+    )
     db.add(peer)
     db.commit()
 
     user_tier = get_user_tier(current_user, db)
-    used_bytes = _bytes_used_for_user(db, current_user.id)
+    used_bytes = current_period_usage_bytes(db, current_user.id)
     free_cap_bytes = int(float(os.getenv("FREE_TIER_MONTHLY_GB", "5")) * 1024 * 1024 * 1024)
     if user_tier == "free" and used_bytes >= free_cap_bytes:
         from services.subscription_access import revoke_user_peers
 
         await revoke_user_peers(db, current_user)
 
-    return _plan_payload(db, current_user)
+    return plan_payload(db, current_user)
 
 
 @router.get("/config")

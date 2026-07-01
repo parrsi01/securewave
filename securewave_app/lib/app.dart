@@ -602,7 +602,7 @@ class _ConnectScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _InfoRow('Server', selectedServer),
                 _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
-                _InfoRow('Session data', _sessionUsageText(vpn)),
+                _InfoRow('Current session', _sessionUsageText(vpn)),
                 _InfoRow('Down rate',
                     formatMbpsFromBytesPerSecond(vpn.dataRateDown)),
                 _InfoRow(
@@ -1060,7 +1060,7 @@ class _UsageSummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _InfoRow('Session data', _sessionUsageText(vpn)),
+        _InfoRow('Current session', _sessionUsageText(vpn)),
         _InfoRow('Down rate', formatMbpsFromBytesPerSecond(vpn.dataRateDown)),
         _InfoRow('Up rate', formatMbpsFromBytesPerSecond(vpn.dataRateUp)),
         _InfoRow('Counter source', _counterSourceText(vpn)),

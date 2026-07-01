@@ -53,7 +53,7 @@ void main() {
     );
   });
 
-  testWidgets('connection screen binds runtime session usage from provider',
+  testWidgets('connection screen separates current session from saved usage',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -112,8 +112,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Session data'), findsWidgets);
+    expect(find.text('Current session'), findsWidgets);
     expect(find.text('3.0 KB'), findsWidgets);
+    expect(find.text('Used'), findsWidgets);
+    expect(find.text('1.2 GB'), findsWidgets);
     expect(find.text('sw-wg'), findsWidgets);
     expect(find.text('55.3 Mbps'), findsWidgets);
     expect(find.text('12.4 Mbps'), findsWidgets);

@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi import status
 
@@ -158,6 +160,106 @@ class TestVpnProfileProvisioning:
         plan_resp = client.get("/api/user/plan", headers=auth_headers)
         assert plan_resp.status_code == 200, plan_resp.text
         assert plan_resp.json()["used_gb"] == 0.625
+
+    def test_usage_report_accumulates_across_reconnects(self, client, auth_headers, db):
+        _create_free_server(db)
+
+        profile_resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Linux Box",
+                "device_type": "linux",
+                "protocol": "wireguard",
+            },
+            headers=auth_headers,
+        )
+        assert profile_resp.status_code == 200, profile_resp.text
+        device_id = profile_resp.json()["device_id"]
+
+        for payload in (
+            {"rx_bytes": 1024 * 1024 * 512, "tx_bytes": 1024 * 1024 * 128},
+            {"rx_bytes": 1024 * 1024 * 256, "tx_bytes": 0},
+        ):
+            report_resp = client.post(
+                "/api/vpn/usage/report",
+                json={
+                    "device_id": device_id,
+                    "protocol": "wireguard",
+                    **payload,
+                },
+                headers=auth_headers,
+            )
+            assert report_resp.status_code == 200, report_resp.text
+
+        plan_resp = client.get("/api/user/plan", headers=auth_headers)
+        assert plan_resp.status_code == 200, plan_resp.text
+        assert plan_resp.json()["used_gb"] == 0.875
+
+    def test_free_plan_usage_is_current_month_when_daily_metrics_exist(
+        self, client, auth_headers, db, test_user
+    ):
+        from models.usage_analytics import DailyUsageMetrics
+
+        now = datetime.utcnow()
+        current_month = datetime(now.year, now.month, 1)
+        previous_month = current_month - timedelta(days=1)
+        db.add_all(
+            [
+                DailyUsageMetrics(
+                    user_id=test_user.id,
+                    date=datetime(previous_month.year, previous_month.month, 1),
+                    total_data_mb=4096,
+                    data_downloaded_mb=4096,
+                ),
+                DailyUsageMetrics(
+                    user_id=test_user.id,
+                    date=current_month,
+                    total_data_mb=512,
+                    data_downloaded_mb=512,
+                ),
+            ]
+        )
+        db.commit()
+
+        plan_resp = client.get("/api/user/plan", headers=auth_headers)
+        assert plan_resp.status_code == 200, plan_resp.text
+        assert plan_resp.json()["used_gb"] == 0.5
+
+    def test_paid_plan_usage_uses_subscription_period(
+        self, client, auth_headers, db, test_user, test_subscription
+    ):
+        from models.usage_analytics import DailyUsageMetrics
+
+        period_start = datetime.utcnow() - timedelta(days=5)
+        period_end = datetime.utcnow() + timedelta(days=25)
+        test_subscription.current_period_start = period_start
+        test_subscription.current_period_end = period_end
+        db.add_all(
+            [
+                DailyUsageMetrics(
+                    user_id=test_user.id,
+                    date=period_start - timedelta(days=2),
+                    total_data_mb=2048,
+                    data_downloaded_mb=2048,
+                ),
+                DailyUsageMetrics(
+                    user_id=test_user.id,
+                    date=datetime(
+                        period_start.year, period_start.month, period_start.day
+                    ),
+                    total_data_mb=1536,
+                    data_downloaded_mb=1024,
+                    data_uploaded_mb=512,
+                ),
+            ]
+        )
+        db.commit()
+
+        plan_resp = client.get("/api/user/plan", headers=auth_headers)
+        assert plan_resp.status_code == 200, plan_resp.text
+        body = plan_resp.json()
+        assert body["plan_tier"] == "premium"
+        assert body["used_gb"] == 1.5
 
     def test_free_plan_cap_blocks_new_profile_after_usage_report(
         self, client, auth_headers, db, monkeypatch

@@ -18,6 +18,7 @@ from models.subscription import Subscription
 from models.user import User
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
+from services.usage_metering import current_period_usage_bytes
 from services.wireguard_server_manager import get_wireguard_server_manager, server_connection_from_db
 from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 
@@ -153,13 +154,6 @@ async def _sync_user_usage(db: Session, user: User) -> None:
     db.commit()
 
 
-def _user_bytes_used(peers: List[WireGuardPeer]) -> int:
-    total = 0
-    for peer in peers:
-        total += (peer.total_data_sent or 0) + (peer.total_data_received or 0)
-    return total
-
-
 async def enforce_free_tier_cap(db: Session, user: User) -> None:
     """Enforce the free-tier monthly data cap.
 
@@ -178,7 +172,7 @@ async def enforce_free_tier_cap(db: Session, user: User) -> None:
     )
     if not peers:
         return
-    used_bytes = _user_bytes_used(peers)
+    used_bytes = current_period_usage_bytes(db, user.id)
     free_tier_monthly_bytes = _free_tier_monthly_bytes()
     if used_bytes >= free_tier_monthly_bytes:
         await revoke_user_peers(db, user)

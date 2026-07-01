@@ -580,6 +580,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       sessionUsageUnavailableReason: 'Waiting for tunnel counters.',
       clearSessionCounterInterface: true,
     );
+    _ref.invalidate(userPlanProvider);
     unawaited(_pollTrafficStats(report: false));
     _usageTimer = Timer.periodic(
       _trafficPollInterval,
