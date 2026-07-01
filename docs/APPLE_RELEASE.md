@@ -15,12 +15,17 @@ For local Mac finalization after pulling this branch:
 
 ```bash
 export APPLE_TEAM_ID="<team-id>"
+SECUREWAVE_IOS_RELEASE_SIGNING=1 bash securewave_app/scripts/doctor_flutter_ios.sh
 bash securewave_app/scripts/archive_ios_release.sh
 ```
 
 The script archives from `securewave_app/ios/Runner.xcworkspace`, never
 `Runner.xcodeproj`, and exports signed output to
 `securewave_app/build/ios/export/`.
+The doctor command does not print or persist signing secrets; it checks for a
+Mac/Xcode environment, an Apple Distribution signing identity, and provisioning
+profiles for `com.securewave.vpn` and
+`com.securewave.vpn.PacketTunnel`.
 
 For the website-downloadable macOS UI demo package, run on a Mac:
 
