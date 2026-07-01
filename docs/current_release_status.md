@@ -42,10 +42,11 @@ instead of substituting fake connected states.
   `com.securewave.vpn` and `com.securewave.vpn.PacketTunnel`, with the Packet
   Tunnel Provider Network Extension entitlement. A signed iOS archive/export
   still must be produced on macOS with Xcode and Apple signing assets.
-- The macOS Flutter target can be packaged as a website-downloadable UI demo on
-  a Mac with `securewave_app/scripts/package_macos_ui_demo.sh`. macOS VPN
-  tunneling is still not enabled; connect/disconnect returns
-  `vpn_not_configured` until a macOS Network Extension target exists.
+- The Apple Silicon macOS Flutter target is published as a
+  website-downloadable UI/account demo zip at
+  `static/downloads/securewave-macos-arm64-ui-demo.zip`. macOS VPN tunneling is
+  still not enabled; connect/disconnect returns `vpn_not_configured` until a
+  macOS Network Extension target exists.
 
 ## Apple Release Packaging Handoff
 
@@ -56,10 +57,13 @@ instead of substituting fake connected states.
   downloads.
 - The public download manifest is `static/downloads/manifest.json`; the Apple
   handoff download is `static/downloads/securewave-apple-release-handoff.zip`.
-- macOS demo package slots are present for
-  `securewave-macos-arm64-ui-demo.zip` and
-  `securewave-macos-x64-ui-demo.zip`; they become available on the site after a
-  Mac creates and publishes the matching zip.
+- The Apple Silicon macOS UI demo package is available as
+  `static/downloads/securewave-macos-arm64-ui-demo.zip`; the Intel macOS demo
+  slot remains `coming_soon` until an Intel Mac or matching runner publishes
+  `securewave-macos-x64-ui-demo.zip`.
+- GitHub Actions run `28514166181` on `2026-07-01` passed unsigned iOS release
+  validation, unsigned `.app` artifact collection/upload, macOS UI demo
+  build/upload, and macOS demo branch publishing.
 - Local Mac archive/export command:
 
 ```bash
@@ -74,7 +78,10 @@ bash securewave_app/scripts/package_macos_ui_demo.sh
 ```
 
 - GitHub Actions can run unsigned iOS validation by default and signed
-  archive/export when manually dispatched with Apple signing secrets.
+  archive/export when manually dispatched with Apple signing secrets. As of
+  `2026-07-01`, the repository only exposes `AZURE_CREDENTIALS` through
+  `gh secret list`, so signed iOS export remains blocked until Apple signing
+  secrets are configured or the archive is produced locally on a Mac.
 - GitHub Actions can build the macOS UI demo on a macOS runner and optionally
   publish the generated zip back to the branch with
   `publish_macos_demo=true`.

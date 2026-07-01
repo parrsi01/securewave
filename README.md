@@ -14,7 +14,8 @@ Packet Tunnel Provider entitlement scope, not Hotspot Helper. Final signed
 archive/export must be run on macOS with Xcode via
 `securewave_app/scripts/archive_ios_release.sh`.
 
-The macOS target can be packaged as a UI/account demo on a Mac with
+The Apple Silicon macOS target is published as a downloadable UI/account demo
+zip on the website. It can be rebuilt on a Mac with
 `securewave_app/scripts/package_macos_ui_demo.sh`; macOS VPN tunneling remains
 disabled until a signed macOS Network Extension target is added.
 
