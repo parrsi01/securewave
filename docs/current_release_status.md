@@ -2,10 +2,10 @@
 
 ## Canonical v1 Release Statement
 
-SecureWave is currently a Linux desktop first app. WireGuard is the primary
-runtime path. OpenVPN is enabled only when the backend issues a real OpenVPN
-profile and the Linux helper confirms startup. IKEv2 is enabled only when the
-backend issues an app-consumable Linux IKEv2 profile and strongSwan
+SecureWave is currently a Linux desktop first app. WireGuard is the primary and
+most stable runtime path. OpenVPN is enabled only when the backend issues a real
+OpenVPN profile and the Linux helper confirms startup. IKEv2 is enabled only
+when the backend issues an app-consumable Linux IKEv2 profile and strongSwan
 start/status/cleanup are verified.
 
 Only protocols proven end-to-end through the normal backend and client path
@@ -19,6 +19,9 @@ instead of substituting fake connected states.
 - Status: Fresh Flutter UI on `master` and `flutter`; Linux/WireGuard remains
   the strongest runtime path. Apple packaging is prepared for Mac/Xcode
   finalization but is not yet runtime-certified through App Store review.
+- Latest manual runtime check: on `2026-07-01`, the Linux Flutter app connected
+  through the real WireGuard path, public egress was verified on a "test my IP"
+  site, and the in-app data usage gauge updated correctly during the session.
 
 ## Release-Ready
 
@@ -26,7 +29,8 @@ instead of substituting fake connected states.
 - Session restore/logout/re-login flow in the Flutter client
 - Account email shown after startup/login
 - Server catalog loading with empty/error states
-- Usage gauge on Connect, Account, and Settings screens
+- Usage gauge on Connect, Account, and Settings screens, with live WireGuard
+  transfer usage correctly reflected in the app
 - Native Linux single-instance window lifecycle
 - Domain/TLS correctness for `https://api.securewaveapp.com/api/health`
 
