@@ -61,6 +61,9 @@ def test_apple_review_page_and_handoff_docs_are_public():
     assert "static/downloads/securewave-macos-*-ui-demo.zip" in apple_workflow
     assert "--no-enable-swift-package-manager" in apple_workflow
     assert "scripts/prepare_flutter_env.sh" in apple_workflow
+    assert "Collect unsigned iOS app artifact" in apple_workflow
+    assert "find securewave_app/build/ios -type d -name '*.app'" in apple_workflow
+    assert "apple-artifacts/ios-unsigned/securewave-ios-unsigned.zip" in apple_workflow
 
 
 def test_macos_detection_can_recommend_universal_handoff():
