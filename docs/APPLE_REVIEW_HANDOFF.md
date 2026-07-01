@@ -25,6 +25,7 @@ and the matching provisioning profiles installed:
 git checkout flutter
 git pull origin flutter
 export APPLE_TEAM_ID="<team-id>"
+SECUREWAVE_IOS_RELEASE_SIGNING=1 bash securewave_app/scripts/doctor_flutter_ios.sh
 bash securewave_app/scripts/archive_ios_release.sh
 ```
 

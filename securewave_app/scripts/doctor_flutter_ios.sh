@@ -25,6 +25,33 @@ WARNINGS=0
 check_pass() { echo -e "${GREEN}+${NC} $1"; }
 check_fail() { echo -e "${RED}x${NC} $1"; ERRORS=$((ERRORS + 1)); }
 check_warn() { echo -e "${YELLOW}!${NC} $1"; WARNINGS=$((WARNINGS + 1)); }
+require_release_signing() {
+  case "${SECUREWAVE_IOS_RELEASE_SIGNING:-false}" in
+    1|true|TRUE|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+check_signing_issue() {
+  if require_release_signing; then
+    check_fail "$1"
+  else
+    check_warn "$1"
+  fi
+}
+profile_matches_bundle() {
+  local profile="$1"
+  local bundle_id="$2"
+  local decoded
+  decoded="$(security cms -D -i "$profile" 2>/dev/null || true)"
+  if [[ -z "$decoded" ]]; then
+    return 1
+  fi
+  if [[ -n "${APPLE_TEAM_ID:-}" ]]; then
+    printf '%s\n' "$decoded" | grep -Fq "<string>${APPLE_TEAM_ID}.${bundle_id}</string>"
+  else
+    printf '%s\n' "$decoded" | grep -Fq ".${bundle_id}</string>"
+  fi
+}
 
 # ---- 1. Xcode (macOS only) ----
 echo "1. Checking Xcode..."
@@ -134,6 +161,55 @@ else
   check_warn "PacketTunnel extension not found (required for VPN tunnel)"
 fi
 
+# ---- 7. Release signing assets (macOS only) ----
+echo ""
+echo "7. Checking release signing assets..."
+if [[ "$(uname)" == "Darwin" ]]; then
+  if ! command -v security &> /dev/null; then
+    check_signing_issue "Apple security CLI not found"
+  else
+    SIGNING_IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+    if [[ -z "$SIGNING_IDENTITIES" ]]; then
+      check_signing_issue "No code signing identities found in the active keychains"
+    elif printf '%s\n' "$SIGNING_IDENTITIES" | grep -Eq "Apple Distribution|iPhone Distribution"; then
+      check_pass "Apple Distribution signing identity available"
+    elif printf '%s\n' "$SIGNING_IDENTITIES" | grep -Eq "Apple Development|iPhone Developer"; then
+      check_signing_issue "Only Apple Development signing identity found; App Store export needs Apple Distribution"
+    else
+      check_signing_issue "No Apple iOS signing identity found"
+    fi
+  fi
+
+  if [[ -n "${APPLE_TEAM_ID:-}" ]]; then
+    check_pass "APPLE_TEAM_ID is set"
+  else
+    check_signing_issue "APPLE_TEAM_ID is not set"
+  fi
+
+  PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+  if [[ ! -d "$PROFILE_DIR" ]]; then
+    check_signing_issue "Provisioning profile directory is missing"
+  else
+    for bundle_id in "com.securewave.vpn" "com.securewave.vpn.PacketTunnel"; do
+      MATCHED_PROFILE=false
+      while IFS= read -r -d '' profile; do
+        if profile_matches_bundle "$profile" "$bundle_id"; then
+          MATCHED_PROFILE=true
+          break
+        fi
+      done < <(find "$PROFILE_DIR" -type f -name "*.mobileprovision" -print0)
+
+      if [[ "$MATCHED_PROFILE" == "true" ]]; then
+        check_pass "Provisioning profile found for $bundle_id"
+      else
+        check_signing_issue "No provisioning profile found for $bundle_id"
+      fi
+    done
+  fi
+else
+  check_warn "Not macOS - signing identity and provisioning profile checks skipped"
+fi
+
 # ---- Summary ----
 echo ""
 echo "===================================="
@@ -144,6 +220,7 @@ if [[ $ERRORS -eq 0 ]]; then
   echo -e "${GREEN}Environment is ready for iOS build${NC}"
   echo ""
   echo "IMPORTANT: Always open Runner.xcworkspace, never Runner.xcodeproj."
+  echo "For release signing diagnostics, run with SECUREWAVE_IOS_RELEASE_SIGNING=1 and APPLE_TEAM_ID set."
   echo ""
   echo "Next steps:"
   echo "  1. Open: $IOS_DIR/Runner.xcworkspace"

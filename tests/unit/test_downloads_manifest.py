@@ -44,7 +44,9 @@ def test_apple_review_page_and_handoff_docs_are_public():
     manifest = (ROOT / "static/downloads/manifest.json").read_text()
     handoff = (ROOT / "docs/APPLE_REVIEW_HANDOFF.md").read_text()
     macos_script = (ROOT / "securewave_app/scripts/package_macos_ui_demo.sh").read_text()
+    ios_doctor = (ROOT / "securewave_app/scripts/doctor_flutter_ios.sh").read_text()
     apple_workflow = (ROOT / ".github/workflows/apple-release.yml").read_text()
+    apple_release = (ROOT / "docs/APPLE_RELEASE.md").read_text()
 
     assert "Packet Tunnel Provider" in apple_page
     assert "Hotspot Helper" in apple_page
@@ -61,6 +63,13 @@ def test_apple_review_page_and_handoff_docs_are_public():
     assert "static/downloads/securewave-macos-*-ui-demo.zip" in apple_workflow
     assert "--no-enable-swift-package-manager" in apple_workflow
     assert "scripts/prepare_flutter_env.sh" in apple_workflow
+    assert "Collect unsigned iOS app artifact" in apple_workflow
+    assert "find securewave_app/build/ios -type d -name '*.app'" in apple_workflow
+    assert "apple-artifacts/ios-unsigned/securewave-ios-unsigned.zip" in apple_workflow
+    assert "SECUREWAVE_IOS_RELEASE_SIGNING" in ios_doctor
+    assert "Apple Distribution signing identity available" in ios_doctor
+    assert "com.securewave.vpn.PacketTunnel" in ios_doctor
+    assert "SECUREWAVE_IOS_RELEASE_SIGNING=1" in apple_release
 
 
 def test_macos_detection_can_recommend_universal_handoff():
