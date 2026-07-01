@@ -48,6 +48,9 @@ def test_release_workflows_cover_mobile_and_container_delivery():
     apple_steps = apple["jobs"]["ios-unsigned"]["steps"]
     macos_steps = apple["jobs"]["macos-ui-demo"]["steps"]
     assert any(step.get("name") == "Install Apple signing assets" for step in apple_steps)
+    assert any(step.get("name") == "Collect unsigned iOS app artifact" for step in apple_steps)
+    assert any("find securewave_app/build/ios -type d -name '*.app'" in str(step.get("run", "")) for step in apple_steps)
+    assert any("apple-artifacts/ios-unsigned/securewave-ios-unsigned.zip" in str(step.get("with", "")) for step in apple_steps)
     assert any("securewave_app/scripts/archive_ios_release.sh" in str(step.get("run", "")) for step in apple_steps)
     assert any("securewave_app/scripts/package_macos_ui_demo.sh" in str(step.get("run", "")) for step in macos_steps)
     assert any(step.get("name") == "Publish macOS UI demo to branch" for step in macos_steps)
