@@ -44,6 +44,7 @@ def test_apple_review_page_and_handoff_docs_are_public():
     manifest = (ROOT / "static/downloads/manifest.json").read_text()
     handoff = (ROOT / "docs/APPLE_REVIEW_HANDOFF.md").read_text()
     macos_script = (ROOT / "securewave_app/scripts/package_macos_ui_demo.sh").read_text()
+    handoff_package_script = (ROOT / "scripts/package_apple_review_handoff.sh").read_text()
     ios_doctor = (ROOT / "securewave_app/scripts/doctor_flutter_ios.sh").read_text()
     apple_workflow = (ROOT / ".github/workflows/apple-release.yml").read_text()
     apple_release = (ROOT / "docs/APPLE_RELEASE.md").read_text()
@@ -72,6 +73,8 @@ def test_apple_review_page_and_handoff_docs_are_public():
     assert "| head -n 1" not in ios_doctor
     assert "com.securewave.vpn.PacketTunnel" in ios_doctor
     assert "SECUREWAVE_IOS_RELEASE_SIGNING=1" in apple_release
+    assert "securewave_app/scripts/doctor_flutter_ios.sh" in handoff_package_script
+    assert "DEVOPS_REPORT_APPLE_SIGNING_READINESS_2026-07-02.md" in handoff_package_script
 
 
 def test_macos_detection_can_recommend_universal_handoff():
