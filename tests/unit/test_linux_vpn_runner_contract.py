@@ -6,6 +6,10 @@ HELPER = Path("securewave_app/packaging/linux/securewave-wg-quick")
 HELPER_CONTRACT = Path("securewave_app/packaging/linux/securewave-wg-quick.contract")
 POLKIT_RULE = Path("securewave_app/packaging/linux/50-securewave-wg.rules")
 BUILD_DEB = Path("securewave_app/scripts/build_deb.sh")
+BUILD_APPS = Path("scripts/build_apps.sh")
+DOWNLOAD_INSTALLER = Path("static/downloads/install-linux.sh")
+HELPER_INSTALLER = Path("securewave_app/scripts/install_linux_helper.sh")
+LINUX_CMAKE = Path("securewave_app/linux/CMakeLists.txt")
 
 
 def _runner_source() -> str:
@@ -152,6 +156,45 @@ def test_linux_package_installs_privileged_helper_and_runtime_dependencies():
     assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, policykit-1" in build
 
 
+def test_linux_tarball_and_installer_ship_privileged_helper():
+    build_apps = BUILD_APPS.read_text(encoding="utf-8")
+    installer = DOWNLOAD_INSTALLER.read_text(encoding="utf-8")
+    helper_installer = HELPER_INSTALLER.read_text(encoding="utf-8")
+
+    assert 'mkdir -p "$PACKAGE_STAGING/packaging/linux" "$PACKAGE_STAGING/scripts"' in build_apps
+    assert 'ARCH_LABEL="arm64"; FLUTTER_ARCH="arm64"' in build_apps
+    assert "securewave-wg-quick" in build_apps
+    assert "securewave-wg-quick.contract" in build_apps
+    assert "50-securewave-wg.rules" in build_apps
+    assert "install_linux_helper.sh" in build_apps
+    assert "securewave-app-linux-arm64.zip" in build_apps
+    assert "securewave-linux-x64.tar.gz" in build_apps
+    assert 'HELPER_INSTALLER="$INSTALL_DIR/scripts/install_linux_helper.sh"' in installer
+    assert "extract_package()" in installer
+    assert "*.tar.gz|*.tgz)" in installer
+    assert "*.zip)" in installer
+    assert 'SECUREWAVE_ALLOWED_USER="${SUDO_USER:-}" "$HELPER_INSTALLER" "$INSTALL_DIR/packaging/linux"' in installer
+    assert 'Download a current SecureWave Linux package' in installer
+    assert "apt-get install -y" in helper_installer
+    assert "wireguard-tools" in helper_installer
+    assert "network-manager-strongswan" in helper_installer
+    assert 'install -m 0755 "$SOURCE_HELPER" "$HELPER"' in helper_installer
+    assert 'install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"' in helper_installer
+    assert 'sed "s/__SECUREWAVE_ALLOWED_USER__/${escaped_user}/g"' in helper_installer
+    assert "systemctl try-reload-or-restart polkit.service" in helper_installer
+
+
+def test_flutter_linux_bundle_installs_helper_payload():
+    cmake = LINUX_CMAKE.read_text(encoding="utf-8")
+
+    assert "../packaging/linux/securewave-wg-quick" in cmake
+    assert "../packaging/linux/securewave-wg-quick.contract" in cmake
+    assert "../packaging/linux/50-securewave-wg.rules" in cmake
+    assert "../scripts/install_linux_helper.sh" in cmake
+    assert 'DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"' in cmake
+    assert 'DESTINATION "${CMAKE_INSTALL_PREFIX}/scripts"' in cmake
+
+
 def test_polkit_rule_scopes_prompt_free_actions_to_securewave_runtime():
     rule = POLKIT_RULE.read_text(encoding="utf-8")
 
@@ -181,3 +224,13 @@ def test_linux_deb_postinst_installs_rendered_polkit_rule_safely():
     assert 'ALLOW_USER="$(logname 2>/dev/null || true)"' in build
     assert "systemctl try-reload-or-restart polkit.service" in build
     assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build
+
+
+def test_linux_runner_reports_missing_helper_before_protocol_start():
+    source = _runner_source()
+
+    assert "linux_native_runtime_available" in source
+    assert "securewave_helper_contract_available(detail)" in source
+    assert "PolicyKit/pkexec not found" in source
+    assert "SecureWave Linux VPN runtime is unavailable." in source
+    assert 'g_strcmp0(method, "isAvailable") == 0' in source

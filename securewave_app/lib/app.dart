@@ -111,6 +111,67 @@ class _AppRoot extends ConsumerWidget {
   }
 }
 
+class _BrandMark extends StatelessWidget {
+  const _BrandMark({this.size = 46});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'SecureWave logo',
+      image: true,
+      child: Image.asset(
+        'assets/securewave_mark.png',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}
+
+class _BrandLockup extends StatelessWidget {
+  const _BrandLockup();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _BrandMark(size: 58),
+        const SizedBox(height: 12),
+        Text(
+          'SecureWave',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontSize: 21,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AppBarTitle extends StatelessWidget {
+  const _AppBarTitle({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _BrandMark(size: 28),
+        const SizedBox(width: 10),
+        Text(title),
+      ],
+    );
+  }
+}
+
 class _AuthScreen extends ConsumerStatefulWidget {
   const _AuthScreen();
 
@@ -146,25 +207,25 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
+              constraints: const BoxConstraints(maxWidth: 420),
               child: _PlainPanel(
-                padding: const EdgeInsets.all(22),
+                padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
                 child: Form(
                   key: _formKey,
                   child: AutofillGroup(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const _BrandLockup(),
+                        const SizedBox(height: 16),
                         Text(
-                          'SecureWave',
-                          style: Theme.of(context).textTheme.headlineMedium,
+                          copy,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        const SizedBox(height: 8),
-                        Text(copy,
-                            style: Theme.of(context).textTheme.bodyMedium),
-                        const SizedBox(height: 22),
+                        const SizedBox(height: 24),
                         TextFormField(
                           controller: _email,
                           autofillHints: const [
@@ -366,7 +427,7 @@ class _MainShellState extends ConsumerState<_MainShell> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: _AppBarTitle(title: title),
         bottom: wide
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(50),
@@ -510,14 +571,20 @@ class _ConnectScreen extends ConsumerWidget {
 
     return ListView(
       children: [
-        _PlainPanel(
+        _GroupedSection(
+          title: 'Connection',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _AccountLine(user: user),
-              const SizedBox(height: 18),
-              _ConnectionStrip(status: status, protocol: vpn.protocol),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+              _ConnectionStrip(
+                status: status,
+                protocol: vpn.protocol,
+                server: selectedServer,
+                desiredOn: vpn.desiredOn,
+              ),
+              const SizedBox(height: 10),
               _PlatformTruthNotice(truth: releaseTruth),
               nativeRuntime.maybeWhen(
                 data: (runtime) {
@@ -525,7 +592,7 @@ class _ConnectScreen extends ConsumerWidget {
                     return const SizedBox.shrink();
                   }
                   return Padding(
-                    padding: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.only(top: 10),
                     child: _InlineMessage(
                       icon: Icons.verified_rounded,
                       message:
@@ -536,39 +603,23 @@ class _ConnectScreen extends ConsumerWidget {
                 },
                 orElse: () => const SizedBox.shrink(),
               ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: busy
-                          ? null
-                          : () {
-                              final notifier =
-                                  ref.read(vpnStateProvider.notifier);
-                              unawaited(() async {
-                                connected
-                                    ? await notifier.disconnect()
-                                    : await notifier.connect();
-                                ref.invalidate(nativeRuntimeStatusProvider);
-                              }());
-                            },
-                      icon: Icon(connected
-                          ? Icons.stop_rounded
-                          : Icons.power_settings_new_rounded),
-                      label: Text(connected ? 'Disconnect' : 'Connect'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  OutlinedButton.icon(
-                    onPressed: () => _showDiagnostics(context),
-                    icon: const Icon(Icons.receipt_long_rounded),
-                    label: const Text('Diagnostics'),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              _ConnectionActions(
+                connected: connected,
+                busy: busy,
+                onConnectToggle: () {
+                  final notifier = ref.read(vpnStateProvider.notifier);
+                  unawaited(() async {
+                    connected
+                        ? await notifier.disconnect()
+                        : await notifier.connect();
+                    ref.invalidate(nativeRuntimeStatusProvider);
+                  }());
+                },
+                onDiagnostics: () => _showDiagnostics(context),
               ),
               if (vpn.errorMessage != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _InlineMessage(
                   icon: Icons.error_outline_rounded,
                   message: vpn.errorMessage!,
@@ -576,7 +627,7 @@ class _ConnectScreen extends ConsumerWidget {
                 ),
               ],
               if (config.useMockApi) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 const _InlineMessage(
                   icon: Icons.info_outline_rounded,
                   message:
@@ -585,7 +636,7 @@ class _ConnectScreen extends ConsumerWidget {
                 ),
               ],
               if (config.simulateTunnel) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 const _InlineMessage(
                   icon: Icons.info_outline_rounded,
                   message:
@@ -596,58 +647,42 @@ class _ConnectScreen extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         _ResponsivePair(
-          left: _PlainPanel(
+          left: _GroupedSection(
+            title: 'Session',
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _SectionTitle('Session'),
-                const SizedBox(height: 12),
-                _InfoRow('Server', selectedServer),
-                _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
-                _InfoRow('Current session', _sessionUsageText(vpn)),
-                _InfoRow('Down rate',
+                _ValueRow('Current session', _sessionUsageText(vpn)),
+                _ValueRow('Down rate',
                     formatMbpsFromBytesPerSecond(vpn.dataRateDown)),
-                _InfoRow(
+                _ValueRow(
                     'Up rate', formatMbpsFromBytesPerSecond(vpn.dataRateUp)),
-                _InfoRow('Counter source', _counterSourceText(vpn)),
+                _ValueRow('Counter source', _counterSourceText(vpn)),
               ],
             ),
           ),
-          right: _PlainPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SectionTitle('Data'),
-                const SizedBox(height: 12),
-                plan.when(
-                  data: (value) => _UsageSummary(
-                    plan: value,
-                    vpn: vpn,
-                    showMonthlyUsage: !config.useMockApi,
-                  ),
-                  loading: () => const _LoadingLine('Loading usage'),
-                  error: (_, __) => const _InlineMessage(
-                    icon: Icons.warning_amber_rounded,
-                    message: 'Usage could not be loaded.',
-                    tone: _Tone.warning,
-                  ),
-                ),
-              ],
+          right: _GroupedSection(
+            title: 'Data',
+            child: plan.when(
+              data: (value) => _UsageSummary(
+                plan: value,
+                vpn: vpn,
+                showMonthlyUsage: !config.useMockApi,
+              ),
+              loading: () => const _LoadingLine('Loading usage'),
+              error: (_, __) => const _InlineMessage(
+                icon: Icons.warning_amber_rounded,
+                message: 'Usage could not be loaded.',
+                tone: _Tone.warning,
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 14),
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle('Protocol'),
-              const SizedBox(height: 12),
-              _ProtocolPicker(selected: vpn.protocol),
-            ],
-          ),
+        const SizedBox(height: 12),
+        _GroupedSection(
+          title: 'Protocol',
+          child: _ProtocolPicker(selected: vpn.protocol),
         ),
       ],
     );
@@ -687,31 +722,33 @@ class _ServersScreen extends ConsumerWidget {
 
         return ListView(
           children: [
-            _PlainPanel(
-              child: _ServerTile(
-                title: 'Auto-select',
-                subtitle: 'Choose the best region at connect time.',
-                selected: vpn.selectedServerId == null,
-                icon: Icons.auto_awesome_rounded,
-                onTap: () =>
-                    ref.read(vpnStateProvider.notifier).selectServer(null),
+            _GroupedSection(
+              title: 'Servers',
+              child: Column(
+                children: [
+                  _ServerTile(
+                    title: 'Auto-select',
+                    subtitle: 'Choose the best region at connect time.',
+                    selected: vpn.selectedServerId == null,
+                    icon: Icons.auto_awesome_rounded,
+                    onTap: () =>
+                        ref.read(vpnStateProvider.notifier).selectServer(null),
+                  ),
+                  for (final server in items) ...[
+                    const SizedBox(height: 8),
+                    _ServerTile(
+                      title: server.name,
+                      subtitle: _serverSubtitle(server),
+                      selected: vpn.selectedServerId == server.id,
+                      icon: Icons.public_rounded,
+                      onTap: () => ref
+                          .read(vpnStateProvider.notifier)
+                          .selectServer(server.id),
+                    ),
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            for (final server in items) ...[
-              _PlainPanel(
-                child: _ServerTile(
-                  title: server.name,
-                  subtitle: _serverSubtitle(server),
-                  selected: vpn.selectedServerId == server.id,
-                  icon: Icons.public_rounded,
-                  onTap: () => ref
-                      .read(vpnStateProvider.notifier)
-                      .selectServer(server.id),
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
           ],
         );
       },
@@ -731,58 +768,46 @@ class _AccountScreen extends ConsumerWidget {
 
     return ListView(
       children: [
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle('Account'),
-              const SizedBox(height: 12),
-              user.when(
-                data: (value) => Column(
-                  children: [
-                    _InfoRow('Email',
-                        value.email.isEmpty ? 'Signed in' : value.email),
-                    _InfoRow('Status', value.isActive ? 'Active' : 'Inactive'),
-                    _InfoRow(
-                      'Verification',
-                      value.emailVerified
-                          ? 'Email verified'
-                          : 'Email unverified',
-                    ),
-                    _InfoRow('Plan', value.subscriptionStatus),
-                  ],
+        _GroupedSection(
+          title: 'Account',
+          child: user.when(
+            data: (value) => Column(
+              children: [
+                _AccountSummary(account: value),
+                const SizedBox(height: 12),
+                _ValueRow(
+                    'Email', value.email.isEmpty ? 'Signed in' : value.email),
+                _ValueRow('Status', value.isActive ? 'Active' : 'Inactive'),
+                _ValueRow(
+                  'Verification',
+                  value.emailVerified ? 'Email verified' : 'Email unverified',
                 ),
-                loading: () => const _LoadingLine('Loading account'),
-                error: (_, __) => const _InlineMessage(
-                  icon: Icons.warning_amber_rounded,
-                  message: 'Account details could not be loaded.',
-                  tone: _Tone.warning,
-                ),
-              ),
-            ],
+                _ValueRow('Plan', value.subscriptionStatus),
+              ],
+            ),
+            loading: () => const _LoadingLine('Loading account'),
+            error: (_, __) => const _InlineMessage(
+              icon: Icons.warning_amber_rounded,
+              message: 'Account details could not be loaded.',
+              tone: _Tone.warning,
+            ),
           ),
         ),
-        const SizedBox(height: 14),
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle('Usage'),
-              const SizedBox(height: 12),
-              plan.when(
-                data: (value) => _UsageSummary(
-                  plan: value,
-                  vpn: vpn,
-                  showMonthlyUsage: !config.useMockApi,
-                ),
-                loading: () => const _LoadingLine('Loading usage'),
-                error: (_, __) => const _InlineMessage(
-                  icon: Icons.warning_amber_rounded,
-                  message: 'Usage could not be loaded.',
-                  tone: _Tone.warning,
-                ),
-              ),
-            ],
+        const SizedBox(height: 12),
+        _GroupedSection(
+          title: 'Usage',
+          child: plan.when(
+            data: (value) => _UsageSummary(
+              plan: value,
+              vpn: vpn,
+              showMonthlyUsage: !config.useMockApi,
+            ),
+            loading: () => const _LoadingLine('Loading usage'),
+            error: (_, __) => const _InlineMessage(
+              icon: Icons.warning_amber_rounded,
+              message: 'Usage could not be loaded.',
+              tone: _Tone.warning,
+            ),
           ),
         ),
       ],
@@ -803,70 +828,63 @@ class _SettingsScreen extends ConsumerWidget {
 
     return ListView(
       children: [
-        _PlainPanel(
+        _GroupedSection(
+          title: 'Runtime',
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _SectionTitle('Runtime'),
-              const SizedBox(height: 12),
-              _InfoRow('Device', device),
-              _InfoRow('API', config.apiBaseUrl),
-              _InfoRow('Mock API', config.useMockApi ? 'On' : 'Off'),
-              _InfoRow(
+              _ValueRow('Device', device),
+              _ValueRow('API', config.apiBaseUrl),
+              _ValueRow('Mock API', config.useMockApi ? 'On' : 'Off'),
+              _ValueRow(
                 'Presentation mode',
                 config.simulateTunnel ? 'On' : 'Off',
               ),
-              _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
-              _InfoRow('Release scope', releaseTruth.releaseLabel),
-              _InfoRow('Runtime status', releaseTruth.runtimeStatus),
+              _ValueRow('Protocol', vpnProtocolLabel(vpn.protocol)),
+              _ValueRow('Release scope', releaseTruth.releaseLabel),
+              _ValueRow('Runtime status', releaseTruth.runtimeStatus),
             ],
           ),
         ),
-        const SizedBox(height: 14),
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle('Usage'),
-              const SizedBox(height: 12),
-              plan.when(
-                data: (value) => _UsageSummary(
-                  plan: value,
-                  vpn: vpn,
-                  showMonthlyUsage: !config.useMockApi,
-                ),
-                loading: () => const _LoadingLine('Loading usage'),
-                error: (_, __) => const _InlineMessage(
-                  icon: Icons.warning_amber_rounded,
-                  message: 'Usage could not be loaded.',
-                  tone: _Tone.warning,
-                ),
-              ),
-            ],
+        const SizedBox(height: 12),
+        _GroupedSection(
+          title: 'Usage',
+          child: plan.when(
+            data: (value) => _UsageSummary(
+              plan: value,
+              vpn: vpn,
+              showMonthlyUsage: !config.useMockApi,
+            ),
+            loading: () => const _LoadingLine('Loading usage'),
+            error: (_, __) => const _InlineMessage(
+              icon: Icons.warning_amber_rounded,
+              message: 'Usage could not be loaded.',
+              tone: _Tone.warning,
+            ),
           ),
         ),
-        const SizedBox(height: 14),
-        _PlainPanel(
+        const SizedBox(height: 12),
+        _GroupedSection(
+          title: 'Actions',
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              OutlinedButton.icon(
-                onPressed: () => _showDiagnostics(context),
-                icon: const Icon(Icons.receipt_long_rounded),
-                label: const Text('Open diagnostics'),
+              _ActionRow(
+                icon: Icons.receipt_long_rounded,
+                label: 'Open diagnostics',
+                onTap: () => _showDiagnostics(context),
               ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () =>
+              const SizedBox(height: 8),
+              _ActionRow(
+                icon: Icons.open_in_new_rounded,
+                label: 'Open account portal',
+                onTap: () =>
                     ref.read(externalLinksProvider).openUrl(config.portalUrl),
-                icon: const Icon(Icons.open_in_new_rounded),
-                label: const Text('Open account portal'),
               ),
-              const SizedBox(height: 10),
-              FilledButton.icon(
-                onPressed: () => _signOut(context, ref),
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Sign out'),
+              const SizedBox(height: 8),
+              _ActionRow(
+                icon: Icons.logout_rounded,
+                label: 'Sign out',
+                onTap: () => _signOut(context, ref),
+                filled: true,
               ),
             ],
           ),
@@ -1011,10 +1029,17 @@ class _ProtocolTile extends ConsumerWidget {
 }
 
 class _ConnectionStrip extends StatelessWidget {
-  const _ConnectionStrip({required this.status, required this.protocol});
+  const _ConnectionStrip({
+    required this.status,
+    required this.protocol,
+    required this.server,
+    required this.desiredOn,
+  });
 
   final _StatusDescriptor status;
   final VpnProtocol protocol;
+  final String server;
+  final bool desiredOn;
 
   @override
   Widget build(BuildContext context) {
@@ -1025,27 +1050,185 @@ class _ConnectionStrip extends StatelessWidget {
         border: Border.all(color: status.border),
         borderRadius: BorderRadius.circular(FreshTheme.radius),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(status.icon, color: status.color),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(status.label,
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 2),
-                Text(
-                  vpnProtocolLabel(protocol),
-                  style: Theme.of(context).textTheme.bodySmall,
+          Row(
+            children: [
+              Icon(status.icon, color: status.color),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  status.label,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-              ],
-            ),
+              ),
+              _StatusChip(label: status.shortLabel, tone: status.tone),
+            ],
           ),
-          _StatusChip(label: status.shortLabel, tone: status.tone),
+          const SizedBox(height: 10),
+          Container(height: 1, color: status.border),
+          const SizedBox(height: 10),
+          _FactRow(
+            items: [
+              _FactItem('Server', server),
+              _FactItem('Protocol', vpnProtocolLabel(protocol)),
+              _FactItem('Desired', desiredOn ? 'On' : 'Off'),
+            ],
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _FactItem {
+  const _FactItem(this.label, this.value);
+
+  final String label;
+  final String value;
+}
+
+class _FactRow extends StatelessWidget {
+  const _FactRow({required this.items});
+
+  final List<_FactItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 330) {
+          return Column(
+            children: [
+              for (final item in items)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: _FactLine(item: item),
+                ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (var index = 0; index < items.length; index++) ...[
+              Expanded(child: _FactColumn(item: items[index])),
+              if (index != items.length - 1)
+                Container(
+                  width: 1,
+                  height: 34,
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  color: FreshTheme.line,
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _FactColumn extends StatelessWidget {
+  const _FactColumn({required this.item});
+
+  final _FactItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(item.label, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 3),
+        Text(
+          item.value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: FreshTheme.graphite,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FactLine extends StatelessWidget {
+  const _FactLine({required this.item});
+
+  final _FactItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(item.label, style: Theme.of(context).textTheme.bodySmall),
+        ),
+        Expanded(
+          child: Text(
+            item.value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: FreshTheme.graphite,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConnectionActions extends StatelessWidget {
+  const _ConnectionActions({
+    required this.connected,
+    required this.busy,
+    required this.onConnectToggle,
+    required this.onDiagnostics,
+  });
+
+  final bool connected;
+  final bool busy;
+  final VoidCallback onConnectToggle;
+  final VoidCallback onDiagnostics;
+
+  @override
+  Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < 430;
+    final primary = FilledButton.icon(
+      onPressed: busy ? null : onConnectToggle,
+      icon: Icon(
+          connected ? Icons.stop_rounded : Icons.power_settings_new_rounded),
+      label: Text(connected ? 'Disconnect' : 'Connect'),
+    );
+    final secondary = OutlinedButton.icon(
+      onPressed: onDiagnostics,
+      icon: const Icon(Icons.receipt_long_rounded),
+      label: const Text('Diagnostics'),
+    );
+
+    if (narrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          primary,
+          const SizedBox(height: 10),
+          secondary,
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: primary),
+        const SizedBox(width: 10),
+        secondary,
+      ],
     );
   }
 }
@@ -1075,10 +1258,10 @@ class _UsageSummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _InfoRow('Current session', _sessionUsageText(vpn)),
-        _InfoRow('Down rate', formatMbpsFromBytesPerSecond(vpn.dataRateDown)),
-        _InfoRow('Up rate', formatMbpsFromBytesPerSecond(vpn.dataRateUp)),
-        _InfoRow('Counter source', _counterSourceText(vpn)),
+        _ValueRow('Current session', _sessionUsageText(vpn)),
+        _ValueRow('Down rate', formatMbpsFromBytesPerSecond(vpn.dataRateDown)),
+        _ValueRow('Up rate', formatMbpsFromBytesPerSecond(vpn.dataRateUp)),
+        _ValueRow('Counter source', _counterSourceText(vpn)),
         if (!vpn.sessionCountersAvailable &&
             vpn.sessionUsageUnavailableReason != null) ...[
           const SizedBox(height: 6),
@@ -1111,19 +1294,42 @@ class _UsageSummary extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: plan.isUnlimited ? 1 : percent,
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
-            color: FreshTheme.primary,
-            backgroundColor: FreshTheme.surfaceMuted,
-          ),
+          _UsageMeter(value: plan.isUnlimited ? 1 : percent),
           const SizedBox(height: 12),
-          _InfoRow('Used', '${plan.usedGb.toStringAsFixed(1)} GB'),
-          _InfoRow('Cap', cap),
-          _InfoRow('Usage', percentText),
+          _ValueRow('Used', '${plan.usedGb.toStringAsFixed(1)} GB'),
+          _ValueRow('Cap', cap),
+          _ValueRow('Usage', percentText),
         ],
       ],
+    );
+  }
+}
+
+class _UsageMeter extends StatelessWidget {
+  const _UsageMeter({required this.value});
+
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = value.isFinite ? value.clamp(0.0, 1.0).toDouble() : 0.0;
+    return Container(
+      key: const ValueKey('usage-meter'),
+      height: 10,
+      decoration: BoxDecoration(
+        color: FreshTheme.surfaceMuted,
+        border: Border.all(color: FreshTheme.line),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: FractionallySizedBox(
+          widthFactor: clamped,
+          heightFactor: 1,
+          child: const ColoredBox(color: FreshTheme.primary),
+        ),
+      ),
     );
   }
 }
@@ -1173,12 +1379,36 @@ class _PlainPanel extends StatelessWidget {
         boxShadow: const [
           BoxShadow(
             color: Color(0x66000000),
-            blurRadius: 20,
-            offset: Offset(0, 10),
+            blurRadius: 8,
+            offset: Offset(0, 4),
           ),
         ],
       ),
       child: Padding(padding: padding, child: child),
+    );
+  }
+}
+
+class _GroupedSection extends StatelessWidget {
+  const _GroupedSection({
+    required this.title,
+    required this.child,
+  });
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PlainPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionTitle(title),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -1287,7 +1517,64 @@ class _ServerTile extends StatelessWidget {
       subtitle: subtitle,
       leading: Icon(icon,
           color: selected ? FreshTheme.primary : FreshTheme.graphiteMuted),
+      trailing: selected
+          ? const Icon(Icons.check_rounded, color: FreshTheme.primary)
+          : null,
       onTap: onTap,
+    );
+  }
+}
+
+class _AccountSummary extends StatelessWidget {
+  const _AccountSummary({required this.account});
+
+  final UserAccount account;
+
+  @override
+  Widget build(BuildContext context) {
+    final email = account.email.isEmpty ? 'Signed in' : account.email;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: FreshTheme.surfaceMuted,
+        border: Border.all(color: FreshTheme.line),
+        borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.account_circle_outlined,
+              size: 28, color: FreshTheme.graphiteMuted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _StatusChip(
+                      label: account.isActive ? 'Active' : 'Inactive',
+                      tone: account.isActive ? _Tone.success : _Tone.warning,
+                    ),
+                    _StatusChip(
+                      label: account.emailVerified ? 'Verified' : 'Unverified',
+                      tone: account.emailVerified ? _Tone.info : _Tone.warning,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1367,6 +1654,18 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _ValueRow(label, value);
+  }
+}
+
+class _ValueRow extends StatelessWidget {
+  const _ValueRow(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
@@ -1387,6 +1686,61 @@ class _InfoRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: filled ? FreshTheme.primary : FreshTheme.surfaceMuted,
+          border: Border.all(
+            color: filled ? FreshTheme.primary : FreshTheme.line,
+          ),
+          borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 19,
+              color: filled ? Colors.white : FreshTheme.graphiteMuted,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: filled ? Colors.white : FreshTheme.graphite,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: filled ? Colors.white : FreshTheme.graphiteMuted,
+            ),
+          ],
+        ),
       ),
     );
   }

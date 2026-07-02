@@ -137,6 +137,28 @@ static gboolean elevated_runner_available() {
   return pkexec != nullptr;
 }
 
+static gboolean linux_native_runtime_available(gchar** detail) {
+  if (!elevated_runner_available()) {
+    if (detail != nullptr) {
+      *detail = g_strdup("PolicyKit/pkexec not found. Install PolicyKit so SecureWave can start VPN protocols.");
+    }
+    return FALSE;
+  }
+
+  if (!securewave_helper_contract_available(detail)) {
+    return FALSE;
+  }
+
+  if (!wg_quick_available() && !openvpn_available() && !ikev2_tooling_available()) {
+    if (detail != nullptr) {
+      *detail = g_strdup("No supported Linux VPN runtime tools found. Install wireguard-tools, openvpn, and network-manager-strongswan.");
+    }
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
 static gchar* build_state_path(const gchar* filename) {
   g_autofree gchar* config_dir = g_build_filename(g_get_user_config_dir(), "securewave", nullptr);
   if (g_mkdir_with_parents(config_dir, 0700) != 0) {
@@ -1905,10 +1927,17 @@ static void handle_vpn_call(FlMethodChannel* channel,
   VpnChannelState* state = static_cast<VpnChannelState*>(user_data);
   const gchar* method = fl_method_call_get_name(method_call);
   if (g_strcmp0(method, "isAvailable") == 0) {
+    g_autofree gchar* detail = nullptr;
+    if (!linux_native_runtime_available(&detail)) {
+      respond_error(
+          method_call,
+          "vpn_unavailable",
+          detail ? detail : "SecureWave Linux VPN runtime is unavailable.",
+          fl_value_new_map());
+      return;
+    }
     g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
-        fl_method_success_response_new(fl_value_new_bool(
-            elevated_runner_available() &&
-            (wg_quick_available() || openvpn_available() || ikev2_available()))));
+        fl_method_success_response_new(fl_value_new_bool(TRUE)));
     fl_method_call_respond(method_call, response, nullptr);
     return;
   }

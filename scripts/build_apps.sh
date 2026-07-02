@@ -57,8 +57,8 @@ build_linux() {
   HOST_ARCH="$(uname -m)"
   case "$HOST_ARCH" in
     x86_64)  ARCH_LABEL="x64";   FLUTTER_ARCH="x64" ;;
-    aarch64) ARCH_LABEL="x64";   FLUTTER_ARCH="arm64" ;;
-    arm64)   ARCH_LABEL="x64";   FLUTTER_ARCH="arm64" ;;
+    aarch64) ARCH_LABEL="arm64"; FLUTTER_ARCH="arm64" ;;
+    arm64)   ARCH_LABEL="arm64"; FLUTTER_ARCH="arm64" ;;
     *)       ARCH_LABEL="x64";   FLUTTER_ARCH="$HOST_ARCH" ;;
   esac
 
@@ -86,11 +86,46 @@ build_linux() {
     exit 1
   fi
 
-  # Always name the output securewave-linux-x64.tar.gz for download URL consistency
-  TARBALL="$DOWNLOADS_DIR/securewave-linux-x64.tar.gz"
-  echo "==> Packaging Linux bundle as $TARBALL ..."
-  tar -czf "$TARBALL" -C "$BUNDLE_DIR" .
-  echo "==> Linux tarball created: $TARBALL ($(du -h "$TARBALL" | cut -f1))"
+  PACKAGE_STAGING="$(mktemp -d)"
+  trap 'rm -rf "$PACKAGE_STAGING"' RETURN
+  cp -a "$BUNDLE_DIR/." "$PACKAGE_STAGING/"
+  mkdir -p "$PACKAGE_STAGING/packaging/linux" "$PACKAGE_STAGING/scripts"
+  cp -f "$APP_DIR/packaging/linux/securewave-wg-quick" "$PACKAGE_STAGING/packaging/linux/securewave-wg-quick"
+  cp -f "$APP_DIR/packaging/linux/securewave-wg-quick.contract" "$PACKAGE_STAGING/packaging/linux/securewave-wg-quick.contract"
+  cp -f "$APP_DIR/packaging/linux/50-securewave-wg.rules" "$PACKAGE_STAGING/packaging/linux/50-securewave-wg.rules"
+  cp -f "$APP_DIR/scripts/install_linux_helper.sh" "$PACKAGE_STAGING/scripts/install_linux_helper.sh"
+  chmod 0755 "$PACKAGE_STAGING/packaging/linux/securewave-wg-quick" \
+    "$PACKAGE_STAGING/scripts/install_linux_helper.sh"
+
+  if [[ "$ARCH_LABEL" == "arm64" ]]; then
+    ZIP_FILE="$DOWNLOADS_DIR/securewave-app-linux-arm64.zip"
+    echo "==> Packaging Linux bundle as $ZIP_FILE ..."
+    if command -v zip >/dev/null 2>&1; then
+      (cd "$PACKAGE_STAGING" && zip -qr "$ZIP_FILE" .)
+    else
+      python3 - "$PACKAGE_STAGING" "$ZIP_FILE" <<'PY'
+import os
+import sys
+import zipfile
+
+source, output = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    for root, _, files in os.walk(source):
+        for name in files:
+            path = os.path.join(root, name)
+            archive.write(path, os.path.relpath(path, source))
+PY
+    fi
+    echo "==> Linux zip created: $ZIP_FILE ($(du -h "$ZIP_FILE" | cut -f1))"
+  else
+    TARBALL="$DOWNLOADS_DIR/securewave-linux-x64.tar.gz"
+    echo "==> Packaging Linux bundle as $TARBALL ..."
+    tar -czf "$TARBALL" -C "$PACKAGE_STAGING" .
+    echo "==> Linux tarball created: $TARBALL ($(du -h "$TARBALL" | cut -f1))"
+  fi
+
+  rm -rf "$PACKAGE_STAGING"
+  trap - RETURN
 
   # Copy the install script alongside the tarball
   if [[ -f "$DOWNLOADS_DIR/install-linux.sh" ]]; then

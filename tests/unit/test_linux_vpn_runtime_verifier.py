@@ -31,6 +31,25 @@ def test_build_artifact_check_reports_missing_build(monkeypatch, tmp_path):
     assert "flutter build linux --debug" in check.detail
 
 
+def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
+    bundle = tmp_path / "bundle"
+    helper = bundle / "packaging/linux/securewave-wg-quick"
+    contract = bundle / "packaging/linux/securewave-wg-quick.contract"
+    rule = bundle / "packaging/linux/50-securewave-wg.rules"
+    installer = bundle / "scripts/install_linux_helper.sh"
+    for path in (helper, contract, rule, installer):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(verifier, "BUILD_BUNDLE_DIR", bundle)
+
+    checks = {check.name: check for check in verifier.check_build_helper_payload()}
+
+    assert checks["build:helper_payload"].ok
+    assert checks["build:helper_contract_payload"].ok
+    assert checks["build:polkit_payload"].ok
+    assert checks["build:helper_installer_payload"].ok
+
+
 def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
     outputs = {
         ("ip", "link", "show", "sw-wg"): CompletedProcess(

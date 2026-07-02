@@ -128,6 +128,23 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
+# Keep raw Flutter Linux bundles aligned with the website/download packages.
+# The app still installs the privileged helper into /usr/local/libexec through
+# the installer, but the payload must travel with debug and release bundles.
+install(PROGRAMS
+  "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-wg-quick"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"
+  COMPONENT Runtime)
+install(PROGRAMS
+  "${CMAKE_SOURCE_DIR}/../scripts/install_linux_helper.sh"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/scripts"
+  COMPONENT Runtime)
+install(FILES
+  "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-wg-quick.contract"
+  "${CMAKE_SOURCE_DIR}/../packaging/linux/50-securewave-wg.rules"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"
+  COMPONENT Runtime)
+
 # Install the AOT library on non-Debug builds only.
 if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"

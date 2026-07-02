@@ -22,6 +22,7 @@ from typing import Iterable
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = REPO_ROOT / "securewave_app/linux/runner/my_application.cc"
 BUILD_PATH = REPO_ROOT / "securewave_app/build/linux/arm64/debug/bundle/securewave_app"
+BUILD_BUNDLE_DIR = BUILD_PATH.parent
 HELPER_PATH = Path("/usr/local/libexec/securewave-wg-quick")
 HELPER_CONTRACT_PATH = Path("/usr/local/libexec/securewave-wg-quick.contract")
 POLKIT_RULE_SOURCE_PATH = REPO_ROOT / "securewave_app/packaging/linux/50-securewave-wg.rules"
@@ -212,6 +213,23 @@ def check_build_artifact() -> Check:
     )
 
 
+def check_build_helper_payload() -> list[Check]:
+    expected = {
+        "build:helper_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-wg-quick",
+        "build:helper_contract_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-wg-quick.contract",
+        "build:polkit_payload": BUILD_BUNDLE_DIR / "packaging/linux/50-securewave-wg.rules",
+        "build:helper_installer_payload": BUILD_BUNDLE_DIR / "scripts/install_linux_helper.sh",
+    }
+    return [
+        Check(
+            name,
+            path.exists(),
+            str(path) if path.exists() else f"missing {path}",
+        )
+        for name, path in expected.items()
+    ]
+
+
 def check_residue() -> list[Check]:
     checks: list[Check] = []
 
@@ -321,6 +339,7 @@ def main() -> int:
         check_installed_helper_contract(),
         *check_runner_contract(),
         check_build_artifact(),
+        *check_build_helper_payload(),
     ]
     if not args.allow_active_tunnel:
         checks.extend(check_residue())

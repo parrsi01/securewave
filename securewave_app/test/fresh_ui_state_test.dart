@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/app.dart';
@@ -62,6 +65,30 @@ void main() {
     );
   });
 
+  testWidgets('login screen shows SecureWave logo and brand', (tester) async {
+    store.remove('access_token');
+
+    await _pumpApp(tester);
+
+    expect(find.bySemanticsLabel('SecureWave logo'), findsOneWidget);
+    expect(find.text('SecureWave'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+  });
+
+  testWidgets('register screen keeps logo and confirm password field',
+      (tester) async {
+    store.remove('access_token');
+
+    await _pumpApp(tester);
+    await tester.tap(find.text('Create a new account'));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('SecureWave logo'), findsOneWidget);
+    expect(find.text('SecureWave'), findsOneWidget);
+    expect(find.text('Confirm password'), findsOneWidget);
+    expect(find.text('Create account'), findsOneWidget);
+  });
+
   testWidgets('server screen renders empty catalog state', (tester) async {
     await _pumpApp(
       tester,
@@ -110,6 +137,62 @@ void main() {
     expect(find.text('Usage'), findsWidgets);
     expect(find.text('0%'), findsOneWidget);
     expect(find.text('Unlimited'), findsOneWidget);
+    expect(find.byKey(const ValueKey('usage-meter')), findsOneWidget);
+    expect(find.textContaining('NaN'), findsNothing);
+  });
+
+  testWidgets('premium unlimited usage renders modern meter', (tester) async {
+    await _pumpApp(
+      tester,
+      planOverride: userPlanProvider.overrideWith(
+        (ref) async => const UserPlan(
+          name: 'Premium',
+          isPremium: true,
+          dataCapGb: 0,
+          usedGb: 42.1,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Account').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Premium'), findsWidgets);
+    expect(find.text('Unlimited'), findsWidgets);
+    expect(find.byKey(const ValueKey('usage-meter')), findsOneWidget);
+    expect(find.textContaining('NaN'), findsNothing);
+  });
+
+  testWidgets('usage loading state renders without a meter', (tester) async {
+    await _pumpApp(
+      tester,
+      settle: false,
+      planOverride: userPlanProvider.overrideWith(
+        (ref) => Completer<UserPlan>().future,
+      ),
+    );
+
+    await tester.tap(find.text('Account').last);
+    await tester.pump();
+
+    expect(find.text('Loading usage'), findsOneWidget);
+    expect(find.byKey(const ValueKey('usage-meter')), findsNothing);
+  });
+
+  testWidgets('usage error state renders without broken values',
+      (tester) async {
+    await _pumpApp(
+      tester,
+      planOverride: userPlanProvider.overrideWith(
+        (ref) async => throw StateError('usage failed'),
+      ),
+    );
+
+    await tester.tap(find.text('Account').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Usage could not be loaded.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('usage-meter')), findsNothing);
     expect(find.textContaining('NaN'), findsNothing);
   });
 
@@ -170,6 +253,7 @@ Future<void> _pumpApp(
   Override? vpnOverride,
   Override? runtimeStatusOverride,
   bool simulateTunnel = false,
+  bool settle = true,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -225,7 +309,11 @@ Future<void> _pumpApp(
       child: const SecureWaveApp(),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }
 
 class _ConnectedVpnStateNotifier extends VpnStateNotifier {
