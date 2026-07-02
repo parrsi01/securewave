@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 
 import yaml
 
@@ -6,11 +7,10 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_dockerfile_copies_runtime_import_packages():
+def test_dockerfile_copies_existing_runtime_import_packages():
     dockerfile = (ROOT / "Dockerfile").read_text()
-    required_entries = [
+    required_entries = {
         "COPY background_tasks.py .",
-        "COPY config/ ./config/",
         "COPY database/ ./database/",
         "COPY infrastructure/ ./infrastructure/",
         "COPY ml/ ./ml/",
@@ -19,10 +19,57 @@ def test_dockerfile_copies_runtime_import_packages():
         "COPY routes/ ./routes/",
         "COPY services/ ./services/",
         "COPY utils/ ./utils/",
-    ]
+    }
+    copied_paths = {
+        "background_tasks.py": "background_tasks.py",
+        "database/": "database",
+        "infrastructure/": "infrastructure",
+        "ml/": "ml",
+        "models/": "models",
+        "routers/": "routers",
+        "routes/": "routes",
+        "services/": "services",
+        "utils/": "utils",
+    }
 
     for entry in required_entries:
         assert entry in dockerfile
+    assert "COPY config/ ./config/" not in dockerfile
+    for source in copied_paths.values():
+        assert (ROOT / source).exists()
+
+
+def test_hetzner_deployment_has_self_contained_backend_compose_template():
+    compose = (ROOT / "deploy/hetzner/compose.yaml").read_text()
+    deploy = (ROOT / "scripts/deploy_production.sh").read_text()
+
+    assert "postgres:15-alpine" in compose
+    assert "redis:7-alpine" in compose
+    assert "${SECUREWAVE_IMAGE:?SECUREWAVE_IMAGE is required}" in compose
+    assert "ENVIRONMENT: production" in compose
+    assert "DEMO_MODE: \"false\"" in compose
+    assert "WG_MOCK_MODE: \"false\"" in compose
+    assert "127.0.0.1:8080:8080" in compose
+    assert "deploy/hetzner/compose.yaml" in deploy
+    assert "scp" in deploy
+    assert "test -f .env" in deploy
+    assert "export SECUREWAVE_IMAGE=" in deploy
+
+
+def test_hetzner_cost_guardrails_match_current_module():
+    script = (ROOT / "scripts/check_cost_guardrails.sh").read_text()
+    terraform = (ROOT / "infrastructure/hetzner/main.tf").read_text()
+
+    assert "$ROOT_DIR/infrastructure/hetzner" in script
+    assert "backups=true not found" in script
+    assert "backups = true" in terraform
+    subprocess.run(
+        ["bash", "scripts/check_cost_guardrails.sh"],
+        cwd=ROOT,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
 
 
 def test_ci_runs_on_active_os_branches_and_devops_gates():

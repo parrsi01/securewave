@@ -38,7 +38,6 @@ COPY main.py .
 COPY background_tasks.py .
 COPY gunicorn.conf.py .
 COPY alembic.ini .
-COPY config/ ./config/
 COPY database/ ./database/
 COPY data/models/ ./data/models/
 COPY infrastructure/ ./infrastructure/

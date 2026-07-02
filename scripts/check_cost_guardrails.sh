@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TF_DIR="${TF_DIR:-$ROOT_DIR/infra/hetzner}"
+TF_DIR="${TF_DIR:-$ROOT_DIR/infrastructure/hetzner}"
 TFVARS_FILE="${1:-${TFVARS_FILE:-$TF_DIR/terraform.tfvars}}"
 
 fail() {
@@ -76,12 +76,12 @@ fi
 [[ -d "$TF_DIR" ]] || fail "Terraform directory not found: $TF_DIR"
 
 # Static checks that do not require terraform:
-# - Backups must remain disabled.
-if grep -RIn --include="*.tf" -E 'backups[[:space:]]*=[[:space:]]*true' "$TF_DIR" >/dev/null; then
-  fail "Hetzner backups must be disabled (backups=true found under $TF_DIR)."
+# - Backups must be explicit and enabled for production host recovery.
+if ! grep -RIn --include="*.tf" -E 'backups[[:space:]]*=[[:space:]]*true' "$TF_DIR" >/dev/null; then
+  fail "Hetzner backups must be explicitly enabled (backups=true not found under $TF_DIR)."
 fi
-if ! grep -RIn --include="*.tf" -E 'backups[[:space:]]*=[[:space:]]*false' "$TF_DIR" >/dev/null; then
-  fail "Hetzner backups must be explicitly disabled (backups=false not found under $TF_DIR)."
+if grep -RIn --include="*.tf" -E 'backups[[:space:]]*=[[:space:]]*false' "$TF_DIR" >/dev/null; then
+  fail "Hetzner backups must remain enabled (backups=false found under $TF_DIR)."
 fi
 
 # - No unexpected paid add-ons/resources (allowlist Hetzner resources).

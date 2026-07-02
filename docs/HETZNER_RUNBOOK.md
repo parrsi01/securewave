@@ -71,6 +71,22 @@ What it does (high level):
 - Enables unattended security upgrades
 - Installs `nginx`, `certbot`, and `python3-certbot-nginx`
 
+## Backend Runtime Compose
+
+The production deploy script uploads the tracked Compose template from
+`deploy/hetzner/compose.yaml` to `/opt/securewave/compose.yaml` on the host.
+Do not commit the host `.env`; create it on the Hetzner server with the required
+production secrets before deploying:
+
+```bash
+ssh securewave@<server-ip> 'install -d -m 0750 /opt/securewave && touch /opt/securewave/.env && chmod 0600 /opt/securewave/.env'
+```
+
+At minimum, the `.env` must include `POSTGRES_PASSWORD`, auth/JWT secrets,
+email provider settings, payment provider settings, and WireGuard encryption
+settings. The app container binds to `127.0.0.1:8080`; terminate TLS through
+host nginx and proxy to that local port.
+
 ## Install WireGuard (VPN Server)
 
 WireGuard setup script (run once, as root):
