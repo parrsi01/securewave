@@ -6,7 +6,7 @@ Canonical sources: `docs/current_release_status.md`,
 
 ## In Progress
 
-- [x] Pull latest repository changes from `origin/flutter`.
+- [x] Pull latest repository changes from the former `origin/flutter` app line.
 - [x] Preserve current single-file Flutter app architecture after the pull.
 - [x] Add app-visible platform/runtime release truth so non-Linux builds cannot
   overstate VPN readiness.
@@ -67,6 +67,9 @@ Canonical sources: `docs/current_release_status.md`,
 - [ ] Apple release: Add Apple signing secrets to GitHub or run
   `securewave_app/scripts/archive_ios_release.sh` locally on macOS with the
   required Apple signing assets to produce the final signed iOS archive/export.
+  `2026-07-02` Mac diagnostics reached the release-signing gate but found only
+  an Apple Development identity, no `APPLE_TEAM_ID`, and no provisioning profile
+  directory.
 - [ ] Apple review: Create the App Store reviewer account after SMTP is live;
   do not submit placeholder review credentials.
 - [ ] Apple entitlement: If App Store Connect asks for entitlement

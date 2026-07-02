@@ -16,7 +16,8 @@ instead of substituting fake connected states.
 
 - Version: `4.0.0+2`
 - Platform: Linux
-- Status: Fresh Flutter UI on `master` and `flutter`; Linux/WireGuard remains
+- Status: Fresh Flutter UI is organized across `Linux`, `Windows`, and `Mac`
+  branches, with `master` kept as the hub. Linux/WireGuard remains
   the strongest runtime path. Apple packaging is prepared for Mac/Xcode
   finalization but is not yet runtime-certified through App Store review.
 - Latest manual runtime check: on `2026-07-01`, the Linux Flutter app connected
@@ -67,7 +68,8 @@ instead of substituting fake connected states.
   `securewave-macos-x64-ui-demo.zip`.
 - GitHub Actions run `28514166181` on `2026-07-01` passed unsigned iOS release
   validation, unsigned `.app` artifact collection/upload, macOS UI demo
-  build/upload, and macOS demo branch publishing.
+  build/upload, and macOS demo branch publishing on the former `flutter`
+  branch. Current Apple work should use the `Mac` branch.
 - Local Mac archive/export command:
 
 ```bash
@@ -86,6 +88,10 @@ bash securewave_app/scripts/package_macos_ui_demo.sh
   `2026-07-01`, the repository only exposes `AZURE_CREDENTIALS` through
   `gh secret list`, so signed iOS export remains blocked until Apple signing
   secrets are configured or the archive is produced locally on a Mac.
+- Local Mac release-signing diagnostics on `2026-07-02` reached the signing
+  checks successfully and found a development identity only, no `APPLE_TEAM_ID`,
+  and no provisioning profile directory. See
+  `docs/DEVOPS_REPORT_APPLE_SIGNING_READINESS_2026-07-02.md`.
 - GitHub Actions can build the macOS UI demo on a macOS runner and optionally
   publish the generated zip back to the branch with
   `publish_macos_demo=true`.
@@ -120,8 +126,10 @@ readiness claims.
 
 ## Branch Model Summary
 
-- `master` -> backend, docs, infra, app runtime truth, and release logistics
-- `flutter` -> current Flutter app design branch
+- `master` -> hub for backend, docs, infra, app runtime truth, and release logistics
+- `Linux` -> Linux desktop release candidate and live tunnel proof work
+- `Windows` -> Windows app and packaging work
+- `Mac` -> macOS/iOS Apple packaging, signing, and review work
 
 ## Contributor Rules
 

@@ -25,14 +25,17 @@ def test_dockerfile_copies_runtime_import_packages():
         assert entry in dockerfile
 
 
-def test_ci_runs_on_active_flutter_branch_and_devops_gates():
+def test_ci_runs_on_active_os_branches_and_devops_gates():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci-cd.yml").read_text())
     push_branches = workflow[True]["push"]["branches"]
     pull_request_branches = workflow[True]["pull_request"]["branches"]
     jobs = workflow["jobs"]
 
-    assert "flutter" in push_branches
-    assert "flutter" in pull_request_branches
+    for branch in ("Linux", "Windows", "Mac"):
+        assert branch in push_branches
+        assert branch in pull_request_branches
+    assert "flutter" not in push_branches
+    assert "flutter" not in pull_request_branches
     assert "security-audit" in jobs
     assert "website-static" in jobs
     assert "flutter-android" in jobs

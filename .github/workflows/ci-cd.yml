@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master, develop, flutter]
+    branches: [main, master, develop, Linux, Windows, Mac]
   pull_request:
-    branches: [main, master, develop, flutter]
+    branches: [main, master, develop, Linux, Windows, Mac]
   workflow_dispatch:
 
 permissions:
