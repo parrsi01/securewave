@@ -9,8 +9,8 @@ not widen the Linux v1 release scope.
 ## Fixed In This Pass
 
 - CI branch coverage: `.github/workflows/ci-cd.yml` did not run on the active
-  `flutter` branch. The workflow now runs on `main`, `master`, `develop`, and
-  `flutter`.
+  app branch. The workflow now runs on `main`, `master`, `develop`, `Linux`,
+  `Windows`, and `Mac`.
 - Dependency advisories: `pip-audit -r requirements.txt` reported 26 known
   vulnerabilities across `python-multipart`, `cryptography`, `pillow`,
   `python-dotenv`, transitive `pyasn1`, and transitive `starlette`. Direct pins

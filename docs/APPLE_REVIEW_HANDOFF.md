@@ -22,8 +22,8 @@ Run from a Mac with Xcode, CocoaPods, Go, Flutter, Apple signing certificates,
 and the matching provisioning profiles installed:
 
 ```bash
-git checkout flutter
-git pull origin flutter
+git checkout Mac
+git pull origin Mac
 export APPLE_TEAM_ID="<team-id>"
 SECUREWAVE_IOS_RELEASE_SIGNING=1 bash securewave_app/scripts/doctor_flutter_ios.sh
 bash securewave_app/scripts/archive_ios_release.sh
@@ -63,7 +63,7 @@ macOS runner and commit the generated zip plus updated manifest back to the
 branch:
 
 ```bash
-gh workflow run apple-release.yml --ref flutter -f publish_macos_demo=true
+gh workflow run apple-release.yml --ref Mac -f publish_macos_demo=true
 ```
 
 Run `28514166181` on `2026-07-01` passed this workflow path, including unsigned
