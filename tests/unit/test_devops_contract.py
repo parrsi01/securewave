@@ -89,8 +89,18 @@ def test_demo_preflight_and_runbook_cover_live_tunnel_go_no_go():
     runbook = (ROOT / "docs/DEMO_RUNBOOK.md").read_text()
 
     assert "--live-go-no-go" in script
+    assert "--require-email-health" in script
+    assert "REQUIRE_REAL_TUNNEL=true" in script
+    assert "REQUIRE_EMAIL_HEALTH=true" in script
+    assert "check_helper_contract" in script
     assert "check_polkit_authorization" in script
     assert "check_real_tunnel_egress" in script
+    assert "check_email_health" in script
+    assert "/health/email" in script
+    assert "https://api.ipify.org" in script
+    assert 'getent ahosts "$host"' in script
+    assert 'check_url "/downloads"' in script
+    assert "prebuild_linux_bundle" in script
     assert "/auth/login" in script
     assert "/auth/register" not in script
     assert "disposable demo account" not in script

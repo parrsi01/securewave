@@ -4,6 +4,7 @@ from pathlib import Path
 RUNNER = Path("securewave_app/linux/runner/my_application.cc")
 HELPER = Path("securewave_app/packaging/linux/securewave-wg-quick")
 HELPER_CONTRACT = Path("securewave_app/packaging/linux/securewave-wg-quick.contract")
+POLKIT_RULE = Path("securewave_app/packaging/linux/50-securewave-wg.rules")
 BUILD_DEB = Path("securewave_app/scripts/build_deb.sh")
 
 
@@ -149,3 +150,34 @@ def test_linux_package_installs_privileged_helper_and_runtime_dependencies():
     assert "postinst" in build
     assert "postrm" in build
     assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, policykit-1" in build
+
+
+def test_polkit_rule_scopes_prompt_free_actions_to_securewave_runtime():
+    rule = POLKIT_RULE.read_text(encoding="utf-8")
+
+    assert 'action.id != "org.freedesktop.policykit.exec"' in rule
+    assert 'configuredUser != "__SECUREWAVE_ALLOWED_USER__"' in rule
+    assert "subject.user == configuredUser" in rule
+    assert 'subject.user == "securewave"' in rule
+    assert 'subject.isInGroup("sudo")' in rule
+    assert 'program == "/usr/local/libexec/securewave-wg-quick"' in rule
+    assert 'program == "/usr/bin/wg" || program == "/bin/wg"' in rule
+    assert 'commandHasArg(commandLine, "show")' in rule
+    assert "polkit.Result.YES" in rule
+    assert "polkit.Result.NOT_HANDLED" in rule
+
+
+def test_linux_deb_postinst_installs_rendered_polkit_rule_safely():
+    build = BUILD_DEB.read_text(encoding="utf-8")
+
+    assert "SOURCE_POLKIT_RULE=$SOURCE_DIR/50-securewave-wg.rules" in build
+    assert "POLKIT_RULES_DIR=/etc/polkit-1/rules.d" in build
+    assert "POLKIT_RULE=$POLKIT_RULES_DIR/50-securewave-wg.rules" in build
+    assert 'mkdir -p "$POLKIT_RULES_DIR"' in build
+    assert 'install -m 0644 "$SOURCE_POLKIT_RULE" "$POLKIT_RULE"' in build
+    assert 'sed "s/__SECUREWAVE_ALLOWED_USER__/${escaped_user}/g"' in build
+    assert 'chmod 0644 "$POLKIT_RULE"' in build
+    assert 'ALLOW_USER="${SUDO_USER:-}"' in build
+    assert 'ALLOW_USER="$(logname 2>/dev/null || true)"' in build
+    assert "systemctl try-reload-or-restart polkit.service" in build
+    assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build

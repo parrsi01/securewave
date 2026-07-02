@@ -562,7 +562,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 					MTL_ENABLE_DEBUG_INFO = NO;
 					SDKROOT = iphoneos;
-					SUPPORTED_PLATFORMS = iphoneos;
+					SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 					SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 					TARGETED_DEVICE_FAMILY = "1,2";
 					VALIDATE_PRODUCT = YES;
@@ -692,6 +692,7 @@
 					MTL_ENABLE_DEBUG_INFO = YES;
 					ONLY_ACTIVE_ARCH = YES;
 					SDKROOT = iphoneos;
+					SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 					SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 					TARGETED_DEVICE_FAMILY = "1,2";
 				};
@@ -744,7 +745,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
-					SUPPORTED_PLATFORMS = iphoneos;
+					SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 					SWIFT_COMPILATION_MODE = wholemodule;
 					SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 					SWIFT_OPTIMIZATION_LEVEL = "-O";

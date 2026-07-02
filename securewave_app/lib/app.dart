@@ -12,6 +12,7 @@ import 'core/models/user_account.dart';
 import 'core/models/user_plan.dart';
 import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
+import 'core/release/platform_release_truth.dart';
 import 'core/services/auth_session.dart';
 import 'core/services/secure_storage.dart';
 import 'core/services/vpn_service.dart';
@@ -493,6 +494,7 @@ class _ConnectScreen extends ConsumerWidget {
     final servers = ref.watch(serversProvider);
     final config = ref.watch(appConfigProvider);
     final nativeRuntime = ref.watch(nativeRuntimeStatusProvider);
+    final releaseTruth = SecureWaveReleaseTruth.currentPlatform();
 
     final serverList = servers.maybeWhen(
       data: (value) => value,
@@ -515,6 +517,8 @@ class _ConnectScreen extends ConsumerWidget {
               _AccountLine(user: user),
               const SizedBox(height: 18),
               _ConnectionStrip(status: status, protocol: vpn.protocol),
+              const SizedBox(height: 12),
+              _PlatformTruthNotice(truth: releaseTruth),
               nativeRuntime.maybeWhen(
                 data: (runtime) {
                   if (runtime.status != VpnStatus.connected) {
@@ -795,6 +799,7 @@ class _SettingsScreen extends ConsumerWidget {
     final device = ref.watch(deviceInfoProvider);
     final vpn = ref.watch(vpnStateProvider);
     final plan = ref.watch(userPlanProvider);
+    final releaseTruth = SecureWaveReleaseTruth.currentPlatform();
 
     return ListView(
       children: [
@@ -812,6 +817,8 @@ class _SettingsScreen extends ConsumerWidget {
                 config.simulateTunnel ? 'On' : 'Off',
               ),
               _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
+              _InfoRow('Release scope', releaseTruth.releaseLabel),
+              _InfoRow('Runtime status', releaseTruth.runtimeStatus),
             ],
           ),
         ),
@@ -891,6 +898,14 @@ class _DiagnosticsView extends ConsumerWidget {
         _InfoRow('Native bridge',
             service.isNativeAvailable ? 'Available' : 'Unavailable'),
         _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
+        _InfoRow(
+          'Release scope',
+          SecureWaveReleaseTruth.currentPlatform().releaseLabel,
+        ),
+        _InfoRow(
+          'Platform runtime',
+          SecureWaveReleaseTruth.currentPlatform().runtimeStatus,
+        ),
         _InfoRow('Desired state', vpn.desiredOn ? 'On' : 'Off'),
         _InfoRow(
           'Profile fetch',
@@ -1438,6 +1453,69 @@ class _InlineMessage extends StatelessWidget {
                   .textTheme
                   .bodySmall
                   ?.copyWith(color: colors.foreground),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlatformTruthNotice extends StatelessWidget {
+  const _PlatformTruthNotice({required this.truth});
+
+  final PlatformReleaseTruth truth;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = truth.isPublicRuntime ? _Tone.success : _Tone.warning;
+    final colors = _toneColors(tone);
+    return Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: colors.background,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            truth.isPublicRuntime
+                ? Icons.verified_user_rounded
+                : Icons.devices_other_rounded,
+            size: 18,
+            color: colors.foreground,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      truth.platformName,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: FreshTheme.graphite),
+                    ),
+                    _StatusChip(label: truth.runtimeStatus, tone: tone),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  truth.summary,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: colors.foreground),
+                ),
+              ],
             ),
           ),
         ],

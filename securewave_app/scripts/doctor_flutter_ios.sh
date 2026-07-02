@@ -210,6 +210,29 @@ else
   check_warn "Not macOS - signing identity and provisioning profile checks skipped"
 fi
 
+# ---- 8. Xcode build destinations ----
+echo ""
+echo "8. Checking Xcode build destinations..."
+if [[ "$(uname)" == "Darwin" ]]; then
+  if command -v xcodebuild &> /dev/null && [[ -d "$IOS_DIR/Runner.xcworkspace" ]]; then
+    DESTINATIONS_OUTPUT="$(xcodebuild -workspace "$IOS_DIR/Runner.xcworkspace" -scheme Runner -showdestinations 2>&1 || true)"
+    if echo "$DESTINATIONS_OUTPUT" | grep -q "Available destinations"; then
+      check_pass "Runner scheme has at least one eligible iOS destination"
+    else
+      check_fail "Runner scheme has no eligible iOS destinations"
+      DETAIL="$(echo "$DESTINATIONS_OUTPUT" | grep -m 1 "error:" || true)"
+      if [[ -n "$DETAIL" ]]; then
+        echo "  Xcode detail: $DETAIL"
+      fi
+      echo "  Fix: install the missing iOS platform/runtime in Xcode > Settings > Components, then rerun this doctor."
+    fi
+  else
+    check_warn "Xcode destination check skipped"
+  fi
+else
+  check_warn "Not macOS - Xcode destination checks skipped"
+fi
+
 # ---- Summary ----
 echo ""
 echo "===================================="

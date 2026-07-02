@@ -36,16 +36,55 @@ DESTDIR="${CONFIGURATION_BUILD_DIR:-${WG_GO_DIR}/out}"
 
 if [[ -f "${DESTDIR}/libwg-go.a" ]]; then
   echo "OK: libwg-go.a already present: ${DESTDIR}/libwg-go.a"
-  exit 0
+else
+  echo "Building libwg-go.a into: ${DESTDIR}"
+  make -C "${WG_GO_DIR}" build DESTDIR="${DESTDIR}"
 fi
-
-echo "Building libwg-go.a into: ${DESTDIR}"
-make -C "${WG_GO_DIR}" build DESTDIR="${DESTDIR}"
 
 if [[ ! -f "${DESTDIR}/libwg-go.a" ]]; then
   echo "ERROR: WireGuardKitGo build did not produce libwg-go.a at:"
   echo "  ${DESTDIR}/libwg-go.a"
   exit 1
+fi
+
+if [[ "${PLATFORM_NAME:-}" == "iphonesimulator" ]] && /usr/bin/nm -u "${DESTDIR}/libwg-go.a" 2>/dev/null | grep -Eq "_darwin_arm_init_(mach_exception_handler|thread_exception_port)"; then
+  ARCH="${CURRENT_ARCH:-}"
+  if [[ -z "${ARCH}" || "${ARCH}" == "undefined_arch" ]]; then
+    ARCH="$(echo "${ARCHS:-arm64}" | awk '{print $1}')"
+  fi
+
+  STUB_C="${DESTDIR}/wg_go_simulator_cgo_stubs.c"
+  STUB_O="${DESTDIR}/wg_go_simulator_cgo_stubs_${ARCH}.o"
+
+  cat > "${STUB_C}" <<'EOF'
+#include <TargetConditionals.h>
+
+#if TARGET_OS_SIMULATOR
+void darwin_arm_init_mach_exception_handler(void) {}
+void darwin_arm_init_thread_exception_port(void) {}
+#endif
+EOF
+
+  xcrun --sdk iphonesimulator clang \
+    -target "${ARCH}-apple-ios${IPHONEOS_DEPLOYMENT_TARGET:-14.0}-simulator" \
+    -c "${STUB_C}" \
+    -o "${STUB_O}"
+
+  if /usr/bin/lipo -info "${DESTDIR}/libwg-go.a" 2>/dev/null | grep -q "Architectures in the fat file"; then
+    THIN_LIB="${DESTDIR}/libwg-go-${ARCH}.a"
+    THIN_OBJECTS_DIR="$(mktemp -d "${DESTDIR}/wg-go-thin-objects.XXXXXX")"
+    /usr/bin/lipo "${DESTDIR}/libwg-go.a" -thin "${ARCH}" -output "${THIN_LIB}"
+    (cd "${THIN_OBJECTS_DIR}" && /usr/bin/ar -x "${THIN_LIB}")
+    /usr/bin/libtool -static -o "${THIN_LIB}" "${THIN_OBJECTS_DIR}"/*.o "${STUB_O}"
+    cp "${THIN_LIB}" "${DESTDIR}/libwg-go.a"
+    rm -rf "${THIN_OBJECTS_DIR}"
+  else
+    THIN_OBJECTS_DIR="$(mktemp -d "${DESTDIR}/wg-go-thin-objects.XXXXXX")"
+    (cd "${THIN_OBJECTS_DIR}" && /usr/bin/ar -x "${DESTDIR}/libwg-go.a")
+    /usr/bin/libtool -static -o "${DESTDIR}/libwg-go.a" "${THIN_OBJECTS_DIR}"/*.o "${STUB_O}"
+    rm -rf "${THIN_OBJECTS_DIR}"
+  fi
+  echo "OK: Added simulator-only cgo stubs to libwg-go.a"
 fi
 
 echo "OK: Built ${DESTDIR}/libwg-go.a"
