@@ -25,6 +25,10 @@ WARNINGS=0
 check_pass() { echo -e "${GREEN}+${NC} $1"; }
 check_fail() { echo -e "${RED}x${NC} $1"; ERRORS=$((ERRORS + 1)); }
 check_warn() { echo -e "${YELLOW}!${NC} $1"; WARNINGS=$((WARNINGS + 1)); }
+first_line() {
+  local value="$1"
+  printf '%s\n' "${value%%$'\n'*}"
+}
 require_release_signing() {
   case "${SECUREWAVE_IOS_RELEASE_SIGNING:-false}" in
     1|true|TRUE|yes|YES) return 0 ;;
@@ -57,8 +61,13 @@ profile_matches_bundle() {
 echo "1. Checking Xcode..."
 if [[ "$(uname)" == "Darwin" ]]; then
   if command -v xcodebuild &> /dev/null; then
-    XCODE_VERSION=$(xcodebuild -version | head -n 1)
-    check_pass "Xcode found: $XCODE_VERSION"
+    XCODE_VERSION_OUTPUT="$(xcodebuild -version 2>/dev/null || true)"
+    XCODE_VERSION="$(first_line "$XCODE_VERSION_OUTPUT")"
+    if [[ -n "$XCODE_VERSION" ]]; then
+      check_pass "Xcode found: $XCODE_VERSION"
+    else
+      check_fail "Xcode found but version could not be read"
+    fi
     if xcode-select -p &> /dev/null; then
       check_pass "Command Line Tools: $(xcode-select -p)"
     else
@@ -75,8 +84,13 @@ fi
 echo ""
 echo "2. Checking Flutter..."
 if command -v flutter &> /dev/null; then
-  FLUTTER_VERSION=$(flutter --version 2>/dev/null | head -n 1)
-  check_pass "Flutter found: $FLUTTER_VERSION"
+  FLUTTER_VERSION_OUTPUT="$(flutter --version 2>/dev/null || true)"
+  FLUTTER_VERSION="$(first_line "$FLUTTER_VERSION_OUTPUT")"
+  if [[ -n "$FLUTTER_VERSION" ]]; then
+    check_pass "Flutter found: $FLUTTER_VERSION"
+  else
+    check_fail "Flutter found but version could not be read"
+  fi
 else
   check_fail "Flutter not found. Install from https://flutter.dev"
 fi

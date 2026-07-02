@@ -68,6 +68,8 @@ def test_apple_review_page_and_handoff_docs_are_public():
     assert "apple-artifacts/ios-unsigned/securewave-ios-unsigned.zip" in apple_workflow
     assert "SECUREWAVE_IOS_RELEASE_SIGNING" in ios_doctor
     assert "Apple Distribution signing identity available" in ios_doctor
+    assert "first_line()" in ios_doctor
+    assert "| head -n 1" not in ios_doctor
     assert "com.securewave.vpn.PacketTunnel" in ios_doctor
     assert "SECUREWAVE_IOS_RELEASE_SIGNING=1" in apple_release
 

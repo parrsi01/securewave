@@ -52,7 +52,7 @@ This project demonstrates work across:
 - **Cloud provider:** Hetzner Cloud only
 - **Default topology:** single-server deployment with explicit guardrails against accidental scaling
 - **Live API default:** the Flutter app defaults to `https://api.securewaveapp.com/api`; mock API mode is opt-in only
-- **Branch model:** `master` carries backend, docs, infrastructure, and release truth; `flutter` mirrors the current Flutter app design branch
+- **Branch model:** `master` is the hub for backend, docs, infrastructure, and release truth; `Linux`, `Windows`, and `Mac` carry OS-specific app work
 - **Provisioning:** Terraform in `infrastructure/hetzner/`
 - **Host hardening:** `scripts/hetzner_bootstrap.sh`
 - **Operations docs:** `docs/HETZNER_RUNBOOK.md`, `ARCHITECTURE.md`, `SETUP_GUIDE.md`
