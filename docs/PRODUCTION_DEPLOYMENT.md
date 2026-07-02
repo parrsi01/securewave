@@ -13,9 +13,10 @@ ghcr.io/parrsi01/securewave:<tag>
 ghcr.io/parrsi01/securewave:sha-<commit>
 ```
 
-Use the deploy script only after the Hetzner host has been provisioned,
-hardened, and configured with a production `docker-compose.yml` that consumes
-`SECUREWAVE_IMAGE`.
+Use the deploy script only after the Hetzner host has been provisioned and
+hardened. The script uploads `deploy/hetzner/compose.yaml` to the remote app
+directory as `compose.yaml`; the host must already have a private `.env` file
+with production secrets.
 
 ```bash
 export SECUREWAVE_PRODUCTION_HOST="<host-or-ip>"
