@@ -5,6 +5,7 @@ import '../models/server_region.dart';
 import '../models/user_account.dart';
 import '../models/user_plan.dart';
 import '../config/app_config.dart';
+import '../services/linux_runtime_setup.dart';
 import '../services/vpn_service.dart';
 import '../../services/api_client.dart';
 
@@ -23,6 +24,10 @@ final deviceInfoProvider = Provider<String>((ref) {
   final osName = platform.operatingSystem.name;
   final device = platform.version.isNotEmpty ? platform.version : osName;
   return '$osName • $device';
+});
+
+final linuxRuntimeSetupProvider = Provider<LinuxRuntimeSetupService>((ref) {
+  return LinuxRuntimeSetupService();
 });
 
 final serversProvider = FutureProvider<List<ServerRegion>>((ref) async {

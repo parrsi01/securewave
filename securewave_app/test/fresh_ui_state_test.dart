@@ -1,7 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/app.dart';
@@ -11,6 +11,7 @@ import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/linux_runtime_setup.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
@@ -95,7 +96,7 @@ void main() {
       serversOverride: serversProvider.overrideWith((ref) async => const []),
     );
 
-    await tester.tap(find.text('Servers').last);
+    await tester.tap(find.byIcon(Icons.public_rounded).last);
     await tester.pumpAndSettle();
 
     expect(find.text('No regions available'), findsOneWidget);
@@ -111,7 +112,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Servers').last);
+    await tester.tap(find.byIcon(Icons.public_rounded).last);
     await tester.pumpAndSettle();
 
     expect(find.text('Regions unavailable'), findsOneWidget);
@@ -131,7 +132,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Account').last);
+    await tester.tap(find.byIcon(Icons.person_rounded).last);
     await tester.pumpAndSettle();
 
     expect(find.text('Usage'), findsWidgets);
@@ -154,7 +155,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Account').last);
+    await tester.tap(find.byIcon(Icons.person_rounded).last);
     await tester.pumpAndSettle();
 
     expect(find.text('Premium'), findsWidgets);
@@ -172,7 +173,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Account').last);
+    await tester.tap(find.byIcon(Icons.person_rounded).last);
     await tester.pump();
 
     expect(find.text('Loading usage'), findsOneWidget);
@@ -188,7 +189,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Account').last);
+    await tester.tap(find.byIcon(Icons.person_rounded).last);
     await tester.pumpAndSettle();
 
     expect(find.text('Usage could not be loaded.'), findsOneWidget);
@@ -244,6 +245,58 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('connect screen surfaces helper install action when missing',
+      (tester) async {
+    await _pumpApp(
+      tester,
+      extraOverrides: [
+        linuxRuntimeInstallStateProvider.overrideWith(
+          (ref) async => const LinuxRuntimeInstallState(
+            installed: false,
+            payloadAvailable: true,
+            installedContract: 0,
+            requiredContract: 7,
+            message: 'SecureWave VPN helper is bundled but not installed.',
+          ),
+        ),
+      ],
+    );
+
+    expect(
+      find.text('SecureWave VPN helper is bundled but not installed.'),
+      findsOneWidget,
+    );
+    expect(find.text('Install VPN helper'), findsOneWidget);
+  });
+
+  testWidgets('settings shows runtime helper install action when missing',
+      (tester) async {
+    await _pumpApp(
+      tester,
+      extraOverrides: [
+        linuxRuntimeInstallStateProvider.overrideWith(
+          (ref) async => const LinuxRuntimeInstallState(
+            installed: false,
+            payloadAvailable: true,
+            installedContract: 0,
+            requiredContract: 7,
+            message: 'SecureWave VPN helper is bundled but not installed.',
+          ),
+        ),
+      ],
+    );
+
+    await tester.tap(find.byIcon(Icons.tune_rounded).last);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('SecureWave VPN helper is bundled but not installed.'),
+      findsOneWidget,
+    );
+    expect(find.text('Install VPN helper'), findsOneWidget);
+    expect(find.text('Refresh runtime status'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpApp(
@@ -252,6 +305,7 @@ Future<void> _pumpApp(
   Override? planOverride,
   Override? vpnOverride,
   Override? runtimeStatusOverride,
+  List<Override> extraOverrides = const [],
   bool simulateTunnel = false,
   bool settle = true,
 }) async {
@@ -305,6 +359,7 @@ Future<void> _pumpApp(
             ),
         if (vpnOverride != null) vpnOverride,
         if (runtimeStatusOverride != null) runtimeStatusOverride,
+        ...extraOverrides,
       ],
       child: const SecureWaveApp(),
     ),

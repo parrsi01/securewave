@@ -14,6 +14,7 @@ import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
 import 'core/release/platform_release_truth.dart';
 import 'core/services/auth_session.dart';
+import 'core/services/linux_runtime_setup.dart';
 import 'core/services/secure_storage.dart';
 import 'core/services/vpn_service.dart';
 import 'core/state/app_state.dart';
@@ -28,6 +29,11 @@ typedef FreshTheme = AppUIv1;
 
 final nativeRuntimeStatusProvider = FutureProvider<VpnRuntimeStatus>((ref) {
   return ref.read(vpnServiceProvider).refreshRuntimeStatus();
+});
+
+final linuxRuntimeInstallStateProvider =
+    FutureProvider<LinuxRuntimeInstallState>((ref) {
+  return ref.read(linuxRuntimeSetupProvider).getInstallState();
 });
 
 class SecureWaveApp extends ConsumerStatefulWidget {
@@ -72,6 +78,7 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
       );
       ref.read(appConfigProvider.notifier).state = config;
       ref.invalidate(nativeRuntimeStatusProvider);
+      ref.invalidate(linuxRuntimeInstallStateProvider);
       ref.read(vpnStateProvider.notifier).resumeRateUpdates();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
@@ -166,7 +173,13 @@ class _AppBarTitle extends StatelessWidget {
       children: [
         const _BrandMark(size: 28),
         const SizedBox(width: 10),
-        Text(title),
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
@@ -442,17 +455,54 @@ class _MainShellState extends ConsumerState<_MainShell> {
       body: _PageFrame(child: child),
       bottomNavigationBar: wide
           ? null
-          : NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (next) => setState(() => _index = next),
-              destinations: [
-                for (final tab in _tabs)
-                  NavigationDestination(
-                    icon: Icon(tab.icon),
-                    label: tab.label,
-                  ),
-              ],
+          : _BottomTabs(
+              tabs: _tabs,
+              index: _index,
+              onChanged: (next) => setState(() => _index = next),
             ),
+    );
+  }
+}
+
+class _BottomTabs extends StatelessWidget {
+  const _BottomTabs({
+    required this.tabs,
+    required this.index,
+    required this.onChanged,
+  });
+
+  final List<_ShellTab> tabs;
+  final int index;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: FreshTheme.surface,
+          border: Border(top: BorderSide(color: FreshTheme.line)),
+        ),
+        child: SizedBox(
+          height: 58,
+          child: Row(
+            children: [
+              for (var i = 0; i < tabs.length; i++)
+                Expanded(
+                  child: IconButton(
+                    tooltip: tabs[i].label,
+                    isSelected: i == index,
+                    onPressed: () => onChanged(i),
+                    color: FreshTheme.graphiteMuted,
+                    selectedIcon: Icon(tabs[i].icon, color: FreshTheme.primary),
+                    icon: Icon(tabs[i].icon),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -586,6 +636,11 @@ class _ConnectScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 10),
               _PlatformTruthNotice(truth: releaseTruth),
+              const _RuntimeSetupPanel(
+                hideWhenInstalled: true,
+                showLoading: false,
+                topSpacing: 10,
+              ),
               nativeRuntime.maybeWhen(
                 data: (runtime) {
                   if (runtime.status != VpnStatus.connected) {
@@ -842,6 +897,8 @@ class _SettingsScreen extends ConsumerWidget {
               _ValueRow('Protocol', vpnProtocolLabel(vpn.protocol)),
               _ValueRow('Release scope', releaseTruth.releaseLabel),
               _ValueRow('Runtime status', releaseTruth.runtimeStatus),
+              const SizedBox(height: 8),
+              const _RuntimeSetupPanel(),
             ],
           ),
         ),
@@ -1138,7 +1195,12 @@ class _FactColumn extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(item.label, style: Theme.of(context).textTheme.bodySmall),
+        Text(
+          item.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
         const SizedBox(height: 3),
         Text(
           item.value,
@@ -1165,7 +1227,12 @@ class _FactLine extends StatelessWidget {
       children: [
         SizedBox(
           width: 80,
-          child: Text(item.label, style: Theme.of(context).textTheme.bodySmall),
+          child: Text(
+            item.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ),
         Expanded(
           child: Text(
@@ -1627,10 +1694,19 @@ class _SelectableRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ),
@@ -1668,24 +1744,57 @@ class _ValueRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 104,
-            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: FreshTheme.graphite,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final labelStyle = Theme.of(context).textTheme.bodySmall;
+          final valueStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: FreshTheme.graphite,
+                fontWeight: FontWeight.w600,
+              );
+          if (constraints.maxWidth < 360) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: labelStyle,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: valueStyle,
+                ),
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 104,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: labelStyle,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: valueStyle,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1697,52 +1806,187 @@ class _ActionRow extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.filled = false,
+    this.enabled = true,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool filled;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: filled ? FreshTheme.primary : FreshTheme.surfaceMuted,
-          border: Border.all(
-            color: filled ? FreshTheme.primary : FreshTheme.line,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.56,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: filled ? FreshTheme.primary : FreshTheme.surfaceMuted,
+            border: Border.all(
+              color: filled ? FreshTheme.primary : FreshTheme.line,
+            ),
+            borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
           ),
-          borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 19,
-              color: filled ? Colors.white : FreshTheme.graphiteMuted,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: filled ? Colors.white : FreshTheme.graphite,
-                      fontWeight: FontWeight.w700,
-                    ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 19,
+                color: filled ? Colors.white : FreshTheme.graphiteMuted,
               ),
-            ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: filled ? Colors.white : FreshTheme.graphiteMuted,
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: filled ? Colors.white : FreshTheme.graphite,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: filled ? Colors.white : FreshTheme.graphiteMuted,
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+class _RuntimeSetupPanel extends ConsumerStatefulWidget {
+  const _RuntimeSetupPanel({
+    this.hideWhenInstalled = false,
+    this.showLoading = true,
+    this.topSpacing = 0,
+  });
+
+  final bool hideWhenInstalled;
+  final bool showLoading;
+  final double topSpacing;
+
+  @override
+  ConsumerState<_RuntimeSetupPanel> createState() => _RuntimeSetupPanelState();
+}
+
+class _RuntimeSetupPanelState extends ConsumerState<_RuntimeSetupPanel> {
+  bool _installing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final setup = ref.watch(linuxRuntimeInstallStateProvider);
+    return setup.when(
+      data: (state) {
+        if (widget.hideWhenInstalled && !state.supported) {
+          return const SizedBox.shrink();
+        }
+        if (widget.hideWhenInstalled && state.installed) {
+          return const SizedBox.shrink();
+        }
+        final tone = state.installed
+            ? _Tone.success
+            : state.payloadAvailable
+                ? _Tone.warning
+                : _Tone.error;
+        final content = Column(
+          children: [
+            _InlineMessage(
+              icon: state.installed
+                  ? Icons.verified_rounded
+                  : Icons.admin_panel_settings_outlined,
+              message: state.message,
+              tone: tone,
+            ),
+            const SizedBox(height: 8),
+            _ValueRow(
+              'Helper contract',
+              state.installedContract <= 0
+                  ? 'Not installed'
+                  : '${state.installedContract}/${state.requiredContract}',
+            ),
+            if (state.canInstall) ...[
+              const SizedBox(height: 8),
+              _ActionRow(
+                icon: Icons.system_update_alt_rounded,
+                label: _installing
+                    ? 'Installing VPN helper'
+                    : 'Install VPN helper',
+                enabled: !_installing,
+                filled: true,
+                onTap: _installHelper,
+              ),
+            ],
+            const SizedBox(height: 8),
+            _ActionRow(
+              icon: Icons.refresh_rounded,
+              label: 'Refresh runtime status',
+              enabled: !_installing,
+              onTap: () {
+                ref.invalidate(linuxRuntimeInstallStateProvider);
+                ref.invalidate(nativeRuntimeStatusProvider);
+              },
+            ),
+          ],
+        );
+        if (widget.topSpacing <= 0) return content;
+        return Padding(
+          padding: EdgeInsets.only(top: widget.topSpacing),
+          child: content,
+        );
+      },
+      loading: () {
+        if (!widget.showLoading) return const SizedBox.shrink();
+        const content = _LoadingLine('Checking runtime setup');
+        if (widget.topSpacing <= 0) return content;
+        return Padding(
+          padding: EdgeInsets.only(top: widget.topSpacing),
+          child: content,
+        );
+      },
+      error: (error, _) => _InlineMessage(
+        icon: Icons.warning_amber_rounded,
+        message: ApiError.messageFrom(
+          error,
+          fallback: 'Runtime setup could not be checked.',
+        ),
+        tone: _Tone.warning,
+      ),
+    );
+  }
+
+  Future<void> _installHelper() async {
+    setState(() => _installing = true);
+    try {
+      await ref.read(linuxRuntimeSetupProvider).installHelper();
+      if (!mounted) return;
+      ref.invalidate(linuxRuntimeInstallStateProvider);
+      ref.invalidate(nativeRuntimeStatusProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SecureWave VPN helper installed.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ApiError.messageFrom(
+              error,
+              fallback: 'SecureWave VPN helper installation failed.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _installing = false);
+    }
   }
 }
 
@@ -1764,6 +2008,8 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: colors.foreground,
           fontSize: 12,
@@ -1968,7 +2214,14 @@ class _LoadingLine extends StatelessWidget {
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
         const SizedBox(width: 10),
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
       ],
     );
   }

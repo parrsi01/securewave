@@ -178,6 +178,8 @@ def test_linux_tarball_and_installer_ship_privileged_helper():
     assert "apt-get install -y" in helper_installer
     assert "wireguard-tools" in helper_installer
     assert "network-manager-strongswan" in helper_installer
+    assert "PKEXEC_UID" in helper_installer
+    assert 'getent passwd "$PKEXEC_UID"' in helper_installer
     assert 'install -m 0755 "$SOURCE_HELPER" "$HELPER"' in helper_installer
     assert 'install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"' in helper_installer
     assert 'sed "s/__SECUREWAVE_ALLOWED_USER__/${escaped_user}/g"' in helper_installer
@@ -234,3 +236,16 @@ def test_linux_runner_reports_missing_helper_before_protocol_start():
     assert "PolicyKit/pkexec not found" in source
     assert "SecureWave Linux VPN runtime is unavailable." in source
     assert 'g_strcmp0(method, "isAvailable") == 0' in source
+
+
+def test_linux_runner_exposes_first_run_helper_installation():
+    source = _runner_source()
+
+    assert "bundled_runtime_payload_available" in source
+    assert "kHelperInstallerRelativePath" in source
+    assert "kBundledHelperRelativePath" in source
+    assert "respond_runtime_install_state" in source
+    assert "install_runtime_helper_async" in source
+    assert 'g_strcmp0(method, "getRuntimeInstallState") == 0' in source
+    assert 'g_strcmp0(method, "installRuntimeHelper") == 0' in source
+    assert "g_find_program_in_path(\"pkexec\")" in source

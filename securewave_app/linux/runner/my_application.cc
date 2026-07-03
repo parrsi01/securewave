@@ -35,6 +35,10 @@ const char* kIkev2ConfigFileName = "securewave-ikev2.conf";
 const char* kIkev2CaFileName = "securewave-ikev2-ca.pem";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
 const char* kActiveProtocolFileName = "securewave-active-protocol";
+const char* kHelperInstallerRelativePath = "scripts/install_linux_helper.sh";
+const char* kBundledHelperRelativePath = "packaging/linux/securewave-wg-quick";
+const char* kBundledHelperContractRelativePath = "packaging/linux/securewave-wg-quick.contract";
+const char* kBundledPolkitRuleRelativePath = "packaging/linux/50-securewave-wg.rules";
 const guint kSecureWaveHelperContractVersion = 7;
 const guint kWgQuickTimeoutMs = 30000;
 const guint kOpenVpnTimeoutMs = 20000;
@@ -79,6 +83,56 @@ static gboolean wg_quick_available() {
 
 static gboolean wireguard_helper_available() {
   return g_file_test(kWireGuardHelperPath, G_FILE_TEST_IS_EXECUTABLE);
+}
+
+static gchar* executable_bundle_root() {
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* executable = g_file_read_link("/proc/self/exe", &error);
+  if (executable == nullptr || *executable == '\0') {
+    return nullptr;
+  }
+  return g_path_get_dirname(executable);
+}
+
+static gchar* bundled_runtime_path(const gchar* relative_path) {
+  g_autofree gchar* root = executable_bundle_root();
+  if (root == nullptr) {
+    return nullptr;
+  }
+  return g_build_filename(root, relative_path, nullptr);
+}
+
+static gboolean bundled_runtime_payload_available(gchar** detail) {
+  g_autofree gchar* installer = bundled_runtime_path(kHelperInstallerRelativePath);
+  g_autofree gchar* helper = bundled_runtime_path(kBundledHelperRelativePath);
+  g_autofree gchar* contract = bundled_runtime_path(kBundledHelperContractRelativePath);
+  g_autofree gchar* polkit_rule = bundled_runtime_path(kBundledPolkitRuleRelativePath);
+
+  if (installer == nullptr || !g_file_test(installer, G_FILE_TEST_IS_EXECUTABLE)) {
+    if (detail != nullptr) {
+      *detail = g_strdup("Bundled SecureWave helper installer is missing from this Flutter build.");
+    }
+    return FALSE;
+  }
+  if (helper == nullptr || !g_file_test(helper, G_FILE_TEST_IS_EXECUTABLE)) {
+    if (detail != nullptr) {
+      *detail = g_strdup("Bundled SecureWave VPN helper is missing from this Flutter build.");
+    }
+    return FALSE;
+  }
+  if (contract == nullptr || !g_file_test(contract, G_FILE_TEST_IS_REGULAR)) {
+    if (detail != nullptr) {
+      *detail = g_strdup("Bundled SecureWave helper contract is missing from this Flutter build.");
+    }
+    return FALSE;
+  }
+  if (polkit_rule == nullptr || !g_file_test(polkit_rule, G_FILE_TEST_IS_REGULAR)) {
+    if (detail != nullptr) {
+      *detail = g_strdup("Bundled SecureWave PolicyKit rule is missing from this Flutter build.");
+    }
+    return FALSE;
+  }
+  return TRUE;
 }
 
 static guint securewave_helper_contract_version() {
@@ -217,6 +271,201 @@ static void respond_success(FlMethodCall* method_call) {
   g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
       fl_method_success_response_new(nullptr));
   fl_method_call_respond(method_call, response, nullptr);
+}
+
+static gchar* command_failure_message(
+    const gchar* fallback,
+    const gchar* stdout_text,
+    const gchar* stderr_text);
+
+static void respond_runtime_install_state(FlMethodCall* method_call) {
+  g_autofree gchar* payload_detail = nullptr;
+  const gboolean payload_available = bundled_runtime_payload_available(&payload_detail);
+  const guint contract_version = securewave_helper_contract_version();
+  const gboolean helper_installed = wireguard_helper_available();
+  const gboolean installed =
+      helper_installed && contract_version >= kSecureWaveHelperContractVersion;
+  g_autofree gchar* message = nullptr;
+
+  if (installed) {
+    message = g_strdup("SecureWave VPN helper is installed.");
+  } else if (!payload_available) {
+    message = g_strdup(payload_detail != nullptr
+                           ? payload_detail
+                           : "SecureWave runtime payload is missing from this build.");
+  } else if (!helper_installed) {
+    message = g_strdup("SecureWave VPN helper is bundled but not installed.");
+  } else {
+    message = g_strdup_printf(
+        "SecureWave VPN helper is out of date (contract %u, need %u).",
+        contract_version,
+        kSecureWaveHelperContractVersion);
+  }
+
+  g_autoptr(FlValue) response = fl_value_new_map();
+  fl_value_set_string_take(response, "installed", fl_value_new_bool(installed));
+  fl_value_set_string_take(
+      response,
+      "payload_available",
+      fl_value_new_bool(payload_available));
+  fl_value_set_string_take(
+      response,
+      "installed_contract",
+      fl_value_new_int(static_cast<int64_t>(contract_version)));
+  fl_value_set_string_take(
+      response,
+      "required_contract",
+      fl_value_new_int(static_cast<int64_t>(kSecureWaveHelperContractVersion)));
+  fl_value_set_string_take(response, "message", fl_value_new_string(message));
+  g_autoptr(FlMethodResponse) method_response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(response));
+  fl_method_call_respond(method_call, method_response, nullptr);
+}
+
+typedef struct {
+  FlMethodCall* method_call;
+  gchar* installer_path;
+  gchar* source_dir;
+} RuntimeInstallContext;
+
+static void runtime_install_context_free(RuntimeInstallContext* ctx) {
+  if (ctx == nullptr) {
+    return;
+  }
+  g_clear_object(&ctx->method_call);
+  g_clear_pointer(&ctx->installer_path, g_free);
+  g_clear_pointer(&ctx->source_dir, g_free);
+  g_free(ctx);
+}
+
+static void runtime_install_worker(GTask* task,
+                                   gpointer source_object,
+                                   gpointer task_data,
+                                   GCancellable* cancellable) {
+  (void)source_object;
+  (void)cancellable;
+  RuntimeInstallContext* ctx = static_cast<RuntimeInstallContext*>(task_data);
+  g_autofree gchar* payload_detail = nullptr;
+  if (!bundled_runtime_payload_available(&payload_detail)) {
+    g_task_return_new_error(
+        task,
+        G_IO_ERROR,
+        G_IO_ERROR_NOT_FOUND,
+        "%s",
+        payload_detail ? payload_detail : "SecureWave runtime payload is missing.");
+    return;
+  }
+
+  g_autofree gchar* pkexec = nullptr;
+  GPtrArray* argv_array = g_ptr_array_new_with_free_func(g_free);
+  if (geteuid() != 0) {
+    pkexec = g_find_program_in_path("pkexec");
+    if (pkexec == nullptr) {
+      g_ptr_array_free(argv_array, TRUE);
+      g_task_return_new_error(
+          task,
+          G_IO_ERROR,
+          G_IO_ERROR_NOT_FOUND,
+          "PolicyKit/pkexec not found. Install PolicyKit or run the SecureWave installer with sudo.");
+      return;
+    }
+    g_ptr_array_add(argv_array, g_strdup(pkexec));
+  }
+  g_ptr_array_add(argv_array, g_strdup(ctx->installer_path));
+  g_ptr_array_add(argv_array, g_strdup(ctx->source_dir));
+  g_ptr_array_add(argv_array, nullptr);
+
+  gint wait_status = 0;
+  g_autoptr(GError) error = nullptr;
+  g_autofree gchar* stdout_text = nullptr;
+  g_autofree gchar* stderr_text = nullptr;
+  const gboolean spawned = g_spawn_sync(
+      nullptr,
+      reinterpret_cast<gchar**>(argv_array->pdata),
+      nullptr,
+      G_SPAWN_SEARCH_PATH,
+      nullptr,
+      nullptr,
+      &stdout_text,
+      &stderr_text,
+      &wait_status,
+      &error);
+  g_ptr_array_free(argv_array, TRUE);
+
+  if (!spawned) {
+    g_task_return_new_error(
+        task,
+        G_IO_ERROR,
+        G_IO_ERROR_FAILED,
+        "%s",
+        error ? error->message : "Failed to run SecureWave helper installer.");
+    return;
+  }
+  if (!g_spawn_check_wait_status(wait_status, nullptr)) {
+    g_autofree gchar* message = command_failure_message(
+        "SecureWave helper installer failed.",
+        stdout_text,
+        stderr_text);
+    g_task_return_new_error(
+        task,
+        G_IO_ERROR,
+        G_IO_ERROR_FAILED,
+        "%s",
+        message);
+    return;
+  }
+
+  g_autofree gchar* helper_detail = nullptr;
+  if (!securewave_helper_contract_available(&helper_detail)) {
+    g_task_return_new_error(
+        task,
+        G_IO_ERROR,
+        G_IO_ERROR_FAILED,
+        "%s",
+        helper_detail ? helper_detail : "SecureWave helper installation did not complete.");
+    return;
+  }
+
+  g_task_return_boolean(task, TRUE);
+}
+
+static void runtime_install_complete(GObject* source_object,
+                                     GAsyncResult* result,
+                                     gpointer user_data) {
+  (void)source_object;
+  RuntimeInstallContext* ctx = static_cast<RuntimeInstallContext*>(user_data);
+  g_autoptr(GError) error = nullptr;
+  const gboolean ok = g_task_propagate_boolean(G_TASK(result), &error);
+  if (ok) {
+    respond_success(ctx->method_call);
+  } else {
+    respond_error(
+        ctx->method_call,
+        "runtime_install_failed",
+        error ? error->message : "SecureWave runtime helper installation failed.",
+        nullptr);
+  }
+  runtime_install_context_free(ctx);
+}
+
+static void install_runtime_helper_async(FlMethodCall* method_call) {
+  g_autofree gchar* installer = bundled_runtime_path(kHelperInstallerRelativePath);
+  g_autofree gchar* source_dir = bundled_runtime_path("packaging/linux");
+  if (installer == nullptr || source_dir == nullptr) {
+    respond_error(
+        method_call,
+        "runtime_payload_missing",
+        "SecureWave runtime payload is missing from this Flutter build.",
+        nullptr);
+    return;
+  }
+  RuntimeInstallContext* ctx = g_new0(RuntimeInstallContext, 1);
+  ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
+  ctx->installer_path = g_strdup(installer);
+  ctx->source_dir = g_strdup(source_dir);
+  g_autoptr(GTask) task = g_task_new(nullptr, nullptr, runtime_install_complete, ctx);
+  g_task_set_task_data(task, ctx, nullptr);
+  g_task_run_in_thread(task, runtime_install_worker);
 }
 
 typedef struct {
@@ -1952,6 +2201,14 @@ static void handle_vpn_call(FlMethodChannel* channel,
       protocol = load_active_protocol(state);
     }
     respond_traffic_stats(method_call, protocol);
+    return;
+  }
+  if (g_strcmp0(method, "getRuntimeInstallState") == 0) {
+    respond_runtime_install_state(method_call);
+    return;
+  }
+  if (g_strcmp0(method, "installRuntimeHelper") == 0) {
+    install_runtime_helper_async(method_call);
     return;
   }
   if (g_strcmp0(method, "connect") == 0) {

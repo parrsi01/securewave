@@ -53,6 +53,9 @@ install_apt_dependencies() {
 
 render_polkit_rule() {
   local allow_user="${SECUREWAVE_ALLOWED_USER:-${SUDO_USER:-}}"
+  if [[ -z "$allow_user" && -n "${PKEXEC_UID:-}" ]]; then
+    allow_user="$(getent passwd "$PKEXEC_UID" 2>/dev/null | cut -d: -f1 || true)"
+  fi
   if [[ -z "$allow_user" ]]; then
     allow_user="$(logname 2>/dev/null || true)"
   fi
