@@ -28,7 +28,7 @@ shift
 is_safe_runtime_path() {
   local path="$1"
   case "$path" in
-    /home/*/.config/securewave/*|/root/.config/securewave/*) return 0 ;;
+    /home/*/.config/securewave/*|/root/.config/securewave/*|/run/securewave/*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -36,7 +36,7 @@ is_safe_runtime_path() {
 require_safe_config_path() {
   local path="$1"
   case "$path" in
-    /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf|/etc/wireguard/*.conf|/home/*/.config/securewave/*.ovpn|/root/.config/securewave/*.ovpn)
+    /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf|/run/securewave/*.conf|/etc/wireguard/*.conf|/home/*/.config/securewave/*.ovpn|/root/.config/securewave/*.ovpn|/run/securewave/*.ovpn)
       return 0
       ;;
     *)

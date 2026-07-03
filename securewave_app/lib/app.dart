@@ -737,7 +737,11 @@ class _ConnectScreen extends ConsumerWidget {
         const SizedBox(height: 12),
         _GroupedSection(
           title: 'Protocol',
-          child: _ProtocolPicker(selected: vpn.protocol),
+          child: _ProtocolPicker(
+            selected: vpn.protocol,
+            selectedServerId: vpn.selectedServerId,
+            servers: serverList,
+          ),
         ),
       ],
     );
@@ -1015,13 +1019,34 @@ class _DiagnosticsView extends ConsumerWidget {
 }
 
 class _ProtocolPicker extends ConsumerWidget {
-  const _ProtocolPicker({required this.selected});
+  const _ProtocolPicker({
+    required this.selected,
+    required this.selectedServerId,
+    required this.servers,
+  });
 
   final VpnProtocol selected;
+  final String? selectedServerId;
+  final List<ServerRegion> servers;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final vpnService = ref.watch(vpnServiceProvider);
+    final setup = ref.watch(linuxRuntimeInstallStateProvider);
+    final openVpnLocalAvailable = setup.maybeWhen(
+      data: (value) => value.installed && value.openVpnAvailable,
+      orElse: () => false,
+    );
+    final openVpnBackendAvailable =
+        _openVpnBackendAvailable(selectedServerId, servers);
+    final openVpnEnabled = vpnService.canConnectProtocol(VpnProtocol.openVpn) &&
+        openVpnLocalAvailable &&
+        openVpnBackendAvailable;
+    final openVpnDetail = !openVpnBackendAvailable
+        ? 'Unavailable for the selected region.'
+        : (!openVpnLocalAvailable
+            ? 'Install the .deb helper with OpenVPN runtime support.'
+            : 'Backend profile and local runtime are available.');
     return Column(
       children: [
         _ProtocolTile(
@@ -1036,8 +1061,8 @@ class _ProtocolPicker extends ConsumerWidget {
           protocol: VpnProtocol.openVpn,
           selected: selected == VpnProtocol.openVpn,
           title: 'OpenVPN',
-          detail: 'Requires a backend-issued OpenVPN profile.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.openVpn),
+          detail: openVpnDetail,
+          enabled: openVpnEnabled,
         ),
         const SizedBox(height: 8),
         _ProtocolTile(
@@ -1878,8 +1903,6 @@ class _RuntimeSetupPanel extends ConsumerStatefulWidget {
 }
 
 class _RuntimeSetupPanelState extends ConsumerState<_RuntimeSetupPanel> {
-  bool _installing = false;
-
   @override
   Widget build(BuildContext context) {
     final setup = ref.watch(linuxRuntimeInstallStateProvider);
@@ -1912,23 +1935,11 @@ class _RuntimeSetupPanelState extends ConsumerState<_RuntimeSetupPanel> {
                   ? 'Not installed'
                   : '${state.installedContract}/${state.requiredContract}',
             ),
-            if (state.canInstall) ...[
-              const SizedBox(height: 8),
-              _ActionRow(
-                icon: Icons.system_update_alt_rounded,
-                label: _installing
-                    ? 'Installing VPN helper'
-                    : 'Install VPN helper',
-                enabled: !_installing,
-                filled: true,
-                onTap: _installHelper,
-              ),
-            ],
             const SizedBox(height: 8),
             _ActionRow(
               icon: Icons.refresh_rounded,
               label: 'Refresh runtime status',
-              enabled: !_installing,
+              enabled: true,
               onTap: () {
                 ref.invalidate(linuxRuntimeInstallStateProvider);
                 ref.invalidate(nativeRuntimeStatusProvider);
@@ -1960,33 +1971,6 @@ class _RuntimeSetupPanelState extends ConsumerState<_RuntimeSetupPanel> {
         tone: _Tone.warning,
       ),
     );
-  }
-
-  Future<void> _installHelper() async {
-    setState(() => _installing = true);
-    try {
-      await ref.read(linuxRuntimeSetupProvider).installHelper();
-      if (!mounted) return;
-      ref.invalidate(linuxRuntimeInstallStateProvider);
-      ref.invalidate(nativeRuntimeStatusProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SecureWave VPN helper installed.')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            ApiError.messageFrom(
-              error,
-              fallback: 'SecureWave VPN helper installation failed.',
-            ),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _installing = false);
-    }
   }
 }
 
@@ -2359,6 +2343,21 @@ String _serverLabel(String? selectedServerId, List<ServerRegion> servers) {
     if (server.id == selectedServerId) return server.name;
   }
   return selectedServerId;
+}
+
+bool _openVpnBackendAvailable(
+  String? selectedServerId,
+  List<ServerRegion> servers,
+) {
+  if (selectedServerId != null) {
+    for (final server in servers) {
+      if (server.id == selectedServerId) {
+        return server.explicitlySupportsProtocol('openvpn');
+      }
+    }
+    return false;
+  }
+  return servers.any((server) => server.explicitlySupportsProtocol('openvpn'));
 }
 
 String _serverSubtitle(ServerRegion server) {

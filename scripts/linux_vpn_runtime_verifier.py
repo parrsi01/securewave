@@ -2,8 +2,8 @@
 """Verify local Linux VPN runtime prerequisites and residue state.
 
 This is intentionally read-only. It does not start tunnels. Use it before and
-after app-driven VPN attempts to prove the host has the expected runtime tools
-and no stale SecureWave tunnel/process residue.
+after app-driven VPN attempts to prove the host has the expected promptless
+SecureWave helper service and no stale SecureWave tunnel/process residue.
 """
 
 from __future__ import annotations
@@ -12,6 +12,8 @@ import argparse
 import json
 import os
 import shutil
+import socket
+import stat
 import subprocess  # nosec B404
 import sys
 from dataclasses import dataclass
@@ -24,13 +26,16 @@ RUNNER_PATH = REPO_ROOT / "securewave_app/linux/runner/my_application.cc"
 BUILD_PATH = REPO_ROOT / "securewave_app/build/linux/arm64/debug/bundle/securewave_app"
 BUILD_BUNDLE_DIR = BUILD_PATH.parent
 HELPER_PATH = Path("/usr/local/libexec/securewave-wg-quick")
+HELPERD_PATH = Path("/usr/local/libexec/securewave-helperd")
 HELPER_CONTRACT_PATH = Path("/usr/local/libexec/securewave-wg-quick.contract")
-POLKIT_RULE_SOURCE_PATH = REPO_ROOT / "securewave_app/packaging/linux/50-securewave-wg.rules"
-REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "pkexec")
+HELPER_SERVICE_PATH = Path("/etc/systemd/system/securewave-helper.service")
+HELPER_TMPFILES_PATH = Path("/usr/lib/tmpfiles.d/securewave-helper.conf")
+HELPER_ALLOWLIST_PATH = Path("/etc/securewave/helper-users")
+HELPER_SOCKET_PATH = Path("/run/securewave/helper.sock")
+REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "setfacl")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
-EXPECTED_SECUREWAVE_HELPER_CONTRACT = 8
-DEFAULT_PKEXEC_TIMEOUT_SECONDS = 60
+EXPECTED_SECUREWAVE_HELPER_CONTRACT = 9
 
 
 @dataclass(frozen=True)
@@ -54,6 +59,52 @@ def _run(argv: Iterable[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
+
+
+def _unescape(value: str) -> str:
+    out: list[str] = []
+    i = 0
+    while i < len(value):
+        if value[i] != "\\" or i + 1 >= len(value):
+            out.append(value[i])
+            i += 1
+            continue
+        i += 1
+        if value[i] == "n":
+            out.append("\n")
+        elif value[i] == "r":
+            out.append("\r")
+        else:
+            out.append(value[i])
+        i += 1
+    return "".join(out)
+
+
+def helper_request(fields: dict[str, str], timeout: float = 5.0) -> dict[str, str]:
+    request = {"version": "1", **fields}
+    body = "".join(f"{key}={_escape(value)}\n" for key, value in request.items())
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(timeout)
+        client.connect(str(HELPER_SOCKET_PATH))
+        client.sendall(body.encode("utf-8"))
+        client.shutdown(socket.SHUT_WR)
+        chunks: list[bytes] = []
+        while True:
+            chunk = client.recv(65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    response: dict[str, str] = {}
+    for raw_line in b"".join(chunks).decode("utf-8", errors="replace").splitlines():
+        if "=" not in raw_line:
+            continue
+        key, value = raw_line.split("=", 1)
+        response[key] = _unescape(value)
+    return response
+
+
 def check_tools() -> list[Check]:
     checks: list[Check] = []
     for tool in REQUIRED_TOOLS:
@@ -68,91 +119,23 @@ def check_tools() -> list[Check]:
     return checks
 
 
-def check_polkit_rule_source() -> list[Check]:
-    if not POLKIT_RULE_SOURCE_PATH.exists():
-        return [
-            Check(
-                "privilege:polkit_rule_source",
-                False,
-                f"{POLKIT_RULE_SOURCE_PATH} not found",
-            )
-        ]
-    source = POLKIT_RULE_SOURCE_PATH.read_text(encoding="utf-8")
-    expectations = {
-        "privilege:polkit_exec_action": 'action.id != "org.freedesktop.policykit.exec"',
-        "privilege:polkit_helper_path": str(HELPER_PATH),
-        "privilege:polkit_sudo_group": 'subject.isInGroup("sudo")',
-        "privilege:polkit_securewave_user": 'subject.user == "securewave"',
-        "privilege:polkit_install_user_template": "__SECUREWAVE_ALLOWED_USER__",
-        "privilege:polkit_wg_show_boundary": 'commandHasArg(commandLine, "show")',
-        "privilege:polkit_prompt_free": "polkit.Result.YES",
-    }
+def check_no_polkit_source() -> list[Check]:
+    old_rule = REPO_ROOT / "securewave_app/packaging/linux/50-securewave-wg.rules"
+    runner_source = RUNNER_PATH.read_text(encoding="utf-8") if RUNNER_PATH.exists() else ""
     return [
-        Check(name, token in source, "present" if token in source else f"missing {token!r}")
-        for name, token in expectations.items()
+        Check(
+            "privilege:no_packaged_polkit_rule",
+            not old_rule.exists(),
+            "old polkit rule is not packaged" if not old_rule.exists() else f"remove {old_rule}",
+        ),
+        Check(
+            "runner:no_connect_time_pkexec",
+            "pkexec" not in runner_source and "--disable-internal-agent" not in runner_source,
+            "runner has no pkexec call path"
+            if "pkexec" not in runner_source and "--disable-internal-agent" not in runner_source
+            else "runner still references pkexec",
+        ),
     ]
-
-
-def _pkexec_timeout(default: int = DEFAULT_PKEXEC_TIMEOUT_SECONDS) -> int:
-    raw = os.environ.get("SECUREWAVE_PKEXEC_TIMEOUT")
-    if raw is None:
-        return default
-    try:
-        return max(1, int(raw))
-    except ValueError:
-        return default
-
-
-def check_privilege_elevation(timeout_seconds: int | None = None) -> Check:
-    timeout_seconds = timeout_seconds or _pkexec_timeout()
-    pkexec_path = shutil.which("pkexec")
-    if pkexec_path is None:
-        return Check(
-            "privilege:securewave_helper_authorization",
-            False,
-            "pkexec not found in PATH",
-        )
-    if not HELPER_PATH.exists():
-        return Check(
-            "privilege:securewave_helper_authorization",
-            False,
-            f"{HELPER_PATH} not installed",
-        )
-    if hasattr(os, "geteuid") and os.geteuid() == 0:
-        return Check(
-            "privilege:securewave_helper_authorization",
-            True,
-            "running as root; pkexec not required",
-        )
-    try:
-        completed = subprocess.run(  # nosec B603
-            [
-                pkexec_path,
-                "--disable-internal-agent",
-                str(HELPER_PATH),
-                "probe",
-                "wireguard",
-            ],
-            check=False,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired:
-        return Check(
-            "privilege:securewave_helper_authorization",
-            False,
-            f"pkexec authorization timed out after {timeout_seconds}s; install /etc/polkit-1/rules.d/50-securewave-wg.rules or start a PolicyKit authentication agent",
-        )
-    return Check(
-        "privilege:securewave_helper_authorization",
-        completed.returncode == 0,
-        "prompt-free SecureWave helper authorization works"
-        if completed.returncode == 0
-        else completed.stderr.strip()
-        or f"pkexec exited {completed.returncode}; install /etc/polkit-1/rules.d/50-securewave-wg.rules",
-    )
 
 
 def check_installed_helper_contract() -> Check:
@@ -179,24 +162,151 @@ def check_installed_helper_contract() -> Check:
     )
 
 
+def path_exists(path: Path) -> tuple[bool, str | None]:
+    try:
+        return path.exists(), None
+    except PermissionError as exc:
+        return False, str(exc)
+
+
+def check_helper_service_install() -> list[Check]:
+    allowlist_exists, allowlist_error = path_exists(HELPER_ALLOWLIST_PATH)
+    checks = [
+        Check(
+            "privilege:helper_script_installed",
+            HELPER_PATH.exists() and os.access(HELPER_PATH, os.X_OK),
+            str(HELPER_PATH) if HELPER_PATH.exists() else f"{HELPER_PATH} not installed",
+        ),
+        Check(
+            "privilege:helperd_installed",
+            HELPERD_PATH.exists() and os.access(HELPERD_PATH, os.X_OK),
+            str(HELPERD_PATH) if HELPERD_PATH.exists() else f"{HELPERD_PATH} not installed",
+        ),
+        Check(
+            "privilege:helper_service_unit",
+            HELPER_SERVICE_PATH.exists(),
+            str(HELPER_SERVICE_PATH) if HELPER_SERVICE_PATH.exists() else f"{HELPER_SERVICE_PATH} not installed",
+        ),
+        Check(
+            "privilege:helper_tmpfiles_config",
+            HELPER_TMPFILES_PATH.exists(),
+            str(HELPER_TMPFILES_PATH) if HELPER_TMPFILES_PATH.exists() else f"{HELPER_TMPFILES_PATH} not installed",
+        ),
+        Check(
+            "privilege:helper_allowed_users",
+            allowlist_exists,
+            str(HELPER_ALLOWLIST_PATH) if allowlist_exists else allowlist_error or f"{HELPER_ALLOWLIST_PATH} not installed",
+        ),
+    ]
+    systemctl = shutil.which("systemctl")
+    if systemctl and Path("/run/systemd/system").exists():
+        active = _run([systemctl, "is-active", "securewave-helper.service"])
+        checks.append(
+            Check(
+                "privilege:helper_service_active",
+                active.returncode == 0 and active.stdout.strip() == "active",
+                active.stdout.strip() or active.stderr.strip() or "service inactive",
+            )
+        )
+    else:
+        checks.append(
+            Check(
+                "privilege:helper_service_active",
+                False,
+                "systemd is not available on this host",
+            )
+        )
+    return checks
+
+
+def check_helper_socket() -> list[Check]:
+    if not HELPER_SOCKET_PATH.exists():
+        return [
+            Check(
+                "privilege:helper_socket",
+                False,
+                f"{HELPER_SOCKET_PATH} not found",
+            )
+        ]
+    mode = HELPER_SOCKET_PATH.stat().st_mode
+    permissions = stat.S_IMODE(mode)
+    return [
+        Check(
+            "privilege:helper_socket",
+            stat.S_ISSOCK(mode),
+            f"{HELPER_SOCKET_PATH} mode {oct(permissions)}",
+        ),
+        Check(
+            "privilege:helper_socket_permissions",
+            permissions in (0o660, 0o600),
+            f"socket permissions {oct(permissions)}",
+        ),
+    ]
+
+
+def check_helper_ipc() -> list[Check]:
+    checks: list[Check] = []
+    for protocol in ("wireguard", "openvpn", "ikev2"):
+        try:
+            response = helper_request({"op": "probe", "protocol": protocol})
+        except OSError as exc:
+            checks.append(
+                Check(
+                    f"privilege:helper_probe:{protocol}",
+                    False,
+                    f"helper socket request failed: {exc}",
+                )
+            )
+            continue
+        service_seen = response.get("service_version") == "1"
+        ok = response.get("ok") == "true"
+        acceptable_tool_missing = response.get("code") == "tool_missing"
+        acceptable_fail_closed = (
+            protocol == "ikev2" and response.get("code") == "protocol_unavailable"
+        )
+        checks.append(
+            Check(
+                f"privilege:helper_probe:{protocol}",
+                service_seen and (ok or acceptable_tool_missing or acceptable_fail_closed),
+                response.get("message", response),
+            )
+        )
+
+    try:
+        invalid = helper_request({"op": "shell", "command": "id"})
+        checks.append(
+            Check(
+                "privilege:helper_invalid_op_fails_closed",
+                invalid.get("ok") == "false" and invalid.get("code") == "invalid_operation",
+                invalid.get("message", str(invalid)),
+            )
+        )
+    except OSError as exc:
+        checks.append(
+            Check(
+                "privilege:helper_invalid_op_fails_closed",
+                False,
+                f"helper socket request failed: {exc}",
+            )
+        )
+    return checks
+
+
 def check_runner_contract() -> list[Check]:
     if not RUNNER_PATH.exists():
         return [Check("runner:source", False, f"{RUNNER_PATH} not found")]
     source = RUNNER_PATH.read_text(encoding="utf-8")
     expectations = {
-        "runner:wireguard": "persist_active_protocol(state, \"wireguard\")",
-        "runner:wireguard_route_evidence": "route traffic was not using interface %s",
-        "runner:wireguard_helper": "/usr/local/libexec/securewave-wg-quick",
-        "runner:openvpn": "persist_active_protocol(state, \"openvpn\")",
-        "runner:openvpn_helper_start": "openvpn-start",
-        "runner:openvpn_helper_stop": "openvpn-stop",
-        "runner:ikev2": "persist_active_protocol(state, \"ikev2\")",
-        "runner:ikev2_helper_add": "ikev2-add-eap",
-        "runner:ikev2_helper_up": "ikev2-up",
-        "runner:openvpn_tunnel_evidence": "OpenVPN process started but Initialization Sequence Completed and tunnel route evidence were not detected.",
-        "runner:ikev2_runtime_evidence": "active NetworkManager VPN route/DNS and XFRM ESP evidence was not detected",
-        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 8",
-        "runner:ikev2_ca_profile": "parse_ikev2_ca_cert_pem(config)",
+        "runner:method_channel": 'kChannelName = "securewave/vpn"',
+        "runner:helper_socket": 'kHelperSocketPath = "/run/securewave/helper.sock"',
+        "runner:helper_request": "helper_request(",
+        "runner:wireguard_connect_op": '"wireguard.up"',
+        "runner:wireguard_disconnect_op": '"wireguard.down"',
+        "runner:openvpn_connect_op": '"openvpn.start"',
+        "runner:openvpn_disconnect_op": '"openvpn.stop"',
+        "runner:ikev2_connect_op": '"ikev2.start"',
+        "runner:ikev2_disconnect_op": '"ikev2.stop"',
+        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 9",
         "runner:no_implicit_mock": "securewave/vpn",
     }
     return [
@@ -216,8 +326,10 @@ def check_build_artifact() -> Check:
 def check_build_helper_payload() -> list[Check]:
     expected = {
         "build:helper_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-wg-quick",
+        "build:helperd_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-helperd",
+        "build:helper_service_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-helper.service",
+        "build:helper_tmpfiles_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-helper.tmpfiles",
         "build:helper_contract_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-wg-quick.contract",
-        "build:polkit_payload": BUILD_BUNDLE_DIR / "packaging/linux/50-securewave-wg.rules",
         "build:helper_installer_payload": BUILD_BUNDLE_DIR / "scripts/install_linux_helper.sh",
     }
     return [
@@ -274,6 +386,50 @@ def check_residue() -> list[Check]:
         )
     )
 
+    rules = _run(["ip", "rule", "show"])
+    securewave_rules = [
+        line
+        for line in rules.stdout.splitlines()
+        if (
+            "lookup 51820" in line
+            or "table 51820" in line
+            or "suppress_prefixlength 0" in line
+        )
+    ]
+    checks.append(
+        Check(
+            "residue:wireguard_policy_rules",
+            rules.returncode == 0 and not securewave_rules,
+            "no SecureWave WireGuard policy rules"
+            if rules.returncode == 0 and not securewave_rules
+            else "\n".join(securewave_rules) or rules.stderr.strip() or "ip rule failed",
+        )
+    )
+
+    table_route_details: list[str] = []
+    table_route_ok = True
+    for family in ("-4", "-6"):
+        table_routes = _run(["ip", family, "route", "show", "table", "51820"])
+        if table_routes.returncode != 0:
+            if "FIB table does not exist" in table_routes.stderr:
+                continue
+            table_route_ok = False
+            table_route_details.append(table_routes.stderr.strip() or f"ip {family} table 51820 failed")
+            continue
+        output = table_routes.stdout.strip()
+        if output:
+            table_route_ok = False
+            table_route_details.append(output)
+    checks.append(
+        Check(
+            "residue:wireguard_policy_routes",
+            table_route_ok,
+            "no SecureWave WireGuard table 51820 routes"
+            if table_route_ok
+            else "\n".join(table_route_details),
+        )
+    )
+
     procs = _run(["pgrep", "-x", "openvpn"])
     checks.append(
         Check(
@@ -320,12 +476,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     parser.add_argument(
-        "--pkexec-timeout",
-        type=int,
-        default=_pkexec_timeout(),
-        help="seconds to wait for interactive PolicyKit authorization",
-    )
-    parser.add_argument(
         "--allow-active-tunnel",
         action="store_true",
         help="skip residue checks when the caller is intentionally verifying an active tunnel",
@@ -334,9 +484,11 @@ def main() -> int:
 
     checks = [
         *check_tools(),
-        *check_polkit_rule_source(),
-        check_privilege_elevation(args.pkexec_timeout),
+        *check_no_polkit_source(),
         check_installed_helper_contract(),
+        *check_helper_service_install(),
+        *check_helper_socket(),
+        *check_helper_ipc(),
         *check_runner_contract(),
         check_build_artifact(),
         *check_build_helper_payload(),

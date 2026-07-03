@@ -53,6 +53,14 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
+pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0 gio-2.0)
+
+add_executable(securewave_helperd
+  "helperd/securewave_helperd.cc"
+)
+apply_standard_settings(securewave_helperd)
+target_link_libraries(securewave_helperd PRIVATE PkgConfig::GLIB)
+set_target_properties(securewave_helperd PROPERTIES OUTPUT_NAME "securewave-helperd")
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
@@ -135,13 +143,17 @@ install(PROGRAMS
   "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-wg-quick"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"
   COMPONENT Runtime)
+install(TARGETS securewave_helperd
+  RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"
+  COMPONENT Runtime)
 install(PROGRAMS
   "${CMAKE_SOURCE_DIR}/../scripts/install_linux_helper.sh"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/scripts"
   COMPONENT Runtime)
 install(FILES
   "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-wg-quick.contract"
-  "${CMAKE_SOURCE_DIR}/../packaging/linux/50-securewave-wg.rules"
+  "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-helper.service"
+  "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-helper.tmpfiles"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"
   COMPONENT Runtime)
 

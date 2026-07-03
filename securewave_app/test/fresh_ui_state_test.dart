@@ -246,32 +246,95 @@ void main() {
     );
   });
 
-  testWidgets('connect screen surfaces helper install action when missing',
+  testWidgets('protocol picker hides OpenVPN when metadata omits support',
       (tester) async {
     await _pumpApp(
       tester,
       extraOverrides: [
         linuxRuntimeInstallStateProvider.overrideWith(
           (ref) async => const LinuxRuntimeInstallState(
-            installed: false,
+            installed: true,
             payloadAvailable: true,
-            installedContract: 0,
-            requiredContract: 7,
-            message: 'SecureWave VPN helper is bundled but not installed.',
+            installedContract: 9,
+            requiredContract: 9,
+            message: 'SecureWave helper service is installed.',
+            wireGuardAvailable: true,
+            openVpnAvailable: true,
           ),
         ),
       ],
     );
 
-    expect(
-      find.text('SecureWave VPN helper is bundled but not installed.'),
-      findsOneWidget,
+    await tester.scrollUntilVisible(
+      find.text('OpenVPN'),
+      500,
+      scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Install VPN helper'), findsOneWidget);
+
+    expect(find.text('OpenVPN'), findsOneWidget);
+    expect(find.text('Unavailable for the selected region.'), findsOneWidget);
   });
 
-  testWidgets('settings shows runtime helper install action when missing',
+  testWidgets('protocol picker enables OpenVPN with metadata and runtime',
       (tester) async {
+    await _pumpApp(
+      tester,
+      serversOverride: serversProvider.overrideWith(
+        (ref) async => const [
+          ServerRegion(
+            id: 'de-nue-1',
+            name: 'Nuremberg',
+            country: 'Germany',
+            latencyMs: 31,
+            supportedProtocols: ['wireguard', 'openvpn'],
+          ),
+        ],
+      ),
+      extraOverrides: [
+        linuxRuntimeInstallStateProvider.overrideWith(
+          (ref) async => const LinuxRuntimeInstallState(
+            installed: true,
+            payloadAvailable: true,
+            installedContract: 9,
+            requiredContract: 9,
+            message: 'SecureWave helper service is installed.',
+            wireGuardAvailable: true,
+            openVpnAvailable: true,
+          ),
+        ),
+      ],
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('OpenVPN'),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('OpenVPN'), findsOneWidget);
+    expect(
+      find.text('Backend profile and local runtime are available.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('protocol picker keeps IKEv2 fail-closed', (tester) async {
+    await _pumpApp(tester);
+
+    await tester.scrollUntilVisible(
+      find.text('IKEv2/IPSec'),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('IKEv2/IPSec'), findsOneWidget);
+    expect(find.textContaining('live production proof'), findsOneWidget);
+  });
+
+  testWidgets('connect screen guides to deb when helper is missing',
+      (tester) async {
+    const message =
+        'SecureWave helper service is not running. Install the SecureWave .deb package for full no-prompt VPN routing, then retry.';
     await _pumpApp(
       tester,
       extraOverrides: [
@@ -281,7 +344,30 @@ void main() {
             payloadAvailable: true,
             installedContract: 0,
             requiredContract: 7,
-            message: 'SecureWave VPN helper is bundled but not installed.',
+            message: message,
+          ),
+        ),
+      ],
+    );
+
+    expect(find.text(message), findsOneWidget);
+    expect(find.text('Install VPN helper'), findsNothing);
+    expect(find.text('Refresh runtime status'), findsOneWidget);
+  });
+
+  testWidgets('settings guides to deb when helper is missing', (tester) async {
+    const message =
+        'SecureWave helper service is not running. Install the SecureWave .deb package for full no-prompt VPN routing, then retry.';
+    await _pumpApp(
+      tester,
+      extraOverrides: [
+        linuxRuntimeInstallStateProvider.overrideWith(
+          (ref) async => const LinuxRuntimeInstallState(
+            installed: false,
+            payloadAvailable: true,
+            installedContract: 0,
+            requiredContract: 7,
+            message: message,
           ),
         ),
       ],
@@ -290,11 +376,32 @@ void main() {
     await tester.tap(find.byIcon(Icons.tune_rounded).last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('SecureWave VPN helper is bundled but not installed.'),
-      findsOneWidget,
+    expect(find.text(message), findsOneWidget);
+    expect(find.text('Install VPN helper'), findsNothing);
+    expect(find.text('Refresh runtime status'), findsOneWidget);
+  });
+
+  testWidgets('portable Linux package guides users to deb for routing',
+      (tester) async {
+    const message =
+        'This portable Linux build can run the SecureWave UI only. Install the SecureWave .deb package for full no-prompt VPN routing.';
+    await _pumpApp(
+      tester,
+      extraOverrides: [
+        linuxRuntimeInstallStateProvider.overrideWith(
+          (ref) async => const LinuxRuntimeInstallState(
+            installed: false,
+            payloadAvailable: false,
+            installedContract: 0,
+            requiredContract: 9,
+            message: message,
+          ),
+        ),
+      ],
     );
-    expect(find.text('Install VPN helper'), findsOneWidget);
+
+    expect(find.text(message), findsOneWidget);
+    expect(find.text('Install VPN helper'), findsNothing);
     expect(find.text('Refresh runtime status'), findsOneWidget);
   });
 }
@@ -354,6 +461,7 @@ Future<void> _pumpApp(
                   name: 'Chicago',
                   country: 'United States',
                   latencyMs: 24,
+                  supportedProtocols: ['wireguard'],
                 ),
               ],
             ),

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:securewave_app/core/config/app_config.dart';
+import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/vpn_profile.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
@@ -358,7 +359,7 @@ void main() {
     final service = _UnavailableStatsVpnService();
     final api = _UsageTrackingApiClient(
       profileServerId: 'de-nue-1',
-      profileProtocol: VpnProtocol.ikev2,
+      profileProtocol: VpnProtocol.wireGuard,
     );
 
     final container = ProviderContainer(
@@ -370,7 +371,6 @@ void main() {
     addTearDown(container.dispose);
 
     final notifier = container.read(vpnStateProvider.notifier);
-    await notifier.selectProtocol(VpnProtocol.ikev2);
     await notifier.connect();
     await Future<void>.delayed(Duration.zero);
     await notifier.disconnect();
@@ -439,7 +439,36 @@ void main() {
     expect(service.connectedConfig, isNot(contains('[Interface]')));
   });
 
-  test('IKEv2 connect uses IKEv2 profile config without protocol fallback',
+  test('OpenVPN connect is blocked when server metadata omits OpenVPN',
+      () async {
+    final service = _CapturingNativeVpnService();
+    final api = _UsageTrackingApiClient(
+      profileServerId: 'de-nue-1',
+      profileProtocol: VpnProtocol.wireGuard,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+
+    await notifier.connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
+    expect(state.errorMessage, contains('advertises OpenVPN'));
+    expect(service.connectedProtocol, isNull);
+    expect(service.connectedConfig, isNull);
+  });
+
+  test('IKEv2 connect stays fail-closed until production proof exists',
       () async {
     final service = _CapturingNativeVpnService();
     final api = _UsageTrackingApiClient(
@@ -460,14 +489,12 @@ void main() {
 
     await notifier.connect();
 
-    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
-    expect(service.connectedProtocol, VpnProtocol.ikev2);
-    expect(service.connectedConfig, contains('remote_addrs = vpn.example'));
-    expect(service.connectedConfig, contains('eap_id = "ikev2-user"'));
-    expect(service.connectedConfig, contains('secret = "ikev2-secret"'));
-    expect(service.connectedConfig, contains('# ca_cert_pem_begin'));
-    expect(service.connectedConfig, isNot(contains('[Interface]')));
-    expect(service.connectedConfig, isNot(startsWith('client\n')));
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
+    expect(state.errorMessage, contains('live production proof'));
+    expect(service.connectedProtocol, isNull);
+    expect(service.connectedConfig, isNull);
   });
 
   test('device limit profile error remains precise', () async {
@@ -998,6 +1025,22 @@ class _UsageTrackingApiClient extends ApiClient {
   final usageProtocols = <VpnProtocol?>[];
   final rxBytes = <int>[];
   final txBytes = <int>[];
+
+  @override
+  Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
+    return [
+      ServerRegion(
+        id: profileServerId,
+        name: 'Nuremberg',
+        country: 'Germany',
+        supportedProtocols: [
+          'wireguard',
+          if (profileProtocol == VpnProtocol.openVpn) 'openvpn',
+          if (profileProtocol == VpnProtocol.ikev2) 'ikev2',
+        ],
+      ),
+    ];
+  }
 
   @override
   Future<VpnProfile> fetchVpnProfile({

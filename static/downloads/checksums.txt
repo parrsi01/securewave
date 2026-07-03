@@ -1,0 +1,5 @@
+2c4cf330a8f6977f566089a490cd5b8de206cb24af380ee4a16403a7146a40fc  securewave-linux-arm64.deb
+8de9298df6adafe08108b52601fd5adf1cc4b41a6b318142b0fea4064a0f7fbf  securewave-macos-arm64-ui-demo.zip
+9b75484729e0bfec367448abe4599f24182a9a1fb79710c4e261b502d929b108  securewave-apple-release-handoff.zip
+ac0fed84777c43419713950aa3ef872ec8f7927b99f40df84d1d30388bc1fb63  securewave-app-linux-arm64.zip
+ffe8f3d3d369df6c7c41be71b3108b3ed72abd1b61ad230dad02cafa5143441f  securewave-linux-x64.tar.gz

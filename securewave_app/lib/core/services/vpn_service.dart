@@ -6,6 +6,9 @@ import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 import '../logging/app_logger.dart';
 
+const ikev2ProductionDisabledMessage =
+    'IKEv2 is disabled until SecureWave has live production proof for route, DNS, XFRM ESP, backend health, and cleanup.';
+
 abstract class VpnService {
   Future<VpnStatus> connect({required VpnProtocol protocol, String? config});
   Future<VpnStatus> disconnect();
@@ -137,12 +140,14 @@ class ChannelVpnService implements VpnService {
 
   @override
   bool canConnectProtocol(VpnProtocol protocol) {
+    if (protocol == VpnProtocol.ikev2) return false;
     if (_allowFallback) return true;
     return true;
   }
 
   @override
   String? protocolUnavailableReason(VpnProtocol protocol) {
+    if (protocol == VpnProtocol.ikev2) return ikev2ProductionDisabledMessage;
     if (canConnectProtocol(protocol)) return null;
     return '${vpnProtocolLabel(protocol)} is not available on this runtime.';
   }
@@ -184,7 +189,8 @@ class ChannelVpnService implements VpnService {
         _status = VpnStatus.disconnected;
         throw VpnServiceException(
           'vpn_unavailable',
-          'Native VPN tunnel unavailable on this device. Install required VPN components and retry.',
+          _lastNativeAvailabilityMessage ??
+              'Native VPN tunnel unavailable on this device. Install required VPN components and retry.',
         );
       }
       if (config == null || config.trim().isEmpty) {

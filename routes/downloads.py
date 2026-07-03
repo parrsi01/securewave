@@ -8,6 +8,7 @@ Provides:
 - GET /api/downloads/file/{filename} - Serve a specific download file
 """
 
+import hashlib
 import os
 import json
 import logging
@@ -43,8 +44,10 @@ class DownloadEntry(BaseModel):
     version: str
     size_bytes: Optional[int] = None
     size_display: Optional[str] = None
+    sha256: Optional[str] = None
     status: str  # "available" | "coming_soon"
     notes: Optional[str] = None
+    supports_full_routing: bool = False
 
 
 class DownloadListResponse(BaseModel):
@@ -100,6 +103,14 @@ def _format_size(size_bytes: int) -> str:
         return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 # ---------------------------------------------------------------------------
 # Download manifest -- canonical list of all platform builds
 # ---------------------------------------------------------------------------
@@ -141,28 +152,40 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "x64",
         "filename": "securewave-linux-x64.deb",
         "url": "/downloads/securewave-linux-x64.deb",
-        "notes": "Debian/Ubuntu package (coming soon).",
+        "supports_full_routing": True,
+        "notes": "Debian/Ubuntu package with the root-owned SecureWave helper service for full no-prompt VPN routing.",
+    },
+    {
+        "platform": "linux",
+        "architecture": "arm64",
+        "filename": "securewave-linux-arm64.deb",
+        "url": "/downloads/securewave-linux-arm64.deb",
+        "supports_full_routing": True,
+        "notes": "Debian/Ubuntu ARM64 package with the root-owned SecureWave helper service for full no-prompt VPN routing.",
     },
     {
         "platform": "linux",
         "architecture": "x64",
         "filename": "securewave-linux-x64.AppImage",
         "url": "/downloads/securewave-linux-x64.AppImage",
-        "notes": "Portable AppImage build (coming soon).",
+        "supports_full_routing": False,
+        "notes": "Portable Linux UI AppImage. It can use full no-prompt VPN routing only when the SecureWave .deb helper service is already installed.",
     },
     {
         "platform": "linux",
         "architecture": "x64",
         "filename": "securewave-linux-x64.tar.gz",
         "url": "/downloads/securewave-linux-x64.tar.gz",
-        "notes": "Portable tarball (x64).",
+        "supports_full_routing": False,
+        "notes": "Portable Linux UI tarball. It can use full no-prompt VPN routing only when the SecureWave .deb helper service is already installed.",
     },
     {
         "platform": "linux",
         "architecture": "arm64",
         "filename": "securewave-app-linux-arm64.zip",
         "url": "/downloads/securewave-app-linux-arm64.zip",
-        "notes": "Portable zip (ARM64).",
+        "supports_full_routing": False,
+        "notes": "Portable Linux ARM64 UI zip. It can use full no-prompt VPN routing only when the SecureWave .deb helper service is already installed.",
     },
     # Apple
     {
@@ -204,19 +227,21 @@ def _build_download_entries() -> List[DownloadEntry]:
     """Build download list, checking which files actually exist on disk."""
     entries = []
     for item in _load_download_manifest():
-        filename = item["filename"]
+        filename = item.get("filename", "")
 
         # Check if the file actually exists on disk
         file_exists = False
         size_bytes = None
         size_display = None
+        sha256 = None
 
         if filename:
             file_path = DOWNLOADS_DIR / filename
-            file_exists = file_path.exists()
+            file_exists = file_path.is_file()
             if file_exists:
                 size_bytes = file_path.stat().st_size
                 size_display = _format_size(size_bytes)
+                sha256 = _sha256_file(file_path)
 
         status = "available" if file_exists else "coming_soon"
 
@@ -228,11 +253,45 @@ def _build_download_entries() -> List[DownloadEntry]:
             version=APP_VERSION,
             size_bytes=size_bytes,
             size_display=size_display,
+            sha256=sha256,
             status=status,
             notes=item["notes"],
+            supports_full_routing=bool(item.get("supports_full_routing")),
         ))
 
     return entries
+
+
+def _select_recommended_download(
+    entries: List[DownloadEntry], detected: dict
+) -> Optional[DownloadEntry]:
+    available = [
+        entry for entry in entries
+        if entry.platform == detected["platform"]
+        and entry.status == "available"
+        and entry.url
+        and entry.url != "#"
+    ]
+    if detected["platform"] == "linux":
+        return next(
+            (
+                entry for entry in available
+                if entry.architecture == detected["architecture"]
+                and entry.filename.endswith(".deb")
+                and entry.supports_full_routing
+            ),
+            None,
+        )
+
+    exact = next(
+        (entry for entry in available if entry.architecture == detected["architecture"]),
+        None,
+    )
+    universal = next(
+        (entry for entry in available if entry.architecture == "universal"),
+        None,
+    )
+    return exact or universal or (available[0] if available else None)
 
 
 # ---------------------------------------------------------------------------
@@ -260,16 +319,7 @@ async def detect_user_platform(request: Request):
     detected = detect_platform(user_agent)
 
     recommended = None
-    entries = [
-        entry for entry in _build_download_entries()
-        if entry.platform == detected["platform"]
-        and entry.status == "available"
-        and entry.url
-        and entry.url != "#"
-    ]
-    exact = next((entry for entry in entries if entry.architecture == detected["architecture"]), None)
-    universal = next((entry for entry in entries if entry.architecture == "universal"), None)
-    selected = exact or universal or (entries[0] if entries else None)
+    selected = _select_recommended_download(_build_download_entries(), detected)
     if selected:
         recommended = selected.url
 

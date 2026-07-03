@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run app-driven Linux VPN tunnel proof for WireGuard, OpenVPN, and IKEv2.
+"""Run app-driven Linux VPN tunnel proof for SecureWave Linux tunnels.
 
 This script drives the Flutter app's real runtime service path through
 lib/runtime_vpn_probe.dart. It requires an existing live account because the
@@ -13,9 +13,12 @@ import json
 import os
 import select
 import signal
+import socket
 import subprocess  # nosec B404
 import sys
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -25,11 +28,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_ROOT = REPO_ROOT / "securewave_app"
 PROBE_TARGET = "lib/runtime_vpn_probe.dart"
 DEFAULT_AUTH_FILE = REPO_ROOT / "securewave_private" / "live_certification_account.env"
-DEFAULT_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
+SUPPORTED_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
+DEFAULT_PROTOCOLS = ("wireguard", "openvpn")
 DEFAULT_API_BASE = "https://api.securewaveapp.com/api"
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
-SECUREWAVE_HELPER = "/usr/local/libexec/securewave-wg-quick"
+HELPER_SOCKET = Path("/run/securewave/helper.sock")
 PLACEHOLDER_VALUES = {
     "existing-live-email",
     "existing-live-password",
@@ -177,51 +181,205 @@ def _run(argv: Iterable[str], *, timeout: int = 15) -> CommandResult:
     )
 
 
-def _securewave_helper_command(action: str) -> list[str]:
-    command = [SECUREWAVE_HELPER, action]
-    if hasattr(os, "geteuid") and os.geteuid() == 0:
-        return command
-    return ["pkexec", "--disable-internal-agent", *command]
+def _escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
 
 
-def _cleanup_protocol_residue(protocol: str, pkexec_timeout: int) -> list[dict[str, object]]:
-    commands: list[list[str]] = []
-    if protocol == "wireguard":
-        commands.append([*_securewave_helper_command("policy-clear-link"), WIREGUARD_INTERFACE])
-    elif protocol == "ikev2":
-        commands.append(_securewave_helper_command("ikev2-down"))
-        commands.append(_securewave_helper_command("ikev2-delete"))
+def _unescape(value: str) -> str:
+    out: list[str] = []
+    i = 0
+    while i < len(value):
+        if value[i] != "\\" or i + 1 >= len(value):
+            out.append(value[i])
+            i += 1
+            continue
+        i += 1
+        if value[i] == "n":
+            out.append("\n")
+        elif value[i] == "r":
+            out.append("\r")
+        else:
+            out.append(value[i])
+        i += 1
+    return "".join(out)
 
-    return [
-        {
-            "protocol": protocol,
-            "command": command,
-            "result": _run(command, timeout=max(pkexec_timeout, 15)).as_dict(),
+
+def _helper_request(fields: dict[str, str], timeout: float = 20.0) -> dict[str, str]:
+    request = {"version": "1", **fields}
+    body = "".join(f"{key}={_escape(value)}\n" for key, value in request.items())
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(timeout)
+        client.connect(str(HELPER_SOCKET))
+        client.sendall(body.encode("utf-8"))
+        client.shutdown(socket.SHUT_WR)
+        chunks: list[bytes] = []
+        while True:
+            chunk = client.recv(65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    response: dict[str, str] = {}
+    for line in b"".join(chunks).decode("utf-8", errors="replace").splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        response[key] = _unescape(value)
+    return response
+
+
+def _helper_evidence(fields: dict[str, str], timeout: float = 20.0) -> dict[str, object]:
+    try:
+        response = _helper_request(fields, timeout=timeout)
+    except OSError as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+            "response": {"ok": "false", "code": "socket_error", "message": str(exc)},
         }
-        for command in commands
-    ]
+    ok = response.get("ok") == "true"
+    return {"ok": ok, "response": response}
 
 
-def _evidence_for(protocol: str) -> dict[str, object]:
+def _state_path(filename: str) -> str:
+    return str(Path.home() / ".config" / "securewave" / filename)
+
+
+def _cleanup_protocol_residue(protocol: str) -> list[dict[str, object]]:
+    requests: list[dict[str, str]] = []
+    if protocol == "wireguard":
+        requests.append({"op": "wireguard.cleanup", "config_path": _state_path("sw-wg.conf")})
+    elif protocol == "openvpn":
+        requests.append(
+            {
+                "op": "openvpn.cleanup",
+                "pid_path": _state_path("securewave-openvpn.pid"),
+                "log_path": _state_path("securewave-openvpn.log"),
+            }
+        )
+    elif protocol == "ikev2":
+        requests.append({"op": "ikev2.cleanup"})
+
+    actions: list[dict[str, object]] = []
+    for request in requests:
+        try:
+            response = _helper_request(request)
+        except OSError as exc:
+            response = {"ok": "false", "code": "socket_error", "message": str(exc)}
+        actions.append({"protocol": protocol, "request": request, "response": response})
+    return actions
+
+
+def _health_url(api_base: str | None) -> str:
+    return (api_base or DEFAULT_API_BASE).rstrip("/") + "/health"
+
+
+def _backend_health_evidence(api_base: str | None) -> dict[str, object]:
+    url = _health_url(api_base)
+    request = urllib.request.Request(url, headers={"User-Agent": "SecureWaveLinuxProof/1"})
+    started_at = time.monotonic()
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
+            body = response.read(4096).decode("utf-8", errors="replace").strip()
+            status = getattr(response, "status", response.getcode())
+            return {
+                "ok": 200 <= int(status) < 300,
+                "url": url,
+                "status": int(status),
+                "elapsed_ms": int((time.monotonic() - started_at) * 1000),
+                "body": body,
+            }
+    except urllib.error.HTTPError as exc:
+        body = exc.read(4096).decode("utf-8", errors="replace").strip()
+        return {
+            "ok": False,
+            "url": url,
+            "status": exc.code,
+            "elapsed_ms": int((time.monotonic() - started_at) * 1000),
+            "body": body,
+        }
+    except Exception as exc:  # noqa: BLE001 - proof output should preserve the exact failure.
+        return {
+            "ok": False,
+            "url": url,
+            "elapsed_ms": int((time.monotonic() - started_at) * 1000),
+            "error": str(exc),
+        }
+
+
+def _wireguard_counter_evidence() -> dict[str, object]:
+    result = _helper_evidence({"op": "wireguard.counters"})
+    response = result.get("response")
+    stdout = response.get("stdout", "") if isinstance(response, dict) else ""
+    return {
+        "ok": bool(result.get("ok")) and bool(stdout.strip()),
+        "response": response,
+    }
+
+
+def _tun_interface_evidence() -> dict[str, object]:
+    links = _run(["ip", "-o", "link", "show"])
+    interfaces: list[str] = []
+    if links.returncode == 0:
+        for line in links.stdout.splitlines():
+            parts = line.split(":", 2)
+            if len(parts) < 2:
+                continue
+            name = parts[1].strip().split("@", 1)[0]
+            if name.startswith("tun"):
+                interfaces.append(name)
+    return {
+        "ok": links.returncode == 0 and bool(interfaces),
+        "interfaces": interfaces,
+        "links": links.as_dict(),
+    }
+
+
+def _openvpn_log_evidence() -> dict[str, object]:
+    path = Path(_state_path("securewave-openvpn.log"))
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        return {"ok": False, "path": str(path), "error": str(exc)}
+    success = any("Initialization Sequence Completed" in line for line in lines)
+    return {
+        "ok": success,
+        "path": str(path),
+        "tail": [line.strip() for line in lines[-12:] if line.strip()],
+    }
+
+
+def _evidence_for(protocol: str, api_base: str | None) -> dict[str, object]:
     if protocol == "wireguard":
         link = _run(["ip", "link", "show", WIREGUARD_INTERFACE])
         route = _run(["ip", "route", "get", "1.1.1.1"])
         route_ok = route.returncode == 0 and f" dev {WIREGUARD_INTERFACE}" in route.stdout
+        backend_health = _backend_health_evidence(api_base)
+        counters = _wireguard_counter_evidence()
         return {
-            "ok": link.returncode == 0 and route_ok,
+            "ok": link.returncode == 0 and route_ok and bool(backend_health.get("ok")) and bool(counters.get("ok")),
             "interface": link.as_dict(),
             "route": route.as_dict(),
+            "backend_health": backend_health,
+            "traffic_counters": counters,
         }
     if protocol == "openvpn":
-        tun0 = _run(["ip", "link", "show", "tun0"])
+        tun = _tun_interface_evidence()
         route = _run(["ip", "route", "get", "1.1.1.1"])
         procs = _run(["pgrep", "-x", "openvpn"])
         route_ok = route.returncode == 0 and " dev tun" in route.stdout
+        log = _openvpn_log_evidence()
+        backend_health = _backend_health_evidence(api_base)
         return {
-            "ok": tun0.returncode == 0 and route_ok and procs.returncode == 0,
-            "interface": tun0.as_dict(),
+            "ok": bool(tun.get("ok"))
+            and route_ok
+            and procs.returncode == 0
+            and bool(log.get("ok"))
+            and bool(backend_health.get("ok")),
+            "interface": tun,
             "route": route.as_dict(),
             "process": procs.as_dict(),
+            "log": log,
+            "backend_health": backend_health,
         }
     if protocol == "ikev2":
         active = _run(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"])
@@ -234,19 +392,26 @@ def _evidence_for(protocol: str) -> dict[str, object]:
             "show",
             IKEV2_CONNECTION,
         ])
-        xfrm_state = _run(_securewave_helper_command("xfrm-state"))
+        helper_status = _helper_evidence({"op": "ikev2.status"})
+        helper_response = helper_status.get("response")
+        backend_health = _backend_health_evidence(api_base)
         active_ok = active.returncode == 0 and f"{IKEV2_CONNECTION}:vpn" in active.stdout.splitlines()
         route_dns_ok = route_dns.returncode == 0 and any(
             line.partition(":")[2].strip() not in ("", "--")
             for line in route_dns.stdout.splitlines()
             if ":" in line
         )
-        xfrm_ok = xfrm_state.returncode == 0 and "proto esp" in xfrm_state.stdout
+        xfrm_ok = (
+            bool(helper_status.get("ok"))
+            and isinstance(helper_response, dict)
+            and helper_response.get("status") == "connected"
+        )
         return {
-            "ok": active_ok and route_dns_ok and xfrm_ok,
+            "ok": active_ok and route_dns_ok and xfrm_ok and bool(backend_health.get("ok")),
             "active_connection": active.as_dict(),
             "route_dns": route_dns.as_dict(),
-            "xfrm_state": xfrm_state.as_dict(),
+            "helper_status": helper_status,
+            "backend_health": backend_health,
         }
     raise ValueError(f"unsupported protocol: {protocol}")
 
@@ -395,7 +560,7 @@ def run_protocol(
                     if event is not None:
                         probe_events.append(event)
                         if event.get("event") == "holding_for_evidence":
-                            evidence = _evidence_for(protocol)
+                            evidence = _evidence_for(protocol, api_base)
                 elif process.poll() is not None:
                     break
             if process.poll() is not None:
@@ -472,12 +637,7 @@ def main() -> int:
         "--use-mock-api",
         default=os.environ.get("SECUREWAVE_USE_MOCK_API", "false"),
     )
-    parser.add_argument(
-        "--pkexec-timeout",
-        type=int,
-        default=int(os.environ.get("SECUREWAVE_PKEXEC_TIMEOUT", "60")),
-    )
-    parser.add_argument("--protocol", action="append", choices=DEFAULT_PROTOCOLS)
+    parser.add_argument("--protocol", action="append", choices=SUPPORTED_PROTOCOLS)
     parser.add_argument("--hold-seconds", type=int, default=20)
     parser.add_argument("--evidence-timeout", type=int, default=90)
     parser.add_argument("--json", action="store_true")
@@ -532,17 +692,13 @@ def main() -> int:
         return 2
     email = email.strip()
     password = password.strip()
-    os.environ.setdefault("SECUREWAVE_PKEXEC_TIMEOUT", str(args.pkexec_timeout))
-
     baseline = _run(
         [
             sys.executable,
             "scripts/linux_vpn_runtime_verifier.py",
             "--json",
-            "--pkexec-timeout",
-            str(args.pkexec_timeout),
         ],
-        timeout=max(args.pkexec_timeout + 10, 30),
+        timeout=30,
     )
     baseline_body = _json_object(baseline.stdout)
     if baseline.returncode != 0:
@@ -551,10 +707,8 @@ def main() -> int:
                 sys.executable,
                 "scripts/linux_vpn_runtime_verifier.py",
                 "--json",
-                "--pkexec-timeout",
-                str(args.pkexec_timeout),
             ],
-            timeout=max(args.pkexec_timeout + 10, 30),
+            timeout=30,
         )
         payload = {
             "ok": False,
@@ -588,7 +742,7 @@ def main() -> int:
             use_mock_api=args.use_mock_api,
         )
         results.append(result)
-        cleanup_actions.extend(_cleanup_protocol_residue(protocol, args.pkexec_timeout))
+        cleanup_actions.extend(_cleanup_protocol_residue(protocol))
         if _has_auth_failure(result):
             break
     cleanup = _run(
@@ -596,10 +750,8 @@ def main() -> int:
             sys.executable,
             "scripts/linux_vpn_runtime_verifier.py",
             "--json",
-            "--pkexec-timeout",
-            str(args.pkexec_timeout),
         ],
-        timeout=max(args.pkexec_timeout + 10, 30),
+        timeout=30,
     )
     payload = {
         "ok": all(result["ok"] for result in results) and cleanup.returncode == 0,

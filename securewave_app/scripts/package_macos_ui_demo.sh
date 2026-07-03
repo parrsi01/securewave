@@ -6,7 +6,6 @@ REPO_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
 MACOS_DIR="$ROOT_DIR/macos"
 BUILD_DIR="$ROOT_DIR/build/macos/Build/Products/Release"
 DOWNLOADS_DIR="$REPO_ROOT/static/downloads"
-MANIFEST_PATH="$DOWNLOADS_DIR/manifest.json"
 
 usage() {
   cat <<'EOF'
@@ -100,26 +99,6 @@ echo "OK: macOS UI demo package created."
 echo "Output: $OUT_FILE"
 shasum -a 256 "$OUT_FILE"
 
-if [[ "$OUT_FILE" == "$DEFAULT_OUT_FILE" && -f "$MANIFEST_PATH" ]]; then
-  python3 - "$MANIFEST_PATH" "$ARCH_LABEL" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-manifest_path = Path(sys.argv[1])
-arch = sys.argv[2]
-filename = f"securewave-macos-{arch}-ui-demo.zip"
-payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-
-for entry in payload.get("downloads", []):
-    if entry.get("platform") == "macos" and entry.get("filename") == filename:
-        entry["status"] = "available"
-        entry["url"] = f"/downloads/{filename}"
-        break
-else:
-    raise SystemExit(f"macOS demo entry not found in manifest: {filename}")
-
-manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-PY
-  echo "OK: updated $MANIFEST_PATH for $ARCH_LABEL macOS demo availability."
+if [[ "$OUT_FILE" == "$DEFAULT_OUT_FILE" ]]; then
+  python3 "$REPO_ROOT/scripts/update_download_manifest.py"
 fi

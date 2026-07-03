@@ -52,8 +52,9 @@ def test_hetzner_deployment_has_self_contained_backend_compose_template():
     assert "127.0.0.1:8080:8080" in compose
     assert "deploy/hetzner/compose.yaml" in deploy
     assert "scp" in deploy
-    assert "test -f .env" in deploy
+    assert "test -s .env" in deploy
     assert "export SECUREWAVE_IMAGE=" in deploy
+    assert "docker compose --env-file .env config --quiet" in deploy
 
 
 def test_hetzner_cost_guardrails_match_current_module():
@@ -143,7 +144,7 @@ def test_demo_preflight_and_runbook_cover_live_tunnel_go_no_go():
     assert "REQUIRE_REAL_TUNNEL=true" in script
     assert "REQUIRE_EMAIL_HEALTH=true" in script
     assert "check_helper_contract" in script
-    assert "check_polkit_authorization" in script
+    assert "check_helper_service_authorization" in script
     assert "check_real_tunnel_egress" in script
     assert "check_email_health" in script
     assert "/health/email" in script

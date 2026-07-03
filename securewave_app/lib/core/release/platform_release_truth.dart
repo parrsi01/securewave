@@ -54,7 +54,7 @@ class SecureWaveReleaseTruth {
           runtimeStatus: 'Public RC runtime',
           summary: 'Linux is the current public VPN release-candidate path.',
           detail:
-              'WireGuard uses wg-quick. Install wireguard-tools and allow elevated runtime commands when prompted.',
+              'Install the SecureWave .deb once so the root-owned helper service can run WireGuard without connect-time prompts.',
           isPublicRuntime: true,
           canDemoUi: true,
         );

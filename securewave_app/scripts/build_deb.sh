@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
 # Guard against packaging when WireGuard tooling is missing on the target platform.
@@ -44,24 +45,40 @@ if [[ -z "$version" ]]; then
 fi
 
 arch="$(dpkg --print-architecture)"
+case "$arch" in
+  amd64) download_arch="x64" ;;
+  arm64) download_arch="arm64" ;;
+  *) download_arch="$arch" ;;
+esac
 package_name="securewave-vpn"
 
 staging_dir="$ROOT_DIR/build/packaging/deb"
 output_dir="$ROOT_DIR/build/packaging"
+downloads_dir="$PROJECT_ROOT/static/downloads"
 
 rm -rf "$staging_dir"
 mkdir -p "$staging_dir/DEBIAN" \
   "$staging_dir/usr/lib/securewave" \
   "$staging_dir/usr/bin" \
+  "$staging_dir/usr/lib/tmpfiles.d" \
   "$staging_dir/usr/share/applications" \
   "$staging_dir/usr/share/icons/hicolor/256x256/apps" \
   "$staging_dir/usr/share/securewave/packaging/linux"
 
 cp -a "$bundle_dir/"* "$staging_dir/usr/lib/securewave/"
+helperd_source="$bundle_dir/packaging/linux/securewave-helperd"
+if [[ ! -x "$helperd_source" ]]; then
+  echo "ERROR: securewave-helperd was not produced in the Linux bundle." >&2
+  exit 1
+fi
 cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick" "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick"
-cp -f "$ROOT_DIR/packaging/linux/50-securewave-wg.rules" "$staging_dir/usr/share/securewave/packaging/linux/50-securewave-wg.rules"
+cp -f "$helperd_source" "$staging_dir/usr/share/securewave/packaging/linux/securewave-helperd"
+cp -f "$ROOT_DIR/packaging/linux/securewave-helper.service" "$staging_dir/usr/share/securewave/packaging/linux/securewave-helper.service"
+cp -f "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" "$staging_dir/usr/share/securewave/packaging/linux/securewave-helper.tmpfiles"
+cp -f "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" "$staging_dir/usr/lib/tmpfiles.d/securewave-helper.conf"
 cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
-chmod 0755 "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick"
+chmod 0755 "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick" \
+  "$staging_dir/usr/share/securewave/packaging/linux/securewave-helperd"
 
 cat <<CONTROL > "$staging_dir/DEBIAN/control"
 Package: $package_name
@@ -69,7 +86,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
-Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, policykit-1
+Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, iproute2, iptables, acl, systemd
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave VPN desktop client
 CONTROL
@@ -100,61 +117,109 @@ cat <<'POSTINST' > "$staging_dir/DEBIAN/postinst"
 set -e
 HELPER_DIR=/usr/local/libexec
 HELPER=$HELPER_DIR/securewave-wg-quick
+HELPERD=$HELPER_DIR/securewave-helperd
 HELPER_CONTRACT=$HELPER_DIR/securewave-wg-quick.contract
 SOURCE_DIR=/usr/share/securewave/packaging/linux
 SOURCE_HELPER=$SOURCE_DIR/securewave-wg-quick
+SOURCE_HELPERD=$SOURCE_DIR/securewave-helperd
 SOURCE_CONTRACT=$SOURCE_DIR/securewave-wg-quick.contract
-SOURCE_POLKIT_RULE=$SOURCE_DIR/50-securewave-wg.rules
+SOURCE_SERVICE=$SOURCE_DIR/securewave-helper.service
+SOURCE_TMPFILES=$SOURCE_DIR/securewave-helper.tmpfiles
+SERVICE_FILE=/etc/systemd/system/securewave-helper.service
+TMPFILES_FILE=/usr/lib/tmpfiles.d/securewave-helper.conf
+RUNTIME_GROUP=securewave
+RUNTIME_DIR=/run/securewave
+AUTH_DIR=/etc/securewave
+AUTH_FILE=$AUTH_DIR/helper-users
 install -d -m 0755 "$HELPER_DIR"
 install -m 0755 "$SOURCE_HELPER" "$HELPER"
+install -m 0755 "$SOURCE_HELPERD" "$HELPERD"
+install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"
 
-render_polkit_rule() {
-  local allow_user="${1:-}"
-  if [[ -z "$allow_user" || "$allow_user" == "root" ]]; then
-    install -m 0644 "$SOURCE_POLKIT_RULE" "$POLKIT_RULE"
-    return 0
-  fi
+if ! getent group "$RUNTIME_GROUP" >/dev/null 2>&1; then
+  groupadd --system "$RUNTIME_GROUP"
+fi
 
-  local escaped_user="$allow_user"
-  escaped_user="${escaped_user//\\/\\\\}"
-  escaped_user="${escaped_user//&/\\&}"
-  escaped_user="${escaped_user//\//\\/}"
-
-  sed "s/__SECUREWAVE_ALLOWED_USER__/${escaped_user}/g" \
-    "$SOURCE_POLKIT_RULE" > "$POLKIT_RULE"
-  chmod 0644 "$POLKIT_RULE"
+install -d -o root -g root -m 0755 "$AUTH_DIR"
+: > "$AUTH_FILE"
+chmod 0644 "$AUTH_FILE"
+add_allowed_user() {
+  local user="$1"
+  local uid
+  [[ -n "$user" && "$user" != "root" ]] || return 0
+  id "$user" >/dev/null 2>&1 || return 0
+  uid="$(id -u "$user")"
+  grep -qx "$uid" "$AUTH_FILE" 2>/dev/null || printf '%s\n' "$uid" >> "$AUTH_FILE"
+  usermod -a -G "$RUNTIME_GROUP" "$user" || true
 }
-
-reload_polkit() {
-  if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
-    systemctl try-reload-or-restart polkit.service >/dev/null 2>&1 || true
-  fi
-}
-
-POLKIT_RULES_DIR=/etc/polkit-1/rules.d
-POLKIT_RULE=$POLKIT_RULES_DIR/50-securewave-wg.rules
-mkdir -p "$POLKIT_RULES_DIR"
 ALLOW_USER="${SUDO_USER:-}"
 if [[ -z "$ALLOW_USER" ]]; then
   ALLOW_USER="$(logname 2>/dev/null || true)"
 fi
-render_polkit_rule "$ALLOW_USER"
-reload_polkit
-install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"
+add_allowed_user "$ALLOW_USER"
+while IFS=: read -r user _ uid _ _ _ shell; do
+  [[ "$uid" =~ ^[0-9]+$ ]] || continue
+  (( uid >= 1000 && uid < 60000 )) || continue
+  [[ "$shell" != */nologin && "$shell" != */false ]] || continue
+  add_allowed_user "$user"
+done < /etc/passwd
+
+install -d -o root -g "$RUNTIME_GROUP" -m 0750 "$RUNTIME_DIR"
+rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
+install -m 0644 "$SOURCE_SERVICE" "$SERVICE_FILE"
+install -m 0644 "$SOURCE_TMPFILES" "$TMPFILES_FILE"
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  command -v systemd-tmpfiles >/dev/null 2>&1 && systemd-tmpfiles --create "$TMPFILES_FILE" || true
+  systemctl daemon-reload
+  systemctl enable --now securewave-helper.service
+  systemctl restart securewave-helper.service
+else
+  echo "SecureWave helper service requires systemd; install completed but service was not started." >&2
+fi
 POSTINST
+
+cat <<'PRERM' > "$staging_dir/DEBIAN/prerm"
+#!/bin/bash
+set -e
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  systemctl stop securewave-helper.service >/dev/null 2>&1 || true
+  systemctl disable securewave-helper.service >/dev/null 2>&1 || true
+fi
+PRERM
 
 cat <<'POSTRM' > "$staging_dir/DEBIAN/postrm"
 #!/bin/bash
 set -e
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  systemctl disable --now securewave-helper.service >/dev/null 2>&1 || true
+fi
+rm -f /etc/systemd/system/securewave-helper.service
+rm -f /usr/lib/tmpfiles.d/securewave-helper.conf
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+rm -f /run/securewave/helper.sock
+rmdir /run/securewave >/dev/null 2>&1 || true
 rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
 rm -f /usr/local/libexec/securewave-wg-quick.contract
+rm -f /usr/local/libexec/securewave-helperd
 rm -f /usr/local/libexec/securewave-wg-quick
+rm -f /etc/securewave/helper-users
+rmdir /etc/securewave >/dev/null 2>&1 || true
 POSTRM
-chmod 0755 "$staging_dir/DEBIAN/postinst" "$staging_dir/DEBIAN/postrm"
+chmod 0755 "$staging_dir/DEBIAN/postinst" "$staging_dir/DEBIAN/prerm" "$staging_dir/DEBIAN/postrm"
 
 mkdir -p "$output_dir"
 output_file="$output_dir/${package_name}_${version}_${arch}.deb"
 
-dpkg-deb --build "$staging_dir" "$output_file" >/dev/null
+dpkg-deb --root-owner-group --build "$staging_dir" "$output_file" >/dev/null
+
+mkdir -p "$downloads_dir"
+published_file="$downloads_dir/securewave-linux-${download_arch}.deb"
+cp -f "$output_file" "$published_file"
+if [[ -x "$PROJECT_ROOT/scripts/update_download_manifest.py" || -f "$PROJECT_ROOT/scripts/update_download_manifest.py" ]]; then
+  python3 "$PROJECT_ROOT/scripts/update_download_manifest.py"
+fi
 
 echo "OK: Built $output_file"
+echo "OK: Published $published_file"

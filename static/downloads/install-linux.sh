@@ -6,13 +6,19 @@
 #   sudo ./install-linux.sh /path/to/package.tar.gz  (explicit tarball)
 #   sudo ./install-linux.sh /path/to/package.zip     (explicit ARM64 zip)
 #
-# This script must be run as root or with sudo.
+# This installs a portable UI-only build. It does not install the root-owned
+# SecureWave helper service needed for full-device VPN routing.
+#
+# For full routing on Debian/Ubuntu, install the SecureWave .deb package once.
+# After the .deb is installed, pressing Connect in the app should not trigger
+# sudo, pkexec, password, terminal, or external privilege prompts.
+#
+# This portable installer must be run as root or with sudo.
 set -euo pipefail
 
 INSTALL_DIR="/opt/securewave"
 BIN_LINK="/usr/local/bin/securewave"
 DESKTOP_FILE="/usr/share/applications/securewave.desktop"
-HELPER_INSTALLER="$INSTALL_DIR/scripts/install_linux_helper.sh"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -104,19 +110,6 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# VPN runtime helper
-# ---------------------------------------------------------------------------
-
-info "Installing SecureWave VPN runtime helper ..."
-
-if [[ ! -x "$HELPER_INSTALLER" ]]; then
-  die "Runtime helper installer missing from tarball: $HELPER_INSTALLER
-Download a current SecureWave Linux package and rerun this installer."
-fi
-
-SECUREWAVE_ALLOWED_USER="${SUDO_USER:-}" "$HELPER_INSTALLER" "$INSTALL_DIR/packaging/linux"
-
-# ---------------------------------------------------------------------------
 # Symlink to PATH
 # ---------------------------------------------------------------------------
 
@@ -153,10 +146,16 @@ update-desktop-database /usr/share/applications 2>/dev/null || true
 info ""
 info "SecureWave VPN installed successfully."
 info ""
+info ".deb package: full VPN routing with the root-owned SecureWave helper service."
+info "Portable AppImage/tarball/zip: UI-only unless the .deb helper service is already installed."
+info "After .deb installation, pressing Connect should not ask for sudo, pkexec, or a password."
+info "Full routing install example: sudo apt install ./securewave-linux-arm64.deb"
+info ""
 info "Launch options:"
 info "  - From your application menu: search for 'SecureWave VPN'"
 info "  - From terminal: securewave"
 info "  - Direct path: $INSTALL_DIR/securewave_app"
 info ""
 info "To uninstall:"
-info "  sudo rm -rf $INSTALL_DIR $BIN_LINK $DESKTOP_FILE /usr/local/libexec/securewave-wg-quick /usr/local/libexec/securewave-wg-quick.contract /etc/polkit-1/rules.d/50-securewave-wg.rules"
+info "  sudo systemctl disable --now securewave-helper.service 2>/dev/null || true"
+info "  sudo rm -rf $INSTALL_DIR $BIN_LINK $DESKTOP_FILE"

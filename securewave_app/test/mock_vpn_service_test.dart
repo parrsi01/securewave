@@ -24,13 +24,17 @@ void main() {
     expect(service.getStatus(), VpnStatus.disconnected);
   });
 
-  test('ChannelVpnService allows all protocol selections on Linux runtime', () {
+  test('ChannelVpnService keeps unproven IKEv2 unavailable on Linux runtime',
+      () {
     final service = ChannelVpnService(allowFallback: false);
 
     expect(service.canConnectProtocol(VpnProtocol.wireGuard), isTrue);
     expect(service.canConnectProtocol(VpnProtocol.openVpn), isTrue);
-    expect(service.canConnectProtocol(VpnProtocol.ikev2), isTrue);
-    expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNull);
+    expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
+    expect(
+      service.protocolUnavailableReason(VpnProtocol.ikev2),
+      contains('live production proof'),
+    );
   }, testOn: 'linux');
 
   test('ChannelVpnService does not use mock fallback unless explicitly enabled',

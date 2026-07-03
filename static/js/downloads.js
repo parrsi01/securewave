@@ -86,6 +86,14 @@ function bestDownloadForPlatform(downloads, platform, architecture) {
     && entry.url
     && entry.url !== '#'
   ));
+  if (platform === 'linux') {
+    const fullRoutingDeb = matches.find((entry) => (
+      entry.architecture === architecture
+      && entry.supports_full_routing === true
+      && /\.deb$/i.test(entry.filename || '')
+    ));
+    if (fullRoutingDeb) return fullRoutingDeb;
+  }
   return matches.find((entry) => entry.architecture === architecture)
     || matches.find((entry) => entry.architecture === 'universal')
     || matches[0]

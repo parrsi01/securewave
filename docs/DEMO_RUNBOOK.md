@@ -32,9 +32,9 @@ The fallback banner says:
 Simulated tunnel — presentation mode. Not a real VPN.
 ```
 
-The connected label reads `Simulated (not encrypted)`. This mode does not call
-`pkexec`, does not create `sw-wg`, does not reroute traffic, and does not report
-fake tunnel usage to the backend.
+The connected label reads `Simulated (not encrypted)`. This mode does not
+contact the SecureWave helper service, does not create `sw-wg`, does not reroute
+traffic, and does not report fake tunnel usage to the backend.
 
 ## Preflight
 
@@ -84,7 +84,7 @@ bash scripts/demo_preflight.sh --cleanup
 The preflight checks live API health, email health visibility, the downloads
 manifest, live Linux server inventory, demo-account device capacity, host
 WireGuard residue, SecureWave helper contract version, prompt-free helper
-authorization through PolicyKit, optional active-tunnel egress, and a prebuilt
+service/socket authorization, optional active-tunnel egress, and a prebuilt
 Linux release bundle.
 
 For final go/no-go, connect the real tunnel first and then run:
@@ -134,7 +134,7 @@ ip -o link show type wireguard
 Before connecting the real tunnel:
 
 ```bash
-python3 scripts/linux_vpn_runtime_verifier.py --json --pkexec-timeout 60
+python3 scripts/linux_vpn_runtime_verifier.py --json
 ```
 
 After connect, verify the API remains reachable and egress moved through the
@@ -150,26 +150,30 @@ If real tunnel checks fail, stop the demo path and fix the product path. Use
 Presentation Mode only as a labeled fallback for a machine-specific runtime
 blocker.
 
-## PolicyKit Install Check
+## Helper Service Install Check
 
-The production `.deb` installs `50-securewave-wg.rules` into
-`/etc/polkit-1/rules.d/` and reloads PolicyKit when systemd is present. On an
-installed host, this command must return immediately without a password prompt:
+The production `.deb` installs `securewave-helper.service`, the helper daemon,
+the helper script, the contract file, runtime directory configuration, and VPN
+tool dependencies. On an installed host, these commands should show an active
+service and a Unix socket accessible to the logged-in user:
 
 ```bash
-pkexec --disable-internal-agent /usr/local/libexec/securewave-wg-quick probe wireguard
+systemctl status securewave-helper.service --no-pager
+test -S /run/securewave/helper.sock
+python3 scripts/linux_vpn_runtime_verifier.py --json
 ```
 
-The rule is scoped to `/usr/local/libexec/securewave-wg-quick` plus `wg show`;
-it does not authorize arbitrary `pkexec` commands.
+Package installation may require normal OS authorization once. Pressing Connect
+inside the app must not show sudo, password, terminal, or external privilege
+dialogs after the `.deb` install has completed.
 
 ## Recovery
 
 If the app or tunnel path stalls:
 
 ```bash
-pkexec --disable-internal-agent /usr/local/libexec/securewave-wg-quick policy-clear-link sw-wg
-python3 scripts/linux_vpn_runtime_verifier.py --json --pkexec-timeout 60
+sudo systemctl restart securewave-helper.service
+python3 scripts/linux_vpn_runtime_verifier.py --json
 ```
 
 If `wg-quick@*.service` is present:

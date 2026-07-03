@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
+import '../models/server_region.dart';
 import '../models/user_plan.dart';
 import '../models/vpn_profile.dart';
 import '../models/vpn_protocol.dart';
@@ -242,6 +243,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     try {
       final service = _ref.read(vpnServiceProvider);
       final api = _ref.read(apiClientProvider);
+      _ensureIkev2FailClosed();
       final runtimeSnapshot = await service.refreshRuntimeStatus();
       if (runtimeSnapshot.status == VpnStatus.connected) {
         final protocol = runtimeSnapshot.protocol ?? state.protocol;
@@ -258,6 +260,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         _startRateUpdates();
         return;
       }
+      await _ensureOpenVpnMetadataAvailable(api);
       String? config;
       String? connectedServerId = state.selectedServerId;
       var connectedProtocol = state.protocol;
@@ -384,6 +387,51 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     } finally {
       state = state.copyWith(isBusy: false);
     }
+  }
+
+  void _ensureIkev2FailClosed() {
+    if (state.protocol != VpnProtocol.ikev2) return;
+    throw VpnServiceException(
+      'protocol_unavailable',
+      ikev2ProductionDisabledMessage,
+    );
+  }
+
+  Future<void> _ensureOpenVpnMetadataAvailable(ApiClient api) async {
+    if (state.protocol != VpnProtocol.openVpn) return;
+    late final List<ServerRegion> servers;
+    try {
+      servers = await api.fetchServers();
+    } catch (_) {
+      throw VpnServiceException(
+        'protocol_unavailable',
+        'OpenVPN is unavailable because server protocol metadata could not be loaded.',
+      );
+    }
+
+    if (state.selectedServerId != null) {
+      for (final server in servers) {
+        if (server.id == state.selectedServerId) {
+          if (server.explicitlySupportsProtocol('openvpn')) return;
+          throw VpnServiceException(
+            'protocol_unavailable',
+            'OpenVPN is unavailable for the selected region.',
+          );
+        }
+      }
+      throw VpnServiceException(
+        'protocol_unavailable',
+        'OpenVPN is unavailable because the selected region was not found.',
+      );
+    }
+
+    if (servers.any((server) => server.explicitlySupportsProtocol('openvpn'))) {
+      return;
+    }
+    throw VpnServiceException(
+      'protocol_unavailable',
+      'OpenVPN is unavailable because no loaded region advertises OpenVPN.',
+    );
   }
 
   Future<void> disconnect() async {

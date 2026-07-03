@@ -89,17 +89,22 @@ build_linux() {
   PACKAGE_STAGING="$(mktemp -d)"
   trap 'rm -rf "$PACKAGE_STAGING"' RETURN
   cp -a "$BUNDLE_DIR/." "$PACKAGE_STAGING/"
-  mkdir -p "$PACKAGE_STAGING/packaging/linux" "$PACKAGE_STAGING/scripts"
-  cp -f "$APP_DIR/packaging/linux/securewave-wg-quick" "$PACKAGE_STAGING/packaging/linux/securewave-wg-quick"
-  cp -f "$APP_DIR/packaging/linux/securewave-wg-quick.contract" "$PACKAGE_STAGING/packaging/linux/securewave-wg-quick.contract"
-  cp -f "$APP_DIR/packaging/linux/50-securewave-wg.rules" "$PACKAGE_STAGING/packaging/linux/50-securewave-wg.rules"
-  cp -f "$APP_DIR/scripts/install_linux_helper.sh" "$PACKAGE_STAGING/scripts/install_linux_helper.sh"
-  chmod 0755 "$PACKAGE_STAGING/packaging/linux/securewave-wg-quick" \
-    "$PACKAGE_STAGING/scripts/install_linux_helper.sh"
+  rm -rf "$PACKAGE_STAGING/packaging/linux" "$PACKAGE_STAGING/scripts/install_linux_helper.sh"
+  cat > "$PACKAGE_STAGING/README-LINUX-VPN.txt" <<'EOF'
+SecureWave portable Linux package
+
+This portable package can launch the SecureWave UI, sign in, and show account
+state. Full-device VPN routing requires the root-owned SecureWave helper service.
+
+Install the SecureWave .deb package for full no-prompt VPN connect/disconnect.
+The portable tar/zip package intentionally does not install privileged routing
+services, systemd units, or Unix sockets.
+EOF
 
   if [[ "$ARCH_LABEL" == "arm64" ]]; then
     ZIP_FILE="$DOWNLOADS_DIR/securewave-app-linux-arm64.zip"
     echo "==> Packaging Linux bundle as $ZIP_FILE ..."
+    rm -f "$ZIP_FILE"
     if command -v zip >/dev/null 2>&1; then
       (cd "$PACKAGE_STAGING" && zip -qr "$ZIP_FILE" .)
     else
@@ -134,6 +139,8 @@ PY
     echo "==> NOTE: Run the project to generate install-linux.sh in static/downloads/"
   fi
 
+  python3 "$PROJECT_ROOT/scripts/update_download_manifest.py"
+
   echo "==> Linux build complete."
 }
 
@@ -161,6 +168,7 @@ build_android() {
 
   APK_DEST="$DOWNLOADS_DIR/securewave-android.apk"
   cp "$APK_SOURCE" "$APK_DEST"
+  python3 "$PROJECT_ROOT/scripts/update_download_manifest.py"
   echo "==> Android APK copied to: $APK_DEST ($(du -h "$APK_DEST" | cut -f1))"
   echo "==> Android build complete."
 }

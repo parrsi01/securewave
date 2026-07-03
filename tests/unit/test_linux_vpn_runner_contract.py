@@ -4,7 +4,8 @@ from pathlib import Path
 RUNNER = Path("securewave_app/linux/runner/my_application.cc")
 HELPER = Path("securewave_app/packaging/linux/securewave-wg-quick")
 HELPER_CONTRACT = Path("securewave_app/packaging/linux/securewave-wg-quick.contract")
-POLKIT_RULE = Path("securewave_app/packaging/linux/50-securewave-wg.rules")
+HELPER_SERVICE = Path("securewave_app/packaging/linux/securewave-helper.service")
+HELPER_TMPFILES = Path("securewave_app/packaging/linux/securewave-helper.tmpfiles")
 BUILD_DEB = Path("securewave_app/scripts/build_deb.sh")
 BUILD_APPS = Path("scripts/build_apps.sh")
 DOWNLOAD_INSTALLER = Path("static/downloads/install-linux.sh")
@@ -20,113 +21,72 @@ def test_linux_runner_persists_active_protocol_for_restart_cleanup():
     source = _runner_source()
 
     assert "kActiveProtocolFileName" in source
-    assert "persist_active_protocol(state, \"wireguard\")" in source
-    assert "persist_active_protocol(state, \"openvpn\")" in source
-    assert "persist_active_protocol(state, \"ikev2\")" in source
+    assert "persist_active_protocol" in source
+    assert "persist_active_protocol(state, protocol)" in source
     assert "load_active_protocol(state)" in source
+    assert "g_file_get_contents(state->active_protocol_path" in source
 
 
-def test_openvpn_start_requires_tunnel_evidence_not_only_daemon_pid():
+def test_runner_uses_helper_service_socket_without_connect_time_prompts():
     source = _runner_source()
 
-    assert "openvpn_runtime_evidence_exists" in source
-    assert "openvpn_pid_running(pid_path)" in source
-    assert "openvpn_initialization_completed" in source
-    assert "Initialization Sequence Completed" in source
-    assert "openvpn_log_tail" in source
-    assert "stop_openvpn_after_failed_start" in source
-    assert 'run_securewave_helper_sync("openvpn-stop", stop_args, nullptr)' in source
-    assert "OpenVPN process started but Initialization Sequence Completed" in source
-    assert '{"ip", "route", "get", "1.1.1.1", nullptr}' in source
-    assert '" dev tun"' in source
-    assert '"/sys/class/net/tun0"' in source
+    assert 'kHelperSocketPath = "/run/securewave/helper.sock"' in source
+    assert 'kHelperDaemonPath = "/usr/local/libexec/securewave-helperd"' in source
+    assert "helper_request(" in source
+    assert "helper_operation(" in source
+    assert 'helper_operation("probe", probe_args' in source
+    assert "pkexec" not in source
+    assert "sudo" not in source
+    assert "g_spawn_async_with_pipes" not in source
 
 
-def test_openvpn_start_and_stop_use_scoped_securewave_helper():
+def test_runner_connect_disconnect_use_allowlisted_helper_operations():
     source = _runner_source()
 
-    assert 'const_cast<gchar*>("--disable-internal-agent")' in source
-    assert 'const_cast<gchar*>("openvpn-start")' in source
-    assert "g_ptr_array_add(argv_array, const_cast<gchar*>(log_path))" in source
-    assert 'const_cast<gchar*>("openvpn-stop")' in source
-    assert "verify_openvpn_started = TRUE" in source
-    assert "verify_openvpn_stopped = TRUE" in source
-    assert "OpenVPN stop command completed but process or tunnel route evidence remains." in source
-    assert "securewave_helper_contract_available(&helper_detail)" in source
+    assert '"wireguard.up"' in source
+    assert '"wireguard.down"' in source
+    assert '"openvpn.start"' in source
+    assert '"openvpn.stop"' in source
+    assert '"ikev2.start"' in source
+    assert '"ikev2.stop"' in source
+    assert "run_helper_operation_async(" in source
+    assert "connect_op_for_protocol(protocol)" in source
+    assert "disconnect_op_for_protocol(protocol)" in source
+    assert "write_config_file(method_call, state->config_path, config)" in source
+    assert "g_chmod(path, 0600)" in source
 
 
-def test_wireguard_start_requires_route_evidence_not_only_interface():
+def test_runner_exposes_runtime_status_and_traffic_stats_from_helper():
     source = _runner_source()
 
-    assert 'kWireGuardInterfaceName = "sw-wg"' in source
-    assert 'kWireGuardConfigFileName = "sw-wg.conf"' in source
-    assert "wireguard_route_exists" in source
-    assert '{"ip", "route", "get", "1.1.1.1", nullptr}' in source
-    assert '" dev sw-wg"' in source
-    assert "route traffic was not using interface %s" in source
+    assert 'g_strcmp0(method, "getStatus") == 0' in source
+    assert 'g_strcmp0(method, "getTrafficStats") == 0' in source
+    assert '"wireguard.counters"' in source
+    assert '"wireguard.status"' in source
+    assert '"openvpn.status"' in source
+    assert '"ikev2.status"' in source
+    assert '"counters_available"' in source
+    assert '"unavailable_reason"' in source
+    assert '"rx_bytes"' in source
+    assert '"tx_bytes"' in source
 
 
-def test_wireguard_start_prefers_installed_securewave_helper():
+def test_runner_reports_portable_ui_only_and_deb_runtime_install_state():
     source = _runner_source()
 
-    assert 'kWireGuardHelperPath = "/usr/local/libexec/securewave-wg-quick"' in source
-    assert "wireguard_helper_available()" in source
-    assert '"--disable-internal-agent"' in source
-    assert "g_ptr_array_add(argv_array, const_cast<gchar*>(kWireGuardHelperPath))" in source
+    assert "bundled_runtime_payload_available" in source
+    assert "kBundledHelperScriptRelativePath" in source
+    assert "kBundledHelperDaemonRelativePath" in source
+    assert "kBundledHelperServiceRelativePath" in source
+    assert "kBundledHelperTmpfilesRelativePath" in source
+    assert 'g_strcmp0(method, "getRuntimeInstallState") == 0' in source
+    assert 'g_strcmp0(method, "installRuntimeHelper") == 0' in source
+    assert "runtime_install_requires_deb" in source
+    assert "Install the SecureWave .deb package for full no-prompt VPN routing" in source
+    assert "the app will not request administrator privileges at connect time" in source
 
 
-def test_linux_runner_preserves_helper_stdout_stderr_on_failures():
-    source = _runner_source()
-
-    assert "g_spawn_async_with_pipes" in source
-    assert "read_fd_to_string(&ctx->stdout_fd)" in source
-    assert "read_fd_to_string(&ctx->stderr_fd)" in source
-    assert "command_failure_message" in source
-    assert "VPN helper command failed." in source
-
-
-def test_ikev2_start_uses_networkmanager_helper_and_runtime_evidence():
-    source = _runner_source()
-
-    assert 'kIkev2ConnectionName = "SecureWave-IKEv2"' in source
-    assert '"ikev2-add-eap"' in source
-    assert '"ikev2-up"' in source
-    assert '"ikev2-down"' in source
-    assert '"ikev2-delete"' in source
-    assert "parse_config_value(config, \"remote_addrs\")" in source
-    assert "parse_config_value(config, \"eap_id\")" in source
-    assert "parse_config_value(config, \"secret\")" in source
-    assert "parse_ikev2_ca_cert_pem(config)" in source
-    assert 'kIkev2CaFileName = "securewave-ikev2-ca.pem"' in source
-    assert "ctx->ca_cert_path" in source
-    assert "kSecureWaveHelperContractVersion = 8" in source
-    assert "ikev2_runtime_evidence_exists" in source
-    assert "ikev2_xfrm_state_evidence_exists" in source
-    assert "active NetworkManager VPN route/DNS and XFRM ESP evidence was not detected" in source
-
-
-def test_linux_runner_exposes_protocol_traffic_stats():
-    source = _runner_source()
-
-    assert 'getTrafficStats' in source
-    assert 'rx_bytes' in source
-    assert 'tx_bytes' in source
-    assert 'interface_counter_available' in source
-    assert 'counters_available' in source
-    assert 'unavailable_reason' in source
-    assert 'traffic_interface_for_protocol' in source
-    assert '"/sys/class/net"' in source
-    assert 'read_wireguard_transfer_counters' in source
-    assert '"wireguard-transfer"' in source
-    assert 'run_securewave_helper_capture_sync' in source
-    assert 'read_ikev2_xfrm_counters' in source
-    assert '"ip", "-s", "xfrm", "state"' in source
-    assert '"xfrm-state"' in source
-    assert '"xfrm"' in source
-
-
-
-def test_linux_package_installs_privileged_helper_and_runtime_dependencies():
+def test_linux_package_installs_privileged_helper_service_and_dependencies():
     helper = HELPER.read_text(encoding="utf-8")
     helper_contract = HELPER_CONTRACT.read_text(encoding="utf-8").strip()
     build = BUILD_DEB.read_text(encoding="utf-8")
@@ -134,118 +94,80 @@ def test_linux_package_installs_privileged_helper_and_runtime_dependencies():
     assert "securewave-wg-quick openvpn-start <config-path> <pid-path> <log-path> [auth-path]" in helper
     assert "wireguard-transfer" in helper
     assert "xfrm-state" in helper
-    assert "ikev2-add-eap <server> <username> <password> [remote-id] [ca-cert-path]" in helper
-    assert "cert-source=file" in helper
-    assert "certificate=${ca_cert}" in helper
+    assert "require_safe_config_path()" in helper
+    assert "require_sw_wg_iface()" in helper
+    assert 'if [[ "$iface" != "sw-wg" ]]' in helper
     assert '--log "$log_file"' in helper
     assert "prepare_owned_runtime_file" in helper
     assert 'prepare_owned_runtime_file "$pid_file" "pid" "$config"' in helper
     assert 'prepare_owned_runtime_file "$log_file" "log" "$config"' in helper
-    assert "stat -c '%u:%g'" in helper
-    assert 'chmod 0600 "$tmp"' in helper
-    assert 'mv -fT "$tmp" "$path"' in helper
-    assert helper_contract == "8"
+    assert helper_contract == "9"
+    assert "securewave-helper.service" in build
+    assert "securewave-helper.tmpfiles" in build
+    assert "securewave-helperd" in build
     assert "securewave-wg-quick.contract" in build
-    assert "50-securewave-wg.rules" in build
-    assert "render_polkit_rule" in build
-    assert "__SECUREWAVE_ALLOWED_USER__" in build
-    assert "reload_polkit" in build
-    assert "try-reload-or-restart polkit.service" in build
-    assert "postinst" in build
-    assert "postrm" in build
-    assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, policykit-1" in build
+    assert "systemctl enable --now securewave-helper.service" in build
+    assert "rm -f /run/securewave/helper.sock" in build
+    assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, iproute2, iptables, acl, systemd" in build
+    assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build
+    assert "render_polkit_rule" not in build
 
 
-def test_linux_tarball_and_installer_ship_privileged_helper():
+def test_linux_tarball_and_installer_are_truthful_portable_ui_builds():
     build_apps = BUILD_APPS.read_text(encoding="utf-8")
     installer = DOWNLOAD_INSTALLER.read_text(encoding="utf-8")
-    helper_installer = HELPER_INSTALLER.read_text(encoding="utf-8")
 
-    assert 'mkdir -p "$PACKAGE_STAGING/packaging/linux" "$PACKAGE_STAGING/scripts"' in build_apps
-    assert 'ARCH_LABEL="arm64"; FLUTTER_ARCH="arm64"' in build_apps
-    assert "securewave-wg-quick" in build_apps
-    assert "securewave-wg-quick.contract" in build_apps
-    assert "50-securewave-wg.rules" in build_apps
-    assert "install_linux_helper.sh" in build_apps
+    assert 'rm -rf "$PACKAGE_STAGING/packaging/linux" "$PACKAGE_STAGING/scripts/install_linux_helper.sh"' in build_apps
+    assert "SecureWave portable Linux package" in build_apps
+    assert "Full-device VPN routing requires the root-owned SecureWave helper service." in build_apps
+    assert "Install the SecureWave .deb package for full no-prompt VPN connect/disconnect." in build_apps
     assert "securewave-app-linux-arm64.zip" in build_apps
     assert "securewave-linux-x64.tar.gz" in build_apps
-    assert 'HELPER_INSTALLER="$INSTALL_DIR/scripts/install_linux_helper.sh"' in installer
-    assert "extract_package()" in installer
-    assert "*.tar.gz|*.tgz)" in installer
-    assert "*.zip)" in installer
-    assert 'SECUREWAVE_ALLOWED_USER="${SUDO_USER:-}" "$HELPER_INSTALLER" "$INSTALL_DIR/packaging/linux"' in installer
-    assert 'Download a current SecureWave Linux package' in installer
-    assert "apt-get install -y" in helper_installer
+    assert "update_download_manifest.py" in build_apps
+    assert "This installs a portable UI-only build" in installer
+    assert ".deb package: full VPN routing with the root-owned SecureWave helper service." in installer
+    assert "Portable AppImage/tarball/zip: UI-only unless the .deb helper service is already installed." in installer
+    assert "pressing Connect should not ask for sudo, pkexec, or a password" in installer
+
+
+def test_helper_installer_installs_service_socket_model():
+    helper_installer = HELPER_INSTALLER.read_text(encoding="utf-8")
+
+    assert "securewave-helperd" in helper_installer
+    assert "securewave-helper.service" in helper_installer
+    assert "securewave-helper.tmpfiles" in helper_installer
     assert "wireguard-tools" in helper_installer
+    assert "openvpn" in helper_installer
     assert "network-manager-strongswan" in helper_installer
-    assert "PKEXEC_UID" in helper_installer
-    assert 'getent passwd "$PKEXEC_UID"' in helper_installer
-    assert 'install -m 0755 "$SOURCE_HELPER" "$HELPER"' in helper_installer
+    assert "acl" in helper_installer
+    assert "SECUREWAVE_ALLOWED_USER" in helper_installer
+    assert 'install -m 0755 "$SOURCE_HELPER_DAEMON" "$HELPER_DAEMON"' in helper_installer
     assert 'install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"' in helper_installer
-    assert 'sed "s/__SECUREWAVE_ALLOWED_USER__/${escaped_user}/g"' in helper_installer
-    assert "systemctl try-reload-or-restart polkit.service" in helper_installer
+    assert "systemctl enable --now securewave-helper.service" in helper_installer
+    assert "rm -f \"$OLD_POLKIT_RULE\"" in helper_installer
 
 
-def test_flutter_linux_bundle_installs_helper_payload():
+def test_flutter_linux_bundle_ships_deb_runtime_payload():
     cmake = LINUX_CMAKE.read_text(encoding="utf-8")
 
+    assert "add_executable(securewave_helperd" in cmake
     assert "../packaging/linux/securewave-wg-quick" in cmake
     assert "../packaging/linux/securewave-wg-quick.contract" in cmake
-    assert "../packaging/linux/50-securewave-wg.rules" in cmake
+    assert "../packaging/linux/securewave-helper.service" in cmake
+    assert "../packaging/linux/securewave-helper.tmpfiles" in cmake
     assert "../scripts/install_linux_helper.sh" in cmake
     assert 'DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"' in cmake
     assert 'DESTINATION "${CMAKE_INSTALL_PREFIX}/scripts"' in cmake
 
 
-def test_polkit_rule_scopes_prompt_free_actions_to_securewave_runtime():
-    rule = POLKIT_RULE.read_text(encoding="utf-8")
+def test_helper_service_owns_runtime_socket_path():
+    service = HELPER_SERVICE.read_text(encoding="utf-8")
+    tmpfiles = HELPER_TMPFILES.read_text(encoding="utf-8")
 
-    assert 'action.id != "org.freedesktop.policykit.exec"' in rule
-    assert 'configuredUser != "__SECUREWAVE_ALLOWED_USER__"' in rule
-    assert "subject.user == configuredUser" in rule
-    assert 'subject.user == "securewave"' in rule
-    assert 'subject.isInGroup("sudo")' in rule
-    assert 'program == "/usr/local/libexec/securewave-wg-quick"' in rule
-    assert 'program == "/usr/bin/wg" || program == "/bin/wg"' in rule
-    assert 'commandHasArg(commandLine, "show")' in rule
-    assert "polkit.Result.YES" in rule
-    assert "polkit.Result.NOT_HANDLED" in rule
-
-
-def test_linux_deb_postinst_installs_rendered_polkit_rule_safely():
-    build = BUILD_DEB.read_text(encoding="utf-8")
-
-    assert "SOURCE_POLKIT_RULE=$SOURCE_DIR/50-securewave-wg.rules" in build
-    assert "POLKIT_RULES_DIR=/etc/polkit-1/rules.d" in build
-    assert "POLKIT_RULE=$POLKIT_RULES_DIR/50-securewave-wg.rules" in build
-    assert 'mkdir -p "$POLKIT_RULES_DIR"' in build
-    assert 'install -m 0644 "$SOURCE_POLKIT_RULE" "$POLKIT_RULE"' in build
-    assert 'sed "s/__SECUREWAVE_ALLOWED_USER__/${escaped_user}/g"' in build
-    assert 'chmod 0644 "$POLKIT_RULE"' in build
-    assert 'ALLOW_USER="${SUDO_USER:-}"' in build
-    assert 'ALLOW_USER="$(logname 2>/dev/null || true)"' in build
-    assert "systemctl try-reload-or-restart polkit.service" in build
-    assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build
-
-
-def test_linux_runner_reports_missing_helper_before_protocol_start():
-    source = _runner_source()
-
-    assert "linux_native_runtime_available" in source
-    assert "securewave_helper_contract_available(detail)" in source
-    assert "PolicyKit/pkexec not found" in source
-    assert "SecureWave Linux VPN runtime is unavailable." in source
-    assert 'g_strcmp0(method, "isAvailable") == 0' in source
-
-
-def test_linux_runner_exposes_first_run_helper_installation():
-    source = _runner_source()
-
-    assert "bundled_runtime_payload_available" in source
-    assert "kHelperInstallerRelativePath" in source
-    assert "kBundledHelperRelativePath" in source
-    assert "respond_runtime_install_state" in source
-    assert "install_runtime_helper_async" in source
-    assert 'g_strcmp0(method, "getRuntimeInstallState") == 0' in source
-    assert 'g_strcmp0(method, "installRuntimeHelper") == 0' in source
-    assert "g_find_program_in_path(\"pkexec\")" in source
+    assert "ExecStart=/usr/local/libexec/securewave-helperd" in service
+    assert "User=root" in service
+    assert "Group=securewave" in service
+    assert "RuntimeDirectory=securewave" in service
+    assert "RuntimeDirectoryMode=0750" in service
+    assert "NoNewPrivileges=yes" in service
+    assert "d /run/securewave 0750 root securewave -" in tmpfiles

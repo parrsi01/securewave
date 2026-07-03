@@ -1,5 +1,5 @@
 from pathlib import Path
-from subprocess import CompletedProcess, TimeoutExpired
+from subprocess import CompletedProcess
 
 from scripts import linux_vpn_runtime_verifier as verifier
 
@@ -7,18 +7,17 @@ from scripts import linux_vpn_runtime_verifier as verifier
 def test_runner_contract_covers_all_protocol_runtime_evidence():
     checks = {check.name: check for check in verifier.check_runner_contract()}
 
-    assert checks["runner:wireguard"].ok
-    assert checks["runner:wireguard_route_evidence"].ok
-    assert checks["runner:openvpn"].ok
-    assert checks["runner:openvpn_helper_start"].ok
-    assert checks["runner:openvpn_helper_stop"].ok
-    assert checks["runner:ikev2"].ok
-    assert checks["runner:ikev2_helper_add"].ok
-    assert checks["runner:ikev2_helper_up"].ok
-    assert checks["runner:openvpn_tunnel_evidence"].ok
-    assert checks["runner:ikev2_runtime_evidence"].ok
+    assert checks["runner:method_channel"].ok
+    assert checks["runner:helper_socket"].ok
+    assert checks["runner:helper_request"].ok
+    assert checks["runner:wireguard_connect_op"].ok
+    assert checks["runner:wireguard_disconnect_op"].ok
+    assert checks["runner:openvpn_connect_op"].ok
+    assert checks["runner:openvpn_disconnect_op"].ok
+    assert checks["runner:ikev2_connect_op"].ok
+    assert checks["runner:ikev2_disconnect_op"].ok
     assert checks["runner:securewave_helper_contract"].ok
-    assert checks["runner:ikev2_ca_profile"].ok
+    assert checks["runner:no_implicit_mock"].ok
 
 
 def test_build_artifact_check_reports_missing_build(monkeypatch, tmp_path):
@@ -35,9 +34,11 @@ def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
     bundle = tmp_path / "bundle"
     helper = bundle / "packaging/linux/securewave-wg-quick"
     contract = bundle / "packaging/linux/securewave-wg-quick.contract"
-    rule = bundle / "packaging/linux/50-securewave-wg.rules"
+    helperd = bundle / "packaging/linux/securewave-helperd"
+    service = bundle / "packaging/linux/securewave-helper.service"
+    tmpfiles = bundle / "packaging/linux/securewave-helper.tmpfiles"
     installer = bundle / "scripts/install_linux_helper.sh"
-    for path in (helper, contract, rule, installer):
+    for path in (helper, contract, helperd, service, tmpfiles, installer):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("x", encoding="utf-8")
     monkeypatch.setattr(verifier, "BUILD_BUNDLE_DIR", bundle)
@@ -45,8 +46,10 @@ def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
     checks = {check.name: check for check in verifier.check_build_helper_payload()}
 
     assert checks["build:helper_payload"].ok
+    assert checks["build:helperd_payload"].ok
+    assert checks["build:helper_service_payload"].ok
+    assert checks["build:helper_tmpfiles_payload"].ok
     assert checks["build:helper_contract_payload"].ok
-    assert checks["build:polkit_payload"].ok
     assert checks["build:helper_installer_payload"].ok
 
 
@@ -63,6 +66,15 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
             returncode=0,
             stdout="default dev sw-wg table 51820\n0.0.0.0/1 dev tun0\n128.0.0.0/1 dev tun0\n",
             stderr="",
+        ),
+        ("ip", "rule", "show"): CompletedProcess(
+            args=[], returncode=0, stdout="32765: from all lookup 51820\n", stderr=""
+        ),
+        ("ip", "-4", "route", "show", "table", "51820"): CompletedProcess(
+            args=[], returncode=0, stdout="default dev sw-wg\n", stderr=""
+        ),
+        ("ip", "-6", "route", "show", "table", "51820"): CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
         ),
         ("pgrep", "-x", "openvpn"): CompletedProcess(
             args=[], returncode=0, stdout="123\n", stderr=""
@@ -85,6 +97,8 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
     assert not checks["residue:wireguard_interface"].ok
     assert not checks["residue:tun0_interface"].ok
     assert not checks["residue:tunnel_routes"].ok
+    assert not checks["residue:wireguard_policy_rules"].ok
+    assert not checks["residue:wireguard_policy_routes"].ok
     assert not checks["residue:openvpn_process"].ok
     assert not checks["residue:ikev2_sa"].ok
     assert not checks["residue:ikev2_nm_connection"].ok
@@ -94,53 +108,37 @@ def test_verifier_paths_stay_inside_repo():
     assert verifier.RUNNER_PATH == Path("securewave_app/linux/runner/my_application.cc").resolve()
 
 
-def test_privilege_check_reports_pkexec_timeout(monkeypatch, tmp_path):
-    monkeypatch.setattr(verifier.shutil, "which", lambda tool: "/usr/bin/pkexec")
-    monkeypatch.setattr(verifier.os, "geteuid", lambda: 1000)
-    helper = tmp_path / "securewave-wg-quick"
-    helper.write_text("#!/bin/sh\n", encoding="utf-8")
-    monkeypatch.setattr(verifier, "HELPER_PATH", helper)
+def test_helper_ipc_reports_promptless_service_probe(monkeypatch):
+    def fake_helper_request(fields, timeout=5.0):
+        op = fields["op"]
+        if op == "probe" and fields["protocol"] == "wireguard":
+            return {"ok": "true", "service_version": "1", "message": "OK"}
+        if op == "probe" and fields["protocol"] == "openvpn":
+            return {"ok": "false", "code": "tool_missing", "service_version": "1", "message": "missing"}
+        if op == "probe" and fields["protocol"] == "ikev2":
+            return {
+                "ok": "false",
+                "code": "protocol_unavailable",
+                "service_version": "1",
+                "message": "IKEv2 disabled",
+            }
+        if op == "shell":
+            return {
+                "ok": "false",
+                "code": "invalid_operation",
+                "service_version": "1",
+                "message": "no",
+            }
+        raise AssertionError(fields)
 
-    def fake_run(*args, **kwargs):
-        raise TimeoutExpired(
-            cmd=["pkexec", "--disable-internal-agent", str(verifier.HELPER_PATH), "probe", "wireguard"],
-            timeout=60,
-        )
+    monkeypatch.setattr(verifier, "helper_request", fake_helper_request)
 
-    monkeypatch.setattr(verifier.subprocess, "run", fake_run)
+    checks = {check.name: check for check in verifier.check_helper_ipc()}
 
-    check = verifier.check_privilege_elevation()
-
-    assert not check.ok
-    assert "pkexec authorization timed out after 60s" in check.detail
-
-
-def test_privilege_check_uses_configurable_timeout(monkeypatch, tmp_path):
-    monkeypatch.setattr(verifier.shutil, "which", lambda tool: "/usr/bin/pkexec")
-    monkeypatch.setattr(verifier.os, "geteuid", lambda: 1000)
-    helper = tmp_path / "securewave-wg-quick"
-    helper.write_text("#!/bin/sh\n", encoding="utf-8")
-    monkeypatch.setattr(verifier, "HELPER_PATH", helper)
-    seen = {}
-
-    def fake_run(*args, **kwargs):
-        seen["timeout"] = kwargs["timeout"]
-        seen["argv"] = args[0]
-        return CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr(verifier.subprocess, "run", fake_run)
-
-    check = verifier.check_privilege_elevation(17)
-
-    assert check.ok
-    assert seen["timeout"] == 17
-    assert seen["argv"] == [
-        "/usr/bin/pkexec",
-        "--disable-internal-agent",
-        str(verifier.HELPER_PATH),
-        "probe",
-        "wireguard",
-    ]
+    assert checks["privilege:helper_probe:wireguard"].ok
+    assert checks["privilege:helper_probe:openvpn"].ok
+    assert checks["privilege:helper_probe:ikev2"].ok
+    assert checks["privilege:helper_invalid_op_fails_closed"].ok
 
 
 def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path):
@@ -151,33 +149,11 @@ def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path
     check = verifier.check_installed_helper_contract()
 
     assert not check.ok
-    assert "required 8" in check.detail
+    assert "required 9" in check.detail
 
 
-def test_polkit_rule_source_scopes_prompt_free_actions(monkeypatch, tmp_path):
-    rule = tmp_path / "50-securewave-wg.rules"
-    rule.write_text(
-        """
-polkit.addRule(function(action, subject) {
-  if (action.id != "org.freedesktop.policykit.exec") return polkit.Result.NOT_HANDLED;
-  var configuredUser = "__SECUREWAVE_ALLOWED_USER__";
-  if (subject.user == "securewave" || subject.isInGroup("sudo")) {
-    var commandLine = action.lookup("command_line") || "";
-    if (program == "/usr/local/libexec/securewave-wg-quick") return polkit.Result.YES;
-    if (commandHasArg(commandLine, "show")) return polkit.Result.YES;
-  }
-});
-""",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(verifier, "POLKIT_RULE_SOURCE_PATH", rule)
+def test_no_polkit_source_enforces_service_socket_model():
+    checks = {check.name: check for check in verifier.check_no_polkit_source()}
 
-    checks = {check.name: check for check in verifier.check_polkit_rule_source()}
-
-    assert checks["privilege:polkit_exec_action"].ok
-    assert checks["privilege:polkit_helper_path"].ok
-    assert checks["privilege:polkit_sudo_group"].ok
-    assert checks["privilege:polkit_securewave_user"].ok
-    assert checks["privilege:polkit_install_user_template"].ok
-    assert checks["privilege:polkit_wg_show_boundary"].ok
-    assert checks["privilege:polkit_prompt_free"].ok
+    assert checks["privilege:no_packaged_polkit_rule"].ok
+    assert checks["runner:no_connect_time_pkexec"].ok

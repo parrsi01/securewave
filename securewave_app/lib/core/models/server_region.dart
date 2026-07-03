@@ -32,6 +32,12 @@ class ServerRegion {
         .contains(protocol.toLowerCase().trim());
   }
 
+  bool explicitlySupportsProtocol(String protocol) {
+    return supportedProtocols
+        .map((item) => item.toLowerCase().trim())
+        .contains(protocol.toLowerCase().trim());
+  }
+
   factory ServerRegion.fromJson(Map<String, dynamic> json) {
     final protocolsRaw = json['supported_protocols'];
     final protocols = <String>[];

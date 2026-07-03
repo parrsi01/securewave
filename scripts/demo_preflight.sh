@@ -38,7 +38,7 @@ revocation only runs with --revoke-devices.
 
 Use --live-go-no-go after connecting the real tunnel. It requires tunnel egress
 and email health in addition to the default live API, inventory, residue, helper,
-polkit, and build checks.
+socket, and build checks.
 EOF
 }
 
@@ -128,33 +128,59 @@ check_helper_contract() {
 
   local contract
   contract="$(tr -d '[:space:]' < "$contract_file")"
-  if [[ "$contract" =~ ^[0-9]+$ ]] && (( contract >= 8 )); then
-    pass "SecureWave helper contract $contract >= 8"
+  if [[ "$contract" =~ ^[0-9]+$ ]] && (( contract >= 9 )); then
+    pass "SecureWave helper contract $contract >= 9"
   else
-    fail "SecureWave helper contract '$contract' is below required version 8"
+    fail "SecureWave helper contract '$contract' is below required version 9"
   fi
 }
 
-check_polkit_authorization() {
-  local helper="/usr/local/libexec/securewave-wg-quick"
-  if [[ ! -x "$helper" ]]; then
-    fail "$helper is missing or not executable"
+helper_socket_request() {
+  python3 - "$@" <<'PY'
+import socket
+import sys
+
+socket_path = "/run/securewave/helper.sock"
+fields = {"version": "1"}
+for item in sys.argv[1:]:
+    key, value = item.split("=", 1)
+    fields[key] = value
+
+def escape(value):
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
+
+body = "".join(f"{key}={escape(value)}\n" for key, value in fields.items()).encode()
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+    client.settimeout(20)
+    client.connect(socket_path)
+    client.sendall(body)
+    client.shutdown(socket.SHUT_WR)
+    response = client.recv(1048576).decode(errors="replace")
+print(response.strip())
+if "ok=true" in response or "code=tool_missing" in response:
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+check_helper_service_authorization() {
+  local helperd="/usr/local/libexec/securewave-helperd"
+  if [[ ! -x "$helperd" ]]; then
+    fail "$helperd is missing or not executable"
     return
   fi
 
   local output
   local code
   set +e
-  output="$(timeout 20 pkexec --disable-internal-agent "$helper" probe wireguard 2>&1)"
+  output="$(helper_socket_request op=probe protocol=wireguard 2>&1)"
   code=$?
   set -e
 
   if (( code == 0 )); then
-    pass "prompt-free SecureWave helper authorization works"
-  elif (( code == 124 )); then
-    fail "SecureWave helper authorization timed out; install /etc/polkit-1/rules.d/50-securewave-wg.rules or start a PolicyKit agent"
+    pass "prompt-free SecureWave helper socket authorization works"
   else
-    fail "SecureWave helper authorization failed: ${output:-pkexec exited $code}"
+    fail "SecureWave helper socket authorization failed: ${output:-helper socket exited $code}"
   fi
 }
 
@@ -276,7 +302,7 @@ cleanup_wireguard_interfaces() {
       local iface
       iface="$(awk -F': ' '{print $2}' <<<"$line" | cut -d@ -f1)"
       if [[ "$iface" == "sw-wg" ]]; then
-        warn "cleanup command: pkexec --disable-internal-agent /usr/local/libexec/securewave-wg-quick policy-clear-link sw-wg"
+        warn "cleanup command: SecureWave helper socket op=wireguard.cleanup"
       else
         warn "cleanup command: sudo wg-quick down $iface"
       fi
@@ -290,7 +316,7 @@ cleanup_wireguard_interfaces() {
     local iface
     iface="$(awk -F': ' '{print $2}' <<<"$line" | cut -d@ -f1)"
     if [[ "$iface" == "sw-wg" ]]; then
-      pkexec --disable-internal-agent /usr/local/libexec/securewave-wg-quick policy-clear-link sw-wg
+      helper_socket_request op=wireguard.cleanup
     else
       sudo -n wg-quick down "$iface"
     fi
@@ -532,7 +558,6 @@ require_command python3
 require_command ip
 require_command systemctl
 require_command flutter
-require_command pkexec
 require_command timeout
 require_command getent
 
@@ -543,7 +568,7 @@ run_live_account_checks
 cleanup_wireguard_interfaces
 cleanup_wg_quick_units
 check_helper_contract
-check_polkit_authorization
+check_helper_service_authorization
 check_real_tunnel_egress
 prebuild_linux_bundle
 

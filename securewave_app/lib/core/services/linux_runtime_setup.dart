@@ -9,6 +9,9 @@ class LinuxRuntimeInstallState {
     required this.installedContract,
     required this.requiredContract,
     required this.message,
+    this.wireGuardAvailable = false,
+    this.openVpnAvailable = false,
+    this.ikev2Available = false,
     this.supported = true,
   });
 
@@ -17,9 +20,10 @@ class LinuxRuntimeInstallState {
   final int installedContract;
   final int requiredContract;
   final String message;
+  final bool wireGuardAvailable;
+  final bool openVpnAvailable;
+  final bool ikev2Available;
   final bool supported;
-
-  bool get canInstall => supported && !installed && payloadAvailable;
 
   factory LinuxRuntimeInstallState.fromJson(Map<Object?, Object?> json) {
     int parseInt(Object? value) {
@@ -40,6 +44,9 @@ class LinuxRuntimeInstallState {
       installedContract: parseInt(json['installed_contract']),
       requiredContract: parseInt(json['required_contract']),
       message: json['message']?.toString() ?? 'Runtime setup unavailable.',
+      wireGuardAvailable: parseBool(json['wireguard_available']),
+      openVpnAvailable: parseBool(json['openvpn_available']),
+      ikev2Available: parseBool(json['ikev2_available']),
     );
   }
 
@@ -76,12 +83,5 @@ class LinuxRuntimeSetupService {
     } on MissingPluginException {
       return LinuxRuntimeInstallState.unsupported;
     }
-  }
-
-  Future<void> installHelper() async {
-    if (!isSupported) {
-      throw StateError('Linux runtime setup is unavailable on this platform.');
-    }
-    await _channel.invokeMethod<void>('installRuntimeHelper');
   }
 }

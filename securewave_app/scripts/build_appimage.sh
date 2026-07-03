@@ -25,6 +25,18 @@ fi
 flutter pub get
 flutter build linux --release
 
+for bundle in build/linux/*/release/bundle; do
+  [[ -d "$bundle" ]] || continue
+  rm -rf "$bundle/packaging/linux" "$bundle/scripts/install_linux_helper.sh"
+  cat > "$bundle/README-LINUX-VPN.txt" <<'EOF'
+SecureWave AppImage
+
+This AppImage can launch the SecureWave UI. Full-device VPN routing requires
+the root-owned SecureWave helper service. Install the SecureWave .deb package
+for full no-prompt VPN connect/disconnect.
+EOF
+done
+
 cp -f assets/icon.png packaging/appimage/securewave.png
 
 appimage-builder --recipe packaging/appimage/appimage-builder.yml --skip-test

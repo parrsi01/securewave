@@ -10,13 +10,19 @@ def test_wireguard_evidence_requires_sw_wg_route(monkeypatch):
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
+    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base: {"ok": True})
+    monkeypatch.setattr(
+        proof,
+        "_wireguard_counter_evidence",
+        lambda: {"ok": True, "response": {"stdout": "peer 12 34"}},
+    )
 
-    assert proof._evidence_for("wireguard")["ok"] is True
+    assert proof._evidence_for("wireguard", "https://api.example.test/api")["ok"] is True
 
 
 def test_openvpn_evidence_requires_tun_route_and_process(monkeypatch):
     def fake_run(argv, *, timeout=15):
-        if argv[:4] == ["ip", "link", "show", "tun0"]:
+        if argv[:4] == ["ip", "-o", "link", "show"]:
             return proof.CommandResult(0, "11: tun0: <POINTOPOINT>\n", "")
         if argv[:4] == ["ip", "route", "get", "1.1.1.1"]:
             return proof.CommandResult(0, "1.1.1.1 dev tun0 src 10.9.0.2\n", "")
@@ -25,8 +31,10 @@ def test_openvpn_evidence_requires_tun_route_and_process(monkeypatch):
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
+    monkeypatch.setattr(proof, "_openvpn_log_evidence", lambda: {"ok": True})
+    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base: {"ok": True})
 
-    assert proof._evidence_for("openvpn")["ok"] is True
+    assert proof._evidence_for("openvpn", "https://api.example.test/api")["ok"] is True
 
 
 def test_ikev2_evidence_requires_nm_vpn_route_dns_and_xfrm_state(monkeypatch):
@@ -35,38 +43,36 @@ def test_ikev2_evidence_requires_nm_vpn_route_dns_and_xfrm_state(monkeypatch):
             return proof.CommandResult(0, "SecureWave-IKEv2:vpn\n", "")
         if argv[:5] == ["nmcli", "-t", "-f", "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE", "connection"]:
             return proof.CommandResult(0, "IP4.DNS[1]:94.140.14.14\n", "")
-        if argv[-1:] == ["xfrm-state"]:
-            return proof.CommandResult(0, "src 203.0.113.2 dst 198.51.100.2\n\tproto esp spi 0x1\n", "")
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
+    monkeypatch.setattr(
+        proof,
+        "_helper_evidence",
+        lambda fields, timeout=20.0: {
+            "ok": True,
+            "response": {"ok": "true", "status": "connected"},
+        },
+    )
+    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base: {"ok": True})
 
-    assert proof._evidence_for("ikev2")["ok"] is True
+    assert proof._evidence_for("ikev2", "https://api.example.test/api")["ok"] is True
 
 
 def test_wireguard_cleanup_removes_securewave_link(monkeypatch):
     calls = []
 
-    def fake_run(argv, *, timeout=15):
-        calls.append((argv, timeout))
-        return proof.CommandResult(0, "", "")
+    def fake_helper_request(fields):
+        calls.append(fields)
+        return {"ok": "true", "status": "disconnected"}
 
-    monkeypatch.setattr(proof, "_run", fake_run)
+    monkeypatch.setattr(proof, "_helper_request", fake_helper_request)
 
-    actions = proof._cleanup_protocol_residue("wireguard", pkexec_timeout=60)
+    actions = proof._cleanup_protocol_residue("wireguard")
 
     assert actions[0]["protocol"] == "wireguard"
     assert calls == [
-        (
-            [
-                "pkexec",
-                "--disable-internal-agent",
-                "/usr/local/libexec/securewave-wg-quick",
-                "policy-clear-link",
-                "sw-wg",
-            ],
-            60,
-        )
+        {"op": "wireguard.cleanup", "config_path": proof._state_path("sw-wg.conf")}
     ]
 
 
@@ -79,8 +85,14 @@ def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
+    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base: {"ok": True})
+    monkeypatch.setattr(
+        proof,
+        "_wireguard_counter_evidence",
+        lambda: {"ok": True, "response": {"stdout": "peer 12 34"}},
+    )
 
-    assert proof._evidence_for("wireguard")["ok"] is False
+    assert proof._evidence_for("wireguard", "https://api.example.test/api")["ok"] is False
 
 
 def test_placeholder_credentials_are_detected():

@@ -8,7 +8,6 @@ API_BASE="${SECUREWAVE_API_BASE_URL:-https://api.securewaveapp.com/api}"
 DOWNLOADS_URL="${SECUREWAVE_DOWNLOADS_URL:-$API_BASE/downloads}"
 DEFAULT_AUTH_FILE="$ROOT_DIR/securewave_private/live_certification_account.env"
 AUTH_FILE="${SECUREWAVE_CERT_AUTH_FILE:-${SECUREWAVE_LIVE_ACCOUNT_FILE:-$DEFAULT_AUTH_FILE}}"
-PKEXEC_TIMEOUT="${SECUREWAVE_PKEXEC_TIMEOUT:-20}"
 HOLD_SECONDS="${SECUREWAVE_PROOF_HOLD_SECONDS:-20}"
 EVIDENCE_TIMEOUT="${SECUREWAVE_EVIDENCE_TIMEOUT:-180}"
 TRANSFER_PROOF_BYTES="${SECUREWAVE_TRANSFER_PROOF_BYTES:-1048576}"
@@ -395,7 +394,6 @@ run_app_proof() {
     python3 scripts/linux_app_vpn_tunnel_proof.py
     --hold-seconds "$HOLD_SECONDS"
     --evidence-timeout "$EVIDENCE_TIMEOUT"
-    --pkexec-timeout "$PKEXEC_TIMEOUT"
     --json
   )
   if [[ -f "${SECUREWAVE_CERT_AUTH_FILE:-}" ]]; then
@@ -570,7 +568,7 @@ if [[ "$PROVISION_LIVE_ACCOUNT" == "true" ]]; then
 fi
 export_auth_file_if_present
 
-runtime_verifier_args=(python3 scripts/linux_vpn_runtime_verifier.py --json --pkexec-timeout "$PKEXEC_TIMEOUT")
+runtime_verifier_args=(python3 scripts/linux_vpn_runtime_verifier.py --json)
 if [[ "$CONNECTED" == "true" ]]; then
   runtime_verifier_args+=(--allow-active-tunnel)
 fi
