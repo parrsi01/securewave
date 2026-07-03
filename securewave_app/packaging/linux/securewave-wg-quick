@@ -248,6 +248,25 @@ clear_policy_state() {
   ip route flush cache >/dev/null 2>&1 || true
 }
 
+ensure_policy_state() {
+  wg set "$iface" fwmark 51820
+  if (( $(policy_rule_count) > 1 || $(main_suppress_count) > 1 )); then
+    clear_policy_state 0
+  fi
+  if ! table_route_present; then
+    ip -4 route flush table 51820 >/dev/null 2>&1 || true
+    ip -6 route flush table 51820 >/dev/null 2>&1 || true
+    ip route replace default dev "$iface" table 51820
+  fi
+  if (( $(policy_rule_count) == 0 )); then
+    ip rule add not fwmark 51820 table 51820 priority 32764
+  fi
+  if (( $(main_suppress_count) == 0 )); then
+    ip rule add table main suppress_prefixlength 0 priority 32765
+  fi
+  ip route flush cache >/dev/null 2>&1 || true
+}
+
 if [[ "$action" == "up" ]]; then
   STATE_DIR=/run/securewave
   POLICY_FILE=$STATE_DIR/sw-wg.output-policy
@@ -271,6 +290,17 @@ if [[ "$action" == "up" ]]; then
   wg-quick down "$config" >/dev/null 2>&1 || true
   iface="sw-wg"
   clear_policy_state 1
+  wg-quick up "$config"
+  nmcli device set "$iface" managed no >/dev/null 2>&1 || true
+  ensure_policy_state
+  exit 0
+fi
+
+if [[ "$action" == "down" ]]; then
+  iface="sw-wg"
+  wg-quick down "$config" >/dev/null 2>&1 || true
+  clear_policy_state 1
+  exit 0
 fi
 
 if [[ "$action" == "openvpn-start" ]]; then
@@ -297,22 +327,7 @@ if [[ "$action" == "xfrm-state" ]]; then
 fi
 
 if [[ "$action" == "policy-ensure" ]]; then
-  wg set "$iface" fwmark 51820
-  if ! table_route_present; then
-    ip -4 route flush table 51820 >/dev/null 2>&1 || true
-    ip -6 route flush table 51820 >/dev/null 2>&1 || true
-    ip route add default dev "$iface" table 51820
-  fi
-  if (( $(policy_rule_count) > 1 || $(main_suppress_count) > 1 )); then
-    clear_policy_state 0
-  fi
-  if (( $(policy_rule_count) == 0 )); then
-    ip rule add not fwmark 51820 table 51820 priority 32764
-  fi
-  if (( $(main_suppress_count) == 0 )); then
-    ip rule add table main suppress_prefixlength 0 priority 32765
-  fi
-  ip route flush cache >/dev/null 2>&1 || true
+  ensure_policy_state
   exit 0
 fi
 

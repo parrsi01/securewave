@@ -29,7 +29,7 @@ POLKIT_RULE_SOURCE_PATH = REPO_ROOT / "securewave_app/packaging/linux/50-securew
 REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "pkexec")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
-EXPECTED_SECUREWAVE_HELPER_CONTRACT = 7
+EXPECTED_SECUREWAVE_HELPER_CONTRACT = 8
 DEFAULT_PKEXEC_TIMEOUT_SECONDS = 60
 
 
@@ -195,7 +195,7 @@ def check_runner_contract() -> list[Check]:
         "runner:ikev2_helper_up": "ikev2-up",
         "runner:openvpn_tunnel_evidence": "OpenVPN process started but Initialization Sequence Completed and tunnel route evidence were not detected.",
         "runner:ikev2_runtime_evidence": "active NetworkManager VPN route/DNS and XFRM ESP evidence was not detected",
-        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 7",
+        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 8",
         "runner:ikev2_ca_profile": "parse_ikev2_ca_cert_pem(config)",
         "runner:no_implicit_mock": "securewave/vpn",
     }

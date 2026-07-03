@@ -151,7 +151,7 @@ def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path
     check = verifier.check_installed_helper_contract()
 
     assert not check.ok
-    assert "required 7" in check.detail
+    assert "required 8" in check.detail
 
 
 def test_polkit_rule_source_scopes_prompt_free_actions(monkeypatch, tmp_path):

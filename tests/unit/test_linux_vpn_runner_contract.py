@@ -99,7 +99,7 @@ def test_ikev2_start_uses_networkmanager_helper_and_runtime_evidence():
     assert "parse_ikev2_ca_cert_pem(config)" in source
     assert 'kIkev2CaFileName = "securewave-ikev2-ca.pem"' in source
     assert "ctx->ca_cert_path" in source
-    assert "kSecureWaveHelperContractVersion = 7" in source
+    assert "kSecureWaveHelperContractVersion = 8" in source
     assert "ikev2_runtime_evidence_exists" in source
     assert "ikev2_xfrm_state_evidence_exists" in source
     assert "active NetworkManager VPN route/DNS and XFRM ESP evidence was not detected" in source
@@ -144,7 +144,7 @@ def test_linux_package_installs_privileged_helper_and_runtime_dependencies():
     assert "stat -c '%u:%g'" in helper
     assert 'chmod 0600 "$tmp"' in helper
     assert 'mv -fT "$tmp" "$path"' in helper
-    assert helper_contract == "7"
+    assert helper_contract == "8"
     assert "securewave-wg-quick.contract" in build
     assert "50-securewave-wg.rules" in build
     assert "render_polkit_rule" in build

@@ -45,6 +45,18 @@ def test_linux_runtime_reports_helper_failures_and_requires_route_evidence():
     assert "WireGuard command completed but interface %s is still present." in source
 
 
+def test_wireguard_helper_stabilizes_policy_after_up_and_clears_on_down():
+    helper = LINUX_HELPER.read_text(encoding="utf-8")
+
+    assert "ensure_policy_state()" in helper
+    assert 'wg-quick up "$config"' in helper
+    assert 'nmcli device set "$iface" managed no' in helper
+    assert "ensure_policy_state" in helper
+    assert 'if [[ "$action" == "down" ]]' in helper
+    assert 'wg-quick down "$config" >/dev/null 2>&1 || true' in helper
+    assert "clear_policy_state 1" in helper
+
+
 def test_linux_setup_doc_documents_helper_recovery_without_scope_expansion():
     runbook = LINUX_RUNBOOK.read_text(encoding="utf-8")
 

@@ -39,7 +39,7 @@ const char* kHelperInstallerRelativePath = "scripts/install_linux_helper.sh";
 const char* kBundledHelperRelativePath = "packaging/linux/securewave-wg-quick";
 const char* kBundledHelperContractRelativePath = "packaging/linux/securewave-wg-quick.contract";
 const char* kBundledPolkitRuleRelativePath = "packaging/linux/50-securewave-wg.rules";
-const guint kSecureWaveHelperContractVersion = 7;
+const guint kSecureWaveHelperContractVersion = 8;
 const guint kWgQuickTimeoutMs = 30000;
 const guint kOpenVpnTimeoutMs = 20000;
 
