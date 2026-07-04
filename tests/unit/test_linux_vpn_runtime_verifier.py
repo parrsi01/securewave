@@ -4,6 +4,14 @@ from subprocess import CompletedProcess
 from scripts import linux_vpn_runtime_verifier as verifier
 
 
+def use_build_bundles(monkeypatch, tmp_path):
+    release_bundle = tmp_path / "build/linux/arm64/release/bundle"
+    debug_bundle = tmp_path / "build/linux/arm64/debug/bundle"
+    monkeypatch.setattr(verifier, "BUILD_RELEASE_BUNDLE_DIR", release_bundle)
+    monkeypatch.setattr(verifier, "BUILD_DEBUG_BUNDLE_DIR", debug_bundle)
+    return release_bundle, debug_bundle
+
+
 def test_runner_contract_covers_all_protocol_runtime_evidence():
     checks = {check.name: check for check in verifier.check_runner_contract()}
 
@@ -21,17 +29,46 @@ def test_runner_contract_covers_all_protocol_runtime_evidence():
 
 
 def test_build_artifact_check_reports_missing_build(monkeypatch, tmp_path):
-    missing = tmp_path / "securewave_app"
-    monkeypatch.setattr(verifier, "BUILD_PATH", missing)
+    _, debug_bundle = use_build_bundles(monkeypatch, tmp_path)
 
     check = verifier.check_build_artifact()
 
     assert not check.ok
-    assert "flutter build linux --debug" in check.detail
+    assert str(debug_bundle) in check.detail
+    assert "flutter build linux --release" in check.detail
+
+
+def test_build_artifact_prefers_release_bundle_when_present(monkeypatch, tmp_path):
+    release_bundle, debug_bundle = use_build_bundles(monkeypatch, tmp_path)
+    release_app = release_bundle / "securewave_app"
+    debug_app = debug_bundle / "securewave_app"
+    for app in (release_app, debug_app):
+        app.parent.mkdir(parents=True, exist_ok=True)
+        app.write_text("x", encoding="utf-8")
+
+    check = verifier.check_build_artifact()
+
+    assert check.ok
+    assert str(release_app) in check.detail
+    assert str(release_bundle) in check.detail
+    assert str(debug_bundle) not in check.detail
+
+
+def test_build_artifact_falls_back_to_debug_bundle_when_release_missing(monkeypatch, tmp_path):
+    _, debug_bundle = use_build_bundles(monkeypatch, tmp_path)
+    debug_app = debug_bundle / "securewave_app"
+    debug_app.parent.mkdir(parents=True, exist_ok=True)
+    debug_app.write_text("x", encoding="utf-8")
+
+    check = verifier.check_build_artifact()
+
+    assert check.ok
+    assert str(debug_app) in check.detail
+    assert str(debug_bundle) in check.detail
 
 
 def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
-    bundle = tmp_path / "bundle"
+    bundle, _ = use_build_bundles(monkeypatch, tmp_path)
     helper = bundle / "packaging/linux/securewave-wg-quick"
     contract = bundle / "packaging/linux/securewave-wg-quick.contract"
     helperd = bundle / "packaging/linux/securewave-helperd"
@@ -41,7 +78,6 @@ def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
     for path in (helper, contract, helperd, service, tmpfiles, installer):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("x", encoding="utf-8")
-    monkeypatch.setattr(verifier, "BUILD_BUNDLE_DIR", bundle)
 
     checks = {check.name: check for check in verifier.check_build_helper_payload()}
 
@@ -51,6 +87,7 @@ def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
     assert checks["build:helper_tmpfiles_payload"].ok
     assert checks["build:helper_contract_payload"].ok
     assert checks["build:helper_installer_payload"].ok
+    assert all(str(bundle) in check.detail for check in checks.values())
 
 
 def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
@@ -76,6 +113,9 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         ("ip", "-6", "route", "show", "table", "51820"): CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""
         ),
+        ("iptables", "-S", "SECUREWAVE_ADBLOCK"): CompletedProcess(
+            args=[], returncode=0, stdout="-N SECUREWAVE_ADBLOCK\n", stderr=""
+        ),
         ("pgrep", "-x", "openvpn"): CompletedProcess(
             args=[], returncode=0, stdout="123\n", stderr=""
         ),
@@ -99,9 +139,55 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
     assert not checks["residue:tunnel_routes"].ok
     assert not checks["residue:wireguard_policy_rules"].ok
     assert not checks["residue:wireguard_policy_routes"].ok
+    assert not checks["residue:adblock_chain"].ok
     assert not checks["residue:openvpn_process"].ok
     assert not checks["residue:ikev2_sa"].ok
     assert not checks["residue:ikev2_nm_connection"].ok
+
+
+def test_residue_adblock_chain_passes_when_absent(monkeypatch):
+    outputs = {
+        ("ip", "link", "show", "sw-wg"): CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="Device does not exist"
+        ),
+        ("ip", "link", "show", "tun0"): CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="Device does not exist"
+        ),
+        ("ip", "route", "show"): CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        ),
+        ("ip", "rule", "show"): CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        ),
+        ("ip", "-4", "route", "show", "table", "51820"): CompletedProcess(
+            args=[], returncode=2, stdout="", stderr="Error: ipv4: FIB table does not exist."
+        ),
+        ("ip", "-6", "route", "show", "table", "51820"): CompletedProcess(
+            args=[], returncode=2, stdout="", stderr="Error: ipv6: FIB table does not exist."
+        ),
+        ("iptables", "-S", "SECUREWAVE_ADBLOCK"): CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="No chain/target/match by that name."
+        ),
+        ("pgrep", "-x", "openvpn"): CompletedProcess(
+            args=[], returncode=1, stdout="", stderr=""
+        ),
+        ("swanctl", "--list-sas"): CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        ),
+        ("nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"): CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        ),
+    }
+
+    def fake_run(argv):
+        return outputs[tuple(argv)]
+
+    monkeypatch.setattr(verifier, "_run", fake_run)
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert checks["residue:adblock_chain"].ok
+    assert "SECUREWAVE_ADBLOCK chain absent" in checks["residue:adblock_chain"].detail
 
 
 def test_verifier_paths_stay_inside_repo():
@@ -117,10 +203,9 @@ def test_helper_ipc_reports_promptless_service_probe(monkeypatch):
             return {"ok": "false", "code": "tool_missing", "service_version": "1", "message": "missing"}
         if op == "probe" and fields["protocol"] == "ikev2":
             return {
-                "ok": "false",
-                "code": "protocol_unavailable",
+                "ok": "true",
                 "service_version": "1",
-                "message": "IKEv2 disabled",
+                "message": "OK",
             }
         if op == "shell":
             return {
@@ -141,6 +226,29 @@ def test_helper_ipc_reports_promptless_service_probe(monkeypatch):
     assert checks["privilege:helper_invalid_op_fails_closed"].ok
 
 
+def test_helper_ipc_rejects_disabled_ikev2_probe(monkeypatch):
+    def fake_helper_request(fields, timeout=5.0):
+        if fields["op"] == "probe":
+            return {
+                "ok": "false",
+                "code": "protocol_unavailable",
+                "service_version": "1",
+                "message": "IKEv2 disabled",
+            }
+        return {
+            "ok": "false",
+            "code": "invalid_operation",
+            "service_version": "1",
+            "message": "no",
+        }
+
+    monkeypatch.setattr(verifier, "helper_request", fake_helper_request)
+
+    checks = {check.name: check for check in verifier.check_helper_ipc()}
+
+    assert not checks["privilege:helper_probe:ikev2"].ok
+
+
 def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path):
     contract = tmp_path / "securewave-wg-quick.contract"
     contract.write_text("5\n", encoding="utf-8")
@@ -150,6 +258,28 @@ def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path
 
     assert not check.ok
     assert "required 9" in check.detail
+
+
+def test_adblock_contract_requires_contract_8(monkeypatch, tmp_path):
+    contract = tmp_path / "securewave-wg-quick.contract"
+    contract.write_text("7\n", encoding="utf-8")
+    monkeypatch.setattr(verifier, "HELPER_CONTRACT_PATH", contract)
+
+    check = verifier.check_adblock_contract()
+
+    assert not check.ok
+    assert "required 8" in check.detail
+
+
+def test_adblock_contract_accepts_contract_8(monkeypatch, tmp_path):
+    contract = tmp_path / "securewave-wg-quick.contract"
+    contract.write_text("8\n", encoding="utf-8")
+    monkeypatch.setattr(verifier, "HELPER_CONTRACT_PATH", contract)
+
+    check = verifier.check_adblock_contract()
+
+    assert check.ok
+    assert "installed contract 8" in check.detail
 
 
 def test_no_polkit_source_enforces_service_socket_model():

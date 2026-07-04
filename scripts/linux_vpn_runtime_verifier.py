@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import shutil
 import socket
 import stat
@@ -23,8 +24,21 @@ from typing import Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = REPO_ROOT / "securewave_app/linux/runner/my_application.cc"
-BUILD_PATH = REPO_ROOT / "securewave_app/build/linux/arm64/debug/bundle/securewave_app"
-BUILD_BUNDLE_DIR = BUILD_PATH.parent
+
+
+def _flutter_linux_arch(machine: str | None = None) -> str:
+    host_arch = machine or platform.machine()
+    if host_arch == "x86_64":
+        return "x64"
+    if host_arch in ("aarch64", "arm64"):
+        return "arm64"
+    return host_arch or "x64"
+
+
+BUILD_LINUX_ARCH = _flutter_linux_arch()
+BUILD_LINUX_DIR = REPO_ROOT / "securewave_app/build/linux"
+BUILD_RELEASE_BUNDLE_DIR = BUILD_LINUX_DIR / BUILD_LINUX_ARCH / "release/bundle"
+BUILD_DEBUG_BUNDLE_DIR = BUILD_LINUX_DIR / BUILD_LINUX_ARCH / "debug/bundle"
 HELPER_PATH = Path("/usr/local/libexec/securewave-wg-quick")
 HELPERD_PATH = Path("/usr/local/libexec/securewave-helperd")
 HELPER_CONTRACT_PATH = Path("/usr/local/libexec/securewave-wg-quick.contract")
@@ -35,6 +49,8 @@ HELPER_SOCKET_PATH = Path("/run/securewave/helper.sock")
 REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "setfacl")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
+ADBLOCK_CHAIN = "SECUREWAVE_ADBLOCK"
+MIN_ADBLOCK_HELPER_CONTRACT = 8
 EXPECTED_SECUREWAVE_HELPER_CONTRACT = 9
 
 
@@ -162,6 +178,30 @@ def check_installed_helper_contract() -> Check:
     )
 
 
+def check_adblock_contract() -> Check:
+    if not HELPER_CONTRACT_PATH.exists():
+        return Check(
+            "privilege:adblock_contract",
+            False,
+            f"{HELPER_CONTRACT_PATH} not installed",
+        )
+    raw = HELPER_CONTRACT_PATH.read_text(encoding="utf-8").strip()
+    try:
+        installed = int(raw)
+    except ValueError:
+        return Check(
+            "privilege:adblock_contract",
+            False,
+            f"invalid helper contract {raw!r}",
+        )
+    ok = installed >= MIN_ADBLOCK_HELPER_CONTRACT
+    return Check(
+        "privilege:adblock_contract",
+        ok,
+        f"installed contract {installed}; required {MIN_ADBLOCK_HELPER_CONTRACT} for adblock",
+    )
+
+
 def path_exists(path: Path) -> tuple[bool, str | None]:
     try:
         return path.exists(), None
@@ -261,13 +301,10 @@ def check_helper_ipc() -> list[Check]:
         service_seen = response.get("service_version") == "1"
         ok = response.get("ok") == "true"
         acceptable_tool_missing = response.get("code") == "tool_missing"
-        acceptable_fail_closed = (
-            protocol == "ikev2" and response.get("code") == "protocol_unavailable"
-        )
         checks.append(
             Check(
                 f"privilege:helper_probe:{protocol}",
-                service_seen and (ok or acceptable_tool_missing or acceptable_fail_closed),
+                service_seen and (ok or acceptable_tool_missing),
                 response.get("message", response),
             )
         )
@@ -315,28 +352,43 @@ def check_runner_contract() -> list[Check]:
     ]
 
 
+def resolve_build_bundle_dir() -> Path:
+    if BUILD_RELEASE_BUNDLE_DIR.exists():
+        return BUILD_RELEASE_BUNDLE_DIR
+    return BUILD_DEBUG_BUNDLE_DIR
+
+
 def check_build_artifact() -> Check:
+    bundle_dir = resolve_build_bundle_dir()
+    build_path = bundle_dir / "securewave_app"
+    missing_detail = (
+        f"missing {build_path} (bundle: {bundle_dir}); "
+        "run: cd securewave_app && flutter build linux --release"
+    )
     return Check(
-        "build:linux_debug_bundle",
-        BUILD_PATH.exists(),
-        str(BUILD_PATH) if BUILD_PATH.exists() else "run: cd securewave_app && flutter build linux --debug",
+        "build:linux_bundle",
+        build_path.exists(),
+        f"{build_path} (bundle: {bundle_dir})" if build_path.exists() else missing_detail,
     )
 
 
 def check_build_helper_payload() -> list[Check]:
+    bundle_dir = resolve_build_bundle_dir()
     expected = {
-        "build:helper_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-wg-quick",
-        "build:helperd_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-helperd",
-        "build:helper_service_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-helper.service",
-        "build:helper_tmpfiles_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-helper.tmpfiles",
-        "build:helper_contract_payload": BUILD_BUNDLE_DIR / "packaging/linux/securewave-wg-quick.contract",
-        "build:helper_installer_payload": BUILD_BUNDLE_DIR / "scripts/install_linux_helper.sh",
+        "build:helper_payload": bundle_dir / "packaging/linux/securewave-wg-quick",
+        "build:helperd_payload": bundle_dir / "packaging/linux/securewave-helperd",
+        "build:helper_service_payload": bundle_dir / "packaging/linux/securewave-helper.service",
+        "build:helper_tmpfiles_payload": bundle_dir / "packaging/linux/securewave-helper.tmpfiles",
+        "build:helper_contract_payload": bundle_dir / "packaging/linux/securewave-wg-quick.contract",
+        "build:helper_installer_payload": bundle_dir / "scripts/install_linux_helper.sh",
     }
     return [
         Check(
             name,
             path.exists(),
-            str(path) if path.exists() else f"missing {path}",
+            f"{path} (bundle: {bundle_dir})"
+            if path.exists()
+            else f"missing {path} (bundle: {bundle_dir})",
         )
         for name, path in expected.items()
     ]
@@ -430,6 +482,17 @@ def check_residue() -> list[Check]:
         )
     )
 
+    adblock = _run(["iptables", "-S", ADBLOCK_CHAIN])
+    checks.append(
+        Check(
+            "residue:adblock_chain",
+            adblock.returncode != 0,
+            f"{ADBLOCK_CHAIN} chain absent"
+            if adblock.returncode != 0
+            else adblock.stdout.strip() or adblock.stderr.strip() or f"{ADBLOCK_CHAIN} chain exists",
+        )
+    )
+
     procs = _run(["pgrep", "-x", "openvpn"])
     checks.append(
         Check(
@@ -486,6 +549,7 @@ def main() -> int:
         *check_tools(),
         *check_no_polkit_source(),
         check_installed_helper_contract(),
+        check_adblock_contract(),
         *check_helper_service_install(),
         *check_helper_socket(),
         *check_helper_ipc(),

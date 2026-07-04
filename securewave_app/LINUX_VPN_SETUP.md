@@ -2,8 +2,8 @@
 
 SecureWave v1 is Linux desktop first. WireGuard is the primary production
 runtime path. OpenVPN is supported only when backend server metadata and local
-runtime checks both pass. IKEv2 stays fail-closed until SecureWave has live
-production proof for route, DNS, XFRM ESP, backend health, and cleanup.
+runtime checks both pass. IKEv2 uses NetworkManager strongSwan and is reported
+connected only when route, DNS, and XFRM ESP evidence all pass.
 
 ## Runtime Model
 
@@ -87,6 +87,7 @@ systemctl list-units --type=service --all 'wg-quick@*.service'
 sudo systemctl stop wg-quick@NAME.service
 ```
 
-Do not enable IKEv2 as available unless XFRM ESP evidence is proven. Do not
-work around WireGuard failures by broadening app-side privilege. Fix the helper
-service, packaging, backend profile, or host network state first.
+Treat IKEv2 as connected only when NetworkManager VPN, route/DNS, and XFRM ESP
+evidence are all present. Do not work around protocol failures by broadening
+app-side privilege. Fix the helper service, packaging, backend profile, or host
+network state first.

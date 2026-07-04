@@ -243,7 +243,6 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     try {
       final service = _ref.read(vpnServiceProvider);
       final api = _ref.read(apiClientProvider);
-      _ensureIkev2FailClosed();
       final runtimeSnapshot = await service.refreshRuntimeStatus();
       if (runtimeSnapshot.status == VpnStatus.connected) {
         final protocol = runtimeSnapshot.protocol ?? state.protocol;
@@ -387,14 +386,6 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     } finally {
       state = state.copyWith(isBusy: false);
     }
-  }
-
-  void _ensureIkev2FailClosed() {
-    if (state.protocol != VpnProtocol.ikev2) return;
-    throw VpnServiceException(
-      'protocol_unavailable',
-      ikev2ProductionDisabledMessage,
-    );
   }
 
   Future<void> _ensureOpenVpnMetadataAvailable(ApiClient api) async {

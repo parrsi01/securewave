@@ -43,9 +43,9 @@ const char* kWireGuardInterface = "sw-wg";
 const char* kOpenVpnPidName = "securewave-openvpn.pid";
 const char* kOpenVpnLogName = "securewave-openvpn.log";
 const char* kOpenVpnAuthName = "securewave-openvpn.auth";
+const char* kIkev2ConfigName = "securewave-ikev2.conf";
+const char* kIkev2CaName = "securewave-ikev2-ca.pem";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
-const char* kIkev2DisabledMessage =
-    "IKEv2 is disabled until SecureWave has live production proof for route, DNS, XFRM ESP, backend health, and cleanup.";
 const guint kContractVersion = 9;
 const gsize kMaxRequestBytes = 1024 * 1024;
 
@@ -654,6 +654,89 @@ static bool FileContains(const std::string& path, const std::string& needle) {
   return buffer.str().find(needle) != std::string::npos;
 }
 
+static std::string UnquoteSwanctlValue(std::string value) {
+  value = Trim(value);
+  if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+    value = value.substr(1, value.size() - 2);
+  }
+  std::string out;
+  out.reserve(value.size());
+  bool escaped = false;
+  for (char c : value) {
+    if (escaped) {
+      out += c;
+      escaped = false;
+      continue;
+    }
+    if (c == '\\') {
+      escaped = true;
+      continue;
+    }
+    out += c;
+  }
+  if (escaped) {
+    out += '\\';
+  }
+  return out;
+}
+
+static std::string SwanctlValueForKey(const std::string& contents, const std::string& key) {
+  std::istringstream stream(contents);
+  std::string line;
+  const std::string prefix = key + " =";
+  while (std::getline(stream, line)) {
+    line = Trim(line);
+    if (!StartsWith(line, prefix)) {
+      continue;
+    }
+    return UnquoteSwanctlValue(line.substr(prefix.size()));
+  }
+  return "";
+}
+
+static std::string ExtractCaPem(const std::string& contents) {
+  const std::string begin = "# ca_cert_pem_begin";
+  const std::string end = "# ca_cert_pem_end";
+  const std::string::size_type begin_pos = contents.find(begin);
+  if (begin_pos == std::string::npos) {
+    return "";
+  }
+  const std::string::size_type data_start = contents.find('\n', begin_pos);
+  if (data_start == std::string::npos) {
+    return "";
+  }
+  const std::string::size_type end_pos = contents.find(end, data_start + 1);
+  if (end_pos == std::string::npos) {
+    return "";
+  }
+  return Trim(contents.substr(data_start + 1, end_pos - data_start - 1));
+}
+
+static bool WritePeerOwnedFile(const std::string& path,
+                               const std::string& contents,
+                               uid_t peer_uid,
+                               std::string* message) {
+  GError* error = nullptr;
+  if (!g_file_set_contents(path.c_str(), contents.c_str(), contents.size(), &error)) {
+    if (message) {
+      *message = error ? error->message : "unable to write file";
+    }
+    if (error) {
+      g_error_free(error);
+    }
+    return false;
+  }
+  if (error) {
+    g_error_free(error);
+  }
+  chmod(path.c_str(), 0600);
+  struct stat parent {};
+  if (peer_uid != 0 && stat(Dirname(path).c_str(), &parent) == 0) {
+    chown(path.c_str(), peer_uid, parent.st_gid);
+  }
+  return true;
+}
+
 static bool OpenVpnRuntimeEvidence(const std::string& pid_path, const std::string& log_path) {
   pid_t pid = 0;
   return ReadPid(pid_path, &pid) &&
@@ -905,9 +988,6 @@ static Fields HandleProbe(const Fields& request) {
   const std::string protocol = Field(request, "protocol");
   if (!ValidateProtocol(protocol)) {
     return Error("invalid_protocol", "Unsupported VPN protocol.");
-  }
-  if (protocol == "ikev2") {
-    return Error("protocol_unavailable", kIkev2DisabledMessage);
   }
   CommandResult probe = RunHelper({"probe", protocol});
   if (!probe.ok) {
@@ -1181,8 +1261,6 @@ static Fields Ikev2Status() {
 }
 
 static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t peer_uid) {
-  (void)request;
-  (void)peer_uid;
   Fields contract_error;
   if (!ContractOk(&contract_error)) {
     return contract_error;
@@ -1204,7 +1282,60 @@ static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t pe
     return Error("invalid_operation", "Unsupported IKEv2 operation.");
   }
 
-  return Error("protocol_unavailable", kIkev2DisabledMessage);
+  const std::string config_path = Field(request, "config_path");
+  if (!ValidateConfigPath(config_path, kIkev2ConfigName, peer_uid)) {
+    return Error("invalid_path", "IKEv2 config path is not approved.");
+  }
+
+  std::ifstream input(config_path);
+  std::ostringstream buffer;
+  buffer << input.rdbuf();
+  const std::string contents = buffer.str();
+  const std::string server = SwanctlValueForKey(contents, "remote_addrs");
+  const std::string username = SwanctlValueForKey(contents, "eap_id");
+  const std::string password = SwanctlValueForKey(contents, "secret");
+  const std::string remote_id = SwanctlValueForKey(contents, "id");
+  const std::string ca_pem = ExtractCaPem(contents);
+  if (server.empty() || username.empty() || password.empty()) {
+    return Error("invalid_config", "IKEv2 config is missing server, EAP ID, or EAP secret.");
+  }
+
+  std::string ca_path;
+  if (!ca_pem.empty()) {
+    ca_path = Dirname(config_path) + "/" + kIkev2CaName;
+    std::string write_error;
+    if (!WritePeerOwnedFile(ca_path, ca_pem + "\n", peer_uid, &write_error)) {
+      return Error("vpn_connect_failed", "Unable to write IKEv2 CA certificate: " + write_error);
+    }
+  }
+
+  RunHelper({"ikev2-down"});
+  RunHelper({"ikev2-delete"});
+  std::vector<std::string> add_args = {"ikev2-add-eap", server, username, password};
+  add_args.push_back(remote_id.empty() ? server : remote_id);
+  if (!ca_path.empty()) {
+    add_args.push_back(ca_path);
+  }
+  CommandResult add = RunHelper(add_args);
+  if (!add.ok) {
+    RunHelper({"ikev2-delete"});
+    return Error("vpn_connect_failed", add.message.empty() ? "IKEv2 NetworkManager profile creation failed." : add.message);
+  }
+  CommandResult up = RunHelper({"ikev2-up"});
+  if (!up.ok) {
+    RunHelper({"ikev2-down"});
+    RunHelper({"ikev2-delete"});
+    return Error("vpn_connect_failed", up.message.empty() ? "IKEv2 start failed." : up.message);
+  }
+  for (guint i = 0; i < 40; i++) {
+    if (Ikev2RuntimeEvidence()) {
+      return Ikev2Status();
+    }
+    g_usleep(500000);
+  }
+  RunHelper({"ikev2-down"});
+  RunHelper({"ikev2-delete"});
+  return Error("vpn_connect_failed", "IKEv2 started but route, DNS, and XFRM ESP evidence was not detected.");
 }
 
 static Fields HandleRequest(const Fields& request, uid_t peer_uid) {

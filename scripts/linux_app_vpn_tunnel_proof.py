@@ -9,6 +9,7 @@ native app path fetches real backend profiles before starting tunnels.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
 import select
@@ -34,11 +35,20 @@ DEFAULT_API_BASE = "https://api.securewaveapp.com/api"
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
 HELPER_SOCKET = Path("/run/securewave/helper.sock")
+DATA_PLANE_TEST_IPS = ("1.1.1.1", "9.9.9.9")
+DNS_TEST_HOSTS = ("example.com", "api.ipify.org")
+EXIT_IP_URLS = (
+    "https://api.ipify.org",
+    "https://ifconfig.me/ip",
+    "https://icanhazip.com",
+)
 PLACEHOLDER_VALUES = {
     "existing-live-email",
     "existing-live-password",
     "real@email.com",
     "real-password",
+    "your@email.com",
+    "your-password",
     "your-real-test-account@example.com",
     "your-real-test-password",
 }
@@ -164,21 +174,58 @@ class CommandResult:
         }
 
 
-def _run(argv: Iterable[str], *, timeout: int = 15) -> CommandResult:
-    completed = subprocess.run(  # nosec B603
-        list(argv),
-        cwd=REPO_ROOT,
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=timeout,
-    )
-    return CommandResult(
-        completed.returncode,
-        completed.stdout,
-        completed.stderr,
-    )
+def _run(argv: Iterable[str], *, timeout: float = 15) -> CommandResult:
+    command = list(argv)
+    try:
+        completed = subprocess.run(  # nosec B603
+            command,
+            cwd=REPO_ROOT,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+        return CommandResult(
+            completed.returncode,
+            completed.stdout,
+            completed.stderr,
+        )
+    except FileNotFoundError as exc:
+        return CommandResult(127, "", str(exc))
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        detail = f"command timed out after {timeout}s"
+        return CommandResult(124, stdout, (stderr + "\n" + detail).strip())
+
+
+def _remaining_timeout(deadline: float | None, requested: float) -> float:
+    if deadline is None:
+        return requested
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return 0
+    return max(0.25, min(requested, remaining))
+
+
+def _run_with_budget(
+    argv: Iterable[str],
+    *,
+    timeout: float,
+    deadline: float | None,
+) -> CommandResult:
+    bounded_timeout = _remaining_timeout(deadline, timeout)
+    if bounded_timeout <= 0:
+        return CommandResult(124, "", "evidence timeout exhausted")
+    return _run(argv, timeout=bounded_timeout)
+
+
+def _attempt(argv: list[str], result: CommandResult) -> dict[str, object]:
+    return {
+        "command": argv,
+        "result": result.as_dict(),
+    }
 
 
 def _escape(value: str) -> str:
@@ -273,12 +320,19 @@ def _health_url(api_base: str | None) -> str:
     return (api_base or DEFAULT_API_BASE).rstrip("/") + "/health"
 
 
-def _backend_health_evidence(api_base: str | None) -> dict[str, object]:
+def _backend_health_evidence(api_base: str | None, *, timeout: float = 15.0) -> dict[str, object]:
     url = _health_url(api_base)
+    if timeout <= 0:
+        return {
+            "ok": False,
+            "url": url,
+            "elapsed_ms": 0,
+            "error": "evidence timeout exhausted",
+        }
     request = urllib.request.Request(url, headers={"User-Agent": "SecureWaveLinuxProof/1"})
     started_at = time.monotonic()
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
             body = response.read(4096).decode("utf-8", errors="replace").strip()
             status = getattr(response, "status", response.getcode())
             return {
@@ -304,6 +358,143 @@ def _backend_health_evidence(api_base: str | None) -> dict[str, object]:
             "elapsed_ms": int((time.monotonic() - started_at) * 1000),
             "error": str(exc),
         }
+
+
+def _data_plane_evidence(deadline: float | None = None) -> dict[str, object]:
+    attempts: list[dict[str, object]] = []
+    for ip in DATA_PLANE_TEST_IPS:
+        command = [
+            "curl",
+            "-4",
+            "-m",
+            "5",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}\\n",
+            f"https://{ip}",
+        ]
+        result = _run_with_budget(command, timeout=6, deadline=deadline)
+        attempts.append(_attempt(command, result))
+        if result.returncode == 0:
+            return {
+                "ok": True,
+                "selected_ip": ip,
+                "attempts": attempts,
+            }
+    return {
+        "ok": False,
+        "error_kind": "data_plane_unreachable",
+        "attempts": attempts,
+    }
+
+
+def _dns_evidence(deadline: float | None = None) -> dict[str, object]:
+    attempts: list[dict[str, object]] = []
+    for host in DNS_TEST_HOSTS:
+        command = ["dig", "+time=3", "+tries=1", "+short", host, "A"]
+        result = _run_with_budget(command, timeout=5, deadline=deadline)
+        attempts.append(_attempt(command, result))
+        answers = [
+            line.strip()
+            for line in result.stdout.splitlines()
+            if line.strip() and not line.lstrip().startswith(";")
+        ]
+        if result.returncode == 0 and answers:
+            return {
+                "ok": True,
+                "hostname": host,
+                "answers": answers,
+                "attempts": attempts,
+            }
+    return {
+        "ok": False,
+        "error_kind": "dns_broken_in_tunnel",
+        "attempts": attempts,
+    }
+
+
+def _extract_ipv4(value: str) -> str | None:
+    for raw in value.replace(",", " ").split():
+        token = raw.strip()
+        try:
+            address = ipaddress.ip_address(token)
+        except ValueError:
+            continue
+        if address.version == 4:
+            return str(address)
+    return None
+
+
+def _exit_ip_lookup(deadline: float | None = None) -> dict[str, object]:
+    attempts: list[dict[str, object]] = []
+    for url in EXIT_IP_URLS:
+        command = ["curl", "-4", "-m", "8", "-fsS", url]
+        result = _run_with_budget(command, timeout=9, deadline=deadline)
+        attempts.append(_attempt(command, result))
+        ip = _extract_ipv4(result.stdout)
+        if result.returncode == 0 and ip:
+            return {
+                "ok": True,
+                "ip": ip,
+                "url": url,
+                "attempts": attempts,
+            }
+    return {
+        "ok": False,
+        "ip": None,
+        "error_kind": "exit_ip_unavailable",
+        "attempts": attempts,
+    }
+
+
+def _exit_ip_evidence(
+    pre_connect_exit_ip: dict[str, object] | None,
+    deadline: float | None = None,
+) -> dict[str, object]:
+    pre_connect = pre_connect_exit_ip or {
+        "ok": False,
+        "ip": None,
+        "error_kind": "exit_ip_unavailable",
+        "attempts": [],
+    }
+    connected = _exit_ip_lookup(deadline=deadline)
+    evidence = {
+        "ok": False,
+        "pre_connect": pre_connect,
+        "connected": connected,
+        "pre_connect_ip": pre_connect.get("ip"),
+        "connected_ip": connected.get("ip"),
+    }
+    if not pre_connect.get("ok") or not connected.get("ok"):
+        evidence["error_kind"] = "exit_ip_unavailable"
+        return evidence
+    if pre_connect.get("ip") == connected.get("ip"):
+        evidence["error_kind"] = "exit_ip_unchanged"
+        return evidence
+    evidence["ok"] = True
+    return evidence
+
+
+def _ikev2_routing_rule_evidence(deadline: float | None = None) -> dict[str, object]:
+    command = ["ip", "rule"]
+    result = _run_with_budget(command, timeout=5, deadline=deadline)
+    bad_rules: list[str] = []
+    for raw_line in result.stdout.splitlines():
+        line = " ".join(raw_line.split())
+        if (
+            line.startswith("220:")
+            and "from all" in line
+            and "lookup 220" in line
+            and "fwmark" not in line
+        ):
+            bad_rules.append(raw_line.strip())
+    return {
+        "ok": result.returncode == 0 and not bad_rules,
+        "error_kind": "ikev2_routing_loop_rule" if bad_rules else None,
+        "bad_rules": bad_rules,
+        "ip_rule": _attempt(command, result),
+    }
 
 
 def _wireguard_counter_evidence() -> dict[str, object]:
@@ -348,12 +539,19 @@ def _openvpn_log_evidence() -> dict[str, object]:
     }
 
 
-def _evidence_for(protocol: str, api_base: str | None) -> dict[str, object]:
+def _runtime_evidence_for(
+    protocol: str,
+    api_base: str | None,
+    deadline: float | None = None,
+) -> dict[str, object]:
     if protocol == "wireguard":
         link = _run(["ip", "link", "show", WIREGUARD_INTERFACE])
         route = _run(["ip", "route", "get", "1.1.1.1"])
         route_ok = route.returncode == 0 and f" dev {WIREGUARD_INTERFACE}" in route.stdout
-        backend_health = _backend_health_evidence(api_base)
+        backend_health = _backend_health_evidence(
+            api_base,
+            timeout=_remaining_timeout(deadline, 15),
+        )
         counters = _wireguard_counter_evidence()
         return {
             "ok": link.returncode == 0 and route_ok and bool(backend_health.get("ok")) and bool(counters.get("ok")),
@@ -368,7 +566,10 @@ def _evidence_for(protocol: str, api_base: str | None) -> dict[str, object]:
         procs = _run(["pgrep", "-x", "openvpn"])
         route_ok = route.returncode == 0 and " dev tun" in route.stdout
         log = _openvpn_log_evidence()
-        backend_health = _backend_health_evidence(api_base)
+        backend_health = _backend_health_evidence(
+            api_base,
+            timeout=_remaining_timeout(deadline, 15),
+        )
         return {
             "ok": bool(tun.get("ok"))
             and route_ok
@@ -394,7 +595,10 @@ def _evidence_for(protocol: str, api_base: str | None) -> dict[str, object]:
         ])
         helper_status = _helper_evidence({"op": "ikev2.status"})
         helper_response = helper_status.get("response")
-        backend_health = _backend_health_evidence(api_base)
+        backend_health = _backend_health_evidence(
+            api_base,
+            timeout=_remaining_timeout(deadline, 15),
+        )
         active_ok = active.returncode == 0 and f"{IKEV2_CONNECTION}:vpn" in active.stdout.splitlines()
         route_dns_ok = route_dns.returncode == 0 and any(
             line.partition(":")[2].strip() not in ("", "--")
@@ -414,6 +618,86 @@ def _evidence_for(protocol: str, api_base: str | None) -> dict[str, object]:
             "backend_health": backend_health,
         }
     raise ValueError(f"unsupported protocol: {protocol}")
+
+
+def _failed_network_evidence(
+    *,
+    error_kind: str,
+    data_plane: dict[str, object],
+    dns: dict[str, object] | None = None,
+    exit_ip: dict[str, object] | None = None,
+    ikev2_routing_rule: dict[str, object] | None = None,
+) -> dict[str, object]:
+    evidence: dict[str, object] = {
+        "ok": False,
+        "error_kind": error_kind,
+        "data_plane": data_plane,
+    }
+    if dns is not None:
+        evidence["dns"] = dns
+    if exit_ip is not None:
+        evidence["exit_ip"] = exit_ip
+    if ikev2_routing_rule is not None:
+        evidence["ikev2_routing_rule"] = ikev2_routing_rule
+    return evidence
+
+
+def _evidence_for(
+    protocol: str,
+    api_base: str | None,
+    *,
+    pre_connect_exit_ip: dict[str, object] | None = None,
+    evidence_deadline: float | None = None,
+) -> dict[str, object]:
+    data_plane = _data_plane_evidence(deadline=evidence_deadline)
+    if not data_plane.get("ok"):
+        return _failed_network_evidence(
+            error_kind="data_plane_unreachable",
+            data_plane=data_plane,
+        )
+
+    dns = _dns_evidence(deadline=evidence_deadline)
+    if not dns.get("ok"):
+        return _failed_network_evidence(
+            error_kind="dns_broken_in_tunnel",
+            data_plane=data_plane,
+            dns=dns,
+        )
+
+    exit_ip = _exit_ip_evidence(pre_connect_exit_ip, deadline=evidence_deadline)
+    if not exit_ip.get("ok"):
+        return _failed_network_evidence(
+            error_kind=str(exit_ip.get("error_kind") or "exit_ip_unavailable"),
+            data_plane=data_plane,
+            dns=dns,
+            exit_ip=exit_ip,
+        )
+
+    ikev2_routing_rule = None
+    if protocol == "ikev2":
+        ikev2_routing_rule = _ikev2_routing_rule_evidence(deadline=evidence_deadline)
+        if not ikev2_routing_rule.get("ok"):
+            return _failed_network_evidence(
+                error_kind="ikev2_routing_loop_rule",
+                data_plane=data_plane,
+                dns=dns,
+                exit_ip=exit_ip,
+                ikev2_routing_rule=ikev2_routing_rule,
+            )
+
+    runtime = _runtime_evidence_for(protocol, api_base, deadline=evidence_deadline)
+    runtime.update(
+        {
+            "data_plane": data_plane,
+            "dns": dns,
+            "exit_ip": exit_ip,
+        }
+    )
+    if ikev2_routing_rule is not None:
+        runtime["ikev2_routing_rule"] = ikev2_routing_rule
+    if not runtime.get("ok"):
+        runtime.setdefault("error_kind", "protocol_evidence_failed")
+    return runtime
 
 
 def _json_line(line: str) -> dict[str, object] | None:
@@ -472,6 +756,15 @@ def _has_auth_failure(result: dict[str, object]) -> bool:
     return False
 
 
+def _probe_error_evidence(event: dict[str, object]) -> dict[str, object]:
+    error = event.get("error")
+    return {
+        "ok": False,
+        "error": str(error or "runtime_probe_error"),
+        "event": event,
+    }
+
+
 def _stop_process_group(process: subprocess.Popen[str], *, force: bool = False) -> None:
     sig = signal.SIGKILL if force else signal.SIGTERM
     try:
@@ -527,10 +820,12 @@ def run_protocol(
         api_base=api_base,
         use_mock_api=use_mock_api,
     )
+    pre_connect_exit_ip = _exit_ip_lookup(deadline=time.monotonic() + 20)
 
     env = os.environ.copy()
     env.setdefault("DISPLAY", ":0")
     started_at = time.monotonic()
+    evidence_deadline = started_at + evidence_timeout
     process = subprocess.Popen(  # nosec B603
         command,
         cwd=APP_ROOT,
@@ -560,7 +855,16 @@ def run_protocol(
                     if event is not None:
                         probe_events.append(event)
                         if event.get("event") == "holding_for_evidence":
-                            evidence = _evidence_for(protocol, api_base)
+                            evidence = _evidence_for(
+                                protocol,
+                                api_base,
+                                pre_connect_exit_ip=pre_connect_exit_ip,
+                                evidence_deadline=evidence_deadline,
+                            )
+                        elif event.get("event") == "runtime_probe_error":
+                            evidence = _probe_error_evidence(event)
+                            _stop_process_group(process)
+                            break
                 elif process.poll() is not None:
                     break
             if process.poll() is not None:
@@ -590,6 +894,7 @@ def run_protocol(
         "ok": returncode == 0 and bool(evidence.get("ok")),
         "returncode": returncode,
         "probe_events": probe_events,
+        "pre_connect_exit_ip": pre_connect_exit_ip,
         "evidence": evidence,
         "output_tail": output[-80:],
     }
@@ -692,6 +997,11 @@ def main() -> int:
         return 2
     email = email.strip()
     password = password.strip()
+    protocols = args.protocol or list(DEFAULT_PROTOCOLS)
+    preflight_cleanup_actions: list[dict[str, object]] = []
+    for protocol in protocols:
+        preflight_cleanup_actions.extend(_cleanup_protocol_residue(protocol))
+
     baseline = _run(
         [
             sys.executable,
@@ -714,6 +1024,7 @@ def main() -> int:
             "ok": False,
             "account_email": _redact_email(email),
             "auth_mode": auth_mode,
+            "preflight_cleanup_actions": preflight_cleanup_actions,
             "baseline": baseline.as_dict(),
             "baseline_checks": baseline_body,
             "results": [],
@@ -725,7 +1036,6 @@ def main() -> int:
             print("FAIL baseline")
         return 1
 
-    protocols = args.protocol or list(DEFAULT_PROTOCOLS)
     results = []
     cleanup_actions: list[dict[str, object]] = []
     for index, protocol in enumerate(protocols):
@@ -757,6 +1067,7 @@ def main() -> int:
         "ok": all(result["ok"] for result in results) and cleanup.returncode == 0,
         "account_email": _redact_email(email),
         "auth_mode": auth_mode,
+        "preflight_cleanup_actions": preflight_cleanup_actions,
         "baseline": baseline.as_dict(),
         "results": results,
         "cleanup_actions": cleanup_actions,

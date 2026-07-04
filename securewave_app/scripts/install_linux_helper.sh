@@ -43,10 +43,18 @@ install_apt_dependencies() {
   }
 
   local packages=()
+  package_installed() {
+    dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -qx 'install ok installed'
+  }
   command -v wg-quick >/dev/null 2>&1 || packages+=(wireguard-tools)
   command -v openvpn >/dev/null 2>&1 || packages+=(openvpn)
   command -v nmcli >/dev/null 2>&1 || packages+=(network-manager)
-  command -v ipsec >/dev/null 2>&1 || packages+=(strongswan network-manager-strongswan)
+  command -v ipsec >/dev/null 2>&1 || packages+=(strongswan)
+  package_installed network-manager-strongswan || packages+=(network-manager-strongswan)
+  package_installed strongswan-swanctl || packages+=(strongswan-swanctl)
+  package_installed strongswan-charon || packages+=(strongswan-charon)
+  package_installed libcharon-extra-plugins || packages+=(libcharon-extra-plugins)
+  package_installed libstrongswan-extra-plugins || packages+=(libstrongswan-extra-plugins)
   command -v ip >/dev/null 2>&1 || packages+=(iproute2)
   command -v iptables >/dev/null 2>&1 || packages+=(iptables)
   command -v setfacl >/dev/null 2>&1 || packages+=(acl)
@@ -93,15 +101,21 @@ ensure_runtime_group() {
 add_allowed_user() {
   local user="$1"
   local uid
+  local added=0
   [[ -n "$user" && "$user" != "root" ]] || return 0
   if ! id "$user" >/dev/null 2>&1; then
     warn "SecureWave allowed user '$user' was not found."
     return 0
   fi
   uid="$(id -u "$user")"
-  grep -qx "$uid" "$AUTH_FILE" 2>/dev/null || printf '%s\n' "$uid" >> "$AUTH_FILE"
+  if ! grep -qx "$uid" "$AUTH_FILE" 2>/dev/null; then
+    printf '%s\n' "$uid" >> "$AUTH_FILE"
+    added=1
+  fi
   usermod -a -G "$RUNTIME_GROUP" "$user" || true
-  info "Authorized $user for SecureWave helper socket access."
+  if (( added == 1 )); then
+    info "Authorized $user for SecureWave helper socket access."
+  fi
 }
 
 install_systemd_service() {

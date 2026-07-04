@@ -1048,6 +1048,7 @@ static void my_application_activate(GApplication* application) {
       reinterpret_cast<GDestroyNotify>(vpn_channel_state_free));
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
+  gtk_widget_show(GTK_WIDGET(window));
 }
 
 static int my_application_command_line(GApplication* application,
@@ -1090,6 +1091,8 @@ MyApplication* my_application_new() {
   g_set_prgname(APPLICATION_ID);
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID,
-                                     "flags", G_APPLICATION_HANDLES_COMMAND_LINE,
+                                     "flags",
+                                     G_APPLICATION_HANDLES_COMMAND_LINE |
+                                         G_APPLICATION_NON_UNIQUE,
                                      nullptr));
 }

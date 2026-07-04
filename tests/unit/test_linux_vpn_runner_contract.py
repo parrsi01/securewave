@@ -40,6 +40,14 @@ def test_runner_uses_helper_service_socket_without_connect_time_prompts():
     assert "g_spawn_async_with_pipes" not in source
 
 
+def test_runner_allows_probe_launch_when_installed_app_is_already_running():
+    source = _runner_source()
+
+    assert "G_APPLICATION_HANDLES_COMMAND_LINE" in source
+    assert "G_APPLICATION_NON_UNIQUE" in source
+    assert "gtk_widget_show(GTK_WIDGET(window))" in source
+
+
 def test_runner_connect_disconnect_use_allowlisted_helper_operations():
     source = _runner_source()
 
@@ -108,9 +116,41 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "securewave-wg-quick.contract" in build
     assert "systemctl enable --now securewave-helper.service" in build
     assert "rm -f /run/securewave/helper.sock" in build
-    assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, iproute2, iptables, acl, systemd" in build
+    assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libstrongswan-extra-plugins, iproute2, iptables, acl, systemd" in build
     assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build
     assert "render_polkit_rule" not in build
+
+
+def test_ikev2_helper_cleans_only_unqualified_pref_220_loop_rule():
+    helper = HELPER.read_text(encoding="utf-8")
+
+    assert "clear_ikev2_unqualified_rule()" in helper
+    assert "clear_ikev2_pref220_rules()" in helper
+    assert "clear_ikev2_route_state()" in helper
+    assert "other_active_vpn_exists()" in helper
+    assert "grep -Eq '^220:[[:space:]]+from all lookup 220$'" in helper
+    assert "ip rule del pref 220 table 220" in helper
+    assert 'ip rule add pref 220 not fwmark "$fwmark" table 220' in helper
+    assert 'exec nmcli connection up id "$CONNECTION_NAME"' not in helper
+
+    rule_block = helper.split("clear_ikev2_unqualified_rule() {", 1)[1].split("clear_ikev2_xfrm_routes() {", 1)[0]
+    assert "ip rule del not fwmark" not in rule_block
+
+    route_state_block = helper.split("clear_ikev2_route_state() {", 1)[1].split("clear_policy_state() {", 1)[0]
+    assert "if other_active_vpn_exists; then" in route_state_block
+    assert "clear_ikev2_pref220_rules" in route_state_block
+    assert "clear_ikev2_unqualified_rule" in route_state_block
+
+    up_block = helper.split('if [[ "$action" == "ikev2-up" ]]; then', 1)[1].split("\nfi\n", 1)[0]
+    assert up_block.count("clear_ikev2_route_state") == 1
+    assert "clear_ikev2_unqualified_rule" in up_block
+    assert up_block.index("clear_ikev2_route_state") < up_block.index('nmcli connection up id "$CONNECTION_NAME"')
+    assert up_block.index("clear_ikev2_unqualified_rule") > up_block.index('nmcli connection up id "$CONNECTION_NAME"')
+
+    down_block = helper.split('if [[ "$action" == "ikev2-down" ]]; then', 1)[1].split("\nfi\n", 1)[0]
+    delete_block = helper.split('if [[ "$action" == "ikev2-delete" ]]; then', 1)[1].split("\nfi\n", 1)[0]
+    assert "clear_ikev2_route_state" in down_block
+    assert "clear_ikev2_route_state" in delete_block
 
 
 def test_linux_tarball_and_installer_are_truthful_portable_ui_builds():
@@ -139,6 +179,7 @@ def test_helper_installer_installs_service_socket_model():
     assert "wireguard-tools" in helper_installer
     assert "openvpn" in helper_installer
     assert "network-manager-strongswan" in helper_installer
+    assert "libstrongswan-extra-plugins" in helper_installer
     assert "acl" in helper_installer
     assert "SECUREWAVE_ALLOWED_USER" in helper_installer
     assert 'install -m 0755 "$SOURCE_HELPER_DAEMON" "$HELPER_DAEMON"' in helper_installer

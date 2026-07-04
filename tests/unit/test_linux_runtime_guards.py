@@ -48,8 +48,9 @@ def test_helperd_reports_failures_and_requires_route_evidence():
     assert "OpenVPN started but tunnel route evidence was not detected." in helperd
     assert "Ikev2RuntimeEvidence" in helperd
     assert "XfrmHasEsp" in helperd
-    assert "protocol_unavailable" in helperd
-    assert "IKEv2 is disabled until SecureWave has live production proof" in helperd
+    assert 'RunHelper({"ikev2-up"})' in helperd
+    assert 'RunHelper({"ikev2-down"})' in helperd
+    assert '"IKEv2 started but route, DNS, and XFRM ESP evidence was not detected."' in helperd
 
 
 def test_wireguard_helper_stabilizes_policy_after_up_and_clears_on_down():
@@ -75,6 +76,6 @@ def test_linux_setup_doc_documents_service_model_without_scope_expansion():
     assert "Config File Permissions" in runbook
     assert "Manual Cleanup" in runbook
     assert "sudo systemctl restart securewave-helper.service" in runbook
-    assert "Do not enable IKEv2 as available unless XFRM ESP evidence is proven" in runbook
+    assert "Treat IKEv2 as connected only when NetworkManager VPN, route/DNS, and XFRM ESP" in runbook
     assert "PolicyKit" not in runbook
     assert "pkexec --disable-internal-agent" not in runbook

@@ -468,7 +468,7 @@ void main() {
     expect(service.connectedConfig, isNull);
   });
 
-  test('IKEv2 connect stays fail-closed until production proof exists',
+  test('IKEv2 connect uses IKEv2 profile config without fail-closed block',
       () async {
     final service = _CapturingNativeVpnService();
     final api = _UsageTrackingApiClient(
@@ -490,11 +490,11 @@ void main() {
     await notifier.connect();
 
     final state = container.read(vpnStateProvider);
-    expect(state.status, VpnStatus.error);
-    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
-    expect(state.errorMessage, contains('live production proof'));
-    expect(service.connectedProtocol, isNull);
-    expect(service.connectedConfig, isNull);
+    expect(state.status, VpnStatus.connected);
+    expect(state.errorKind, isNull);
+    expect(service.connectedProtocol, VpnProtocol.ikev2);
+    expect(service.connectedConfig, isNotNull);
+    expect(service.connectedConfig, contains('remote_addrs'));
   });
 
   test('device limit profile error remains precise', () async {

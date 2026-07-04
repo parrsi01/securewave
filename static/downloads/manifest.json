@@ -56,9 +56,9 @@
       "supports_full_routing": true,
       "notes": "Debian/Ubuntu ARM64 package with the root-owned SecureWave helper service for full no-prompt VPN routing.",
       "status": "available",
-      "size_bytes": 15378062,
+      "size_bytes": 15382706,
       "size_display": "14.7 MB",
-      "sha256": "2c4cf330a8f6977f566089a490cd5b8de206cb24af380ee4a16403a7146a40fc"
+      "sha256": "c8cc8f34fd96281b94a1b94cfd8e29aed2c45ff93c0203c581d63bc815b96ca2"
     },
     {
       "platform": "linux",

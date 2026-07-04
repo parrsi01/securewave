@@ -1,7 +1,38 @@
 from scripts import linux_app_vpn_tunnel_proof as proof
 
 
+def _passing_network_gates(monkeypatch):
+    monkeypatch.setattr(
+        proof,
+        "_data_plane_evidence",
+        lambda deadline=None: {"ok": True, "selected_ip": "1.1.1.1", "attempts": []},
+    )
+    monkeypatch.setattr(
+        proof,
+        "_dns_evidence",
+        lambda deadline=None: {"ok": True, "hostname": "example.com", "attempts": []},
+    )
+    monkeypatch.setattr(
+        proof,
+        "_exit_ip_evidence",
+        lambda pre_connect_exit_ip, deadline=None: {
+            "ok": True,
+            "pre_connect_ip": "92.105.134.148",
+            "connected_ip": "138.199.204.139",
+            "pre_connect": {"ok": True, "ip": "92.105.134.148"},
+            "connected": {"ok": True, "ip": "138.199.204.139"},
+        },
+    )
+    monkeypatch.setattr(
+        proof,
+        "_ikev2_routing_rule_evidence",
+        lambda deadline=None: {"ok": True, "bad_rules": [], "ip_rule": {}},
+    )
+
+
 def test_wireguard_evidence_requires_sw_wg_route(monkeypatch):
+    _passing_network_gates(monkeypatch)
+
     def fake_run(argv, *, timeout=15):
         if argv[:4] == ["ip", "link", "show", "sw-wg"]:
             return proof.CommandResult(0, "10: sw-wg: <POINTOPOINT>\n", "")
@@ -10,7 +41,7 @@ def test_wireguard_evidence_requires_sw_wg_route(monkeypatch):
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
-    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base: {"ok": True})
+    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base, **kwargs: {"ok": True})
     monkeypatch.setattr(
         proof,
         "_wireguard_counter_evidence",
@@ -21,6 +52,8 @@ def test_wireguard_evidence_requires_sw_wg_route(monkeypatch):
 
 
 def test_openvpn_evidence_requires_tun_route_and_process(monkeypatch):
+    _passing_network_gates(monkeypatch)
+
     def fake_run(argv, *, timeout=15):
         if argv[:4] == ["ip", "-o", "link", "show"]:
             return proof.CommandResult(0, "11: tun0: <POINTOPOINT>\n", "")
@@ -32,12 +65,14 @@ def test_openvpn_evidence_requires_tun_route_and_process(monkeypatch):
 
     monkeypatch.setattr(proof, "_run", fake_run)
     monkeypatch.setattr(proof, "_openvpn_log_evidence", lambda: {"ok": True})
-    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base: {"ok": True})
+    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base, **kwargs: {"ok": True})
 
     assert proof._evidence_for("openvpn", "https://api.example.test/api")["ok"] is True
 
 
 def test_ikev2_evidence_requires_nm_vpn_route_dns_and_xfrm_state(monkeypatch):
+    _passing_network_gates(monkeypatch)
+
     def fake_run(argv, *, timeout=15):
         if argv[:5] == ["nmcli", "-t", "-f", "NAME,TYPE", "connection"]:
             return proof.CommandResult(0, "SecureWave-IKEv2:vpn\n", "")
@@ -54,7 +89,7 @@ def test_ikev2_evidence_requires_nm_vpn_route_dns_and_xfrm_state(monkeypatch):
             "response": {"ok": "true", "status": "connected"},
         },
     )
-    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base: {"ok": True})
+    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base, **kwargs: {"ok": True})
 
     assert proof._evidence_for("ikev2", "https://api.example.test/api")["ok"] is True
 
@@ -77,6 +112,8 @@ def test_wireguard_cleanup_removes_securewave_link(monkeypatch):
 
 
 def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
+    _passing_network_gates(monkeypatch)
+
     def fake_run(argv, *, timeout=15):
         if argv[:4] == ["ip", "link", "show", "sw-wg"]:
             return proof.CommandResult(0, "10: sw-wg: <POINTOPOINT>\n", "")
@@ -85,7 +122,7 @@ def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
-    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base: {"ok": True})
+    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base, **kwargs: {"ok": True})
     monkeypatch.setattr(
         proof,
         "_wireguard_counter_evidence",
@@ -95,9 +132,162 @@ def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
     assert proof._evidence_for("wireguard", "https://api.example.test/api")["ok"] is False
 
 
+def test_hold_evidence_passes_with_data_dns_exit_ip_and_ikev2_rule(monkeypatch):
+    calls = []
+
+    def fake_run(argv, *, timeout=15):
+        calls.append(list(argv))
+        if argv[:4] == ["curl", "-4", "-m", "5"]:
+            return proof.CommandResult(0, "200\n", "")
+        if argv[:1] == ["dig"]:
+            return proof.CommandResult(0, "93.184.216.34\n", "")
+        if argv[:5] == ["curl", "-4", "-m", "8", "-fsS"]:
+            return proof.CommandResult(0, "138.199.204.139\n", "")
+        if argv == ["ip", "rule"]:
+            return proof.CommandResult(0, "220: not from all fwmark 0xdc lookup 220\n", "")
+        if argv[:5] == ["nmcli", "-t", "-f", "NAME,TYPE", "connection"]:
+            return proof.CommandResult(0, "SecureWave-IKEv2:vpn\n", "")
+        if argv[:5] == ["nmcli", "-t", "-f", "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE", "connection"]:
+            return proof.CommandResult(0, "IP4.DNS[1]:1.1.1.1\nIP4.ROUTE[1]:dst = 0.0.0.0/0\n", "")
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(proof, "_run", fake_run)
+    monkeypatch.setattr(
+        proof,
+        "_helper_evidence",
+        lambda fields, timeout=20.0: {
+            "ok": True,
+            "response": {"ok": "true", "status": "connected"},
+        },
+    )
+    monkeypatch.setattr(proof, "_backend_health_evidence", lambda api_base, **kwargs: {"ok": True})
+
+    evidence = proof._evidence_for(
+        "ikev2",
+        "https://api.example.test/api",
+        pre_connect_exit_ip={"ok": True, "ip": "92.105.134.148", "attempts": []},
+    )
+
+    assert evidence["ok"] is True
+    assert evidence["data_plane"]["selected_ip"] == "1.1.1.1"
+    assert evidence["dns"]["hostname"] == "example.com"
+    assert evidence["exit_ip"]["pre_connect_ip"] == "92.105.134.148"
+    assert evidence["exit_ip"]["connected_ip"] == "138.199.204.139"
+    assert evidence["ikev2_routing_rule"]["ok"] is True
+
+    data_plane_index = next(i for i, call in enumerate(calls) if call[:4] == ["curl", "-4", "-m", "5"])
+    dns_index = next(i for i, call in enumerate(calls) if call[:1] == ["dig"])
+    exit_ip_index = next(i for i, call in enumerate(calls) if call[:5] == ["curl", "-4", "-m", "8", "-fsS"])
+    rule_index = next(i for i, call in enumerate(calls) if call == ["ip", "rule"])
+    assert data_plane_index < dns_index < exit_ip_index < rule_index
+
+
+def test_hold_evidence_fails_when_data_plane_is_dead(monkeypatch):
+    calls = []
+
+    def fake_run(argv, *, timeout=15):
+        calls.append(list(argv))
+        if argv[:4] == ["curl", "-4", "-m", "5"]:
+            return proof.CommandResult(28, "000\n", "Connection timed out")
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(proof, "_run", fake_run)
+
+    evidence = proof._evidence_for(
+        "wireguard",
+        "https://api.example.test/api",
+        pre_connect_exit_ip={"ok": True, "ip": "92.105.134.148", "attempts": []},
+    )
+
+    assert evidence["ok"] is False
+    assert evidence["error_kind"] == "data_plane_unreachable"
+    assert len(evidence["data_plane"]["attempts"]) == 2
+    assert all(call[:1] != ["dig"] for call in calls)
+
+
+def test_hold_evidence_fails_when_dns_only_is_broken(monkeypatch):
+    calls = []
+
+    def fake_run(argv, *, timeout=15):
+        calls.append(list(argv))
+        if argv[:4] == ["curl", "-4", "-m", "5"]:
+            return proof.CommandResult(0, "200\n", "")
+        if argv[:1] == ["dig"]:
+            return proof.CommandResult(9, "", "no servers could be reached")
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(proof, "_run", fake_run)
+
+    evidence = proof._evidence_for(
+        "openvpn",
+        "https://api.example.test/api",
+        pre_connect_exit_ip={"ok": True, "ip": "92.105.134.148", "attempts": []},
+    )
+
+    assert evidence["ok"] is False
+    assert evidence["error_kind"] == "dns_broken_in_tunnel"
+    assert len(evidence["dns"]["attempts"]) == 2
+    assert all(call[:5] != ["curl", "-4", "-m", "8", "-fsS"] for call in calls)
+
+
+def test_hold_evidence_fails_when_exit_ip_is_unchanged(monkeypatch):
+    def fake_run(argv, *, timeout=15):
+        if argv[:4] == ["curl", "-4", "-m", "5"]:
+            return proof.CommandResult(0, "200\n", "")
+        if argv[:1] == ["dig"]:
+            return proof.CommandResult(0, "93.184.216.34\n", "")
+        if argv[:5] == ["curl", "-4", "-m", "8", "-fsS"]:
+            return proof.CommandResult(0, "92.105.134.148\n", "")
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(proof, "_run", fake_run)
+
+    evidence = proof._evidence_for(
+        "wireguard",
+        "https://api.example.test/api",
+        pre_connect_exit_ip={"ok": True, "ip": "92.105.134.148", "attempts": []},
+    )
+
+    assert evidence["ok"] is False
+    assert evidence["error_kind"] == "exit_ip_unchanged"
+    assert evidence["exit_ip"]["pre_connect_ip"] == "92.105.134.148"
+    assert evidence["exit_ip"]["connected_ip"] == "92.105.134.148"
+
+
+def test_hold_evidence_fails_on_bad_ikev2_pref_220_rule(monkeypatch):
+    def fake_run(argv, *, timeout=15):
+        if argv[:4] == ["curl", "-4", "-m", "5"]:
+            return proof.CommandResult(0, "200\n", "")
+        if argv[:1] == ["dig"]:
+            return proof.CommandResult(0, "93.184.216.34\n", "")
+        if argv[:5] == ["curl", "-4", "-m", "8", "-fsS"]:
+            return proof.CommandResult(0, "138.199.204.139\n", "")
+        if argv == ["ip", "rule"]:
+            return proof.CommandResult(
+                0,
+                "220: from all lookup 220\n220: not from all fwmark 0xdc lookup 220\n",
+                "",
+            )
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(proof, "_run", fake_run)
+
+    evidence = proof._evidence_for(
+        "ikev2",
+        "https://api.example.test/api",
+        pre_connect_exit_ip={"ok": True, "ip": "92.105.134.148", "attempts": []},
+    )
+
+    assert evidence["ok"] is False
+    assert evidence["error_kind"] == "ikev2_routing_loop_rule"
+    assert evidence["ikev2_routing_rule"]["bad_rules"] == ["220: from all lookup 220"]
+
+
 def test_placeholder_credentials_are_detected():
     assert proof._is_placeholder("real@email.com") is True
     assert proof._is_placeholder("existing-live-password") is True
+    assert proof._is_placeholder("your@email.com") is True
+    assert proof._is_placeholder("your-password") is True
     assert proof._is_placeholder("your-real-test-account@example.com") is True
     assert proof._is_placeholder("your-real-test-password") is True
     assert proof._is_placeholder("qa@example.com") is False
@@ -248,6 +438,19 @@ def test_non_auth_runtime_error_is_not_auth_failure():
     }
 
     assert proof._has_auth_failure(result) is False
+
+
+def test_probe_runtime_error_becomes_terminal_evidence():
+    event = {
+        "event": "runtime_probe_error",
+        "error": "OpenVPN process started but no tunnel route was detected.",
+    }
+
+    evidence = proof._probe_error_evidence(event)
+
+    assert evidence["ok"] is False
+    assert evidence["error"] == "OpenVPN process started but no tunnel route was detected."
+    assert evidence["event"] == event
 
 
 def test_json_object_parses_dict_only():

@@ -236,6 +236,70 @@ table_route_present() {
   ip -4 route show table 51820 | grep -q "^default dev ${iface}( |$)"
 }
 
+clear_ikev2_pref220_rules() {
+  while ip rule del pref 220 table 220 >/dev/null 2>&1; do :; done
+}
+
+other_active_vpn_exists() {
+  nmcli -t -f NAME,TYPE connection show --active 2>/dev/null |
+    awk -F: -v securewave="$CONNECTION_NAME" '$2 == "vpn" && $1 != securewave { found = 1 } END { exit found ? 0 : 1 }'
+}
+
+clear_ikev2_unqualified_rule() {
+  local rules
+  local fwmark
+  local safe_fwmarks=()
+
+  rules="$(ip rule show 2>/dev/null || true)"
+  if ! grep -Eq '^220:[[:space:]]+from all lookup 220$' <<< "$rules"; then
+    return
+  fi
+
+  while IFS= read -r fwmark; do
+    [[ -n "$fwmark" ]] || continue
+    safe_fwmarks+=("$fwmark")
+  done < <(
+    printf '%s\n' "$rules" |
+      awk '$1 == "220:" && /lookup 220/ && /not/ {
+        for (i = 1; i <= NF; i++) {
+          if ($i == "fwmark" && !seen[$(i + 1)]++) {
+            print $(i + 1)
+          }
+        }
+      }'
+    )
+
+  clear_ikev2_pref220_rules
+
+  for fwmark in "${safe_fwmarks[@]}"; do
+    ip rule add pref 220 not fwmark "$fwmark" table 220 >/dev/null 2>&1 || true
+  done
+}
+
+clear_ikev2_xfrm_routes() {
+  local route
+
+  while IFS= read -r route; do
+    [[ "$route" == *" dev nm-xfrm-"* ]] || continue
+    ip -4 route del table 220 $route >/dev/null 2>&1 || true
+  done < <(ip -4 route show table 220 2>/dev/null || true)
+
+  while IFS= read -r route; do
+    [[ "$route" == *" dev nm-xfrm-"* ]] || continue
+    ip -6 route del table 220 $route >/dev/null 2>&1 || true
+  done < <(ip -6 route show table 220 2>/dev/null || true)
+}
+
+clear_ikev2_route_state() {
+  if other_active_vpn_exists; then
+    clear_ikev2_unqualified_rule
+  else
+    clear_ikev2_pref220_rules
+    clear_ikev2_xfrm_routes
+  fi
+  ip route flush cache >/dev/null 2>&1 || true
+}
+
 clear_policy_state() {
   local remove_link="${1:-0}"
   while ip rule del not fwmark 51820 table 51820 priority 32764 >/dev/null 2>&1; do :; done
@@ -366,16 +430,25 @@ if [[ "$action" == "ikev2-add-eap" ]]; then
 fi
 
 if [[ "$action" == "ikev2-up" ]]; then
-  exec nmcli connection up id "$CONNECTION_NAME"
+  clear_ikev2_route_state
+  set +e
+  nmcli connection up id "$CONNECTION_NAME"
+  status=$?
+  set -e
+  clear_ikev2_unqualified_rule
+  ip route flush cache >/dev/null 2>&1 || true
+  exit "$status"
 fi
 
 if [[ "$action" == "ikev2-down" ]]; then
   nmcli connection down id "$CONNECTION_NAME" >/dev/null 2>&1 || true
+  clear_ikev2_route_state
   exit 0
 fi
 
 if [[ "$action" == "ikev2-delete" ]]; then
   nmcli connection delete id "$CONNECTION_NAME" >/dev/null 2>&1 || true
+  clear_ikev2_route_state
   exit 0
 fi
 
