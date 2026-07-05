@@ -16,6 +16,48 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(config, session: session);
 });
 
+class VpnTunnelProbeResult {
+  const VpnTunnelProbeResult({
+    required this.dataPlaneOk,
+    required this.dnsOk,
+    required this.backendHealthOk,
+    this.preConnectExitIp,
+    this.connectedExitIp,
+    this.exitIpOk = true,
+  });
+
+  factory VpnTunnelProbeResult.ok({
+    String? preConnectExitIp,
+    String? connectedExitIp,
+  }) {
+    return VpnTunnelProbeResult(
+      dataPlaneOk: true,
+      dnsOk: true,
+      backendHealthOk: true,
+      preConnectExitIp: preConnectExitIp,
+      connectedExitIp: connectedExitIp,
+    );
+  }
+
+  final bool dataPlaneOk;
+  final bool dnsOk;
+  final bool backendHealthOk;
+  final String? preConnectExitIp;
+  final String? connectedExitIp;
+  final bool exitIpOk;
+
+  bool get ok => dataPlaneOk && dnsOk && backendHealthOk && exitIpOk;
+
+  String get failureSummary {
+    final failures = <String>[];
+    if (!dataPlaneOk) failures.add('direct-IP data plane');
+    if (!dnsOk) failures.add('DNS');
+    if (!backendHealthOk) failures.add('backend health');
+    if (!exitIpOk) failures.add('exit IP unchanged');
+    return failures.isEmpty ? 'none' : failures.join(', ');
+  }
+}
+
 class ApiClient {
   ApiClient(this._config, {AuthSession? session, Dio? dio}) {
     _session = session;
@@ -52,6 +94,137 @@ class ApiClient {
 
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
+  static const Duration _tunnelProbeTimeout = Duration(seconds: 5);
+  static const _directIpProbeUrls = [
+    'https://1.1.1.1',
+    'https://9.9.9.9',
+  ];
+  static const _dnsProbeUrls = [
+    'https://example.com',
+    'https://www.cloudflare.com',
+  ];
+  static const _exitIpProbeUrls = [
+    'https://api.ipify.org',
+    'https://ifconfig.me/ip',
+  ];
+
+  Future<VpnTunnelProbeResult> verifyOpenVpnTunnel({
+    String? preConnectExitIp,
+    Duration timeout = _tunnelProbeTimeout,
+  }) async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return VpnTunnelProbeResult.ok(
+        preConnectExitIp: preConnectExitIp,
+        connectedExitIp: preConnectExitIp == null ? null : '203.0.113.10',
+      );
+    }
+
+    final dataPlaneOk = await _probeAnyUrl(_directIpProbeUrls, timeout);
+    final dnsOk = await _probeAnyUrl(_dnsProbeUrls, timeout);
+    final backendHealthOk = await _probeBackendHealth(timeout);
+    final connectedExitIp = await lookupPublicExitIp(timeout: timeout);
+    final exitIpOk = preConnectExitIp == null ||
+        connectedExitIp == null ||
+        preConnectExitIp != connectedExitIp;
+
+    return VpnTunnelProbeResult(
+      dataPlaneOk: dataPlaneOk,
+      dnsOk: dnsOk,
+      backendHealthOk: backendHealthOk,
+      preConnectExitIp: preConnectExitIp,
+      connectedExitIp: connectedExitIp,
+      exitIpOk: exitIpOk,
+    );
+  }
+
+  Future<String?> lookupPublicExitIp({
+    Duration timeout = _tunnelProbeTimeout,
+  }) async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return '198.51.100.20';
+    }
+
+    final client = _probeDio(timeout);
+    for (final url in _exitIpProbeUrls) {
+      try {
+        final response = await client.getUri<String>(
+          Uri.parse(url),
+          options: Options(responseType: ResponseType.plain),
+        );
+        final candidate = _extractIpv4(response.data ?? '');
+        if (candidate != null) return candidate;
+      } catch (_) {
+        // Try the next public-IP service.
+      }
+    }
+    return null;
+  }
+
+  Future<bool> _probeBackendHealth(Duration timeout) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/health',
+        options: Options(
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 500,
+        ),
+      );
+      return response.statusCode != null &&
+          response.statusCode! >= 200 &&
+          response.statusCode! < 500;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _probeAnyUrl(List<String> urls, Duration timeout) async {
+    final client = _probeDio(timeout);
+    for (final url in urls) {
+      try {
+        final response = await client.getUri<Object>(
+          Uri.parse(url),
+          options: Options(responseType: ResponseType.plain),
+        );
+        final status = response.statusCode;
+        if (status != null && status >= 200 && status < 500) {
+          return true;
+        }
+      } catch (_) {
+        // Try the next endpoint; the caller only needs one successful probe.
+      }
+    }
+    return false;
+  }
+
+  Dio _probeDio(Duration timeout) {
+    return Dio(
+      BaseOptions(
+        connectTimeout: timeout,
+        sendTimeout: timeout,
+        receiveTimeout: timeout,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 500,
+      ),
+    );
+  }
+
+  String? _extractIpv4(String value) {
+    final match = RegExp(r'\b(?:\d{1,3}\.){3}\d{1,3}\b').firstMatch(value);
+    if (match == null) return null;
+    final candidate = match.group(0)!;
+    final octets = candidate.split('.');
+    if (octets.every((part) {
+      final parsed = int.tryParse(part);
+      return parsed != null && parsed >= 0 && parsed <= 255;
+    })) {
+      return candidate;
+    }
+    return null;
+  }
 
   Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
     await _session?.ensureInitialized();

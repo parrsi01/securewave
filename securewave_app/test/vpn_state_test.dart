@@ -437,6 +437,42 @@ void main() {
     expect(service.connectedConfig, startsWith('client\n'));
     expect(service.connectedConfig, contains('remote vpn.example 1194'));
     expect(service.connectedConfig, isNot(contains('[Interface]')));
+    expect(api.openVpnProbeCalls, 1);
+  });
+
+  test('OpenVPN connect fails closed when post-connect evidence fails',
+      () async {
+    final service = _CapturingNativeVpnService();
+    final api = _UsageTrackingApiClient(
+      profileServerId: 'de-nue-1',
+      profileProtocol: VpnProtocol.openVpn,
+      openVpnProbeResult: const VpnTunnelProbeResult(
+        dataPlaneOk: false,
+        dnsOk: true,
+        backendHealthOk: true,
+      ),
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+
+    await notifier.connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.unknown);
+    expect(state.errorMessage, contains('direct-IP data plane'));
+    expect(service.getStatus(), VpnStatus.disconnected);
+    expect(api.connectedServerIds, isEmpty);
+    expect(api.openVpnProbeCalls, 1);
   });
 
   test('OpenVPN connect is blocked when server metadata omits OpenVPN',
@@ -1016,15 +1052,18 @@ class _UsageTrackingApiClient extends ApiClient {
   _UsageTrackingApiClient({
     required this.profileServerId,
     required this.profileProtocol,
+    this.openVpnProbeResult,
   }) : super(AppConfig.defaults());
 
   final String profileServerId;
   final VpnProtocol profileProtocol;
+  final VpnTunnelProbeResult? openVpnProbeResult;
   final connectedServerIds = <String?>[];
   final usageServerIds = <String?>[];
   final usageProtocols = <VpnProtocol?>[];
   final rxBytes = <int>[];
   final txBytes = <int>[];
+  int openVpnProbeCalls = 0;
 
   @override
   Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
@@ -1115,6 +1154,25 @@ class _UsageTrackingApiClient extends ApiClient {
 
   @override
   Future<void> notifyVpnDisconnected() async {}
+
+  @override
+  Future<String?> lookupPublicExitIp(
+      {Duration timeout = const Duration(seconds: 5)}) async {
+    return '92.105.134.148';
+  }
+
+  @override
+  Future<VpnTunnelProbeResult> verifyOpenVpnTunnel({
+    String? preConnectExitIp,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    openVpnProbeCalls += 1;
+    return openVpnProbeResult ??
+        VpnTunnelProbeResult.ok(
+          preConnectExitIp: preConnectExitIp,
+          connectedExitIp: '138.199.204.139',
+        );
+  }
 
   @override
   Future<UserPlan?> reportVpnUsage({

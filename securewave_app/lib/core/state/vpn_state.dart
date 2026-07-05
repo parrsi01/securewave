@@ -136,6 +136,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   static const _trafficPollInterval = Duration(seconds: 1);
   static const _disconnectStatsTimeout = Duration(seconds: 2);
   static const _disconnectBackendTimeout = Duration(seconds: 5);
+  static const _openVpnTunnelProbeTimeout = Duration(seconds: 24);
 
   final Ref _ref;
   final _predictor = const MarLXGBPredictor();
@@ -346,8 +347,22 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           AppLogger.info('Backend connect notification skipped (demo mode).');
         }
       }
+      String? preConnectExitIp;
+      if (state.protocol == VpnProtocol.openVpn && service.isNativeAvailable) {
+        preConnectExitIp = await api.lookupPublicExitIp();
+      }
+
       final nextStatus =
           await service.connect(protocol: state.protocol, config: config);
+      if (nextStatus == VpnStatus.connected &&
+          state.protocol == VpnProtocol.openVpn &&
+          service.isNativeAvailable) {
+        await _verifyOpenVpnTunnelHealth(
+          api: api,
+          service: service,
+          preConnectExitIp: preConnectExitIp,
+        );
+      }
       _setStatus(nextStatus);
       if (nextStatus == VpnStatus.connected) {
         try {
@@ -423,6 +438,43 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       'protocol_unavailable',
       'OpenVPN is unavailable because no loaded region advertises OpenVPN.',
     );
+  }
+
+  Future<void> _verifyOpenVpnTunnelHealth({
+    required ApiClient api,
+    required VpnService service,
+    required String? preConnectExitIp,
+  }) async {
+    late final VpnTunnelProbeResult evidence;
+    try {
+      evidence = await api
+          .verifyOpenVpnTunnel(preConnectExitIp: preConnectExitIp)
+          .timeout(_openVpnTunnelProbeTimeout);
+    } on TimeoutException {
+      await _disconnectAfterOpenVpnProbeFailure(service);
+      throw VpnServiceException(
+        'vpn_connect_failed',
+        'OpenVPN tunnel started but post-connect evidence timed out.',
+      );
+    }
+    if (evidence.ok) return;
+
+    await _disconnectAfterOpenVpnProbeFailure(service);
+
+    throw VpnServiceException(
+      'vpn_connect_failed',
+      'OpenVPN tunnel started but post-connect evidence failed: ${evidence.failureSummary}.',
+    );
+  }
+
+  Future<void> _disconnectAfterOpenVpnProbeFailure(VpnService service) async {
+    try {
+      await service.disconnect().timeout(_disconnectStatsTimeout);
+    } catch (error, stackTrace) {
+      AppLogger.warning('OpenVPN cleanup skipped after failed tunnel probe.');
+      AppLogger.error('OpenVPN cleanup after failed probe failed',
+          error: error, stackTrace: stackTrace);
+    }
   }
 
   Future<void> disconnect() async {
