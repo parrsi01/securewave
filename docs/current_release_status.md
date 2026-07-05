@@ -2,10 +2,10 @@
 
 ## Canonical v1 Release Statement
 
-SecureWave is currently a Linux desktop first app. WireGuard is the primary and
-most stable runtime path. OpenVPN is enabled only when the backend issues a real
-OpenVPN profile and the Linux helper confirms startup. IKEv2 is enabled only
-when the backend issues an app-consumable Linux IKEv2 profile and strongSwan
+SecureWave is currently a Linux desktop first app. WireGuard is the primary
+runtime path. OpenVPN is enabled only when the backend issues a real OpenVPN
+profile and the Linux helper confirms startup. IKEv2 is disabled in the Linux
+release UI until the backend returns a Linux IKEv2 profile and strongSwan
 start/status/cleanup are verified.
 
 Only protocols proven end-to-end through the normal backend and client path
@@ -16,13 +16,9 @@ instead of substituting fake connected states.
 
 - Version: `4.0.0+2`
 - Platform: Linux
-- Status: Fresh Flutter UI is organized across `Linux`, `Windows`, and `Mac`
-  branches, with `master` kept as the hub. Linux/WireGuard remains
+- Status: Fresh Flutter UI on `master` and `flutter`; Linux/WireGuard remains
   the strongest runtime path. Apple packaging is prepared for Mac/Xcode
   finalization but is not yet runtime-certified through App Store review.
-- Latest manual runtime check: on `2026-07-01`, the Linux Flutter app connected
-  through the real WireGuard path, public egress was verified on a "test my IP"
-  site, and the in-app data usage gauge updated correctly during the session.
 
 ## Release-Ready
 
@@ -30,8 +26,7 @@ instead of substituting fake connected states.
 - Session restore/logout/re-login flow in the Flutter client
 - Account email shown after startup/login
 - Server catalog loading with empty/error states
-- Usage gauge on Connect, Account, and Settings screens, with live WireGuard
-  transfer usage correctly reflected in the app
+- Usage gauge on Connect, Account, and Settings screens
 - Native Linux single-instance window lifecycle
 - Domain/TLS correctness for `https://api.securewaveapp.com/api/health`
 
@@ -39,10 +34,8 @@ instead of substituting fake connected states.
 
 - OpenVPN profile issuance works on the live API for the verified Hetzner node;
   full app connect still depends on local OpenVPN installation and privileges.
-- IKEv2 is selectable when the backend returns complete IKEv2 metadata and the
-  Linux host has strongSwan `swanctl`/`ipsec` tooling installed.
-- The live backend smoke now requires all three Linux protocols to be enabled,
-  advertised by server inventory, and backed by app-consumable profile payloads.
+- IKEv2 is blocked in the Linux client until native strongSwan
+  import/start/status/cleanup is implemented and validated.
 - The iOS project now uses production-style bundle identifiers
   `com.securewave.vpn` and `com.securewave.vpn.PacketTunnel`, with the Packet
   Tunnel Provider Network Extension entitlement. A signed iOS archive/export
@@ -68,8 +61,7 @@ instead of substituting fake connected states.
   `securewave-macos-x64-ui-demo.zip`.
 - GitHub Actions run `28514166181` on `2026-07-01` passed unsigned iOS release
   validation, unsigned `.app` artifact collection/upload, macOS UI demo
-  build/upload, and macOS demo branch publishing on the former `flutter`
-  branch. Current Apple work should use the `Mac` branch.
+  build/upload, and macOS demo branch publishing.
 - Local Mac archive/export command:
 
 ```bash
@@ -88,10 +80,6 @@ bash securewave_app/scripts/package_macos_ui_demo.sh
   `2026-07-01`, the repository only exposes `AZURE_CREDENTIALS` through
   `gh secret list`, so signed iOS export remains blocked until Apple signing
   secrets are configured or the archive is produced locally on a Mac.
-- Local Mac release-signing diagnostics on `2026-07-02` reached the signing
-  checks successfully and found a development identity only, no `APPLE_TEAM_ID`,
-  and no provisioning profile directory. See
-  `docs/DEVOPS_REPORT_APPLE_SIGNING_READINESS_2026-07-02.md`.
 - GitHub Actions can build the macOS UI demo on a macOS runner and optionally
   publish the generated zip back to the branch with
   `publish_macos_demo=true`.
@@ -101,8 +89,8 @@ bash securewave_app/scripts/package_macos_ui_demo.sh
 - The live backend currently suppresses synthetic region aliases that point at
   the same Hetzner IP. Public catalog count should reflect verified inventory,
   not placeholder region names.
-- IKEv2 public promotion depends on live profile provisioning plus strongSwan
-  start/status verification and cleanup evidence.
+- IKEv2 remains unavailable for public Linux release until profile provisioning,
+  strongSwan start/status verification, and cleanup are proven.
 
 ## Experimental / Manual
 
@@ -126,10 +114,8 @@ readiness claims.
 
 ## Branch Model Summary
 
-- `master` -> hub for backend, docs, infra, app runtime truth, and release logistics
-- `Linux` -> Linux desktop release candidate and live tunnel proof work
-- `Windows` -> Windows app and packaging work
-- `Mac` -> macOS/iOS Apple packaging, signing, and review work
+- `master` -> backend, docs, infra, app runtime truth, and release logistics
+- `flutter` -> current Flutter app design branch
 
 ## Contributor Rules
 

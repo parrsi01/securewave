@@ -3,7 +3,7 @@
 # The VPN optimizer auto-detects ML availability and adapts accordingly
 
 # FastAPI and ASGI server
-fastapi==0.138.1
+fastapi==0.138.2
 uvicorn[standard]==0.32.1
 gunicorn==23.0.0
 python-multipart==0.0.32
@@ -18,7 +18,6 @@ python-jose[cryptography]==3.5.0
 passlib==1.7.4
 bcrypt==3.2.2
 cryptography==49.0.0
-pyasn1==0.6.3
 pyotp==2.9.0
 
 # Payment Processing

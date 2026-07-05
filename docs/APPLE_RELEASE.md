@@ -9,8 +9,7 @@ gh workflow run apple-release.yml
 The workflow runs `flutter pub get`, `pod install`, workspace guard checks,
 App Store metadata checks, `flutter build ios --release --no-codesign`, unsigned
 `.app` collection, and unsigned artifact upload. Run `28514166181` on
-`2026-07-01` passed this path on the former `flutter` branch at `7a182080`.
-Current Apple release work should run from the `Mac` branch.
+`2026-07-01` passed this path on branch `flutter` at `7a182080`.
 
 For local Mac finalization after pulling this branch:
 
@@ -36,7 +35,7 @@ bash securewave_app/scripts/package_macos_ui_demo.sh
 
 That writes `static/downloads/securewave-macos-arm64-ui-demo.zip` or
 `static/downloads/securewave-macos-x64-ui-demo.zip`. The Apple Silicon zip is
-already published on the website manifest. The demo app is
+already published on both `flutter` and `master`. The demo app is
 UI/account-only; macOS VPN tunnel start/stop still returns `vpn_not_configured`
 until a signed macOS Network Extension target is added.
 
@@ -44,7 +43,7 @@ To let GitHub Actions build the macOS UI demo on a macOS runner and commit the
 generated zip plus updated manifest back to the branch:
 
 ```bash
-gh workflow run apple-release.yml --ref Mac -f publish_macos_demo=true
+gh workflow run apple-release.yml --ref flutter -f publish_macos_demo=true
 ```
 
 The workflow also uploads the generated macOS zip as a run artifact. Use this
@@ -73,11 +72,6 @@ with `require_signing=true`.
 As of `2026-07-01`, `gh secret list --repo parrsi01/securewave` only reports
 `AZURE_CREDENTIALS`. The signed archive path therefore remains unrun in CI until
 the Apple signing secrets above are added.
-
-Local release-signing diagnostics on `2026-07-02` reached the signing gate on an
-Apple Silicon Mac and found that the local machine has only an Apple Development
-identity, no `APPLE_TEAM_ID`, and no provisioning profile directory. See
-`docs/DEVOPS_REPORT_APPLE_SIGNING_READINESS_2026-07-02.md`.
 
 Local Linux hosts cannot prove iOS signing because Xcode, CocoaPods, and Apple
 signing services require macOS.

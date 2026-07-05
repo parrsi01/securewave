@@ -1,88 +1,148 @@
-# SecureWave Codex TODO
+# SecureWave TODO
 
-Canonical sources: `docs/current_release_status.md`,
-`docs/CODEX_PLAN_LIVE_PRODUCTION_READINESS.md`, and
-`docs/CODEX_PLAN_SMTP_EMAIL.md`.
+## Linux VM Hetzner Backend Handoff - 2026-07-02
 
-## In Progress
+Objective: continue the backend infrastructure verification from the Linux VM, because Hetzner credentials, Terraform state, live account material, or deployment environment files may exist there rather than on this macOS checkout.
 
-- [x] Pull latest repository changes from the former `origin/flutter` app line.
-- [x] Preserve current single-file Flutter app architecture after the pull.
-- [x] Add app-visible platform/runtime release truth so non-Linux builds cannot
-  overstate VPN readiness.
-- [x] Run the Flutter analyzer and focused UI tests after conflict resolution.
-- [x] Add P0 regression guards for the Linux `.deb` helper, polkit rule,
-  postinst install path, and helper-scoped runtime documentation.
-- [x] Confirm `scripts/demo_preflight.sh --live-go-no-go` source coverage for
-  P0/P1/P2/P3 checks and guard it with DevOps contract tests.
-- [x] Confirm P2 synthetic-bootstrap inventory filtering is covered by unit
-  tests.
-- [x] Confirm P3 email verification, password reset, provider config, and
-  release-gate source coverage with focused pytest tests.
-- [x] Confirm P5 billing source coverage for production Stripe config, checkout,
-  webhook sync, portal configuration, and private env provisioning.
-- [x] Confirm P4 source coverage for reconnect state, device-limit messaging,
-  stale-device recovery, disconnect ordering, and backend device/profile flows.
+### Preconditions
 
-## Remaining Product Features And Release Blockers
+- Open and start the Linux VM before continuing.
+- Confirm whether the VM is reachable from macOS:
+  - `ssh securewave-linux`
+  - If SSH still times out, continue inside the VM terminal directly.
+- Do not print secret values to the terminal, logs, screenshots, or artifacts. Only record whether required variables/files are present.
+- Work from the Linux branch first, because the latest Hetzner backend fixes were pushed there:
+  - `git fetch origin`
+  - `git switch Linux`
+  - `git pull --ff-only origin Linux`
 
-- [x] P0 source/package guard: the Linux `.deb` package path installs
-  `securewave_app/packaging/linux/50-securewave-wg.rules`, substitutes the
-  allowed user, sets mode `0644`, reloads polkit when available, and removes
-  the rule on uninstall.
-- [ ] P0 live host proof: install the current `.deb` on a clean Linux host and
-  verify prompt-free real WireGuard connect/disconnect for an authorized
-  sudo-group user.
-- [ ] P1: Prove real tunnel egress and DNS correctness through the Hetzner VPN
-  node while connected: live API health succeeds, DNS resolves, and public
-  egress IP shifts to the VPN node.
-- [x] P2 source guard: synthetic bootstrap region aliases that share one public
-  IP are suppressed outside testing unless explicitly exposed.
-- [ ] P2 live catalog proof: with live credentials, confirm
-  `/vpn/servers?device_type=linux` returns real, connectable, deduplicated
-  regions and never returns an empty catalog during the release window.
-- [x] P3 source/test guard: email verification, password reset, provider config,
-  `/api/health/email`, and release gate behavior are covered with mocked
-  outbound mail transport.
-- [ ] P3 live provider proof: provision production SMTP/SendGrid/SES credentials,
-  confirm `/api/health/email` reports `ok`, complete register -> verify against
-  a real inbox, and complete password reset end to end.
-- [x] P4 source/test guard: Flutter state and backend profile/device tests cover
-  reconnect state, stale-device recovery, actionable device-limit errors,
-  disconnect ordering, usage reporting, and device/profile endpoints.
-- [ ] P4 live host proof: validate real-tunnel reconnect after network loss,
-  device revoke from a real capped account, and cleanup after abnormal app exit
-  on a Linux host.
-- [x] P5 source/test guard: production Stripe config, no demo fallback in
-  production, checkout session creation, webhook subscription sync, billing
-  portal configuration, and private env provisioning are covered.
-- [ ] P5 live billing proof: provision live Stripe/PayPal credentials, run the
-  billing release gate against live-mode keys, and verify app plan/usage matches
-  backend subscription truth.
-- [x] P6 source/contract guard: `scripts/demo_preflight.sh --live-go-no-go`
-  covers polkit, tunnel egress, inventory, email health, and build readiness.
-- [ ] P6 live execution proof: run `scripts/demo_preflight.sh --live-go-no-go`
-  on a connected Linux host with live credentials and attach the pass/fail
-  evidence to the release handoff.
-- [ ] Apple release: Add Apple signing secrets to GitHub or run
-  `securewave_app/scripts/archive_ios_release.sh` locally on macOS with the
-  required Apple signing assets to produce the final signed iOS archive/export.
-  `2026-07-02` Mac diagnostics reached the release-signing gate but found only
-  an Apple Development identity, no `APPLE_TEAM_ID`, and no provisioning profile
-  directory.
-- [ ] Apple review: Create the App Store reviewer account after SMTP is live;
-  do not submit placeholder review credentials.
-- [ ] Apple entitlement: If App Store Connect asks for entitlement
-  justification again, request NetworkExtension Packet Tunnel Provider only,
-  not Hotspot Helper.
-- [ ] macOS downloads: Produce and publish the Intel macOS UI demo zip if Intel
-  Mac download support is required. The Apple Silicon macOS UI demo zip is
-  already published.
+### Discover VM Backend Material
 
-## Deferred Post-v1 Backlog
+Run these checks inside the Linux VM and save non-secret output under `artifacts/linux-vm-hetzner-scan/`.
 
-- [ ] macOS VPN runtime enablement with a signed macOS Network Extension target.
-- [ ] Mobile OpenVPN/IKEv2 expansion after platform-specific evidence exists.
-- [ ] Automated live multi-protocol CI backed by controlled test infrastructure.
-- [ ] IKEv2 hardening, including provisioning, packaging, and EAP-TLS review.
-- [ ] Stronger packaging, signing, distribution, and artifact controls.
+```bash
+uname -a
+command -v git
+command -v docker
+command -v terraform
+command -v python3
+
+find "$HOME" -maxdepth 4 -type f \
+  \( -name 'terraform.tfstate' \
+  -o -name 'terraform.tfvars' \
+  -o -name '*.tfvars' \
+  -o -name 'release_email.env' \
+  -o -name 'billing_release.env' \
+  -o -name 'live_certification_account.env' \
+  -o -name '.env' \) \
+  -print
+
+for name in \
+  HETZNER_API_TOKEN \
+  TF_VAR_hcloud_token \
+  SECUREWAVE_PRODUCTION_HOST \
+  SECUREWAVE_PRODUCTION_IMAGE \
+  SECUREWAVE_CERT_AUTH_FILE \
+  SECUREWAVE_LIVE_ACCOUNT_FILE
+do
+  if [ -n "${!name:-}" ]; then
+    printf '%s=set\n' "$name"
+  else
+    printf '%s=unset\n' "$name"
+  fi
+done
+```
+
+### Validate Hetzner Infrastructure
+
+Run from the repo root after switching to `Linux`.
+
+```bash
+terraform -chdir=infrastructure/hetzner fmt -check
+terraform -chdir=infrastructure/hetzner init
+terraform -chdir=infrastructure/hetzner validate
+TF_DIR=infrastructure/hetzner bash scripts/check_cost_guardrails.sh infrastructure/hetzner/terraform.tfvars
+test -f deploy/hetzner/compose.yaml
+bash -n scripts/deploy_production.sh scripts/hetzner_bootstrap.sh scripts/check_cost_guardrails.sh
+```
+
+If `HETZNER_API_TOKEN` or `TF_VAR_hcloud_token` is available, run a read-only fleet audit and store the output as evidence:
+
+```bash
+mkdir -p artifacts/linux-vm-hetzner-scan
+python3 infrastructure/hetzner/audit_vpn_fleet.py \
+  --json-out artifacts/linux-vm-hetzner-scan/hetzner_fleet_audit.json
+```
+
+### Validate Live Backend Surface
+
+Run these only against SecureWave-owned production hosts.
+
+```bash
+curl -fsS https://api.securewaveapp.com/api/health
+curl -fsS https://api.securewaveapp.com/api/downloads
+```
+
+If live certification account credentials exist, run the live gate without exposing credentials:
+
+```bash
+bash scripts/demo_preflight.sh --live-go-no-go --skip-build
+```
+
+If a connected Linux VPN client is available, run the final connected gate:
+
+```bash
+bash scripts/final_linux_demo_gate.sh --connected
+```
+
+### Production Deploy Readiness
+
+Only deploy after all of the following are true:
+
+- The Hetzner Terraform validation passes.
+- Docker is installed and running on the target host.
+- `deploy/hetzner/compose.yaml` exists on the branch being deployed.
+- The production host has a real `.env` file in the expected deployment directory.
+- `SECUREWAVE_PRODUCTION_HOST` and `SECUREWAVE_PRODUCTION_IMAGE` are set.
+- The deployment image tag is immutable and traceable to a reviewed commit.
+
+Deploy command, when authorized:
+
+```bash
+CONFIRM_DEPLOY=securewave-production \
+SECUREWAVE_PRODUCTION_HOST="$SECUREWAVE_PRODUCTION_HOST" \
+SECUREWAVE_PRODUCTION_IMAGE="$SECUREWAVE_PRODUCTION_IMAGE" \
+bash scripts/deploy_production.sh
+```
+
+### Evidence To Capture
+
+- `git rev-parse HEAD`
+- Terraform fmt/init/validate output
+- Cost guardrail output
+- Docker and Terraform versions
+- Read-only Hetzner fleet audit JSON, if credentials are present
+- Health endpoint output
+- Downloads endpoint output
+- Demo/live gate output, if credentials are present
+
+Do not mark this task complete without evidence artifacts. Do not commit or upload secrets.
+
+### Blockers To Escalate
+
+- Linux VM cannot be opened or reached.
+- Terraform is not installed and cannot be installed safely.
+- Docker is unavailable on the deployment target.
+- No Hetzner API token, Terraform state, or tfvars can be found.
+- Production host `.env` is missing.
+- Live account credentials are missing.
+- Production health checks fail.
+
+## Release TODO
+
+- Provision production SMTP/provider credentials, then run `scripts/release_go_no_go.sh --email-live-proof`.
+- Run `scripts/stripe_billing_provision.py --confirm-live` with live Stripe keys, then run live billing proof.
+- Add Apple signing secrets to GitHub or run `securewave_app/scripts/archive_ios_release.sh` on a Mac with Apple signing assets to produce the final signed iOS archive/export.
+- Produce and publish the Intel macOS UI demo zip if Intel Mac download support is required; the Apple Silicon macOS UI demo zip is already published.
+- Create the App Store reviewer account after SMTP is live; do not submit placeholder review credentials.
+- If App Store Connect asks for entitlement justification again, request NetworkExtension Packet Tunnel Provider only, not Hotspot Helper.
