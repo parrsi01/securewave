@@ -41,7 +41,11 @@ class StepResult:
 
 
 def api_url(api_base: str, path: str) -> str:
-    return f"{api_base.rstrip('/')}/{path.lstrip('/')}"
+    url = f"{api_base.rstrip('/')}/{path.lstrip('/')}"
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("API base URL must use http or https")
+    return url
 
 
 def extract_token(value: str) -> str:
@@ -73,7 +77,8 @@ def request_json(
 
     request = Request(api_url(api_base, path), data=data, headers=headers, method=method)
     try:
-        with urlopen(request, timeout=timeout) as response:
+        # api_url permits only http(s) before this network call is made.
+        with urlopen(request, timeout=timeout) as response:  # nosec B310
             body = response.read().decode("utf-8")
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")

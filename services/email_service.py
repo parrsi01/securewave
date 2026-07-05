@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r"(?P<first>[^@\s])[^@\s]*@(?P<domain>[^@\s]+)")
 _HTML_ENV = Environment(autoescape=select_autoescape(["html", "xml"]))
-_TEXT_ENV = Environment(autoescape=False)
+# Plaintext email templates are not HTML-rendered.
+_TEXT_ENV = Environment(autoescape=False)  # nosec B701
 
 
 def _env(name: str, default: Optional[str] = None) -> Optional[str]:

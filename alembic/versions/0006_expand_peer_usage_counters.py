@@ -1,7 +1,7 @@
 """Expand VPN peer usage counters to bigint.
 
 Revision ID: 0006_expand_peer_usage_counters
-Revises: 0005_add_monitoring_and_gdpr
+Revises: 0005
 Create Date: 2026-05-25
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "0006_expand_peer_usage_counters"
-down_revision = "0005_add_monitoring_and_gdpr"
+down_revision = "0005"
 branch_labels = None
 depends_on = None
 

@@ -318,7 +318,8 @@ void main() {
     );
   });
 
-  testWidgets('protocol picker keeps IKEv2 fail-closed', (tester) async {
+  testWidgets('protocol picker shows IKEv2 runtime requirements',
+      (tester) async {
     await _pumpApp(tester);
 
     await tester.scrollUntilVisible(
@@ -328,7 +329,10 @@ void main() {
     );
 
     expect(find.text('IKEv2/IPSec'), findsOneWidget);
-    expect(find.textContaining('live production proof'), findsOneWidget);
+    expect(
+      find.text('Requires a backend-issued IKEv2 profile and strongSwan.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('connect screen guides to deb when helper is missing',
