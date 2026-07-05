@@ -22,9 +22,9 @@ zip on the website. It can be rebuilt on a Mac with
 `securewave_app/scripts/package_macos_ui_demo.sh`; macOS VPN tunneling remains
 disabled until a signed macOS Network Extension target is added.
 
-The repository now targets **Hetzner Cloud only**. Older Azure-era assumptions are not part of the supported deployment story; provisioning and production operations are centered on the Terraform module in `infrastructure/hetzner/` and the Hetzner runbook in `docs/HETZNER_RUNBOOK.md`.
+The repository now targets **Hetzner Cloud only**. Older first-party cloud-hosting assumptions are not part of the supported deployment story; provisioning and production operations are centered on the Terraform module in `infrastructure/hetzner/` and the Hetzner runbook in `docs/HETZNER_RUNBOOK.md`.
 
-If you encounter legacy Azure-named files elsewhere in the repository or older history, treat them as archival context rather than the supported deployment path.
+If you encounter legacy provider-named files in older history, treat them as archival context rather than the supported deployment path.
 
 ## Recruiter-Friendly Overview
 

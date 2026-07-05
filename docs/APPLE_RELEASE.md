@@ -69,9 +69,9 @@ secrets:
 To verify secret presence without publishing an app, run the workflow manually
 with `require_signing=true`.
 
-As of `2026-07-01`, `gh secret list --repo parrsi01/securewave` only reports
-`AZURE_CREDENTIALS`. The signed archive path therefore remains unrun in CI until
-the Apple signing secrets above are added.
+As of `2026-07-01`, the required Apple signing secrets were not present in
+GitHub Actions. The signed archive path therefore remains unrun in CI until the
+Apple signing secrets above are added.
 
 Local Linux hosts cannot prove iOS signing because Xcode, CocoaPods, and Apple
 signing services require macOS.

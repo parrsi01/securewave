@@ -168,7 +168,7 @@ Do not touch these areas during UI foundation or screen migration work unless a 
 3. No Linux helper behavior was changed.
 4. No Flutter dependency or lockfile was changed.
 5. No public release scope was broadened.
-6. No Azure, IKEv2, premium readiness, or unsupported platform claim was introduced.
+6. No retired cloud-provider, IKEv2, premium readiness, or unsupported platform claim was introduced.
 
 ## Risks And Controls
 
