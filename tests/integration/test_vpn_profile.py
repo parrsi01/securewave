@@ -83,6 +83,81 @@ class TestVpnProfileProvisioning:
         assert data.get("protocol") == "wireguard"
         assert data.get("wireguard_config")
 
+    def test_force_rotate_keys_skips_server_sync_in_mock_mode(
+        self, client, auth_headers, db, monkeypatch
+    ):
+        import routes.vpn as vpn_routes
+
+        _create_free_server(db)
+        calls = []
+
+        def fail_if_called():
+            calls.append("manager")
+            raise AssertionError("external WireGuard server sync should be skipped")
+
+        monkeypatch.setattr(vpn_routes, "get_wireguard_server_manager", fail_if_called)
+
+        first = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Linux Box",
+                "device_type": "linux",
+                "protocol": "wireguard",
+            },
+            headers=auth_headers,
+        )
+        assert first.status_code == 200, first.text
+        device_id = first.json()["device_id"]
+
+        rotated = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_id": device_id,
+                "device_name": "Linux Box",
+                "device_type": "linux",
+                "protocol": "wireguard",
+                "force_rotate_keys": True,
+            },
+            headers=auth_headers,
+        )
+        assert rotated.status_code == 200, rotated.text
+        assert rotated.json()["key_version"] >= 2
+        assert calls == []
+
+    def test_device_rotate_keys_skips_server_sync_in_mock_mode(
+        self, client, auth_headers, db, monkeypatch
+    ):
+        import routes.devices as device_routes
+
+        _create_free_server(db)
+        calls = []
+
+        def fail_if_called():
+            calls.append("manager")
+            raise AssertionError("external WireGuard server sync should be skipped")
+
+        monkeypatch.setattr(device_routes, "get_wireguard_server_manager", fail_if_called)
+
+        profile = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Linux Box",
+                "device_type": "linux",
+                "protocol": "wireguard",
+            },
+            headers=auth_headers,
+        )
+        assert profile.status_code == 200, profile.text
+        device_id = profile.json()["device_id"]
+
+        rotated = client.post(
+            f"/api/vpn/devices/{device_id}/rotate-keys",
+            headers=auth_headers,
+        )
+        assert rotated.status_code == 200, rotated.text
+        assert rotated.json()["key_version"] >= 2
+        assert calls == []
+
     def test_protocols_endpoint_exposes_linux_protocols_when_metadata_exists(self, client, auth_headers, db):
         _create_free_server(
             db,

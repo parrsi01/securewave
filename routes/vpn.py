@@ -1023,7 +1023,7 @@ async def provision_profile(
     if payload.force_rotate_keys:
         old_public_key = peer.public_key
         peer = peer_manager.rotate_peer_keys(peer.id)
-        if peer.server_id:
+        if peer.server_id and not (DEMO_MODE or WG_MOCK_MODE):
             old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
             if old_server:
                 try:
@@ -1036,7 +1036,7 @@ async def provision_profile(
     # Ensure peer is associated with selected server.
     if peer.server_id != server.id:
         # Best-effort remove old peer from old server.
-        if peer.server_id:
+        if peer.server_id and not (DEMO_MODE or WG_MOCK_MODE):
             old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
             if old_server:
                 try:

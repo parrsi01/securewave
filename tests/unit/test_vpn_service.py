@@ -226,3 +226,39 @@ class TestIPAllocation:
         ip1 = wg.allocate_ip(1)
         ip2 = wg.allocate_ip(2)
         assert ip1 != ip2
+
+    def test_peer_manager_uses_existing_default_client_pool(
+        self, db, test_user, test_vpn_server
+    ):
+        from services.vpn_peer_manager import VPNPeerManager
+
+        peer = VPNPeerManager(db).create_peer(test_user, test_vpn_server)
+
+        assert peer.ipv4_address == "10.8.0.10/32"
+
+    def test_peer_manager_uses_configured_client_pool(
+        self, db, test_user, test_vpn_server, monkeypatch
+    ):
+        from models.user import User
+        from services.hashing_service import hash_password
+        from services.vpn_peer_manager import VPNPeerManager
+
+        monkeypatch.setenv("WG_CLIENT_IPV4_CIDR", "10.90.0.0/30")
+        monkeypatch.setenv("WG_CLIENT_IPV4_START_OFFSET", "0")
+        second_user = User(
+            email="second-pool-user@example.com",
+            hashed_password=hash_password("TestPass123"),
+            email_verified=True,
+            is_active=True,
+            subscription_status="basic",
+        )
+        db.add(second_user)
+        db.commit()
+        db.refresh(second_user)
+
+        manager = VPNPeerManager(db)
+        first_peer = manager.create_peer(test_user, test_vpn_server)
+        second_peer = manager.create_peer(second_user, test_vpn_server)
+
+        assert first_peer.ipv4_address == "10.90.0.1/32"
+        assert second_peer.ipv4_address == "10.90.0.2/32"

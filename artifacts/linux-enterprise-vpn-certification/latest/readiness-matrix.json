@@ -1,0 +1,55 @@
+{
+  "api_ready_for_modeled_load": true,
+  "enterprise_scale_readiness": {
+    "100": {
+      "duration_seconds": 21.962,
+      "error_count": 0,
+      "p95_login_ms": 420.15,
+      "p99_profile_wireguard_ms": 447.67,
+      "status": "pass",
+      "users_completed": 100
+    },
+    "1000": {
+      "duration_seconds": 314.246,
+      "error_count": 0,
+      "p95_login_ms": 602.96,
+      "p99_profile_wireguard_ms": 562.92,
+      "status": "pass",
+      "users_completed": 1000
+    },
+    "250": {
+      "duration_seconds": 55.75,
+      "error_count": 0,
+      "p95_login_ms": 382.0,
+      "p99_profile_wireguard_ms": 440.49,
+      "status": "pass",
+      "users_completed": 250
+    },
+    "500": {
+      "duration_seconds": 135.117,
+      "error_count": 0,
+      "p95_login_ms": 497.93,
+      "p99_profile_wireguard_ms": 532.12,
+      "status": "pass",
+      "users_completed": 500
+    }
+  },
+  "generated_at": "2026-07-05T15:21:22+00:00",
+  "live_runtime_ready": true,
+  "overall": "ready_for_modeled_local_scale",
+  "protocol_readiness": {
+    "ikev2": {
+      "backend_profile_scale": true,
+      "live_runtime_proof": "pass"
+    },
+    "openvpn": {
+      "backend_profile_scale": true,
+      "live_runtime_proof": "pass"
+    },
+    "wireguard": {
+      "backend_profile_scale": true,
+      "live_runtime_proof": "pass"
+    }
+  },
+  "usage_metering_ready": true
+}

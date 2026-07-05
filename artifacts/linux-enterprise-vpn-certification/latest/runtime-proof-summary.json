@@ -1,0 +1,116 @@
+{
+  "ok": true,
+  "results": [
+    {
+      "artifact": "artifacts/linux-enterprise-vpn-certification/latest/live/runtime-proof-wireguard.json",
+      "command": [
+        ".venv/bin/python",
+        "scripts/linux_app_vpn_tunnel_proof.py",
+        "--protocol",
+        "wireguard",
+        "--hold-seconds",
+        "120",
+        "--evidence-timeout",
+        "180",
+        "--json"
+      ],
+      "ok": true,
+      "protocol": "wireguard",
+      "returncode": 0,
+      "summary": {
+        "cleanup_ok": true,
+        "ok": true,
+        "results": [
+          {
+            "backend_health_ok": true,
+            "connect_events": [
+              "connect_result",
+              "holding_for_evidence",
+              "disconnect_result"
+            ],
+            "data_plane_ok": true,
+            "dns_ok": true,
+            "exit_ip_ok": true,
+            "ikev2_routing_rule_ok": null,
+            "ok": true,
+            "protocol": "wireguard"
+          }
+        ]
+      }
+    },
+    {
+      "artifact": "artifacts/linux-enterprise-vpn-certification/latest/live/runtime-proof-openvpn.json",
+      "command": [
+        ".venv/bin/python",
+        "scripts/linux_app_vpn_tunnel_proof.py",
+        "--protocol",
+        "openvpn",
+        "--hold-seconds",
+        "120",
+        "--evidence-timeout",
+        "180",
+        "--json"
+      ],
+      "ok": true,
+      "protocol": "openvpn",
+      "returncode": 0,
+      "summary": {
+        "cleanup_ok": true,
+        "ok": true,
+        "results": [
+          {
+            "backend_health_ok": true,
+            "connect_events": [
+              "connect_result",
+              "holding_for_evidence",
+              "disconnect_result"
+            ],
+            "data_plane_ok": true,
+            "dns_ok": true,
+            "exit_ip_ok": true,
+            "ikev2_routing_rule_ok": null,
+            "ok": true,
+            "protocol": "openvpn"
+          }
+        ]
+      }
+    },
+    {
+      "artifact": "artifacts/linux-enterprise-vpn-certification/latest/live/runtime-proof-ikev2.json",
+      "command": [
+        ".venv/bin/python",
+        "scripts/linux_app_vpn_tunnel_proof.py",
+        "--protocol",
+        "ikev2",
+        "--hold-seconds",
+        "120",
+        "--evidence-timeout",
+        "180",
+        "--json"
+      ],
+      "ok": true,
+      "protocol": "ikev2",
+      "returncode": 0,
+      "summary": {
+        "cleanup_ok": true,
+        "ok": true,
+        "results": [
+          {
+            "backend_health_ok": true,
+            "connect_events": [
+              "connect_result",
+              "holding_for_evidence",
+              "disconnect_result"
+            ],
+            "data_plane_ok": true,
+            "dns_ok": true,
+            "exit_ip_ok": true,
+            "ikev2_routing_rule_ok": true,
+            "ok": true,
+            "protocol": "ikev2"
+          }
+        ]
+      }
+    }
+  ]
+}

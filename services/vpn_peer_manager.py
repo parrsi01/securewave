@@ -7,6 +7,8 @@ import logging
 import os
 import secrets
 import base64
+import ipaddress
+import threading
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List, Dict
 from io import BytesIO
@@ -23,8 +25,9 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 DEFAULT_KEY_ROTATION_DAYS = 90
-IP_POOL_START = "10.8.0"
-IP_POOL_END = 254
+DEFAULT_CLIENT_IPV4_CIDR = "10.8.0.0/24"
+DEFAULT_CLIENT_IPV4_START_OFFSET = 9
+_PEER_ALLOCATION_LOCK = threading.Lock()
 
 
 class VPNPeerManager:
@@ -62,36 +65,37 @@ class VPNPeerManager:
             WireGuardPeer object
         """
         try:
-            # Generate keypair
-            private_key, public_key = self.wg_service.generate_keypair()
+            with _PEER_ALLOCATION_LOCK:
+                # Generate keypair
+                private_key, public_key = self.wg_service.generate_keypair()
 
-            # Encrypt private key
-            private_key_encrypted = self.wg_service.encrypt_private_key(private_key)
+                # Encrypt private key
+                private_key_encrypted = self.wg_service.encrypt_private_key(private_key)
 
-            # Allocate IP address
-            ipv4_address = self._allocate_ip_address(user.id)
+                # Allocate IP address
+                ipv4_address = self._allocate_ip_address(user.id)
 
-            # Calculate next rotation date
-            next_rotation = datetime.utcnow() + timedelta(days=DEFAULT_KEY_ROTATION_DAYS)
+                # Calculate next rotation date
+                next_rotation = datetime.utcnow() + timedelta(days=DEFAULT_KEY_ROTATION_DAYS)
 
-            # Create peer
-            peer = WireGuardPeer(
-                user_id=user.id,
-                server_id=server.id if server else None,
-                public_key=public_key,
-                private_key_encrypted=private_key_encrypted,
-                ipv4_address=ipv4_address,
-                device_name=device_name,
-                device_type=device_type,
-                is_active=True,
-                is_revoked=False,
-                key_version=1,
-                next_key_rotation_at=next_rotation,
-            )
+                # Create peer
+                peer = WireGuardPeer(
+                    user_id=user.id,
+                    server_id=server.id if server else None,
+                    public_key=public_key,
+                    private_key_encrypted=private_key_encrypted,
+                    ipv4_address=ipv4_address,
+                    device_name=device_name,
+                    device_type=device_type,
+                    is_active=True,
+                    is_revoked=False,
+                    key_version=1,
+                    next_key_rotation_at=next_rotation,
+                )
 
-            self.db.add(peer)
-            self.db.commit()
-            self.db.refresh(peer)
+                self.db.add(peer)
+                self.db.commit()
+                self.db.refresh(peer)
 
             logger.info(f"✓ WireGuard peer created for user {user.id} (IP: {ipv4_address})")
             return peer
@@ -409,8 +413,25 @@ class VPNPeerManager:
         Returns:
             IPv4 address (CIDR notation)
         """
-        # Allocate the first available IP in the pool.
-        used_octets = set()
+        # Allocate the first available IP in the configured client pool.
+        network_raw = os.getenv("WG_CLIENT_IPV4_CIDR", DEFAULT_CLIENT_IPV4_CIDR)
+        try:
+            network = ipaddress.ip_network(network_raw, strict=False)
+        except ValueError as exc:
+            raise ValueError(f"Invalid WG_CLIENT_IPV4_CIDR: {network_raw}") from exc
+        if network.version != 4:
+            raise ValueError("WG_CLIENT_IPV4_CIDR must be an IPv4 CIDR")
+
+        try:
+            start_offset = int(
+                os.getenv("WG_CLIENT_IPV4_START_OFFSET", str(DEFAULT_CLIENT_IPV4_START_OFFSET))
+            )
+        except ValueError as exc:
+            raise ValueError("WG_CLIENT_IPV4_START_OFFSET must be an integer") from exc
+        if start_offset < 0:
+            raise ValueError("WG_CLIENT_IPV4_START_OFFSET must be >= 0")
+
+        used_ips = set()
         peers = self.db.query(WireGuardPeer).filter(
             WireGuardPeer.is_revoked == False
         ).all()
@@ -420,16 +441,17 @@ class VPNPeerManager:
                 continue
             try:
                 ip_part = peer.ipv4_address.split("/")[0]
-                octet = int(ip_part.split(".")[-1])
-                used_octets.add(octet)
-            except (ValueError, IndexError):
+                used_ips.add(ipaddress.ip_address(ip_part))
+            except ValueError:
                 continue
 
-        for octet in range(10, IP_POOL_END + 1):
-            if octet not in used_octets:
-                return f"{IP_POOL_START}.{octet}/32"
+        for index, address in enumerate(network.hosts()):
+            if index < start_offset:
+                continue
+            if address not in used_ips:
+                return f"{address}/32"
 
-        raise ValueError("No available IP addresses in pool")
+        raise ValueError(f"No available IP addresses in pool {network}")
 
     def get_allocated_ips(self) -> List[str]:
         """

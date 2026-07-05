@@ -1,0 +1,282 @@
+{
+  "account_email": "s***@example.com",
+  "auth_mode": "login",
+  "baseline": {
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\n  \"checks\": [\n    {\n      \"detail\": \"/usr/bin/wg-quick\",\n      \"name\": \"tool:wg-quick\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/bin/wg\",\n      \"name\": \"tool:wg\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/sbin/openvpn\",\n      \"name\": \"tool:openvpn\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/bin/nmcli\",\n      \"name\": \"tool:nmcli\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/sbin/swanctl\",\n      \"name\": \"tool:swanctl\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/sbin/ipsec\",\n      \"name\": \"tool:ipsec\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/sbin/ip\",\n      \"name\": \"tool:ip\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/bin/setfacl\",\n      \"name\": \"tool:setfacl\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"old polkit rule is not packaged\",\n      \"name\": \"privilege:no_packaged_polkit_rule\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"runner has no pkexec call path\",\n      \"name\": \"runner:no_connect_time_pkexec\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"installed contract 9; required 9\",\n      \"name\": \"privilege:securewave_helper_contract\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"installed contract 9; required 8 for adblock\",\n      \"name\": \"privilege:adblock_contract\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/local/libexec/securewave-wg-quick\",\n      \"name\": \"privilege:helper_script_installed\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/local/libexec/securewave-helperd\",\n      \"name\": \"privilege:helperd_installed\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/etc/systemd/system/securewave-helper.service\",\n      \"name\": \"privilege:helper_service_unit\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/lib/tmpfiles.d/securewave-helper.conf\",\n      \"name\": \"privilege:helper_tmpfiles_config\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/etc/securewave/helper-users\",\n      \"name\": \"privilege:helper_allowed_users\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"active\",\n      \"name\": \"privilege:helper_service_active\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/run/securewave/helper.sock mode 0o660\",\n      \"name\": \"privilege:helper_socket\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"socket permissions 0o660\",\n      \"name\": \"privilege:helper_socket_permissions\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"OK\",\n      \"name\": \"privilege:helper_probe:wireguard\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"OK\",\n      \"name\": \"privilege:helper_probe:openvpn\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"OK\",\n      \"name\": \"privilege:helper_probe:ikev2\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"Unsupported helper operation.\",\n      \"name\": \"privilege:helper_invalid_op_fails_closed\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:method_channel\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:helper_socket\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:helper_request\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:wireguard_connect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:wireguard_disconnect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:openvpn_connect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:openvpn_disconnect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:ikev2_connect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:ikev2_disconnect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:securewave_helper_contract\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:no_implicit_mock\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/securewave_app (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:linux_bundle\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-wg-quick (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-helperd (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helperd_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-helper.service (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_service_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-helper.tmpfiles (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_tmpfiles_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-wg-quick.contract (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_contract_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/scripts/install_linux_helper.sh (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_installer_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"sw-wg interface absent\",\n      \"name\": \"residue:wireguard_interface\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"tun0 interface absent\",\n      \"name\": \"residue:tun0_interface\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave/tun split routes\",\n      \"name\": \"residue:tunnel_routes\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave WireGuard policy rules\",\n      \"name\": \"residue:wireguard_policy_rules\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave WireGuard table 51820 routes\",\n      \"name\": \"residue:wireguard_policy_routes\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"SECUREWAVE_ADBLOCK chain absent\",\n      \"name\": \"residue:adblock_chain\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave OpenVPN process\",\n      \"name\": \"residue:openvpn_process\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave IKEv2 SA\",\n      \"name\": \"residue:ikev2_sa\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no active SecureWave-IKEv2 NetworkManager VPN\",\n      \"name\": \"residue:ikev2_nm_connection\",\n      \"ok\": true\n    }\n  ],\n  \"ok\": true\n}"
+  },
+  "cleanup": {
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\n  \"checks\": [\n    {\n      \"detail\": \"/usr/bin/wg-quick\",\n      \"name\": \"tool:wg-quick\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/bin/wg\",\n      \"name\": \"tool:wg\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/sbin/openvpn\",\n      \"name\": \"tool:openvpn\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/bin/nmcli\",\n      \"name\": \"tool:nmcli\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/sbin/swanctl\",\n      \"name\": \"tool:swanctl\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/sbin/ipsec\",\n      \"name\": \"tool:ipsec\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/sbin/ip\",\n      \"name\": \"tool:ip\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/bin/setfacl\",\n      \"name\": \"tool:setfacl\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"old polkit rule is not packaged\",\n      \"name\": \"privilege:no_packaged_polkit_rule\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"runner has no pkexec call path\",\n      \"name\": \"runner:no_connect_time_pkexec\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"installed contract 9; required 9\",\n      \"name\": \"privilege:securewave_helper_contract\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"installed contract 9; required 8 for adblock\",\n      \"name\": \"privilege:adblock_contract\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/local/libexec/securewave-wg-quick\",\n      \"name\": \"privilege:helper_script_installed\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/local/libexec/securewave-helperd\",\n      \"name\": \"privilege:helperd_installed\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/etc/systemd/system/securewave-helper.service\",\n      \"name\": \"privilege:helper_service_unit\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/usr/lib/tmpfiles.d/securewave-helper.conf\",\n      \"name\": \"privilege:helper_tmpfiles_config\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/etc/securewave/helper-users\",\n      \"name\": \"privilege:helper_allowed_users\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"active\",\n      \"name\": \"privilege:helper_service_active\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/run/securewave/helper.sock mode 0o660\",\n      \"name\": \"privilege:helper_socket\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"socket permissions 0o660\",\n      \"name\": \"privilege:helper_socket_permissions\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"OK\",\n      \"name\": \"privilege:helper_probe:wireguard\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"OK\",\n      \"name\": \"privilege:helper_probe:openvpn\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"OK\",\n      \"name\": \"privilege:helper_probe:ikev2\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"Unsupported helper operation.\",\n      \"name\": \"privilege:helper_invalid_op_fails_closed\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:method_channel\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:helper_socket\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:helper_request\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:wireguard_connect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:wireguard_disconnect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:openvpn_connect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:openvpn_disconnect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:ikev2_connect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:ikev2_disconnect_op\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:securewave_helper_contract\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"present\",\n      \"name\": \"runner:no_implicit_mock\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/securewave_app (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:linux_bundle\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-wg-quick (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-helperd (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helperd_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-helper.service (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_service_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-helper.tmpfiles (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_tmpfiles_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/packaging/linux/securewave-wg-quick.contract (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_contract_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"/home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle/scripts/install_linux_helper.sh (bundle: /home/sp/cyber-course/projects/securewave/securewave_app/build/linux/arm64/release/bundle)\",\n      \"name\": \"build:helper_installer_payload\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"sw-wg interface absent\",\n      \"name\": \"residue:wireguard_interface\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"tun0 interface absent\",\n      \"name\": \"residue:tun0_interface\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave/tun split routes\",\n      \"name\": \"residue:tunnel_routes\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave WireGuard policy rules\",\n      \"name\": \"residue:wireguard_policy_rules\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave WireGuard table 51820 routes\",\n      \"name\": \"residue:wireguard_policy_routes\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"SECUREWAVE_ADBLOCK chain absent\",\n      \"name\": \"residue:adblock_chain\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave OpenVPN process\",\n      \"name\": \"residue:openvpn_process\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no SecureWave IKEv2 SA\",\n      \"name\": \"residue:ikev2_sa\",\n      \"ok\": true\n    },\n    {\n      \"detail\": \"no active SecureWave-IKEv2 NetworkManager VPN\",\n      \"name\": \"residue:ikev2_nm_connection\",\n      \"ok\": true\n    }\n  ],\n  \"ok\": true\n}"
+  },
+  "cleanup_actions": [
+    {
+      "protocol": "wireguard",
+      "request": {
+        "config_path": "/home/sp/.config/securewave/sw-wg.conf",
+        "op": "wireguard.cleanup"
+      },
+      "response": {
+        "code": "ok",
+        "contract": "9",
+        "counters_available": "false",
+        "interface": "sw-wg",
+        "interface_present": "false",
+        "message": "OK",
+        "ok": "true",
+        "policy_routes_present": "false",
+        "policy_rules_present": "false",
+        "residue_present": "false",
+        "route_via_sw_wg": "false",
+        "rx_bytes": "0",
+        "service_version": "1",
+        "status": "disconnected",
+        "tx_bytes": "0"
+      }
+    }
+  ],
+  "ok": true,
+  "preflight_cleanup_actions": [
+    {
+      "protocol": "wireguard",
+      "request": {
+        "config_path": "/home/sp/.config/securewave/sw-wg.conf",
+        "op": "wireguard.cleanup"
+      },
+      "response": {
+        "code": "ok",
+        "contract": "9",
+        "counters_available": "false",
+        "interface": "sw-wg",
+        "interface_present": "false",
+        "message": "OK",
+        "ok": "true",
+        "policy_routes_present": "false",
+        "policy_rules_present": "false",
+        "residue_present": "false",
+        "route_via_sw_wg": "false",
+        "rx_bytes": "0",
+        "service_version": "1",
+        "status": "disconnected",
+        "tx_bytes": "0"
+      }
+    }
+  ],
+  "results": [
+    {
+      "evidence": {
+        "backend_health": {
+          "body": "{\"status\":\"ok\",\"service\":\"securewave-vpn\"}",
+          "elapsed_ms": 137,
+          "ok": true,
+          "status": 200,
+          "url": "https://api.securewaveapp.com/api/health"
+        },
+        "data_plane": {
+          "attempts": [
+            {
+              "command": [
+                "curl",
+                "-4",
+                "-m",
+                "5",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}\\n",
+                "https://1.1.1.1"
+              ],
+              "result": {
+                "returncode": 0,
+                "stderr": "% Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0",
+                "stdout": "301"
+              }
+            }
+          ],
+          "ok": true,
+          "selected_ip": "1.1.1.1"
+        },
+        "dns": {
+          "answers": [
+            "172.66.147.243",
+            "104.20.23.154"
+          ],
+          "attempts": [
+            {
+              "command": [
+                "dig",
+                "+time=3",
+                "+tries=1",
+                "+short",
+                "example.com",
+                "A"
+              ],
+              "result": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "172.66.147.243\n104.20.23.154"
+              }
+            }
+          ],
+          "hostname": "example.com",
+          "ok": true
+        },
+        "exit_ip": {
+          "connected": {
+            "attempts": [
+              {
+                "command": [
+                  "curl",
+                  "-4",
+                  "-m",
+                  "8",
+                  "-fsS",
+                  "https://api.ipify.org"
+                ],
+                "result": {
+                  "returncode": 0,
+                  "stderr": "",
+                  "stdout": "138.199.204.139"
+                }
+              }
+            ],
+            "ip": "138.199.204.139",
+            "ok": true,
+            "url": "https://api.ipify.org"
+          },
+          "connected_ip": "138.199.204.139",
+          "ok": true,
+          "pre_connect": {
+            "attempts": [
+              {
+                "command": [
+                  "curl",
+                  "-4",
+                  "-m",
+                  "8",
+                  "-fsS",
+                  "https://api.ipify.org"
+                ],
+                "result": {
+                  "returncode": 0,
+                  "stderr": "",
+                  "stdout": "92.105.134.148"
+                }
+              }
+            ],
+            "ip": "92.105.134.148",
+            "ok": true,
+            "url": "https://api.ipify.org"
+          },
+          "pre_connect_ip": "92.105.134.148"
+        },
+        "interface": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "42: sw-wg: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000\n    link/none"
+        },
+        "ok": true,
+        "route": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "1.1.1.1 dev sw-wg table 51820 src 10.8.0.87 uid 1000 \n    cache"
+        },
+        "traffic_counters": {
+          "ok": true,
+          "response": {
+            "code": "ok",
+            "contract": "9",
+            "message": "OK",
+            "ok": "true",
+            "service_version": "1",
+            "stdout": "w1bQ0wAmvob32mgEBQvVkTTAu10bSmyK7bGkC/06pGA=\t226380\t148488\n"
+          }
+        }
+      },
+      "ok": true,
+      "output_tail": [
+        "Launching lib/runtime_vpn_probe.dart on Linux in debug mode...",
+        "Building Linux application...",
+        "\u2713 Built build/linux/arm64/debug/bundle/securewave_app",
+        "libEGL warning: failed to get driver name for fd -1",
+        "",
+        "libEGL warning: MESA-LOADER: failed to retrieve device information",
+        "",
+        "libEGL warning: failed to get driver name for fd -1",
+        "",
+        "MESA: error: ZINK: failed to choose pdev",
+        "libEGL warning: egl: failed to create dri2 screen",
+        "Gdk-Message: 15:10:50.812: Unable to load  from the cursor theme",
+        "Syncing files to device Linux...                                    77ms",
+        "",
+        "Flutter run key commands.",
+        "r Hot reload. \ud83d\udd25\ud83d\udd25\ud83d\udd25",
+        "R Hot restart.",
+        "h List all available interactive commands.",
+        "d Detach (terminate \"flutter run\" but leave application running).",
+        "c Clear the screen",
+        "q Quit (terminate the application on the device).",
+        "",
+        "A Dart VM Service on Linux is available at: http://127.0.0.1:32865/Z7CxWWn1JWI=/",
+        "The Flutter DevTools debugger and profiler on Linux is available at: http://127.0.0.1:32865/Z7CxWWn1JWI=/devtools/?uri=ws://127.0.0.1:32865/Z7CxWWn1JWI=/ws",
+        "{\"event\":\"connect_result\",\"status\":\"connected\",\"protocol\":\"wireguard\",\"selected_server_id\":\"de-nue-1\",\"error_kind\":null,\"error_message\":null,\"last_profile_fetch_ok\":true,\"last_tunnel_start_ok\":true}",
+        "{\"event\":\"holding_for_evidence\",\"hold_seconds\":120,\"protocol\":\"wireguard\"}",
+        "{\"event\":\"disconnect_result\",\"status\":\"disconnected\",\"protocol\":\"wireguard\",\"selected_server_id\":\"de-nue-1\",\"error_kind\":null,\"error_message\":null,\"last_profile_fetch_ok\":true,\"last_tunnel_start_ok\":true}",
+        "Lost connection to device."
+      ],
+      "pre_connect_exit_ip": {
+        "attempts": [
+          {
+            "command": [
+              "curl",
+              "-4",
+              "-m",
+              "8",
+              "-fsS",
+              "https://api.ipify.org"
+            ],
+            "result": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "92.105.134.148"
+            }
+          }
+        ],
+        "ip": "92.105.134.148",
+        "ok": true,
+        "url": "https://api.ipify.org"
+      },
+      "probe_events": [
+        {
+          "error_kind": null,
+          "error_message": null,
+          "event": "connect_result",
+          "last_profile_fetch_ok": true,
+          "last_tunnel_start_ok": true,
+          "protocol": "wireguard",
+          "selected_server_id": "de-nue-1",
+          "status": "connected"
+        },
+        {
+          "event": "holding_for_evidence",
+          "hold_seconds": 120,
+          "protocol": "wireguard"
+        },
+        {
+          "error_kind": null,
+          "error_message": null,
+          "event": "disconnect_result",
+          "last_profile_fetch_ok": true,
+          "last_tunnel_start_ok": true,
+          "protocol": "wireguard",
+          "selected_server_id": "de-nue-1",
+          "status": "disconnected"
+        }
+      ],
+      "protocol": "wireguard",
+      "returncode": 0
+    }
+  ]
+}

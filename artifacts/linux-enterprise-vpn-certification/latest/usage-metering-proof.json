@@ -1,0 +1,54 @@
+{
+  "100": {
+    "duplicate_ip_addresses": 0,
+    "duplicate_public_keys": 0,
+    "expected_usage_bytes": 19392000,
+    "observed_usage_bytes": 19392000,
+    "ok": true,
+    "peers": 103,
+    "usage_delta_bytes": 0,
+    "usage_rows": 100,
+    "usage_tolerance_bytes": 1939,
+    "usage_within_tolerance": true,
+    "users": 103
+  },
+  "1000": {
+    "duplicate_ip_addresses": 0,
+    "duplicate_public_keys": 0,
+    "expected_usage_bytes": 1921920000,
+    "observed_usage_bytes": 1921920000,
+    "ok": true,
+    "peers": 1003,
+    "usage_delta_bytes": 0,
+    "usage_rows": 1000,
+    "usage_tolerance_bytes": 192192,
+    "usage_within_tolerance": true,
+    "users": 1003
+  },
+  "250": {
+    "duplicate_ip_addresses": 0,
+    "duplicate_public_keys": 0,
+    "expected_usage_bytes": 120480000,
+    "observed_usage_bytes": 120480000,
+    "ok": true,
+    "peers": 253,
+    "usage_delta_bytes": 0,
+    "usage_rows": 250,
+    "usage_tolerance_bytes": 12048,
+    "usage_within_tolerance": true,
+    "users": 253
+  },
+  "500": {
+    "duplicate_ip_addresses": 0,
+    "duplicate_public_keys": 0,
+    "expected_usage_bytes": 480960000,
+    "observed_usage_bytes": 480960000,
+    "ok": true,
+    "peers": 503,
+    "usage_delta_bytes": 0,
+    "usage_rows": 500,
+    "usage_tolerance_bytes": 48096,
+    "usage_within_tolerance": true,
+    "users": 503
+  }
+}

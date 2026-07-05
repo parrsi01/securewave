@@ -33,6 +33,7 @@ from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
 )
+from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn/devices", tags=["devices"])
@@ -48,6 +49,14 @@ DEVICE_LIMITS = {
 }
 
 DEFAULT_DEVICE_LIMIT = 1
+
+
+def _wireguard_server_sync_enabled() -> bool:
+    return not (
+        demo_mode_enabled()
+        or wg_mock_mode_enabled()
+        or os.getenv("TESTING", "").lower() == "true"
+    )
 
 
 def get_device_limit(user: User, db: Session) -> int:
@@ -684,7 +693,7 @@ async def rotate_device_keys(
     try:
         updated_peer = peer_manager.rotate_peer_keys(device_id)
 
-        if updated_peer.server_id:
+        if updated_peer.server_id and _wireguard_server_sync_enabled():
             server = db.query(VPNServer).filter(VPNServer.id == updated_peer.server_id).first()
             if server:
                 try:
