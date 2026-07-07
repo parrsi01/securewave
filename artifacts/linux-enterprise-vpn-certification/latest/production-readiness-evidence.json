@@ -1,0 +1,110 @@
+{
+  "artifact": "production-readiness-evidence",
+  "branch": "codex/linux-enterprise-vpn-certification",
+  "commit": "56f60e530d845690477b186f771d06f73dc9b943",
+  "generated_at": "2026-07-07T01:22:47Z",
+  "hard_rules": {
+    "deployed_production": false,
+    "modified_production_state": false,
+    "printed_secrets": false,
+    "ran_terraform_apply": false,
+    "preserved_vpn_runtime_behavior": true
+  },
+  "tooling": {
+    "docker": {
+      "available": true,
+      "path": "/usr/bin/docker"
+    },
+    "docker_compose": {
+      "available": true,
+      "version": "Docker Compose version v5.3.0"
+    },
+    "terraform": {
+      "available": false,
+      "path": null
+    },
+    "gh": {
+      "available": true,
+      "path": "/home/sp/.local/bin/gh"
+    },
+    "python3": {
+      "available": true,
+      "path": "/usr/bin/python3"
+    }
+  },
+  "compose_validation": {
+    "exact_dummy_command": {
+      "command": "SECUREWAVE_IMAGE=ghcr.io/parrsi01/securewave:test POSTGRES_PASSWORD=dummy docker compose -f deploy/hetzner/compose.yaml config",
+      "status": "blocked",
+      "exit_code": 1,
+      "reason": "deploy/hetzner/compose.yaml references ${SECUREWAVE_ENV_FILE:-.env}; deploy/hetzner/.env is intentionally absent from the local repository.",
+      "stderr_redacted": "env file /home/sp/cyber-course/projects/securewave/deploy/hetzner/.env not found"
+    },
+    "temporary_dummy_env_command": {
+      "command": "SECUREWAVE_ENV_FILE=<temporary dummy env> SECUREWAVE_IMAGE=ghcr.io/parrsi01/securewave:test POSTGRES_PASSWORD=dummy docker compose -f deploy/hetzner/compose.yaml config --quiet",
+      "status": "passed",
+      "exit_code": 0,
+      "notes": "Temporary dummy env file contained only dummy local values and was removed after validation."
+    }
+  },
+  "deploy_guardrails": {
+    "missing_confirm_deploy": {
+      "command": "SECUREWAVE_PRODUCTION_HOST=prod.securewave.example SECUREWAVE_PRODUCTION_IMAGE=ghcr.io/parrsi01/securewave:test bash scripts/deploy_production.sh",
+      "expected": "fail closed before remote operations",
+      "status": "passed",
+      "exit_code": 2,
+      "stderr_redacted": "Set CONFIRM_DEPLOY=securewave-production to run a production deploy."
+    },
+    "ambiguous_latest_image_tag": {
+      "command": "SECUREWAVE_PRODUCTION_HOST=prod.securewave.example SECUREWAVE_PRODUCTION_IMAGE=ghcr.io/parrsi01/securewave:latest CONFIRM_DEPLOY=securewave-production bash scripts/deploy_production.sh",
+      "expected": "fail closed before remote operations",
+      "status": "passed",
+      "exit_code": 2,
+      "stderr_redacted": "Refusing ambiguous image tag 'latest'. Set SECUREWAVE_ALLOW_AMBIGUOUS_TAG=true only for an intentional emergency deploy."
+    },
+    "missing_production_host": {
+      "command": "SECUREWAVE_PRODUCTION_IMAGE=ghcr.io/parrsi01/securewave:test CONFIRM_DEPLOY=securewave-production bash scripts/deploy_production.sh",
+      "expected": "fail closed before remote operations",
+      "status": "passed",
+      "exit_code": 2,
+      "stderr_redacted": "Missing required environment variable: SECUREWAVE_PRODUCTION_HOST"
+    },
+    "missing_production_image": {
+      "command": "SECUREWAVE_PRODUCTION_HOST=prod.securewave.example CONFIRM_DEPLOY=securewave-production bash scripts/deploy_production.sh",
+      "expected": "fail closed before remote operations",
+      "status": "passed",
+      "exit_code": 2,
+      "stderr_redacted": "Missing required environment variable: SECUREWAVE_PRODUCTION_IMAGE"
+    }
+  },
+  "hetzner_credentials": {
+    "HETZNER_API_TOKEN": "unset",
+    "HCLOUD_TOKEN": "unset",
+    "TF_VAR_hcloud_token": "unset",
+    "fleet_audit": {
+      "status": "blocked",
+      "reason": "No Hetzner API token environment variable was set; no live API calls were attempted."
+    }
+  },
+  "production_environment_variables": {
+    "SECUREWAVE_PRODUCTION_HOST": "unset",
+    "SECUREWAVE_PRODUCTION_IMAGE": "unset"
+  },
+  "terraform": {
+    "fmt_check": {
+      "command": "terraform -chdir=infrastructure/hetzner fmt -check",
+      "status": "blocked",
+      "exit_code": 127,
+      "reason": "terraform command not found"
+    },
+    "validate": {
+      "command": "terraform -chdir=infrastructure/hetzner validate",
+      "status": "blocked",
+      "exit_code": 127,
+      "reason": "terraform command not found"
+    },
+    "apply": {
+      "ran": false
+    }
+  }
+}
