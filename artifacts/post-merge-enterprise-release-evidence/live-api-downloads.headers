@@ -1,0 +1,18 @@
+HTTP/2 200 
+server: nginx
+date: Tue, 07 Jul 2026 01:44:06 GMT
+content-type: application/json
+content-length: 2286
+vary: Accept-Encoding
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-xss-protection: 1; mode=block
+x-permitted-cross-domain-policies: none
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+content-security-policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+referrer-policy: strict-origin-when-cross-origin
+permissions-policy: geolocation=(), microphone=(), camera=()
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+x-request-id: fc02dd70-da9e-42ce-9fe9-99f6b590928f
+

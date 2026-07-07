@@ -1,0 +1,2 @@
+status=blocked
+reason=HETZNER_API_TOKEN and HCLOUD_TOKEN are unset; no Hetzner API call attempted.
