@@ -133,7 +133,7 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "x64",
         "filename": "securewave-windows-x64-setup.exe",
         "url": "/downloads/securewave-windows-x64-setup.exe",
-        "notes": "Windows 10+. NSIS installer (may be unsigned in early builds).",
+        "notes": "Windows installer appears here after the Windows release runner publishes it. Current Windows VPN routing is WireGuard-only and still needs host proof.",
     },
     # Linux
     {
@@ -141,28 +141,31 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "x64",
         "filename": "securewave-linux-x64.deb",
         "url": "/downloads/securewave-linux-x64.deb",
-        "notes": "Debian/Ubuntu package (coming soon).",
+        "status": "coming_soon",
+        "notes": "Debian/Ubuntu package appears here after x64 build evidence and clean VM helper/systemd proof. Full routing requires the privileged helper installed once.",
     },
     {
         "platform": "linux",
         "architecture": "x64",
         "filename": "securewave-linux-x64.AppImage",
         "url": "/downloads/securewave-linux-x64.AppImage",
-        "notes": "Portable AppImage build (coming soon).",
+        "status": "coming_soon",
+        "notes": "Portable AppImage appears here after the Linux release runner publishes it. Portable mode is UI-only unless a separate privileged helper install is completed.",
     },
     {
         "platform": "linux",
         "architecture": "x64",
         "filename": "securewave-linux-x64.tar.gz",
         "url": "/downloads/securewave-linux-x64.tar.gz",
-        "notes": "Portable tarball (x64).",
+        "status": "coming_soon",
+        "notes": "Portable Linux x64 tarball is withheld until a true x86_64 artifact is published. Portable mode is UI-only unless a separate privileged helper install is completed.",
     },
     {
         "platform": "linux",
         "architecture": "arm64",
         "filename": "securewave-app-linux-arm64.zip",
         "url": "/downloads/securewave-app-linux-arm64.zip",
-        "notes": "Portable zip (ARM64).",
+        "notes": "Portable Linux ARM64 UI package. VPN routing is not claimable from archive extraction unless the privileged helper and host VPN tools are installed separately.",
     },
     # Apple
     {
@@ -218,13 +221,20 @@ def _build_download_entries() -> List[DownloadEntry]:
                 size_bytes = file_path.stat().st_size
                 size_display = _format_size(size_bytes)
 
-        status = "available" if file_exists else "coming_soon"
+        declared_status = item.get("status")
+        if declared_status == "coming_soon":
+            status = "coming_soon"
+        else:
+            status = "available" if file_exists else "coming_soon"
+        if status != "available":
+            size_bytes = None
+            size_display = None
 
         entries.append(DownloadEntry(
             platform=item["platform"],
             architecture=item["architecture"],
             filename=filename,
-            url=item["url"] if file_exists or item["url"] == "#" else "#",
+            url=item["url"] if status == "available" or item["url"] == "#" else "#",
             version=APP_VERSION,
             size_bytes=size_bytes,
             size_display=size_display,
@@ -269,7 +279,9 @@ async def detect_user_platform(request: Request):
     ]
     exact = next((entry for entry in entries if entry.architecture == detected["architecture"]), None)
     universal = next((entry for entry in entries if entry.architecture == "universal"), None)
-    selected = exact or universal or (entries[0] if entries else None)
+    selected = exact or universal
+    if selected is None and detected["architecture"] in {"unknown", "universal"}:
+        selected = entries[0] if entries else None
     if selected:
         recommended = selected.url
 

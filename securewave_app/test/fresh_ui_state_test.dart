@@ -105,6 +105,19 @@ void main() {
     expect(find.text('Unlimited'), findsOneWidget);
     expect(find.textContaining('NaN'), findsNothing);
   });
+
+  testWidgets('settings expose package and runtime truth', (tester) async {
+    await _pumpApp(tester);
+
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('VPN routing'), findsOneWidget);
+    expect(find.text('Linux portable'), findsOneWidget);
+    expect(find.text('UI-only'), findsOneWidget);
+    expect(find.textContaining('Portable Linux builds launch the app UI only'),
+        findsOneWidget);
+  });
 }
 
 Future<void> _pumpApp(

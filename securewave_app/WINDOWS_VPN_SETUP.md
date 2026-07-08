@@ -1,7 +1,8 @@
 # Windows VPN Setup (WireGuard)
 
-SecureWave uses the official WireGuard for Windows tooling (`wireguard.exe`)
-to install and start a tunnel service from a WireGuard config string.
+SecureWave currently wires Windows VPN routing through the official WireGuard
+for Windows tooling (`wireguard.exe`) only. Do not claim OpenVPN or IKEv2
+runtime support on Windows from the current app source.
 
 ## Integration Summary
 
@@ -53,4 +54,6 @@ cd securewave_app
 
 If `wireguard.exe` is missing, Flutter receives `vpn_unavailable`. In demo mode
 (`SECUREWAVE_USE_MOCK_API=true`) the app can simulate a tunnel; in live mode it
-will not connect until WireGuard is installed.
+will not connect until WireGuard is installed. Windows release readiness still
+requires installer, service install, connect, routing, disconnect, and cleanup
+proof on a Windows host.

@@ -12,6 +12,7 @@ import 'core/models/user_account.dart';
 import 'core/models/user_plan.dart';
 import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
+import 'core/release/platform_release_truth.dart';
 import 'core/services/auth_session.dart';
 import 'core/services/secure_storage.dart';
 import 'core/state/app_state.dart';
@@ -741,6 +742,7 @@ class _SettingsScreen extends ConsumerWidget {
     final device = ref.watch(deviceInfoProvider);
     final vpn = ref.watch(vpnStateProvider);
     final plan = ref.watch(userPlanProvider);
+    final releaseTruth = PlatformReleaseTruth.current();
 
     return ListView(
       children: [
@@ -754,6 +756,18 @@ class _SettingsScreen extends ConsumerWidget {
               _InfoRow('API', config.apiBaseUrl),
               _InfoRow('Mock API', config.useMockApi ? 'On' : 'Off'),
               _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
+              _InfoRow('Package', releaseTruth.artifactLabel),
+              _InfoRow('VPN routing', releaseTruth.routingLabel),
+              _InfoRow('Install auth', releaseTruth.installAuthorization),
+              _InfoRow('Connect auth', releaseTruth.connectAuthorization),
+              const SizedBox(height: 8),
+              _InlineMessage(
+                icon: Icons.info_outline_rounded,
+                message: releaseTruth.guidance,
+                tone: releaseTruth.fullVpnRoutingProven
+                    ? _Tone.success
+                    : _Tone.warning,
+              ),
             ],
           ),
         ),
@@ -815,6 +829,7 @@ class _DiagnosticsView extends ConsumerWidget {
     final vpn = ref.watch(vpnStateProvider);
     final service = ref.watch(vpnServiceProvider);
     final serverList = ref.watch(serversProvider);
+    final releaseTruth = PlatformReleaseTruth.current();
 
     return ListView(
       shrinkWrap: true,
@@ -822,6 +837,7 @@ class _DiagnosticsView extends ConsumerWidget {
         _InfoRow('VPN state', _statusDescriptor(vpn).label),
         _InfoRow('Native bridge',
             service.isNativeAvailable ? 'Available' : 'Unavailable'),
+        _InfoRow('Runtime claim', releaseTruth.routingLabel),
         _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
         _InfoRow('Desired state', vpn.desiredOn ? 'On' : 'Off'),
         _InfoRow(

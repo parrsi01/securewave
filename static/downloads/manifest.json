@@ -31,7 +31,7 @@
       "filename": "securewave-windows-x64-setup.exe",
       "url": "/downloads/securewave-windows-x64-setup.exe",
       "status": "coming_soon",
-      "notes": "Windows installer appears here after the Windows release runner publishes it."
+      "notes": "Windows installer appears here after the Windows release runner publishes it. Current Windows VPN routing is WireGuard-only and still needs host proof."
     },
     {
       "platform": "linux",
@@ -39,7 +39,7 @@
       "filename": "securewave-linux-x64.deb",
       "url": "/downloads/securewave-linux-x64.deb",
       "status": "coming_soon",
-      "notes": "Debian/Ubuntu package appears here after the Linux release runner publishes it."
+      "notes": "Debian/Ubuntu package appears here after x64 build evidence and clean VM helper/systemd proof. Full routing requires the privileged helper installed once."
     },
     {
       "platform": "linux",
@@ -47,15 +47,15 @@
       "filename": "securewave-linux-x64.AppImage",
       "url": "/downloads/securewave-linux-x64.AppImage",
       "status": "coming_soon",
-      "notes": "Portable AppImage appears here after the Linux release runner publishes it."
+      "notes": "Portable AppImage appears here after the Linux release runner publishes it. Portable mode is UI-only unless a separate privileged helper install is completed."
     },
     {
       "platform": "linux",
       "architecture": "x64",
       "filename": "securewave-linux-x64.tar.gz",
       "url": "/downloads/securewave-linux-x64.tar.gz",
-      "status": "available",
-      "notes": "Portable Linux tarball."
+      "status": "coming_soon",
+      "notes": "Portable Linux x64 tarball is withheld until a true x86_64 artifact is published. Portable mode is UI-only unless a separate privileged helper install is completed."
     },
     {
       "platform": "linux",
@@ -63,7 +63,7 @@
       "filename": "securewave-app-linux-arm64.zip",
       "url": "/downloads/securewave-app-linux-arm64.zip",
       "status": "available",
-      "notes": "Portable Linux ARM64 zip."
+      "notes": "Portable Linux ARM64 UI package. VPN routing is not claimable from archive extraction unless the privileged helper and host VPN tools are installed separately."
     },
     {
       "platform": "android",

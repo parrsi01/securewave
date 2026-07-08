@@ -4,6 +4,10 @@ SecureWave exposes the `securewave/vpn` MethodChannel on macOS but does not
 attempt to create a tunnel. Native availability returns `false` until a signed
 Network Extension or WireGuardKit integration is added.
 
+Public macOS downloads in the current repo are UI/demo artifacts only. Do not
+claim macOS VPN routing unless a signed Network Extension build and routing
+proof exist.
+
 ## Current repo status (macOS)
 
 - Workspace: `securewave_app/macos/Runner.xcworkspace`
