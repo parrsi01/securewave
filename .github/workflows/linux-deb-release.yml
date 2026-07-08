@@ -1,0 +1,220 @@
+name: Linux Debian Package Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: "Linux Debian package architecture to build"
+        required: true
+        default: "x64"
+        type: choice
+        options:
+          - x64
+          - arm64
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-deb-evidence-${{ github.ref }}-${{ github.event.inputs.architecture }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  build:
+    name: Build ${{ github.event.inputs.architecture }} Debian package evidence
+    runs-on: ${{ github.event.inputs.architecture == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify requested runner architecture
+        id: arch
+        shell: bash
+        run: |
+          set -euo pipefail
+          requested="${{ github.event.inputs.architecture }}"
+          case "$requested" in
+            x64)
+              expected_uname="x86_64"
+              expected_dpkg="amd64"
+              normalized_name="securewave-linux-x64.deb"
+              ;;
+            arm64)
+              expected_uname="aarch64"
+              expected_dpkg="arm64"
+              normalized_name="securewave-linux-arm64.deb"
+              ;;
+            *)
+              echo "Unsupported architecture input: $requested" >&2
+              exit 2
+              ;;
+          esac
+
+          actual_uname="$(uname -m)"
+          actual_dpkg="$(dpkg --print-architecture)"
+          echo "requested=$requested"
+          echo "uname=$actual_uname"
+          echo "dpkg_architecture=$actual_dpkg"
+
+          if [[ "$actual_uname" != "$expected_uname" ]]; then
+            echo "Runner architecture mismatch: expected uname $expected_uname, got $actual_uname" >&2
+            exit 2
+          fi
+          if [[ "$actual_dpkg" != "$expected_dpkg" ]]; then
+            echo "Debian architecture mismatch: expected $expected_dpkg, got $actual_dpkg" >&2
+            exit 2
+          fi
+
+          {
+            echo "requested=$requested"
+            echo "dpkg_architecture=$actual_dpkg"
+            echo "normalized_name=$normalized_name"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install Linux packaging dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            acl \
+            clang \
+            cmake \
+            dpkg-dev \
+            iproute2 \
+            iptables \
+            libcharon-extra-plugins \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libsecret-1-dev \
+            libstrongswan-extra-plugins \
+            network-manager \
+            network-manager-strongswan \
+            ninja-build \
+            openvpn \
+            pkg-config \
+            strongswan \
+            strongswan-charon \
+            strongswan-swanctl \
+            systemd \
+            wireguard-tools
+
+      - name: Prepare Flutter environment asset
+        shell: bash
+        run: FORCE_FLUTTER_ENV=true bash scripts/prepare_flutter_env.sh
+
+      - name: Build local Debian package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd securewave_app
+          bash scripts/build_deb.sh
+
+      - name: Collect and verify package evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          requested="${{ steps.arch.outputs.requested }}"
+          expected_dpkg="${{ steps.arch.outputs.dpkg_architecture }}"
+          normalized_name="${{ steps.arch.outputs.normalized_name }}"
+          evidence_dir="linux-deb-evidence-$requested"
+          mkdir -p "$evidence_dir"
+
+          mapfile -t packages < <(find securewave_app/build/packaging -maxdepth 1 -type f -name 'securewave-vpn_*_*.deb' | sort)
+          if [[ "${#packages[@]}" -ne 1 ]]; then
+            printf 'Expected exactly one package, found %s:\n' "${#packages[@]}" >&2
+            printf '%s\n' "${packages[@]}" >&2
+            exit 2
+          fi
+          package="${packages[0]}"
+          package_arch="$(dpkg-deb --field "$package" Architecture)"
+          if [[ "$package_arch" != "$expected_dpkg" ]]; then
+            echo "Package architecture mismatch: expected $expected_dpkg, got $package_arch" >&2
+            exit 2
+          fi
+
+          contents_file="$evidence_dir/${normalized_name}.dpkg-contents.txt"
+          info_file="$evidence_dir/${normalized_name}.dpkg-info.txt"
+          summary_file="$evidence_dir/evidence-summary.md"
+          cp "$package" "$evidence_dir/$normalized_name"
+          sha256sum "$evidence_dir/$normalized_name" > "$evidence_dir/${normalized_name}.sha256"
+          dpkg-deb --info "$package" > "$info_file"
+          dpkg-deb --contents "$package" > "$contents_file"
+          file "$package" > "$evidence_dir/${normalized_name}.file.txt"
+
+          required_contents=(
+            "./usr/lib/securewave/securewave_app"
+            "./usr/share/applications/securewave-vpn.desktop"
+            "./usr/share/securewave/packaging/linux/securewave-helperd"
+            "./usr/share/securewave/packaging/linux/securewave-wg-quick"
+            "./usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
+            "./usr/share/securewave/packaging/linux/securewave-helper.service"
+            "./usr/share/securewave/packaging/linux/securewave-helper.tmpfiles"
+            "./usr/lib/tmpfiles.d/securewave-helper.conf"
+          )
+          for path in "${required_contents[@]}"; do
+            if ! grep -Fq "$path" "$contents_file"; then
+              echo "Package missing required payload path: $path" >&2
+              exit 2
+            fi
+          done
+
+          depends="$(dpkg-deb --field "$package" Depends)"
+          required_depends=(
+            "wireguard-tools"
+            "openvpn"
+            "network-manager"
+            "network-manager-strongswan"
+            "strongswan"
+            "strongswan-swanctl"
+            "strongswan-charon"
+            "libcharon-extra-plugins"
+            "libstrongswan-extra-plugins"
+            "iproute2"
+            "iptables"
+            "acl"
+            "systemd"
+          )
+          for dependency in "${required_depends[@]}"; do
+            if [[ "$depends" != *"$dependency"* ]]; then
+              echo "Package Depends field missing: $dependency" >&2
+              exit 2
+            fi
+          done
+
+          {
+            echo "# SecureWave Linux Debian Package Evidence"
+            echo
+            echo "- Requested architecture: \`$requested\`"
+            echo "- Runner uname: \`$(uname -m)\`"
+            echo "- Debian architecture: \`$(dpkg --print-architecture)\`"
+            echo "- Package architecture: \`$package_arch\`"
+            echo "- Normalized artifact: \`$normalized_name\`"
+            echo "- Source package path: \`$package\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo
+            echo "This workflow uploads evidence only. It does not commit artifacts,"
+            echo "publish release downloads, or mark manifest entries available."
+            echo
+            echo "## SHA256"
+            echo
+            echo '```text'
+            cat "$evidence_dir/${normalized_name}.sha256"
+            echo '```'
+          } > "$summary_file"
+
+      - name: Upload package evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: securewave-linux-deb-${{ github.event.inputs.architecture }}-${{ github.run_id }}
+          path: linux-deb-evidence-${{ github.event.inputs.architecture }}/
+          if-no-files-found: error
