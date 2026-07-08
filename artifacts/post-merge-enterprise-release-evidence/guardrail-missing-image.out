@@ -1,1 +1,1 @@
-bash: scripts/deploy_production.sh: No such file or directory
+Missing required environment variable: SECUREWAVE_PRODUCTION_IMAGE

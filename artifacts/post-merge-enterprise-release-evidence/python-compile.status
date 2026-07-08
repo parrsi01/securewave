@@ -1,1 +1,4 @@
-audit_vpn_fleet_py_compile_exit=0
+exit_code=1
+expected=0
+result=blocked
+blocked_reason=scripts/linux_enterprise_vpn_certification.py is absent on current master

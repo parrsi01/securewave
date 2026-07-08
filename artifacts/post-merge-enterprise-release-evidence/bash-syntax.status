@@ -1,1 +1,3 @@
-hetzner_bootstrap_bash_n_exit=0
+exit_code=0
+expected=0
+result=pass

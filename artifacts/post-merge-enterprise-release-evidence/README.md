@@ -1,86 +1,167 @@
 # Post-Merge Enterprise Release Evidence
 
-Generated from `docs/POST_MERGE_ENTERPRISE_RELEASE_TODO.md` in read-only evidence mode.
+Generated from `docs/POST_MERGE_ENTERPRISE_RELEASE_TODO.md` in read-only
+evidence mode after PR #16 restored the Hetzner deploy files.
 
 ## Current Checkout
 
 - Branch: `master`
-- Commit: `86a24679c98472f8b8d30045169c4d373367c86e`
+- Commit: `69395a8a55bc15eda3fd1e815c94e60f6dfd2ff7`
+- PR #16 status: merged
 - Production deploy run: no
 - Terraform apply run: no
 - External load test run: no
 - Production state modified: no
+- Runtime/helper/protocol/app behavior modified: no
 
 ## Checklist Status
 
 | Checklist item | Status | Evidence |
 | --- | --- | --- |
-| Production Compose validation | blocked | `compose-dummy-config.status`, `compose-dummy-config.out`, `compose-temp-env-config.status`, `compose-temp-env-config.out` |
-| Deploy guardrails | blocked | `guardrail-*.status`, `guardrail-*.out` |
+| Hetzner deploy files restored | pass | `deploy/hetzner/compose.yaml` and `scripts/deploy_production.sh` exist on `master` |
+| Production Compose validation | pass locally with dummy values | `compose-dummy-config.status`, `compose-dummy-config.out` |
+| Deploy guardrails | pass | `guardrail-*.status`, `guardrail-*.out` |
 | Hetzner fleet audit | blocked | `credential-presence.txt`, `hetzner-fleet-audit.status` |
 | Authorized external load test | not run | `external-load-test-not-run.md` |
-| x64 Linux `.deb` publication | blocked | `download-manifest-report.json`, `live-api-downloads.body` |
-| Public download manifest verification | pass | `download-manifest-report.json`, `live-api-downloads.status` |
+| x64 Linux `.deb` publication | blocked | `download-manifest-report.json` |
+| Public download manifest verification | partial | `json-validation.status`, `download-manifest-report.json` |
 | Protocol documentation truth update | blocked | `protocol-doc-truth-scan.md` |
 | Monitoring and alerting requirements | blocked | no deployed monitoring evidence or dashboard links available in this read-only run |
-| Support/debug runbook | partially ready | existing docs were scanned, but post-release support runbook publication still needs final protocol/package evidence |
-| Backend/API readiness where possible | pass | `pytest-downloads-vpn-profile.status`, `json-validation.status`, `python-compile.status`, `bash-syntax.status`, live API status files |
+| Support/debug runbook | partially ready | existing docs/TODOs exist, but final protocol/package evidence is still missing |
+| Backend/download/profile validation | pass | `pytest-downloads-vpn-profile.status` |
+| Script syntax/compile validation | partial | `bash-syntax.status`, `python-compile.status` |
 
 ## Commands Run
 
 ```bash
-git fetch origin
-git status --short --branch
-sed -n '1,240p' docs/POST_MERGE_ENTERPRISE_RELEASE_TODO.md
+git fetch origin --prune
+git switch master
+git pull --ff-only origin master
+sed -n '1,260p' docs/POST_MERGE_ENTERPRISE_RELEASE_TODO.md
+sed -n '1,260p' artifacts/post-merge-enterprise-release-evidence/README.md
+sed -n '1,260p' artifacts/post-merge-enterprise-release-evidence/blocker_resolution_plan.md
 mkdir -p artifacts/post-merge-enterprise-release-evidence
-git rev-parse HEAD
-git branch --show-current
-command -v docker || true
-docker compose version || true
-command -v terraform || true
-command -v gh || true
-command -v python3 || true
-SECUREWAVE_IMAGE=ghcr.io/parrsi01/securewave:test POSTGRES_PASSWORD=dummy docker compose -f deploy/hetzner/compose.yaml config
-SECUREWAVE_ENV_FILE=<temporary dummy env> SECUREWAVE_IMAGE=ghcr.io/parrsi01/securewave:test POSTGRES_PASSWORD=dummy docker compose -f deploy/hetzner/compose.yaml config --quiet
+test -f deploy/hetzner/compose.yaml
+test -f scripts/deploy_production.sh
+bash -n scripts/deploy_production.sh
+SECUREWAVE_IMAGE=ghcr.io/parrsi01/securewave:test POSTGRES_PASSWORD=dummy SECUREWAVE_ENV_FILE=/dev/null docker compose -f deploy/hetzner/compose.yaml config
 SECUREWAVE_PRODUCTION_HOST=prod.securewave.example SECUREWAVE_PRODUCTION_IMAGE=ghcr.io/parrsi01/securewave:test bash scripts/deploy_production.sh
 SECUREWAVE_PRODUCTION_HOST=prod.securewave.example SECUREWAVE_PRODUCTION_IMAGE=ghcr.io/parrsi01/securewave:latest CONFIRM_DEPLOY=securewave-production bash scripts/deploy_production.sh
 SECUREWAVE_PRODUCTION_IMAGE=ghcr.io/parrsi01/securewave:test CONFIRM_DEPLOY=securewave-production bash scripts/deploy_production.sh
 SECUREWAVE_PRODUCTION_HOST=prod.securewave.example CONFIRM_DEPLOY=securewave-production bash scripts/deploy_production.sh
 python3 -m json.tool static/downloads/manifest.json
+git log --all --name-status -- static/downloads/securewave-linux-x64.deb
 pytest tests/unit/test_downloads_manifest.py tests/integration/test_vpn_profile.py -q
-python3 -m json.tool artifacts/linux-enterprise-vpn-certification/smoke/*.json
+python3 -m py_compile infrastructure/hetzner/audit_vpn_fleet.py scripts/linux_enterprise_vpn_certification.py
 python3 -m py_compile infrastructure/hetzner/audit_vpn_fleet.py
-bash -n scripts/hetzner_bootstrap.sh
-curl -fsS --max-time 20 https://api.securewaveapp.com/api/health
-curl -fsS --max-time 20 https://api.securewaveapp.com/api/downloads
+bash -n scripts/hetzner_bootstrap.sh scripts/deploy_production.sh
+git diff --check
+git diff --cached --check
+command -v terraform || true
+uname -m
+docker compose version
 ```
 
-## Production Blockers
+## PR #16 / Deploy Files
 
-- `deploy/hetzner/compose.yaml` is not present on current `master`, so Compose validation is blocked before production env validation.
-- `scripts/deploy_production.sh` is not present on current `master`, so deploy guardrail checks are blocked by missing script.
-- `HETZNER_API_TOKEN`, `HCLOUD_TOKEN`, and `TF_VAR_hcloud_token` are unset, so the read-only Hetzner fleet audit was not run.
-- `terraform` is not installed on PATH; no Terraform validation or apply was run.
-- No external load-test authorization was provided in this prompt, so load testing was not run.
+- PR #16 is merged into `master`.
+- `deploy/hetzner/compose.yaml` exists on `master`.
+- `scripts/deploy_production.sh` exists on `master`.
+- `bash -n scripts/deploy_production.sh` passed.
+- Docker Compose config passed with dummy values and
+  `SECUREWAVE_ENV_FILE=/dev/null`.
+- No production deploy was attempted.
 
-## x64 `.deb` Status
+## Deploy Guardrail Status
 
-- Local `static/downloads/manifest.json`: Linux x64 `.deb` is `coming_soon`.
-- Live `/api/downloads`: only Linux ARM64 `.deb` is advertised as available; no Linux x64 `.deb` is available.
-- Result: blocked for x64 Linux `.deb` publication.
+All guardrail probes failed closed before any SSH/SCP/deploy step:
+
+- Missing `CONFIRM_DEPLOY`: exit code `2`, expected failure.
+- Ambiguous `latest` image tag: exit code `2`, expected failure.
+- Missing `SECUREWAVE_PRODUCTION_HOST`: exit code `2`, expected failure.
+- Missing `SECUREWAVE_PRODUCTION_IMAGE`: exit code `2`, expected failure.
+
+## Downloads Manifest Status
+
+- `static/downloads/manifest.json` is valid JSON.
+- Every manifest entry marked `available` has a matching local file.
+- Local SHA-256 values were computed in `download-manifest-report.json`.
+- The manifest has no checksum fields, and no checksum sidecar file exists under
+  `static/downloads`, so checksum matching against repository metadata is blocked.
+- Linux x64 `.deb` remains `coming_soon`.
+- `static/downloads/securewave-linux-x64.deb` does not exist locally.
+- Git history/object checks found no tracked `static/downloads/securewave-linux-x64.deb`
+  file object.
 
 ## Hetzner Audit Status
 
-Blocked. Required token environment variables are unset, and no Hetzner API calls were attempted.
+Blocked. `HETZNER_API_TOKEN` and `HCLOUD_TOKEN` are unset. No Hetzner API calls
+were attempted, and no token values were printed.
 
-## External Load-Test Authorization Status
+## Terraform Status
 
-Not run. This read-only run recorded the command shape, required authorization, expected target, and safety limits in `external-load-test-not-run.md`.
+Blocked. `terraform` is unavailable on `PATH`. No Terraform validation and no
+`terraform apply` were run.
+
+## External Load-Test Status
+
+Not run. No explicit authorization was provided for an external load test against
+SecureWave-owned infrastructure.
+
+## Linux x64 Build Environment
+
+Blocked locally. The current host architecture is `aarch64`, so this checkout is
+not a native Linux x64 package build/verification environment. The x64 `.deb`
+publication remains a separate build, signing, publish, and clean-VM
+verification task.
 
 ## Protocol Documentation Truth Status
 
-Blocked for final release truth update. Current docs still present WireGuard as primary/default, OpenVPN as limited or fallback, and IKEv2 as disabled, unavailable, or experimental. That may be truthful for current `master`, but it does not yet reflect final post-PR #15 production evidence.
+Blocked for final release truth update. The scan found docs/download metadata
+that still need reconciliation after final production evidence:
 
-## Final Recommendation
+- `README.md`: IKEv2 is described as disabled in the Linux release UI.
+- `docs/current_release_status.md`: IKEv2 is described as disabled/blocked.
+- `docs/hr_app_process_overview/README.md`: IKEv2 is described as disabled in
+  the Linux release app.
+- `docs/guides/DESKTOP_THREE_PROTOCOL_PLAN.md`: OpenVPN/IKEv2 blocked-state
+  language remains in the multi-protocol plan.
+- `static/downloads/manifest.json`: Linux x64 `.deb` remains `coming_soon`.
 
-Partially ready. Local backend/download/profile checks, JSON validation, script compile, bash syntax, public health, and downloads probes passed. Release remains blocked on missing production deploy files on current `master`, missing Hetzner credentials, missing Terraform binary, unavailable Linux x64 `.deb`, missing external load-test authorization, and final protocol documentation truth updates.
+The requested scan path `securewave_app/lib/core/release` is absent on current
+`master`.
+
+No protocol docs were edited in this pass.
+
+## Local Validation Status
+
+- `pytest tests/unit/test_downloads_manifest.py tests/integration/test_vpn_profile.py -q`: passed, 13 tests.
+- `python3 -m py_compile infrastructure/hetzner/audit_vpn_fleet.py`: passed.
+- `python3 -m py_compile infrastructure/hetzner/audit_vpn_fleet.py scripts/linux_enterprise_vpn_certification.py`: blocked because `scripts/linux_enterprise_vpn_certification.py` is absent on current `master`.
+- `bash -n scripts/hetzner_bootstrap.sh scripts/deploy_production.sh`: passed.
+- `git diff --check`: passed.
+- `git diff --cached --check`: passed.
+
+## Remaining Blockers
+
+- Hetzner fleet audit requires `HETZNER_API_TOKEN` or `HCLOUD_TOKEN`.
+- Terraform validation requires the `terraform` binary.
+- External load testing requires explicit authorization.
+- Linux x64 `.deb` is unavailable and remains `coming_soon`.
+- Linux x64 `.deb` clean-VM install/connect/disconnect/uninstall proof is missing.
+- Public checksum verification is blocked because the local manifest has no
+  checksum fields or sidecar checksum file.
+- Protocol docs still need the final truth update after production evidence.
+- Monitoring and alerting evidence is not available from this read-only run.
+- Final support/debug runbook publication still depends on final package and
+  protocol evidence.
+
+## Final Release Readiness
+
+Blocked.
+
+Local deploy-file restoration, dummy Compose validation, deploy guardrails,
+download/profile tests, manifest JSON validation, and bash syntax checks are in
+good shape. The release is still blocked by external credentials/tools,
+authorization, x64 package publication, checksum evidence, and final
+protocol/support/monitoring closeout evidence.

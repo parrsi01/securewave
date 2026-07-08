@@ -1,7 +1,4 @@
-commit=86a24679c98472f8b8d30045169c4d373367c86e
-branch=master
-docker=/usr/bin/docker
 docker_compose=Docker Compose version v5.3.0
-terraform=
-gh=/home/sp/.local/bin/gh
-python3=/usr/bin/python3
+terraform=unavailable
+arch=aarch64
+x64_linux_build_environment=unavailable

@@ -1,1 +1,99 @@
-open /home/sp/cyber-course/projects/securewave/deploy/hetzner/compose.yaml: no such file or directory
+name: hetzner
+services:
+  app:
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: true
+      redis:
+        condition: service_healthy
+        required: true
+    environment:
+      DATABASE_URL: postgresql+psycopg2://securewave:dummy@postgres:5432/securewave
+      DEMO_MODE: "false"
+      ENVIRONMENT: production
+      PORT: "8080"
+      REDIS_URL: redis://redis:6379/0
+      WG_MOCK_MODE: "false"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS http://localhost:8080/api/health >/dev/null && curl -fsS http://localhost:8080/downloads/manifest.json >/dev/null
+      timeout: 10s
+      interval: 30s
+      retries: 3
+      start_period: 40s
+    image: ghcr.io/parrsi01/securewave:test
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 8080
+        published: "8080"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: securewave-data
+        target: /app/data
+        volume: {}
+      - type: volume
+        source: securewave-wg
+        target: /wg
+        volume: {}
+  postgres:
+    environment:
+      POSTGRES_DB: securewave
+      POSTGRES_PASSWORD: dummy
+      POSTGRES_USER: securewave
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U securewave -d securewave
+      timeout: 5s
+      interval: 10s
+      retries: 5
+    image: postgres:15-alpine
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: securewave-postgres
+        target: /var/lib/postgresql/data
+        volume: {}
+  redis:
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      timeout: 5s
+      interval: 10s
+      retries: 5
+    image: redis:7-alpine
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: securewave-redis
+        target: /data
+        volume: {}
+networks:
+  default:
+    name: hetzner_default
+volumes:
+  securewave-data:
+    name: hetzner_securewave-data
+  securewave-postgres:
+    name: hetzner_securewave-postgres
+  securewave-redis:
+    name: hetzner_securewave-redis
+  securewave-wg:
+    name: hetzner_securewave-wg

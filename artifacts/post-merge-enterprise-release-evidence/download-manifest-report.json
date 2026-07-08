@@ -1,109 +1,79 @@
 {
-  "entries": [
+  "available_entries": [
     {
       "architecture": "universal",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": true,
+      "exists": true,
       "filename": "securewave-apple-release-handoff.zip",
-      "notes": "Mac/Xcode handoff kit for producing the signed macOS/iOS archive. Not a notarized app bundle.",
       "platform": "macos",
-      "status": "available"
+      "sha256": "9b75484729e0bfec367448abe4599f24182a9a1fb79710c4e261b502d929b108",
+      "size_bytes": 14359
     },
     {
       "architecture": "arm64",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": true,
+      "exists": true,
       "filename": "securewave-macos-arm64-ui-demo.zip",
-      "notes": "macOS UI demo app package. Build this on an Apple Silicon Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
       "platform": "macos",
-      "status": "available"
+      "sha256": "8de9298df6adafe08108b52601fd5adf1cc4b41a6b318142b0fea4064a0f7fbf",
+      "size_bytes": 17951817
     },
     {
       "architecture": "x64",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": "not_required_for_status",
-      "filename": "securewave-macos-x64-ui-demo.zip",
-      "notes": "macOS UI demo app package. Build this on an Intel Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
-      "platform": "macos",
-      "status": "coming_soon"
-    },
-    {
-      "architecture": "x64",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": "not_required_for_status",
-      "filename": "securewave-windows-x64-setup.exe",
-      "notes": "Windows installer appears here after the Windows release runner publishes it.",
-      "platform": "windows",
-      "status": "coming_soon"
-    },
-    {
-      "architecture": "x64",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": "not_required_for_status",
-      "filename": "securewave-linux-x64.deb",
-      "notes": "Debian/Ubuntu package appears here after the Linux release runner publishes it.",
-      "platform": "linux",
-      "status": "coming_soon"
-    },
-    {
-      "architecture": "x64",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": "not_required_for_status",
-      "filename": "securewave-linux-x64.AppImage",
-      "notes": "Portable AppImage appears here after the Linux release runner publishes it.",
-      "platform": "linux",
-      "status": "coming_soon"
-    },
-    {
-      "architecture": "x64",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": true,
+      "exists": true,
       "filename": "securewave-linux-x64.tar.gz",
-      "notes": "Portable Linux tarball.",
       "platform": "linux",
-      "status": "available"
+      "sha256": "ffe8f3d3d369df6c7c41be71b3108b3ed72abd1b61ad230dad02cafa5143441f",
+      "size_bytes": 15864323
     },
     {
       "architecture": "arm64",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": true,
+      "exists": true,
       "filename": "securewave-app-linux-arm64.zip",
-      "notes": "Portable Linux ARM64 zip.",
       "platform": "linux",
-      "status": "available"
-    },
-    {
-      "architecture": "universal",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": "not_required_for_status",
-      "filename": "securewave-android.apk",
-      "notes": "Android APK appears here after the Android release runner publishes it.",
-      "platform": "android",
-      "status": "coming_soon"
-    },
-    {
-      "architecture": "arm64",
-      "checksum_declared": false,
-      "checksum_matches": null,
-      "file_exists": "not_required_for_status",
-      "filename": "",
-      "notes": "iOS is distributed through TestFlight/App Store after Apple Network Extension approval.",
-      "platform": "ios",
-      "status": "coming_soon"
+      "sha256": "25f9ba463d8315c4050699be21239f7feb3a98b08fbc7b02475bc50af64f0f65",
+      "size_bytes": 15803666
     }
   ],
-  "linux_full_routing_truth": "x64 tarball available; x64 deb remains coming_soon; manifest notes do not claim full-routing proof",
-  "linux_x64_deb_status": "coming_soon",
-  "manifest_path": "static/downloads/manifest.json",
-  "problems": [],
-  "status": "pass"
+  "available_files_exist": true,
+  "checksum_metadata_present": false,
+  "checksum_verification": "blocked_no_manifest_checksum_fields",
+  "coming_soon_entries": [
+    {
+      "architecture": "x64",
+      "filename": "securewave-macos-x64-ui-demo.zip",
+      "platform": "macos"
+    },
+    {
+      "architecture": "x64",
+      "filename": "securewave-windows-x64-setup.exe",
+      "platform": "windows"
+    },
+    {
+      "architecture": "x64",
+      "filename": "securewave-linux-x64.deb",
+      "platform": "linux"
+    },
+    {
+      "architecture": "x64",
+      "filename": "securewave-linux-x64.AppImage",
+      "platform": "linux"
+    },
+    {
+      "architecture": "universal",
+      "filename": "securewave-android.apk",
+      "platform": "android"
+    },
+    {
+      "architecture": "arm64",
+      "filename": "",
+      "platform": "ios"
+    }
+  ],
+  "json_valid": true,
+  "linux_x64_deb": {
+    "exists_locally": false,
+    "filename": "securewave-linux-x64.deb",
+    "manifest_status": "coming_soon"
+  },
+  "manifest": "/home/sp/cyber-course/projects/securewave/static/downloads/manifest.json",
+  "missing_available_files": []
 }
