@@ -77,9 +77,10 @@ bash securewave_app/scripts/package_macos_ui_demo.sh
 
 - GitHub Actions can run unsigned iOS validation by default and signed
   archive/export when manually dispatched with Apple signing secrets. As of
-  `2026-07-01`, the repository only exposes `AZURE_CREDENTIALS` through
-  `gh secret list`, so signed iOS export remains blocked until Apple signing
-  secrets are configured or the archive is produced locally on a Mac.
+  `2026-07-01`, `gh secret list` only reports a legacy CI credential unrelated
+  to the current Apple signing requirements, so signed iOS export remains
+  blocked until Apple signing secrets are configured or the archive is produced
+  locally on a Mac.
 - GitHub Actions can build the macOS UI demo on a macOS runner and optionally
   publish the generated zip back to the branch with
   `publish_macos_demo=true`.

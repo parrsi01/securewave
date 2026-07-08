@@ -45,5 +45,5 @@ The current active app visual system is centered in:
 - Do not change VPN runtime behavior as part of visual alignment.
 - Do not broaden public release scope.
 - Do not claim macOS/iOS/Android/Windows VPN runtime parity until platform-specific certification is complete.
-- Do not reintroduce Azure or old multi-platform readiness claims.
+- Do not reintroduce retired-provider or old multi-platform readiness claims.
 - Do not use historical purple or white/green palettes for active app screens unless explicitly requested.
