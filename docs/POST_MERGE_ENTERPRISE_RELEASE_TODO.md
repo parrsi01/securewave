@@ -2,6 +2,10 @@
 
 Use this checklist after the Linux enterprise VPN certification work from PR #15 is merged. Do not treat an item as complete without a command, artifact, or operator note that can be reviewed later.
 
+For the cross-platform portable release gate, use
+`docs/PORTABLE_RELEASE_CLOSEOUT_PLAN.md` as the authoritative closeout plan
+before marking Linux ARM64/x64, Windows, or macOS artifacts available.
+
 ## Release Checklist
 
 - [ ] Production Compose validation: on the authorized production host, run `docker compose --env-file .env -f deploy/hetzner/compose.yaml config --quiet` with the reviewed image tag and record redacted pass/fail evidence.
