@@ -11,6 +11,8 @@ ENV PYTHONUNBUFFERED=1 \
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    gcc \
+    libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
@@ -20,7 +22,9 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && apt-get purge -y --auto-remove gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy backend application
 COPY main.py .
@@ -28,8 +32,11 @@ COPY alembic.ini .
 COPY database/ ./database/
 COPY models/ ./models/
 COPY routers/ ./routers/
+COPY routes/ ./routes/
 COPY services/ ./services/
+COPY utils/ ./utils/
 COPY alembic/ ./alembic/
+COPY background_tasks.py .
 
 # Copy frontend static files
 COPY static/ ./static/

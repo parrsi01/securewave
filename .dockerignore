@@ -1,0 +1,59 @@
+# Keep Docker build contexts limited to source needed by the Dockerfiles.
+# Local credentials, evidence, generated outputs, and alternate worktrees must
+# never be sent to the Docker daemon from a dirty checkout.
+.git/
+.github/
+
+# Local secrets and private certification material.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.mobileprovision
+securewave_private/
+
+# Python environments, caches, and local test output.
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Generated and local operational material.
+artifacts/
+data/usage/
+logs/
+LogFiles/
+deployments/
+.preview/
+securewaveapp_mobile/
+tools/
+
+# Flutter build products outside the tracked source tree.
+securewave_app/.dart_tool/
+securewave_app/build/
+securewave_app/.env
+
+# A historical local Flutter workspace must not be copied through static/.
+static/.env
+static/.dart_tool/
+static/.flutter-plugins-dependencies
+static/android/
+static/build/
+static/ios/
+static/lib/
+static/linux/
+static/logs/
+static/macos/
+static/third_party/
+static/ui_legacy_source/
+static/ui_rebuild/
+static/windows/
+static/securewave_app.iml
