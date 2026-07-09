@@ -1,0 +1,63 @@
+#!/bin/bash
+set -e
+HELPER_DIR=/usr/local/libexec
+HELPER=$HELPER_DIR/securewave-wg-quick
+HELPERD=$HELPER_DIR/securewave-helperd
+HELPER_CONTRACT=$HELPER_DIR/securewave-wg-quick.contract
+SOURCE_DIR=/usr/share/securewave/packaging/linux
+SOURCE_HELPER=$SOURCE_DIR/securewave-wg-quick
+SOURCE_HELPERD=$SOURCE_DIR/securewave-helperd
+SOURCE_CONTRACT=$SOURCE_DIR/securewave-wg-quick.contract
+SOURCE_SERVICE=$SOURCE_DIR/securewave-helper.service
+SOURCE_TMPFILES=$SOURCE_DIR/securewave-helper.tmpfiles
+SERVICE_FILE=/etc/systemd/system/securewave-helper.service
+TMPFILES_FILE=/usr/lib/tmpfiles.d/securewave-helper.conf
+RUNTIME_GROUP=securewave
+RUNTIME_DIR=/run/securewave
+AUTH_DIR=/etc/securewave
+AUTH_FILE=$AUTH_DIR/helper-users
+install -d -m 0755 "$HELPER_DIR"
+install -m 0755 "$SOURCE_HELPER" "$HELPER"
+install -m 0755 "$SOURCE_HELPERD" "$HELPERD"
+install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"
+
+if ! getent group "$RUNTIME_GROUP" >/dev/null 2>&1; then
+  groupadd --system "$RUNTIME_GROUP"
+fi
+
+install -d -o root -g root -m 0755 "$AUTH_DIR"
+: > "$AUTH_FILE"
+chmod 0644 "$AUTH_FILE"
+add_allowed_user() {
+  local user="$1"
+  local uid
+  [[ -n "$user" && "$user" != "root" ]] || return 0
+  id "$user" >/dev/null 2>&1 || return 0
+  uid="$(id -u "$user")"
+  grep -qx "$uid" "$AUTH_FILE" 2>/dev/null || printf '%s\n' "$uid" >> "$AUTH_FILE"
+  usermod -a -G "$RUNTIME_GROUP" "$user" || true
+}
+ALLOW_USER="${SUDO_USER:-}"
+if [[ -z "$ALLOW_USER" ]]; then
+  ALLOW_USER="$(logname 2>/dev/null || true)"
+fi
+add_allowed_user "$ALLOW_USER"
+while IFS=: read -r user _ uid _ _ _ shell; do
+  [[ "$uid" =~ ^[0-9]+$ ]] || continue
+  (( uid >= 1000 && uid < 60000 )) || continue
+  [[ "$shell" != */nologin && "$shell" != */false ]] || continue
+  add_allowed_user "$user"
+done < /etc/passwd
+
+install -d -o root -g "$RUNTIME_GROUP" -m 0750 "$RUNTIME_DIR"
+rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
+install -m 0644 "$SOURCE_SERVICE" "$SERVICE_FILE"
+install -m 0644 "$SOURCE_TMPFILES" "$TMPFILES_FILE"
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  command -v systemd-tmpfiles >/dev/null 2>&1 && systemd-tmpfiles --create "$TMPFILES_FILE" || true
+  systemctl daemon-reload
+  systemctl enable --now securewave-helper.service
+  systemctl restart securewave-helper.service
+else
+  echo "SecureWave helper service requires systemd; install completed but service was not started." >&2
+fi

@@ -1,0 +1,4 @@
+NOT RUN
+
+The helper socket proof was not run because the package under test was not
+installed.

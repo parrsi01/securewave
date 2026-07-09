@@ -1,0 +1,5 @@
+/home/sp/flutter/bin/flutter
+/usr/bin/dpkg-deb
+/usr/bin/wg-quick
+/usr/sbin/openvpn
+/usr/bin/nmcli

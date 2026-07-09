@@ -1,0 +1,2 @@
+build_deb.sh was not rerun in root shell because flutter was not installed or not on PATH.
+Existing package used for install proof: securewave_app/build/packaging/securewave-vpn_4.0.0+2_arm64.deb

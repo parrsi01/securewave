@@ -1,0 +1,5 @@
+NOT RUN
+
+Runtime verifier proof was not run because the package under test was not
+installed. The requested scripts/linux_vpn_runtime_verifier.py file is also not
+present on this branch.

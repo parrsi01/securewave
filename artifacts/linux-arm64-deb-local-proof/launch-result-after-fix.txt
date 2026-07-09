@@ -1,0 +1,5 @@
+NOT RUN
+
+An older securewave-vpn package is installed on this host, but the rebuilt
+4.0.0+1 ARM64 package was not installed because sudo requires an interactive
+password. The existing command was therefore not used as launch proof.

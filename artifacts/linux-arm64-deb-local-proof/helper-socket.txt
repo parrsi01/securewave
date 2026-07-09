@@ -1,0 +1,1 @@
+srw-rw----+ 1 root securewave 0 Jul  9 15:54 /run/securewave/helper.sock

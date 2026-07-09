@@ -1,0 +1,18 @@
+#!/bin/bash
+set -e
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  systemctl disable --now securewave-helper.service >/dev/null 2>&1 || true
+fi
+rm -f /etc/systemd/system/securewave-helper.service
+rm -f /usr/lib/tmpfiles.d/securewave-helper.conf
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+rm -f /run/securewave/helper.sock
+rmdir /run/securewave >/dev/null 2>&1 || true
+rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
+rm -f /usr/local/libexec/securewave-wg-quick.contract
+rm -f /usr/local/libexec/securewave-helperd
+rm -f /usr/local/libexec/securewave-wg-quick
+rm -f /etc/securewave/helper-users
+rmdir /etc/securewave >/dev/null 2>&1 || true

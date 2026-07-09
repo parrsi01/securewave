@@ -1,0 +1,40 @@
+Package: securewave_app/build/packaging/securewave-vpn_4.0.0+1_arm64.deb
+
+Payload checks:
+PRESENT ./usr/lib/securewave/securewave_app
+PRESENT ./usr/share/applications/securewave-vpn.desktop
+PRESENT ./usr/share/securewave/packaging/linux/securewave-helperd
+PRESENT ./usr/share/securewave/packaging/linux/securewave-wg-quick
+PRESENT ./usr/share/securewave/packaging/linux/securewave-wg-quick.contract
+PRESENT ./usr/share/securewave/packaging/linux/securewave-helper.service
+PRESENT ./usr/share/securewave/packaging/linux/securewave-helper.tmpfiles
+PRESENT ./usr/lib/tmpfiles.d/securewave-helper.conf
+
+Postinst install target checks:
+PRESENT postinst target /usr/local/libexec/securewave-helperd
+PRESENT postinst target /usr/local/libexec/securewave-wg-quick
+PRESENT postinst target /usr/local/libexec/securewave-wg-quick.contract
+PRESENT postinst statement SERVICE_FILE=/etc/systemd/system/securewave-helper.service
+PRESENT postinst statement TMPFILES_FILE=/usr/lib/tmpfiles.d/securewave-helper.conf
+PRESENT postinst statement AUTH_FILE=$AUTH_DIR/helper-users
+PRESENT postinst statement RUNTIME_DIR=/run/securewave
+PRESENT postinst statement rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
+PRESENT postinst statement systemctl daemon-reload
+PRESENT postinst statement systemctl enable --now securewave-helper.service
+PRESENT postinst statement systemctl restart securewave-helper.service
+
+Dependency checks:
+Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libstrongswan-extra-plugins, iproute2, iptables, acl, systemd
+PRESENT dependency wireguard-tools
+PRESENT dependency openvpn
+PRESENT dependency network-manager
+PRESENT dependency network-manager-strongswan
+PRESENT dependency strongswan
+PRESENT dependency strongswan-swanctl
+PRESENT dependency strongswan-charon
+PRESENT dependency libcharon-extra-plugins
+PRESENT dependency libstrongswan-extra-plugins
+PRESENT dependency iproute2
+PRESENT dependency iptables
+PRESENT dependency acl
+PRESENT dependency systemd

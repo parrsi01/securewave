@@ -1,0 +1,4 @@
+PACKAGE CONTRACT PRESENT
+
+The package contains usr/share/securewave/packaging/linux/securewave-wg-quick.contract.
+The tracked contract file contains version 9.

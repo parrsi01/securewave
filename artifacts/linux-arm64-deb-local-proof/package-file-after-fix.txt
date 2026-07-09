@@ -1,0 +1,1 @@
+securewave_app/build/packaging/securewave-vpn_4.0.0+1_arm64.deb: Debian binary package (format 2.0), with control.tar.zst, data compression zst
