@@ -43,8 +43,11 @@ class DownloadEntry(BaseModel):
     version: str
     size_bytes: Optional[int] = None
     size_display: Optional[str] = None
-    status: str  # "available" | "coming_soon"
+    status: str  # "available" | "beta" | "coming_soon"
     notes: Optional[str] = None
+    checksum_sha256: Optional[str] = None
+    evidence_url: Optional[str] = None
+    evidence_label: Optional[str] = None
 
 
 class DownloadListResponse(BaseModel):
@@ -140,8 +143,12 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "platform": "linux",
         "architecture": "x64",
         "filename": "securewave-linux-x64.deb",
-        "url": "/downloads/securewave-linux-x64.deb",
-        "notes": "Debian/Ubuntu package (coming soon).",
+        "url": "https://github.com/parrsi01/securewave/actions/runs/29036573515",
+        "status": "beta",
+        "evidence_url": "https://github.com/parrsi01/securewave/actions/runs/29036573515",
+        "evidence_label": "GitHub Actions build evidence",
+        "checksum_sha256": "f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92",
+        "notes": "Beta Debian/Ubuntu x64 package: GitHub Actions successfully built an amd64 .deb with helper payload and dependency evidence. Clean x86_64 VM install, helper service, socket, uninstall, and live VPN runtime proof are still pending.",
     },
     {
         "platform": "linux",
@@ -218,18 +225,27 @@ def _build_download_entries() -> List[DownloadEntry]:
                 size_bytes = file_path.stat().st_size
                 size_display = _format_size(size_bytes)
 
-        status = "available" if file_exists else "coming_soon"
+        requested_status = item.get("status")
+        if requested_status == "beta":
+            status = "beta"
+        else:
+            status = "available" if file_exists else "coming_soon"
+
+        url = item["url"] if file_exists or item["url"] == "#" or status == "beta" else "#"
 
         entries.append(DownloadEntry(
             platform=item["platform"],
             architecture=item["architecture"],
             filename=filename,
-            url=item["url"] if file_exists or item["url"] == "#" else "#",
+            url=url,
             version=APP_VERSION,
             size_bytes=size_bytes,
             size_display=size_display,
             status=status,
             notes=item["notes"],
+            checksum_sha256=item.get("checksum_sha256"),
+            evidence_url=item.get("evidence_url"),
+            evidence_label=item.get("evidence_label"),
         ))
 
     return entries

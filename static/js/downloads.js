@@ -26,14 +26,26 @@ function platformLabel(platform) {
 
 function renderCard(entry) {
   const title = `${platformLabel(entry.platform)}${entry.architecture ? ` (${entry.architecture})` : ''}`;
-  const status = entry.status === 'available' ? 'Available' : 'Coming soon';
-  const badgeClass = entry.status === 'available' ? 'badge-primary' : 'badge-muted';
+  const statusMap = {
+    available: ['Available', 'badge-primary'],
+    beta: ['Beta build', 'badge-muted'],
+    coming_soon: ['Coming soon', 'badge-muted'],
+  };
+  const [status, badgeClass] = statusMap[entry.status] || statusMap.coming_soon;
   const size = entry.size_display ? ` • ${entry.size_display}` : '';
   const notes = entry.notes ? `<p class="muted">${escapeHtml(entry.notes)}</p>` : '';
+  const checksum = entry.checksum_sha256
+    ? `<p class="muted" style="word-break: break-all">SHA256 ${escapeHtml(entry.checksum_sha256)}</p>`
+    : '';
+  const evidence = entry.evidence_url
+    ? `<a class="btn btn-secondary btn-block" href="${escapeHtml(entry.evidence_url)}" rel="nofollow noopener">View ${escapeHtml(entry.evidence_label || 'build evidence')}</a>`
+    : '';
 
   const action = entry.status === 'available' && entry.url && entry.url !== '#'
     ? `<a class="btn btn-primary btn-block" href="${escapeHtml(entry.url)}" rel="nofollow">Download</a>`
-    : `<button class="btn btn-secondary btn-block" type="button" disabled>Coming soon</button>`;
+    : entry.status === 'beta' && evidence
+      ? evidence
+      : `<button class="btn btn-secondary btn-block" type="button" disabled>Coming soon</button>`;
 
   return `
     <div class="card card-elevated">
@@ -45,7 +57,7 @@ function renderCard(entry) {
         <p class="muted" style="margin-top: var(--space-2); margin-bottom: 0">
           v${escapeHtml(entry.version || '--')}${escapeHtml(size)}
         </p>
-        <div style="margin-top: var(--space-3)">${notes}</div>
+        <div style="margin-top: var(--space-3)">${notes}${checksum}</div>
         <div style="margin-top: var(--space-3)">
           ${action}
         </div>
