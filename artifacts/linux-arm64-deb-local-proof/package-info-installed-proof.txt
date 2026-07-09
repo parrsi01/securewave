@@ -1,0 +1,14 @@
+ new Debian package, version 2.0.
+ size 15382706 bytes: control archive=1388 bytes.
+     410 bytes,     8 lines      control
+    2395 bytes,    63 lines   *  postinst             #!/bin/bash
+     763 bytes,    18 lines   *  postrm               #!/bin/bash
+     237 bytes,     6 lines   *  prerm                #!/bin/bash
+ Package: securewave-vpn
+ Version: 4.0.0+2
+ Section: net
+ Priority: optional
+ Architecture: arm64
+ Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libstrongswan-extra-plugins, iproute2, iptables, acl, systemd
+ Maintainer: SecureWave Release <release@securewave.app>
+ Description: SecureWave VPN desktop client

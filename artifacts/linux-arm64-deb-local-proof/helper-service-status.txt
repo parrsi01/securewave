@@ -1,0 +1,11 @@
+● securewave-helper.service - SecureWave VPN helper service
+     Loaded: loaded (/etc/systemd/system/securewave-helper.service; enabled; preset: enabled)
+     Active: active (running) since Thu 2026-07-09 15:54:19 UTC; 13s ago
+   Main PID: 490845 (securewave-help)
+      Tasks: 1 (limit: 6947)
+     Memory: 620.0K (peak: 1.6M)
+        CPU: 6ms
+     CGroup: /system.slice/securewave-helper.service
+             └─490845 /usr/local/libexec/securewave-helperd
+
+Jul 09 15:54:19 ubuntu-server systemd[1]: Started securewave-helper.service - SecureWave VPN helper service.

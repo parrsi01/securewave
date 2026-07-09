@@ -1,0 +1,4 @@
+socket_removed=pass
+helperd_removed=pass
+helper_script_removed=pass
+contract_removed=pass
