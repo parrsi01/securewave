@@ -1,0 +1,26 @@
+Package: securewave_app/build/packaging/securewave-vpn_4.0.0+1_arm64.deb
+
+Payload checks:
+PRESENT ./usr/lib/securewave/securewave_app
+PRESENT ./usr/share/applications/securewave-vpn.desktop
+MISSING ./usr/local/libexec/securewave-helperd
+MISSING ./usr/local/libexec/securewave-wg-quick
+MISSING ./usr/local/libexec/securewave-wg-quick.contract
+MISSING ./usr/lib/systemd/system/securewave-helper.service
+MISSING ./usr/lib/tmpfiles.d/securewave-helper.tmpfiles
+
+Dependency checks:
+MISSING Depends field
+MISSING dependency wireguard-tools
+MISSING dependency openvpn
+MISSING dependency network-manager
+MISSING dependency network-manager-strongswan
+MISSING dependency strongswan
+MISSING dependency strongswan-swanctl
+MISSING dependency strongswan-charon
+MISSING dependency libcharon-extra-plugins
+MISSING dependency libstrongswan-extra-plugins
+MISSING dependency iproute2
+MISSING dependency iptables
+MISSING dependency acl
+MISSING dependency systemd

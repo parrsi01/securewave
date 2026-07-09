@@ -1,0 +1,4 @@
+NOT RUN
+
+securewave-vpn launch proof was not run because package installation was
+blocked by the missing helper/service payload.

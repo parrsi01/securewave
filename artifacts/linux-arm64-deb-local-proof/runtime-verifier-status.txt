@@ -1,0 +1,4 @@
+NOT RUN
+
+scripts/linux_vpn_runtime_verifier.py was not run because package installation
+was blocked by the missing helper/service payload.

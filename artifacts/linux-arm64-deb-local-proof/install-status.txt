@@ -1,0 +1,4 @@
+NOT RUN
+
+Install proof was intentionally stopped because the freshly built ARM64 package
+is missing the required helper/service payload and runtime dependency metadata.

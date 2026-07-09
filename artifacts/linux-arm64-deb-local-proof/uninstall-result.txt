@@ -1,0 +1,4 @@
+NOT RUN
+
+Uninstall proof was not run because package installation was intentionally not
+attempted after helper payload verification failed.

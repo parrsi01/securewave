@@ -1,0 +1,1 @@
+static/downloads/releases/4.0.0+2/securewave-linux-arm64-4.0.0-2.deb

@@ -1,0 +1,10 @@
+ new Debian package, version 2.0.
+ size 15195350 bytes: control archive=237 bytes.
+     192 bytes,     7 lines      control
+ Package: securewave-vpn
+ Version: 4.0.0+1
+ Section: net
+ Priority: optional
+ Architecture: arm64
+ Maintainer: SecureWave Release <release@securewave.app>
+ Description: SecureWave VPN desktop client

@@ -1,0 +1,3 @@
+NOT AVAILABLE
+
+The package does not contain /usr/local/libexec/securewave-wg-quick.contract.

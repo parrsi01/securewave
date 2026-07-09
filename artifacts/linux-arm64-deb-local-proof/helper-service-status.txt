@@ -1,0 +1,5 @@
+FAILED BEFORE INSTALL
+
+The package contents do not include securewave-helperd, securewave-wg-quick,
+securewave-wg-quick.contract, securewave-helper.service, or
+securewave-helper.tmpfiles.

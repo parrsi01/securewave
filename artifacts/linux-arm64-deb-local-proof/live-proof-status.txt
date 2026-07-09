@@ -1,0 +1,4 @@
+BLOCKED
+
+WireGuard, OpenVPN, and IKEv2 live proof was not attempted. The ARM64 package
+failed helper/service payload verification before install proof.

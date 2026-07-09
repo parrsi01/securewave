@@ -1,0 +1,4 @@
+NOT CHECKED
+
+The helper socket was not checked because the package was not installed after
+helper payload verification failed.

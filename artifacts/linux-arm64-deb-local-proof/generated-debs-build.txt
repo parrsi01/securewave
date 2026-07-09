@@ -1,0 +1,2 @@
+securewave_app/build/packaging/securewave-vpn_4.0.0+2_arm64.deb
+securewave_app/build/packaging/securewave-vpn_4.0.0+1_arm64.deb
