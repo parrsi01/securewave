@@ -1,0 +1,4 @@
+BLOCKED
+
+sudo requires an interactive password in this shell, so dpkg install proof for
+securewave-vpn_4.0.0+1_arm64.deb did not complete.

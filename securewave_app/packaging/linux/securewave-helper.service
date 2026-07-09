@@ -1,0 +1,19 @@
+[Unit]
+Description=SecureWave VPN helper service
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/securewave-helperd
+Restart=on-failure
+RestartSec=2s
+User=root
+Group=securewave
+RuntimeDirectory=securewave
+RuntimeDirectoryMode=0750
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3 @@
+NOT RUN
+
+Uninstall proof was not run because the package under test was not installed.
