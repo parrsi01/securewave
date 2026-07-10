@@ -342,6 +342,7 @@ class _MainShellState extends ConsumerState<_MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final bootMessage = ref.watch(bootControllerProvider).state.errorMessage;
     final wide = MediaQuery.sizeOf(context).width >= FreshTheme.mobileMax;
     final title = _tabs[_index].label;
     final child = switch (_index) {
@@ -365,7 +366,21 @@ class _MainShellState extends ConsumerState<_MainShell> {
               )
             : null,
       ),
-      body: _PageFrame(child: child),
+      body: _PageFrame(
+        child: Column(
+          children: [
+            if (bootMessage != null) ...[
+              const _InlineMessage(
+                icon: Icons.warning_amber_rounded,
+                message: 'Limited mode: some local startup checks failed.',
+                tone: _Tone.warning,
+              ),
+              const SizedBox(height: 12),
+            ],
+            Expanded(child: child),
+          ],
+        ),
+      ),
       bottomNavigationBar: wide
           ? null
           : NavigationBar(
@@ -487,6 +502,14 @@ class _ConnectScreen extends ConsumerWidget {
     );
     final selectedServer = _serverLabel(vpn.selectedServerId, serverList);
     final status = _statusDescriptor(vpn);
+    final vpnService = ref.watch(vpnServiceProvider);
+    final protocolAvailable = vpnService.canConnectProtocol(vpn.protocol);
+    final selectedRegion = serverList
+        .where((server) => server.id == vpn.selectedServerId)
+        .firstOrNull;
+    final selectedRegionSupportsProtocol = selectedRegion == null ||
+        selectedRegion.supportsProtocol(vpnProtocolStorageValue(vpn.protocol));
+    final canStart = protocolAvailable && selectedRegionSupportsProtocol;
     final connected = vpn.status == VpnStatus.connected;
     final busy = vpn.isBusy ||
         vpn.status == VpnStatus.connecting ||
@@ -502,32 +525,45 @@ class _ConnectScreen extends ConsumerWidget {
               const SizedBox(height: 18),
               _ConnectionStrip(status: status, protocol: vpn.protocol),
               const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: busy
-                          ? null
-                          : () {
-                              final notifier =
-                                  ref.read(vpnStateProvider.notifier);
-                              connected
-                                  ? unawaited(notifier.disconnect())
-                                  : unawaited(notifier.connect());
-                            },
-                      icon: Icon(connected
-                          ? Icons.stop_rounded
-                          : Icons.power_settings_new_rounded),
-                      label: Text(connected ? 'Disconnect' : 'Connect'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  OutlinedButton.icon(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 430;
+                  final connectButton = FilledButton.icon(
+                    onPressed: busy || (!connected && !canStart)
+                        ? null
+                        : () {
+                            final notifier =
+                                ref.read(vpnStateProvider.notifier);
+                            connected
+                                ? unawaited(notifier.disconnect())
+                                : unawaited(notifier.connect());
+                          },
+                    icon: Icon(connected
+                        ? Icons.stop_rounded
+                        : Icons.power_settings_new_rounded),
+                    label: Text(connected ? 'Disconnect' : 'Connect'),
+                  );
+                  final diagnosticsButton = OutlinedButton.icon(
                     onPressed: () => _showDiagnostics(context),
                     icon: const Icon(Icons.receipt_long_rounded),
                     label: const Text('Diagnostics'),
-                  ),
-                ],
+                  );
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        connectButton,
+                        const SizedBox(height: 8),
+                        diagnosticsButton
+                      ],
+                    );
+                  }
+                  return Row(children: [
+                    Expanded(child: connectButton),
+                    const SizedBox(width: 10),
+                    diagnosticsButton,
+                  ]);
+                },
               ),
               if (vpn.errorMessage != null) ...[
                 const SizedBox(height: 12),
@@ -535,6 +571,32 @@ class _ConnectScreen extends ConsumerWidget {
                   icon: Icons.error_outline_rounded,
                   message: vpn.errorMessage!,
                   tone: _Tone.error,
+                  actionLabel: 'Try again',
+                  onAction: busy
+                      ? null
+                      : () => unawaited(
+                            ref.read(vpnStateProvider.notifier).connect(),
+                          ),
+                ),
+              ],
+              if (!protocolAvailable) ...[
+                const SizedBox(height: 12),
+                _InlineMessage(
+                  icon: Icons.block_rounded,
+                  message: vpnService.protocolUnavailableReason(vpn.protocol) ??
+                      '${vpnProtocolLabel(vpn.protocol)} is unavailable on this runtime.',
+                  tone: _Tone.warning,
+                ),
+              ] else if (!selectedRegionSupportsProtocol) ...[
+                const SizedBox(height: 12),
+                _InlineMessage(
+                  icon: Icons.location_off_outlined,
+                  message:
+                      'The selected region does not list ${vpnProtocolLabel(vpn.protocol)} support.',
+                  tone: _Tone.warning,
+                  actionLabel: 'Use auto-select',
+                  onAction: () =>
+                      ref.read(vpnStateProvider.notifier).selectServer(null),
                 ),
               ],
               if (config.useMockApi) ...[
@@ -623,6 +685,8 @@ class _ServersScreen extends ConsumerWidget {
           error,
           fallback: 'The server list could not be loaded.',
         ),
+        actionLabel: 'Retry',
+        onAction: () => ref.invalidate(serversProvider),
       ),
       data: (items) {
         if (items.isEmpty) {
@@ -647,17 +711,24 @@ class _ServersScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             for (final server in items) ...[
-              _PlainPanel(
-                child: _ServerTile(
-                  title: server.name,
-                  subtitle: _serverSubtitle(server),
-                  selected: vpn.selectedServerId == server.id,
-                  icon: Icons.public_rounded,
-                  onTap: () => ref
-                      .read(vpnStateProvider.notifier)
-                      .selectServer(server.id),
-                ),
-              ),
+              Builder(builder: (context) {
+                final protocol = vpnProtocolStorageValue(vpn.protocol);
+                final supported = server.supportsProtocol(protocol);
+                return _PlainPanel(
+                  child: _ServerTile(
+                    title: server.name,
+                    subtitle: supported
+                        ? _serverSubtitle(server)
+                        : '${vpnProtocolLabel(vpn.protocol)} is not listed for this region.',
+                    selected: vpn.selectedServerId == server.id,
+                    icon: Icons.public_rounded,
+                    enabled: supported,
+                    onTap: () => ref
+                        .read(vpnStateProvider.notifier)
+                        .selectServer(server.id),
+                  ),
+                );
+              }),
               const SizedBox(height: 10),
             ],
           ],
@@ -699,10 +770,12 @@ class _AccountScreen extends ConsumerWidget {
                   ],
                 ),
                 loading: () => const _LoadingLine('Loading account'),
-                error: (_, __) => const _InlineMessage(
+                error: (_, __) => _InlineMessage(
                   icon: Icons.warning_amber_rounded,
                   message: 'Account details could not be loaded.',
                   tone: _Tone.warning,
+                  actionLabel: 'Retry',
+                  onAction: () => ref.invalidate(currentUserProvider),
                 ),
               ),
             ],
@@ -718,10 +791,12 @@ class _AccountScreen extends ConsumerWidget {
               plan.when(
                 data: (value) => _UsageSummary(plan: value),
                 loading: () => const _LoadingLine('Loading usage'),
-                error: (_, __) => const _InlineMessage(
+                error: (_, __) => _InlineMessage(
                   icon: Icons.warning_amber_rounded,
                   message: 'Usage could not be loaded.',
                   tone: _Tone.warning,
+                  actionLabel: 'Retry',
+                  onAction: () => ref.invalidate(userPlanProvider),
                 ),
               ),
             ],
@@ -754,6 +829,28 @@ class _SettingsScreen extends ConsumerWidget {
               _InfoRow('API', config.apiBaseUrl),
               _InfoRow('Mock API', config.useMockApi ? 'On' : 'Off'),
               _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _PlainPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SectionTitle('Platform support'),
+              const SizedBox(height: 12),
+              _InfoRow(
+                'VPN bridge',
+                ref.watch(vpnServiceProvider).isNativeAvailable
+                    ? 'Available on this build'
+                    : 'Unavailable on this build',
+              ),
+              const _InlineMessage(
+                icon: Icons.download_outlined,
+                message:
+                    'Install packages only from the account portal. Availability depends on this platform build and its native VPN components.',
+                tone: _Tone.info,
+              ),
             ],
           ),
         ),
@@ -935,33 +1032,38 @@ class _ConnectionStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: status.background,
-        border: Border.all(color: status.border),
-        borderRadius: BorderRadius.circular(FreshTheme.radius),
-      ),
-      child: Row(
-        children: [
-          Icon(status.icon, color: status.color),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(status.label,
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 2),
-                Text(
-                  vpnProtocolLabel(protocol),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: '${status.label}. ${vpnProtocolLabel(protocol)} selected.',
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: status.background,
+          border: Border.all(color: status.border),
+          borderRadius: BorderRadius.circular(FreshTheme.radius),
+        ),
+        child: Row(
+          children: [
+            Icon(status.icon, color: status.color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(status.label,
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 2),
+                  Text(
+                    vpnProtocolLabel(protocol),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
             ),
-          ),
-          _StatusChip(label: status.shortLabel, tone: status.tone),
-        ],
+            _StatusChip(label: status.shortLabel, tone: status.tone),
+          ],
+        ),
       ),
     );
   }
@@ -1133,6 +1235,7 @@ class _ServerTile extends StatelessWidget {
     required this.selected,
     required this.icon,
     required this.onTap,
+    this.enabled = true,
   });
 
   final String title;
@@ -1140,12 +1243,13 @@ class _ServerTile extends StatelessWidget {
   final bool selected;
   final IconData icon;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return _SelectableRow(
       selected: selected,
-      enabled: true,
+      enabled: enabled,
       title: title,
       subtitle: subtitle,
       leading: Icon(icon,
@@ -1176,46 +1280,57 @@ class _SelectableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? FreshTheme.primarySoft : Colors.transparent,
-          border: Border.all(
-            color: selected ? FreshTheme.primary : FreshTheme.line,
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      label: title,
+      value: subtitle,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: selected ? FreshTheme.primarySoft : Colors.transparent,
+            border: Border.all(
+              color: selected ? FreshTheme.primary : FreshTheme.line,
+            ),
+            borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
           ),
-          borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
-        ),
-        child: Row(
-          children: [
-            leading ??
-                Icon(
-                  selected ? Icons.check_circle_rounded : Icons.circle_outlined,
-                  color:
-                      selected ? FreshTheme.primary : FreshTheme.graphiteMuted,
-                ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Opacity(
-                opacity: enabled ? 1 : 0.62,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
+          child: Row(
+            children: [
+              leading ??
+                  Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.circle_outlined,
+                    color: selected
+                        ? FreshTheme.primary
+                        : FreshTheme.graphiteMuted,
+                  ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Opacity(
+                  opacity: enabled ? 1 : 0.62,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            if (trailing != null) ...[
-              const SizedBox(width: 10),
-              trailing!,
+              if (trailing != null) ...[
+                const SizedBox(width: 10),
+                trailing!,
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1288,11 +1403,15 @@ class _InlineMessage extends StatelessWidget {
     required this.icon,
     required this.message,
     required this.tone,
+    this.actionLabel,
+    this.onAction,
   });
 
   final IconData icon;
   final String message;
   final _Tone tone;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1310,12 +1429,29 @@ class _InlineMessage extends StatelessWidget {
           Icon(icon, size: 18, color: colors.foreground),
           const SizedBox(width: 9),
           Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: colors.foreground),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: colors.foreground),
+                ),
+                if (actionLabel != null) ...[
+                  const SizedBox(height: 6),
+                  TextButton(
+                    onPressed: onAction,
+                    style: TextButton.styleFrom(
+                      foregroundColor: colors.foreground,
+                      minimumSize: const Size(48, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: Text(actionLabel!),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
@@ -1329,11 +1465,15 @@ class _CenteredState extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.body,
+    this.actionLabel,
+    this.onAction,
   });
 
   final IconData icon;
   final String title;
   final String body;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1351,6 +1491,10 @@ class _CenteredState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
+            if (actionLabel != null) ...[
+              const SizedBox(height: 14),
+              OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
+            ],
           ],
         ),
       ),
@@ -1498,9 +1642,9 @@ _StatusDescriptor _statusDescriptor(VpnState vpn) {
         label: 'VPN connected',
         shortLabel: 'On',
         icon: Icons.verified_rounded,
-        color: FreshTheme.primary,
-        background: FreshTheme.primarySoft,
-        border: Color(0xFF2F61A6),
+        color: FreshTheme.safe,
+        background: FreshTheme.safeSoft,
+        border: Color(0xFF237A59),
         tone: _Tone.success,
       ),
     VpnStatus.connecting => const _StatusDescriptor(

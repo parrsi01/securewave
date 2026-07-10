@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,9 @@ import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
+import 'package:securewave_app/core/models/vpn_protocol.dart';
+import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 
 void main() {
@@ -82,6 +87,48 @@ void main() {
 
     expect(find.text('Regions unavailable'), findsOneWidget);
     expect(find.textContaining('catalog failed'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+  });
+
+  testWidgets('region metadata disables unsupported selected protocol',
+      (tester) async {
+    await _pumpApp(
+      tester,
+      serversOverride: serversProvider.overrideWith(
+        (ref) async => const [
+          ServerRegion(
+            id: 'ovpn-only',
+            name: 'OpenVPN only region',
+            supportedProtocols: ['openvpn'],
+          ),
+        ],
+      ),
+    );
+
+    await tester.tap(find.text('Servers').last);
+    await tester.pumpAndSettle();
+
+    expect(
+        find.text('WireGuard is not listed for this region.'), findsOneWidget);
+    final semantics = tester.getSemantics(find.text('OpenVPN only region'));
+    expect(semantics.flagsCollection.isEnabled, ui.Tristate.isFalse);
+  });
+
+  testWidgets('VPN status is announced and narrow layout does not overflow',
+      (tester) async {
+    await _pumpApp(
+      tester,
+      size: const Size(320, 568),
+      vpnService: _StatusVpnService(VpnStatus.connected),
+    );
+
+    expect(find.text('VPN connected'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.text('VPN connected')).label,
+      contains('VPN connected. WireGuard selected.'),
+    );
+    expect(find.text('Disconnect'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('zero-cap usage renders without broken values', (tester) async {
@@ -111,8 +158,10 @@ Future<void> _pumpApp(
   WidgetTester tester, {
   Override? serversOverride,
   Override? planOverride,
+  Size size = const Size(390, 844),
+  VpnService? vpnService,
 }) async {
-  tester.view.physicalSize = const Size(390, 844);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -120,6 +169,8 @@ Future<void> _pumpApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (vpnService != null)
+          vpnServiceProvider.overrideWithValue(vpnService),
         appConfigProvider.overrideWith(
           (ref) => AppConfig(
             apiBaseUrl: 'https://api.example.test',
@@ -164,4 +215,30 @@ Future<void> _pumpApp(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _StatusVpnService implements VpnService {
+  _StatusVpnService(this.status);
+
+  VpnStatus status;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  Future<VpnStatus> connect(
+          {required VpnProtocol protocol, String? config}) async =>
+      status = VpnStatus.connected;
+
+  @override
+  Future<VpnStatus> disconnect() async => status = VpnStatus.disconnected;
+
+  @override
+  VpnStatus getStatus() => status;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
 }

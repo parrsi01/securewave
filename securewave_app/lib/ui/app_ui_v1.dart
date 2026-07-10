@@ -11,6 +11,8 @@ class AppUIv1 {
   static const lineStrong = Color(0xFF2A5C92);
   static const primary = Color(0xFF2F80FF);
   static const primarySoft = Color(0xFF082A55);
+  static const safe = Color(0xFF53D39A);
+  static const safeSoft = Color(0xFF0B2D25);
   static const amber = Color(0xFFF4B04B);
   static const amberSoft = Color(0xFF34270E);
   static const red = Color(0xFFFF6B6B);
@@ -124,6 +126,24 @@ class AppUIv1 {
           borderRadius: BorderRadius.circular(radiusSmall),
           borderSide: const BorderSide(color: primary, width: 1.4),
         ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: graphite,
+          minimumSize: const Size.square(48),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radius),
+          side: const BorderSide(color: line),
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 64,
