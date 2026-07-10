@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -36,6 +37,7 @@ from utils.env_validation import (
     demo_mode_enabled,
     wg_mock_mode_enabled,
 )
+from utils.sensitive_data import redact_text, safe_validation_errors, sanitize_for_evidence
 
 # Request ID context
 request_id_ctx = contextvars.ContextVar("request_id", default="-")
@@ -49,7 +51,7 @@ class RedactFilter(logging.Filter):
     _wg_psk_re = re.compile(r"(PresharedKey\s*=\s*)([^\s]+)")
 
     def filter(self, record: logging.LogRecord) -> bool:
-        message = record.getMessage()
+        message = redact_text(record.getMessage())
         message = self._email_re.sub("[redacted-email]", message)
         message = self._token_re.sub(r"\1[redacted-token]", message)
         # Defensive: never emit WireGuard secrets if a config blob is accidentally logged.
@@ -80,8 +82,7 @@ handler.setFormatter(JsonFormatter())
 handler.addFilter(RedactFilter())
 logging.basicConfig(level=LOG_LEVEL, handlers=[handler])
 
-# NOTE: Table creation is handled by Alembic migrations in Dockerfile CMD
-# base.Base.metadata.create_all(bind=engine)  # Commented out to avoid conflicts with migrations
+# NOTE: Table creation is handled exclusively by Alembic migrations.
 
 docs_enabled = os.getenv("ENVIRONMENT") != "production" or os.getenv("DEMO_OK", "false").lower() == "true"
 
@@ -177,6 +178,11 @@ if origins_env:
         max_age=3600,
     )
 
+allowed_hosts_env = os.getenv("ALLOWED_HOSTS", "").strip()
+if allowed_hosts_env:
+    allowed_hosts = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
 # Security Headers Middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -206,11 +212,15 @@ async def add_security_headers(request: Request, call_next):
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     """Attach a request ID for traceability."""
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-    request_id_ctx.set(request_id)
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    return response
+    supplied_id = request.headers.get("X-Request-ID", "")
+    request_id = supplied_id if re.fullmatch(r"[A-Za-z0-9._-]{1,128}", supplied_id) else str(uuid.uuid4())
+    token = request_id_ctx.set(request_id)
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+    finally:
+        request_id_ctx.reset(token)
 
 
 CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -337,6 +347,14 @@ def require_production_config(logger: logging.Logger) -> None:
         elif value.strip().lower() != "false":
             errors.append(f"{flag} must be false in production (got {value})")
 
+    database_url = os.getenv("DATABASE_URL", "").strip().lower()
+    if not database_url or database_url.startswith("sqlite"):
+        errors.append("DATABASE_URL must point to a non-SQLite production database")
+    if os.getenv("REDIS_URL", "memory://").strip().lower().startswith("memory://"):
+        errors.append("REDIS_URL must use a shared production rate-limit backend")
+    if not os.getenv("ALLOWED_HOSTS", "").strip():
+        errors.append("ALLOWED_HOSTS must be explicitly set in production")
+
     if errors:
         message = "Production configuration errors: " + "; ".join(errors)
         logger.error(message)
@@ -354,16 +372,6 @@ async def initialize_app_background():
     await asyncio.sleep(2)
 
     logger.info("Starting background initialization...")
-
-    # Initialize database tables
-    try:
-        from database import base
-        from database.session import engine
-        logger.info("Creating database tables...")
-        base.Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
-    except Exception as e:
-        logger.warning(f"Database initialization failed: {e}")
 
     try:
         sync_static_assets()
@@ -457,6 +465,7 @@ app.include_router(contact.router, prefix="/api/contact", tags=["contact"])
 app.include_router(security.router, prefix="/api/security", tags=["security"])
 app.include_router(diagnostics.router, tags=["diagnostics"])
 app.include_router(downloads.router, tags=["downloads"])
+app.include_router(downloads.public_router, tags=["downloads"])
 app.include_router(tools.router, tags=["tools"])
 app.include_router(user.router, tags=["user"])
 
@@ -465,7 +474,11 @@ def api_error(code: str, message: str, details=None, status_code: int = 400):
     return JSONResponse(
         status_code=status_code,
         content={
-            "error": {"code": code, "message": message, "details": details},
+            "error": {
+                "code": code,
+                "message": redact_text(message),
+                "details": sanitize_for_evidence(details) if details is not None else None,
+            },
             "request_id": request_id_ctx.get("-"),
         },
     )
@@ -497,8 +510,8 @@ def readiness():
         db.execute(text("SELECT 1"))
         db.close()
         return {"status": "ready", "database": "connected"}
-    except Exception as e:
-        return {"status": "not_ready", "error": str(e)}
+    except Exception:
+        return {"status": "not_ready", "error": "database_unavailable"}
 
 
 @app.get("/version")
@@ -569,15 +582,12 @@ try:
     css_dir = static_directory / "css"
     js_dir = static_directory / "js"
     img_dir = static_directory / "img"
-    downloads_dir = static_directory / "downloads"
     if css_dir.exists():
         app.mount("/css", StaticFiles(directory=str(css_dir)), name="css")
     if js_dir.exists():
         app.mount("/js", StaticFiles(directory=str(js_dir)), name="js")
     if img_dir.exists():
         app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
-    if downloads_dir.exists():
-        app.mount("/downloads", StaticFiles(directory=str(downloads_dir)), name="downloads")
     _logger.info("Static files mounted successfully")
 except Exception as e:
     _logger.warning(f"Failed to mount static files: {e}")
@@ -606,7 +616,11 @@ async def not_found_handler(request: Request, exc):
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
-    _logger.error(f"Internal server error: {exc}")
+    _logger.error(
+        "Internal server error request_id=%s exception_type=%s",
+        request_id_ctx.get("-"),
+        type(exc).__name__,
+    )
 
     # For API requests, return JSON
     if request.url.path.startswith("/api"):
@@ -628,9 +642,10 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    details = safe_validation_errors(exc.errors())
     if request.url.path.startswith("/api"):
-        return api_error("validation_error", "Invalid request", details=exc.errors(), status_code=422)
-    return JSONResponse({"detail": exc.errors()}, status_code=422)
+        return api_error("validation_error", "Invalid request", details=details, status_code=422)
+    return JSONResponse({"detail": "Invalid request"}, status_code=422)
 
 
 """

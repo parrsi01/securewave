@@ -57,12 +57,41 @@ class SupportTicket(Base):
     # Ticket details
     subject = Column(String(200), nullable=False)
     description = Column(Text, nullable=False)
-    category = Column(SQLEnum(TicketCategory), nullable=False, default=TicketCategory.OTHER, index=True)
-    priority = Column(SQLEnum(TicketPriority), nullable=False, default=TicketPriority.MEDIUM, index=True)
-    status = Column(SQLEnum(TicketStatus), nullable=False, default=TicketStatus.OPEN, index=True)
+    category = Column(
+        SQLEnum(
+            TicketCategory,
+            values_callable=lambda members: [member.value for member in members],
+            native_enum=False,
+        ),
+        nullable=False,
+        default=TicketCategory.OTHER,
+        index=True,
+    )
+    priority = Column(
+        SQLEnum(
+            TicketPriority,
+            values_callable=lambda members: [member.value for member in members],
+            native_enum=False,
+        ),
+        nullable=False,
+        default=TicketPriority.MEDIUM,
+        index=True,
+    )
+    status = Column(
+        SQLEnum(
+            TicketStatus,
+            values_callable=lambda members: [member.value for member in members],
+            native_enum=False,
+        ),
+        nullable=False,
+        default=TicketStatus.OPEN,
+        index=True,
+    )
 
     # Extra data
-    extra_data = Column(JSON, nullable=True)  # Additional data (server_id, connection_id, error logs, etc.)
+    # Keep the historical physical column name so Alembic upgrades preserve
+    # existing records while the Python attribute remains explicit.
+    extra_data = Column("metadata", JSON, nullable=True)
     tags = Column(JSON, nullable=True)  # Tags for categorization
 
     # Timestamps
@@ -74,7 +103,7 @@ class SupportTicket(Base):
 
     # SLA tracking
     sla_due_at = Column(DateTime, nullable=True)  # When ticket should be resolved by
-    sla_breached = Column(Integer, default=0)  # Boolean as int
+    sla_breached = Column(Integer, nullable=False, default=0)  # Boolean as int
 
     # Satisfaction
     user_rating = Column(Integer, nullable=True)  # 1-5 stars
@@ -156,8 +185,8 @@ class TicketMessage(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Who sent the message
 
     message = Column(Text, nullable=False)
-    is_internal = Column(Integer, default=0)  # Internal notes (not visible to user)
-    is_automated = Column(Integer, default=0)  # Auto-generated message
+    is_internal = Column(Integer, nullable=False, default=0)  # Internal notes (not visible to user)
+    is_automated = Column(Integer, nullable=False, default=0)  # Auto-generated message
 
     # Attachments (JSON array of file paths/URLs)
     attachments = Column(JSON, nullable=True)

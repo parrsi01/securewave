@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Dict
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Float, Boolean, JSON
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Float, Boolean, JSON, func
 from sqlalchemy.orm import relationship
 
 from database.base import Base
@@ -20,8 +20,8 @@ class Subscription(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     # Plan details
-    plan_id = Column(String, nullable=False, index=True)  # free, basic, premium, ultra
-    plan_name = Column(String, nullable=False)  # Display name
+    plan_id = Column(String, nullable=False, server_default="free", index=True)  # free, basic, premium, ultra
+    plan_name = Column(String, nullable=False, server_default="Free")  # Display name
 
     # Payment provider (stripe or paypal)
     provider = Column(String, nullable=False, index=True)
@@ -41,12 +41,12 @@ class Subscription(Base):
     paypal_plan_id = Column(String, nullable=True)
 
     # Billing details
-    amount = Column(Float, nullable=False, default=0.0)  # Subscription amount
+    amount = Column(Float, nullable=False, default=0.0, server_default="0")  # Subscription amount
     currency = Column(String, default="USD")  # USD, EUR, GBP, etc.
     billing_cycle = Column(String, default="monthly")  # monthly, yearly
 
     # Important dates
-    created_at = Column(DateTime, default=utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False, server_default=func.now())
     activated_at = Column(DateTime, nullable=True)  # When subscription became active
     trial_start = Column(DateTime, nullable=True)
     trial_end = Column(DateTime, nullable=True)

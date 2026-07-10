@@ -91,7 +91,7 @@ class SupportTicketService:
                 category=category,
                 priority=priority,
                 status=TicketStatus.OPEN,
-                metadata=metadata,
+                extra_data=metadata,
                 sla_due_at=sla_due_at,
             )
 

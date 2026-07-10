@@ -52,3 +52,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     if pwd_context:
         return pwd_context.verify(plain_password, hashed_password)
     return _crypt_verify(plain_password, hashed_password)
+
+
+def is_password_hash(value: str) -> bool:
+    """Return whether a configured value is a recognized one-way password hash."""
+    if not value:
+        return False
+    if pwd_context:
+        try:
+            return pwd_context.identify(value) is not None
+        except Exception:
+            return False
+    return value.startswith(("$2a$", "$2b$", "$2y$", "$5$", "$6$"))

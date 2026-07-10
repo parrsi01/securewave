@@ -10,7 +10,13 @@ from sqlalchemy.orm import Session
 
 from database.session import SessionLocal
 from models.vpn_server import VPNServer
+from services.protocol_availability_service import ProtocolAvailabilityService
 from services.vpn_server_service import VPNServerService
+from services.wireguard_server_manager import (
+    get_wireguard_server_manager,
+    server_connection_from_db,
+)
+from utils.env_validation import wg_mock_mode_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +42,7 @@ class VPNHealthMonitor:
                 await self.check_all_servers()
                 await asyncio.sleep(30)  # Check every 30 seconds
             except Exception as e:
-                logger.error(f"Health monitor error: {e}", exc_info=True)
+                logger.error("Health monitor error exception_type=%s", type(e).__name__)
                 await asyncio.sleep(60)  # Wait longer on error
 
     async def stop(self):
@@ -65,6 +71,7 @@ class VPNHealthMonitor:
                     self.server_service.update_server_metrics(
                         self.db, server.server_id, metrics
                     )
+                    await self._probe_wireguard_runtime(server)
 
                     # Update optimizer with fresh metrics
                     try:
@@ -73,17 +80,53 @@ class VPNHealthMonitor:
                         optimizer = get_vpn_optimizer()
                         optimizer.update_server_metrics(server.server_id, metrics)
                     except Exception as e:
-                        logger.warning(f"Failed to update optimizer for {server.server_id}: {e}")
+                        logger.warning(
+                            "Optimizer update failed server_id=%s exception_type=%s",
+                            server.server_id,
+                            type(e).__name__,
+                        )
 
                 except Exception as e:
-                    logger.error(f"Failed to probe {server.server_id}: {e}")
+                    logger.error(
+                        "Failed to probe server_id=%s exception_type=%s",
+                        server.server_id,
+                        type(e).__name__,
+                    )
 
             self.db.close()
 
         except Exception as e:
-            logger.error(f"Failed to check servers: {e}", exc_info=True)
+            logger.error("Server health sweep failed exception_type=%s", type(e).__name__)
             if self.db:
                 self.db.close()
+
+    async def _probe_wireguard_runtime(self, server: VPNServer) -> bool:
+        """Refresh protocol evidence without retaining manager output."""
+        observed_at = datetime.utcnow()
+        healthy = False
+        if server.supports_wireguard:
+            try:
+                if wg_mock_mode_enabled():
+                    healthy = True
+                else:
+                    manager = get_wireguard_server_manager()
+                    connection = server_connection_from_db(server)
+                    healthy, _ = await manager.health_check(connection)
+            except Exception as exc:
+                logger.warning(
+                    "WireGuard runtime probe failed server_id=%s exception_type=%s",
+                    server.server_id,
+                    type(exc).__name__,
+                )
+        ProtocolAvailabilityService.record_evidence(
+            server,
+            "wireguard",
+            healthy=healthy,
+            observed_at=observed_at,
+        )
+        self.db.add(server)
+        self.db.commit()
+        return healthy
 
     async def probe_server(self, server: VPNServer) -> Dict:
         """

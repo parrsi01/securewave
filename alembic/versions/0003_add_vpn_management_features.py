@@ -11,7 +11,7 @@ Adds:
 - Abuse detection logs
 - System metrics
 """
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
@@ -23,13 +23,53 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(table_name: str) -> bool:
+    """Inspect legacy online databases without breaking offline pristine SQL."""
+    if context.is_offline_mode():
+        return False
+    return table_name in set(sa.inspect(op.get_bind()).get_table_names())
+
+
+def _create_table_if_missing(table_name: str, *columns) -> None:
+    if not _table_exists(table_name):
+        op.create_table(table_name, *columns)
+
+
+def _index_exists(table_name: str, index_name: str) -> bool:
+    if context.is_offline_mode() or not _table_exists(table_name):
+        return False
+    return index_name in {index["name"] for index in sa.inspect(op.get_bind()).get_indexes(table_name)}
+
+
+def _create_index_if_missing(index_name: str, table_name: str, columns) -> None:
+    if not _index_exists(table_name, index_name):
+        op.create_index(index_name, table_name, columns)
+
+
 def upgrade():
     """Add VPN management and support features"""
+
+    # `wireguard_peers.server_id` below references this table.  Earlier
+    # history relied on ORM create_all(), which is not available during a
+    # deterministic Alembic bootstrap (and fails on PostgreSQL).
+    _create_table_if_missing(
+        'vpn_servers',
+        sa.Column('id', sa.Integer(), primary_key=True),
+        sa.Column('server_id', sa.String(), nullable=False, unique=True),
+        sa.Column('location', sa.String(), nullable=False),
+        sa.Column('country', sa.String(), nullable=False),
+        sa.Column('country_code', sa.String(length=2), nullable=False),
+        sa.Column('city', sa.String(), nullable=False),
+        sa.Column('public_ip', sa.String(), nullable=False),
+        sa.Column('endpoint', sa.String(), nullable=False),
+        sa.Column('wg_public_key', sa.String(), nullable=False),
+        sa.Column('wg_private_key_encrypted', sa.String(), nullable=False),
+    )
 
     # ===========================
     # WIREGUARD PEERS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'wireguard_peers',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False, index=True),
@@ -52,12 +92,12 @@ def upgrade():
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column('revoked_at', sa.DateTime(), nullable=True),
     )
-    op.create_index('ix_peer_user_server', 'wireguard_peers', ['user_id', 'server_id'])
+    _create_index_if_missing('ix_peer_user_server', 'wireguard_peers', ['user_id', 'server_id'])
 
     # ===========================
     # SUPPORT TICKETS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'support_tickets',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('ticket_number', sa.String(), nullable=False, unique=True, index=True),
@@ -84,7 +124,7 @@ def upgrade():
     # ===========================
     # TICKET MESSAGES TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'ticket_messages',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('ticket_id', sa.Integer(), sa.ForeignKey('support_tickets.id'), nullable=False, index=True),
@@ -99,7 +139,7 @@ def upgrade():
     # ===========================
     # USER USAGE STATS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'user_usage_stats',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False, unique=True, index=True),
@@ -137,7 +177,7 @@ def upgrade():
     # ===========================
     # DAILY USAGE METRICS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'daily_usage_metrics',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False, index=True),
@@ -153,12 +193,12 @@ def upgrade():
         sa.Column('servers_used', sa.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
     )
-    op.create_index('ix_daily_usage_user_date', 'daily_usage_metrics', ['user_id', 'date'])
+    _create_index_if_missing('ix_daily_usage_user_date', 'daily_usage_metrics', ['user_id', 'date'])
 
     # ===========================
     # ABUSE DETECTION LOGS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'abuse_detection_logs',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False, index=True),
@@ -180,7 +220,7 @@ def upgrade():
     # ===========================
     # SYSTEM METRICS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'system_metrics',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('timestamp', sa.DateTime(), nullable=False, index=True, server_default=sa.func.now()),

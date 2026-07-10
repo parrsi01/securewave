@@ -27,8 +27,11 @@ COPY alembic.ini .
 COPY database/ ./database/
 COPY models/ ./models/
 COPY routers/ ./routers/
+COPY routes/ ./routes/
 COPY services/ ./services/
+COPY utils/ ./utils/
 COPY alembic/ ./alembic/
+COPY background_tasks.py .
 
 # Copy frontend static files
 COPY static/ ./static/

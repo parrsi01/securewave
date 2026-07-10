@@ -9,6 +9,8 @@ from typing import Dict, Optional, Any, List
 from datetime import datetime, timedelta
 from enum import Enum
 
+from utils.sensitive_data import redact_text, sanitize_for_evidence
+
 logger = logging.getLogger(__name__)
 
 
@@ -184,17 +186,17 @@ class SecurityAuditService:
                 actor_email=actor_email,
                 resource_type=resource_type,
                 resource_id=str(resource_id) if resource_id else None,
-                resource_name=resource_name,
-                description=description,
-                details=details or {},
+                resource_name=redact_text(resource_name or "") or None,
+                description=redact_text(description),
+                details=sanitize_for_evidence(details or {}),
                 ip_address=ip_address,
-                user_agent=user_agent,
+                user_agent=redact_text(user_agent or "") or None,
                 request_id=request_id,
                 severity=severity.value,
                 is_suspicious=is_suspicious,
                 is_compliance_relevant=is_compliance_relevant,
                 success=success,
-                error_message=error_message
+                error_message=redact_text(error_message or "") or None,
             )
 
             db.add(audit_log)
@@ -210,7 +212,10 @@ class SecurityAuditService:
 
             logger.log(
                 log_level,
-                f"Security Event: {event_type.value} - {description}",
+                "Security event type=%s action=%s success=%s",
+                event_type.value,
+                action,
+                success,
                 extra={
                     "user_id": user_id,
                     "ip_address": ip_address,
@@ -221,8 +226,8 @@ class SecurityAuditService:
 
             return audit_log.id
 
-        except Exception as e:
-            logger.error(f"Failed to log security event: {e}")
+        except Exception as exc:
+            logger.error("Failed to persist security event exception_type=%s", type(exc).__name__)
             return None
 
     # ===========================

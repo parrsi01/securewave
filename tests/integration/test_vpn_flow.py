@@ -12,6 +12,7 @@ Covers:
 """
 
 import time
+from datetime import datetime
 
 import pytest
 from fastapi import status
@@ -25,6 +26,7 @@ def _create_free_server(db):
     """Insert a free-tier demo VPN server and return it."""
     from models.vpn_server import VPNServer
 
+    observed_at = datetime.utcnow()
     server = VPNServer(
         server_id="test-free-us-1",
         location="New York, US",
@@ -39,6 +41,10 @@ def _create_free_server(db):
         wg_private_key_encrypted="encrypted-private-key",
         status="active",
         health_status="healthy",
+        last_health_check=observed_at,
+        protocol_runtime_evidence={
+            "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+        },
         max_connections=1000,
         current_connections=10,
         tier_restriction=None,
@@ -55,6 +61,7 @@ def _create_premium_server(db):
     """Insert a premium-tier demo VPN server and return it."""
     from models.vpn_server import VPNServer
 
+    observed_at = datetime.utcnow()
     server = VPNServer(
         server_id="test-premium-eu-1",
         location="London, UK",
@@ -69,6 +76,10 @@ def _create_premium_server(db):
         wg_private_key_encrypted="encrypted-private-key-premium",
         status="active",
         health_status="healthy",
+        last_health_check=observed_at,
+        protocol_runtime_evidence={
+            "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+        },
         max_connections=500,
         current_connections=5,
         tier_restriction="premium",

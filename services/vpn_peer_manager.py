@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple, List, Dict
 from io import BytesIO
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 import qrcode
 
 from models.user import User
@@ -47,7 +49,8 @@ class VPNPeerManager:
         user: User,
         server: Optional[VPNServer] = None,
         device_name: Optional[str] = None,
-        device_type: Optional[str] = None
+        device_type: Optional[str] = None,
+        max_active_devices: Optional[int] = None,
     ) -> WireGuardPeer:
         """
         Create new WireGuard peer for user
@@ -62,42 +65,55 @@ class VPNPeerManager:
             WireGuardPeer object
         """
         try:
-            # Generate keypair
-            private_key, public_key = self.wg_service.generate_keypair()
+            # On PostgreSQL this locks the account row, serializing plan-limit
+            # checks for concurrent device retries. SQLite keeps the matching
+            # unique indexes as the final safety net.
+            if max_active_devices is not None:
+                self.db.query(User).filter(User.id == user.id).with_for_update().one()
+                active_count = self.db.query(WireGuardPeer).filter(
+                    WireGuardPeer.user_id == user.id,
+                    WireGuardPeer.is_active.is_(True),
+                    WireGuardPeer.is_revoked.is_(False),
+                ).count()
+                if active_count >= max_active_devices:
+                    raise ValueError("Device limit reached")
 
-            # Encrypt private key
-            private_key_encrypted = self.wg_service.encrypt_private_key(private_key)
+            for _ in range(3):
+                private_key, public_key = self.wg_service.generate_keypair()
+                peer = WireGuardPeer(
+                    user_id=user.id,
+                    server_id=server.id if server else None,
+                    public_key=public_key,
+                    private_key_encrypted=self.wg_service.encrypt_private_key(private_key),
+                    ipv4_address=self._allocate_ip_address(user.id),
+                    device_name=device_name,
+                    device_type=device_type,
+                    is_active=True,
+                    is_revoked=False,
+                    key_version=1,
+                    next_key_rotation_at=datetime.utcnow() + timedelta(days=DEFAULT_KEY_ROTATION_DAYS),
+                )
+                self.db.add(peer)
+                try:
+                    self.db.commit()
+                except IntegrityError:
+                    self.db.rollback()
+                    duplicate_name = device_name and self.db.query(WireGuardPeer).filter(
+                        WireGuardPeer.user_id == user.id,
+                        func.lower(WireGuardPeer.device_name) == device_name.lower(),
+                    ).first()
+                    if duplicate_name:
+                        raise ValueError("Device name already exists")
+                    # A concurrent IP allocation lost the unique-index race;
+                    # choose again rather than issuing duplicate addressing.
+                    continue
+                self.db.refresh(peer)
+                logger.info("WireGuard peer created user_id=%s device_id=%s", user.id, peer.id)
+                return peer
+            raise ValueError("Unable to allocate a unique VPN address")
 
-            # Allocate IP address
-            ipv4_address = self._allocate_ip_address(user.id)
-
-            # Calculate next rotation date
-            next_rotation = datetime.utcnow() + timedelta(days=DEFAULT_KEY_ROTATION_DAYS)
-
-            # Create peer
-            peer = WireGuardPeer(
-                user_id=user.id,
-                server_id=server.id if server else None,
-                public_key=public_key,
-                private_key_encrypted=private_key_encrypted,
-                ipv4_address=ipv4_address,
-                device_name=device_name,
-                device_type=device_type,
-                is_active=True,
-                is_revoked=False,
-                key_version=1,
-                next_key_rotation_at=next_rotation,
-            )
-
-            self.db.add(peer)
-            self.db.commit()
-            self.db.refresh(peer)
-
-            logger.info(f"✓ WireGuard peer created for user {user.id} (IP: {ipv4_address})")
-            return peer
-
-        except Exception as e:
-            logger.error(f"✗ Failed to create peer: {e}")
+        except Exception as exc:
+            logger.error("Failed to create peer exception_type=%s", type(exc).__name__)
             self.db.rollback()
             raise
 
@@ -182,7 +198,7 @@ class VPNPeerManager:
             return True
 
         except Exception as e:
-            logger.error(f"✗ Failed to revoke peer: {e}")
+            logger.error("Failed to revoke peer exception_type=%s", type(e).__name__)
             self.db.rollback()
             return False
 
@@ -209,7 +225,7 @@ class VPNPeerManager:
             return True
 
         except Exception as e:
-            logger.error(f"✗ Failed to delete peer: {e}")
+            logger.error("Failed to delete peer exception_type=%s", type(e).__name__)
             self.db.rollback()
             return False
 
@@ -360,7 +376,7 @@ class VPNPeerManager:
             return peer
 
         except Exception as e:
-            logger.error(f"✗ Failed to rotate keys: {e}")
+            logger.error("Failed to rotate peer keys exception_type=%s", type(e).__name__)
             self.db.rollback()
             raise
 
@@ -385,14 +401,18 @@ class VPNPeerManager:
                     self.rotate_peer_keys(peer.id)
                     count += 1
                 except Exception as e:
-                    logger.error(f"Failed to rotate keys for peer {peer.id}: {e}")
+                    logger.error(
+                        "Failed to rotate peer keys peer_id=%s exception_type=%s",
+                        peer.id,
+                        type(e).__name__,
+                    )
                     continue
 
             logger.info(f"✓ Rotated keys for {count} peers")
             return count
 
         except Exception as e:
-            logger.error(f"✗ Batch key rotation failed: {e}")
+            logger.error("Batch key rotation failed exception_type=%s", type(e).__name__)
             return 0
 
     # ===========================

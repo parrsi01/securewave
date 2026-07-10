@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from database.base import Base
@@ -15,7 +15,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime, default=utcnow)
     is_active = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=False)
+    is_admin = Column(Boolean, nullable=False, default=False)
 
     # VPN Keys
     wg_public_key = Column(String, nullable=True)
@@ -28,7 +28,7 @@ class User(Base):
     paypal_subscription_id = Column(String, nullable=True)
 
     # Email verification
-    email_verified = Column(Boolean, default=False)
+    email_verified = Column(Boolean, nullable=False, default=False)
     email_verification_token = Column(String, nullable=True, index=True)
     email_verification_token_expires = Column(DateTime, nullable=True)
 
@@ -39,14 +39,22 @@ class User(Base):
 
     # Two-Factor Authentication (TOTP)
     totp_secret = Column(String, nullable=True)  # Encrypted TOTP secret
-    totp_enabled = Column(Boolean, default=False)
+    totp_enabled = Column(Boolean, nullable=False, default=False)
     totp_backup_codes = Column(String, nullable=True)  # Encrypted backup codes (JSON)
 
     # Security tracking
     last_login = Column(DateTime, nullable=True)
     last_login_ip = Column(String, nullable=True)
-    failed_login_attempts = Column(Integer, default=0)
+    failed_login_attempts = Column(Integer, nullable=False, default=0)
     account_locked_until = Column(DateTime, nullable=True)
+    auth_token_version = Column(Integer, nullable=False, default=0, server_default="0")
+
+    __table_args__ = (
+        UniqueConstraint("email"),
+        # A normal unique email index is case-sensitive on PostgreSQL.  The
+        # functional index makes normalized registration race-safe as well.
+        Index("uq_users_email_lower", func.lower(email), unique=True),
+    )
 
     # Relationships
     subscriptions = relationship("Subscription", back_populates="user")

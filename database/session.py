@@ -4,7 +4,7 @@ import tempfile
 from typing import Generator
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, event, pool
+from sqlalchemy import create_engine, event, pool, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import Engine
 
@@ -34,7 +34,9 @@ IS_PRODUCTION = ENVIRONMENT == "production"
 # Engine configuration
 engine_config = {
     "pool_pre_ping": POOL_PRE_PING,
-    "echo": not IS_PRODUCTION,  # Disable SQL logging in production
+    # SQL echo can include bound request values.  It is opt-in even in local
+    # development rather than a default source of credential leakage.
+    "echo": os.getenv("SQL_ECHO", "false").lower() == "true" and not IS_PRODUCTION,
     "future": True,  # Use SQLAlchemy 2.0 style
 }
 
@@ -136,7 +138,7 @@ def receive_connect(dbapi_conn, connection_record):
             cursor.execute("SET lock_timeout = '10s'")
             cursor.close()
         except Exception as e:
-            logger.warning(f"Failed to set connection parameters: {e}")
+            logger.warning("Failed to set connection parameters exception_type=%s", type(e).__name__)
 
 
 @event.listens_for(Engine, "checkout")
@@ -171,7 +173,7 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     except Exception as e:
-        logger.error(f"Database session error: {e}")
+        logger.error("Database session error exception_type=%s", type(e).__name__)
         db.rollback()
         raise
     finally:
@@ -179,17 +181,10 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def create_tables():
-    """Create all database tables"""
-    from database import base
-    from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session
-
-    logger.info("Creating database tables...")
-    try:
-        base.Base.metadata.create_all(bind=engine)
-        logger.info("✓ Database tables created successfully")
-    except Exception as e:
-        logger.error(f"Failed to create tables: {e}")
-        raise
+    """Deprecated safety guard: runtime schema creation is intentionally disabled."""
+    raise RuntimeError(
+        "Runtime ORM schema creation is disabled. Apply Alembic migrations with `alembic upgrade head`."
+    )
 
 
 def check_database_connection() -> bool:
@@ -202,12 +197,12 @@ def check_database_connection() -> bool:
     try:
         # Try to connect and execute a simple query
         with engine.connect() as conn:
-            result = conn.execute("SELECT 1")
+            result = conn.execute(text("SELECT 1"))
             result.fetchone()
         logger.info("✓ Database connection is healthy")
         return True
     except Exception as e:
-        logger.error(f"✗ Database connection failed: {e}")
+        logger.error("Database connection failed exception_type=%s", type(e).__name__)
         return False
 
 
@@ -219,7 +214,7 @@ def get_database_info() -> dict:
         dict: Database information and statistics
     """
     info = {
-        "url": DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else "***",  # Hide credentials
+        "url": "[redacted]",
         "driver": DATABASE_URL.split(":")[0] if ":" in DATABASE_URL else "unknown",
         "pool_size": POOL_SIZE if DATABASE_URL.startswith("postgresql") else "N/A",
         "max_overflow": MAX_OVERFLOW if DATABASE_URL.startswith("postgresql") else "N/A",
@@ -238,17 +233,9 @@ def get_database_info() -> dict:
             "total_connections": pool_obj.size() + pool_obj.overflow(),
         }
     except Exception as exc:
-        logger.debug("Failed to read pool stats: %s", exc)
+        logger.debug("Failed to read pool stats exception_type=%s", type(exc).__name__)
 
     return info
-
-
-# Initialize database on import (development only)
-if not IS_PRODUCTION and os.getenv("AUTO_CREATE_TABLES", "true").lower() == "true":
-    try:
-        create_tables()
-    except Exception as e:
-        logger.warning(f"Could not auto-create tables: {e}")
 
 
 # Export commonly used items

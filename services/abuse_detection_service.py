@@ -370,7 +370,7 @@ class AbuseDetectionService:
                 incident_type=incident_type,
                 severity=severity,
                 description=description,
-                metadata=metadata,
+                extra_data=metadata,
                 detection_method="automated",
                 status="pending",
             )

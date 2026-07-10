@@ -53,8 +53,25 @@ class GDPRRequest(Base):
     # Request details
     request_number = Column(String, unique=True, nullable=False, index=True)  # GDPR-202401-00001
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    request_type = Column(SQLEnum(GDPRRequestType), nullable=False, index=True)
-    status = Column(SQLEnum(GDPRRequestStatus), nullable=False, default=GDPRRequestStatus.PENDING, index=True)
+    request_type = Column(
+        SQLEnum(
+            GDPRRequestType,
+            values_callable=lambda members: [member.value for member in members],
+            native_enum=False,
+        ),
+        nullable=False,
+        index=True,
+    )
+    status = Column(
+        SQLEnum(
+            GDPRRequestStatus,
+            values_callable=lambda members: [member.value for member in members],
+            native_enum=False,
+        ),
+        nullable=False,
+        default=GDPRRequestStatus.PENDING,
+        index=True,
+    )
 
     # Request content
     description = Column(Text, nullable=True)
@@ -118,7 +135,15 @@ class UserConsent(Base):
 
     # Consent details
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    consent_type = Column(SQLEnum(ConsentType), nullable=False, index=True)
+    consent_type = Column(
+        SQLEnum(
+            ConsentType,
+            values_callable=lambda members: [member.value for member in members],
+            native_enum=False,
+        ),
+        nullable=False,
+        index=True,
+    )
     consent_version = Column(String, nullable=False)  # Version of T&C/Privacy Policy
 
     # Consent status
@@ -133,7 +158,7 @@ class UserConsent(Base):
 
     # Additional data
     consent_text = Column(Text, nullable=True)  # Copy of what user agreed to
-    extra_data = Column(JSON, nullable=True)
+    extra_data = Column("metadata", JSON, nullable=True)  # Historical physical column
 
     # Timestamps
     created_at = Column(DateTime, default=utcnow, nullable=False, index=True)

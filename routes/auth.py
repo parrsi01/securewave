@@ -12,6 +12,8 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Re
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from io import BytesIO
 
@@ -28,6 +30,7 @@ from services.jwt_service import (
     create_access_token,
     create_refresh_token,
     verify_refresh_token,
+    token_version_matches,
     get_current_user,
 )
 from services.auth_service import AuthService
@@ -74,6 +77,18 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str,
     )
     response.headers["Cache-Control"] = "no-store"
 
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie("csrf_token", path="/")
+    response.headers["Cache-Control"] = "no-store"
+
+
+def _invalidate_auth_tokens(user: User) -> None:
+    user.auth_token_version = int(user.auth_token_version or 0) + 1
+
+
 is_testing = os.getenv("TESTING", "").lower() == "true"
 
 # Rate limiter (disabled in tests to avoid hangs)
@@ -115,7 +130,10 @@ def optional_current_user(request: Request, db: Session) -> Optional[User]:
         user_id = payload.get("sub")
         if user_id is None:
             return None
-        return db.query(User).filter(User.id == int(user_id)).first()
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if user is None or not user.is_active or not token_version_matches(payload, user):
+            return None
+        return user
     except Exception:
         return None
 
@@ -198,8 +216,10 @@ async def register(
     Register new user with email verification
     """
     try:
+        normalized_email = str(payload.email).strip().lower()
+
         # Check if email already exists
-        existing = db.query(User).filter(User.email == payload.email).first()
+        existing = db.query(User).filter(func.lower(User.email) == normalized_email).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -222,7 +242,7 @@ async def register(
 
         # Create user
         user = User(
-            email=payload.email,
+            email=normalized_email,
             hashed_password=hash_password(payload.password),
             created_at=datetime.utcnow(),
             subscription_status="basic",
@@ -239,9 +259,9 @@ async def register(
             email_sent = auth_service.send_verification_email(user)
 
             if not email_sent:
-                logger.warning(f"Failed to send verification email to {user.email}")
+                logger.warning("Verification email enqueue failed user_id=%s", user.id)
 
-        logger.info(f"✓ New user registered: {user.email}")
+        logger.info("User registered user_id=%s verification_required=%s", user.id, not DEMO_MODE)
 
         if DEMO_MODE:
             access_token = create_access_token(user)
@@ -265,8 +285,16 @@ async def register(
 
     except HTTPException:
         raise
+    except IntegrityError:
+        # The migration-owned functional unique index is the race-safe source
+        # of truth when two normalized registrations arrive concurrently.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
     except Exception as e:
-        logger.error(f"✗ Registration error: {e}")
+        logger.error("Registration error exception_type=%s", type(e).__name__)
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -288,7 +316,10 @@ async def login(
     """
     try:
         # Get user
-        user: Optional[User] = db.query(User).filter(User.email == payload.email).first()
+        normalized_email = str(payload.email).strip().lower()
+        user: Optional[User] = db.query(User).filter(
+            func.lower(User.email) == normalized_email
+        ).first()
 
         is_valid = False
         if user:
@@ -310,6 +341,12 @@ async def login(
                 detail="Invalid credentials"
             )
 
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials"
+            )
+
         # Check if account is locked
         auth_service = AuthService(db)
         if auth_service.is_account_locked(user):
@@ -318,12 +355,11 @@ async def login(
                 detail=f"Account locked due to too many failed login attempts. Try again later."
             )
 
-        # Check if email is verified (optional - can be enforced)
-        # if not user.email_verified:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_403_FORBIDDEN,
-        #         detail="Please verify your email before logging in"
-        #     )
+        if not user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Please verify your email before logging in",
+            )
 
         # Check 2FA
         if user.has_2fa_enabled:
@@ -354,13 +390,7 @@ async def login(
         ip_address = request.client.host if request.client else None
         background_tasks.add_task(record_login_success, user.id, ip_address)
 
-        admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
-        if admin_email and user.email.lower() == admin_email and not user.is_admin:
-            user.is_admin = True
-            db.commit()
-            logger.info(f"Admin access granted to {user.email} via ADMIN_EMAIL")
-
-        logger.info(f"✓ User logged in: {user.email}")
+        logger.info("User authenticated user_id=%s two_factor=%s", user.id, user.has_2fa_enabled)
 
         access_token = create_access_token(user)
         refresh_token = create_refresh_token(user)
@@ -377,7 +407,7 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Login error: {e}")
+        logger.error("Login error exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Login failed"
@@ -405,7 +435,7 @@ async def refresh(
         token_data = verify_refresh_token(refresh_token_value)
         user = db.query(User).filter(User.id == int(token_data.get("sub"))).first()
 
-        if not user or not user.is_active:
+        if not user or not user.is_active or not token_version_matches(token_data, user):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token"
@@ -425,7 +455,7 @@ async def refresh(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Token refresh error: {e}")
+        logger.error("Token refresh error exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
@@ -433,10 +463,14 @@ async def refresh(
 
 
 @router.post("/logout")
-async def logout(response: Response):
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
-    response.delete_cookie("csrf_token", path="/")
+async def logout(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _invalidate_auth_tokens(current_user)
+    db.commit()
+    _clear_auth_cookies(response)
     return {"status": "ok"}
 
 
@@ -501,7 +535,7 @@ async def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Email verification error: {e}")
+        logger.error("Email verification error exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Verification failed"
@@ -534,7 +568,7 @@ async def resend_verification_email(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Resend verification error: {e}")
+        logger.error("Resend verification error exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to resend verification email"
@@ -546,6 +580,7 @@ async def resend_verification_email(
 async def update_email(
     request: Request,
     payload: UpdateEmailRequest,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -558,13 +593,13 @@ async def update_email(
             )
 
         new_email = payload.new_email.strip().lower()
-        if new_email == current_user.email:
+        if new_email == current_user.email.strip().lower():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="New email must be different"
             )
 
-        existing = db.query(User).filter(User.email == new_email).first()
+        existing = db.query(User).filter(func.lower(User.email) == new_email).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -573,6 +608,7 @@ async def update_email(
 
         current_user.email = new_email
         current_user.email_verified = DEMO_MODE
+        _invalidate_auth_tokens(current_user)
         db.commit()
         db.refresh(current_user)
 
@@ -580,17 +616,22 @@ async def update_email(
             auth_service = AuthService(db)
             auth_service.send_verification_email(current_user)
 
+        access_token = create_access_token(current_user)
+        refresh_token = create_refresh_token(current_user)
+        csrf_token = secrets.token_urlsafe(32)
+        _set_auth_cookies(response, access_token, refresh_token, csrf_token)
+
         return {
             "message": "Email updated successfully",
-            "access_token": create_access_token(current_user),
-            "refresh_token": create_refresh_token(current_user),
+            "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer",
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Email update error: {e}")
+        logger.error("Email update error exception_type=%s", type(e).__name__)
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -603,6 +644,7 @@ async def update_email(
 async def update_password(
     request: Request,
     payload: UpdatePasswordRequest,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -624,7 +666,9 @@ async def update_password(
         current_user.hashed_password = hash_password(payload.new_password)
         current_user.failed_login_attempts = 0
         current_user.account_locked_until = None
+        _invalidate_auth_tokens(current_user)
         db.commit()
+        _clear_auth_cookies(response)
 
         return {
             "message": "Password updated successfully"
@@ -633,7 +677,7 @@ async def update_password(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Password update error: {e}")
+        logger.error("Password update error exception_type=%s", type(e).__name__)
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -642,8 +686,15 @@ async def update_password(
 
 
 @router.post("/logout-all")
-async def logout_all():
-    """Demo-friendly endpoint to clear all sessions (stateless JWT)"""
+async def logout_all(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Invalidate every token issued for the current account."""
+    _invalidate_auth_tokens(current_user)
+    db.commit()
+    _clear_auth_cookies(response)
     return {"status": "ok"}
 
 
@@ -669,7 +720,7 @@ async def request_password_reset(
         }
 
     except Exception as e:
-        logger.error(f"✗ Password reset request error: {e}")
+        logger.error("Password reset request error exception_type=%s", type(e).__name__)
         # Don't reveal errors to prevent enumeration
         return {
             "message": "If the email exists, a password reset link has been sent"
@@ -705,7 +756,7 @@ async def confirm_password_reset(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ Password reset confirm error: {e}")
+        logger.error("Password reset confirm error exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Password reset failed"
@@ -742,7 +793,7 @@ async def setup_2fa(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ 2FA setup error: {e}")
+        logger.error("2FA setup error exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="2FA setup failed"
@@ -789,7 +840,7 @@ async def get_2fa_qr_code(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ QR code generation error: {e}")
+        logger.error("QR code generation error exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="QR code generation failed"
@@ -824,7 +875,7 @@ async def verify_and_enable_2fa(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ 2FA verification error: {e}")
+        logger.error("2FA verification error exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="2FA verification failed"
@@ -875,7 +926,7 @@ async def disable_2fa(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"✗ 2FA disable error: {e}")
+        logger.error("2FA disable error exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to disable 2FA"
