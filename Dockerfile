@@ -1,5 +1,5 @@
 # Production Dockerfile for SecureWave VPN SaaS
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -24,21 +24,27 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend application
 COPY main.py .
+COPY background_tasks.py .
 COPY alembic.ini .
 COPY database/ ./database/
+COPY infrastructure/ ./infrastructure/
 COPY models/ ./models/
 COPY routers/ ./routers/
 COPY routes/ ./routes/
 COPY services/ ./services/
 COPY utils/ ./utils/
 COPY alembic/ ./alembic/
-COPY background_tasks.py .
+COPY scripts/docker-entrypoint.sh /usr/local/bin/securewave-entrypoint
 
 # Copy frontend static files
 COPY static/ ./static/
 
 # Create necessary directories
 RUN mkdir -p /wg /app/logs
+
+# Fail the image build if the copied runtime module set is incomplete.
+RUN TESTING=true AUTO_CREATE_TABLES=false DEMO_MODE=true WG_MOCK_MODE=true \
+    python -c "import main"
 
 # Expose the application port
 EXPOSE 8080
@@ -47,14 +53,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8080/api/health || exit 1
 
-# Run migrations and start Gunicorn
-CMD alembic upgrade head && \
-    gunicorn main:app \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --workers ${WEB_CONCURRENCY:-2} \
-    --threads ${WORKER_THREADS:-2} \
-    --bind 0.0.0.0:${PORT:-8080} \
-    --timeout ${GUNICORN_TIMEOUT:-120} \
-    --access-logfile - \
-    --error-logfile - \
-    --log-level info
+# Run migrations and replace the shell with Gunicorn for correct signal handling.
+ENTRYPOINT ["securewave-entrypoint"]

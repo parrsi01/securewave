@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from database.session import get_db
 from models.user import User
-from services.jwt_service import get_current_user
+from services.jwt_service import get_current_user, get_optional_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn/tests", tags=["vpn-tests"])
@@ -117,9 +117,19 @@ class TestStatusResponse(BaseModel):
 # Helper Functions
 # =============================================================================
 
-def get_latest_results() -> Optional[Dict[str, Any]]:
-    """Load latest test results from file"""
-    latest_path = RESULTS_DIR / "latest.json"
+def get_user_results_dir(user_id: int, *, create: bool = False) -> Path:
+    """Return the fixed per-account results directory."""
+    path = RESULTS_DIR / f"user-{user_id}"
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_latest_results(user_id: Optional[int]) -> Optional[Dict[str, Any]]:
+    """Load only the authenticated account's latest test result."""
+    if user_id is None:
+        return None
+    latest_path = get_user_results_dir(user_id) / "latest.json"
 
     if not latest_path.exists():
         return None
@@ -127,8 +137,12 @@ def get_latest_results() -> Optional[Dict[str, Any]]:
     try:
         with open(latest_path, 'r') as f:
             return json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load test results: {e}")
+    except (OSError, ValueError, TypeError) as exc:
+        logger.warning(
+            "Failed to load VPN test result for user_id=%s error_type=%s",
+            user_id,
+            type(exc).__name__,
+        )
         return None
 
 
@@ -203,6 +217,8 @@ async def run_tests_async(
     run_id = run_id or f"run_{user_id}_{uuid4().hex[:8]}"
 
     _running_tests[user_id] = True
+    loop = asyncio.get_running_loop()
+    user_results_dir = get_user_results_dir(user_id, create=True)
 
     try:
         logger.info(json.dumps({
@@ -213,8 +229,6 @@ async def run_tests_async(
             "stability_duration": stability_duration,
             "timeout_seconds": timeout_seconds,
         }))
-
-        loop = asyncio.get_event_loop()
 
         # Add test suite to path
         sys.path.insert(0, str(TEST_SUITE_DIR))
@@ -239,7 +253,7 @@ async def run_tests_async(
         results["run_id"] = run_id
         await loop.run_in_executor(
             None,
-            lambda: save_results(results, str(RESULTS_DIR))
+            lambda: save_results(results, str(user_results_dir))
         )
 
         logger.info(json.dumps({
@@ -262,21 +276,21 @@ async def run_tests_async(
         results = build_failure_results(run_id, message)
         await loop.run_in_executor(
             None,
-            lambda: save_results(results, str(RESULTS_DIR))
+            lambda: save_results(results, str(user_results_dir))
         )
         return results
-    except Exception as e:
+    except Exception as exc:
         message = "VPN test failed. Please try again."
         logger.error(json.dumps({
             "event": "vpn_test_error",
             "run_id": run_id,
             "user_id": user_id,
-            "error": str(e),
+            "error_type": type(exc).__name__,
         }))
         results = build_failure_results(run_id, message)
         await loop.run_in_executor(
             None,
-            lambda: save_results(results, str(RESULTS_DIR))
+            lambda: save_results(results, str(user_results_dir))
         )
         return results
     finally:
@@ -291,17 +305,20 @@ async def run_tests_async(
 # =============================================================================
 
 @router.get("/status", response_model=TestStatusResponse)
-async def get_test_status():
+async def get_test_status(
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
     """
     Get current test status.
 
     Returns whether a test is running and if results are available.
-    Public endpoint - no authentication required.
+    Anonymous callers receive the same response shape with no account data.
     """
     # Check if any tests are running
-    running = any(_running_tests.values())
+    user_id = current_user.id if current_user else None
+    running = bool(user_id is not None and _running_tests.get(user_id, False))
 
-    results = get_latest_results()
+    results = get_latest_results(user_id)
     has_results = results is not None
     last_run = results.get('timestamp') if results else None
 
@@ -313,13 +330,15 @@ async def get_test_status():
 
 
 @router.get("/latest", response_model=TestResultSummary)
-async def get_latest_test_results():
+async def get_latest_test_results(
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
     """
     Get the latest test results.
 
     Returns summarized test results from the most recent test run.
     """
-    results = get_latest_results()
+    results = get_latest_results(current_user.id if current_user else None)
 
     if not results:
         return TestResultSummary(
@@ -350,13 +369,15 @@ async def get_latest_test_results():
 
 
 @router.get("/latest/full")
-async def get_latest_test_results_full():
+async def get_latest_test_results_full(
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
     """
     Get full test results including all raw data.
 
     Returns complete test results with all individual measurements.
     """
-    results = get_latest_results()
+    results = get_latest_results(current_user.id if current_user else None)
 
     if not results:
         return build_failure_results(
@@ -472,8 +493,13 @@ async def run_vpn_tests_sync(
         )
         return results_to_summary(results)
 
-    except Exception as e:
-        logger.error(f"Test run failed: {e}")
+    except Exception as exc:
+        logger.error(
+            "Synchronous VPN test failed run_id=%s user_id=%s error_type=%s",
+            run_id,
+            user_id,
+            type(exc).__name__,
+        )
         return results_to_summary(build_failure_results(run_id, "VPN test failed. Please try again."))
 
 
@@ -487,12 +513,13 @@ async def get_test_history(
 
     Returns a list of past test results sorted by date (newest first).
     """
-    if not RESULTS_DIR.exists():
+    user_results_dir = get_user_results_dir(current_user.id)
+    if not user_results_dir.exists():
         return {"results": [], "count": 0}
 
     # Find all result files
     result_files = sorted(
-        RESULTS_DIR.glob("results_*.json"),
+        user_results_dir.glob("results_*.json"),
         key=lambda x: x.stat().st_mtime,
         reverse=True
     )[:limit]
@@ -510,7 +537,12 @@ async def get_test_history(
                     "status": summary.status,
                     "vpn_detected": summary.vpn_detected
                 })
-        except Exception as e:
-            logger.warning(f"Failed to load {result_file}: {e}")
+        except (OSError, ValueError, TypeError) as exc:
+            logger.warning(
+                "Failed to load VPN test history file=%s user_id=%s error_type=%s",
+                result_file.name,
+                current_user.id,
+                type(exc).__name__,
+            )
 
     return {"results": history, "count": len(history)}

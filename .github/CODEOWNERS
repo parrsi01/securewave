@@ -1,0 +1,13 @@
+# Default ownership. Enforcement requires branch protection with required review.
+* @parrsi01
+
+/.github/workflows/ @parrsi01
+/alembic/ @parrsi01
+/database/ @parrsi01
+/routes/ @parrsi01
+/routers/ @parrsi01
+/services/ @parrsi01
+/infrastructure/ @parrsi01
+/securewave_app/linux/ @parrsi01
+/securewave_app/packaging/ @parrsi01
+/static/downloads/manifest.json @parrsi01

@@ -10,3 +10,7 @@ pytest-cov==6.0.0
 pytest-asyncio==1.4.0
 httpx==0.27.0
 ruff==0.15.21
+
+# Defensive repository certification
+bandit==1.9.4
+pip-audit==2.10.1

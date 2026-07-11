@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from fastapi import status
-from jose import jwt
+import jwt
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +254,28 @@ class TestJWTExpiration:
         )
         assert response.status_code in (401, 403), \
             "Token signed with wrong secret should be rejected"
+
+    def test_token_with_non_numeric_subject_is_rejected(self, client, test_user):
+        """Malformed signed claims must normalize to an auth failure, not a 500."""
+        from services.jwt_service import ACCESS_SECRET, ALGORITHM
+
+        malformed_payload = {
+            "sub": "not-a-user-id",
+            "email": test_user.email,
+            "type": "access",
+            "exp": datetime.utcnow() + timedelta(minutes=30),
+        }
+        malformed_token = jwt.encode(
+            malformed_payload,
+            ACCESS_SECRET,
+            algorithm=ALGORITHM,
+        )
+
+        response = client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {malformed_token}"},
+        )
+        assert response.status_code in (401, 403)
 
     def test_valid_token_accepted(self, client, auth_headers):
         """A properly signed, non-expired token must be accepted."""
