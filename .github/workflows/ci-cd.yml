@@ -110,6 +110,7 @@ jobs:
           - 6379:6379
     env:
       DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_securewave
+      SECUREWAVE_TEST_POSTGRES_URL: postgresql://test_user:test_password@localhost:5432/test_securewave
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: test-secret-key-for-ci
       ACCESS_TOKEN_SECRET: test-access-token-secret
@@ -120,6 +121,7 @@ jobs:
       ENABLE_SENTRY: "false"
       EMAIL_VALIDATOR_CHECK_DELIVERABILITY: "false"
       BCRYPT_ROUNDS: "4"
+      AUTO_CREATE_TABLES: "false"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -139,7 +141,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements_dev.txt
 
-      - name: Prepare test database
+      - name: Apply and verify Alembic schema
         run: |
           python - <<'PY'
           import os
@@ -150,13 +152,26 @@ jobs:
               conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"))
               conn.commit()
           PY
+          python -m alembic upgrade head
+          python -m alembic current
+          python -m alembic upgrade head
+          python -m alembic check
           python - <<'PY'
-          from database.base import Base
-          from database.session import engine
+          from sqlalchemy import create_engine, inspect
+          import os
 
-          Base.metadata.create_all(bind=engine)
+          tables = set(inspect(create_engine(os.environ["DATABASE_URL"])).get_table_names())
+          required = {"users", "vpn_servers", "vpn_connections", "vpn_usage_events", "invoices"}
+          missing = required - tables
+          if missing:
+              raise SystemExit(f"Migration verification missing tables: {sorted(missing)}")
+          print("Alembic migration verification passed")
           PY
-          python -m alembic stamp head
+
+      - name: Compile backend modules
+        run: |
+          python -m compileall -q main.py database models routes routers services utils alembic tests
+          python -m ruff check --select E9,F63,F7,F82 main.py database models routes routers services utils alembic tests
 
       - name: Run pytest
         run: |

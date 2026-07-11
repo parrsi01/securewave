@@ -128,7 +128,7 @@ class PerformanceMetric(Base):
     status_code = Column(Integer, nullable=True)
 
     # Extra data
-    extra_data = Column(JSON, nullable=True)
+    extra_data = Column("metadata", JSON, nullable=True)  # Historical physical column
 
     # Timestamp
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
@@ -168,7 +168,7 @@ class UptimeCheck(Base):
     error_message = Column(Text, nullable=True)
 
     # Extra data
-    extra_data = Column(JSON, nullable=True)
+    extra_data = Column("metadata", JSON, nullable=True)  # Historical physical column
 
     # Timestamp
     checked_at = Column(DateTime, nullable=False, default=utcnow, index=True)
@@ -242,7 +242,7 @@ class ErrorLog(Base):
     resolution_notes = Column(Text, nullable=True)
 
     # Extra data
-    extra_data = Column(JSON, nullable=True)
+    extra_data = Column("metadata", JSON, nullable=True)  # Historical physical column
 
     # Timestamp
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)

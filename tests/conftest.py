@@ -60,6 +60,7 @@ def _ensure_tables():
         vpn_server,
         vpn_connection,
         vpn_demo_session,
+        vpn_usage_event,
         wireguard_peer,
         gdpr,
         support_ticket,
@@ -221,6 +222,7 @@ def test_vpn_server(db):
     """Seed a single demo VPN server."""
     from models.vpn_server import VPNServer
 
+    observed_at = datetime.utcnow()
     server = VPNServer(
         server_id="us-east-1-001",
         location="New York",
@@ -235,6 +237,10 @@ def test_vpn_server(db):
         wg_private_key_encrypted="encrypted-test-key",
         status="active",
         health_status="healthy",
+        last_health_check=observed_at,
+        protocol_runtime_evidence={
+            "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+        },
         hcloud_server_state="running",
         max_connections=1000,
         current_connections=0,
@@ -252,6 +258,10 @@ def test_vpn_servers(db):
     """Seed multiple VPN servers across regions."""
     from models.vpn_server import VPNServer
 
+    observed_at = datetime.utcnow()
+    runtime_evidence = {
+        "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+    }
     servers_data = [
         {
             "server_id": "us-east-1-001",
@@ -267,6 +277,8 @@ def test_vpn_servers(db):
             "wg_private_key_encrypted": "encrypted-key-1",
             "status": "active",
             "health_status": "healthy",
+            "last_health_check": observed_at,
+            "protocol_runtime_evidence": runtime_evidence,
             "hcloud_server_state": "running",
             "max_connections": 1000,
             "current_connections": 50,
@@ -287,6 +299,8 @@ def test_vpn_servers(db):
             "wg_private_key_encrypted": "encrypted-key-2",
             "status": "active",
             "health_status": "healthy",
+            "last_health_check": observed_at,
+            "protocol_runtime_evidence": runtime_evidence,
             "hcloud_server_state": "running",
             "max_connections": 1000,
             "current_connections": 200,
@@ -307,6 +321,8 @@ def test_vpn_servers(db):
             "wg_private_key_encrypted": "encrypted-key-3",
             "status": "active",
             "health_status": "healthy",
+            "last_health_check": observed_at,
+            "protocol_runtime_evidence": runtime_evidence,
             "hcloud_server_state": "running",
             "max_connections": 500,
             "current_connections": 10,

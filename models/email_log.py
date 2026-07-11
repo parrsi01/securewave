@@ -4,7 +4,7 @@ Email Log Model - Track sent emails for debugging and analytics
 
 from datetime import datetime
 from typing import Dict, Optional
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Boolean, JSON
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Boolean, JSON, Index
 from sqlalchemy.orm import relationship
 
 from database.base import Base
@@ -17,6 +17,11 @@ class EmailLog(Base):
     Tracks all emails sent through the system
     """
     __tablename__ = "email_logs"
+    __table_args__ = (
+        Index("ix_email_logs_user_status", "user_id", "status"),
+        Index("ix_email_logs_template_status", "template_name", "status"),
+        Index("ix_email_logs_created_status", "created_at", "status"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # NULL for system emails
@@ -40,7 +45,7 @@ class EmailLog(Base):
     error_message = Column(Text, nullable=True)
 
     # Extra data
-    extra_data = Column(JSON, nullable=True)  # Additional data (template vars, tracking info, etc.)
+    extra_data = Column("metadata", JSON, nullable=True)  # Historical physical column
 
     # Engagement tracking
     sent_at = Column(DateTime, nullable=True)
@@ -86,6 +91,9 @@ class EmailTemplate(Base):
     Store email templates in database for easy updates
     """
     __tablename__ = "email_templates"
+    __table_args__ = (
+        Index("ix_email_templates_category_active", "category", "is_active"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False, index=True)  # verification_email, welcome_email, etc.
@@ -99,7 +107,7 @@ class EmailTemplate(Base):
     variables = Column(JSON, nullable=True)  # List of template variables
 
     # Status
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, nullable=False, default=True)
 
     # Timestamps
     created_at = Column(DateTime, default=utcnow, nullable=False)

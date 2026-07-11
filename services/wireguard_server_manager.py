@@ -118,7 +118,7 @@ class WireGuardServerManager:
         Returns:
             Tuple of (success, message)
         """
-        logger.info(f"Adding peer to server {conn.server_id}: {public_key[:20]}... -> {allowed_ips}")
+        logger.info("Adding peer to server_id=%s", conn.server_id)
 
         if conn.method == "http_api":
             return await self._add_peer_via_api(conn, public_key, allowed_ips)
@@ -142,7 +142,7 @@ class WireGuardServerManager:
         Returns:
             Tuple of (success, message)
         """
-        logger.info(f"Removing peer from server {conn.server_id}: {public_key[:20]}...")
+        logger.info("Removing peer from server_id=%s", conn.server_id)
 
         if conn.method == "http_api":
             return await self._remove_peer_via_api(conn, public_key)
@@ -231,12 +231,11 @@ class WireGuardServerManager:
             result = response.json()
 
             if response.status_code == 200 and result.get("success"):
-                return True, result.get("message", "Peer added")
-            else:
-                return False, result.get("error", "Unknown error")
+                return True, "Peer added successfully"
+            return False, "Management API rejected peer addition"
         except Exception as e:
-            logger.error(f"HTTP API add_peer failed: {e}")
-            return False, str(e)
+            logger.error("Management API add-peer failed exception_type=%s", type(e).__name__)
+            return False, "Management API unavailable"
 
     async def _remove_peer_via_api(
         self,
@@ -253,12 +252,11 @@ class WireGuardServerManager:
             result = response.json()
 
             if response.status_code == 200 and result.get("success"):
-                return True, result.get("message", "Peer removed")
-            else:
-                return False, result.get("error", "Unknown error")
+                return True, "Peer removed successfully"
+            return False, "Management API rejected peer removal"
         except Exception as e:
-            logger.error(f"HTTP API remove_peer failed: {e}")
-            return False, str(e)
+            logger.error("Management API remove-peer failed exception_type=%s", type(e).__name__)
+            return False, "Management API unavailable"
 
     async def _list_peers_via_api(
         self,
@@ -275,7 +273,7 @@ class WireGuardServerManager:
             else:
                 return False, []
         except Exception as e:
-            logger.error(f"HTTP API list_peers failed: {e}")
+            logger.error("Management API peer-list failed exception_type=%s", type(e).__name__)
             return False, []
 
     async def _get_status_via_api(
@@ -293,7 +291,7 @@ class WireGuardServerManager:
             else:
                 return False, {}
         except Exception as e:
-            logger.error(f"HTTP API get_status failed: {e}")
+            logger.error("Management API status failed exception_type=%s", type(e).__name__)
             return False, {}
 
     async def _health_check_via_api(
@@ -313,7 +311,8 @@ class WireGuardServerManager:
             else:
                 return False, "Server unhealthy"
         except Exception as e:
-            return False, f"Health check failed: {e}"
+            logger.warning("Management API health check failed exception_type=%s", type(e).__name__)
+            return False, "Management API unavailable"
 
     # =========================================================================
     # SSH Implementation
@@ -363,7 +362,8 @@ class WireGuardServerManager:
         except asyncio.TimeoutError:
             return False, "", "SSH command timed out"
         except Exception as e:
-            return False, "", str(e)
+            logger.warning("SSH command failed exception_type=%s", type(e).__name__)
+            return False, "", "SSH command failed"
 
     async def _add_peer_via_ssh(
         self,
@@ -383,7 +383,7 @@ class WireGuardServerManager:
         if success:
             return True, "Peer added successfully"
         else:
-            return False, stderr or "Failed to add peer"
+            return False, "Failed to add peer"
 
     async def _remove_peer_via_ssh(
         self,
@@ -397,7 +397,7 @@ class WireGuardServerManager:
         if success:
             return True, "Peer removed successfully"
         else:
-            return False, stderr or "Failed to remove peer"
+            return False, "Failed to remove peer"
 
     async def _list_peers_via_ssh(
         self,
@@ -421,8 +421,6 @@ class WireGuardServerManager:
             if len(parts) >= 5:
                 peer = {
                     "public_key": parts[0],
-                    "preshared_key": parts[1] if parts[1] != "(none)" else None,
-                    "endpoint": parts[2] if parts[2] != "(none)" else None,
                     "allowed_ips": parts[3],
                     "latest_handshake": int(parts[4]) if parts[4] != "0" else None,
                     "transfer_rx": int(parts[5]) if len(parts) > 5 else 0,
@@ -481,7 +479,7 @@ class WireGuardServerManager:
         if success and stdout.strip() == "OK":
             return True, "Server healthy"
         else:
-            return False, stderr or "Server unhealthy"
+            return False, "Server unhealthy"
 
 # Singleton instance
 _manager_instance: Optional[WireGuardServerManager] = None

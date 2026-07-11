@@ -4,7 +4,7 @@ WireGuard Peer Model - Track individual client configurations and keys
 
 from datetime import datetime
 from typing import Dict, Optional
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, Index
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, Index, func
 from sqlalchemy.orm import relationship
 
 from database.base import Base
@@ -17,9 +17,6 @@ class WireGuardPeer(Base):
     Tracks keys, IP allocations, and server assignments
     """
     __tablename__ = "wireguard_peers"
-    __table_args__ = (
-        Index('ix_peer_user_server', 'user_id', 'server_id'),
-    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
@@ -38,24 +35,37 @@ class WireGuardPeer(Base):
     device_type = Column(String, nullable=True)  # windows, macos, linux, ios, android
 
     # Status
-    is_active = Column(Boolean, default=True)  # Can be deactivated without deletion
-    is_revoked = Column(Boolean, default=False)  # Key has been revoked
+    is_active = Column(Boolean, nullable=False, default=True)  # Can be deactivated without deletion
+    is_revoked = Column(Boolean, nullable=False, default=False)  # Key has been revoked
 
     # Key rotation
-    key_version = Column(Integer, default=1)  # Increments on rotation
+    key_version = Column(Integer, nullable=False, default=1)  # Increments on rotation
     last_key_rotation_at = Column(DateTime, nullable=True)
     next_key_rotation_at = Column(DateTime, nullable=True)  # Scheduled rotation
 
     # Usage tracking
     last_handshake_at = Column(DateTime, nullable=True)  # Last successful WireGuard handshake
-    total_data_sent = Column(Integer, default=0)  # Bytes
-    total_data_received = Column(Integer, default=0)  # Bytes
+    total_data_sent = Column(Integer, nullable=False, default=0)  # Bytes
+    total_data_received = Column(Integer, nullable=False, default=0)  # Bytes
     connection_count = Column(Integer, default=0)  # Number of connection sessions
 
     # Timestamps
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     revoked_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index('ix_peer_user_server', 'user_id', 'server_id'),
+        # The API compares names case-insensitively; the database must enforce
+        # the same invariant for concurrent registration/reconnect requests.
+        Index(
+            'uq_wireguard_peer_user_device_name',
+            user_id,
+            func.lower(device_name),
+            unique=True,
+        ),
+        Index('uq_wireguard_peer_ipv4_address', 'ipv4_address', unique=True),
+    )
 
     # Relationships
     user = relationship("User", backref="wireguard_peers")

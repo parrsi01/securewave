@@ -57,12 +57,22 @@ def _create_token(data: dict, expires_delta: timedelta, secret: str) -> str:
 
 
 def create_access_token(user: User) -> str:
-    claims = {"sub": str(user.id), "email": user.email, "type": "access"}
+    claims = {
+        "sub": str(user.id),
+        "email": user.email,
+        "type": "access",
+        "ver": int(user.auth_token_version or 0),
+    }
     return _create_token(claims, timedelta(minutes=ACCESS_EXPIRE_MINUTES), ACCESS_SECRET)
 
 
 def create_refresh_token(user: User) -> str:
-    claims = {"sub": str(user.id), "email": user.email, "type": "refresh"}
+    claims = {
+        "sub": str(user.id),
+        "email": user.email,
+        "type": "refresh",
+        "ver": int(user.auth_token_version or 0),
+    }
     return _create_token(claims, timedelta(minutes=REFRESH_EXPIRE_MINUTES), REFRESH_SECRET)
 
 
@@ -78,6 +88,20 @@ def verify_refresh_token(token: str) -> dict:
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token type")
     return payload
+
+
+def token_version_matches(payload: dict, user: User) -> bool:
+    """Return whether a token belongs to the user's current auth generation.
+
+    Tokens issued before the version claim was introduced are treated as
+    version zero so they remain valid until the first explicit invalidation.
+    """
+    try:
+        token_version = int(payload.get("ver", 0))
+        user_version = int(user.auth_token_version or 0)
+    except (TypeError, ValueError):
+        return False
+    return token_version == user_version
 
 
 def get_current_user(
@@ -106,7 +130,12 @@ def get_current_user(
     except Exception as exc:  # pragma: no cover - safety net
         raise credentials_exception from exc
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if user is None:
+    try:
+        normalized_user_id = int(user_id)
+    except (TypeError, ValueError) as exc:
+        raise credentials_exception from exc
+
+    user = db.query(User).filter(User.id == normalized_user_id).first()
+    if user is None or not user.is_active or not token_version_matches(payload, user):
         raise credentials_exception
     return user

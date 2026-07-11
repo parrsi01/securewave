@@ -8,9 +8,11 @@ import secrets
 import logging
 import json
 import base64
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from cryptography.hazmat.primitives.twofactor.totp import TOTP
 from cryptography.hazmat.primitives.hashes import SHA1
 from cryptography.hazmat.backends import default_backend
@@ -32,6 +34,11 @@ PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 15
 MAX_FAILED_LOGIN_ATTEMPTS = 5
 ACCOUNT_LOCK_DURATION_MINUTES = 30
 BACKUP_CODES_COUNT = 10
+
+
+def _hash_one_time_token(token: str) -> str:
+    """Store only a fixed-length verifier for email/reset bearer tokens."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 class AuthService:
@@ -70,7 +77,7 @@ class AuthService:
             expires_at = datetime.utcnow() + timedelta(hours=EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS)
 
             # Update user
-            user.email_verification_token = token
+            user.email_verification_token = _hash_one_time_token(token)
             user.email_verification_token_expires = expires_at
             self.db.commit()
 
@@ -81,14 +88,14 @@ class AuthService:
             )
 
             if success:
-                logger.info(f"✓ Verification email sent to {user.email}")
+                logger.info("Verification email sent user_id=%s", user.id)
             else:
-                logger.warning(f"✗ Failed to send verification email to {user.email}")
+                logger.warning("Verification email failed user_id=%s", user.id)
 
             return success
 
         except Exception as e:
-            logger.error(f"✗ Error sending verification email: {e}")
+            logger.error("Verification email error exception_type=%s", type(e).__name__)
             self.db.rollback()
             return False
 
@@ -103,8 +110,11 @@ class AuthService:
             Tuple of (success, error_message)
         """
         try:
+            token_hash = _hash_one_time_token(token)
+            # Accept a legacy raw token only until it is consumed, allowing an
+            # in-flight verification link issued before this hardening to work.
             user = self.db.query(User).filter(
-                User.email_verification_token == token
+                User.email_verification_token.in_([token_hash, token])
             ).first()
 
             if not user:
@@ -120,11 +130,11 @@ class AuthService:
             user.email_verification_token_expires = None
             self.db.commit()
 
-            logger.info(f"✓ Email verified for user: {user.email}")
+            logger.info("Email verified user_id=%s", user.id)
             return True, None
 
         except Exception as e:
-            logger.error(f"✗ Error verifying email: {e}")
+            logger.error("Email verification error exception_type=%s", type(e).__name__)
             self.db.rollback()
             return False, "Internal error during verification"
 
@@ -143,18 +153,21 @@ class AuthService:
             Always returns True for security (don't reveal if email exists)
         """
         try:
-            user = self.db.query(User).filter(User.email == email).first()
+            normalized_email = email.strip().lower()
+            user = self.db.query(User).filter(
+                func.lower(User.email) == normalized_email
+            ).first()
 
             if not user:
                 # Don't reveal that email doesn't exist
-                logger.info(f"Password reset requested for non-existent email: {email}")
+                logger.info("Password reset request processed account_found=false")
                 return True
 
             # Check rate limiting (prevent abuse)
             if user.password_reset_requested_at:
                 time_since_last_request = datetime.utcnow() - user.password_reset_requested_at
                 if time_since_last_request < timedelta(minutes=5):
-                    logger.warning(f"Rate limit: Password reset requested too frequently for {email}")
+                    logger.warning("Password reset rate limited user_id=%s", user.id)
                     return True  # Don't reveal rate limiting
 
             # Generate reset token
@@ -162,7 +175,7 @@ class AuthService:
             expires_at = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRY_MINUTES)
 
             # Update user
-            user.password_reset_token = token
+            user.password_reset_token = _hash_one_time_token(token)
             user.password_reset_token_expires = expires_at
             user.password_reset_requested_at = datetime.utcnow()
             self.db.commit()
@@ -174,14 +187,14 @@ class AuthService:
             )
 
             if success:
-                logger.info(f"✓ Password reset email sent to {email}")
+                logger.info("Password reset email sent user_id=%s", user.id)
             else:
-                logger.warning(f"✗ Failed to send password reset email to {email}")
+                logger.warning("Password reset email failed user_id=%s", user.id)
 
             return True
 
         except Exception as e:
-            logger.error(f"✗ Error requesting password reset: {e}")
+            logger.error("Password reset request error exception_type=%s", type(e).__name__)
             self.db.rollback()
             return True  # Don't reveal errors
 
@@ -197,8 +210,9 @@ class AuthService:
             Tuple of (success, error_message)
         """
         try:
+            token_hash = _hash_one_time_token(token)
             user = self.db.query(User).filter(
-                User.password_reset_token == token
+                User.password_reset_token.in_([token_hash, token])
             ).first()
 
             if not user:
@@ -220,13 +234,14 @@ class AuthService:
             user.password_reset_requested_at = None
             user.failed_login_attempts = 0  # Reset failed attempts
             user.account_locked_until = None  # Unlock account
+            user.auth_token_version = int(user.auth_token_version or 0) + 1
             self.db.commit()
 
-            logger.info(f"✓ Password reset successfully for user: {user.email}")
+            logger.info("Password reset completed user_id=%s", user.id)
             return True, None
 
         except Exception as e:
-            logger.error(f"✗ Error resetting password: {e}")
+            logger.error("Password reset error exception_type=%s", type(e).__name__)
             self.db.rollback()
             return False, "Internal error during password reset"
 
@@ -329,11 +344,11 @@ class AuthService:
             user.totp_enabled = False  # Don't enable until verified
             self.db.commit()
 
-            logger.info(f"✓ 2FA setup initiated for user: {user.email}")
+            logger.info("Two-factor setup initiated user_id=%s", user.id)
             return secret, provisioning_uri, backup_codes
 
         except Exception as e:
-            logger.error(f"✗ Error setting up 2FA: {e}")
+            logger.error("2FA setup error exception_type=%s", type(e).__name__)
             self.db.rollback()
             raise
 
@@ -386,11 +401,11 @@ class AuthService:
             # Send confirmation email
             self.email_service.send_2fa_enabled_email(user.email)
 
-            logger.info(f"✓ 2FA enabled for user: {user.email}")
+            logger.info("Two-factor authentication enabled user_id=%s", user.id)
             return True, None
 
         except Exception as e:
-            logger.error(f"✗ Error enabling 2FA: {e}")
+            logger.error("2FA enable error exception_type=%s", type(e).__name__)
             self.db.rollback()
             return False, "Internal error"
 
@@ -438,13 +453,13 @@ class AuthService:
                 user.totp_backup_codes = self._encrypt_value(json.dumps(backup_codes))
                 self.db.commit()
 
-                logger.info(f"✓ Backup code used for user: {user.email}")
+                logger.info("Two-factor backup code consumed user_id=%s", user.id)
                 return True
 
             return False
 
         except Exception as e:
-            logger.error(f"✗ Error verifying backup code: {e}")
+            logger.error("2FA backup verification error exception_type=%s", type(e).__name__)
             return False
 
     def disable_2fa(self, user: User) -> bool:
@@ -463,11 +478,11 @@ class AuthService:
             user.totp_backup_codes = None
             self.db.commit()
 
-            logger.info(f"✓ 2FA disabled for user: {user.email}")
+            logger.info("Two-factor authentication disabled user_id=%s", user.id)
             return True
 
         except Exception as e:
-            logger.error(f"✗ Error disabling 2FA: {e}")
+            logger.error("2FA disable error exception_type=%s", type(e).__name__)
             self.db.rollback()
             return False
 
@@ -505,14 +520,12 @@ class AuthService:
                     user.account_locked_until = datetime.utcnow() + timedelta(
                         minutes=ACCOUNT_LOCK_DURATION_MINUTES
                     )
-                    logger.warning(
-                        f"⚠️ Account locked due to failed login attempts: {user.email}"
-                    )
+                    logger.warning("Account locked after failed authentication user_id=%s", user.id)
 
             self.db.commit()
 
         except Exception as e:
-            logger.error(f"✗ Error recording login attempt: {e}")
+            logger.error("Login attempt audit error exception_type=%s", type(e).__name__)
             self.db.rollback()
 
     def is_account_locked(self, user: User) -> bool:
@@ -534,10 +547,10 @@ class AuthService:
             user.account_locked_until = None
             self.db.commit()
 
-            logger.info(f"✓ Account unlocked: {user.email}")
+            logger.info("Account unlocked user_id=%s", user.id)
             return True
 
         except Exception as e:
-            logger.error(f"✗ Error unlocking account: {e}")
+            logger.error("Account unlock error exception_type=%s", type(e).__name__)
             self.db.rollback()
             return False

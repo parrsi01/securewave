@@ -87,41 +87,51 @@ class DatabaseInitializer:
             from database.session import SessionLocal
             from models.user import User
             from models.vpn_server import VPNServer
+            from services.hashing_service import is_password_hash
             from datetime import datetime
-            import bcrypt
 
             db = SessionLocal()
 
-            # Check if admin user exists
-            admin = db.query(User).filter_by(email="admin@securewave.app").first()
+            bootstrap_email = os.getenv("SECUREWAVE_BOOTSTRAP_ADMIN_EMAIL", "").strip().lower()
+            bootstrap_hash = os.getenv("SECUREWAVE_BOOTSTRAP_ADMIN_PASSWORD_HASH", "").strip()
+            admin = (
+                db.query(User).filter(User.email == bootstrap_email).first()
+                if bootstrap_email
+                else None
+            )
 
-            if not admin:
-                logger.info("Creating admin user...")
-                import secrets as _secrets
-                generated_password = _secrets.token_urlsafe(16)
-                password_hash = bcrypt.hashpw(
-                    generated_password.encode('utf-8'),
-                    bcrypt.gensalt()
-                ).decode('utf-8')
-
-                admin = User(
-                    username="admin",
-                    email="admin@securewave.app",
-                    full_name="System Administrator",
-                    password_hash=password_hash,
-                    email_verified=True,
-                    is_admin=True,
-                    created_at=datetime.utcnow()
-                )
-                db.add(admin)
-                logger.info("✓ Admin user created (email: admin@securewave.app). Password must be changed on first login.")
+            if bootstrap_email and bootstrap_hash:
+                if not is_password_hash(bootstrap_hash):
+                    logger.error(
+                        "Configured bootstrap admin password is not a recognized hash; "
+                        "account creation skipped"
+                    )
+                elif not admin:
+                    admin = User(
+                        email=bootstrap_email,
+                        hashed_password=bootstrap_hash,
+                        email_verified=True,
+                        is_admin=True,
+                        created_at=datetime.utcnow(),
+                    )
+                    db.add(admin)
+                    logger.info("Created configured bootstrap admin account")
+                else:
+                    logger.info("Configured bootstrap admin account already exists")
             else:
-                logger.info("✓ Admin user already exists")
+                logger.info(
+                    "No bootstrap admin credentials configured; skipping admin creation. "
+                    "Set SECUREWAVE_BOOTSTRAP_ADMIN_EMAIL and a pre-hashed password to opt in."
+                )
 
             # Check if demo servers exist
             server_count = db.query(VPNServer).count()
 
-            if server_count == 0:
+            should_seed_demo = (
+                self.environment != "production"
+                and os.getenv("SECUREWAVE_SEED_DEMO_SERVERS", "false").lower() == "true"
+            )
+            if server_count == 0 and should_seed_demo:
                 logger.info("Creating demo VPN servers...")
 
                 demo_servers = [
@@ -138,8 +148,13 @@ class DatabaseInitializer:
                         "hcloud_server_state": "running",
                         "public_ip": "demo.us-east.securewave.app",
                         "endpoint": "demo.us-east.securewave.app:51820",
+                        "wg_public_key": "demo-runtime-proof-required",
+                        "wg_private_key_encrypted": "not-a-production-key",
                         "status": "demo",
-                        "health_status": "healthy",
+                        # Seed metadata is never runtime evidence. Protocol
+                        # availability remains fail-closed until monitoring
+                        # records a real health check.
+                        "health_status": "unknown",
                         "max_connections": 1000,
                         "priority": 100,
                     },
@@ -156,8 +171,10 @@ class DatabaseInitializer:
                         "hcloud_server_state": "running",
                         "public_ip": "demo.eu-west.securewave.app",
                         "endpoint": "demo.eu-west.securewave.app:51820",
+                        "wg_public_key": "demo-runtime-proof-required",
+                        "wg_private_key_encrypted": "not-a-production-key",
                         "status": "demo",
-                        "health_status": "healthy",
+                        "health_status": "unknown",
                         "max_connections": 1000,
                         "priority": 90,
                     },
@@ -174,8 +191,10 @@ class DatabaseInitializer:
                         "hcloud_server_state": "running",
                         "public_ip": "demo.asia-se.securewave.app",
                         "endpoint": "demo.asia-se.securewave.app:51820",
+                        "wg_public_key": "demo-runtime-proof-required",
+                        "wg_private_key_encrypted": "not-a-production-key",
                         "status": "demo",
-                        "health_status": "healthy",
+                        "health_status": "unknown",
                         "max_connections": 1000,
                         "priority": 85,
                     },
@@ -186,8 +205,10 @@ class DatabaseInitializer:
                     db.add(server)
 
                 logger.info(f"✓ Created {len(demo_servers)} demo VPN servers")
-            else:
+            elif server_count:
                 logger.info(f"✓ Found {server_count} existing VPN servers")
+            else:
+                logger.info("No server inventory seeded; register runtime-verified servers explicitly.")
 
             db.commit()
             db.close()

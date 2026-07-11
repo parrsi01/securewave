@@ -13,6 +13,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 from jinja2 import Template
 
+from utils.sensitive_data import redact_text, sanitize_for_evidence
+
 load_dotenv()
 load_dotenv(".env.production")
 
@@ -44,7 +46,7 @@ class EnhancedEmailService:
         self.enabled = self._check_provider_config()
 
         if not self.enabled:
-            logger.warning(f"Email service disabled - provider '{self.provider}' not configured")
+            logger.warning("Email service disabled provider=%s reason=not_configured", self.provider)
 
     def _check_provider_config(self) -> bool:
         """Check if provider is properly configured"""
@@ -94,7 +96,11 @@ class EnhancedEmailService:
             True if successful
         """
         if not self.enabled:
-            logger.warning(f"Email not sent - service disabled: {subject} to {to_email}")
+            logger.warning(
+                "Email not sent provider=%s user_id=%s reason=disabled",
+                self.provider,
+                user_id,
+            )
             return False
 
         try:
@@ -106,7 +112,7 @@ class EnhancedEmailService:
             elif self.provider == "aws_ses":
                 success, message_id = self._send_via_ses(to_email, subject, html_content, text_content)
             else:
-                logger.error(f"Unknown email provider: {self.provider}")
+                logger.error("Unknown email provider provider=%s", self.provider)
                 return False
 
             # Log email
@@ -123,14 +129,14 @@ class EnhancedEmailService:
                 )
 
             if success:
-                logger.info(f"✓ Email sent via {self.provider}: {subject} to {to_email}")
+                logger.info("Email sent provider=%s user_id=%s", self.provider, user_id)
             else:
-                logger.error(f"✗ Email failed via {self.provider}: {subject} to {to_email}")
+                logger.error("Email failed provider=%s user_id=%s", self.provider, user_id)
 
             return success
 
         except Exception as e:
-            logger.error(f"✗ Email error: {e}")
+            logger.error("Email provider error provider=%s exception_type=%s", self.provider, type(e).__name__)
             if self.db:
                 self._log_email(
                     to_email=to_email,
@@ -139,7 +145,7 @@ class EnhancedEmailService:
                     user_id=user_id,
                     category=category,
                     status="failed",
-                    error_message=str(e),
+                error_message=redact_text(e),
                     metadata=metadata
                 )
             return False
@@ -177,7 +183,7 @@ class EnhancedEmailService:
             return True, None
 
         except Exception as e:
-            logger.error(f"SMTP error: {e}")
+            logger.error("SMTP delivery error exception_type=%s", type(e).__name__)
             return False, None
 
     def _send_via_sendgrid(
@@ -214,7 +220,7 @@ class EnhancedEmailService:
             logger.error("sendgrid package not installed - run: pip install sendgrid")
             return False, None
         except Exception as e:
-            logger.error(f"SendGrid error: {e}")
+            logger.error("SendGrid delivery error exception_type=%s", type(e).__name__)
             return False, None
 
     def _send_via_ses(
@@ -250,7 +256,7 @@ class EnhancedEmailService:
             logger.error("boto3 not installed - run: pip install boto3")
             return False, None
         except Exception as e:
-            logger.error(f"AWS SES error: {e}")
+            logger.error("AWS SES delivery error exception_type=%s", type(e).__name__)
             return False, None
 
     # ===========================
@@ -284,8 +290,8 @@ class EnhancedEmailService:
                 provider=self.provider,
                 provider_message_id=provider_message_id,
                 status=status,
-                error_message=error_message,
-                metadata=metadata,
+                error_message=redact_text(error_message) if error_message else None,
+                extra_data=sanitize_for_evidence(metadata or {}),
                 sent_at=datetime.utcnow() if status == "sent" else None,
                 failed_at=datetime.utcnow() if status == "failed" else None,
             )
@@ -294,7 +300,7 @@ class EnhancedEmailService:
             self.db.commit()
 
         except Exception as e:
-            logger.error(f"Failed to log email: {e}")
+            logger.error("Failed to persist email log exception_type=%s", type(e).__name__)
             self.db.rollback()
 
     # ===========================

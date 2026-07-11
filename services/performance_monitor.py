@@ -85,7 +85,7 @@ class PerformanceMonitorService:
                 cpu_percent=cpu_percent,
                 user_id=user_id,
                 status_code=status_code,
-                metadata=metadata or {}
+                extra_data=metadata or {}
             )
 
             db.add(metric)

@@ -20,6 +20,7 @@ from database.session import get_db
 from models.user import User
 from models.vpn_server import VPNServer
 from services.jwt_service import get_current_user
+from services.protocol_availability_service import ProtocolAvailabilityService
 from services.wireguard_service import WireGuardService
 from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 from services.wireguard_server_manager import (
@@ -353,6 +354,12 @@ async def run_health_check(
         # Simulate health check in mock mode
         server.health_status = "healthy"
         server.last_health_check = datetime.utcnow()
+        ProtocolAvailabilityService.record_evidence(
+            server,
+            "wireguard",
+            healthy=True,
+            observed_at=server.last_health_check,
+        )
         server.consecutive_health_failures = 0
         db.commit()
 
@@ -370,6 +377,12 @@ async def run_health_check(
 
         # Update server record
         server.last_health_check = datetime.utcnow()
+        ProtocolAvailabilityService.record_evidence(
+            server,
+            "wireguard",
+            healthy=healthy,
+            observed_at=server.last_health_check,
+        )
         if healthy:
             server.health_status = "healthy"
             server.consecutive_health_failures = 0
@@ -391,16 +404,22 @@ async def run_health_check(
         }
 
     except Exception as e:
-        logger.error(f"Health check failed for {server_id}: {e}")
+        logger.error("Health check failed server_id=%s exception_type=%s", server_id, type(e).__name__)
         server.consecutive_health_failures += 1
         server.health_status = "unreachable"
         server.last_health_check = datetime.utcnow()
+        ProtocolAvailabilityService.record_evidence(
+            server,
+            "wireguard",
+            healthy=False,
+            observed_at=server.last_health_check,
+        )
         db.commit()
 
         return {
             "server_id": server_id,
             "healthy": False,
-            "message": str(e),
+            "message": "Health check failed",
             "error": True,
         }
 
@@ -489,10 +508,10 @@ async def get_server_metrics(
             }
 
     except Exception as e:
-        logger.error(f"Failed to get metrics for {server_id}: {e}")
+        logger.error("Metrics retrieval failed server_id=%s exception_type=%s", server_id, type(e).__name__)
         return {
             "server_id": server_id,
-            "error": str(e),
+            "error": "Failed to retrieve metrics",
         }
 
 
@@ -541,10 +560,10 @@ async def list_server_peers(
             }
 
     except Exception as e:
-        logger.error(f"Failed to list peers for {server_id}: {e}")
+        logger.error("Peer listing failed server_id=%s exception_type=%s", server_id, type(e).__name__)
         return {
             "server_id": server_id,
-            "error": str(e),
+            "error": "Failed to list peers",
             "peers": [],
         }
 
@@ -601,7 +620,7 @@ async def sync_server_peers(
                 errors.append(f"User {user.id}: {message}")
         except Exception as e:
             failed += 1
-            errors.append(f"User {user.id}: {str(e)}")
+            errors.append(f"User {user.id}: synchronization failed")
 
     db.commit()
 
@@ -650,11 +669,11 @@ async def add_peer_to_server(
         }
 
     except Exception as e:
-        logger.error(f"Failed to add peer to {server_id}: {e}")
+        logger.error("Peer addition failed server_id=%s exception_type=%s", server_id, type(e).__name__)
         return {
             "server_id": server_id,
             "success": False,
-            "message": str(e),
+            "message": "Peer addition failed",
         }
 
 
@@ -692,9 +711,9 @@ async def remove_peer_from_server(
         }
 
     except Exception as e:
-        logger.error(f"Failed to remove peer from {server_id}: {e}")
+        logger.error("Peer removal failed server_id=%s exception_type=%s", server_id, type(e).__name__)
         return {
             "server_id": server_id,
             "success": False,
-            "message": str(e),
+            "message": "Peer removal failed",
         }

@@ -17,7 +17,9 @@ keepalive = 5
 accesslog = "-"
 errorlog = "-"
 loglevel = "info"
-access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
+# Do not emit request targets, referrers, or user agents here: query strings
+# and headers can contain bearer credentials outside FastAPI's log filter.
+access_log_format = '%(h)s %(t)s %(s)s %(b)s'
 
 # Process naming
 proc_name = "securewave-vpn"

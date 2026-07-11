@@ -1,8 +1,42 @@
+import hashlib
+import json
 from pathlib import Path
 
 from routes import downloads
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _manifest_row(
+    filename: str,
+    *,
+    status: str = "available",
+    platform: str = "linux",
+    architecture: str = "x64",
+    url: str | None = None,
+    checksum_sha256: str | None = None,
+) -> dict:
+    row = {
+        "platform": platform,
+        "architecture": architecture,
+        "filename": filename,
+        "url": url if url is not None else f"/downloads/{filename}",
+        "status": status,
+        "notes": "Focused download manifest test artifact.",
+    }
+    if checksum_sha256 is not None:
+        row["checksum_sha256"] = checksum_sha256
+    return row
+
+
+def _configure_downloads(monkeypatch, tmp_path, rows) -> Path:
+    downloads_dir = tmp_path / "downloads"
+    downloads_dir.mkdir()
+    manifest_path = downloads_dir / "manifest.json"
+    manifest_path.write_text(json.dumps({"version": "test", "downloads": rows}))
+    monkeypatch.setattr(downloads, "DOWNLOADS_DIR", downloads_dir)
+    monkeypatch.setattr(downloads, "DOWNLOAD_MANIFEST_PATH", manifest_path)
+    return downloads_dir
 
 
 def test_download_manifest_exposes_apple_handoff_zip():
@@ -29,13 +63,16 @@ def test_download_manifest_exposes_macos_demo_slots():
     assert arm64_demo.architecture == "arm64"
     assert x64_demo.platform == "macos"
     assert x64_demo.architecture == "x64"
-    for demo in (arm64_demo, x64_demo):
-        if (downloads.DOWNLOADS_DIR / demo.filename).exists():
-            assert demo.status == "available"
-            assert demo.url == f"/downloads/{demo.filename}"
-        else:
-            assert demo.status == "coming_soon"
-            assert demo.url == "#"
+    if (downloads.DOWNLOADS_DIR / arm64_demo.filename).exists():
+        assert arm64_demo.status == "available"
+        assert arm64_demo.url == f"/downloads/{arm64_demo.filename}"
+    else:
+        assert arm64_demo.status == "coming_soon"
+        assert arm64_demo.url == "#"
+
+    # Presence alone must not publish an artifact the manifest still withholds.
+    assert x64_demo.status == "coming_soon"
+    assert x64_demo.url == "#"
 
 
 def test_linux_x64_deb_is_beta_build_evidence_not_release_download():
@@ -106,3 +143,155 @@ def test_macos_detection_can_recommend_universal_handoff():
             break
 
     assert recommended == "/downloads/securewave-apple-release-handoff.zip"
+
+
+def test_coming_soon_status_is_not_promoted_or_served_when_file_exists(
+    monkeypatch,
+    tmp_path,
+    client,
+):
+    rows = [_manifest_row("withheld.bin", status="coming_soon")]
+    downloads_dir = _configure_downloads(monkeypatch, tmp_path, rows)
+    (downloads_dir / "withheld.bin").write_bytes(b"not released")
+
+    [entry] = downloads._build_download_entries()
+
+    assert entry.status == "coming_soon"
+    assert entry.url == "#"
+    assert entry.size_bytes is None
+    assert client.get("/api/downloads/file/withheld.bin").status_code == 404
+
+
+def test_available_local_file_requires_matching_checksum(monkeypatch, tmp_path, client):
+    content = b"trusted release artifact"
+    checksum = hashlib.sha256(content).hexdigest()
+    rows = [_manifest_row("trusted.bin", checksum_sha256=checksum)]
+    downloads_dir = _configure_downloads(monkeypatch, tmp_path, rows)
+    (downloads_dir / "trusted.bin").write_bytes(content)
+
+    [entry] = downloads._build_download_entries()
+    assert entry.status == "available"
+    assert entry.checksum_sha256 == checksum
+
+    response = client.get("/api/downloads/file/trusted.bin")
+    assert response.status_code == 200
+    assert response.content == content
+
+
+def test_checksum_mismatch_fails_closed_for_listing_and_serving(monkeypatch, tmp_path, client):
+    rows = [_manifest_row("tampered.bin", checksum_sha256="0" * 64)]
+    downloads_dir = _configure_downloads(monkeypatch, tmp_path, rows)
+    (downloads_dir / "tampered.bin").write_bytes(b"different content")
+
+    response = client.get("/api/downloads")
+    assert response.status_code == 200
+    [entry] = response.json()["downloads"]
+    assert entry["status"] == "coming_soon"
+    assert entry["url"] == "#"
+    assert entry["size_bytes"] is None
+
+    download_response = client.get("/api/downloads/file/tampered.bin")
+    assert download_response.status_code == 404
+
+
+def test_malformed_manifest_rows_are_skipped_without_api_failure(monkeypatch, tmp_path, client):
+    rows = [
+        _manifest_row("valid.bin", status="coming_soon"),
+        _manifest_row("../escape.bin"),
+        {"platform": "linux"},
+        {**_manifest_row("extra.bin"), "unexpected": "field"},
+        {**_manifest_row("wrong-status.bin"), "status": "published"},
+        _manifest_row("unsafe-url.bin", status="beta", url="javascript:alert(1)"),
+        {
+            **_manifest_row("unsafe-evidence.bin", status="beta", url="https://example.invalid/build"),
+            "evidence_url": "http://insecure.example.invalid/evidence",
+        },
+    ]
+    _configure_downloads(monkeypatch, tmp_path, rows)
+
+    response = client.get("/api/downloads")
+
+    assert response.status_code == 200
+    assert [entry["filename"] for entry in response.json()["downloads"]] == ["valid.bin"]
+
+
+def test_invalid_manifest_structure_uses_safe_fallback(monkeypatch, tmp_path, client):
+    downloads_dir = _configure_downloads(monkeypatch, tmp_path, [])
+    manifest_path = downloads_dir / "manifest.json"
+    manifest_path.write_text("{}")
+
+    response = client.get("/api/downloads")
+
+    assert response.status_code == 200
+    entries = response.json()["downloads"]
+    beta = next(entry for entry in entries if entry["filename"] == "securewave-linux-x64.deb")
+    assert beta["status"] == "beta"
+    assert beta["evidence_url"] == beta["url"]
+
+
+def test_unlisted_and_traversal_files_are_not_served(monkeypatch, tmp_path, client):
+    downloads_dir = _configure_downloads(monkeypatch, tmp_path, [])
+    (downloads_dir / "unlisted.bin").write_bytes(b"not public")
+
+    unlisted = client.get("/api/downloads/file/unlisted.bin")
+    traversal = client.get("/api/downloads/file/%2E%2E%2Fsecret.bin")
+
+    assert unlisted.status_code == 404
+    assert traversal.status_code == 400
+
+
+def test_platform_detection_never_recommends_beta_or_coming_soon(
+    monkeypatch,
+    tmp_path,
+    client,
+):
+    rows = [
+        _manifest_row(
+            "linux-beta.deb",
+            status="beta",
+            url="https://example.invalid/build-evidence",
+        ),
+        _manifest_row("linux-withheld.tar.gz", status="coming_soon"),
+    ]
+    downloads_dir = _configure_downloads(monkeypatch, tmp_path, rows)
+    (downloads_dir / "linux-beta.deb").write_bytes(b"beta")
+    (downloads_dir / "linux-withheld.tar.gz").write_bytes(b"withheld")
+
+    response = client.get(
+        "/api/downloads/detect",
+        headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["recommended_download"] is None
+    assert client.get("/api/downloads/file/linux-beta.deb").status_code == 404
+
+
+def test_public_download_urls_share_guarded_runtime_truth(monkeypatch, tmp_path, client):
+    content = b"public artifact"
+    checksum = hashlib.sha256(content).hexdigest()
+    rows = [
+        _manifest_row("public.bin", checksum_sha256=checksum),
+        _manifest_row("withheld.bin", status="coming_soon"),
+        _manifest_row(
+            "beta.bin",
+            status="beta",
+            url="https://example.invalid/build-evidence",
+        ),
+    ]
+    downloads_dir = _configure_downloads(monkeypatch, tmp_path, rows)
+    (downloads_dir / "public.bin").write_bytes(content)
+    (downloads_dir / "withheld.bin").write_bytes(b"withheld")
+    (downloads_dir / "beta.bin").write_bytes(b"beta")
+    (downloads_dir / "unlisted.bin").write_bytes(b"unlisted")
+
+    runtime_manifest = client.get("/downloads/manifest.json")
+    assert runtime_manifest.status_code == 200
+    statuses = {item["filename"]: item["status"] for item in runtime_manifest.json()["downloads"]}
+    assert statuses == {"public.bin": "available", "withheld.bin": "coming_soon", "beta.bin": "beta"}
+
+    assert client.get("/downloads/public.bin").content == content
+    assert client.get("/downloads/withheld.bin").status_code == 404
+    assert client.get("/downloads/beta.bin").status_code == 404
+    assert client.get("/downloads/unlisted.bin").status_code == 404
+    assert client.get("/downloads/%2E%2E%2Fsecret.bin").status_code == 400

@@ -9,7 +9,7 @@ Adds:
 - Email templates for standardized communications
 - Email engagement tracking (opens, clicks, bounces)
 """
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
@@ -21,13 +21,33 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(table_name: str) -> bool:
+    if context.is_offline_mode():
+        return False
+    return table_name in set(sa.inspect(op.get_bind()).get_table_names())
+
+
+def _create_table_if_missing(table_name: str, *columns) -> None:
+    if not _table_exists(table_name):
+        op.create_table(table_name, *columns)
+
+
+def _create_index_if_missing(index_name: str, table_name: str, columns) -> None:
+    if context.is_offline_mode() or not _table_exists(table_name):
+        op.create_index(index_name, table_name, columns)
+        return
+    indexes = {index["name"] for index in sa.inspect(op.get_bind()).get_indexes(table_name)}
+    if index_name not in indexes:
+        op.create_index(index_name, table_name, columns)
+
+
 def upgrade():
     """Add email tracking and template tables"""
 
     # ===========================
     # EMAIL LOGS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'email_logs',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True, index=True),
@@ -67,14 +87,14 @@ def upgrade():
     )
 
     # Create composite indexes for common queries
-    op.create_index('ix_email_logs_user_status', 'email_logs', ['user_id', 'status'])
-    op.create_index('ix_email_logs_template_status', 'email_logs', ['template_name', 'status'])
-    op.create_index('ix_email_logs_created_status', 'email_logs', ['created_at', 'status'])
+    _create_index_if_missing('ix_email_logs_user_status', 'email_logs', ['user_id', 'status'])
+    _create_index_if_missing('ix_email_logs_template_status', 'email_logs', ['template_name', 'status'])
+    _create_index_if_missing('ix_email_logs_created_status', 'email_logs', ['created_at', 'status'])
 
     # ===========================
     # EMAIL TEMPLATES TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'email_templates',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('name', sa.String(), unique=True, nullable=False, index=True),
@@ -96,7 +116,7 @@ def upgrade():
     )
 
     # Create index for active templates by category
-    op.create_index('ix_email_templates_category_active', 'email_templates', ['category', 'is_active'])
+    _create_index_if_missing('ix_email_templates_category_active', 'email_templates', ['category', 'is_active'])
 
 
 def downgrade():

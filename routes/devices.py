@@ -18,6 +18,8 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from pydantic import BaseModel, Field, ConfigDict
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database.session import get_db
@@ -28,6 +30,7 @@ from models.wireguard_peer import WireGuardPeer
 from services.jwt_service import get_current_user
 from services.vpn_peer_manager import get_peer_manager
 from services.vpn_server_service import VPNServerService
+from services.protocol_availability_service import ProtocolAvailabilityService
 from services.subscription_access import require_active_subscription
 from services.wireguard_server_manager import (
     get_wireguard_server_manager,
@@ -65,6 +68,38 @@ def get_device_limit(user: User, db: Session) -> int:
     if "premium" in plan_name or "pro" in plan_name:
         return DEVICE_LIMITS["premium"]
     return DEFAULT_DEVICE_LIMIT
+
+
+def _require_wireguard_runtime_evidence(server: VPNServer) -> None:
+    readiness = ProtocolAvailabilityService().evaluate(server, "wireguard")
+    if not readiness.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=readiness.reason or "WireGuard runtime evidence is unavailable.",
+        )
+
+
+async def _register_peer_or_raise(server: VPNServer, peer: WireGuardPeer) -> None:
+    """Confirm data-plane registration before any config-bearing response."""
+    if os.getenv("TESTING", "").lower() == "true" or os.getenv("WG_MOCK_MODE", "").lower() == "true":
+        return
+    try:
+        manager = get_wireguard_server_manager()
+        conn = server_connection_from_db(server)
+        success, _ = await manager.add_peer(conn, peer.public_key, peer.ipv4_address)
+    except Exception as exc:
+        logger.warning(
+            "WireGuard peer registration failed device_id=%s server_id=%s exception_type=%s",
+            peer.id,
+            server.server_id,
+            type(exc).__name__,
+        )
+        success = False
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VPN peer registration could not be confirmed.",
+        )
 
 
 # =============================================================================
@@ -214,6 +249,7 @@ async def add_device(
     """
     await require_active_subscription(db, current_user)
     peer_manager = get_peer_manager(db)
+    device_name = request.name.strip()
 
     # Check device limit
     existing_peers = peer_manager.list_user_peers(current_user.id)
@@ -228,7 +264,7 @@ async def add_device(
 
     # Check for duplicate name
     for peer in existing_peers:
-        if peer.device_name and peer.device_name.lower() == request.name.lower():
+        if peer.device_name and peer.device_name.lower() == device_name.lower():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Device name already exists"
@@ -246,6 +282,7 @@ async def add_device(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Server not found"
             )
+        _require_wireguard_runtime_evidence(server)
 
     # Validate device type
     valid_types = ["windows", "macos", "linux", "ios", "android", "router", "other"]
@@ -258,26 +295,39 @@ async def add_device(
         peer = peer_manager.create_peer(
             user=current_user,
             server=server,
-            device_name=request.name,
-            device_type=device_type
+            device_name=device_name,
+            device_type=device_type,
+            max_active_devices=device_limit,
         )
 
         if server:
             try:
-                manager = get_wireguard_server_manager()
-                conn = server_connection_from_db(server)
-                await manager.add_peer(conn, peer.public_key, peer.ipv4_address)
-            except Exception as e:
-                logger.warning(f"Peer registration deferred for device {peer.id}: {e}")
+                await _register_peer_or_raise(server, peer)
+            except HTTPException:
+                peer.server_id = None
+                peer.is_active = False
+                db.commit()
+                raise
 
         return _device_response(peer)
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to create device: {e}")
+        logger.error("Failed to create device exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create device"
         )
+
+
+@router.get("/limits/info")
+async def get_device_limits(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get device limits before dynamic ``/{device_id}`` routing can match."""
+    return _device_limits_payload(current_user, db)
 
 
 @router.get("/{device_id}", response_model=DeviceResponse)
@@ -324,7 +374,7 @@ async def rename_device(
     existing = db.query(WireGuardPeer).filter(
         WireGuardPeer.user_id == current_user.id,
         WireGuardPeer.id != device_id,
-        WireGuardPeer.device_name == request.name
+        func.lower(WireGuardPeer.device_name) == request.name.strip().lower(),
     ).first()
 
     if existing:
@@ -333,8 +383,15 @@ async def rename_device(
             detail="Device name already exists"
         )
 
-    peer.device_name = request.name
-    db.commit()
+    peer.device_name = request.name.strip()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Device name already exists",
+        ) from exc
     db.refresh(peer)
 
     return _device_response(peer)
@@ -379,6 +436,7 @@ async def set_device_server_preference(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"This server requires a {server.tier_restriction} subscription",
             )
+        _require_wireguard_runtime_evidence(server)
 
     # Best-effort cleanup on old server to avoid stale peers.
     if peer.server_id and (server is None or peer.server_id != server.id):
@@ -437,7 +495,12 @@ async def revoke_device(
                 conn = server_connection_from_db(server)
                 await manager.remove_peer(conn, peer.public_key)
             except Exception as e:
-                logger.warning(f"Failed to remove peer {peer.id} from server {server.server_id}: {e}")
+                logger.warning(
+                    "Peer removal failed device_id=%s server_id=%s exception_type=%s",
+                    peer.id,
+                    server.server_id,
+                    type(e).__name__,
+                )
     success = peer_manager.revoke_peer(device_id)
 
     if not success:
@@ -499,6 +562,7 @@ async def get_device_config(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No available servers"
         )
+    _require_wireguard_runtime_evidence(server)
 
     peer_manager = get_peer_manager(db)
 
@@ -518,14 +582,10 @@ async def get_device_config(
 
             peer.server_id = server.id
             db.add(peer)
-            db.commit()
+            db.flush()
 
-        try:
-            manager = get_wireguard_server_manager()
-            conn = server_connection_from_db(server)
-            await manager.add_peer(conn, peer.public_key, peer.ipv4_address)
-        except Exception as e:
-            logger.warning(f"Peer registration deferred for device {peer.id}: {e}")
+        await _register_peer_or_raise(server, peer)
+        db.commit()
 
         config = peer_manager.generate_config(peer, server)
         qr_bytes = peer_manager.generate_config_qr_code(peer, server)
@@ -543,8 +603,12 @@ async def get_device_config(
             filename=f"securewave-{server.server_id}.conf"
         )
 
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
-        logger.error(f"Failed to generate config: {e}")
+        db.rollback()
+        logger.error("Failed to generate config exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate configuration"
@@ -588,6 +652,7 @@ async def download_device_config(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No available servers"
         )
+    _require_wireguard_runtime_evidence(server)
 
     peer_manager = get_peer_manager(db)
     if peer.server_id != server.id:
@@ -605,7 +670,13 @@ async def download_device_config(
 
         peer.server_id = server.id
         db.add(peer)
+        db.flush()
+    try:
+        await _register_peer_or_raise(server, peer)
         db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     filename, config = peer_manager.generate_config_file(peer, server)
 
     return Response(
@@ -693,12 +764,16 @@ async def rotate_device_keys(
                     await manager.remove_peer(conn, old_public_key)
                     await manager.add_peer(conn, updated_peer.public_key, updated_peer.ipv4_address)
                 except Exception as e:
-                    logger.warning(f"Peer rotation sync deferred for device {device_id}: {e}")
+                    logger.warning(
+                        "Peer rotation sync deferred device_id=%s exception_type=%s",
+                        device_id,
+                        type(e).__name__,
+                    )
 
         return _device_response(updated_peer)
 
     except Exception as e:
-        logger.error(f"Failed to rotate keys: {e}")
+        logger.error("Failed to rotate keys exception_type=%s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to rotate keys"
@@ -709,11 +784,7 @@ async def rotate_device_keys(
 # Device Limits Endpoint
 # =============================================================================
 
-@router.get("/limits/info")
-async def get_device_limits(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+def _device_limits_payload(current_user: User, db: Session) -> dict:
     """Get device limits for current user's subscription tier."""
     peer_manager = get_peer_manager(db)
     peers = peer_manager.list_user_peers(current_user.id)

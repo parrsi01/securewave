@@ -12,14 +12,8 @@ log_info() { echo "[info] $1"; }
 log_error() { echo "[error] $1" >&2; }
 
 generate_local_database() {
-  python3 - <<'PY'
-from database.session import engine
-from database import base
-from models import user, subscription, audit_log, vpn_server, vpn_connection, wireguard_peer
-
-base.Base.metadata.create_all(bind=engine)
-print("Database tables ready")
-PY
+  AUTO_CREATE_TABLES=false python -m alembic upgrade head
+  echo "Database migrations applied"
 }
 
 run_local() {

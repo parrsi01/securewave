@@ -119,6 +119,17 @@ class TestXSSProtection:
         assert response.status_code != 500, \
             f"XSS payload caused server error: {payload}"
 
+    def test_validation_response_does_not_reflect_sensitive_input(self, client):
+        private_key = "PrivateKeyThatMustNotBeEchoed"
+        response = client.post(
+            "/api/auth/login",
+            json={"email": "test@example.com", "password": {"private_key": private_key}},
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert private_key not in response.text
+        details = response.json()["error"]["details"]
+        assert details[0]["message"] == "Invalid value"
+
 
 # ---------------------------------------------------------------------------
 # SQL Injection Blocking

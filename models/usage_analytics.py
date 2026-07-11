@@ -22,44 +22,44 @@ class UserUsageStats(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
 
     # Connection statistics
-    total_connections = Column(Integer, default=0)
-    active_connections = Column(Integer, default=0)
-    total_connection_time_seconds = Column(BigInteger, default=0)
-    average_session_duration_seconds = Column(Integer, default=0)
+    total_connections = Column(Integer, nullable=False, default=0)
+    active_connections = Column(Integer, nullable=False, default=0)
+    total_connection_time_seconds = Column(BigInteger, nullable=False, default=0)
+    average_session_duration_seconds = Column(Integer, nullable=False, default=0)
     last_connection_at = Column(DateTime, nullable=True)
 
     # Data usage
-    total_bytes_uploaded = Column(BigInteger, default=0)
-    total_bytes_downloaded = Column(BigInteger, default=0)
-    total_data_gb = Column(Float, default=0.0)
-    current_month_data_gb = Column(Float, default=0.0)  # Reset monthly
+    total_bytes_uploaded = Column(BigInteger, nullable=False, default=0)
+    total_bytes_downloaded = Column(BigInteger, nullable=False, default=0)
+    total_data_gb = Column(Float, nullable=False, default=0.0)
+    current_month_data_gb = Column(Float, nullable=False, default=0.0)  # Reset monthly
 
     # Server usage
     favorite_server_id = Column(String, nullable=True)  # Most used server
-    unique_servers_used = Column(Integer, default=0)
-    total_server_switches = Column(Integer, default=0)
+    unique_servers_used = Column(Integer, nullable=False, default=0)
+    total_server_switches = Column(Integer, nullable=False, default=0)
 
     # Quality metrics
-    average_latency_ms = Column(Float, default=0.0)
-    average_throughput_mbps = Column(Float, default=0.0)
-    connection_failure_count = Column(Integer, default=0)
-    connection_success_rate = Column(Float, default=100.0)  # 0-100%
+    average_latency_ms = Column(Float, nullable=False, default=0.0)
+    average_throughput_mbps = Column(Float, nullable=False, default=0.0)
+    connection_failure_count = Column(Integer, nullable=False, default=0)
+    connection_success_rate = Column(Float, nullable=False, default=100.0)  # 0-100%
 
     # Account activity
-    total_login_count = Column(Integer, default=0)
-    failed_login_count = Column(Integer, default=0)
+    total_login_count = Column(Integer, nullable=False, default=0)
+    failed_login_count = Column(Integer, nullable=False, default=0)
     last_login_at = Column(DateTime, nullable=True)
-    account_age_days = Column(Integer, default=0)
+    account_age_days = Column(Integer, nullable=False, default=0)
 
     # Subscription
-    total_subscription_renewals = Column(Integer, default=0)
-    subscription_lifetime_value = Column(Float, default=0.0)  # Total revenue
+    total_subscription_renewals = Column(Integer, nullable=False, default=0)
+    subscription_lifetime_value = Column(Float, nullable=False, default=0.0)  # Total revenue
     current_subscription_tier = Column(String, nullable=True)
 
     # Support
-    total_support_tickets = Column(Integer, default=0)
-    open_support_tickets = Column(Integer, default=0)
-    average_ticket_resolution_hours = Column(Float, default=0.0)
+    total_support_tickets = Column(Integer, nullable=False, default=0)
+    open_support_tickets = Column(Integer, nullable=False, default=0)
+    average_ticket_resolution_hours = Column(Float, nullable=False, default=0.0)
 
     # Timestamps
     first_seen_at = Column(DateTime, default=utcnow, nullable=False)
@@ -109,16 +109,16 @@ class DailyUsageMetrics(Base):
     date = Column(DateTime, nullable=False, index=True)  # Date (midnight UTC)
 
     # Daily statistics
-    connections_count = Column(Integer, default=0)
-    total_connection_time_seconds = Column(Integer, default=0)
-    data_uploaded_mb = Column(Float, default=0.0)
-    data_downloaded_mb = Column(Float, default=0.0)
-    total_data_mb = Column(Float, default=0.0)
+    connections_count = Column(Integer, nullable=False, default=0)
+    total_connection_time_seconds = Column(Integer, nullable=False, default=0)
+    data_uploaded_mb = Column(Float, nullable=False, default=0.0)
+    data_downloaded_mb = Column(Float, nullable=False, default=0.0)
+    total_data_mb = Column(Float, nullable=False, default=0.0)
 
     # Quality
-    avg_latency_ms = Column(Float, default=0.0)
-    avg_throughput_mbps = Column(Float, default=0.0)
-    connection_failures = Column(Integer, default=0)
+    avg_latency_ms = Column(Float, nullable=False, default=0.0)
+    avg_throughput_mbps = Column(Float, nullable=False, default=0.0)
+    connection_failures = Column(Integer, nullable=False, default=0)
 
     # Server usage
     servers_used = Column(JSON, nullable=True)  # List of server IDs
@@ -161,7 +161,7 @@ class AbuseDetectionLog(Base):
     description = Column(String, nullable=False)
 
     # Evidence/extra data
-    extra_data = Column(JSON, nullable=True)  # IP addresses, bandwidth stats, timestamps, etc.
+    extra_data = Column("metadata", JSON, nullable=True)  # Historical physical column
 
     # Detection
     detection_method = Column(String, nullable=True)  # automated, manual, user_report
@@ -173,7 +173,7 @@ class AbuseDetectionLog(Base):
     action_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Status
-    status = Column(String, default="pending", index=True)  # pending, investigating, resolved, false_positive
+    status = Column(String, nullable=False, default="pending", index=True)  # pending, investigating, resolved, false_positive
     resolved_at = Column(DateTime, nullable=True)
 
     # Timestamps
@@ -216,48 +216,48 @@ class SystemMetrics(Base):
     timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
 
     # User metrics
-    total_users = Column(Integer, default=0)
-    active_users_24h = Column(Integer, default=0)
-    active_users_7d = Column(Integer, default=0)
-    active_users_30d = Column(Integer, default=0)
-    new_users_today = Column(Integer, default=0)
+    total_users = Column(Integer, nullable=False, default=0)
+    active_users_24h = Column(Integer, nullable=False, default=0)
+    active_users_7d = Column(Integer, nullable=False, default=0)
+    active_users_30d = Column(Integer, nullable=False, default=0)
+    new_users_today = Column(Integer, nullable=False, default=0)
 
     # Connection metrics
-    total_connections = Column(Integer, default=0)
-    active_connections = Column(Integer, default=0)
-    average_session_duration_minutes = Column(Float, default=0.0)
+    total_connections = Column(Integer, nullable=False, default=0)
+    active_connections = Column(Integer, nullable=False, default=0)
+    average_session_duration_minutes = Column(Float, nullable=False, default=0.0)
 
     # Server metrics
-    total_servers = Column(Integer, default=0)
-    healthy_servers = Column(Integer, default=0)
-    degraded_servers = Column(Integer, default=0)
-    offline_servers = Column(Integer, default=0)
-    average_server_load = Column(Float, default=0.0)
+    total_servers = Column(Integer, nullable=False, default=0)
+    healthy_servers = Column(Integer, nullable=False, default=0)
+    degraded_servers = Column(Integer, nullable=False, default=0)
+    offline_servers = Column(Integer, nullable=False, default=0)
+    average_server_load = Column(Float, nullable=False, default=0.0)
 
     # Bandwidth
-    total_bandwidth_gb_24h = Column(Float, default=0.0)
-    average_throughput_mbps = Column(Float, default=0.0)
-    peak_bandwidth_mbps = Column(Float, default=0.0)
+    total_bandwidth_gb_24h = Column(Float, nullable=False, default=0.0)
+    average_throughput_mbps = Column(Float, nullable=False, default=0.0)
+    peak_bandwidth_mbps = Column(Float, nullable=False, default=0.0)
 
     # Quality
-    average_latency_ms = Column(Float, default=0.0)
-    average_packet_loss = Column(Float, default=0.0)
-    connection_success_rate = Column(Float, default=100.0)
+    average_latency_ms = Column(Float, nullable=False, default=0.0)
+    average_packet_loss = Column(Float, nullable=False, default=0.0)
+    connection_success_rate = Column(Float, nullable=False, default=100.0)
 
     # Subscription metrics
-    total_subscriptions = Column(Integer, default=0)
-    active_subscriptions = Column(Integer, default=0)
-    mrr = Column(Float, default=0.0)  # Monthly Recurring Revenue
-    churn_rate = Column(Float, default=0.0)  # Percentage
+    total_subscriptions = Column(Integer, nullable=False, default=0)
+    active_subscriptions = Column(Integer, nullable=False, default=0)
+    mrr = Column(Float, nullable=False, default=0.0)  # Monthly Recurring Revenue
+    churn_rate = Column(Float, nullable=False, default=0.0)  # Percentage
 
     # Support metrics
-    open_tickets = Column(Integer, default=0)
-    tickets_resolved_24h = Column(Integer, default=0)
-    average_resolution_time_hours = Column(Float, default=0.0)
+    open_tickets = Column(Integer, nullable=False, default=0)
+    tickets_resolved_24h = Column(Integer, nullable=False, default=0)
+    average_resolution_time_hours = Column(Float, nullable=False, default=0.0)
 
     # Security
-    abuse_incidents_24h = Column(Integer, default=0)
-    failed_logins_24h = Column(Integer, default=0)
+    abuse_incidents_24h = Column(Integer, nullable=False, default=0)
+    failed_logins_24h = Column(Integer, nullable=False, default=0)
 
     def __repr__(self):
         return f"<SystemMetrics(timestamp={self.timestamp}, active_connections={self.active_connections})>"

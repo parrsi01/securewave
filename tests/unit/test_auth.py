@@ -202,3 +202,12 @@ class TestTokenRefresh:
             "refresh_token": "invalid.token.here",
         })
         assert response.status_code == 401
+
+
+class TestPasswordHashIdentification:
+    def test_recognizes_generated_hash_and_rejects_plaintext(self):
+        from services.hashing_service import hash_password, is_password_hash
+
+        assert is_password_hash(hash_password("BootstrapPass123")) is True
+        assert is_password_hash("BootstrapPass123") is False
+        assert is_password_hash("") is False

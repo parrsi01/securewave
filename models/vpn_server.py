@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, JSON, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from database.base import Base
@@ -10,6 +10,9 @@ from utils.time_utils import utcnow
 class VPNServer(Base):
     """VPN server model for tracking server fleet and metrics"""
     __tablename__ = "vpn_servers"
+    __table_args__ = (
+        UniqueConstraint("server_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     server_id = Column(String, unique=True, nullable=False, index=True)  # us-east-1-001, eu-west-1-002, etc.
@@ -52,6 +55,9 @@ class VPNServer(Base):
     openvpn_ca_cert_pem = Column(String, nullable=True)
     ikev2_remote_id = Column(String, nullable=True)
     ikev2_ca_cert_pem = Column(String, nullable=True)
+    # Operator/monitor-provided protocol probes.  Endpoint metadata is never
+    # sufficient by itself to advertise a protocol to clients.
+    protocol_runtime_evidence = Column(JSON, nullable=True)
 
     # Capacity and limits
     max_connections = Column(Integer, default=1000)
@@ -94,8 +100,8 @@ class VPNServer(Base):
     total_user_ratings = Column(Integer, default=0)
 
     # Metadata
-    created_at = Column(DateTime, default=utcnow, nullable=False)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False, server_default=func.now())
     last_reboot_at = Column(DateTime, nullable=True)
     provisioned_at = Column(DateTime, nullable=True)  # When VM was fully provisioned
     decommissioned_at = Column(DateTime, nullable=True)

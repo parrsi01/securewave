@@ -12,7 +12,7 @@ Adds:
 - GDPR compliance (data requests, consents, processing activities)
 - Warrant canary for transparency
 """
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
@@ -24,40 +24,111 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(table_name: str) -> bool:
+    """Use inspection only for online legacy upgrades.
+
+    Offline migrations intentionally emit the deterministic pristine schema and
+    cannot inspect an operator's existing database.
+    """
+    if context.is_offline_mode():
+        return False
+    return table_name in set(sa.inspect(op.get_bind()).get_table_names())
+
+
+def _column_exists(table_name: str, column_name: str) -> bool:
+    if context.is_offline_mode() or not _table_exists(table_name):
+        return False
+    return column_name in {
+        column["name"] for column in sa.inspect(op.get_bind()).get_columns(table_name)
+    }
+
+
+def _create_table_if_missing(table_name: str, *columns) -> None:
+    if not _table_exists(table_name):
+        op.create_table(table_name, *columns)
+
+
+def _add_column_if_missing(table_name: str, column) -> None:
+    if not _column_exists(table_name, column.name):
+        op.add_column(table_name, column)
+
+
+def _create_index_if_missing(index_name: str, table_name: str, columns) -> None:
+    if context.is_offline_mode() or not _table_exists(table_name):
+        op.create_index(index_name, table_name, columns)
+        return
+    indexes = {index["name"] for index in sa.inspect(op.get_bind()).get_indexes(table_name)}
+    if index_name not in indexes:
+        op.create_index(index_name, table_name, columns)
+
+
 def upgrade():
     """Add monitoring and GDPR compliance tables"""
 
     # ===========================
     # ENHANCE EXISTING AUDIT_LOGS TABLE
     # ===========================
-    # Add new columns to existing audit_logs table
-    op.add_column('audit_logs', sa.Column('event_type', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('event_category', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('actor_type', sa.String(), nullable=True))
-    op.add_column('audit_logs', sa.Column('actor_email', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('resource_type', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('resource_id', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('resource_name', sa.String(), nullable=True))
-    op.add_column('audit_logs', sa.Column('description', sa.Text(), nullable=True))
-    op.add_column('audit_logs', sa.Column('request_id', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('severity', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('is_suspicious', sa.Boolean(), nullable=False, server_default='false', index=True))
-    op.add_column('audit_logs', sa.Column('is_compliance_relevant', sa.Boolean(), nullable=False, server_default='true'))
-    op.add_column('audit_logs', sa.Column('success', sa.Boolean(), nullable=True))
-    op.add_column('audit_logs', sa.Column('error_message', sa.Text(), nullable=True))
-    op.add_column('audit_logs', sa.Column('created_at', sa.DateTime(), nullable=True, index=True))
+    # Some early deployments created this table outside Alembic.  Fresh
+    # databases did not, which made this revision fail before reaching head.
+    # Create the current compatibility shape when the legacy table is absent;
+    # otherwise retain the original additive upgrade path.
+    if not _table_exists('audit_logs'):
+        _create_table_if_missing(
+            'audit_logs',
+            sa.Column('id', sa.Integer(), primary_key=True),
+            sa.Column('event_type', sa.String(), nullable=False),
+            sa.Column('event_category', sa.String(), nullable=False),
+            sa.Column('action', sa.String(), nullable=False),
+            sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True),
+            sa.Column('actor_type', sa.String(), nullable=False),
+            sa.Column('actor_email', sa.String(), nullable=True),
+            sa.Column('resource_type', sa.String(), nullable=True),
+            sa.Column('resource_id', sa.String(), nullable=True),
+            sa.Column('resource_name', sa.String(), nullable=True),
+            sa.Column('description', sa.Text(), nullable=False),
+            sa.Column('details', sa.JSON(), nullable=True),
+            sa.Column('ip_address', sa.String(), nullable=True),
+            sa.Column('user_agent', sa.String(), nullable=True),
+            sa.Column('request_id', sa.String(), nullable=True),
+            sa.Column('severity', sa.String(), nullable=False),
+            sa.Column('is_suspicious', sa.Boolean(), nullable=False, server_default='false'),
+            sa.Column('is_compliance_relevant', sa.Boolean(), nullable=False, server_default='true'),
+            sa.Column('success', sa.Boolean(), nullable=False),
+            sa.Column('error_message', sa.Text(), nullable=True),
+            sa.Column('status', sa.String(), nullable=True),
+            sa.Column('resource', sa.String(), nullable=True),
+            sa.Column('timestamp', sa.DateTime(), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        )
+    else:
+        # Add new columns to the existing legacy audit_logs table.
+        _add_column_if_missing('audit_logs', sa.Column('event_type', sa.String(), nullable=True, index=True))
+        _add_column_if_missing('audit_logs', sa.Column('event_category', sa.String(), nullable=True, index=True))
+        _add_column_if_missing('audit_logs', sa.Column('actor_type', sa.String(), nullable=True))
+        _add_column_if_missing('audit_logs', sa.Column('actor_email', sa.String(), nullable=True, index=True))
+        _add_column_if_missing('audit_logs', sa.Column('resource_type', sa.String(), nullable=True, index=True))
+        _add_column_if_missing('audit_logs', sa.Column('resource_id', sa.String(), nullable=True, index=True))
+        _add_column_if_missing('audit_logs', sa.Column('resource_name', sa.String(), nullable=True))
+        _add_column_if_missing('audit_logs', sa.Column('description', sa.Text(), nullable=True))
+        _add_column_if_missing('audit_logs', sa.Column('request_id', sa.String(), nullable=True, index=True))
+        _add_column_if_missing('audit_logs', sa.Column('severity', sa.String(), nullable=True, index=True))
+        _add_column_if_missing('audit_logs', sa.Column('is_suspicious', sa.Boolean(), nullable=False, server_default='false', index=True))
+        _add_column_if_missing('audit_logs', sa.Column('is_compliance_relevant', sa.Boolean(), nullable=False, server_default='true'))
+        _add_column_if_missing('audit_logs', sa.Column('success', sa.Boolean(), nullable=True))
+        _add_column_if_missing('audit_logs', sa.Column('error_message', sa.Text(), nullable=True))
+        _add_column_if_missing('audit_logs', sa.Column('created_at', sa.DateTime(), nullable=True, index=True))
 
     # Create composite indexes
-    op.create_index('ix_audit_user_event', 'audit_logs', ['user_id', 'event_type'])
-    op.create_index('ix_audit_category_severity', 'audit_logs', ['event_category', 'severity'])
-    op.create_index('ix_audit_resource', 'audit_logs', ['resource_type', 'resource_id'])
-    op.create_index('ix_audit_created_category', 'audit_logs', ['created_at', 'event_category'])
-    op.create_index('ix_audit_suspicious', 'audit_logs', ['is_suspicious', 'created_at'])
+    _create_index_if_missing('ix_audit_user_event', 'audit_logs', ['user_id', 'event_type'])
+    _create_index_if_missing('ix_audit_category_severity', 'audit_logs', ['event_category', 'severity'])
+    _create_index_if_missing('ix_audit_resource', 'audit_logs', ['resource_type', 'resource_id'])
+    _create_index_if_missing('ix_audit_created_category', 'audit_logs', ['created_at', 'event_category'])
+    _create_index_if_missing('ix_audit_suspicious', 'audit_logs', ['is_suspicious', 'created_at'])
 
     # ===========================
     # PERFORMANCE METRICS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'performance_metrics',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('metric_type', sa.String(), nullable=False, index=True),
@@ -75,13 +146,13 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now(), index=True),
     )
 
-    op.create_index('ix_perf_endpoint_created', 'performance_metrics', ['endpoint', 'created_at'])
-    op.create_index('ix_perf_type_created', 'performance_metrics', ['metric_type', 'created_at'])
+    _create_index_if_missing('ix_perf_endpoint_created', 'performance_metrics', ['endpoint', 'created_at'])
+    _create_index_if_missing('ix_perf_type_created', 'performance_metrics', ['metric_type', 'created_at'])
 
     # ===========================
     # UPTIME CHECKS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'uptime_checks',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('check_name', sa.String(), nullable=False, index=True),
@@ -95,13 +166,13 @@ def upgrade():
         sa.Column('checked_at', sa.DateTime(), nullable=False, server_default=sa.func.now(), index=True),
     )
 
-    op.create_index('ix_uptime_name_checked', 'uptime_checks', ['check_name', 'checked_at'])
-    op.create_index('ix_uptime_status_checked', 'uptime_checks', ['is_up', 'checked_at'])
+    _create_index_if_missing('ix_uptime_name_checked', 'uptime_checks', ['check_name', 'checked_at'])
+    _create_index_if_missing('ix_uptime_status_checked', 'uptime_checks', ['is_up', 'checked_at'])
 
     # ===========================
     # ERROR LOGS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'error_logs',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('error_type', sa.String(), nullable=False, index=True),
@@ -129,14 +200,14 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now(), index=True),
     )
 
-    op.create_index('ix_error_type_created', 'error_logs', ['error_type', 'created_at'])
-    op.create_index('ix_error_severity_resolved', 'error_logs', ['severity', 'is_resolved'])
-    op.create_index('ix_error_endpoint_created', 'error_logs', ['endpoint', 'created_at'])
+    _create_index_if_missing('ix_error_type_created', 'error_logs', ['error_type', 'created_at'])
+    _create_index_if_missing('ix_error_severity_resolved', 'error_logs', ['severity', 'is_resolved'])
+    _create_index_if_missing('ix_error_endpoint_created', 'error_logs', ['endpoint', 'created_at'])
 
     # ===========================
     # GDPR REQUESTS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'gdpr_requests',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('request_number', sa.String(), unique=True, nullable=False, index=True),
@@ -163,7 +234,7 @@ def upgrade():
     # ===========================
     # USER CONSENTS TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'user_consents',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False, index=True),
@@ -184,7 +255,7 @@ def upgrade():
     # ===========================
     # DATA PROCESSING ACTIVITIES TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'data_processing_activities',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('activity_name', sa.String(), nullable=False),
@@ -216,7 +287,7 @@ def upgrade():
     # ===========================
     # WARRANT CANARIES TABLE
     # ===========================
-    op.create_table(
+    _create_table_if_missing(
         'warrant_canaries',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('period_start', sa.DateTime(), nullable=False, index=True),
