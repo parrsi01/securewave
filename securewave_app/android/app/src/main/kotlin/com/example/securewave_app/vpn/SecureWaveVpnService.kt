@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import com.wireguard.android.backend.GoBackend
 import com.wireguard.android.backend.Tunnel
 import com.wireguard.config.Config
+import java.io.BufferedReader
 import java.io.StringReader
 import java.util.concurrent.Executors
 
@@ -61,7 +62,7 @@ class SecureWaveVpnService : VpnService() {
     startForeground(NOTIFICATION_ID, buildNotification("SecureWave VPN", "Connecting..."))
     executor.execute {
       try {
-        val config = Config.parse(StringReader(configText))
+        val config = Config.parse(BufferedReader(StringReader(configText)))
         backend.setState(tunnel, Tunnel.State.UP, config)
         currentState = Tunnel.State.UP
         updateNotification("SecureWave VPN", "Connected")

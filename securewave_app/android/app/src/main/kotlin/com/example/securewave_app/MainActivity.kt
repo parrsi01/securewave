@@ -1,5 +1,6 @@
 package com.example.securewave_app
 
+import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
@@ -7,8 +8,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.ResultReceiver
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import com.example.securewave_app.vpn.SecureWaveVpnService
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -19,16 +20,18 @@ class MainActivity : FlutterActivity() {
   private var pendingConfig: String? = null
   private var pendingAction: String? = null
 
-  private val vpnPermissionLauncher = registerForActivityResult(
-    ActivityResultContracts.StartActivityForResult()
-  ) { activityResult ->
+  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    super.onActivityResult(requestCode, resultCode, data)
+    if (requestCode != VPN_PERMISSION_REQUEST_CODE) {
+      return
+    }
     val result = pendingResult
     val action = pendingAction
     val config = pendingConfig
     pendingResult = null
     pendingAction = null
     pendingConfig = null
-    if (activityResult.resultCode == RESULT_OK && action != null) {
+    if (resultCode == Activity.RESULT_OK && action != null) {
       startVpnService(action, config, result)
     } else {
       result?.error("missing_vpn_permission", "VPN permission was denied.", null)
@@ -56,22 +59,22 @@ class MainActivity : FlutterActivity() {
               return@setMethodCallHandler
             }
             pendingResult = result
-            pendingAction = vpn.SecureWaveVpnService.ACTION_CONNECT
+            pendingAction = SecureWaveVpnService.ACTION_CONNECT
             pendingConfig = config
-            vpnPermissionLauncher.launch(prepareIntent)
+            startActivityForResult(prepareIntent, VPN_PERMISSION_REQUEST_CODE)
             return@setMethodCallHandler
           }
-          val intent = Intent(this, vpn.SecureWaveVpnService::class.java).apply {
-            action = vpn.SecureWaveVpnService.ACTION_CONNECT
-            putExtra(vpn.SecureWaveVpnService.EXTRA_CONFIG, config)
-            putExtra(vpn.SecureWaveVpnService.EXTRA_RESULT_RECEIVER, buildResultReceiver(result))
+          val intent = Intent(this, SecureWaveVpnService::class.java).apply {
+            action = SecureWaveVpnService.ACTION_CONNECT
+            putExtra(SecureWaveVpnService.EXTRA_CONFIG, config)
+            putExtra(SecureWaveVpnService.EXTRA_RESULT_RECEIVER, buildResultReceiver(result))
           }
           startVpnServiceIntent(intent)
         }
         "disconnect" -> {
-          val intent = Intent(this, vpn.SecureWaveVpnService::class.java).apply {
-            action = vpn.SecureWaveVpnService.ACTION_DISCONNECT
-            putExtra(vpn.SecureWaveVpnService.EXTRA_RESULT_RECEIVER, buildResultReceiver(result))
+          val intent = Intent(this, SecureWaveVpnService::class.java).apply {
+            action = SecureWaveVpnService.ACTION_DISCONNECT
+            putExtra(SecureWaveVpnService.EXTRA_RESULT_RECEIVER, buildResultReceiver(result))
           }
           startVpnServiceIntent(intent)
         }
@@ -81,13 +84,13 @@ class MainActivity : FlutterActivity() {
   }
 
   private fun startVpnService(action: String, config: String?, result: MethodChannel.Result?) {
-    val intent = Intent(this, vpn.SecureWaveVpnService::class.java).apply {
+    val intent = Intent(this, SecureWaveVpnService::class.java).apply {
       this.action = action
       if (!config.isNullOrBlank()) {
-        putExtra(vpn.SecureWaveVpnService.EXTRA_CONFIG, config)
+        putExtra(SecureWaveVpnService.EXTRA_CONFIG, config)
       }
       if (result != null) {
-        putExtra(vpn.SecureWaveVpnService.EXTRA_RESULT_RECEIVER, buildResultReceiver(result))
+        putExtra(SecureWaveVpnService.EXTRA_RESULT_RECEIVER, buildResultReceiver(result))
       }
     }
     startVpnServiceIntent(intent)
@@ -113,5 +116,9 @@ class MainActivity : FlutterActivity() {
         result.error(code, message, null)
       }
     }
+  }
+
+  companion object {
+    private const val VPN_PERMISSION_REQUEST_CODE = 4202
   }
 }

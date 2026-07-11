@@ -17,6 +17,8 @@
 - Corrected the Android VPN service foreground type/permission and added a
   manifest regression test without weakening BIND_VPN_SERVICE or exported-state
   restrictions.
+- Corrected stale Android activity-result, service import, and WireGuard parser
+  calls while preserving the MethodChannel contract and OS VPN permission flow.
 
 ## Deferred
 

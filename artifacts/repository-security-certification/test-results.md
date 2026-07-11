@@ -2,7 +2,7 @@
 
 ## Passed
 
-- Backend/API/security: 294 tests.
+- Backend/API/security: 295 tests.
 - Focused JWT, account-isolated VPN diagnostics, and readiness boundary: 81
   tests.
 - Flutter: analyze clean, 24 tests, ARM64 Linux release build.
@@ -24,8 +24,10 @@
 
 - Android local build: Java/JDK unavailable. The first pinned Java 17 CI build
   found the invalid foreground service type `vpn`; the manifest now uses the
-  supported VPN-app `systemExempted` type and has a static regression test.
-  Replacement CI must still complete.
+  supported VPN-app `systemExempted` type. The next compile exposed stale
+  Kotlin activity-result, service-import, and config-parser calls; those now use
+  compile-compatible APIs with static regression tests. Replacement CI must
+  still complete.
 - ShellCheck and actionlint: unavailable locally.
 - Windows and macOS native builds: unavailable on Linux ARM64.
 - x64 package/install/runtime: wrong host architecture.

@@ -25,7 +25,7 @@ Audit basis:
 
 | Area | Command | Result |
 | --- | --- | --- |
-| Backend/API | `.venv/bin/python -m pytest -q tests` | 294 passed |
+| Backend/API | `.venv/bin/python -m pytest -q tests` | 295 passed |
 | Focused security/API | `.venv/bin/python -m pytest -q tests/security/test_security.py tests/security/test_vpn_test_result_isolation.py tests/smoke/test_api_endpoints.py` | 81 passed |
 | Python dependencies | `.venv/bin/python -m pip_audit -r requirements.txt --strict` | No known vulnerabilities after JWT dependency replacement |
 | Python security | `.venv/bin/python -m bandit -q -lll -r main.py routes routers services models database scripts infrastructure` | No high-severity findings; documented `nosec` warnings remain visible |
@@ -33,7 +33,7 @@ Audit basis:
 | Flutter | `flutter analyze` | No issues after creating the non-secret CI env asset |
 | Flutter | `flutter test --reporter compact` | 24 passed |
 | Linux app | `flutter build linux --release` | Passed on ARM64; this is not x64 or live VPN evidence |
-| Android app | `flutter build apk --debug` | Blocked locally: Java/JDK unavailable; first CI compile found an invalid foreground-service type, now corrected with a static manifest test and awaiting replacement CI |
+| Android app | `flutter build apk --debug` | Blocked locally: Java/JDK unavailable; CI exposed an invalid foreground-service type and stale Kotlin service APIs, now corrected with static regression tests and awaiting replacement CI |
 | Docker lint | `docker build --check .` and `docker build --check -f Dockerfile.simple .` | Passed with no warnings |
 | Docker image | `docker build --tag securewave-certification:local .` | Passed on ARM64; runtime module import executed inside the image |
 | Shell/static | tracked `bash -n`, tracked `node --check`, UI/plan/release/Xcode guards | Passed |
@@ -124,6 +124,9 @@ Remaining GitHub gates:
 7. Replaced the invalid Android `foregroundServiceType="vpn"` declaration with
    the supported VPN-app `systemExempted` type and permission; a manifest test
    preserves BIND_VPN_SERVICE, non-exported, and foreground-service boundaries.
+8. Updated the Android bridge to a compile-compatible activity-result callback,
+   explicit VPN service import, and buffered WireGuard config parser without
+   changing the `securewave/vpn` MethodChannel contract.
 
 ## Findings deferred
 
