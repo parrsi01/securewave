@@ -14,6 +14,12 @@ RuntimeDirectory=securewave
 RuntimeDirectoryMode=0750
 NoNewPrivileges=yes
 PrivateTmp=yes
+UMask=0077
+LockPersonality=yes
+RestrictSUIDSGID=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectClock=yes
 
 [Install]
 WantedBy=multi-user.target

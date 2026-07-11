@@ -200,9 +200,102 @@ void main() {
     expect(state.errorKind, VpnErrorKind.deviceLimit);
     expect(state.errorMessage, contains('Device limit reached'));
   });
+
+  test(
+      'usage meter accumulates deltas, ignores counter reset, and stops cleanly',
+      () async {
+    final service = _CounterVpnService([
+      const VpnTrafficStats(rxBytes: 100, txBytes: 200),
+      const VpnTrafficStats(rxBytes: 160, txBytes: 260),
+      const VpnTrafficStats(rxBytes: 20, txBytes: 30),
+    ]);
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.connect();
+    await Future<void>.delayed(const Duration(milliseconds: 1150));
+
+    var state = container.read(vpnStateProvider);
+    expect(state.sessionCountersAvailable, isTrue);
+    expect(state.sessionRxBytes, 60);
+    expect(state.sessionTxBytes, 60);
+    expect(state.dataRateDown, greaterThan(0));
+
+    await Future<void>.delayed(const Duration(milliseconds: 1050));
+    state = container.read(vpnStateProvider);
+    expect(state.sessionRxBytes, 60);
+    expect(state.sessionTxBytes, 60);
+
+    await notifier.disconnect();
+    final callsAfterDisconnect = service.trafficCalls;
+    await Future<void>.delayed(const Duration(milliseconds: 1050));
+    expect(service.trafficCalls, callsAfterDisconnect);
+    expect(container.read(vpnStateProvider).dataRateDown, 0);
+  });
+
+  test('usage meter prevents overlapping counter polls', () async {
+    final service = _CounterVpnService(
+      const [VpnTrafficStats(rxBytes: 100, txBytes: 200)],
+      statsDelay: const Duration(milliseconds: 1300),
+    );
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).connect();
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+
+    expect(service.trafficCalls, 1);
+  });
 }
 
-class _FailingVpnService implements VpnService {
+class _CounterVpnService extends VpnService {
+  _CounterVpnService(this.samples, {this.statsDelay = Duration.zero});
+
+  final List<VpnTrafficStats> samples;
+  final Duration statsDelay;
+  VpnStatus _status = VpnStatus.disconnected;
+  int trafficCalls = 0;
+
+  @override
+  bool get isNativeAvailable => false;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect(
+      {required VpnProtocol protocol, String? config}) async {
+    _status = VpnStatus.connected;
+    return _status;
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async {
+    _status = VpnStatus.disconnected;
+    return _status;
+  }
+
+  @override
+  VpnStatus getStatus() => _status;
+
+  @override
+  Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async {
+    trafficCalls += 1;
+    if (statsDelay > Duration.zero) await Future<void>.delayed(statsDelay);
+    final index = trafficCalls - 1;
+    return samples[index < samples.length ? index : samples.length - 1];
+  }
+}
+
+class _FailingVpnService extends VpnService {
   @override
   bool get isNativeAvailable => false;
 
@@ -224,7 +317,7 @@ class _FailingVpnService implements VpnService {
   VpnStatus getStatus() => VpnStatus.disconnected;
 }
 
-class _NativeSuccessVpnService implements VpnService {
+class _NativeSuccessVpnService extends VpnService {
   VpnStatus _status = VpnStatus.disconnected;
 
   @override

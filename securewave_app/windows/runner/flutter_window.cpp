@@ -185,6 +185,29 @@ bool ServiceExists(const std::wstring& name) {
   return false;
 }
 
+bool ServiceRunning(const std::wstring& name) {
+  SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+  if (manager == nullptr) {
+    return false;
+  }
+  SC_HANDLE service = OpenServiceW(manager, name.c_str(), SERVICE_QUERY_STATUS);
+  if (service == nullptr) {
+    CloseServiceHandle(manager);
+    return false;
+  }
+  SERVICE_STATUS_PROCESS status{};
+  DWORD bytes_needed = 0;
+  const BOOL queried = QueryServiceStatusEx(
+      service,
+      SC_STATUS_PROCESS_INFO,
+      reinterpret_cast<LPBYTE>(&status),
+      sizeof(status),
+      &bytes_needed);
+  CloseServiceHandle(service);
+  CloseServiceHandle(manager);
+  return queried && status.dwCurrentState == SERVICE_RUNNING;
+}
+
 bool TunnelServiceInstalled() {
   // WireGuard for Windows typically uses the service name:
   //   WireGuardTunnel$<tunnelName>
@@ -194,6 +217,11 @@ bool TunnelServiceInstalled() {
   }
   // Fallback: some builds may expose the tunnel name as the service name.
   return ServiceExists(std::wstring(kTunnelName));
+}
+
+bool TunnelServiceRunning() {
+  return ServiceRunning(std::wstring(L"WireGuardTunnel$") + kTunnelName) ||
+         ServiceRunning(std::wstring(kTunnelName));
 }
 
 }  // namespace
@@ -474,18 +502,59 @@ bool FlutterWindow::OnCreate() {
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
         if (call.method_name() == "isAvailable") {
-          const bool available = GetWireGuardPath().has_value();
+          const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
+          std::optional<std::string> protocol;
+          if (args) {
+            const auto protocol_it = args->find(flutter::EncodableValue("protocol"));
+            if (protocol_it != args->end()) {
+              protocol = GetStringArg(&protocol_it->second);
+            }
+          }
+          const bool protocol_supported =
+              !protocol.has_value() || protocol->empty() || *protocol == "wireguard";
+          const bool available = protocol_supported && GetWireGuardPath().has_value();
           result->Success(flutter::EncodableValue(available));
+          return;
+        }
+        if (call.method_name() == "getStatus") {
+          flutter::EncodableMap status;
+          status[flutter::EncodableValue("status")] = flutter::EncodableValue(
+              TunnelServiceRunning() ? "connected" : "disconnected");
+          status[flutter::EncodableValue("protocol")] =
+              flutter::EncodableValue("wireguard");
+          result->Success(flutter::EncodableValue(status));
+          return;
+        }
+        if (call.method_name() == "getTrafficStats") {
+          flutter::EncodableMap stats;
+          stats[flutter::EncodableValue("rx_bytes")] = flutter::EncodableValue(int64_t{0});
+          stats[flutter::EncodableValue("tx_bytes")] = flutter::EncodableValue(int64_t{0});
+          stats[flutter::EncodableValue("counters_available")] = flutter::EncodableValue(false);
+          stats[flutter::EncodableValue("unavailable_reason")] = flutter::EncodableValue(
+              "Windows WireGuard byte counters are not implemented in this build.");
+          result->Success(flutter::EncodableValue(stats));
           return;
         }
         if (call.method_name() == "connect") {
           const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
           std::optional<std::string> config;
+          std::optional<std::string> protocol;
           if (args) {
             const auto config_it = args->find(flutter::EncodableValue("config"));
             if (config_it != args->end()) {
               config = GetStringArg(&config_it->second);
             }
+            const auto protocol_it = args->find(flutter::EncodableValue("protocol"));
+            if (protocol_it != args->end()) {
+              protocol = GetStringArg(&protocol_it->second);
+            }
+          }
+          if (protocol.has_value() && !protocol->empty() && *protocol != "wireguard") {
+            result->Error(
+                "protocol_unavailable",
+                "This Windows runtime implements WireGuard only.",
+                nullptr);
+            return;
           }
           if (!config || config->empty()) {
             result->Error("invalid_config", "Missing WireGuard configuration.", nullptr);

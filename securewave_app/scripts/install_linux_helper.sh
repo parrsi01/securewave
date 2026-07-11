@@ -90,12 +90,6 @@ ensure_runtime_group() {
   chmod 0644 "$AUTH_FILE"
 
   add_allowed_user "$(seed_user)"
-  while IFS=: read -r user _ uid _ _ _ shell; do
-    [[ "$uid" =~ ^[0-9]+$ ]] || continue
-    (( uid >= 1000 && uid < 60000 )) || continue
-    [[ "$shell" != */nologin && "$shell" != */false ]] || continue
-    add_allowed_user "$user"
-  done < /etc/passwd
 }
 
 add_allowed_user() {

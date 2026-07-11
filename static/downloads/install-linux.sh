@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-linux.sh - Install SecureWave VPN client on Linux.
+# install-linux.sh - Install the portable SecureWave Linux UI client.
 #
 # Usage:
 #   sudo ./install-linux.sh                          (auto-detect tarball)
@@ -37,12 +37,17 @@ TARBALL="${1:-}"
 if [[ -z "$TARBALL" ]]; then
   # Auto-detect: look in the same directory as this script
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  TARBALL="$SCRIPT_DIR/securewave-linux-x64.tar.gz"
+  case "$(uname -m)" in
+    x86_64) ARCH_LABEL="x64" ;;
+    aarch64|arm64) ARCH_LABEL="arm64" ;;
+    *) die "Unsupported Linux architecture: $(uname -m)" ;;
+  esac
+  TARBALL="$SCRIPT_DIR/securewave-linux-$ARCH_LABEL.tar.gz"
 fi
 
 if [[ ! -f "$TARBALL" ]]; then
   die "Tarball not found: $TARBALL
-Place securewave-linux-x64.tar.gz in the same directory as this script,
+Place the architecture-matched SecureWave Linux tarball beside this script,
 or pass the path explicitly: sudo $0 /path/to/tarball.tar.gz"
 fi
 
@@ -106,7 +111,11 @@ update-desktop-database /usr/share/applications 2>/dev/null || true
 # ---------------------------------------------------------------------------
 
 info ""
-info "SecureWave VPN installed successfully."
+info "SecureWave portable Linux UI installed successfully."
+info "This installs a portable UI-only build; it does not install privileged VPN routing."
+info ".deb package: full VPN routing with the root-owned SecureWave helper service."
+info "Portable AppImage/tarball/zip: UI-only unless the .deb helper service is already installed."
+info "After the .deb is installed, pressing Connect should not ask for sudo, pkexec, or a password."
 info ""
 info "Launch options:"
 info "  - From your application menu: search for 'SecureWave VPN'"

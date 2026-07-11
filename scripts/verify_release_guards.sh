@@ -41,10 +41,24 @@ if ! grep -qn "wireguard.exe" securewave_app/windows/runner/flutter_window.cpp; 
   exit 1
 fi
 
-# Verify Linux VPN has wg-quick integration
-if ! grep -qn "wg-quick" securewave_app/linux/runner/my_application.cc; then
-  echo "ERROR: Linux VPN bridge missing wg-quick integration."
+# Verify Linux VPN uses the package-installed socket helper, never connect-time elevation.
+if ! grep -qn 'kHelperSocketPath = "/run/securewave/helper.sock"' securewave_app/linux/runner/my_application.cc; then
+  echo "ERROR: Linux VPN bridge missing helper socket integration."
   exit 1
 fi
+if grep -Eqn 'pkexec|/bin/sh.*-c' securewave_app/linux/runner/my_application.cc; then
+  echo "ERROR: Linux VPN bridge contains a connect-time elevation or shell fallback."
+  exit 1
+fi
+if [[ "$(tr -d '[:space:]' < securewave_app/packaging/linux/securewave-wg-quick.contract)" != "10" ]]; then
+  echo "ERROR: Linux helper contract is not version 10."
+  exit 1
+fi
+for protocol in wireguard openvpn ikev2; do
+  if ! grep -qn "${protocol}.up\|${protocol}.start" securewave_app/linux/runner/my_application.cc; then
+    echo "ERROR: Linux VPN bridge missing ${protocol} connect operation."
+    exit 1
+  fi
+done
 
 echo "All release guards and VPN bridges verified successfully."

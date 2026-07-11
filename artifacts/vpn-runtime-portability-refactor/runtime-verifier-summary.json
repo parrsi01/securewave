@@ -1,0 +1,39 @@
+{
+  "host": {
+    "kernel_architecture": "aarch64",
+    "debian_architecture": "arm64"
+  },
+  "source": {
+    "method_channel_preserved": true,
+    "connect_time_elevation_removed": true,
+    "helper_contract": 10,
+    "build_bundle_present": true,
+    "helper_payload_present": true
+  },
+  "installed_runtime": {
+    "helper_installed": false,
+    "service_active": false,
+    "socket_present": false,
+    "protocol_probes_completed": false
+  },
+  "cleanup": {
+    "wireguard_interface_absent": true,
+    "openvpn_process_absent": true,
+    "ikev2_sa_absent": true,
+    "vpn_dns_absent": true,
+    "wireguard_policy_routes_absent": true,
+    "unqualified_ikev2_pref_220_rule_absent": false
+  },
+  "live_evidence": {
+    "wireguard": "blocked",
+    "openvpn": "blocked",
+    "ikev2": "blocked",
+    "reason": "no installed helper, root access, or authorized live credentials"
+  },
+  "redaction": {
+    "private_keys_included": false,
+    "credentials_included": false,
+    "internal_or_public_ip_values_included": false,
+    "raw_routes_or_logs_included": false
+  }
+}

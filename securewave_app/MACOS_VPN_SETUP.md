@@ -15,8 +15,11 @@ Network Extension or WireGuardKit integration is added.
 
 ## Integration Summary
 
-- MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`)
+- MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`,
+  `getStatus`, `getTrafficStats`)
 - Current behavior: returns `vpn_not_configured` for connect/disconnect
+- Status always reports disconnected and counters explicitly report
+  unavailable.
 - No signing or entitlements are added in this repo
 
 ## Next Steps (when ready)

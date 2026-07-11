@@ -18,8 +18,8 @@ def test_helper_contract_version_matches_daemon():
     helperd = _read(HELPERD)
     contract = _read(CONTRACT).strip()
 
-    assert contract == "9"
-    assert "const guint kContractVersion = 9;" in helperd
+    assert contract == "10"
+    assert "const guint kContractVersion = 10;" in helperd
     assert 'kContractPath = "/usr/local/libexec/securewave-wg-quick.contract"' in helperd
 
 
@@ -59,6 +59,9 @@ def test_systemd_and_tmpfiles_define_no_prompt_helper_socket_model():
     assert "RuntimeDirectory=securewave" in service
     assert "RuntimeDirectoryMode=0750" in service
     assert "NoNewPrivileges=yes" in service
+    assert "UMask=0077" in service
+    assert "LockPersonality=yes" in service
+    assert "RestrictSUIDSGID=yes" in service
     assert tmpfiles.strip() == "d /run/securewave 0750 root securewave -"
 
 
@@ -72,6 +75,7 @@ def test_install_helper_script_installs_payload_and_removes_old_polkit_rule():
     assert 'OLD_POLKIT_RULE="/etc/polkit-1/rules.d/50-securewave-wg.rules"' in installer
     assert 'groupadd --system "$RUNTIME_GROUP"' in installer
     assert 'usermod -a -G "$RUNTIME_GROUP" "$user"' in installer
+    assert "done < /etc/passwd" not in installer
     assert 'rm -f "$OLD_POLKIT_RULE"' in installer
     assert "systemctl daemon-reload" in installer
     assert "systemctl enable --now securewave-helper.service" in installer

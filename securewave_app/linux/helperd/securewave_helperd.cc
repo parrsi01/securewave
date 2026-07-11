@@ -46,8 +46,8 @@ const char* kOpenVpnAuthName = "securewave-openvpn.auth";
 const char* kIkev2ConfigName = "securewave-ikev2.conf";
 const char* kIkev2CaName = "securewave-ikev2-ca.pem";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
-const guint kContractVersion = 9;
-const gsize kMaxRequestBytes = 1024 * 1024;
+const guint kContractVersion = 10;
+const gsize kMaxRequestBytes = 64 * 1024;
 
 struct CommandResult {
   bool spawned = false;
@@ -59,6 +59,12 @@ struct CommandResult {
 };
 
 using Fields = std::map<std::string, std::string>;
+
+struct ParsedFields {
+  Fields fields;
+  bool valid = true;
+  std::string error;
+};
 
 struct PeerCredentials {
   uid_t uid = 0;
@@ -234,8 +240,17 @@ static bool ReadAll(int fd, std::string* out) {
   }
 }
 
-static Fields ParseFields(const std::string& body) {
-  Fields fields;
+static bool ValidFieldName(const std::string& key) {
+  if (key.empty() || key.size() > 64) {
+    return false;
+  }
+  return std::all_of(key.begin(), key.end(), [](unsigned char c) {
+    return g_ascii_islower(c) || g_ascii_isdigit(c) || c == '_';
+  });
+}
+
+static ParsedFields ParseFields(const std::string& body) {
+  ParsedFields parsed;
   std::istringstream stream(body);
   std::string line;
   while (std::getline(stream, line)) {
@@ -246,12 +261,20 @@ static Fields ParseFields(const std::string& body) {
       continue;
     }
     const std::string::size_type eq = line.find('=');
-    if (eq == std::string::npos) {
-      continue;
+    if (eq == std::string::npos || eq == 0) {
+      parsed.valid = false;
+      parsed.error = "Malformed helper request field.";
+      return parsed;
     }
-    fields[line.substr(0, eq)] = UnescapeValue(line.substr(eq + 1));
+    const std::string key = line.substr(0, eq);
+    if (!ValidFieldName(key) || parsed.fields.find(key) != parsed.fields.end()) {
+      parsed.valid = false;
+      parsed.error = "Invalid or duplicate helper request field.";
+      return parsed;
+    }
+    parsed.fields[key] = UnescapeValue(line.substr(eq + 1));
   }
-  return fields;
+  return parsed;
 }
 
 static std::string SerializeFields(const Fields& fields) {
@@ -476,6 +499,164 @@ static bool ValidateProtocol(const std::string& protocol) {
   return protocol == "wireguard" || protocol == "openvpn" || protocol == "ikev2";
 }
 
+static std::string Lower(std::string value) {
+  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+    return static_cast<char>(g_ascii_tolower(c));
+  });
+  return value;
+}
+
+static bool SafeWireGuardHook(const std::string& key, const std::string& value) {
+  static const std::set<std::string> kAllowedPostUp = {
+      "sh -c 'command -v iptables >/dev/null 2>&1 && iptables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT'",
+      "sh -c 'command -v ip6tables >/dev/null 2>&1 && ip6tables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT'",
+  };
+  static const std::set<std::string> kAllowedPostDown = {
+      "sh -c 'command -v iptables >/dev/null 2>&1 && iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT || true'",
+      "sh -c 'command -v ip6tables >/dev/null 2>&1 && ip6tables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT || true'",
+  };
+  if (key == "postup") {
+    return kAllowedPostUp.find(value) != kAllowedPostUp.end();
+  }
+  if (key == "postdown") {
+    return kAllowedPostDown.find(value) != kAllowedPostDown.end();
+  }
+  return false;
+}
+
+static bool ValidateWireGuardConfigContents(const std::string& path) {
+  std::ifstream input(path, std::ios::binary);
+  std::string line;
+  std::string section;
+  bool saw_interface = false;
+  bool saw_peer = false;
+  const std::set<std::string> interface_keys = {
+      "privatekey", "address", "dns", "mtu", "table", "saveconfig",
+      "listenport", "fwmark", "postup", "postdown"};
+  const std::set<std::string> peer_keys = {
+      "publickey", "presharedkey", "allowedips", "endpoint",
+      "persistentkeepalive"};
+
+  while (std::getline(input, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    if (line.find('\0') != std::string::npos) {
+      return false;
+    }
+    line = Trim(line);
+    if (line.empty() || line[0] == '#' || line[0] == ';') {
+      continue;
+    }
+    if (line.front() == '[' && line.back() == ']') {
+      section = Lower(Trim(line.substr(1, line.size() - 2)));
+      if (section == "interface") {
+        saw_interface = true;
+      } else if (section == "peer") {
+        saw_peer = true;
+      } else {
+        return false;
+      }
+      continue;
+    }
+    const size_t eq = line.find('=');
+    if (eq == std::string::npos || section.empty()) {
+      return false;
+    }
+    const std::string key = Lower(Trim(line.substr(0, eq)));
+    const std::string value = Trim(line.substr(eq + 1));
+    if (value.empty()) {
+      return false;
+    }
+    if (section == "interface") {
+      if (interface_keys.find(key) == interface_keys.end()) {
+        return false;
+      }
+      if ((key == "postup" || key == "postdown") &&
+          !SafeWireGuardHook(key, value)) {
+        return false;
+      }
+    } else if (peer_keys.find(key) == peer_keys.end()) {
+      return false;
+    }
+  }
+  return input.eof() && saw_interface && saw_peer;
+}
+
+static bool ValidateOpenVpnConfigContents(const std::string& path) {
+  static const std::set<std::string> kForbiddenDirectives = {
+      "up", "down", "route-up", "route-pre-down", "ipchange",
+      "client-connect", "client-disconnect", "learn-address", "tls-verify",
+      "auth-user-pass-verify", "plugin", "script-security", "management",
+      "management-client-user", "management-client-group", "config", "include",
+      "cd", "chroot", "daemon", "user", "group", "writepid", "log",
+      "log-append", "status", "client-config-dir", "ifconfig-pool-persist",
+      "replay-persist", "askpass", "tmp-dir"};
+  std::ifstream input(path, std::ios::binary);
+  std::string line;
+  bool saw_client = false;
+  std::string inline_block;
+  const std::set<std::string> allowed_inline_blocks = {
+      "ca", "cert", "key", "pkcs12", "tls-auth", "tls-crypt",
+      "tls-crypt-v2", "connection"};
+  while (std::getline(input, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    if (line.find('\0') != std::string::npos) {
+      return false;
+    }
+    line = Trim(line);
+    if (line.empty() || line[0] == '#' || line[0] == ';') {
+      continue;
+    }
+    if (line.front() == '<' && line.back() == '>') {
+      const bool closing = line.size() > 2 && line[1] == '/';
+      const size_t name_start = closing ? 2 : 1;
+      const std::string name =
+          Lower(Trim(line.substr(name_start, line.size() - name_start - 1)));
+      if (allowed_inline_blocks.find(name) == allowed_inline_blocks.end()) {
+        return false;
+      }
+      if (closing) {
+        if (inline_block != name) {
+          return false;
+        }
+        inline_block.clear();
+      } else {
+        if (!inline_block.empty()) {
+          return false;
+        }
+        inline_block = name;
+      }
+      continue;
+    }
+    if (!inline_block.empty() && inline_block != "connection") {
+      continue;
+    }
+    std::istringstream tokens(line);
+    std::string directive;
+    tokens >> directive;
+    directive = Lower(directive);
+    if (StartsWith(directive, "--")) {
+      directive = directive.substr(2);
+    }
+    if (directive == "client") {
+      saw_client = true;
+    }
+    if (kForbiddenDirectives.find(directive) != kForbiddenDirectives.end()) {
+      return false;
+    }
+    if (directive == "auth-user-pass") {
+      std::string path_arg;
+      if (tokens >> path_arg) {
+        return false;
+      }
+    }
+  }
+  return input.eof() && inline_block.empty() && saw_client;
+}
+
 static bool ProcessRunning(pid_t pid) {
   if (pid <= 0) {
     return false;
@@ -486,28 +667,46 @@ static bool ProcessRunning(pid_t pid) {
   return errno == EPERM;
 }
 
-static bool ProcessLooksLikeOpenVpn(pid_t pid) {
-  if (pid <= 0) {
+static bool ProcessLooksLikeOpenVpn(pid_t pid, const std::string& config_path) {
+  if (pid <= 0 || config_path.empty()) {
+    return false;
+  }
+  const std::string proc_dir = std::string("/proc/") +
+                               std::to_string(static_cast<long>(pid));
+  struct stat proc_stat {};
+  if (stat(proc_dir.c_str(), &proc_stat) != 0 || proc_stat.st_uid != 0) {
     return false;
   }
   std::ifstream comm(std::string("/proc/") + std::to_string(static_cast<long>(pid)) + "/comm");
   std::string name;
   std::getline(comm, name);
   name = Trim(name);
-  if (name == "openvpn") {
-    return true;
+  if (name != "openvpn") {
+    return false;
   }
 
   std::ifstream cmdline(
       std::string("/proc/") + std::to_string(static_cast<long>(pid)) + "/cmdline",
       std::ios::binary);
   std::string raw((std::istreambuf_iterator<char>(cmdline)), std::istreambuf_iterator<char>());
-  for (char& c : raw) {
-    if (c == '\0') {
-      c = ' ';
+  std::vector<std::string> args;
+  size_t start = 0;
+  while (start < raw.size()) {
+    const size_t end = raw.find('\0', start);
+    args.push_back(raw.substr(
+        start,
+        end == std::string::npos ? raw.size() - start : end - start));
+    if (end == std::string::npos) {
+      break;
+    }
+    start = end + 1;
+  }
+  for (size_t i = 0; i + 1 < args.size(); i++) {
+    if (args[i] == "--config" && args[i + 1] == config_path) {
+      return true;
     }
   }
-  return raw.find("openvpn") != std::string::npos;
+  return false;
 }
 
 static bool ReadPid(const std::string& path, pid_t* pid) {
@@ -737,19 +936,23 @@ static bool WritePeerOwnedFile(const std::string& path,
   return true;
 }
 
-static bool OpenVpnRuntimeEvidence(const std::string& pid_path, const std::string& log_path) {
+static bool OpenVpnRuntimeEvidence(const std::string& config_path,
+                                   const std::string& pid_path,
+                                   const std::string& log_path) {
   pid_t pid = 0;
   return ReadPid(pid_path, &pid) &&
          ProcessRunning(pid) &&
-         ProcessLooksLikeOpenVpn(pid) &&
+         ProcessLooksLikeOpenVpn(pid, config_path) &&
          FileContains(log_path, "Initialization Sequence Completed") &&
          OpenVpnTunExists() &&
          OpenVpnRouteExists();
 }
 
-static bool WaitOpenVpnStarted(const std::string& pid_path, const std::string& log_path) {
+static bool WaitOpenVpnStarted(const std::string& config_path,
+                               const std::string& pid_path,
+                               const std::string& log_path) {
   for (guint i = 0; i < 40; i++) {
-    if (OpenVpnRuntimeEvidence(pid_path, log_path)) {
+    if (OpenVpnRuntimeEvidence(config_path, pid_path, log_path)) {
       return true;
     }
     g_usleep(500000);
@@ -757,11 +960,13 @@ static bool WaitOpenVpnStarted(const std::string& pid_path, const std::string& l
   return false;
 }
 
-static bool WaitOpenVpnStopped(const std::string& pid_path) {
+static bool WaitOpenVpnStopped(const std::string& config_path,
+                               const std::string& pid_path) {
   for (guint i = 0; i < 20; i++) {
     pid_t pid = 0;
     const bool openvpn_running =
-        ReadPid(pid_path, &pid) && ProcessRunning(pid) && ProcessLooksLikeOpenVpn(pid);
+        ReadPid(pid_path, &pid) && ProcessRunning(pid) &&
+        ProcessLooksLikeOpenVpn(pid, config_path);
     if (!openvpn_running && !OpenVpnRouteExists()) {
       return true;
     }
@@ -769,7 +974,8 @@ static bool WaitOpenVpnStopped(const std::string& pid_path) {
   }
   pid_t pid = 0;
   const bool openvpn_running =
-      ReadPid(pid_path, &pid) && ProcessRunning(pid) && ProcessLooksLikeOpenVpn(pid);
+      ReadPid(pid_path, &pid) && ProcessRunning(pid) &&
+      ProcessLooksLikeOpenVpn(pid, config_path);
   return !openvpn_running && !OpenVpnRouteExists();
 }
 
@@ -1038,7 +1244,7 @@ static Fields WireGuardStatus() {
   const bool connected = interface_present && route_via_sw_wg;
   guint64 rx = 0;
   guint64 tx = 0;
-  InterfaceCounters(kWireGuardInterface, &rx, &tx);
+  const bool counters = InterfaceCounters(kWireGuardInterface, &rx, &tx);
   Fields fields;
   fields["status"] = connected ? "connected" : "disconnected";
   fields["interface"] = kWireGuardInterface;
@@ -1049,7 +1255,7 @@ static Fields WireGuardStatus() {
   fields["residue_present"] = WireGuardResidueExists() ? "true" : "false";
   fields["rx_bytes"] = std::to_string(rx);
   fields["tx_bytes"] = std::to_string(tx);
-  fields["counters_available"] = (rx > 0 || tx > 0) ? "true" : "false";
+  fields["counters_available"] = counters ? "true" : "false";
   return Ok(fields);
 }
 
@@ -1078,6 +1284,11 @@ static Fields HandleWireGuard(const std::string& op, const Fields& request, uid_
   }
 
   if (op == "wireguard.up") {
+    if (!ValidateWireGuardConfigContents(config_path)) {
+      return Error(
+          "invalid_config",
+          "WireGuard config contains unsupported privileged directives.");
+    }
     CommandResult result = RunHelper({"up", config_path});
     if (!result.ok) {
       RunHelper({"policy-clear-link", kWireGuardInterface});
@@ -1154,19 +1365,35 @@ static Fields HandleWireGuard(const std::string& op, const Fields& request, uid_
 }
 
 static Fields OpenVpnStatus(const Fields& request, uid_t peer_uid) {
+  const std::string config_path = Field(request, "config_path");
   const std::string pid_path = Field(request, "pid_path");
   const std::string log_path = Field(request, "log_path");
-  if (!ValidateRuntimeFilePath(pid_path, kOpenVpnPidName, peer_uid) ||
+  if (!ValidateConfigPath(config_path, "securewave.ovpn", peer_uid) ||
+      !ValidateRuntimeFilePath(pid_path, kOpenVpnPidName, peer_uid) ||
       !ValidateRuntimeFilePath(log_path, kOpenVpnLogName, peer_uid)) {
     return Error("invalid_path", "OpenVPN runtime path is not approved.");
   }
   const std::string iface = OpenVpnInterfaceName();
+  pid_t pid = 0;
+  const bool process_present =
+      ReadPid(pid_path, &pid) && ProcessRunning(pid) &&
+      ProcessLooksLikeOpenVpn(pid, config_path);
+  const bool initialization_complete =
+      FileContains(log_path, "Initialization Sequence Completed");
+  const bool interface_present = !iface.empty();
+  const bool route_present = OpenVpnRouteExists();
   guint64 rx = 0;
   guint64 tx = 0;
   const bool counters = InterfaceCounters(iface, &rx, &tx);
   Fields fields;
-  fields["status"] = OpenVpnRuntimeEvidence(pid_path, log_path) ? "connected" : "disconnected";
+  fields["status"] = OpenVpnRuntimeEvidence(config_path, pid_path, log_path)
+                         ? "connected"
+                         : "disconnected";
   fields["interface"] = iface;
+  fields["process_present"] = process_present ? "true" : "false";
+  fields["initialization_complete"] = initialization_complete ? "true" : "false";
+  fields["interface_present"] = interface_present ? "true" : "false";
+  fields["route_present"] = route_present ? "true" : "false";
   fields["rx_bytes"] = std::to_string(rx);
   fields["tx_bytes"] = std::to_string(tx);
   fields["counters_available"] = counters ? "true" : "false";
@@ -1186,6 +1413,11 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
   const std::string pid_path = Field(request, "pid_path");
   const std::string log_path = Field(request, "log_path");
   const std::string auth_path = Field(request, "auth_path");
+  if ((op == "openvpn.start" || op == "openvpn.stop" ||
+       op == "openvpn.cleanup") &&
+      !ValidateConfigPath(config_path, "securewave.ovpn", peer_uid)) {
+    return Error("invalid_path", "OpenVPN config path is not approved.");
+  }
   if (!ValidateRuntimeFilePath(pid_path, kOpenVpnPidName, peer_uid)) {
     return Error("invalid_path", "OpenVPN PID path is not approved.");
   }
@@ -1203,6 +1435,9 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
         !ValidateRuntimeFilePath(log_path, kOpenVpnLogName, peer_uid)) {
       return Error("invalid_path", "OpenVPN config or log path is not approved.");
     }
+    if (!ValidateOpenVpnConfigContents(config_path)) {
+      return Error("invalid_config", "OpenVPN config contains unsupported privileged directives.");
+    }
     std::vector<std::string> args = {"openvpn-start", config_path, pid_path, log_path};
     if (!auth_path.empty()) {
       args.push_back(auth_path);
@@ -1211,13 +1446,13 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
     if (!result.ok) {
       return Error("vpn_connect_failed", result.message.empty() ? "OpenVPN start failed." : result.message);
     }
-    if (!WaitOpenVpnStarted(pid_path, log_path)) {
+    if (!WaitOpenVpnStarted(config_path, pid_path, log_path)) {
       pid_t pid = 0;
-      if (ReadPid(pid_path, &pid) && ProcessLooksLikeOpenVpn(pid)) {
+      if (ReadPid(pid_path, &pid) && ProcessLooksLikeOpenVpn(pid, config_path)) {
         RunHelper({"openvpn-stop", std::to_string(static_cast<long>(pid))});
       }
       const std::string tail = OpenVpnLogTail(log_path);
-      WaitOpenVpnStopped(pid_path);
+      WaitOpenVpnStopped(config_path, pid_path);
       unlink(pid_path.c_str());
       unlink(log_path.c_str());
       return Error(
@@ -1244,7 +1479,7 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
       }
       return OpenVpnStatus(request, peer_uid);
     }
-    if (!ProcessLooksLikeOpenVpn(pid)) {
+    if (!ProcessLooksLikeOpenVpn(pid, config_path)) {
       if (op == "openvpn.cleanup" && !OpenVpnRouteExists()) {
         unlink(pid_path.c_str());
         unlink(log_path.c_str());
@@ -1259,7 +1494,7 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
     if (!result.ok) {
       return Error("vpn_disconnect_failed", result.message.empty() ? "OpenVPN stop failed." : result.message);
     }
-    if (!WaitOpenVpnStopped(pid_path)) {
+    if (!WaitOpenVpnStopped(config_path, pid_path)) {
       return Error("vpn_disconnect_failed", "OpenVPN stop completed but process or route evidence remains.");
     }
     unlink(pid_path.c_str());
@@ -1279,6 +1514,9 @@ static Fields Ikev2Status() {
   std::string xfrm_output;
   bool routing_loop_rule = false;
   const bool connected = Ikev2RuntimeEvidence(&xfrm_output, &routing_loop_rule);
+  const bool nm_active = NmcliActiveIkev2();
+  const bool route_or_dns_present = Ikev2RouteOrDnsEvidence();
+  const bool xfrm_esp_present = XfrmHasEsp(xfrm_output);
   guint64 rx = 0;
   guint64 tx = 0;
   const bool counters = ParseXfrmCounters(xfrm_output, &rx, &tx);
@@ -1289,6 +1527,9 @@ static Fields Ikev2Status() {
   fields["tx_bytes"] = std::to_string(tx);
   fields["counters_available"] = counters ? "true" : "false";
   fields["routing_loop_rule_present"] = routing_loop_rule ? "true" : "false";
+  fields["nm_active"] = nm_active ? "true" : "false";
+  fields["route_or_dns_present"] = route_or_dns_present ? "true" : "false";
+  fields["xfrm_esp_present"] = xfrm_esp_present ? "true" : "false";
   return Ok(fields);
 }
 
@@ -1370,6 +1611,16 @@ static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t pe
   return Error("vpn_connect_failed", "IKEv2 started but route, DNS, XFRM ESP, and routing-loop safety evidence was not detected.");
 }
 
+static bool RequestFieldsAllowed(const Fields& request,
+                                 const std::set<std::string>& allowed) {
+  for (const auto& item : request) {
+    if (allowed.find(item.first) == allowed.end()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static Fields HandleRequest(const Fields& request, uid_t peer_uid) {
   if (Field(request, "version") != "1") {
     return Error("invalid_request", "Unsupported helper protocol version.");
@@ -1379,15 +1630,29 @@ static Fields HandleRequest(const Fields& request, uid_t peer_uid) {
     return Error("invalid_request", "Missing helper operation.");
   }
   if (op == "probe") {
+    if (!RequestFieldsAllowed(request, {"version", "op", "protocol"})) {
+      return Error("invalid_request", "Unexpected helper request field.");
+    }
     return HandleProbe(request);
   }
   if (StartsWith(op, "wireguard.")) {
+    if (!RequestFieldsAllowed(request, {"version", "op", "config_path"})) {
+      return Error("invalid_request", "Unexpected helper request field.");
+    }
     return HandleWireGuard(op, request, peer_uid);
   }
   if (StartsWith(op, "openvpn.")) {
+    if (!RequestFieldsAllowed(
+            request,
+            {"version", "op", "config_path", "pid_path", "log_path", "auth_path"})) {
+      return Error("invalid_request", "Unexpected helper request field.");
+    }
     return HandleOpenVpn(op, request, peer_uid);
   }
   if (StartsWith(op, "ikev2.")) {
+    if (!RequestFieldsAllowed(request, {"version", "op", "config_path"})) {
+      return Error("invalid_request", "Unexpected helper request field.");
+    }
     return HandleIkev2(op, request, peer_uid);
   }
   return Error("invalid_operation", "Unsupported helper operation.");
@@ -1492,7 +1757,12 @@ static void HandleClient(int client_fd) {
     WriteAll(client_fd, SerializeFields(response));
     return;
   }
-  response = HandleRequest(ParseFields(body), peer.uid);
+  const ParsedFields parsed = ParseFields(body);
+  if (!parsed.valid) {
+    response = Error("invalid_request", parsed.error);
+  } else {
+    response = HandleRequest(parsed.fields, peer.uid);
+  }
   WriteAll(client_fd, SerializeFields(response));
 }
 
@@ -1521,6 +1791,9 @@ int main(int argc, char** argv) {
       g_usleep(100000);
       continue;
     }
+    const struct timeval timeout = {5, 0};
+    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
     HandleClient(client_fd);
     close(client_fd);
   }
