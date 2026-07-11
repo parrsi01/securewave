@@ -5,7 +5,7 @@
 # FastAPI and ASGI server
 fastapi==0.138.2
 uvicorn[standard]==0.32.1
-gunicorn==23.0.0
+gunicorn==26.0.0
 python-multipart==0.0.32
 
 # Database
