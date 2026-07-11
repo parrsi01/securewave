@@ -33,7 +33,7 @@ SQLite/SQLAlchemy cannot reflect expression-based indexes for comparison, so
 the SQLite drift check emits warnings for `uq_users_email_lower` and
 `uq_wireguard_peer_user_device_name`. The indexes are asserted directly and
 were also reflected successfully from PostgreSQL. The PostgreSQL test container
-used synthetic local credentials and was stopped after validation.
+used synthetic local credentials and had no production connection.
 
 ## Evidence limits
 
