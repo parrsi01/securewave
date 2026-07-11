@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
 from sqlalchemy.orm import Session
 
 from database.session import get_db
@@ -79,7 +79,7 @@ def create_refresh_token(user: User) -> str:
 def decode_token(token: str, secret: str) -> dict:
     try:
         return jwt.decode(token, secret, algorithms=[ALGORITHM])
-    except JWTError as exc:
+    except jwt.PyJWTError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
 
 
@@ -104,11 +104,12 @@ def token_version_matches(payload: dict, user: User) -> bool:
     return token_version == user_version
 
 
-def get_current_user(
+def get_optional_current_user(
     request: Request,
     db: Session = Depends(get_db),
     token: Optional[str] = Depends(oauth2_scheme),
-) -> User:
+) -> Optional[User]:
+    """Resolve an access token when supplied without requiring anonymous callers."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -117,7 +118,7 @@ def get_current_user(
     if not token:
         token = request.cookies.get("access_token")
     if not token:
-        raise credentials_exception
+        return None
     try:
         payload = decode_token(token, ACCESS_SECRET)
         if payload.get("type") != "access":
@@ -125,17 +126,25 @@ def get_current_user(
         user_id: Optional[str] = payload.get("sub")
         if user_id is None:
             raise credentials_exception
+        user_id_value = int(user_id)
     except HTTPException:
         raise
-    except Exception as exc:  # pragma: no cover - safety net
-        raise credentials_exception from exc
-
-    try:
-        normalized_user_id = int(user_id)
     except (TypeError, ValueError) as exc:
         raise credentials_exception from exc
 
-    user = db.query(User).filter(User.id == normalized_user_id).first()
+    user = db.query(User).filter(User.id == user_id_value).first()
     if user is None or not user.is_active or not token_version_matches(payload, user):
         raise credentials_exception
+    return user
+
+
+def get_current_user(
+    user: Optional[User] = Depends(get_optional_current_user),
+) -> User:
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return user

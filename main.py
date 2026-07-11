@@ -505,13 +505,20 @@ def email_healthcheck():
 
 @app.get("/api/ready")
 def readiness():
+    db = None
     try:
         db = SessionLocal()
         db.execute(text("SELECT 1"))
-        db.close()
         return {"status": "ready", "database": "connected"}
     except Exception:
-        return {"status": "not_ready", "error": "database_unavailable"}
+        logging.getLogger(__name__).warning("Database readiness check failed")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "unavailable"},
+        )
+    finally:
+        if db is not None:
+            db.close()
 
 
 @app.get("/version")

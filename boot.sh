@@ -15,7 +15,7 @@ fi
 export PYTHONPATH="${APP_DIR}:${PYTHONPATH:-}"
 
 if [ -x "${APP_DIR}/antenv/bin/gunicorn" ]; then
-  exec "${APP_DIR}/antenv/bin/gunicorn" -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT} --timeout 600
+  exec "${APP_DIR}/antenv/bin/gunicorn" -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:"${PORT}" --timeout 600
 fi
 
-exec gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT} --timeout 600
+exec gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:"${PORT}" --timeout 600

@@ -30,6 +30,25 @@ class TestHealthEndpoints:
         data = response.json()
         assert "status" in data
 
+    def test_ready_endpoint_does_not_expose_database_errors(self, client, monkeypatch):
+        import main
+
+        class BrokenSession:
+            def execute(self, _statement):
+                raise RuntimeError("sensitive-host-and-credential-detail")
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(main, "SessionLocal", BrokenSession)
+        response = client.get("/api/ready")
+        assert response.status_code == 503
+        assert response.json() == {
+            "status": "not_ready",
+            "database": "unavailable",
+        }
+        assert "sensitive-host" not in response.text
+
     def test_email_health_endpoint(self, client: TestClient):
         response = client.get("/api/health/email")
         # Can be 200 (configured) or 503 (not configured)

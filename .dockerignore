@@ -1,0 +1,30 @@
+# Deny by default so local credentials, evidence, VCS data, and build outputs
+# can never enter the Docker build context accidentally.
+*
+
+!requirements.txt
+!main.py
+!background_tasks.py
+!alembic.ini
+
+!alembic/
+!alembic/**
+!database/
+!database/**
+!infrastructure/
+!infrastructure/**
+!models/
+!models/**
+!routers/
+!routers/**
+!routes/
+!routes/**
+!services/
+!services/**
+!utils/
+!utils/**
+!static/
+!static/**
+!scripts/
+scripts/*
+!scripts/docker-entrypoint.sh

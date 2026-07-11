@@ -49,7 +49,7 @@ This project demonstrates work across:
 - **Cloud provider:** Hetzner Cloud only
 - **Default topology:** single-server deployment with explicit guardrails against accidental scaling
 - **Live API default:** the Flutter app defaults to `https://api.securewaveapp.com/api`; mock API mode is opt-in only
-- **Branch model:** `master` carries backend, docs, infrastructure, and release truth; `flutter` mirrors the current Flutter app design branch
+- **Branch model:** `master` is canonical; focused work is reviewed through short-lived pull-request branches before merge
 - **Provisioning:** Terraform in `infrastructure/hetzner/`
 - **Host hardening:** `scripts/hetzner_bootstrap.sh`
 - **Operations docs:** `docs/HETZNER_RUNBOOK.md`, `ARCHITECTURE.md`, `SETUP_GUIDE.md`
@@ -61,9 +61,25 @@ This project demonstrates work across:
 - `static/`: website and static assets
 - `infrastructure/hetzner/`: Terraform for Hetzner provisioning
 - `scripts/` and `docs/`: deployment, validation, and operations tooling
-- `tests/`, `tests_real/`, `securewave-tests/`: automated and simulated validation coverage
+- `tests/`, `securewave_app/test/`, `securewave-tests/`: backend, Flutter, and simulated validation coverage
 
 ## Getting Started
+
+### Safe local certification
+
+After installing `requirements_dev.txt` and Flutter/Linux build dependencies,
+run the maximum safe local suite from the repository root:
+
+```bash
+PYTHON_BIN=.venv/bin/python bash scripts/certify_repository.sh
+```
+
+The command never deploys, publishes, signs, sends provider email, runs an
+external load test, or uses live VPN credentials. It exits nonzero for failed
+checks and exits `2` when a required tool is unavailable; unavailable checks
+are reported as blocked, never passed. See
+`docs/REPOSITORY_CERTIFICATION_REPORT.md` for the current master baseline and
+platform-specific blockers.
 
 ### Local backend
 

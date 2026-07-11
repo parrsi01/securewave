@@ -118,7 +118,9 @@ install_systemd_service() {
 
   install -m 0644 "$SOURCE_SERVICE" "$SERVICE_FILE"
   install -m 0644 "$SOURCE_TMPFILES" "$TMPFILES_FILE"
-  command -v systemd-tmpfiles >/dev/null 2>&1 && systemd-tmpfiles --create "$TMPFILES_FILE" || true
+  if command -v systemd-tmpfiles >/dev/null 2>&1; then
+    systemd-tmpfiles --create "$TMPFILES_FILE" || true
+  fi
   systemctl daemon-reload
   systemctl enable --now securewave-helper.service
   systemctl restart securewave-helper.service

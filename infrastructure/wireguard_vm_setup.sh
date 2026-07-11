@@ -88,7 +88,7 @@ wg genkey > /etc/wireguard/keys/server_private.key
 chmod 600 /etc/wireguard/keys/server_private.key
 
 # Generate public key
-cat /etc/wireguard/keys/server_private.key | wg pubkey > /etc/wireguard/keys/server_public.key
+wg pubkey < /etc/wireguard/keys/server_private.key > /etc/wireguard/keys/server_public.key
 
 SERVER_PRIVATE_KEY=$(cat /etc/wireguard/keys/server_private.key)
 SERVER_PUBLIC_KEY=$(cat /etc/wireguard/keys/server_public.key)
@@ -138,7 +138,7 @@ ufw default allow outgoing
 ufw allow 22/tcp comment 'SSH'
 
 # Allow WireGuard
-ufw allow ${WG_PORT}/udp comment 'WireGuard VPN'
+ufw allow "${WG_PORT}"/udp comment 'WireGuard VPN'
 
 # Allow management API (internal only or from specific IPs)
 # ufw allow from <backend-ip> to any port ${API_PORT} proto tcp comment 'Management API'
