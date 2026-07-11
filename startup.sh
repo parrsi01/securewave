@@ -39,19 +39,20 @@ if [ ! -x "${VENV_DIR}/bin/python" ]; then
   "${PYTHON_BIN}" -m venv "${VENV_DIR}"
 fi
 
+# shellcheck source=/dev/null
 source "${VENV_DIR}/bin/activate"
 
-python - <<'PY'
+if ! python - <<'PY'
 import importlib.util
 missing = [m for m in ("pip", "setuptools", "_distutils_hack") if importlib.util.find_spec(m) is None]
 if missing:
     raise SystemExit(1)
 PY
-
-if [ $? -ne 0 ]; then
+then
   echo "[startup] rebuilding virtualenv due to missing base tooling"
   rm -rf "${VENV_DIR}"
   "${PYTHON_BIN}" -m venv "${VENV_DIR}"
+  # shellcheck source=/dev/null
   source "${VENV_DIR}/bin/activate"
   pip install --no-input --upgrade pip setuptools wheel
 fi
@@ -81,4 +82,4 @@ if [ "${NEEDS_INSTALL}" = "true" ] || [ "${REQ_HASH}" != "${INSTALLED_HASH}" ]; 
 fi
 
 echo "[startup] launching gunicorn"
-exec gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT} --timeout 600
+exec gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:"${PORT}" --timeout 600

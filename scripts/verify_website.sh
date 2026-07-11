@@ -127,7 +127,7 @@ for html_file in "$STATIC_DIR"/*.html; do
   # Extract href values that point to local pages
   while IFS= read -r link; do
     # Strip query params and anchors
-    clean_link=$(echo "$link" | sed 's/[?#].*//')
+    clean_link="${link%%[?#]*}"
     # Skip external links, javascript:, mailto:, empty
     if [[ -z "$clean_link" ]] || [[ "$clean_link" == http* ]] || [[ "$clean_link" == javascript* ]] || [[ "$clean_link" == mailto* ]]; then
       continue

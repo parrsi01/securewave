@@ -6,42 +6,40 @@ Last audited: 2026-07-11 UTC
 
 Current `origin/master` is **not release-certified**. This pass establishes
 stronger repository, CI, dependency, Docker, and defensive security gates, but
-does not override unmerged prerequisite work or treat blocked checks as passes.
+does not treat blocked platform or live-runtime evidence as a pass.
 
 Audit basis:
 
-- Base: `origin/master` at `d8ddec2d`
+- Base: `origin/master` at `5fc8dc7d` (PRs #26 and #27 merged)
 - Branch: `codex/repository-security-certification`
 - Host: Linux ARM64
-- Backend PR #26, mobile/UI PR #25, baseline PR #24, and VPN runtime PR #27
-  were open drafts and unmerged when this branch was created.
-- No work from those branches was silently copied into this branch.
-- VPN PR #27's first Python CI run exposed missing GLib helper-test build
-  dependencies. Its focused workflow-only correction was committed on that
-  branch as `0082f354`; replacement run `29149572378` passed every job.
+- Rebased after the merged backend/API and VPN-runtime changes. Conflicts were
+  resolved by preserving the migration entrypoint, runtime imports, token
+  version invalidation, active-account checks, and certification controls.
 
 ## Verified commands and results
 
 | Area | Command | Result |
 | --- | --- | --- |
-| Backend/API | `.venv/bin/python -m pytest -q tests` | 295 passed |
-| Focused security/API | `.venv/bin/python -m pytest -q tests/security/test_security.py tests/security/test_vpn_test_result_isolation.py tests/smoke/test_api_endpoints.py` | 81 passed |
+| Backend/API | `.venv/bin/python -m pytest -q tests` | 381 passed, 1 opt-in PostgreSQL concurrency skip |
+| Focused security/API | `.venv/bin/python -m pytest -q tests/security/test_security.py tests/security/test_vpn_test_result_isolation.py tests/smoke/test_api_endpoints.py` | 82 passed |
 | Python dependencies | `.venv/bin/python -m pip_audit -r requirements.txt --strict` | No known vulnerabilities after JWT dependency replacement |
 | Python security | `.venv/bin/python -m bandit -q -lll -r main.py routes routers services models database scripts infrastructure` | No high-severity findings; documented `nosec` warnings remain visible |
 | Python syntax | `.venv/bin/python -m compileall -q ...` | Passed for repository Python surfaces |
 | Flutter | `flutter analyze` | No issues after creating the non-secret CI env asset |
-| Flutter | `flutter test --reporter compact` | 24 passed |
+| Flutter | `flutter test --reporter compact` | 26 passed |
 | Linux app | `flutter build linux --release` | Passed on ARM64; this is not x64 or live VPN evidence |
 | Android app | `flutter build apk --debug` | Blocked locally: Java/JDK unavailable; pinned Java 17 CI compile passed in run `29150029857` after foreground-service/Kotlin compatibility fixes |
 | Docker lint | `docker build --check .` and `docker build --check -f Dockerfile.simple .` | Passed with no warnings |
 | Docker image | `docker build --tag securewave-certification:local .` | Passed on ARM64; runtime module import executed inside the image |
+| Compose configuration | `docker compose -f deploy/hetzner/compose.yaml config --quiet` with dummy values | Passed; no deployment or infrastructure action |
 | Shell/static | tracked `bash -n`, tracked `node --check`, UI/plan/release/Xcode guards | Passed |
 | Repository safety | `python3 scripts/check_repository_hygiene.py` and `python3 scripts/scan_repository_secrets.py` | Passed; scanners never print matched secret values |
-| Alembic | fresh SQLite `alembic upgrade head` with `AUTO_CREATE_TABLES=false` | Failed at revision `0005`: expected `audit_logs` table absent |
-| ShellCheck | `shellcheck` | Unavailable; not passed |
-| Actions lint | `actionlint` | Unavailable; YAML parsing and local workflow guards passed, but actionlint is not claimed |
+| Alembic | fresh SQLite and prior-state `0005 -> head -> repeat -> check` with `AUTO_CREATE_TABLES=false` | Passed; SQLite expression-index reflection warnings remain documented |
+| ShellCheck | `shellcheck -x` over tracked shell scripts | Passed using ShellCheck 0.9.0 from the reproducible APT package path; CI now installs and runs it |
+| Actions lint | `actionlint` | Passed using pinned `v1.7.7`; CI now installs and runs it |
 | Windows/macOS | native build/runtime tools | Unavailable on this host; not passed |
-| GitHub PR CI | run `29150029857` | Repository, security, 295-test Python, Flutter Linux, Android debug compile, and Docker jobs passed |
+| GitHub PR CI | historic pre-rebase run `29150029857` | Historical evidence only; current rebased branch must rerun CI before review/merge |
 
 The single developer-facing maximum safe command is:
 
@@ -87,7 +85,7 @@ Changes made:
   with a write token and accepts only the expected zip and JSON manifest.
 - Artifact uploads use explicit 14-day retention.
 - PR CI now has repository hygiene, redacted secret scanning, shell/JavaScript
-  syntax, dependency audit, high-severity Bandit, backend, Flutter Linux,
+  syntax, ShellCheck, pinned actionlint `v1.7.7`, dependency audit, high-severity Bandit, backend, Flutter Linux,
   Flutter Android debug compile, and Docker build jobs.
 - Dependabot monitors pip, GitHub Actions, Docker, and Dart/pub dependencies.
 - Existing concurrency cancellation remains enabled for CI and disabled for
@@ -100,9 +98,22 @@ Remaining GitHub gates:
   checks before merge.
 - Restrict release workflows to approved environments/maintainers and review
   repository Actions policy settings.
-- Re-run CI after prerequisite branches are merged and this branch is rebased.
+- Re-run CI after this rebased branch is pushed, and do not merge until every
+  required job reports success.
 - Do not treat the manual x64 packaging workflow as install/live-routing proof
   or publication authorization.
+
+### Proposed `master` protection policy (prepared, not applied)
+
+Repository-admin authority was not granted for a settings mutation. The exact
+policy proposed for owner review is: require a pull request before merge;
+require one approving review including CODEOWNERS where applicable; dismiss
+stale approvals; require conversation resolution; require branches to be up to
+date; and require these status checks: `Repository Guards`, `Dependency and
+Code Security`, `Python Tests`, `Flutter Linux Analyze and Build`, `Flutter
+Android Debug Build`, and `Docker Build`. Do not allow force pushes or branch
+deletion, and include administrators in enforcement if the owner selects that
+policy.
 
 ## Defensive security findings fixed
 
@@ -130,17 +141,8 @@ Remaining GitHub gates:
 
 ## Findings deferred
 
-Priority 0 / merge blocker:
-
-- Fresh migration-to-head fails on master at revision `0005`. Backend PR #26
-  contains the migration-focused refactor and must be reviewed/merged, followed
-  by clean PostgreSQL creation and upgrade-to-head evidence. CI's current model
-  table creation plus `alembic stamp head` is test setup, not migration proof.
-
 Priority 1:
 
-- Master does not include VPN portability PR #27. Its legacy Linux helper and
-  protocol truth behavior must not be certified by this report.
 - `master` has no enforced branch protection despite sensitive workflows and
   CODEOWNERS. This is a repository setting, not a code-only fix.
 - The Docker runtime still starts as root because current WireGuard/server
@@ -162,18 +164,16 @@ Priority 2:
 
 ## Release gates still required
 
-1. Review and merge the prerequisite UI/backend/VPN refactors, then rebase this
-   certification branch and rerun every check.
-2. Prove fresh and upgrade-to-head PostgreSQL migrations without ORM table
+1. Prove fresh and upgrade-to-head PostgreSQL migrations without ORM table
    creation or Alembic stamping shortcuts.
-3. Require all CI checks through protected-branch settings.
-4. Run the pinned Android CI job and architecture-valid x64 Linux packaging VM
+2. Require all CI checks through protected-branch settings.
+3. Run the pinned Android CI job and architecture-valid x64 Linux packaging VM
    certification; do not infer x64 from this ARM64 run.
-5. Run authorized platform-specific VPN install/helper/routing/DNS/data-plane/
+4. Run authorized platform-specific VPN install/helper/routing/DNS/data-plane/
    cleanup proofs. Source builds are not live VPN evidence.
-6. Complete Windows and macOS native build/runtime evidence on those platforms;
+5. Complete Windows and macOS native build/runtime evidence on those platforms;
    macOS VPN remains unavailable without a native provider.
-7. Review legacy PRs/branches and raw evidence retention before repository
+6. Review legacy PRs/branches and raw evidence retention before repository
    cleanup changes.
 
 ## Excluded work
@@ -181,7 +181,7 @@ Priority 2:
 - Production deployment and Terraform apply
 - External load testing
 - Artifact publication or availability promotion
-- Pull-request merge or branch deletion
+- Pull-request merge or branch deletion by the certification script
 - VPN certificate/signing work
 - SMTP/provider configuration or integration work
 - Live credentials or real VPN infrastructure changes

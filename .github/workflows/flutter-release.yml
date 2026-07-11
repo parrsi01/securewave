@@ -90,7 +90,7 @@ jobs:
               cp "$artifact" release-artifacts/
             done
           cd release-artifacts
-          sha256sum * > checksums.txt
+          sha256sum -- ./* > checksums.txt
           cat checksums.txt
 
       - name: Upload Linux packages

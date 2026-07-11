@@ -21,6 +21,7 @@ if [ ! -d ".venv" ]; then
 fi
 
 echo "Activating Python virtual environment"
+# shellcheck source=/dev/null
 source .venv/bin/activate
 
 echo "Upgrading pip"
@@ -89,6 +90,7 @@ else
 fi
 
 set -a
+# shellcheck source=/dev/null
 source .env
 set +a
 
@@ -120,8 +122,8 @@ fi
 # -------------------------------
 echo "Starting backend (FastAPI)"
 nohup uvicorn main:app \
-  --host ${BACKEND_HOST} \
-  --port ${BACKEND_PORT} \
+  --host "${BACKEND_HOST}" \
+  --port "${BACKEND_PORT}" \
   --reload \
   > backend.log 2>&1 &
 

@@ -1,8 +1,10 @@
 # Repository inventory summary
 
-Audit base: `origin/master` at `d8ddec2d`
+Audit base: `origin/master` at `5fc8dc7d` (after the merged backend/API and
+VPN-runtime refactors). Counts below were refreshed against that base before
+the certification rebase was pushed.
 
-- 1,510 tracked files before this certification change set.
+- 1,536 tracked files before this certification change set.
 - Primary first-party surfaces: Python/FastAPI, Dart/Flutter, shell, Docker,
   Terraform, JavaScript/static site, native Linux/Windows/macOS/Android code,
   migrations, and GitHub Actions.
@@ -10,10 +12,10 @@ Audit base: `origin/master` at `d8ddec2d`
   Debian evidence, and Apple release validation.
 - Backend tests live under `tests/`; Flutter tests under `securewave_app/test/`;
   simulated VPN/network tests under `securewave-tests/`.
-- 91 tracked artifact files existed, including 16 legacy raw-output extensions.
+- 100 tracked artifact files existed, including 16 legacy raw-output extensions.
   No private-key, authorization-header, cookie-header, or credential-URL match
   was found in the artifact scan. Matched values were never printed.
-- Four downloadable package/archive files were tracked under
+- Six downloadable package/archive files were tracked under
   `static/downloads/`; no availability status was changed.
 - README referenced a nonexistent `tests_real/` path and an unreported remote
   `flutter` branch model; both descriptions were corrected.

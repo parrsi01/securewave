@@ -91,9 +91,11 @@ ssh_opts=(
 
 echo "Deploying ${SECUREWAVE_PRODUCTION_IMAGE} to ${remote}:${remote_dir}"
 
+# shellcheck disable=SC2029 # The validated local path is intentionally quoted into the remote command.
 ssh "${ssh_opts[@]}" "$remote" "mkdir -p '$remote_dir'"
 scp "${ssh_opts[@]}" "$COMPOSE_TEMPLATE" "$remote:${remote_dir}/compose.yaml"
 
+# shellcheck disable=SC2029 # The validated local values are intentionally quoted into the remote command.
 ssh "${ssh_opts[@]}" "$remote" \
   "set -euo pipefail
    cd '$remote_dir'

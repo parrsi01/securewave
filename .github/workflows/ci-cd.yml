@@ -74,13 +74,23 @@ jobs:
           python3 scripts/check_repository_hygiene.py
           python3 scripts/scan_repository_secrets.py
 
-      - name: Verify tracked shell and JavaScript syntax
+      - name: Install pinned workflow linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          export GOBIN="$RUNNER_TEMP/actionlint-bin"
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$GOBIN" >> "$GITHUB_PATH"
+
+      - name: Verify tracked shell, JavaScript, and Actions syntax
         run: |
           set -euo pipefail
           git ls-files -z '*.sh' | xargs -0 bash -n
+          git ls-files -z '*.sh' | xargs -0 shellcheck -x
           while IFS= read -r -d '' file; do
             node --check "$file"
           done < <(git ls-files -z '*.js')
+          actionlint
 
       - name: Verify UI v1 assets
         run: bash scripts/verify_ui_v1.sh

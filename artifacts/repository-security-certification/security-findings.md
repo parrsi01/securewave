@@ -22,10 +22,6 @@
 
 ## Deferred
 
-- Priority 0: master fresh migrations fail at revision `0005`; prerequisite
-  backend PR #26 must be reviewed and merged, then PostgreSQL migration proof
-  rerun.
-- Priority 1: master VPN runtime truth predates PR #27 and is not certified.
 - Priority 1: branch protection and required review/check settings are absent.
 - Priority 1: container non-root execution depends on separating privileged VPN
   operations from the web backend.

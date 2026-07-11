@@ -43,7 +43,7 @@ fi
 # WORKSPACE_DIR *is* set, but points at:
 #   - the workspace directory when building via .xcworkspace
 #   - the .xcodeproj directory when building via .xcodeproj
-if [[ -n "${PROJECT_FILE_PATH:-}" ]] && [[ "${PROJECT_FILE_PATH}" == *"Runner.xcodeproj"* ]] && ( [[ -z "${WORKSPACE_DIR:-}" ]] || [[ "${WORKSPACE_DIR}" == *".xcodeproj"* ]] ); then
+if [[ -n "${PROJECT_FILE_PATH:-}" ]] && [[ "${PROJECT_FILE_PATH}" == *"Runner.xcodeproj"* ]] && { [[ -z "${WORKSPACE_DIR:-}" ]] || [[ "${WORKSPACE_DIR}" == *".xcodeproj"* ]]; }; then
   echo ""
   echo "================================================================"
   echo "ERROR: Build triggered via Runner.xcodeproj."

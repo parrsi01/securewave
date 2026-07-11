@@ -90,7 +90,8 @@ echo "WG_MOCK_MODE=$WG_MOCK_MODE"
 echo ""
 
 PYTEST_ARGS=${PYTEST_ARGS:-"tests -v"}
-if ! "$PYTHON_BIN" -m pytest ${PYTEST_ARGS}; then
+read -r -a pytest_args <<< "$PYTEST_ARGS"
+if ! "$PYTHON_BIN" -m pytest "${pytest_args[@]}"; then
   echo ""
   echo "============================================"
   echo "TEST FAILURE"

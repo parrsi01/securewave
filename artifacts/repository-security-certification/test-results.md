@@ -2,23 +2,18 @@
 
 ## Passed
 
-- Backend/API/security: 295 tests.
-- Focused JWT, account-isolated VPN diagnostics, and readiness boundary: 81
+- Backend/API/security: 381 passed, 1 opt-in PostgreSQL concurrency skip.
+- Focused JWT, account-isolated VPN diagnostics, and readiness boundary: 82
   tests.
-- Flutter: analyze clean, 24 tests, ARM64 Linux release build.
+- Flutter: analyze clean, 26 tests, ARM64 Linux release build.
 - Python dependency audit: no known vulnerabilities after dependency changes.
 - Bandit: no high-severity findings.
 - Docker: both Dockerfile checks clean; standard ARM64 image built and imported
   the complete runtime module set.
 - Repository hygiene, redacted secret scan, Python compile, tracked shell
-  syntax, tracked JavaScript syntax, UI guards, plan-copy guards, release
-  guards, Xcode workspace guards, YAML parsing, and diff checks.
-
-## Failed
-
-- Fresh Alembic upgrade from an empty database fails at revision `0005` because
-  the migration expects an `audit_logs` table that the earlier chain did not
-  create. This is a release blocker, not a pass.
+  syntax, ShellCheck, actionlint, tracked JavaScript syntax, UI guards,
+  plan-copy guards, release guards, Xcode workspace guards, Compose dummy-value
+  config, Docker checks, and diff checks.
 
 ## Blocked or unavailable
 
@@ -28,7 +23,8 @@
   Kotlin activity-result, service-import, and config-parser calls; those now use
   compile-compatible APIs with static regression tests. GitHub run
   `29150029857` subsequently passed the Android debug compile.
-- ShellCheck and actionlint: unavailable locally.
+- ShellCheck 0.9.0 and pinned actionlint v1.7.7 were installed temporarily and
+  passed; CI now installs and runs both tools reproducibly.
 - Windows and macOS native builds: unavailable on Linux ARM64.
 - x64 package/install/runtime: wrong host architecture.
 - Live VPN routing/DNS/exit-IP/data-plane: no authorized credentials or runtime
