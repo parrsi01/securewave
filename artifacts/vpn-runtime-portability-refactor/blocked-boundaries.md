@@ -18,6 +18,8 @@
   file. The deployed server authentication mode was not inspected or changed;
   authorized live proof is required before claiming OpenVPN readiness.
 - The host is ARM64. No local x64 build/install/runtime claim is made.
+- Android debug build is blocked locally because Java/JAVA_HOME is unavailable;
+  this is not reported as Android build proof.
 
 ## Platform blockers
 

@@ -3,7 +3,7 @@
 Date: 2026-07-11 UTC
 
 - Branch: `codex/vpn-runtime-portability-refactor`
-- Base: `origin/master` at `d8ddec2d`
+- Base: `origin/master` at `81f8a655`
 - Host: Linux AArch64 / Debian ARM64
 - Production deployment: not performed
 - Artifact publication or manifest availability change: not performed

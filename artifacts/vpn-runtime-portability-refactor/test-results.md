@@ -4,9 +4,10 @@
 
 - Full Python suite:
   `/home/sp/cyber-course/projects/securewave/.venv/bin/python -m pytest -q`
-  -> `326 passed`.
-- Focused native/package/verifier suite -> `49 passed` before the final
-  fail-closed capability adjustment; the full Python suite subsequently passed.
+  -> `372 passed, 1 skipped` after the rebase; the skip is the opt-in
+  PostgreSQL concurrency lane without a configured local test URL.
+- Focused Linux VPN/helper/package/verifier/download suite -> `84 passed`
+  after the rebase.
 - Full Flutter suite: `flutter test --reporter compact` -> `26 passed`.
 - Focused Flutter VPN suite after final capability adjustment:
   `flutter test test/mock_vpn_service_test.dart test/vpn_state_test.dart`
@@ -16,7 +17,8 @@
 ## Build/static/package checks
 
 - `bash securewave_app/scripts/build_deb.sh` -> ARM64 package built locally;
-  no publication.
+  no publication. Package metadata/payload inspection confirmed the declared
+  runtime dependencies, helper staging, and contract `10` install source.
 - Linux Flutter release build -> success.
 - Helper daemon `g++ -std=c++14 -Wall -Wextra -Werror ... -fsyntax-only` ->
   pass.
@@ -29,6 +31,8 @@
 - ShellCheck -> unavailable; not counted as a pass.
 - Windows compile -> unavailable on Linux; not counted as a pass.
 - macOS/Xcode compile -> unavailable on Linux; not counted as a pass.
+- Android debug build -> blocked locally because Java/JAVA_HOME is absent; not
+  counted as a pass.
 
 ## Behavior covered
 

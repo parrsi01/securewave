@@ -5,7 +5,7 @@ Last audited: 2026-07-11 UTC
 Audit basis:
 
 - Branch: `codex/vpn-runtime-portability-refactor`
-- Base: `origin/master` at `d8ddec2d`
+- Base: `origin/master` at `81f8a655`
 - Audit host: Linux `aarch64` / Debian `arm64`
 - Current local package proof: ARM64 only
 - Production deploy, publication, signing, live credentials, and live infrastructure
