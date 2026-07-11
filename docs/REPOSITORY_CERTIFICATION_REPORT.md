@@ -78,7 +78,8 @@ publication, signing, provider email, external load test, or live VPN action.
 
 Changes made:
 
-- All third-party Actions are pinned to full immutable commit SHAs.
+- All third-party Actions are pinned to full immutable commit SHAs; official
+  Actions use the current Node 24-capable release majors observed during audit.
 - PostgreSQL, Redis, and Python container inputs are digest-pinned.
 - Workflow-level permissions remain read-only by default.
 - The macOS build job now has read-only contents permission. Optional publishing

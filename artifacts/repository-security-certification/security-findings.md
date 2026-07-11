@@ -9,9 +9,9 @@
 - Normalized readiness and VPN test errors so exception details are not returned
   publicly or embedded in structured event payloads.
 - Closed readiness database sessions on both success and failure.
-- Added immutable Actions and container digests, dependency audit, high-severity
-  Bandit, safe secret scan, repository hygiene, CODEOWNERS, SECURITY guidance,
-  and Dependabot coverage.
+- Added immutable, current Node 24-capable Actions and container digests,
+  dependency audit, high-severity Bandit, safe secret scan, repository hygiene,
+  CODEOWNERS, SECURITY guidance, and Dependabot coverage.
 - Hardened the Docker context/runtime import/signal path and ARM64 dependency
   portability.
 
