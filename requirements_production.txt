@@ -11,7 +11,7 @@ python-multipart==0.0.32
 # Database
 SQLAlchemy==2.0.30
 psycopg2-binary==2.9.9
-alembic==1.13.1
+alembic==1.18.5
 
 # Authentication & Security
 python-jose[cryptography]==3.5.0
