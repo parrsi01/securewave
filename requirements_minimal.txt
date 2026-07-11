@@ -3,5 +3,5 @@ fastapi==0.138.2
 uvicorn[standard]==0.32.1
 gunicorn==23.0.0
 python-multipart==0.0.32
-pydantic==2.10.6
+pydantic==2.13.4
 python-dotenv==1.2.2
