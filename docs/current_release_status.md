@@ -2,11 +2,11 @@
 
 ## Canonical v1 Release Statement
 
-SecureWave is currently a Linux desktop first app. WireGuard is the primary
-runtime path. OpenVPN is enabled only when the backend issues a real OpenVPN
-profile and the Linux helper confirms startup. IKEv2 is disabled in the Linux
-release UI until the backend returns a Linux IKEv2 profile and strongSwan
-start/status/cleanup are verified.
+SecureWave is currently a Linux desktop first app. WireGuard is the strongest
+runtime path. OpenVPN is available only when the backend issues a real profile
+and the contract-10 Linux helper confirms its runtime evidence. IKEv2 helper
+orchestration exists but remains unavailable in the Linux app because the
+backend intentionally refuses Linux IKEv2 profiles.
 
 Only protocols proven end-to-end through the normal backend and client path
 should be called release-ready. The client must show backend/native errors
@@ -34,8 +34,9 @@ instead of substituting fake connected states.
 
 - OpenVPN profile issuance works on the live API for the verified Hetzner node;
   full app connect still depends on local OpenVPN installation and privileges.
-- IKEv2 is blocked in the Linux client until native strongSwan
-  import/start/status/cleanup is implemented and validated.
+- Linux IKEv2 import/start/status/cleanup is implemented behind strict helper
+  evidence, but clean-host route/DNS/XFRM/no-loop certification is still
+  blocked.
 - The iOS project now uses production-style bundle identifiers
   `com.securewave.vpn` and `com.securewave.vpn.PacketTunnel`, with the Packet
   Tunnel Provider Network Extension entitlement. A signed iOS archive/export
@@ -90,8 +91,9 @@ bash securewave_app/scripts/package_macos_ui_demo.sh
 - The live backend currently suppresses synthetic region aliases that point at
   the same Hetzner IP. Public catalog count should reflect verified inventory,
   not placeholder region names.
-- IKEv2 remains unavailable for public Linux release until profile provisioning,
-  strongSwan start/status verification, and cleanup are proven.
+- IKEv2 remains unavailable as a public Linux release claim until profile
+  provisioning, strongSwan start/status, route/DNS/XFRM safety, and cleanup are
+  proven on each package architecture.
 
 ## Experimental / Manual
 

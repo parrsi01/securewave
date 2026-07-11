@@ -150,12 +150,6 @@ if [[ -z "$ALLOW_USER" ]]; then
   ALLOW_USER="$(logname 2>/dev/null || true)"
 fi
 add_allowed_user "$ALLOW_USER"
-while IFS=: read -r user _ uid _ _ _ shell; do
-  [[ "$uid" =~ ^[0-9]+$ ]] || continue
-  (( uid >= 1000 && uid < 60000 )) || continue
-  [[ "$shell" != */nologin && "$shell" != */false ]] || continue
-  add_allowed_user "$user"
-done < /etc/passwd
 
 install -d -o root -g "$RUNTIME_GROUP" -m 0750 "$RUNTIME_DIR"
 rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
@@ -174,6 +168,20 @@ POSTINST
 cat <<'PRERM' > "$staging_dir/DEBIAN/prerm"
 #!/bin/bash
 set -e
+HELPER=/usr/local/libexec/securewave-wg-quick
+if [[ -x "$HELPER" ]]; then
+  "$HELPER" policy-clear-link sw-wg >/dev/null 2>&1 || true
+  "$HELPER" ikev2-down >/dev/null 2>&1 || true
+  "$HELPER" ikev2-delete >/dev/null 2>&1 || true
+fi
+for proc_dir in /proc/[0-9]*; do
+  [[ -r "$proc_dir/comm" && -r "$proc_dir/cmdline" ]] || continue
+  [[ "$(cat "$proc_dir/comm" 2>/dev/null)" == "openvpn" ]] || continue
+  [[ "$(stat -c %u "$proc_dir" 2>/dev/null)" == "0" ]] || continue
+  if tr '\0' '\n' < "$proc_dir/cmdline" | grep -Eq '/(\.config/securewave|run/securewave)/securewave\.ovpn$'; then
+    kill -TERM "${proc_dir##*/}" >/dev/null 2>&1 || true
+  fi
+done
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
   systemctl stop securewave-helper.service >/dev/null 2>&1 || true
   systemctl disable securewave-helper.service >/dev/null 2>&1 || true
@@ -192,6 +200,7 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
   systemctl daemon-reload >/dev/null 2>&1 || true
 fi
 rm -f /run/securewave/helper.sock
+rm -f /run/securewave/sw-wg.output-policy /run/securewave/sw-wg.endpoint-ips
 rmdir /run/securewave >/dev/null 2>&1 || true
 rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
 rm -f /usr/local/libexec/securewave-wg-quick.contract
@@ -199,6 +208,9 @@ rm -f /usr/local/libexec/securewave-helperd
 rm -f /usr/local/libexec/securewave-wg-quick
 rm -f /etc/securewave/helper-users
 rmdir /etc/securewave >/dev/null 2>&1 || true
+if [[ "${1:-}" == "purge" ]] && getent group securewave >/dev/null 2>&1; then
+  groupdel securewave >/dev/null 2>&1 || true
+fi
 POSTRM
 chmod 0755 "$staging_dir/DEBIAN/postinst" "$staging_dir/DEBIAN/prerm" "$staging_dir/DEBIAN/postrm"
 

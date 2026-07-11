@@ -113,6 +113,130 @@ The workflow does not prove:
 Keep public claims limited to x64 build evidence until clean-VM helper proof and
 live protocol proof are captured.
 
+## Referenced historical build
+
+The supplied x64 build reference for this certification pass is:
+
+- Workflow run: `29036573515`
+- Expected SHA-256:
+  `f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92`
+
+This reference proves neither current-branch contract 10 compatibility nor a
+clean install. Download it only as private evidence; do not publish it or change
+the downloads manifest.
+
+```bash
+rm -rf artifacts/github-linux-x64-deb-run-29036573515
+gh run download 29036573515 \
+  --dir artifacts/github-linux-x64-deb-run-29036573515
+deb="$(find artifacts/github-linux-x64-deb-run-29036573515 -type f -name '*.deb' -print -quit)"
+test -n "$deb"
+echo "f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92  $deb" | sha256sum -c -
+dpkg-deb --field "$deb" Architecture
+dpkg-deb --contents "$deb"
+```
+
+Extract and inspect the helper contract before installation:
+
+```bash
+tmp="$(mktemp -d)"
+dpkg-deb -x "$deb" "$tmp"
+cat "$tmp/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
+rm -rf "$tmp"
+```
+
+The reviewed runtime requires contract `10`. If run `29036573515` contains an
+older contract, record it as historical build evidence and stop. Trigger a new
+manual x64 workflow from the reviewed commit; do not treat the old package as
+current runtime evidence.
+
+## Clean x86_64 VM certification
+
+Use a disposable, fully updated Ubuntu/Debian VM with systemd. Take a snapshot
+before install. Do not place VPN credentials in shell history, the repository,
+or captured logs.
+
+### 1. Prove architecture and package identity
+
+```bash
+test "$(uname -m)" = x86_64
+test "$(dpkg --print-architecture)" = amd64
+dpkg-deb --field "$deb" Architecture | grep -Fx amd64
+sha256sum "$deb"
+```
+
+### 2. Install once and prove the privilege boundary
+
+```bash
+sudo apt install "$deb"
+systemctl is-enabled securewave-helper.service
+systemctl is-active securewave-helper.service
+stat -c '%U %G %a %n' \
+  /usr/local/libexec/securewave-helperd \
+  /usr/local/libexec/securewave-wg-quick \
+  /run/securewave/helper.sock
+cat /usr/local/libexec/securewave-wg-quick.contract
+```
+
+Expected socket ownership/mode is `root securewave 660` (or fail-closed `600`
+when the group is unavailable). The service and wrapper must be root-owned and
+must not be group/world-writable. The current non-root test user must be in the
+explicit UID allowlist; unrelated local users must not be added automatically.
+
+Run the read-only pre-connect verifier from the exact reviewed source checkout:
+
+```bash
+python3 scripts/linux_vpn_runtime_verifier.py --skip-build-checks --json \
+  > /tmp/securewave-pre-connect.json
+```
+
+Do not call this a pass if the verifier reports helper, socket, contract,
+pref-220, or cleanup failures.
+
+### 3. Authorized per-protocol proof
+
+Only when approved test credentials and infrastructure are available:
+
+1. Capture the pre-tunnel public IP to a private file outside the repository.
+2. Connect through the normal Flutter -> MethodChannel -> helper -> backend
+   profile path. A connect-time `sudo`, `pkexec`, or password prompt is a failure.
+3. Run, once for each enabled protocol:
+
+```bash
+python3 scripts/linux_vpn_runtime_verifier.py \
+  --skip-build-checks \
+  --active-protocol wireguard \
+  --external-probes \
+  --baseline-exit-ip-file /private/path/baseline-ip.txt \
+  --json > /tmp/securewave-wireguard-active.json
+```
+
+Repeat with `openvpn` and `ikev2` only if the helper probe and backend profile
+both advertise them. IKEv2 must fail if XFRM ESP evidence is absent or an
+unqualified pref-220 loop rule is present. The verifier output redacts public
+addresses and counter values.
+
+4. Disconnect through the app and rerun the disconnected verifier. No process,
+   interface, route, DNS, policy-table, pref-220, or NetworkManager VPN residue
+   may remain.
+
+### 4. Uninstall and cleanup
+
+```bash
+sudo apt purge securewave-vpn
+test ! -e /run/securewave/helper.sock
+test ! -e /usr/local/libexec/securewave-helperd
+test ! -e /usr/local/libexec/securewave-wg-quick
+test ! -e /usr/local/libexec/securewave-wg-quick.contract
+test ! -e /etc/securewave/helper-users
+systemctl is-active securewave-helper.service && exit 1 || true
+```
+
+Record package checksum, commit, VM image/version, architecture, install result,
+redacted verifier JSON, no-prompt observation, protocol result, disconnect
+cleanup, and purge result. Keep raw configs, private keys, credentials, public
+or internal IP addresses, and unredacted journals out of evidence.
+
 ## Later Publish PR
 
 After evidence is accepted:

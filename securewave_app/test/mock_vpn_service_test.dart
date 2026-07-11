@@ -24,15 +24,12 @@ void main() {
     expect(service.getStatus(), VpnStatus.disconnected);
   });
 
-  test('ChannelVpnService blocks IKEv2 on Linux release runtime', () {
+  test('ChannelVpnService starts Linux protocol availability fail closed', () {
     final service = ChannelVpnService(allowFallback: false);
 
-    expect(service.canConnectProtocol(VpnProtocol.wireGuard), isTrue);
-    expect(service.canConnectProtocol(VpnProtocol.openVpn), isTrue);
+    expect(service.canConnectProtocol(VpnProtocol.wireGuard), isFalse);
+    expect(service.canConnectProtocol(VpnProtocol.openVpn), isFalse);
     expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
-    expect(
-      service.protocolUnavailableReason(VpnProtocol.ikev2),
-      contains('strongSwan profile import/start path'),
-    );
+    expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNotNull);
   }, testOn: 'linux');
 }

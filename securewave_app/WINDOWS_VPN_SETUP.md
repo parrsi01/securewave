@@ -5,10 +5,15 @@ to install and start a tunnel service from a WireGuard config string.
 
 ## Integration Summary
 
-- MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`)
+- MethodChannel: `securewave/vpn` (`isAvailable`, `connect`, `disconnect`,
+  `getStatus`, `getTrafficStats`)
 - Backend: `wireguard.exe /installtunnelservice` and `/uninstalltunnelservice`
 - Config file: `%APPDATA%\SecureWave\SecureWave.conf`
 - Optional override: `SECUREWAVE_WIREGUARD_PATH` (full path to `wireguard.exe`)
+- Protocol truth: WireGuard only. OpenVPN and IKEv2 fail with
+  `protocol_unavailable`.
+- Status is `connected` only while the SecureWave WireGuard tunnel service is
+  running. Byte counters are explicitly unavailable in this build.
 
 ## Requirements
 
@@ -54,3 +59,7 @@ cd securewave_app
 If `wireguard.exe` is missing, Flutter receives `vpn_unavailable`. In demo mode
 (`SECUREWAVE_USE_MOCK_API=true`) the app can simulate a tunnel; in live mode it
 will not connect until WireGuard is installed.
+
+This source path is not Windows release proof. A Windows x64 build, install,
+service, route, DNS, public exit-IP, data-plane, disconnect, and uninstall run
+is still required. Windows ARM64 is not certified.

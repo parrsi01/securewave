@@ -56,10 +56,12 @@ build_linux() {
   # Detect host architecture
   HOST_ARCH="$(uname -m)"
   case "$HOST_ARCH" in
-    x86_64)  ARCH_LABEL="x64";   FLUTTER_ARCH="x64" ;;
-    aarch64) ARCH_LABEL="x64";   FLUTTER_ARCH="arm64" ;;
-    arm64)   ARCH_LABEL="x64";   FLUTTER_ARCH="arm64" ;;
-    *)       ARCH_LABEL="x64";   FLUTTER_ARCH="$HOST_ARCH" ;;
+    x86_64)        ARCH_LABEL="x64";   FLUTTER_ARCH="x64" ;;
+    aarch64|arm64) ARCH_LABEL="arm64"; FLUTTER_ARCH="arm64" ;;
+    *)
+      echo "ERROR: Unsupported Linux architecture: $HOST_ARCH" >&2
+      exit 1
+      ;;
   esac
 
   echo ""
@@ -86,10 +88,18 @@ build_linux() {
     exit 1
   fi
 
-  # Always name the output securewave-linux-x64.tar.gz for download URL consistency
-  TARBALL="$DOWNLOADS_DIR/securewave-linux-x64.tar.gz"
-  echo "==> Packaging Linux bundle as $TARBALL ..."
-  tar -czf "$TARBALL" -C "$BUNDLE_DIR" .
+  # Portable archives intentionally exclude the privileged helper payload.
+  # Full no-prompt VPN routing is installed only by the architecture-matched
+  # .deb, which owns the root helper, systemd unit, allowlist, and socket.
+  PACKAGE_STAGING="$APP_DIR/build/packaging/portable-linux-$ARCH_LABEL"
+  rm -rf "$PACKAGE_STAGING"
+  mkdir -p "$PACKAGE_STAGING"
+  cp -a "$BUNDLE_DIR/." "$PACKAGE_STAGING/"
+  rm -rf "$PACKAGE_STAGING/packaging/linux" "$PACKAGE_STAGING/scripts/install_linux_helper.sh"
+
+  TARBALL="$DOWNLOADS_DIR/securewave-linux-$ARCH_LABEL.tar.gz"
+  echo "==> Packaging SecureWave portable Linux package (UI-only) as $TARBALL ..."
+  tar -czf "$TARBALL" -C "$PACKAGE_STAGING" .
   echo "==> Linux tarball created: $TARBALL ($(du -h "$TARBALL" | cut -f1))"
 
   # Copy the install script alongside the tarball
@@ -99,7 +109,9 @@ build_linux() {
     echo "==> NOTE: Run the project to generate install-linux.sh in static/downloads/"
   fi
 
-  echo "==> Linux build complete."
+  echo "==> Linux portable UI build complete."
+  echo "==> Full-device VPN routing requires the root-owned SecureWave helper service."
+  echo "==> Install the matching SecureWave .deb package for full no-prompt VPN connect/disconnect."
 }
 
 # ---------------------------------------------------------------------------

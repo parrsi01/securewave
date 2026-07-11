@@ -9,9 +9,10 @@ native helper has created the expected tunnel state.
 - Linux desktop VM with `DISPLAY` or `WAYLAND_DISPLAY` set.
 - `wg-quick` installed for WireGuard.
 - `openvpn` installed for OpenVPN.
-- `pkexec` available, or run the app with the required privileges.
-- `swanctl` and `ipsec` installed before future IKEv2 testing. The current
-  Linux app disables IKEv2 because profile import/start is not wired.
+- Architecture-matched SecureWave `.deb` installed once with administrator
+  authorization; connect/disconnect must not invoke `sudo` or `pkexec`.
+- `swanctl`, `ipsec`, NetworkManager, and NetworkManager-strongSwan installed
+  before IKEv2 testing.
 - Live API URL defaults to `https://api.securewaveapp.com/api`; override with
   `SECUREWAVE_API_BASE_URL` only for staging/local testing.
 - Real test account available. Do not add credentials to the repo.
@@ -66,15 +67,15 @@ UI action -> `vpnStateProvider` -> `ChannelVpnService` -> Linux method channel
 
 1. Select WireGuard.
 2. Connect.
-3. Confirm `wg-quick up` succeeds and interface `securewave` exists.
+3. Confirm the helper reports success and interface `sw-wg` exists.
 4. Browse in Chrome.
 5. Disconnect.
-6. Confirm interface `securewave` is gone.
+6. Confirm interface `sw-wg` is gone.
 
 Useful commands:
 
 ```sh
-ip link show securewave
+ip link show sw-wg
 wg show
 ip route
 ```
@@ -99,10 +100,11 @@ ip route
 
 ### IKEv2
 
-IKEv2 is not selectable in the Linux release runtime today. The expected result
-is an unavailable protocol tile with a visible reason. Do not override this
-until a future patch wires profile import, strongSwan connection start, status
-verification, and cleanup.
+IKEv2 helper orchestration exists but the Linux app/backend product gate keeps
+it unavailable. The expected UI result is a disabled protocol with a backend
+profile-gate reason. Future certification must require an active NetworkManager
+VPN, route or DNS evidence, XFRM ESP state, and no unqualified pref-220 rule
+before this gate changes.
 
 ## Repeatability
 
@@ -121,6 +123,6 @@ Capture:
 - App logs.
 - Exact protocol selected.
 - API profile response shape without secrets.
-- Helper command availability: `which wg-quick openvpn swanctl ipsec pkexec`.
+- Helper command availability: `which wg-quick openvpn swanctl ipsec nmcli`.
 - Tunnel state: `ip link`, `ip route`, `wg show`, `pgrep -af openvpn`.
 - Whether the app showed an explicit error or silently failed.

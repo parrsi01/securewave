@@ -302,6 +302,13 @@ clear_ikev2_route_state() {
 
 clear_policy_state() {
   local remove_link="${1:-0}"
+  local mark
+  for mark in 51820 0xca6c; do
+    while iptables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
+    if command -v ip6tables >/dev/null 2>&1; then
+      while ip6tables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
+    fi
+  done
   while ip rule del not fwmark 51820 table 51820 priority 32764 >/dev/null 2>&1; do :; done
   while ip rule del table main suppress_prefixlength 0 priority 32765 >/dev/null 2>&1; do :; done
   ip -4 route flush table 51820 >/dev/null 2>&1 || true

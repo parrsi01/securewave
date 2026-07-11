@@ -1,138 +1,73 @@
-# SecureWave Portability Runtime Matrix
+# SecureWave VPN Runtime Portability Matrix
 
-Last audited: 2026-07-08 UTC
+Last audited: 2026-07-11 UTC
 
-Audited checkout:
+Audit basis:
 
-- Branch: `master`
-- Commit: `7dd722d8918810bba993bcc38836949ba35016eb`
-- Host architecture: `aarch64` / Debian architecture `arm64`
-- Pull status before audit: `git pull --ff-only origin master` returned
-  `Already up to date.`
+- Branch: `codex/vpn-runtime-portability-refactor`
+- Base: `origin/master` at `81f8a655`
+- Audit host: Linux `aarch64` / Debian `arm64`
+- Current local package proof: ARM64 only
+- Production deploy, publication, signing, live credentials, and live infrastructure
+  changes were excluded.
 
-This is a docs-only truth audit. It does not change runtime, protocol,
-download, package, helper, or manifest behavior.
-
-## Status Vocabulary
+## Status meanings
 
 | Status | Meaning |
 | --- | --- |
-| Proven | Current tracked source or tracked artifact has reviewable evidence for the stated claim. |
-| Implemented but not release-proven | Code path exists, but clean install, launch, connect, routing, disconnect, or publish evidence is missing. |
-| UI-only | Artifact can only be claimed for app/account UI. Full VPN routing is not claimable from that artifact. |
-| Blocked | The claim must fail closed until a missing artifact, source path, target host, signing asset, or runtime proof exists. |
-| Unsupported | No current supported runtime path exists, or the app intentionally returns unavailable. |
+| Implemented | A complete source path exists from Flutter through a native runtime boundary. |
+| Package/build proven | The named architecture was built and its package metadata/payload were inspected. |
+| Install/helper proven | A clean target host installed the package and proved the helper/service/socket contract. |
+| Live routing proven | Route, DNS, public exit-IP, data-plane, disconnect, and cleanup evidence exists for the exact platform/architecture/protocol. |
+| Blocked | Evidence cannot be produced in the current authorized environment. |
+| Intentionally unavailable | The app rejects the protocol because no native implementation exists. |
 
-## High-Risk Truth Findings
+## Protocol truth matrix
 
-1. `securewave_app/packaging/linux/` and `securewave_app/linux/helperd/` are
-   absent from tracked `master`. Generated helper payloads exist under ignored
-   `securewave_app/build/` output, and similar files exist in an untracked local
-   `.claude/worktrees` copy, but neither is current tracked source.
-2. The tracked Linux runner currently uses direct `pkexec` command execution
-   for `wg-quick` and `openvpn` when not root. The no-connect-prompt helper
-   model is therefore not proven from tracked `master` source in this audit.
-3. `securewave_app/scripts/build_deb.sh` builds a host-architecture `.deb`
-   using `dpkg --print-architecture`. On this host that means `arm64`, not x64.
-4. The tracked `static/downloads/securewave-linux-x64.tar.gz` contains an ARM
-   aarch64 `securewave_app` ELF binary. It must not be treated as Linux x64
-   proof despite the filename and manifest entry.
-5. `static/downloads/manifest.json` correctly keeps the Linux x64 `.deb` and
-   Linux x64 AppImage as `coming_soon`. The route currently recommends the
-   tracked tarball for a Linux x64 user-agent because that tarball exists.
+| OS / architecture / artifact | Protocol | Implemented | Package/build proven | Install/helper proven | Live routing proven | Current truth |
+| --- | --- | --- | --- | --- | --- | --- |
+| Linux ARM64 `.deb` | WireGuard | Yes: contract-10 helper, `sw-wg`, route/policy/status/counters, cleanup | Yes on this ARM64 host; app and helper are AArch64 ELF files | Blocked: no passwordless root or clean ARM64 systemd VM | Blocked: no authorized live credentials/infrastructure run | Implemented and package-proven, not release-proven |
+| Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status, config validation, root process/config pinning, counters | Yes on this ARM64 host | Blocked: same clean-install/root gate | Blocked: no authorized live proof and the deployed server authentication mode was not inspected | Implemented and package-proven; profile authentication compatibility remains unproven |
+| Linux ARM64 `.deb` | IKEv2 | Helper path exists: NetworkManager/strongSwan start/status/cleanup, route/DNS, XFRM ESP, pref-220 loop rejection | Yes on this ARM64 host | Blocked: same clean-install/root gate | Blocked: the backend intentionally does not advertise Linux IKEv2; a stale pref-220 rule is also present on this host | Intentionally unavailable in the app/backend despite packaged helper code |
+| Linux x64 `.deb` | WireGuard / OpenVPN / IKEv2 | Same portable source paths as ARM64 | Historical workflow run `29036573515` produced an x64 build with supplied SHA-256 `f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92`; it predates contract 10 and is not a current-branch runtime artifact | Blocked: clean x86_64 VM run required | Blocked: exact x64 artifact and authorized credentials required | No x64 release-readiness claim |
+| Linux portable tar/zip/AppImage, ARM64 or x64 | All | UI can call an already-installed matching helper | Portable build script now strips helper/service installer payload | Not supplied by portable archive | Not proven | UI-only unless the matching `.deb` helper is separately installed and proven |
+| Windows x64 | WireGuard | Yes: official WireGuard tunnel-service install/uninstall; status requires a running service | Blocked: no Windows host/build artifact in this pass | N/A to Linux helper; Windows admin/service proof is missing | Blocked: Windows route/DNS/exit-IP/data-plane proof required | Implemented, not release-proven |
+| Windows x64 | OpenVPN / IKEv2 | No | No | No | No | Intentionally unavailable; native bridge rejects non-WireGuard protocols |
+| Windows ARM64 | All | No certified target path | No | No | No | Blocked/unsupported until a native ARM64 build and runtime implementation are proven |
+| macOS ARM64 / x64 UI demo | WireGuard / OpenVPN / IKEv2 | No Network Extension provider exists | UI demo build evidence may exist separately; it is not VPN evidence | No VPN runtime to install | No | Intentionally unavailable; `isAvailable=false`, status is disconnected, counters unavailable |
+| Other Linux architectures | All | Not assessed | No | No | No | Unsupported until architecture-native build and runtime proof exists |
 
-## Runtime Matrix
+## Fail-closed boundaries
 
-| Platform/runtime | Artifact type in current repo | UI launches | Full VPN routing | One-time admin/install authorization | Connect/disconnect privilege prompts | Protocol paths | Current status | Proof exists | Proof missing |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Linux ARM64 Debian/Ubuntu/systemd VM | `build_deb.sh` can build a host-arch `arm64` `.deb`; manifest exposes tracked `securewave-app-linux-arm64.zip`. No tracked ARM64 `.deb` is listed in the manifest. | Implemented; tracked ARM64 zip contains an aarch64 Linux Flutter binary. Clean VM UI launch is not proven by tracked evidence. | Implemented but not release-proven. Current tracked runner has WireGuard and OpenVPN command paths, but tracked helper/systemd source is absent and clean VM routing proof is missing. | `.deb` install would require admin once. Current tracked `.deb` script does not itself install a helper service or declare runtime dependencies. | Current tracked runner may invoke `pkexec` at connect/disconnect when not root. This is not the no-connect-prompt helper model. | WireGuard via `wg-quick`; OpenVPN via `openvpn`; IKEv2 detects `swanctl`/`ipsec` but returns `protocol_unavailable`. | Implemented but not release-proven; helper/no-prompt claim blocked. | Host architecture is arm64; `build_deb.sh` uses `dpkg --print-architecture`; Linux runner code exists; backend tests keep Linux IKEv2 blocked. | Clean ARM64 VM `.deb` install, helper service registration, no-prompt connect/disconnect, route/DNS/public-IP proof, uninstall proof, and current-source helper packaging. |
-| Linux x64 Debian/Ubuntu/systemd VM | Linux x64 `.deb` is `coming_soon`; x64 AppImage is `coming_soon`; tracked `securewave-linux-x64.tar.gz` is present but contains an ARM aarch64 binary. | Blocked for x64 from current tracked artifacts. | Blocked. No valid x64 artifact proof and no clean x86_64 runtime proof. | Future `.deb` install should require admin once; current x64 `.deb` artifact is absent. | Unknown for a valid x64 release artifact. Current source would use direct `pkexec` unless the helper model is restored and packaged. | Same source paths as Linux ARM64 if built correctly: WireGuard and OpenVPN implemented; IKEv2 unsupported. | Blocked. | Manifest correctly marks x64 `.deb` and AppImage `coming_soon`; GitHub-hosted `ubuntu-latest` workflow can build Linux on x86_64 when run. | Valid x64 artifact, x64 checksums, clean x86_64 VM install, helper/systemd proof, UI launch, WireGuard/OpenVPN connect/disconnect/routing proof, and uninstall proof. |
-| Linux portable tar/AppImage/zip UI mode | Tracked ARM64 zip exists; tracked x64 tar exists but is mislabeled because its binary is aarch64; AppImage is `coming_soon`. | ARM64 UI binary is present. x64 UI artifact is blocked because the tracked x64 tar is not x64. | UI-only as a release claim. Portable archives do not install dependencies, helper service, tmpfiles, systemd unit, or policy. | Archive extraction itself does not install privileged components. Any system integration is manual. | Current runner can prompt via `pkexec` if host tools are present. No no-prompt portable proof exists. | WireGuard and OpenVPN can be attempted only if host dependencies and privileges exist; IKEv2 unsupported. | UI-only for ARM64 zip; blocked for x64 tar/AppImage claims. | Archive inspection proves both tracked Linux portable binaries are aarch64. Manifest and route behavior are understood. | Correct x64 archive, AppImage artifact, portable launch proof per architecture, and explicit docs that portable mode is UI-only unless a separate privileged install is completed. |
-| Windows | Installer slot `securewave-windows-x64-setup.exe` is `coming_soon`; build script requires Windows, Flutter, NSIS, and WireGuard for Windows. | Implemented by Flutter Windows runner, but release artifact is absent. | Implemented but not release-proven for WireGuard only. The runner shells out to official WireGuard for Windows tunnel service install/uninstall. | WireGuard for Windows must be installed. The app must have privileges to install/uninstall the tunnel service. | Yes unless the installed environment grants the service operations without another prompt. Current docs require app privileges. | WireGuard only. OpenVPN and IKEv2 are unsupported in the Windows app path. | Implemented but not release-proven; artifact blocked. | Windows runner code and setup docs define the WireGuard service path and detection order. | Windows build artifact, installer proof, signed/unsigned status, service install proof, connect/disconnect proof, routing/DNS proof, and uninstall cleanup. |
-| macOS | Apple handoff zip and Apple Silicon UI demo zip are available; Intel macOS UI demo is `coming_soon`. | UI demo is available for Apple Silicon. | Unsupported. macOS `AppDelegate` returns `isAvailable=false` and `vpn_not_configured` for connect/disconnect. | No VPN install authorization applies because VPN is not enabled. Packaging/signing/notarization are separate release steps. | No connect/disconnect privilege prompt because connect/disconnect are disabled. | No production macOS VPN protocol path. | UI-only; VPN unsupported. | macOS setup docs, `AppDelegate.swift`, manifest, and download manifest tests all state the UI demo/no-VPN behavior. | Signed macOS Network Extension target, entitlements, notarized package, install proof, and full routing proof. |
-| Android | APK slot `securewave-android.apk` is `coming_soon`; release build requires signing config. | Implemented but not release-proven. | Implemented but not release-proven for WireGuard. Android native code uses `VpnService` and WireGuard `GoBackend`. | Android VPN permission is required through the OS. Release signing is required for a public release build. | The OS may prompt for VPN consent when `VpnService.prepare()` is not already satisfied. Disconnect does not require an admin prompt. | WireGuard only. OpenVPN and IKEv2 are unsupported in the Android app path. | Implemented but not release-proven; artifact blocked. | Android native service, manifest entry, Gradle WireGuard dependency, and release-signing guard exist. | Signed APK/AAB, device or emulator install, VPN consent flow, WireGuard connect/disconnect, route/DNS/public-IP proof, and Play distribution evidence. |
-| iOS | iOS is `coming_soon` through TestFlight/App Store; Apple handoff zip exists. | Implemented but not public-release-proven. | Implemented but not release-proven for WireGuard. iOS Runner uses `NEVPNManager`; PacketTunnel uses WireGuardKit when linked. | Apple signing, Network Extension entitlement, and physical-device build are required. User/system VPN configuration approval may be required. | OS-managed VPN permission/configuration prompts may occur during profile save/start. | WireGuard only. OpenVPN and IKEv2 are unsupported in the iOS app path. | Implemented but blocked for public release. | iOS PacketTunnel target, entitlements, vendored WireGuardKit, setup docs, and Apple handoff docs exist. | Signed archive/export, physical-device install, App Store/TestFlight approval, connect/disconnect proof, route/DNS/public-IP proof, and cleanup proof. |
+- The Linux app uses only `/run/securewave/helper.sock`; it has no connect-time
+  `sudo`, `pkexec`, raw `wg-quick`, or `/bin/sh -c` fallback.
+- `isAvailable` probes the selected Linux protocol. One installed protocol does
+  not make the other protocols available. The Dart product gate additionally
+  keeps Linux IKEv2 unavailable while the backend refuses Linux IKEv2 profiles.
+- Helper request fields and operations are allowlisted. Malformed, duplicate,
+  unknown, over-sized, unsafe-path, and contract-mismatch requests are rejected.
+- WireGuard configs reject arbitrary pre/post hooks. Only the exact
+  backend-generated IPv4/IPv6 kill-switch hooks are accepted.
+- OpenVPN configs reject script, plugin, include, management, external
+  credential-path, daemonization, and arbitrary root file-write directives.
+- The current OpenVPN profile/client authentication contract is not treated as
+  runtime proof. Server authentication compatibility requires an authorized
+  live certification run.
+- Windows accepts WireGuard only. macOS accepts no VPN protocol.
+- A connected UI state is insufficient. Active certification also requires
+  helper status, interface/process, route, DNS, protocol safety, counters,
+  changed public exit IP, HTTPS data-plane success, disconnect, and cleanup.
 
-## Linux Architecture Truth
+## Evidence still required
 
-- This audit host is `aarch64` and Debian reports `arm64`.
-- `securewave_app/scripts/build_deb.sh` uses `dpkg --print-architecture`; a
-  local `.deb` built here is therefore ARM64.
-- An ARM64 `.deb` can be validly built on this VM if the current tracked source
-  and dependencies are correct.
-- A Linux x64 `.deb` cannot be validly built or runtime-proven on this ARM64
-  host.
-- GitHub Actions `ubuntu-latest` can provide x64 build evidence because the
-  `flutter-release.yml` Linux package job runs on `ubuntu-latest`.
-- Final x64 helper/systemd proof is best performed on a clean `x86_64`
-  Debian/Ubuntu/systemd VM after the artifact is built.
+- Clean ARM64 systemd VM install, service/socket ownership and mode, no-prompt
+  connect/disconnect, uninstall, and cleanup.
+- Clean x86_64 systemd VM certification of a contract-10 package built from the
+  reviewed commit.
+- Authorized per-protocol live route, DNS, exit-IP, data-plane, counter, and
+  cleanup evidence.
+- Windows x64 build/install/service/routing evidence.
+- A signed native macOS Network Extension implementation before any macOS VPN
+  claim.
 
-## Inspected Source And Evidence
-
-Requested paths inspected:
-
-- `securewave_app/scripts/build_deb.sh`
-- `securewave_app/packaging/linux/` - absent from tracked `master`
-- `securewave_app/linux/helperd/` - absent from tracked `master`
-- `securewave_app/linux/runner/`
-- `securewave_app/LINUX_VPN_SETUP.md`
-- `securewave_app/WINDOWS_VPN_SETUP.md`
-- `securewave_app/MACOS_VPN_SETUP.md`
-- `static/downloads/manifest.json`
-- `routes/downloads.py`
-- `tests/unit/test_downloads_manifest.py`
-- `docs/POST_MERGE_ENTERPRISE_RELEASE_TODO.md`
-- `artifacts/post-merge-enterprise-release-evidence/README.md`
-
-Additional current-tree checks:
-
-- Windows, macOS, Android, and iOS native bridge code was inspected to avoid
-  claiming VPN routing from setup docs alone.
-- `static/downloads/securewave-linux-x64.tar.gz` and
-  `static/downloads/securewave-app-linux-arm64.zip` were inspected with `file`;
-  both contain an ARM aarch64 Linux binary.
-- Download route detection was checked in the project virtualenv. A Linux x64
-  user-agent currently receives `/downloads/securewave-linux-x64.tar.gz`,
-  which is not a valid x64 runtime artifact.
-
-## Release Gate Summary
-
-Proven:
-
-- Current host architecture is ARM64.
-- Linux x64 `.deb` and x64 AppImage are not marked available in the manifest.
-- macOS production VPN is disabled in current macOS code.
-- Linux IKEv2 is blocked by backend tests and current runner behavior.
-
-Implemented but not release-proven:
-
-- Linux WireGuard and OpenVPN command paths.
-- Windows WireGuard service path.
-- Android WireGuard `VpnService` path.
-- iOS WireGuard Network Extension path.
-
-UI-only:
-
-- macOS Apple Silicon UI demo.
-- Linux portable ARM64 zip unless a separate privileged runtime install and
-  protocol proof are completed.
-
-Blocked:
-
-- Linux x64 `.deb` publication and proof.
-- Linux x64 tar claim, because the tracked tar contains an ARM64 binary.
-- Linux x64 AppImage, because it is `coming_soon` and not built.
-- Current no-connect-prompt Linux helper claim from tracked source, because the
-  helper source/package paths are absent and the tracked runner still has
-  direct `pkexec` paths.
-- Windows installer publication.
-- Android public APK/AAB publication.
-- iOS TestFlight/App Store release.
-- macOS production VPN release.
-
-Unsupported:
-
-- macOS VPN routing in current app.
-- Linux IKEv2 runtime in current app.
-- Windows OpenVPN/IKEv2 in current app.
-- Android/iOS OpenVPN and IKEv2 in current app.
+No artifact status was changed and no artifact was published by this refactor.
