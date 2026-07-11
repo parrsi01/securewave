@@ -26,8 +26,8 @@
   found the invalid foreground service type `vpn`; the manifest now uses the
   supported VPN-app `systemExempted` type. The next compile exposed stale
   Kotlin activity-result, service-import, and config-parser calls; those now use
-  compile-compatible APIs with static regression tests. Replacement CI must
-  still complete.
+  compile-compatible APIs with static regression tests. GitHub run
+  `29150029857` subsequently passed the Android debug compile.
 - ShellCheck and actionlint: unavailable locally.
 - Windows and macOS native builds: unavailable on Linux ARM64.
 - x64 package/install/runtime: wrong host architecture.

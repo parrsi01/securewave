@@ -17,7 +17,12 @@ Current prerequisite PRs:
 - #27 `codex/vpn-runtime-portability-refactor`: open draft; its first Python CI
   run failed because the job lacked GLib development headers for the helper
   behavior harness. Commit `0082f354` added the non-optional build dependencies;
-  the replacement CI run must complete before review handoff is considered green.
+  replacement run `29149572378` passed Repository Guards, Python, Flutter Linux,
+  and Docker.
+
+Certification PR #28 run `29150029857` passed its expanded Repository Guards,
+Dependency and Code Security, 295-test Python, Flutter Linux, Flutter Android
+debug compile, and Docker matrix. It remains a draft and is not merged.
 
 Older Linux runtime/evidence PRs #12 through #21 overlap newer work. The audit
 does not classify them by age alone or close/delete them automatically; owner

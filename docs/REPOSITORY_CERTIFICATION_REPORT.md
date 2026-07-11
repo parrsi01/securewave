@@ -18,8 +18,7 @@ Audit basis:
 - No work from those branches was silently copied into this branch.
 - VPN PR #27's first Python CI run exposed missing GLib helper-test build
   dependencies. Its focused workflow-only correction was committed on that
-  branch as `0082f354`; this report still treats its replacement CI as an
-  external prerequisite until completed.
+  branch as `0082f354`; replacement run `29149572378` passed every job.
 
 ## Verified commands and results
 
@@ -33,7 +32,7 @@ Audit basis:
 | Flutter | `flutter analyze` | No issues after creating the non-secret CI env asset |
 | Flutter | `flutter test --reporter compact` | 24 passed |
 | Linux app | `flutter build linux --release` | Passed on ARM64; this is not x64 or live VPN evidence |
-| Android app | `flutter build apk --debug` | Blocked locally: Java/JDK unavailable; CI exposed an invalid foreground-service type and stale Kotlin service APIs, now corrected with static regression tests and awaiting replacement CI |
+| Android app | `flutter build apk --debug` | Blocked locally: Java/JDK unavailable; pinned Java 17 CI compile passed in run `29150029857` after foreground-service/Kotlin compatibility fixes |
 | Docker lint | `docker build --check .` and `docker build --check -f Dockerfile.simple .` | Passed with no warnings |
 | Docker image | `docker build --tag securewave-certification:local .` | Passed on ARM64; runtime module import executed inside the image |
 | Shell/static | tracked `bash -n`, tracked `node --check`, UI/plan/release/Xcode guards | Passed |
@@ -42,6 +41,7 @@ Audit basis:
 | ShellCheck | `shellcheck` | Unavailable; not passed |
 | Actions lint | `actionlint` | Unavailable; YAML parsing and local workflow guards passed, but actionlint is not claimed |
 | Windows/macOS | native build/runtime tools | Unavailable on this host; not passed |
+| GitHub PR CI | run `29150029857` | Repository, security, 295-test Python, Flutter Linux, Android debug compile, and Docker jobs passed |
 
 The single developer-facing maximum safe command is:
 
