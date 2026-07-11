@@ -383,7 +383,7 @@ services/subscription_service.py classes=SubscriptionService
 services/support_ticket_service.py classes=SupportTicketService
 services/transparency_service.py classes=TransparencyService
 services/uptime_monitor.py classes=UptimeMonitorService
-services/usage_metering_service.py classes=UsageMeteringError,UsageSessionNotFound,UsageSessionFinalized,UsageSequenceConflict,UsageIdempotencyConflict,UsageDeviceServerMismatch,MeteringResult,UsageMeteringService
+services/usage_metering_service.py classes=UsageMeteringError,UsageSessionNotFound,UsageSessionFinalized,UsageSequenceConflict,UsageIdempotencyConflict,UsageActiveSessionConflict,UsageDeviceServerMismatch,MeteringResult,UsageMeteringService
 services/vpn_health_monitor.py classes=VPNHealthMonitor
 services/vpn_optimizer.py classes=ServerMetrics,ConnectionState,LRUCache,OptimizedVPNOptimizer
 services/vpn_peer_manager.py classes=VPNPeerManager
@@ -410,7 +410,7 @@ alembic/versions/0004_add_email_tracking.py revision='0004' down_revision='0003'
 alembic/versions/0005_add_monitoring_and_gdpr.py revision='0005' down_revision='0004'
 alembic/versions/0006_backend_api_schema_reconciliation.py revision='0006_backend_api_schema' down_revision='0005'
 
-## Test functions (315)
+## Test functions (316)
 tests/conftest.py:119 test_user
 tests/conftest.py:140 test_admin
 tests/conftest.py:221 test_vpn_server
@@ -492,10 +492,11 @@ tests/integration/test_payment_flow.py:92 TestListPlans.test_plans_no_division_b
 tests/integration/test_postgres_usage_concurrency.py:18 test_postgres_concurrent_usage_sequence_has_single_winner
 tests/integration/test_session_cookies.py:16 test_csrf_required_for_cookie_session
 tests/integration/test_session_cookies.py:4 test_login_sets_secure_cookies
-tests/integration/test_usage_metering.py:150 test_reconnect_finalizes_old_session_and_login_persists_metering
-tests/integration/test_usage_metering.py:185 test_usage_session_isolated_between_accounts
-tests/integration/test_usage_metering.py:209 test_usage_start_rejects_idempotency_payload_changes_and_server_mismatch
-tests/integration/test_usage_metering.py:73 test_usage_session_is_idempotent_monotonic_and_finalized
+tests/integration/test_usage_metering.py:157 test_reconnect_finalizes_old_session_and_login_persists_metering
+tests/integration/test_usage_metering.py:192 test_usage_session_isolated_between_accounts
+tests/integration/test_usage_metering.py:216 test_usage_start_rejects_idempotency_payload_changes_and_server_mismatch
+tests/integration/test_usage_metering.py:253 test_usage_start_does_not_acknowledge_a_different_concurrent_start_key
+tests/integration/test_usage_metering.py:80 test_usage_session_is_idempotent_monotonic_and_finalized
 tests/integration/test_vpn_flow.py:125 TestFullVPNFlow.test_full_vpn_flow
 tests/integration/test_vpn_flow.py:191 TestDemoVPNFlow.test_connect_returns_status
 tests/integration/test_vpn_flow.py:202 TestDemoVPNFlow.test_status_after_connect

@@ -44,6 +44,10 @@ class UsageIdempotencyConflict(UsageMeteringError):
     detail = "Idempotency key was already used for a different usage event."
 
 
+class UsageActiveSessionConflict(UsageMeteringError):
+    detail = "Device already has an active usage session."
+
+
 class UsageDeviceServerMismatch(UsageMeteringError):
     detail = "Usage device is not assigned to the requested server."
 
@@ -145,14 +149,10 @@ class UsageMeteringService:
                 ):
                     raise UsageIdempotencyConflict()
                 return MeteringResult(existing, idempotent=True)
-            active = self.db.query(VPNConnection).filter(
-                VPNConnection.user_id == user_id,
-                VPNConnection.device_id == device_id,
-                VPNConnection.disconnected_at.is_(None),
-            ).first()
-            if active is not None:
-                return MeteringResult(active, idempotent=True)
-            raise
+            # A different concurrent start key may lose the active-device
+            # uniqueness race.  It is not an idempotent retry: returning the
+            # winner's session would falsely acknowledge an unrecorded key.
+            raise UsageActiveSessionConflict()
         self.db.refresh(connection)
         return MeteringResult(connection, idempotent=False)
 

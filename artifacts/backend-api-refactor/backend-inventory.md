@@ -16,7 +16,7 @@ python3 scripts/generate_backend_inventory.py
 The complete deterministic enumeration is stored in `source-inventory.txt`.
 It records all 126 route decorators, 194 FastAPI `Depends(...)` declarations,
 24 mapped model classes, 40 service modules, 7 background task scheduling
-sites, all 6 Alembic revisions, and 315 discovered test functions with source
+sites, all 6 Alembic revisions, and 316 discovered test functions with source
 locations. The grouped narrative below explains the architectural boundaries.
 
 ## API route surface

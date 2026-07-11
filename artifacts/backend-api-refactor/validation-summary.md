@@ -1,6 +1,6 @@
 # Backend API refactor validation summary
 
-Date: 2026-07-10
+Date: 2026-07-11
 
 ## Safety scope
 
@@ -21,8 +21,8 @@ Date: 2026-07-10
 | Legacy `0004` plus pre-created current audit table -> head | Passed in `tests/integration/test_migrations.py` |
 | Legacy nullable subscription timestamp -> head | Passed: value backfilled and `subscriptions.created_at` made non-null |
 | Migration-created isolated API boundary | Passed in `tests/integration/test_migrations.py` |
-| Focused API/security/migration suite | Passed: 106 tests; 2 SQLite expression-index reflection warnings documented below |
-| Full backend pytest suite | Passed: 331 tests; the PostgreSQL-only concurrency lane is skipped when its URL is absent |
+| Documented focused API/security suite | Passed: 44 tests; 2 SQLite expression-index reflection warnings documented below |
+| Full backend pytest suite | Passed: 332 tests; the PostgreSQL-only concurrency lane is skipped when its URL is absent |
 | PostgreSQL concurrent metering lane | Passed separately: 1 test with `SECUREWAVE_TEST_POSTGRES_URL` against the isolated PostgreSQL 16 container |
 | Ruff lint (`E9,F63,F7,F82`) | Passed across backend, migrations, tests, initializer, and inventory generator |
 | Python compile check | Passed: `compileall` across backend, migrations, tests, and initializer |

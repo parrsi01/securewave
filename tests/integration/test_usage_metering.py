@@ -1,8 +1,11 @@
 """Request-boundary coverage for durable, owner-scoped VPN metering."""
 
 from datetime import datetime
+from unittest.mock import MagicMock
 
+import pytest
 from fastapi import status
+from sqlalchemy.exc import IntegrityError
 
 from models.user import User
 from models.vpn_connection import VPNConnection
@@ -10,6 +13,10 @@ from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from services.hashing_service import hash_password
 from services.jwt_service import create_access_token
+from services.usage_metering_service import (
+    UsageActiveSessionConflict,
+    UsageMeteringService,
+)
 
 
 def _server(db, *, server_id="metering-us-1"):
@@ -241,3 +248,25 @@ def test_usage_start_rejects_idempotency_payload_changes_and_server_mismatch(
     )
     assert mismatched_assignment.status_code == status.HTTP_409_CONFLICT
     assert "not assigned" in mismatched_assignment.text.lower()
+
+
+def test_usage_start_does_not_acknowledge_a_different_concurrent_start_key():
+    """The active-device unique race is a conflict, not an idempotent retry."""
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.side_effect = [
+        None,
+        MagicMock(server_id=7),
+        None,
+    ]
+    db.commit.side_effect = IntegrityError("insert", {}, Exception("unique"))
+
+    with pytest.raises(UsageActiveSessionConflict):
+        UsageMeteringService(db).start_session(
+            user_id=3,
+            device_id=5,
+            server_id=7,
+            protocol="wireguard",
+            idempotency_key="concurrent-start-key",
+        )
+
+    db.rollback.assert_called_once()
