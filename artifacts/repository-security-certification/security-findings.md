@@ -14,6 +14,9 @@
   CODEOWNERS, SECURITY guidance, and Dependabot coverage.
 - Hardened the Docker context/runtime import/signal path and ARM64 dependency
   portability.
+- Corrected the Android VPN service foreground type/permission and added a
+  manifest regression test without weakening BIND_VPN_SERVICE or exported-state
+  restrictions.
 
 ## Deferred
 
