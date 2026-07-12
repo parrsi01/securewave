@@ -49,7 +49,8 @@ HELPER_SERVICE_PATH = Path("/etc/systemd/system/securewave-helper.service")
 HELPER_TMPFILES_PATH = Path("/usr/lib/tmpfiles.d/securewave-helper.conf")
 HELPER_ALLOWLIST_PATH = Path("/etc/securewave/helper-users")
 HELPER_SOCKET_PATH = Path("/run/securewave/helper.sock")
-REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "setfacl")
+REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "ip", "setfacl")
+IKEV2_TOOLS = ("swanctl", "ipsec")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
 EXPECTED_SECUREWAVE_HELPER_CONTRACT = 10
@@ -131,9 +132,10 @@ def helper_request(fields: dict[str, str], timeout: float = 5.0) -> dict[str, st
     return response
 
 
-def check_tools() -> list[Check]:
+def check_tools(active_protocol: str | None = None) -> list[Check]:
     checks: list[Check] = []
-    for tool in REQUIRED_TOOLS:
+    tools = REQUIRED_TOOLS + (IKEV2_TOOLS if active_protocol == "ikev2" else ())
+    for tool in tools:
         path = shutil.which(tool)
         checks.append(
             Check(
@@ -145,23 +147,25 @@ def check_tools() -> list[Check]:
     return checks
 
 
-def check_no_polkit_source() -> list[Check]:
+def check_no_polkit_source(*, check_runner_source: bool = True) -> list[Check]:
     old_rule = REPO_ROOT / "securewave_app/packaging/linux/50-securewave-wg.rules"
     runner_source = RUNNER_PATH.read_text(encoding="utf-8") if RUNNER_PATH.exists() else ""
-    return [
+    checks = [
         Check(
             "privilege:no_packaged_polkit_rule",
             not old_rule.exists(),
             "old polkit rule is not packaged" if not old_rule.exists() else f"remove {old_rule}",
         ),
-        Check(
+    ]
+    if check_runner_source:
+        checks.append(Check(
             "runner:no_connect_time_pkexec",
             "pkexec" not in runner_source and "--disable-internal-agent" not in runner_source,
             "runner has no pkexec call path"
             if "pkexec" not in runner_source and "--disable-internal-agent" not in runner_source
             else "runner still references pkexec",
-        ),
-    ]
+        ))
+    return checks
 
 
 def check_installed_helper_contract() -> Check:
@@ -769,8 +773,8 @@ def main() -> int:
     args = parser.parse_args()
 
     checks = [
-        *check_tools(),
-        *check_no_polkit_source(),
+        *check_tools(args.active_protocol),
+        *check_no_polkit_source(check_runner_source=not args.skip_build_checks),
         check_installed_helper_contract(),
         *check_helper_service_install(),
         *check_helper_socket(),

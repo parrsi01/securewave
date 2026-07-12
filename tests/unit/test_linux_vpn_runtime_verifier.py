@@ -17,6 +17,17 @@ def test_run_reports_an_optional_missing_tool(monkeypatch):
     assert result.stderr == "swanctl is not installed"
 
 
+def test_ikev2_tools_are_required_only_for_active_ikev2(monkeypatch):
+    monkeypatch.setattr(verifier.shutil, "which", lambda tool: f"/usr/bin/{tool}")
+
+    disconnected = {check.name for check in verifier.check_tools()}
+    ikev2 = {check.name for check in verifier.check_tools("ikev2")}
+
+    assert "tool:swanctl" not in disconnected
+    assert "tool:ipsec" not in disconnected
+    assert {"tool:swanctl", "tool:ipsec"} <= ikev2
+
+
 def use_build_bundles(monkeypatch, tmp_path):
     release_bundle = tmp_path / "build/linux/arm64/release/bundle"
     debug_bundle = tmp_path / "build/linux/arm64/debug/bundle"
