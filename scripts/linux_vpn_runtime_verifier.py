@@ -66,14 +66,23 @@ class Check:
 
 
 def _run(argv: Iterable[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # nosec B603
-        list(argv),
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=10,
-    )
+    command = list(argv)
+    try:
+        return subprocess.run(  # nosec B603
+            command,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(
+            command,
+            127,
+            stdout="",
+            stderr=f"{command[0]} is not installed",
+        )
 
 
 def _escape(value: str) -> str:

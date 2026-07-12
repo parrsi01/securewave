@@ -4,6 +4,19 @@ from subprocess import CompletedProcess
 from scripts import linux_vpn_runtime_verifier as verifier
 
 
+def test_run_reports_an_optional_missing_tool(monkeypatch):
+    def missing(*args, **kwargs):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(verifier.subprocess, "run", missing)
+
+    result = verifier._run(["swanctl", "--list-sas"])
+
+    assert result.returncode == 127
+    assert result.stdout == ""
+    assert result.stderr == "swanctl is not installed"
+
+
 def use_build_bundles(monkeypatch, tmp_path):
     release_bundle = tmp_path / "build/linux/arm64/release/bundle"
     debug_bundle = tmp_path / "build/linux/arm64/debug/bundle"
