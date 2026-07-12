@@ -24,17 +24,28 @@ void main() {
     expect(region.premiumOnly, isFalse);
   });
 
-  test('ServerRegion falls back to backend protocol booleans', () {
-    final region = ServerRegion.fromJson({
-      'server_id': 'de-nue-1',
-      'location': 'Nuremberg',
-      'supports_wireguard': true,
-      'supports_openvpn': true,
-      'supports_ikev2': false,
-    });
+  test(
+    'ServerRegion fails closed when the API omits runtime-backed protocols',
+    () {
+      final region = ServerRegion.fromJson({
+        'server_id': 'de-nue-1',
+        'location': 'Nuremberg',
+        'supports_wireguard': true,
+        'supports_openvpn': true,
+        'supports_ikev2': false,
+      });
 
-    expect(region.supportsProtocol('wireguard'), isTrue);
-    expect(region.supportsProtocol('openvpn'), isTrue);
+      expect(region.supportsProtocol('wireguard'), isFalse);
+      expect(region.supportsProtocol('openvpn'), isFalse);
+      expect(region.supportsProtocol('ikev2'), isFalse);
+    },
+  );
+
+  test('ServerRegion with no supported protocols is not connectable', () {
+    const region = ServerRegion(id: 'unknown', name: 'Unknown');
+
+    expect(region.supportsProtocol('wireguard'), isFalse);
+    expect(region.supportsProtocol('openvpn'), isFalse);
     expect(region.supportsProtocol('ikev2'), isFalse);
   });
 
@@ -56,9 +67,7 @@ void main() {
       'dns': {
         'servers': ['94.140.14.14'],
       },
-      'kill_switch': {
-        'mode': 'disabled',
-      },
+      'kill_switch': {'mode': 'disabled'},
       'peer_registered': true,
       'registration_status': 'openvpn_profile_issued',
     });

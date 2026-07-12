@@ -2,9 +2,11 @@
 
 ## Canonical v1 Release Statement
 
-SecureWave is currently a Linux desktop first app. WireGuard is the strongest
-runtime path. OpenVPN is available only when the backend issues a real profile
-and the contract-10 Linux helper confirms its runtime evidence. IKEv2 helper
+SecureWave is currently a Linux desktop first app. The installed contract-10
+helper is a local prerequisite, not server proof. WireGuard and OpenVPN are
+available in the app only when the backend returns a usable server with fresh,
+protocol-specific runtime evidence and can issue the corresponding profile.
+Current staging evidence does not establish either server runtime. IKEv2 helper
 orchestration exists but remains unavailable in the Linux app because the
 backend intentionally refuses Linux IKEv2 profiles.
 
@@ -32,8 +34,9 @@ instead of substituting fake connected states.
 
 ## Limited / Non-Public Release Evidence
 
-- OpenVPN profile issuance works on the live API for the verified Hetzner node;
-  full app connect still depends on local OpenVPN installation and privileges.
+- OpenVPN has a profile-generation source path, but no authorized staging
+  server runtime, per-user credential lifecycle, or live client proof is
+  currently recorded. It must remain unavailable until those gates pass.
 - Linux IKEv2 import/start/status/cleanup is implemented behind strict helper
   evidence, but clean-host route/DNS/XFRM/no-loop certification is still
   blocked.

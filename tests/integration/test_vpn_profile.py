@@ -232,6 +232,48 @@ class TestVpnProfileProvisioning:
         assert openvpn["enabled"] is False
         assert "protocol-specific" in (openvpn["reason"] or "")
 
+    def test_incomplete_openvpn_server_state_never_issues_a_profile(self, client, auth_headers, db):
+        server = _create_free_server(
+            db,
+            server_id="profile-openvpn-incomplete",
+            supports_openvpn=True,
+            openvpn_endpoint="10.0.0.9",
+            openvpn_ca_cert_pem=None,
+            protocol_runtime_evidence={
+                "openvpn": {"healthy": True, "observed_at": datetime.utcnow().isoformat()}
+            },
+        )
+
+        response = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Incomplete OpenVPN",
+                "device_type": "linux",
+                "protocol": "openvpn",
+                "server_id": server.server_id,
+            },
+            headers=auth_headers,
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "endpoint metadata is incomplete" in response.text.lower()
+
+    def test_static_metadata_without_runtime_evidence_is_not_available(self, client, auth_headers, db):
+        _create_free_server(
+            db,
+            server_id="profile-static-metadata-only",
+            supports_openvpn=True,
+            openvpn_endpoint="10.0.0.9",
+            openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+            protocol_runtime_evidence=None,
+        )
+
+        response = client.get("/api/vpn/protocols?device_type=linux", headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        protocols = {item["protocol"]: item for item in response.json()["protocols"]}
+        assert protocols["wireguard"]["enabled"] is False
+        assert protocols["openvpn"]["enabled"] is False
+
     def test_ikev2_profile_is_blocked_on_linux_even_when_server_supports_it(self, client, auth_headers, db):
         _create_free_server(
             db,

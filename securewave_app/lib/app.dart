@@ -12,6 +12,7 @@ import 'core/models/user_account.dart';
 import 'core/models/user_plan.dart';
 import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
+import 'core/services/vpn_service.dart';
 import 'core/services/auth_session.dart';
 import 'core/services/secure_storage.dart';
 import 'core/state/app_state.dart';
@@ -480,10 +481,23 @@ class _ConnectScreen extends ConsumerWidget {
     final plan = ref.watch(userPlanProvider);
     final servers = ref.watch(serversProvider);
     final config = ref.watch(appConfigProvider);
+    final vpnService = ref.watch(vpnServiceProvider);
 
     final serverList = servers.maybeWhen(
       data: (value) => value,
       orElse: () => const <ServerRegion>[],
+    );
+    final protocolConnectable = _protocolIsConnectable(
+      service: vpnService,
+      servers: serverList,
+      selectedServerId: vpn.selectedServerId,
+      protocol: vpn.protocol,
+    );
+    final protocolReason = _protocolUnavailableReason(
+      service: vpnService,
+      servers: serverList,
+      selectedServerId: vpn.selectedServerId,
+      protocol: vpn.protocol,
     );
     final selectedServer = _serverLabel(vpn.selectedServerId, serverList);
     final status = _statusDescriptor(vpn);
@@ -506,7 +520,7 @@ class _ConnectScreen extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: busy
+                      onPressed: busy || (!connected && !protocolConnectable)
                           ? null
                           : () {
                               final notifier =
@@ -529,6 +543,14 @@ class _ConnectScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              if (!connected && !protocolConnectable) ...[
+                const SizedBox(height: 12),
+                _InlineMessage(
+                  icon: Icons.info_outline_rounded,
+                  message: protocolReason,
+                  tone: _Tone.warning,
+                ),
+              ],
               if (vpn.errorMessage != null) ...[
                 const SizedBox(height: 12),
                 _InlineMessage(
@@ -856,6 +878,56 @@ class _DiagnosticsView extends ConsumerWidget {
   }
 }
 
+bool _protocolIsConnectable({
+  required VpnService service,
+  required List<ServerRegion> servers,
+  required String? selectedServerId,
+  required VpnProtocol protocol,
+}) {
+  if (!service.canConnectProtocol(protocol)) return false;
+  final candidates = selectedServerId == null
+      ? servers
+      : servers.where((server) => server.id == selectedServerId);
+  return candidates.any(
+    (server) => server.supportsProtocol(vpnProtocolStorageValue(protocol)),
+  );
+}
+
+String _protocolUnavailableReason({
+  required VpnService service,
+  required List<ServerRegion> servers,
+  required String? selectedServerId,
+  required VpnProtocol protocol,
+}) {
+  final nativeReason = service.protocolUnavailableReason(protocol);
+  if (nativeReason != null) return nativeReason;
+  final scope = selectedServerId == null ? 'server catalog' : 'selected server';
+  return 'No ${vpnProtocolLabel(protocol)} $scope entry has verified backend runtime evidence.';
+}
+
+String _protocolDetail({
+  required VpnService service,
+  required List<ServerRegion> servers,
+  required String? selectedServerId,
+  required VpnProtocol protocol,
+  required String availableDetail,
+}) {
+  if (_protocolIsConnectable(
+    service: service,
+    servers: servers,
+    selectedServerId: selectedServerId,
+    protocol: protocol,
+  )) {
+    return availableDetail;
+  }
+  return _protocolUnavailableReason(
+    service: service,
+    servers: servers,
+    selectedServerId: selectedServerId,
+    protocol: protocol,
+  );
+}
+
 class _ProtocolPicker extends ConsumerWidget {
   const _ProtocolPicker({required this.selected});
 
@@ -864,31 +936,69 @@ class _ProtocolPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final vpnService = ref.watch(vpnServiceProvider);
+    final vpn = ref.watch(vpnStateProvider);
+    final serverList = ref.watch(serversProvider).maybeWhen(
+          data: (value) => value,
+          orElse: () => const <ServerRegion>[],
+        );
     return Column(
       children: [
         _ProtocolTile(
           protocol: VpnProtocol.wireGuard,
           selected: selected == VpnProtocol.wireGuard,
           title: 'WireGuard',
-          detail: 'Primary Linux runtime path.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.wireGuard),
+          detail: _protocolDetail(
+            service: vpnService,
+            servers: serverList,
+            selectedServerId: vpn.selectedServerId,
+            protocol: VpnProtocol.wireGuard,
+            availableDetail: 'Primary Linux runtime path.',
+          ),
+          enabled: _protocolIsConnectable(
+            service: vpnService,
+            servers: serverList,
+            selectedServerId: vpn.selectedServerId,
+            protocol: VpnProtocol.wireGuard,
+          ),
         ),
         const SizedBox(height: 8),
         _ProtocolTile(
           protocol: VpnProtocol.openVpn,
           selected: selected == VpnProtocol.openVpn,
           title: 'OpenVPN',
-          detail: 'Requires a backend-issued OpenVPN profile.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.openVpn),
+          detail: _protocolDetail(
+            service: vpnService,
+            servers: serverList,
+            selectedServerId: vpn.selectedServerId,
+            protocol: VpnProtocol.openVpn,
+            availableDetail: 'Requires a backend-issued OpenVPN profile.',
+          ),
+          enabled: _protocolIsConnectable(
+            service: vpnService,
+            servers: serverList,
+            selectedServerId: vpn.selectedServerId,
+            protocol: VpnProtocol.openVpn,
+          ),
         ),
         const SizedBox(height: 8),
         _ProtocolTile(
           protocol: VpnProtocol.ikev2,
           selected: selected == VpnProtocol.ikev2,
           title: 'IKEv2/IPSec',
-          detail: vpnService.protocolUnavailableReason(VpnProtocol.ikev2) ??
-              'Requires a backend-issued IKEv2 profile and strongSwan.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.ikev2),
+          detail: _protocolDetail(
+            service: vpnService,
+            servers: serverList,
+            selectedServerId: vpn.selectedServerId,
+            protocol: VpnProtocol.ikev2,
+            availableDetail:
+                'Requires a backend-issued IKEv2 profile and strongSwan.',
+          ),
+          enabled: _protocolIsConnectable(
+            service: vpnService,
+            servers: serverList,
+            selectedServerId: vpn.selectedServerId,
+            protocol: VpnProtocol.ikev2,
+          ),
         ),
       ],
     );

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
+import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 
 void main() {
@@ -65,8 +67,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No regions available'), findsOneWidget);
-    expect(find.text('Auto-select will stay active until the catalog returns.'),
-        findsOneWidget);
+    expect(
+      find.text('Auto-select will stay active until the catalog returns.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('server screen renders error state', (tester) async {
@@ -105,12 +109,40 @@ void main() {
     expect(find.text('Unlimited'), findsOneWidget);
     expect(find.textContaining('NaN'), findsNothing);
   });
+
+  testWidgets(
+    'local helper capability does not make protocols connectable without server evidence',
+    (tester) async {
+      await _pumpApp(
+        tester,
+        serversOverride: serversProvider.overrideWith(
+          (ref) async => const [ServerRegion(id: 'unknown', name: 'Unknown')],
+        ),
+        vpnServiceOverride: vpnServiceProvider.overrideWith(
+          (ref) => MockVpnService(
+            connectDelay: Duration.zero,
+            disconnectDelay: Duration.zero,
+          ),
+        ),
+      );
+
+      expect(
+        find.textContaining('No WireGuard server catalog entry has verified'),
+        findsWidgets,
+      );
+      final connect = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Connect'),
+      );
+      expect(connect.onPressed, isNull);
+    },
+  );
 }
 
 Future<void> _pumpApp(
   WidgetTester tester, {
   Override? serversOverride,
   Override? planOverride,
+  Override? vpnServiceOverride,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -158,6 +190,13 @@ Future<void> _pumpApp(
                   latencyMs: 24,
                 ),
               ],
+            ),
+        vpnServiceOverride ??
+            vpnServiceProvider.overrideWith(
+              (ref) => MockVpnService(
+                connectDelay: Duration.zero,
+                disconnectDelay: Duration.zero,
+              ),
             ),
       ],
       child: const SecureWaveApp(),
