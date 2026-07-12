@@ -1,13 +1,16 @@
 # SecureWave VPN Runtime Portability Matrix
 
-Last audited: 2026-07-11 UTC
+Last audited: 2026-07-12 UTC
 
 Audit basis:
 
-- Branch: `codex/vpn-runtime-portability-refactor`
-- Base: `origin/master` at `81f8a655`
+- Branch: `codex/update-vpn-protocol-truth`
+- Base: `origin/master` at `b2c69ade`
 - Audit host: Linux `aarch64` / Debian `arm64`
-- Current local package proof: ARM64 only
+- Current local package proof: installed ARM64 package `4.0.0+1` with active
+  contract-10 helper and passing disconnected verifier
+- Current staging server proof: none; no staging target/account/runtime evidence
+  was authorized or supplied
 - Production deploy, publication, signing, live credentials, and live infrastructure
   changes were excluded.
 
@@ -26,9 +29,9 @@ Audit basis:
 
 | OS / architecture / artifact | Protocol | Implemented | Package/build proven | Install/helper proven | Live routing proven | Current truth |
 | --- | --- | --- | --- | --- | --- | --- |
-| Linux ARM64 `.deb` | WireGuard | Yes: contract-10 helper, `sw-wg`, route/policy/status/counters, cleanup | Yes on this ARM64 host; app and helper are AArch64 ELF files | Blocked: no passwordless root or clean ARM64 systemd VM | Blocked: no authorized live credentials/infrastructure run | Implemented and package-proven, not release-proven |
-| Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status, config validation, root process/config pinning, counters | Yes on this ARM64 host | Blocked: same clean-install/root gate | Blocked: no authorized live proof and the deployed server authentication mode was not inspected | Implemented and package-proven; profile authentication compatibility remains unproven |
-| Linux ARM64 `.deb` | IKEv2 | Helper path exists: NetworkManager/strongSwan start/status/cleanup, route/DNS, XFRM ESP, pref-220 loop rejection | Yes on this ARM64 host | Blocked: same clean-install/root gate | Blocked: the backend intentionally does not advertise Linux IKEv2; a stale pref-220 rule is also present on this host | Intentionally unavailable in the app/backend despite packaged helper code |
+| Linux ARM64 `.deb` | WireGuard | Yes: contract-10 helper, `sw-wg`, route/policy/status/counters, cleanup | Installed local `4.0.0+1` package is ARM64 | Helper service/socket and disconnected verifier pass on this host; this is not staging server evidence | Blocked: no authorized staging server, account, profile, or tunnel proof | Local client prerequisite only; unavailable until backend server evidence exists |
+| Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status, config validation, root process/config pinning, counters | Installed local `4.0.0+1` package is ARM64 | Helper probe/verifier pass locally; this is not server/profile proof | Blocked: no authorized staging server, account, compatible credentials, or tunnel proof | Local client prerequisite only; unavailable until backend server evidence exists |
+| Linux ARM64 `.deb` | IKEv2 | Helper path exists: NetworkManager/strongSwan start/status/cleanup, route/DNS, XFRM ESP, pref-220 loop rejection | Installed local `4.0.0+1` package is ARM64 | Disconnected verifier confirms no unqualified pref-220 residue | Blocked: backend intentionally does not advertise Linux IKEv2 and no authorized runtime proof exists | Intentionally unavailable in the app/backend despite packaged helper code |
 | Linux x64 `.deb` | WireGuard / OpenVPN / IKEv2 | Same portable source paths as ARM64 | Historical workflow run `29036573515` produced an x64 build with supplied SHA-256 `f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92`; it predates contract 10 and is not a current-branch runtime artifact | Blocked: clean x86_64 VM run required | Blocked: exact x64 artifact and authorized credentials required | No x64 release-readiness claim |
 | Linux portable tar/zip/AppImage, ARM64 or x64 | All | UI can call an already-installed matching helper | Portable build script now strips helper/service installer payload | Not supplied by portable archive | Not proven | UI-only unless the matching `.deb` helper is separately installed and proven |
 | Windows x64 | WireGuard | Yes: official WireGuard tunnel-service install/uninstall; status requires a running service | Blocked: no Windows host/build artifact in this pass | N/A to Linux helper; Windows admin/service proof is missing | Blocked: Windows route/DNS/exit-IP/data-plane proof required | Implemented, not release-proven |
@@ -44,6 +47,10 @@ Audit basis:
 - `isAvailable` probes the selected Linux protocol. One installed protocol does
   not make the other protocols available. The Dart product gate additionally
   keeps Linux IKEv2 unavailable while the backend refuses Linux IKEv2 profiles.
+- The Flutter selector and Connect control additionally require a non-empty
+  API `supported_protocols` entry from a usable server. Missing catalog evidence
+  and legacy static support flags fail closed; local helper availability alone
+  never makes a protocol connectable.
 - Helper request fields and operations are allowlisted. Malformed, duplicate,
   unknown, over-sized, unsafe-path, and contract-mismatch requests are rejected.
 - WireGuard configs reject arbitrary pre/post hooks. Only the exact
