@@ -140,6 +140,8 @@ jobs:
             wireguard-tools \
             openvpn \
             network-manager \
+            libgtk-3-0 \
+            libsecret-1-0 \
             iproute2 \
             iptables \
             acl \
