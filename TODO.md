@@ -1,20 +1,19 @@
 # SecureWave TODO
 
-## Linux VM Hetzner Backend Handoff - 2026-07-02
+## Current Linux VM Completion Handoff - 2026-07-12
 
-Objective: continue the backend infrastructure verification from the Linux VM, because Hetzner credentials, Terraform state, live account material, or deployment environment files may exist there rather than on this macOS checkout.
+Objective: execute the locally safe completion work from current `master`, then
+use separately authorized environments for clean-package, staging, provider,
+and production evidence. The detailed order and acceptance gates live in
+`docs/CURRENT_ISSUES_AND_COMPLETION_PLAN.md`.
 
 ### Preconditions
 
-- Open and start the Linux VM before continuing.
-- Confirm whether the VM is reachable from macOS:
-  - `ssh securewave-linux`
-  - If SSH still times out, continue inside the VM terminal directly.
+- Fetch `origin/master` and create a short-lived pull-request branch from it.
 - Do not print secret values to the terminal, logs, screenshots, or artifacts. Only record whether required variables/files are present.
-- Work from the Linux branch first, because the latest Hetzner backend fixes were pushed there:
-  - `git fetch origin`
-  - `git switch Linux`
-  - `git pull --ff-only origin Linux`
+- Do not switch to the historical `Linux` branch as an execution baseline.
+- Do not run production, staging, provider, live VPN, or load-test actions
+  without the specific authorization and target limits required for that task.
 
 ### Discover VM Backend Material
 
@@ -55,7 +54,7 @@ done
 
 ### Validate Hetzner Infrastructure
 
-Run from the repo root after switching to `Linux`.
+Run from the repo root on a reviewed branch based on current `master`.
 
 ```bash
 terraform -chdir=infrastructure/hetzner fmt -check

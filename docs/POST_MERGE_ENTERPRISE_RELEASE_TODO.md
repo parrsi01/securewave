@@ -1,6 +1,9 @@
 # Post-Merge Enterprise Release TODO
 
-Use this checklist after the Linux enterprise VPN certification work from PR #15 is merged. Do not treat an item as complete without a command, artifact, or operator note that can be reviewed later.
+Use this checklist from current `master` after the merged backend, VPN-runtime,
+and repository-certification work. Do not treat an item as complete without a
+command, artifact, or operator note that can be reviewed later. Historical PR
+#15 evidence may be consulted, but its branch is not the execution baseline.
 
 For the cross-platform portable release gate, use
 `docs/PORTABLE_RELEASE_CLOSEOUT_PLAN.md` as the authoritative closeout plan

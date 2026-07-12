@@ -16,8 +16,8 @@ instead of substituting fake connected states.
 
 - Version: `4.0.0+2`
 - Platform: Linux
-- Status: Fresh Flutter UI on `master` and `flutter`; Linux/WireGuard remains
-  the strongest runtime path. Apple packaging is prepared for Mac/Xcode
+- Status: Fresh Flutter UI on `master`; Linux/WireGuard remains the strongest
+  runtime path. Apple packaging is prepared for Mac/Xcode
   finalization but is not yet runtime-certified through App Store review.
 
 ## Release-Ready
@@ -117,8 +117,10 @@ readiness claims.
 
 ## Branch Model Summary
 
-- `master` -> backend, docs, infra, app runtime truth, and release logistics
-- `flutter` -> current Flutter app design branch
+- `master` is the canonical backend, client, infrastructure, documentation,
+  runtime-truth, and release-logistics branch.
+- Use short-lived pull-request branches. Treat older platform/design branches
+  as historical until their remaining pull requests are explicitly reconciled.
 
 ## Contributor Rules
 
