@@ -142,6 +142,7 @@ jobs:
             network-manager \
             libgtk-3-0 \
             libsecret-1-0 \
+            libegl1 \
             iproute2 \
             iptables \
             acl \

@@ -79,7 +79,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
-Depends: wireguard-tools, openvpn, network-manager, libgtk-3-0, libsecret-1-0, iproute2, iptables, acl, systemd
+Depends: wireguard-tools, openvpn, network-manager, libgtk-3-0, libsecret-1-0, libegl1, iproute2, iptables, acl, systemd
 Suggests: network-manager-strongswan, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libstrongswan-extra-plugins
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave VPN desktop client
