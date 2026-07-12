@@ -1,10 +1,13 @@
 import asyncio
 import logging
+import os
 import secrets
 import subprocess  # nosec B404 - controlled subprocess usage
 import shutil
 from datetime import datetime
 from typing import Dict
+
+import httpx
 
 from sqlalchemy.orm import Session
 
@@ -133,7 +136,47 @@ class VPNHealthMonitor:
             server.consecutive_health_failures = 0
         self.db.add(server)
         self.db.commit()
+        await self._deliver_health_alert(
+            server_id=server.server_id,
+            healthy=healthy,
+            observed_at=observed_at,
+        )
         return healthy
+
+    async def _deliver_health_alert(
+        self,
+        *,
+        server_id: str,
+        healthy: bool,
+        observed_at: datetime,
+    ) -> bool:
+        """Deliver compact opt-in staging/operations health evidence."""
+        webhook_url = os.getenv("VPN_HEALTH_ALERT_WEBHOOK_URL", "").strip()
+        if not webhook_url:
+            return False
+        payload = {
+            "server_id": server_id,
+            "protocol": "wireguard",
+            "healthy": bool(healthy),
+            "observed_at": observed_at.isoformat(),
+        }
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.post(webhook_url, json=payload)
+                response.raise_for_status()
+            logger.info(
+                "VPN health alert delivered server_id=%s healthy=%s",
+                server_id,
+                healthy,
+            )
+            return True
+        except Exception as exc:
+            logger.warning(
+                "VPN health alert delivery failed server_id=%s exception_type=%s",
+                server_id,
+                type(exc).__name__,
+            )
+            return False
 
     async def probe_server(self, server: VPNServer) -> Dict:
         """

@@ -433,3 +433,35 @@ async def test_healthy_wireguard_probe_recovers_false_unhealthy_host_metrics(
     assert server.health_status == "healthy"
     assert server.consecutive_health_failures == 0
     assert server.protocol_runtime_evidence["wireguard"]["healthy"] is True
+
+
+@pytest.mark.asyncio
+async def test_wireguard_probe_delivers_redacted_health_alert(db, monkeypatch):
+    import services.vpn_health_monitor as monitor_module
+    from services.vpn_health_monitor import VPNHealthMonitor
+
+    server = _create_free_server(db, server_id="wireguard-alert-delivery")
+    delivered = []
+
+    class FakeManager:
+        async def health_check(self, _connection):
+            return True, "sensitive manager detail"
+
+    async def capture_alert(**payload):
+        delivered.append(payload)
+        return True
+
+    monkeypatch.setattr(monitor_module, "wg_mock_mode_enabled", lambda: False)
+    monkeypatch.setattr(monitor_module, "get_wireguard_server_manager", lambda: FakeManager())
+    monkeypatch.setattr(monitor_module, "server_connection_from_db", lambda _server: object())
+
+    monitor = VPNHealthMonitor()
+    monitor.db = db
+    monkeypatch.setattr(monitor, "_deliver_health_alert", capture_alert)
+
+    assert await monitor._probe_wireguard_runtime(server) is True
+    assert len(delivered) == 1
+    assert delivered[0]["server_id"] == "wireguard-alert-delivery"
+    assert delivered[0]["healthy"] is True
+    assert set(delivered[0]) == {"server_id", "healthy", "observed_at"}
+    assert "sensitive" not in str(delivered)
