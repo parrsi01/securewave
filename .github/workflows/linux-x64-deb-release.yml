@@ -113,6 +113,25 @@ jobs:
           dpkg-deb --info "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-info.txt"
           dpkg-deb --contents "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-contents.txt"
 
+      - name: Build and verify portable x64 tarball evidence
+        run: |
+          set -euo pipefail
+          bundle="securewave_app/build/linux/x64/release/bundle"
+          test -d "$bundle"
+          staging="$(mktemp -d)"
+          cp -a "$bundle/." "$staging/"
+          rm -rf "$staging/packaging/linux" "$staging/scripts/install_linux_helper.sh"
+          file "$staging/securewave_app" | tee "$EVIDENCE_DIR/portable-application-architecture.txt"
+          grep -Eq 'ELF 64-bit.*x86-64' "$EVIDENCE_DIR/portable-application-architecture.txt"
+          tarball="$EVIDENCE_DIR/securewave-linux-x64.tar.gz"
+          tar -czf "$tarball" -C "$staging" .
+          verify="$(mktemp -d)"
+          tar -xzf "$tarball" -C "$verify"
+          file "$verify/securewave_app" | tee "$EVIDENCE_DIR/portable-tarball-architecture.txt"
+          grep -Eq 'ELF 64-bit.*x86-64' "$EVIDENCE_DIR/portable-tarball-architecture.txt"
+          sha256sum "$tarball" | tee "$EVIDENCE_DIR/securewave-linux-x64.tar.gz.sha256"
+          rm -rf "$staging" "$verify"
+
       - name: Verify helper payload and dependency metadata
         run: |
           set -euo pipefail

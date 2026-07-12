@@ -8,6 +8,7 @@ HELPER_SERVICE = Path("securewave_app/packaging/linux/securewave-helper.service"
 HELPER_TMPFILES = Path("securewave_app/packaging/linux/securewave-helper.tmpfiles")
 BUILD_DEB = Path("securewave_app/scripts/build_deb.sh")
 BUILD_APPS = Path("scripts/build_apps.sh")
+X64_WORKFLOW = Path(".github/workflows/linux-x64-deb-release.yml")
 DOWNLOAD_INSTALLER = Path("static/downloads/install-linux.sh")
 HELPER_INSTALLER = Path("securewave_app/scripts/install_linux_helper.sh")
 LINUX_CMAKE = Path("securewave_app/linux/CMakeLists.txt")
@@ -175,6 +176,15 @@ def test_linux_tarball_and_installer_are_truthful_portable_ui_builds():
     assert "Portable AppImage/tarball/zip: UI-only unless the .deb helper service is already installed." in installer
     assert "pressing Connect should not ask for sudo, pkexec, or a password" in installer
     assert 'aarch64|arm64) ARCH_LABEL="arm64"' in installer
+
+
+def test_x64_workflow_rejects_wrong_architecture_deb_and_tarball():
+    workflow = X64_WORKFLOW.read_text(encoding="utf-8")
+
+    assert 'dpkg-deb --field "$DEB_OUTPUT" Architecture' in workflow
+    assert workflow.count("ELF 64-bit.*x86-64") >= 3
+    assert "securewave-linux-x64.tar.gz" in workflow
+    assert "portable-tarball-architecture.txt" in workflow
 
 
 def test_helper_installer_installs_service_socket_model():

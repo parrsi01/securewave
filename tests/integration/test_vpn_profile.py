@@ -401,3 +401,35 @@ async def test_background_wireguard_probe_records_only_compact_runtime_evidence(
     assert evidence["healthy"] is True
     assert set(evidence) == {"healthy", "observed_at"}
     assert "sensitive" not in str(server.protocol_runtime_evidence)
+    assert server.health_status == "healthy"
+    assert server.consecutive_health_failures == 0
+
+
+@pytest.mark.asyncio
+async def test_healthy_wireguard_probe_recovers_false_unhealthy_host_metrics(
+    db, monkeypatch
+):
+    import services.vpn_health_monitor as monitor_module
+    from services.vpn_health_monitor import VPNHealthMonitor
+
+    server = _create_free_server(db, server_id="wireguard-health-recovery")
+    server.health_status = "unhealthy"
+    server.consecutive_health_failures = 3
+    db.commit()
+
+    class FakeManager:
+        async def health_check(self, _connection):
+            return True, "authenticated management API is healthy"
+
+    monkeypatch.setattr(monitor_module, "wg_mock_mode_enabled", lambda: False)
+    monkeypatch.setattr(monitor_module, "get_wireguard_server_manager", lambda: FakeManager())
+    monkeypatch.setattr(monitor_module, "server_connection_from_db", lambda _server: object())
+
+    monitor = VPNHealthMonitor()
+    monitor.db = db
+    assert await monitor._probe_wireguard_runtime(server) is True
+
+    db.refresh(server)
+    assert server.health_status == "healthy"
+    assert server.consecutive_health_failures == 0
+    assert server.protocol_runtime_evidence["wireguard"]["healthy"] is True

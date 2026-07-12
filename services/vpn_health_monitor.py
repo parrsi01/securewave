@@ -124,6 +124,13 @@ class VPNHealthMonitor:
             healthy=healthy,
             observed_at=observed_at,
         )
+        # Protocol reachability is an independent, stronger runtime signal than
+        # ICMP/host metrics. A healthy authenticated WireGuard management probe
+        # must not remain globally unhealthy merely because ping is filtered.
+        if healthy:
+            server.health_status = "healthy"
+            server.last_health_check = observed_at
+            server.consecutive_health_failures = 0
         self.db.add(server)
         self.db.commit()
         return healthy
