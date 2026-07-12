@@ -486,12 +486,12 @@ def api_error(code: str, message: str, details=None, status_code: int = 400):
 
 @app.get("/health")
 def healthcheck():
-    return {"status": "ok", "service": "securewave-vpn-demo"}
+    return {"status": "ok", "service": "securewave-vpn"}
 
 
 @app.get("/api/health")
 def api_healthcheck():
-    return {"status": "ok", "service": "securewave-vpn-demo"}
+    return {"status": "ok", "service": "securewave-vpn"}
 
 
 @app.get("/api/health/email")

@@ -37,7 +37,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/api/health
 ```
 
-Expected: `{"status":"ok","service":"securewave-vpn-demo"}`
+Expected: `{"status":"ok","service":"securewave-vpn"}`
 
 ## Website Verification
 

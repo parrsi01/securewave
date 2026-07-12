@@ -36,19 +36,19 @@ def _bool_from_env(value: Optional[str]) -> Optional[bool]:
 
 
 def demo_mode_enabled() -> bool:
-    """Demo mode defaults to true for non-release environments."""
+    """Return explicit demo mode; live behavior is the safe default."""
     env_value = _bool_from_env(os.getenv("DEMO_MODE"))
     if env_value is not None:
         return env_value
-    return get_environment() not in ("production", "staging")
+    return False
 
 
 def wg_mock_mode_enabled() -> bool:
-    """WireGuard mock mode defaults to true for non-release environments."""
+    """Return explicit WireGuard mock mode; real mode is the safe default."""
     env_value = _bool_from_env(os.getenv("WG_MOCK_MODE"))
     if env_value is not None:
         return env_value
-    return get_environment() not in ("production", "staging")
+    return False
 
 
 def email_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str]]:

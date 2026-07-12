@@ -77,11 +77,11 @@ class TestDemoModeEnabled:
         with patch.dict(os.environ, {"DEMO_MODE": "false", "ENVIRONMENT": "development"}):
             assert demo_mode_enabled() is False
 
-    def test_defaults_true_in_development(self):
+    def test_defaults_false_in_development(self):
         env = {"ENVIRONMENT": "development"}
         with patch.dict(os.environ, env, clear=True):
             os.environ.pop("DEMO_MODE", None)
-            assert demo_mode_enabled() is True
+            assert demo_mode_enabled() is False
 
     def test_defaults_false_in_production(self):
         env = {"ENVIRONMENT": "production"}
@@ -105,11 +105,11 @@ class TestWgMockModeEnabled:
         with patch.dict(os.environ, {"WG_MOCK_MODE": "false", "ENVIRONMENT": "development"}):
             assert wg_mock_mode_enabled() is False
 
-    def test_defaults_true_in_development(self):
+    def test_defaults_false_in_development(self):
         env = {"ENVIRONMENT": "development"}
         with patch.dict(os.environ, env, clear=True):
             os.environ.pop("WG_MOCK_MODE", None)
-            assert wg_mock_mode_enabled() is True
+            assert wg_mock_mode_enabled() is False
 
     def test_defaults_false_in_production(self):
         env = {"ENVIRONMENT": "production"}

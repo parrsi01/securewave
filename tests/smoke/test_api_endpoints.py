@@ -17,12 +17,14 @@ class TestHealthEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
+        assert data["service"] == "securewave-vpn"
 
     def test_root_health_endpoint(self, client: TestClient):
         response = client.get("/health")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
+        assert data["service"] == "securewave-vpn"
 
     def test_ready_endpoint(self, client: TestClient):
         response = client.get("/api/ready")
