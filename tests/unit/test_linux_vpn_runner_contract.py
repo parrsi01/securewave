@@ -121,7 +121,8 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "securewave\\.ovpn$" in build
     assert 'groupdel securewave' in build
     assert "rm -f /run/securewave/helper.sock" in build
-    assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libstrongswan-extra-plugins, iproute2, iptables, acl, systemd" in build
+    assert "Depends: wireguard-tools, openvpn, network-manager, iproute2, iptables, acl, systemd" in build
+    assert "Suggests: network-manager-strongswan, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libstrongswan-extra-plugins" in build
     assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build
     assert "render_polkit_rule" not in build
 

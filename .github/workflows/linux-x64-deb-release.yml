@@ -101,6 +101,12 @@ jobs:
           fi
           printf '%s\n' "$deb_path" | tee "$EVIDENCE_DIR/generated-deb-path.txt"
           cp "$deb_path" "$DEB_OUTPUT"
+          test "$(dpkg-deb --field "$DEB_OUTPUT" Architecture)" = "amd64"
+          extract_dir="$(mktemp -d)"
+          dpkg-deb --extract "$DEB_OUTPUT" "$extract_dir"
+          file "$extract_dir/usr/lib/securewave/securewave_app" | tee "$EVIDENCE_DIR/application-architecture.txt"
+          grep -Eq 'ELF 64-bit.*x86-64' "$EVIDENCE_DIR/application-architecture.txt"
+          rm -rf "$extract_dir"
           du -h "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-size.txt"
           sha256sum "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/securewave-linux-x64.deb.sha256"
           file "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-file.txt"
@@ -112,7 +118,9 @@ jobs:
           set -euo pipefail
           contents="$EVIDENCE_DIR/package-contents.txt"
           depends="$(dpkg-deb --field "$DEB_OUTPUT" Depends)"
+          suggests="$(dpkg-deb --field "$DEB_OUTPUT" Suggests)"
           printf '%s\n' "$depends" | tee "$EVIDENCE_DIR/package-depends.txt"
+          printf '%s\n' "$suggests" | tee "$EVIDENCE_DIR/package-suggests.txt"
 
           for payload in \
             "usr/lib/securewave/securewave_app" \
@@ -132,12 +140,6 @@ jobs:
             wireguard-tools \
             openvpn \
             network-manager \
-            network-manager-strongswan \
-            strongswan \
-            strongswan-swanctl \
-            strongswan-charon \
-            libcharon-extra-plugins \
-            libstrongswan-extra-plugins \
             iproute2 \
             iptables \
             acl \
@@ -146,6 +148,18 @@ jobs:
             printf '%s\n' "$depends" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -Fx "$package" >/dev/null
             printf 'depends-ok %s\n' "$package"
           done | tee "$EVIDENCE_DIR/package-requirements-check.txt"
+
+          for package in \
+            network-manager-strongswan \
+            strongswan \
+            strongswan-swanctl \
+            strongswan-charon \
+            libcharon-extra-plugins \
+            libstrongswan-extra-plugins
+          do
+            printf '%s\n' "$suggests" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -Fx "$package" >/dev/null
+            printf 'suggests-ok %s\n' "$package"
+          done | tee "$EVIDENCE_DIR/package-suggestions-check.txt"
 
       - name: Check manifest syntax and status
         run: |
@@ -162,9 +176,9 @@ jobs:
               and item["architecture"] == "x64"
               and item["filename"] == "securewave-linux-x64.deb"
           )
-          if deb["status"] != "coming_soon":
-              raise SystemExit(f"linux x64 deb status must stay coming_soon, got {deb['status']!r}")
-          print("linux-x64-deb-status=coming_soon")
+          if deb["status"] != "beta":
+              raise SystemExit(f"linux x64 deb status must stay beta, got {deb['status']!r}")
+          print("linux-x64-deb-status=beta")
           PY
 
       - name: Run downloads manifest unit test when dependencies are available

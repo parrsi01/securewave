@@ -88,6 +88,21 @@ build_linux() {
     exit 1
   fi
 
+  APP_BINARY="$BUNDLE_DIR/securewave_app"
+  if [[ ! -f "$APP_BINARY" ]]; then
+    echo "ERROR: Linux application binary not found at $APP_BINARY." >&2
+    exit 1
+  fi
+  case "$ARCH_LABEL" in
+    x64) expected_elf='ELF 64-bit.*x86-64' ;;
+    arm64) expected_elf='ELF 64-bit.*(ARM aarch64|aarch64)' ;;
+  esac
+  if ! file "$APP_BINARY" | grep -Eq "$expected_elf"; then
+    echo "ERROR: Built Linux binary does not match requested $ARCH_LABEL architecture." >&2
+    file "$APP_BINARY" >&2
+    exit 1
+  fi
+
   # Portable archives intentionally exclude the privileged helper payload.
   # Full no-prompt VPN routing is installed only by the architecture-matched
   # .deb, which owns the root helper, systemd unit, allowlist, and socket.
