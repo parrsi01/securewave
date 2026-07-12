@@ -14,6 +14,22 @@ No staging or production API, account, profile, VPN server, cloud resource, or
 tunnel was contacted. No release status, download availability, or package was
 published or changed.
 
+## Live checkout wiring
+
+The clean checkout now defaults to the real control-plane path. `DEMO_MODE` and
+`WG_MOCK_MODE` are false unless explicitly set for isolated tests; the backend
+and WireGuard service no longer auto-detect a demo tunnel from missing host
+tools. The Flutter `.env` file is optional and no longer a required asset, so a
+fresh clone can run with the checked-in live API fallback or explicit
+`--dart-define` values.
+
+The health endpoints identify the service as `securewave-vpn`; they no longer
+return a demo service label. Health `status: ok` means the API process is up,
+not that a VPN server or protocol is usable.
+
+This makes the app runnable from GitHub without manufacturing availability:
+health and protocol responses still reflect actual backend/server evidence.
+
 ## Layered protocol matrix
 
 | Layer | WireGuard | OpenVPN | IKEv2 |
@@ -66,9 +82,11 @@ customer data were printed or written to this artifact.
 | --- | --- |
 | Focused backend profile regression suite | 18 passed |
 | Final backend/profile/flow/device/usage/manifest/security suite | 67 passed |
+| Live-mode/env/health/profile suite | 90 passed |
 | Focused Flutter protocol/UI suite | 11 passed |
 | Full Flutter suite | 28 passed |
 | Flutter analysis | passed; no issues |
+| Clean-checkout Flutter asset resolution | passed; `.env` is optional |
 | Manifest JSON parse | passed |
 | Website JavaScript syntax | passed |
 | Release guards | passed |

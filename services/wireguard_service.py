@@ -66,7 +66,7 @@ class WireGuardService:
         Priority:
         1. If WG_MOCK_MODE is explicitly set to 'false', use real mode
         2. If WG_MOCK_MODE is explicitly set to 'true', use mock mode
-        3. If not set, auto-detect based on environment
+        3. If not set, use real mode and fail closed when the host is not ready
         """
         mock_env = os.getenv("WG_MOCK_MODE", "").lower().strip()
 
@@ -79,20 +79,10 @@ class WireGuardService:
             logger.warning("WG_MOCK_MODE=true: WireGuard operations are mocked (no real tunnel).")
             return True
 
-        if is_production():
-            raise RuntimeError("WG_MOCK_MODE must be explicitly set to false in production")
-
-        # Auto-detect only if not explicitly configured
-        tun_exists = Path("/dev/net/tun").exists()
-        mock = self.wg_path is None or not tun_exists
-        if mock:
-            reason = []
-            if self.wg_path is None:
-                reason.append("'wg' binary not found")
-            if not tun_exists:
-                reason.append("/dev/net/tun missing")
-            logger.warning("WG_MOCK_MODE not set: entering mock mode (%s).", ", ".join(reason))
-        return mock
+        # Never infer a demo tunnel from the host shape.  Development and
+        # production must exercise the same real path; missing WireGuard
+        # dependencies then fail closed at the operation boundary.
+        return False
 
     def _load_fernet(self):
         key = os.getenv("WG_ENCRYPTION_KEY")

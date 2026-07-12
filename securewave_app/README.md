@@ -7,6 +7,10 @@ Users should not manually download or manage VPN profiles. The app fetches
 profiles from the backend after login, stores the active profile in secure
 storage, and hands it to the Linux runner.
 
+The checked-in app has no required local `.env` asset. A clean checkout uses
+the live API fallback or explicit `--dart-define` values; an optional local
+`.env` may override those values without changing the default live path.
+
 ## What Works Without Xcode
 
 - Fresh Flutter UI with Connect, Servers, Account, and Settings tabs
@@ -30,8 +34,9 @@ storage, and hands it to the Linux runner.
 1. Install Flutter SDK and run `flutter doctor`.
 2. From `securewave_app/`:
    - `flutter pub get`
-   - `flutter run -d linux`
-   - Add `--dart-define=SECUREWAVE_USE_MOCK_API=true` only for isolated demo UI work.
+   - `flutter run -d linux --dart-define=SECUREWAVE_API_BASE_URL=https://api.securewaveapp.com/api`
+   - Optional portal overrides use `SECUREWAVE_PORTAL_URL` and `SECUREWAVE_UPGRADE_URL`.
+   - Mock API mode is reserved for isolated tests and is never enabled by default.
    - `flutter run -d macos` (UI only; VPN tunneling is unavailable on macOS yet)
 
 ## iOS Setup

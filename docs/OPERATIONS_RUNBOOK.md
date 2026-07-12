@@ -13,6 +13,8 @@
    - `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`, `WG_ENCRYPTION_KEY`
 3. Update runtime environment settings:
    - `WG_MOCK_MODE=false`, `DEMO_MODE=false`, `WG_AUTO_REGISTER_PEERS=true`
+   - Omitted demo/mock flags default to real control-plane behavior; set them
+     to `true` only in explicitly isolated tests.
 4. Database storage:
    - Set `DATABASE_URL` to managed Postgres before production traffic.
    - If using SQLite in demo: use an explicitly configured persistent path.
