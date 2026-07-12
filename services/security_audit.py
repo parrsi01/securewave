@@ -3,7 +3,6 @@ Security Audit Logging Service
 Comprehensive security event logging for compliance and investigation
 """
 
-import os
 import logging
 from typing import Dict, Optional, Any, List
 from datetime import datetime, timedelta

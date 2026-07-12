@@ -2,8 +2,7 @@
 Support Ticket Model - User support and helpdesk system
 """
 
-from datetime import datetime
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Enum as SQLEnum, JSON
 from sqlalchemy.orm import relationship
 import enum

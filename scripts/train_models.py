@@ -8,7 +8,6 @@ Usage:
     python scripts/train_models.py
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -64,7 +63,7 @@ def train_qos_model(records: List[dict], output_path: str) -> dict:
         y.append(r['qos_label'])
 
     print(f"Training samples: {len(X)}")
-    print(f"Features: latency_ms, packet_loss, jitter_ms, bandwidth_mbps, connection_stability")
+    print("Features: latency_ms, packet_loss, jitter_ms, bandwidth_mbps, connection_stability")
 
     # Label distribution
     label_counts = {}
@@ -132,7 +131,7 @@ def train_risk_model(records: List[dict], output_path: str) -> dict:
         y.append(r['risk_score'])
 
     print(f"Training samples: {len(X)}")
-    print(f"Features: login_failures, reconnect_freq, unusual_hours, ip_reputation, geo_anomaly, data_exfil, session_anomaly")
+    print("Features: login_failures, reconnect_freq, unusual_hours, ip_reputation, geo_anomaly, data_exfil, session_anomaly")
 
     # Risk score distribution
     low = sum(1 for s in y if s < 0.25)

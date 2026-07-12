@@ -3,7 +3,6 @@ GDPR Compliance Models
 Models for GDPR compliance tracking and data subject rights
 """
 
-from datetime import datetime
 from typing import Dict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Boolean, JSON, Enum as SQLEnum
 from sqlalchemy.orm import relationship

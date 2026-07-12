@@ -110,7 +110,7 @@ elif DATABASE_URL.startswith("postgresql"):
     engine = create_engine(DATABASE_URL, **engine_config)
 
     # Log connection pool info
-    logger.info(f"PostgreSQL connection pool configured:")
+    logger.info("PostgreSQL connection pool configured:")
     logger.info(f"  Pool size: {POOL_SIZE}")
     logger.info(f"  Max overflow: {MAX_OVERFLOW}")
     logger.info(f"  Pool timeout: {POOL_TIMEOUT}s")

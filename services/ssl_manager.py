@@ -7,7 +7,7 @@ import os
 import logging
 import shutil
 import subprocess  # nosec B404 - controlled subprocess usage with validated args
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 

@@ -1,7 +1,6 @@
 import base64
 import logging
 import os
-import secrets
 import shutil
 import stat
 import subprocess  # nosec B404 - controlled subprocess usage

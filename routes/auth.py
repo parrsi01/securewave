@@ -352,7 +352,7 @@ async def login(
         if auth_service.is_account_locked(user):
             raise HTTPException(
                 status_code=status.HTTP_423_LOCKED,
-                detail=f"Account locked due to too many failed login attempts. Try again later."
+                detail="Account locked due to too many failed login attempts. Try again later."
             )
 
         if not user.email_verified:

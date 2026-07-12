@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import json
-import math
 from pathlib import Path
 from typing import Iterable, List, Tuple
 

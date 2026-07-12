@@ -102,7 +102,7 @@ class PolicyEngineWorker:
         Evaluate single session and apply policy decision.
         """
         try:
-            from services.marl_policy import evaluate_connection, get_policy_engine, PolicyAction
+            from services.marl_policy import evaluate_connection
             from services.vpn_optimizer import get_vpn_optimizer
         except ImportError as e:
             logger.warning(f"Policy modules not available: {e}")
@@ -110,8 +110,6 @@ class PolicyEngineWorker:
 
         # Get optimizer for server metrics
         optimizer = get_vpn_optimizer()
-        policy_engine = get_policy_engine()
-
         # Get current server metrics (simulated for demo)
         server_id = session.assigned_node or "demo-server"
         server_metrics = optimizer.servers.get(server_id, None)

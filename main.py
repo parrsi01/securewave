@@ -25,9 +25,9 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
-from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session  # noqa: F401
+from models import user as user_model, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
-from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user
+from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user as user_routes
 from services.wireguard_service import WireGuardService
 from services.email_service import EmailService
 from utils.env_validation import (
@@ -467,7 +467,7 @@ app.include_router(diagnostics.router, tags=["diagnostics"])
 app.include_router(downloads.router, tags=["downloads"])
 app.include_router(downloads.public_router, tags=["downloads"])
 app.include_router(tools.router, tags=["tools"])
-app.include_router(user.router, tags=["user"])
+app.include_router(user_routes.router, tags=["user"])
 
 
 def api_error(code: str, message: str, details=None, status_code: int = 400):

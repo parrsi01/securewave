@@ -2,8 +2,7 @@
 WireGuard Peer Model - Track individual client configurations and keys
 """
 
-from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, Index, func
 from sqlalchemy.orm import relationship
 

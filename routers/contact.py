@@ -137,7 +137,7 @@ def submit_contact_form(payload: ContactRequest):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.error("Failed to submit contact form", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

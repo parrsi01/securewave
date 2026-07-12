@@ -4,7 +4,6 @@ Handles GDPR data subject rights and compliance requirements
 """
 
 import os
-import json
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta

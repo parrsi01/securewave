@@ -2,7 +2,6 @@
 Usage Analytics Models - Track and analyze user behavior and system usage
 """
 
-from datetime import datetime
 from typing import Dict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Float, BigInteger, JSON, Index
 from sqlalchemy.orm import relationship

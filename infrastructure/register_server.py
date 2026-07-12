@@ -50,7 +50,7 @@ def register_server(
         db.close()
         return
 
-    print(f"📝 Creating database record...")
+    print("📝 Creating database record...")
     server = VPNServer(
         server_id=server_id,
         location=location,
@@ -82,12 +82,12 @@ def register_server(
     db.refresh(server)
     db.close()
 
-    print(f"\n✅ Server registered successfully!")
+    print("\n✅ Server registered successfully!")
     print(f"   Server ID: {server_id}")
     print(f"   Location: {location}")
     print(f"   Endpoint: {endpoint}")
     print(f"   Public Key: {wg_public_key[:20]}...")
-    print(f"\n💡 Server will be picked up by health monitor within 30 seconds")
+    print("\n💡 Server will be picked up by health monitor within 30 seconds")
 
 
 def main():

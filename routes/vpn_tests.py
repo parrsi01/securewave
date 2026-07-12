@@ -15,14 +15,12 @@ import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
-from database.session import get_db
 from models.user import User
 from services.jwt_service import get_current_user, get_optional_current_user
 

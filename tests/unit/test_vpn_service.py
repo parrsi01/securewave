@@ -8,8 +8,6 @@ Covers:
 - Free tier access (unrestricted servers only)
 """
 
-import pytest
-from fastapi import status
 
 
 class TestKeyGeneration:

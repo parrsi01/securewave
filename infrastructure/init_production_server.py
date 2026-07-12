@@ -77,7 +77,7 @@ def init_production_server():
                 existing.endpoint = f"{PRODUCTION_SERVER['public_ip']}:{PRODUCTION_SERVER['wg_listen_port']}"
 
             if existing.wg_public_key != PRODUCTION_SERVER["wg_public_key"]:
-                print(f"\nUpdating WG public key")
+                print("\nUpdating WG public key")
                 existing.wg_public_key = PRODUCTION_SERVER["wg_public_key"]
 
             # Ensure server is active

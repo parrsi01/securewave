@@ -1,7 +1,6 @@
-from datetime import datetime
 from typing import Dict, Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Float, Boolean, JSON
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Float, JSON
 from sqlalchemy.orm import relationship
 
 from database.base import Base

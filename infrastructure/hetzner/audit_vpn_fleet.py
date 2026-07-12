@@ -680,7 +680,6 @@ def main() -> int:
     for row in fleet:
         fw_ok = row["validation"]["firewall_attached"]
         rdns_ok = row["validation"]["reverse_dns_ipv4_present"]
-        priv_ok = row["validation"]["has_private_network"]
         print(
             f"- prio={row['latency_priority']:>3} {row['name']} "
             f"[{row.get('hcloud_location') or '-'} {row.get('city') or '-'} {row.get('country_code') or '-'}] "

@@ -131,8 +131,6 @@ class PaymentWebhookHandler:
     def _stripe_subscription_created(self, subscription_data: Dict) -> Dict:
         """Handle subscription.created event"""
         stripe_sub_id = subscription_data["id"]
-        customer_id = subscription_data["customer"]
-
         # Subscription should already exist from API call
         # But update status if needed
         subscription = self.db.query(Subscription).filter_by(
@@ -221,7 +219,6 @@ class PaymentWebhookHandler:
     def _stripe_invoice_paid(self, invoice_data: Dict) -> Dict:
         """Handle invoice.paid event (payment succeeded)"""
         stripe_invoice_id = invoice_data["id"]
-        customer_id = invoice_data["customer"]
         subscription_id = invoice_data.get("subscription")
 
         # Find subscription

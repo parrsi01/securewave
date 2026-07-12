@@ -10,7 +10,6 @@ Covers:
 - Rule-based fallbacks produce deterministic results
 """
 
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -381,7 +380,7 @@ class TestMARLPolicyEngine:
 
     def test_custom_config(self):
         """MARLPolicyEngine should accept custom MARLPolicyConfig."""
-        from services.marl_policy import MARLPolicyEngine, MARLPolicyConfig, StateVector, PolicyAction
+        from services.marl_policy import MARLPolicyEngine, MARLPolicyConfig, StateVector
 
         config = MARLPolicyConfig(
             critical_packet_loss=0.20,

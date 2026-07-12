@@ -8,7 +8,6 @@ import os
 import sys
 import subprocess
 import logging
-from typing import Dict, List
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -232,7 +231,7 @@ class DatabaseInitializer:
                 return False
 
             info = get_database_info()
-            logger.info(f"✓ Database connection successful")
+            logger.info("✓ Database connection successful")
             logger.info(f"  Driver: {info['driver']}")
             logger.info(f"  Environment: {info['environment']}")
 

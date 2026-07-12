@@ -15,8 +15,6 @@ All operations go through the HTTP API via TestClient.
 
 import time
 
-import pytest
-from fastapi import status
 
 
 class TestFullUserJourney:
@@ -85,7 +83,6 @@ class TestFullUserJourney:
         from services.vpn_optimizer import get_vpn_optimizer
 
         optimizer = get_vpn_optimizer()
-        initial_stats = optimizer.get_stats()
 
         # Simulate quality report (optimizer is in-memory, no API endpoint needed)
         if optimizer.servers:

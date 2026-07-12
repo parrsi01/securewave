@@ -1,6 +1,5 @@
 """Idempotency ledger for client-reported VPN usage increments."""
 
-from datetime import datetime
 
 from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, String
 

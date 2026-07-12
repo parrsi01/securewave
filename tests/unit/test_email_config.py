@@ -6,7 +6,6 @@ without actually sending emails.
 """
 
 import os
-import pytest
 from unittest.mock import patch
 
 
@@ -78,6 +77,8 @@ class TestEmailServiceConfigStatus:
 
                 # SMTP should NOT have been called
                 mock_smtp.assert_not_called()
+                assert status["enabled"] is True
+                assert status["missing"] == []
 
     def test_sendgrid_config_status(self):
         env = {

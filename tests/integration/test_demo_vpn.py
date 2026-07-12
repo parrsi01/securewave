@@ -1,4 +1,3 @@
-import time
 
 
 def test_auth_me(client, auth_headers):

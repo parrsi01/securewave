@@ -26,7 +26,6 @@ from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
-    ServerConnection,
 )
 
 logger = logging.getLogger(__name__)
@@ -618,7 +617,7 @@ async def sync_server_peers(
             else:
                 failed += 1
                 errors.append(f"User {user.id}: {message}")
-        except Exception as e:
+        except Exception:
             failed += 1
             errors.append(f"User {user.id}: synchronization failed")
 

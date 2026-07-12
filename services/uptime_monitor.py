@@ -10,7 +10,6 @@ import time
 import shutil
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -412,11 +411,6 @@ class UptimeMonitorService:
 
             # Check if ping succeeded
             if result.returncode == 0:
-                # Parse output for response time (simplified)
-                output = result.stdout.decode()
-
-                # Extract average time (platform-dependent parsing)
-                # This is a simplified version - production should use proper parsing
                 return True, None, None
             else:
                 return False, None, "Host unreachable"
@@ -554,7 +548,6 @@ class UptimeMonitorService:
         try:
             from database.session import get_db
             from models.audit_log import UptimeCheck
-            from sqlalchemy import func
 
             db = next(get_db())
 

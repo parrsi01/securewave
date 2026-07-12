@@ -37,7 +37,6 @@ from services.usage_metering_service import (
 from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
-    ServerConnection,
 )
 from slowapi import Limiter
 from slowapi.util import get_remote_address

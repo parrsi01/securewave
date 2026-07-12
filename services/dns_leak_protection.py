@@ -3,11 +3,9 @@ SecureWave VPN - DNS Leak Protection Service
 Implements DNS leak detection and prevention mechanisms
 """
 
-import os
 import logging
-import socket
 import dns.resolver
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from datetime import datetime
 
 logger = logging.getLogger(__name__)

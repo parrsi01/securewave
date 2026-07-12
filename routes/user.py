@@ -3,7 +3,6 @@ User-facing account endpoints used by the native apps.
 """
 
 import os
-from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends

@@ -34,6 +34,9 @@ run_check "plan copy" bash scripts/check_plan_copy.sh
 run_check "Xcode workspace guards" bash scripts/check_xcworkspace_usage.sh
 run_check "Python compile" "$PYTHON_BIN" -m compileall -q \
   main.py routes routers services models database ml scripts infrastructure tests
+run_check "Ruff static-analysis baseline" "$PYTHON_BIN" -m ruff check \
+  main.py background_tasks.py database models routes routers services utils \
+  scripts infrastructure tests
 run_check "backend unit and integration tests" "$PYTHON_BIN" -m pytest -q tests
 
 if "$PYTHON_BIN" -m bandit --version >/dev/null 2>&1; then
@@ -103,6 +106,8 @@ fi
 rm -f "$migration_db"
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  run_check "PostgreSQL migrations and usage concurrency" env \
+    PYTHON_BIN="$PYTHON_BIN" bash scripts/certify_postgres.sh
   run_check "Docker build check" docker build --check .
   run_check "Docker image build" docker build --tag securewave-certification:local .
 else

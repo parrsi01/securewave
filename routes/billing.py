@@ -6,9 +6,9 @@ FastAPI endpoints for payment processing and subscription management
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 

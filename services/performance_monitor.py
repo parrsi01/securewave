@@ -136,7 +136,7 @@ class PerformanceMonitorService:
 
                     return result
 
-                except Exception as e:
+                except Exception:
                     status_code = 500
                     raise
 
@@ -170,7 +170,7 @@ class PerformanceMonitorService:
                     result = func(*args, **kwargs)
                     return result
 
-                except Exception as e:
+                except Exception:
                     status_code = 500
                     raise
 
@@ -261,7 +261,6 @@ class PerformanceMonitorService:
         try:
             from database.session import get_db
             from models.audit_log import PerformanceMetric
-            from sqlalchemy import func
 
             db = next(get_db())
 

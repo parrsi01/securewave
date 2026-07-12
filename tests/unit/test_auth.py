@@ -10,7 +10,6 @@ Covers:
 - Token generation and validation
 """
 
-import pytest
 from fastapi import status
 
 

@@ -2,7 +2,6 @@
 Monitoring and logging tests
 """
 
-import pytest
 from datetime import datetime, timedelta
 
 
@@ -11,7 +10,7 @@ class TestSecurityAudit:
 
     def test_log_login_event(self, db):
         """Test logging login event"""
-        from services.security_audit import get_security_audit, EventType, EventCategory, Severity
+        from services.security_audit import get_security_audit, EventType
 
         audit = get_security_audit()
 

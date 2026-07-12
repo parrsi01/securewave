@@ -2,8 +2,7 @@
 Email Log Model - Track sent emails for debugging and analytics
 """
 
-from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Boolean, JSON, Index
 from sqlalchemy.orm import relationship
 

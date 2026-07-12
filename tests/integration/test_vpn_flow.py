@@ -14,8 +14,6 @@ Covers:
 import time
 from datetime import datetime
 
-import pytest
-from fastapi import status
 
 
 # ---------------------------------------------------------------------------

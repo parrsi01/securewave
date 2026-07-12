@@ -5,13 +5,13 @@ Detect and prevent abuse, policy violations, and suspicious activity
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 
 from models.user import User
 from models.vpn_connection import VPNConnection
-from models.usage_analytics import UserUsageStats, AbuseDetectionLog
+from models.usage_analytics import AbuseDetectionLog
 
 logger = logging.getLogger(__name__)
 

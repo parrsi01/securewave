@@ -2,8 +2,7 @@
 Audit Log Models - Track all security and compliance events
 """
 
-from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Boolean, JSON, Index
 from sqlalchemy.orm import relationship
 

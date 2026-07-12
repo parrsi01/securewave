@@ -4,9 +4,6 @@ Manages WireGuard peers, keys, IP allocation, and configuration generation
 """
 
 import logging
-import os
-import secrets
-import base64
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List, Dict
 from io import BytesIO

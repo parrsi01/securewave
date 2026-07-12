@@ -3,10 +3,9 @@ Transparency and Warrant Canary Service
 Handles transparency reports and warrant canary status
 """
 
-import os
 import logging
 import hashlib
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from datetime import datetime, timedelta
 from calendar import monthrange
 
@@ -197,7 +196,6 @@ transparency@securewave.com
             from models.support_ticket import SupportTicket
             from models.gdpr import GDPRRequest
             from models.audit_log import AuditLog
-            from sqlalchemy import func
 
             db = next(get_db())
 

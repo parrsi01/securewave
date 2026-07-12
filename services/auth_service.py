@@ -13,9 +13,6 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from cryptography.hazmat.primitives.twofactor.totp import TOTP
-from cryptography.hazmat.primitives.hashes import SHA1
-from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet, InvalidToken
 import pyotp
 import qrcode

@@ -12,7 +12,6 @@ Covers:
 - 2FA enrollment and verification flow
 """
 
-import time
 from datetime import datetime, timedelta
 
 import pytest
@@ -44,7 +43,9 @@ class TestCSRFProtection:
         assert response.status_code == 200
         # The response should contain Set-Cookie directives that clear tokens
         set_cookies = response.headers.get_list("set-cookie") if hasattr(response.headers, "get_list") else []
-        # At minimum the endpoint must return success
+        assert any(cookie.startswith("access_token=") and "Max-Age=0" in cookie for cookie in set_cookies)
+        assert any(cookie.startswith("refresh_token=") and "Max-Age=0" in cookie for cookie in set_cookies)
+        assert any(cookie.startswith("csrf_token=") and "Max-Age=0" in cookie for cookie in set_cookies)
         data = response.json()
         assert data.get("status") == "ok"
 

@@ -27,7 +27,7 @@ import logging
 import secrets
 from collections import deque, OrderedDict
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 
 # Lazy imports - only load if available
 try:
@@ -157,7 +157,7 @@ class OptimizedVPNOptimizer:
                 n_jobs=1,  # Single thread for cloud deployment
                 random_state=42
             )
-        except Exception as e:
+        except Exception:
             self.use_ml = False
 
     def add_server(self, server_id: str, location: str, initial_metrics: Optional[Dict] = None):
@@ -436,7 +436,6 @@ class OptimizedVPNOptimizer:
         actual_latency = self._validate_metric(actual_latency, 0, 10000, 100)
         actual_throughput = self._validate_metric(actual_throughput, 0, 100000, 50)
 
-        server = self.servers[server_id]
         user_state = self.connection_states[user_id]
 
         # Update user state (exponential moving average)

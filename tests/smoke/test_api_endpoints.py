@@ -5,7 +5,6 @@ These tests verify that essential endpoints are reachable and return
 expected response structures. They do NOT verify full business logic.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 

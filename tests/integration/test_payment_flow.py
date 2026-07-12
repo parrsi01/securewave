@@ -10,10 +10,7 @@ Covers:
 - Billing plans listing (both /api/billing/plans and /api/payments/stripe/plans)
 """
 
-from datetime import datetime, timedelta
 
-import pytest
-from fastapi import status
 
 
 # ---------------------------------------------------------------------------

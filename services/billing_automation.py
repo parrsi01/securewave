@@ -4,13 +4,12 @@ Automated subscription renewals, dunning management, and lifecycle processing
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from models.subscription import Subscription
 from models.invoice import Invoice
-from models.user import User
 from services.subscription_manager import SubscriptionManager
 from services.stripe_service import StripeService
 from services.paypal_service import PayPalService
@@ -589,7 +588,7 @@ class BillingAutomationService:
                 }
             }
 
-            logger.info(f"✓ Generated billing health report")
+            logger.info("✓ Generated billing health report")
             return report
 
         except Exception as e:

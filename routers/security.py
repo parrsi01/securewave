@@ -11,9 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
-from database.session import get_db
 from models.user import User
 from services.jwt_service import get_current_user
 from services.security_monitor import get_security_monitor
