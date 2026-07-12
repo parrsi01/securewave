@@ -89,3 +89,40 @@ systemctl is-active wg-quick@wg0
 
 Until these items are resolved, the x64 `.deb` must remain beta/build-evidence
 only and SecureWave must not be described as final Linux release-ready.
+
+## Follow-up remediation evidence
+
+Follow-up work on this draft branch addressed several package defects without
+publishing or changing availability:
+
+- Commit `21f9ae2691cd48a9baa22d71f297df67f8c70ca9` was built by native x86_64
+  Actions run `29205690262`. The workflow passed its explicit x86-64 ELF check,
+  package metadata checks, manifest beta guard, and unit tests.
+- Fresh artifact SHA256:
+  `b8c295d351a9d577edb6f4e4c0b0a024c92acec4f1c475c333da16285251583f`.
+  This is branch evidence, not a published checksum.
+- strongSwan/IKEv2 components moved from mandatory dependencies to optional
+  suggestions because IKEv2 is not advertised as release-ready. A newly
+  recreated native x86_64 VM installed no strongSwan package and acquired no
+  pref-220 rule.
+- GTK, libsecret, and EGL runtime dependencies are now declared. `ldd` reported
+  zero missing libraries after normal package installation.
+- The contract-10 install-only verifier passed with zero failed checks. Optional
+  IKEv2 tools are required only when IKEv2 is intentionally under active test;
+  missing optional commands no longer crash disconnected cleanup verification.
+- The service, helper payload, socket `0660 root:securewave`, tmpfiles directory
+  `0750 root:securewave`, helper IPC rejection probes, and uninstall cleanup all
+  passed. After purge there was no service, socket, runtime directory,
+  SecureWave interface, strongSwan installation, or unqualified pref-220 rule.
+
+The app binary loaded all declared libraries and reached Flutter/GTK window
+realization under Xvfb, but aborted in `libepoxy` instead of remaining alive for
+the 15-second observation window. Mesa GLX software rendering was present.
+Because no native graphical desktop session was available, application launch
+remains **blocked**, not verified. No tunnel claim was made.
+
+These remediations close the old contract-9 and strongSwan lifecycle findings
+for the tested branch artifact. The recommendation remains **not ready** because
+the public x64 tarball is still an AArch64 binary, graphical-session launch is
+not yet proven, full WireGuard client data-plane proof is absent, and the
+staging monitoring/rollback gates remain blocked.
