@@ -121,8 +121,95 @@ the 15-second observation window. Mesa GLX software rendering was present.
 Because no native graphical desktop session was available, application launch
 remains **blocked**, not verified. No tunnel claim was made.
 
-These remediations close the old contract-9 and strongSwan lifecycle findings
-for the tested branch artifact. The recommendation remains **not ready** because
-the public x64 tarball is still an AArch64 binary, graphical-session launch is
-not yet proven, full WireGuard client data-plane proof is absent, and the
-staging monitoring/rollback gates remain blocked.
+Those remediations closed the old contract-9 and strongSwan lifecycle findings
+for the tested branch artifact. At that stage the recommendation remained
+**not ready** because the public x64 tarball was still an AArch64 binary and the
+graphical, data-plane, monitoring, and rollback proofs had not yet run. The
+continuation below supersedes those four interim statuses.
+
+## Blocker-focused continuation
+
+Continuation source: PR #42 commit
+`6dc3fc81fb54abb6286bd68b1845fd9d4cd8a9b5`.
+
+### Public Linux x64 tarball: blocked pending separately authorized correction
+
+- Publication source was traced to `scripts/build_apps.sh`, which writes the
+  archive into the tracked public site path
+  `static/downloads/securewave-linux-x64.tar.gz`. Git history confirms that the
+  current public file arrived through repository commits; no architecture
+  verification protected that path.
+- Native x86_64 Actions run `29207053775` rebuilt both the `.deb` and portable
+  tarball from the PR branch. The workflow checks the application ELF before
+  packaging and after extracting the completed tarball, and rejects anything
+  other than x86-64.
+- Evidence-only tarball SHA256:
+  `812ec78d0161100ad0df7d3906afae32fef272a4632db60d09767b904b52ceff`.
+  Manual extraction also identified `securewave_app` as an x86-64 ELF.
+- The new workflow artifact was not published or copied into the public site.
+  The tracked public tarball therefore remains the known AArch64 file and this
+  gate remains **blocked**. Manifest availability was not changed.
+
+### Native graphical launch: verified
+
+- A disposable native x86_64 Ubuntu VM ran a real X.Org 21.1 graphical server
+  using the Xorg dummy video driver, an Openbox window manager, a user D-Bus
+  session, and Mesa llvmpipe GLX. This was not Xvfb.
+- Normal `.deb` installation supplied every shared library (`ldd` reported zero
+  missing entries). The SecureWave process remained alive and a visible
+  `SecureWave VPN` window was observed at 1278x695 during the test window.
+- Non-fatal warnings reported unavailable DRI3 acceleration and an unlockable
+  headless keyring. No tunnel was started or claimed.
+- No additional application change was needed. The earlier Xvfb/libepoxy abort
+  remains preserved as headless-only evidence and is not used as native GUI
+  proof.
+
+### WireGuard client data plane: verified
+
+An isolated client network namespace on authorized disposable staging obtained
+a real profile from the staging backend and passed all required checks:
+
+- authenticated peer registration and a non-zero WireGuard handshake;
+- `swcert` interface creation and full-tunnel policy-table rules;
+- endpoint bypass through the pre-tunnel route when applying WireGuard fwmark
+  `0xca6c`;
+- DNS resolution through an explicitly queried tunnel DNS resolver;
+- HTTPS data-plane reachability;
+- public exit IP changed from the client baseline, without retaining either
+  address in evidence;
+- WireGuard receive/transmit totals increased during traffic;
+- `wg-quick down` removed the interface, policy rules, and table-51820 routes.
+
+No production or non-SecureWave endpoint was targeted beyond low-volume HTTPS
+and DNS proof requests.
+
+### Staging monitoring and rollback: verified with two deferred gates
+
+- The pre-fix behavior was reproduced after rolling the disposable app back to
+  commit `f63a78c4`: deliberately unhealthy host metrics followed by a healthy
+  authenticated WireGuard probe left `aggregate_status=unhealthy` while
+  protocol evidence was healthy.
+- The fix treats authenticated protocol reachability as an independent stronger
+  runtime signal. Unit/integration tests cover recovery and compact redacted
+  evidence. On the fixed image, the same sequence recovered aggregate status to
+  healthy and reset consecutive failures.
+- Stopping the WireGuard management API produced a false protocol result and
+  unhealthy aggregate state. Restarting it produced healthy protocol evidence
+  and recovered the aggregate state.
+- Actual rollback to `f63a78c4` and restoration to the fixed image both passed
+  container readiness. The restored image recovered the health result.
+- Alert delivery is **blocked**: no authorized alert destination or delivery
+  credentials were provided. Local warning logs were observed but are not
+  equivalent to delivered alerts.
+- Bounded load is **deferred**: no numeric target, concurrency/rate ceiling, or
+  abort thresholds were supplied. No load traffic was generated.
+
+All disposable graphical, staging app, VPN, and private-network resources were
+deleted after proof. The final recommendation remains **not ready** because the
+known-wrong public tarball has not been replaced, alert delivery is unproven,
+and bounded-load authorization remains incomplete.
+
+Continuation validation passed: Actions run `29207053775`, 385 Python tests
+(one explicitly skipped without `SECUREWAVE_TEST_POSTGRES_URL`), Flutter
+analysis, 26 Flutter tests, actionlint, ShellCheck, `git diff --check`, and the
+repository secret-detection hook. No test was weakened or bypassed.
