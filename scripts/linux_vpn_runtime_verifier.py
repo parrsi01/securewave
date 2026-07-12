@@ -779,10 +779,15 @@ def main() -> int:
         *check_helper_service_install(),
         *check_helper_socket(),
         *check_helper_ipc(),
-        *check_runner_contract(),
     ]
     if not args.skip_build_checks:
-        checks.extend([check_build_artifact(), *check_build_helper_payload()])
+        checks.extend(
+            [
+                *check_runner_contract(),
+                check_build_artifact(),
+                *check_build_helper_payload(),
+            ]
+        )
     if args.active_protocol:
         checks.extend(check_active_runtime(args.active_protocol))
         if args.external_probes:
