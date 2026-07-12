@@ -213,3 +213,34 @@ Continuation validation passed: Actions run `29207053775`, 385 Python tests
 (one explicitly skipped without `SECUREWAVE_TEST_POSTGRES_URL`), Flutter
 analysis, 26 Flutter tests, actionlint, ShellCheck, `git diff --check`, and the
 repository secret-detection hook. No test was weakened or bypassed.
+
+## Approved blocker closure
+
+The operator subsequently authorized correcting the tracked public artifact,
+proving an isolated alert destination, and running a conservative bounded load
+test. Production deployment and merging remained out of scope.
+
+- The tracked `static/downloads/securewave-linux-x64.tar.gz` was replaced on PR
+  #42 with the native-runner artifact whose SHA256 is
+  `812ec78d0161100ad0df7d3906afae32fef272a4632db60d09767b904b52ceff`.
+  Extraction from the tracked path confirms an x86-64 ELF. Availability was not
+  changed. The live website remains unchanged until separately deployed.
+- The health monitor gained an opt-in `VPN_HEALTH_ALERT_WEBHOOK_URL`. Payloads
+  contain only server ID, protocol, boolean health, and observation time;
+  delivery failure never interrupts health persistence. Tests prove redaction.
+- An isolated staging receiver accepted both unhealthy and recovery webhook
+  deliveries. No customer or external notification target was used.
+- The first deliberately excessive probe (1,000 requests at concurrency 10)
+  crossed the defined error/CPU abort gates and was stopped as failed evidence.
+  It was not reported as success.
+- The approved bounded envelope then modeled 100 users with one request each,
+  concurrency 5, error abort above 1%, p95 abort above 2 seconds, CPU abort at
+  80%, and memory abort at 85%. It passed with 0% errors, p95 0.0236 seconds,
+  peak sampled CPU 32.02%, and peak sampled memory 7.07%.
+- All disposable alert/load staging infrastructure was deleted. A separate
+  local demo backend and disposable local test account were created only for
+  immediate operator Flutter testing; their credentials are not committed.
+
+The code and tracked artifact blockers are closed on PR #42, but the release
+recommendation remains **not ready** until that draft is reviewed and merged and
+the corrected artifact is deployed through the approved production process.
