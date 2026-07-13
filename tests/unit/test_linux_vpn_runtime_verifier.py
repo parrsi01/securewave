@@ -1,6 +1,8 @@
 from pathlib import Path
 from subprocess import CompletedProcess
 
+import pytest
+
 from scripts import linux_vpn_runtime_verifier as verifier
 
 
@@ -26,6 +28,10 @@ def test_runner_contract_covers_all_protocol_runtime_evidence():
     assert checks["runner:ikev2_disconnect_op"].ok
     assert checks["runner:securewave_helper_contract"].ok
     assert checks["runner:no_implicit_mock"].ok
+
+
+def test_runtime_tool_contract_includes_nftables_inspection():
+    assert "nft" in verifier.REQUIRED_TOOLS
 
 
 def test_build_artifact_check_reports_missing_build(monkeypatch, tmp_path):
@@ -110,20 +116,35 @@ def test_installed_strongswan_routing_config_must_match_source(monkeypatch, tmp_
 
 def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
     outputs = {
-        ("ip", "link", "show", "sw-wg"): CompletedProcess(
-            args=[], returncode=0, stdout="7: sw-wg: <POINTOPOINT>\n", stderr=""
-        ),
-        ("ip", "link", "show", "tun0"): CompletedProcess(
-            args=[], returncode=0, stdout="8: tun0: <POINTOPOINT>\n", stderr=""
+        ("ip", "-o", "link", "show"): CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=(
+                "7: sw-wg: <POINTOPOINT>\n"
+                "8: tun12: <POINTOPOINT>\n"
+                "9: nm-xfrm-7@NONE: <POINTOPOINT>\n"
+                "10: tun-securewave: <POINTOPOINT>\n"
+            ),
+            stderr="",
         ),
         ("ip", "route", "show"): CompletedProcess(
             args=[],
             returncode=0,
-            stdout="default dev sw-wg table 51820\n0.0.0.0/1 dev tun0\n128.0.0.0/1 dev tun0\n",
+            stdout=(
+                "default dev sw-wg table 51820\n"
+                "0.0.0.0/1 dev tun12\n"
+                "128.0.0.0/1 dev nm-xfrm-7\n"
+            ),
             stderr="",
         ),
         ("ip", "-4", "rule", "show"): CompletedProcess(
-            args=[], returncode=0, stdout="32765: from all lookup 51820\n", stderr=""
+            args=[],
+            returncode=0,
+            stdout=(
+                "220: not from all fwmark 0xdc lookup 220\n"
+                "32765: from all lookup 51820\n"
+            ),
+            stderr="",
         ),
         ("ip", "-6", "rule", "show"): CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""
@@ -135,7 +156,10 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
             args=[], returncode=0, stdout="", stderr=""
         ),
         ("ip", "-4", "route", "show", "table", "220"): CompletedProcess(
-            args=[], returncode=0, stdout="default dev nm-xfrm-1\n", stderr=""
+            args=[],
+            returncode=0,
+            stdout="203.0.113.0/24 via 192.0.2.1 dev enp0s1\n",
+            stderr="",
         ),
         ("ip", "-6", "route", "show", "table", "220"): CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""
@@ -143,14 +167,18 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         ("pgrep", "-af", "openvpn"): CompletedProcess(
             args=[], returncode=0, stdout="123 openvpn --config /tmp/securewave.ovpn\n", stderr=""
         ),
-        ("swanctl", "--list-sas"): CompletedProcess(
-            args=[], returncode=0, stdout="securewave: #1, ESTABLISHED\n", stderr=""
-        ),
         ("nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"): CompletedProcess(
             args=[], returncode=0, stdout="SecureWave-IKEv2:vpn\n", stderr=""
         ),
         ("nmcli", "-t", "-f", "GENERAL.DEVICE,IP4.DNS,IP6.DNS", "device", "show"): CompletedProcess(
-            args=[], returncode=0, stdout="GENERAL.DEVICE:sw-wg\nIP4.DNS[1]:redacted\n", stderr=""
+            args=[],
+            returncode=0,
+            stdout=(
+                "GENERAL.DEVICE:tun12\nIP4.DNS[1]:redacted\n"
+                "GENERAL.DEVICE:nm-xfrm-7\nIP6.DNS[1]:redacted\n"
+                "GENERAL.DEVICE:tun-securewave\nIP4.DNS[1]:redacted\n"
+            ),
+            stderr="",
         ),
     }
 
@@ -158,24 +186,47 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         return outputs[tuple(argv)]
 
     monkeypatch.setattr(verifier, "_run", fake_run)
-    monkeypatch.setattr(
-        verifier,
-        "helper_request",
-        lambda fields: {
-            "ok": "true",
-            "contract": "12",
-            "present": "true",
-        },
-    )
+    def fake_helper_request(fields):
+        if fields == {"op": "wireguard.status"}:
+            return {
+                "ok": "true",
+                "contract": "13",
+                "status": "connected",
+                "firewall_inspection_ok": "true",
+                "nft_table_present": "true",
+                "iptables_rule_present": "true",
+                "ip6tables_rule_present": "true",
+                "firewall_residue_present": "true",
+            }
+        if fields == {"op": "firewall.adblock_status"}:
+            return {"ok": "true", "contract": "13", "present": "true"}
+        if fields == {"op": "ikev2.status"}:
+            return {
+                "ok": "true",
+                "contract": "13",
+                "status": "connected",
+                "connection_inspection_ok": "true",
+                "connection_present": "true",
+                "nm_active": "true",
+                "xfrm_state_inspection_ok": "true",
+                "xfrm_state_present": "true",
+                "xfrm_esp_present": "true",
+                "xfrm_policy_inspection_ok": "true",
+                "xfrm_policy_present": "true",
+            }
+        raise AssertionError(fields)
+
+    monkeypatch.setattr(verifier, "helper_request", fake_helper_request)
 
     checks = {check.name: check for check in verifier.check_residue()}
 
+    assert not checks["residue:wireguard_firewall"].ok
     assert not checks["residue:wireguard_interface"].ok
     assert not checks["residue:tun0_interface"].ok
     assert not checks["residue:tunnel_routes"].ok
     assert not checks["residue:wireguard_policy_rules"].ok
     assert not checks["residue:wireguard_policy_routes"].ok
-    assert checks["residue:ikev2_pref_220_loop"].ok
+    assert not checks["residue:ikev2_pref_220_loop"].ok
     assert not checks["residue:ikev2_table_220_routes"].ok
     assert not checks["residue:adblock_chain"].ok
     assert "rules redacted" in checks["residue:adblock_chain"].detail
@@ -183,6 +234,190 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
     assert not checks["residue:ikev2_sa"].ok
     assert not checks["residue:ikev2_nm_connection"].ok
     assert not checks["residue:vpn_dns"].ok
+    assert "3 tunnel interfaces" in checks["residue:vpn_dns"].detail
+
+
+def _clean_disconnected_wireguard_status(**overrides):
+    response = {
+        "ok": "true",
+        "contract": "13",
+        "status": "disconnected",
+        "firewall_inspection_ok": "true",
+        "nft_table_present": "false",
+        "iptables_rule_present": "false",
+        "ip6tables_rule_present": "false",
+        "firewall_residue_present": "false",
+    }
+    response.update(overrides)
+    return response
+
+
+def _clean_disconnected_ikev2_status(**overrides):
+    response = {
+        "ok": "true",
+        "contract": "13",
+        "status": "disconnected",
+        "connection_inspection_ok": "true",
+        "connection_present": "false",
+        "nm_active": "false",
+        "xfrm_state_inspection_ok": "true",
+        "xfrm_state_present": "false",
+        "xfrm_esp_present": "false",
+        "xfrm_policy_inspection_ok": "true",
+        "xfrm_policy_present": "false",
+    }
+    response.update(overrides)
+    return response
+
+
+def _mock_clean_disconnected_runtime(
+    monkeypatch,
+    ikev2_status,
+    *,
+    wireguard_status=None,
+):
+    wireguard_status = (
+        _clean_disconnected_wireguard_status()
+        if wireguard_status is None
+        else wireguard_status
+    )
+
+    def fake_run(argv):
+        return CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+    def fake_helper_request(fields):
+        if fields == {"op": "wireguard.status"}:
+            return wireguard_status
+        if fields == {"op": "firewall.adblock_status"}:
+            return {"ok": "true", "contract": "13", "present": "false"}
+        if fields == {"op": "ikev2.status"}:
+            return ikev2_status
+        raise AssertionError(fields)
+
+    monkeypatch.setattr(verifier, "_run", fake_run)
+    monkeypatch.setattr(verifier, "helper_request", fake_helper_request)
+
+
+def test_residue_privileged_checks_accept_clean_wireguard_and_ikev2_status(monkeypatch):
+    _mock_clean_disconnected_runtime(
+        monkeypatch,
+        _clean_disconnected_ikev2_status(),
+    )
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert checks["residue:wireguard_firewall"].ok
+    assert checks["residue:ikev2_sa"].ok
+
+
+def test_residue_interfaces_fail_closed_when_all_links_inspection_fails(monkeypatch):
+    _mock_clean_disconnected_runtime(
+        monkeypatch,
+        _clean_disconnected_ikev2_status(),
+    )
+
+    def fake_run(argv):
+        if argv == ["ip", "-o", "link", "show"]:
+            return CompletedProcess(
+                args=argv,
+                returncode=2,
+                stdout="",
+                stderr="permission denied",
+            )
+        return CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(verifier, "_run", fake_run)
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert not checks["residue:wireguard_interface"].ok
+    assert checks["residue:wireguard_interface"].detail == "interface inspection failed"
+    assert not checks["residue:tun0_interface"].ok
+    assert checks["residue:tun0_interface"].detail == "tunnel interface inspection failed"
+
+
+def test_residue_openvpn_process_fails_closed_on_pgrep_error_without_output(
+    monkeypatch,
+):
+    _mock_clean_disconnected_runtime(
+        monkeypatch,
+        _clean_disconnected_ikev2_status(),
+    )
+
+    def fake_run(argv):
+        if argv == ["pgrep", "-af", "openvpn"]:
+            return CompletedProcess(
+                args=argv,
+                returncode=2,
+                stdout="",
+                stderr="process inspection failed",
+            )
+        return CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(verifier, "_run", fake_run)
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert not checks["residue:openvpn_process"].ok
+    assert checks["residue:openvpn_process"].detail == "OpenVPN process inspection failed"
+
+
+@pytest.mark.parametrize(
+    "override",
+    (
+        {"contract": "12"},
+        {"status": "connected"},
+        {"firewall_inspection_ok": "false"},
+        {"nft_table_present": "true"},
+        {"iptables_rule_present": "true"},
+        {"ip6tables_rule_present": "true"},
+        {"firewall_residue_present": "true"},
+    ),
+)
+def test_residue_wireguard_firewall_fails_closed_on_inspection_or_residue(
+    monkeypatch, override
+):
+    _mock_clean_disconnected_runtime(
+        monkeypatch,
+        _clean_disconnected_ikev2_status(),
+        wireguard_status=_clean_disconnected_wireguard_status(**override),
+    )
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert not checks["residue:wireguard_firewall"].ok
+    assert "inspection failed or owned residue remains" in checks[
+        "residue:wireguard_firewall"
+    ].detail
+
+
+@pytest.mark.parametrize(
+    "override",
+    (
+        {"contract": "12"},
+        {"status": "connected"},
+        {"connection_inspection_ok": "false"},
+        {"connection_present": "true"},
+        {"nm_active": "true"},
+        {"xfrm_state_inspection_ok": "false"},
+        {"xfrm_state_present": "true"},
+        {"xfrm_esp_present": "true"},
+        {"xfrm_policy_inspection_ok": "false"},
+        {"xfrm_policy_present": "true"},
+    ),
+)
+def test_residue_ikev2_kernel_check_fails_closed_on_incomplete_or_dirty_status(
+    monkeypatch, override
+):
+    _mock_clean_disconnected_runtime(
+        monkeypatch,
+        _clean_disconnected_ikev2_status(**override),
+    )
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert not checks["residue:ikev2_sa"].ok
+    assert "inspection failed or state/policy remains" in checks["residue:ikev2_sa"].detail
 
 
 def test_residue_adblock_chain_passes_only_when_absent(monkeypatch):
@@ -195,7 +430,7 @@ def test_residue_adblock_chain_passes_only_when_absent(monkeypatch):
         "helper_request",
         lambda fields: {
             "ok": "true",
-            "contract": "12",
+            "contract": "13",
             "present": "false",
         },
     )
@@ -220,7 +455,7 @@ def test_residue_adblock_chain_fails_closed_when_helper_cannot_inspect(monkeypat
         lambda fields: {
             "ok": "false",
             "code": "inspection_failed",
-            "contract": "12",
+            "contract": "13",
             "message": "Unable to inspect legacy SecureWave adblock firewall state.",
         },
     )
@@ -251,7 +486,9 @@ def test_residue_adblock_chain_rejects_old_or_missing_helper_contract(monkeypatc
     assert "could not be inspected safely" in checks["residue:adblock_chain"].detail
 
 
-def test_residue_detects_ipv6_unqualified_pref_220_rule(monkeypatch):
+def test_residue_rejects_even_safe_active_ipv6_pref_220_rule_when_disconnected(
+    monkeypatch,
+):
     def fake_run(argv):
         command = tuple(argv)
         if command == ("ip", "-4", "rule", "show"):
@@ -260,7 +497,7 @@ def test_residue_detects_ipv6_unqualified_pref_220_rule(monkeypatch):
             return CompletedProcess(
                 args=argv,
                 returncode=0,
-                stdout="220:\tfrom all lookup 220\n",
+                stdout="220:\tfrom all not fwmark 0xdc/0xffffffff table 220\n",
                 stderr="",
             )
         if command[:2] == ("ip", "link"):
@@ -278,7 +515,7 @@ def test_residue_detects_ipv6_unqualified_pref_220_rule(monkeypatch):
     monkeypatch.setattr(
         verifier,
         "helper_request",
-        lambda fields: {"ok": "true", "contract": "12", "present": "false"},
+        lambda fields: {"ok": "true", "contract": "13", "present": "false"},
     )
 
     checks = {check.name: check for check in verifier.check_residue()}
@@ -354,7 +591,7 @@ def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path
     check = verifier.check_installed_helper_contract()
 
     assert not check.ok
-    assert "required 12" in check.detail
+    assert "required 13" in check.detail
 
 
 def test_no_polkit_source_enforces_service_socket_model():
@@ -364,28 +601,132 @@ def test_no_polkit_source_enforces_service_socket_model():
     assert checks["runner:no_connect_time_pkexec"].ok
 
 
+def _active_wireguard_status(**overrides):
+    response = {
+        "ok": "true",
+        "status": "connected",
+        "route_via_sw_wg": "true",
+        "policy_rules_present": "true",
+        "policy_routes_present": "true",
+        "firewall_inspection_ok": "true",
+        "counters_available": "true",
+    }
+    response.update(overrides)
+    return response
+
+
+def _active_wireguard_dns_run(argv):
+    if argv == ["resolvectl", "dns", verifier.WIREGUARD_INTERFACE]:
+        return CompletedProcess(
+            args=argv,
+            returncode=0,
+            stdout="Link 8 (sw-wg): redacted\n",
+            stderr="",
+        )
+    if argv == ["resolvectl", "domain", verifier.WIREGUARD_INTERFACE]:
+        return CompletedProcess(
+            args=argv,
+            returncode=0,
+            stdout="Link 8 (sw-wg): ~.\n",
+            stderr="",
+        )
+    raise AssertionError(argv)
+
+
+def test_active_wireguard_requires_policy_routes_rules_and_firewall_inspection(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        verifier,
+        "helper_request",
+        lambda fields, timeout=5.0: _active_wireguard_status(),
+    )
+    monkeypatch.setattr(verifier, "_run", _active_wireguard_dns_run)
+
+    checks = {
+        check.name: check for check in verifier.check_active_runtime("wireguard")
+    }
+
+    assert checks["runtime:wireguard:status"].ok
+    assert checks["runtime:wireguard:route"].ok
+    assert checks["runtime:wireguard:safety"].ok
+    assert checks["runtime:wireguard:dns"].ok
+    assert checks["runtime:wireguard:counters"].ok
+
+
+@pytest.mark.parametrize(
+    "override",
+    (
+        {"policy_rules_present": "false"},
+        {"policy_routes_present": "false"},
+        {"firewall_inspection_ok": "false"},
+    ),
+)
+def test_active_wireguard_fails_closed_on_missing_safety_evidence(
+    monkeypatch, override
+):
+    monkeypatch.setattr(
+        verifier,
+        "helper_request",
+        lambda fields, timeout=5.0: _active_wireguard_status(**override),
+    )
+    monkeypatch.setattr(verifier, "_run", _active_wireguard_dns_run)
+
+    checks = {
+        check.name: check for check in verifier.check_active_runtime("wireguard")
+    }
+
+    assert not checks["runtime:wireguard:safety"].ok
+
+
+def _active_ikev2_status(**overrides):
+    response = {
+        "ok": "true",
+        "status": "connected",
+        "connection_inspection_ok": "true",
+        "connection_present": "true",
+        "nm_active": "true",
+        "route_present": "true",
+        "dns_present": "true",
+        "xfrm_state_inspection_ok": "true",
+        "xfrm_state_present": "true",
+        "xfrm_esp_present": "true",
+        "xfrm_policy_inspection_ok": "true",
+        "xfrm_policy_present": "true",
+        "routing_loop_rule_present": "false",
+        "counters_available": "true",
+    }
+    response.update(overrides)
+    return response
+
+
+def _active_tunnel_dns_run(argv):
+    if "GENERAL.DEVICES" in argv:
+        return CompletedProcess(args=argv, returncode=0, stdout="nm-xfrm-1\n", stderr="")
+    if argv == ["resolvectl", "dns", "nm-xfrm-1"]:
+        return CompletedProcess(
+            args=argv,
+            returncode=0,
+            stdout="Link 9 (nm-xfrm-1): redacted\n",
+            stderr="",
+        )
+    if argv == ["resolvectl", "domain", "nm-xfrm-1"]:
+        return CompletedProcess(
+            args=argv,
+            returncode=0,
+            stdout="Link 9 (nm-xfrm-1): ~.\n",
+            stderr="",
+        )
+    raise AssertionError(argv)
+
+
 def test_active_ikev2_requires_route_dns_xfrm_and_no_pref220_loop(monkeypatch):
     monkeypatch.setattr(
         verifier,
         "helper_request",
-        lambda fields, timeout=5.0: {
-            "ok": "true",
-            "status": "connected",
-            "route_or_dns_present": "true",
-            "xfrm_esp_present": "true",
-            "routing_loop_rule_present": "false",
-            "counters_available": "true",
-        },
+        lambda fields, timeout=5.0: _active_ikev2_status(),
     )
-
-    def fake_run(argv):
-        if "GENERAL.DEVICES" in argv:
-            return CompletedProcess(args=argv, returncode=0, stdout="nm-xfrm-1\n", stderr="")
-        if "IP4.DNS,IP6.DNS" in argv:
-            return CompletedProcess(args=argv, returncode=0, stdout="redacted\n", stderr="")
-        raise AssertionError(argv)
-
-    monkeypatch.setattr(verifier, "_run", fake_run)
+    monkeypatch.setattr(verifier, "_run", _active_tunnel_dns_run)
 
     checks = {check.name: check for check in verifier.check_active_runtime("ikev2")}
 
@@ -396,18 +737,43 @@ def test_active_ikev2_requires_route_dns_xfrm_and_no_pref220_loop(monkeypatch):
     assert checks["runtime:ikev2:counters"].ok
 
 
+@pytest.mark.parametrize(
+    "override",
+    (
+        {"route_present": "false"},
+        {"dns_present": "false"},
+        {"connection_inspection_ok": "false"},
+        {"connection_present": "false"},
+        {"nm_active": "false"},
+        {"xfrm_state_inspection_ok": "false"},
+        {"xfrm_state_present": "false"},
+        {"xfrm_policy_inspection_ok": "false"},
+        {"xfrm_policy_present": "false"},
+    ),
+)
+def test_active_ikev2_fails_closed_on_missing_route_dns_or_xfrm_evidence(
+    monkeypatch, override
+):
+    monkeypatch.setattr(
+        verifier,
+        "helper_request",
+        lambda fields, timeout=5.0: _active_ikev2_status(**override),
+    )
+    monkeypatch.setattr(verifier, "_run", _active_tunnel_dns_run)
+
+    checks = {check.name: check for check in verifier.check_active_runtime("ikev2")}
+
+    assert not checks["runtime:ikev2:route"].ok
+
+
 def test_active_ikev2_fails_closed_on_pref220_loop(monkeypatch):
     monkeypatch.setattr(
         verifier,
         "helper_request",
-        lambda fields, timeout=5.0: {
-            "ok": "true",
-            "status": "disconnected",
-            "route_or_dns_present": "true",
-            "xfrm_esp_present": "true",
-            "routing_loop_rule_present": "true",
-            "counters_available": "true",
-        },
+        lambda fields, timeout=5.0: _active_ikev2_status(
+            status="disconnected",
+            routing_loop_rule_present="true",
+        ),
     )
     monkeypatch.setattr(
         verifier,
@@ -441,7 +807,23 @@ def test_external_probes_compare_ips_without_exposing_values(monkeypatch, tmp_pa
             return self.body[:limit]
 
     responses = iter([Response(b"203.0.113.2"), Response(b"ok")])
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", lambda *args, **kwargs: next(responses))
+    build_calls = []
+    open_calls = []
+
+    class Opener:
+        def open(self, url, *, timeout):
+            open_calls.append((url, timeout))
+            return next(responses)
+
+    def fake_build_opener(*handlers):
+        build_calls.append(handlers)
+        return Opener()
+
+    def fail_direct_urlopen(*args, **kwargs):
+        raise AssertionError("external runtime evidence must bypass inherited proxies")
+
+    monkeypatch.setattr(verifier.urllib.request, "build_opener", fake_build_opener)
+    monkeypatch.setattr(verifier.urllib.request, "urlopen", fail_direct_urlopen)
 
     checks = verifier.check_external_data_plane(
         baseline,
@@ -451,3 +833,11 @@ def test_external_probes_compare_ips_without_exposing_values(monkeypatch, tmp_pa
 
     assert all(check.ok for check in checks)
     assert all("203.0.113" not in check.detail for check in checks)
+    assert len(build_calls) == 1
+    assert len(build_calls[0]) == 1
+    assert isinstance(build_calls[0][0], verifier.urllib.request.ProxyHandler)
+    assert build_calls[0][0].proxies == {}
+    assert open_calls == [
+        ("https://exit.example.invalid/", 10),
+        ("https://data.example.invalid/", 10),
+    ]

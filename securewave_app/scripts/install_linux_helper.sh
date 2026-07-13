@@ -51,6 +51,7 @@ install_apt_dependencies() {
   command -v wg-quick >/dev/null 2>&1 || packages+=(wireguard-tools)
   command -v openvpn >/dev/null 2>&1 || packages+=(openvpn)
   command -v nmcli >/dev/null 2>&1 || packages+=(network-manager)
+  command -v resolvectl >/dev/null 2>&1 || packages+=(systemd-resolved)
   command -v ipsec >/dev/null 2>&1 || packages+=(strongswan)
   package_installed network-manager-strongswan || packages+=(network-manager-strongswan)
   package_installed strongswan-swanctl || packages+=(strongswan-swanctl)
@@ -59,6 +60,7 @@ install_apt_dependencies() {
   package_installed libstrongswan-extra-plugins || packages+=(libstrongswan-extra-plugins)
   command -v ip >/dev/null 2>&1 || packages+=(iproute2)
   command -v iptables >/dev/null 2>&1 || packages+=(iptables)
+  command -v nft >/dev/null 2>&1 || packages+=(nftables)
   command -v setfacl >/dev/null 2>&1 || packages+=(acl)
 
   if ((${#packages[@]} == 0)); then

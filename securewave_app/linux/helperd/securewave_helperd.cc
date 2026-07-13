@@ -1,6 +1,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 
+#include <arpa/inet.h>
 #include <grp.h>
 #include <pwd.h>
 #include <signal.h>
@@ -40,6 +41,7 @@ const char* kContractPath = "/usr/local/libexec/securewave-wg-quick.contract";
 const char* kAllowedUsersPath = "/etc/securewave/helper-users";
 const char* kGroupName = "securewave";
 const char* kWireGuardInterface = "sw-wg";
+const char* kOpenVpnInterface = "tun-securewave";
 const char* kOpenVpnPidName = "securewave-openvpn.pid";
 const char* kOpenVpnLogName = "securewave-openvpn.log";
 const char* kOpenVpnAuthName = "securewave-openvpn.auth";
@@ -47,8 +49,9 @@ const char* kIkev2ConfigName = "securewave-ikev2.conf";
 const char* kIkev2CaName = "securewave-ikev2-ca.pem";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
 const char* kAdblockChainName = "SECUREWAVE_ADBLOCK";
-const guint kContractVersion = 12;
+const guint kContractVersion = 13;
 const gsize kMaxRequestBytes = 64 * 1024;
+const size_t kMaxDnsServers = 8;
 
 struct CommandResult {
   bool spawned = false;
@@ -72,6 +75,14 @@ struct PeerCredentials {
   gid_t gid = 0;
   pid_t pid = 0;
   bool valid = false;
+};
+
+struct DnsServers {
+  std::vector<std::string> ipv4;
+  std::vector<std::string> ipv6;
+
+  bool empty() const { return ipv4.empty() && ipv6.empty(); }
+  size_t size() const { return ipv4.size() + ipv6.size(); }
 };
 
 static std::string Trim(const std::string& value) {
@@ -507,6 +518,77 @@ static std::string Lower(std::string value) {
   return value;
 }
 
+static bool AppendDnsLiteral(const std::string& raw, DnsServers* servers) {
+  if (!servers) {
+    return false;
+  }
+  const std::string value = Trim(raw);
+  if (value.empty() || value.size() >= INET6_ADDRSTRLEN) {
+    return false;
+  }
+
+  unsigned char address[sizeof(struct in6_addr)] = {};
+  std::vector<std::string>* family = nullptr;
+  int address_family = AF_UNSPEC;
+  if (inet_pton(AF_INET, value.c_str(), address) == 1) {
+    family = &servers->ipv4;
+    address_family = AF_INET;
+  } else if (inet_pton(AF_INET6, value.c_str(), address) == 1) {
+    family = &servers->ipv6;
+    address_family = AF_INET6;
+  } else {
+    return false;
+  }
+  char canonical[INET6_ADDRSTRLEN] = {};
+  if (!inet_ntop(address_family, address, canonical, sizeof(canonical))) {
+    return false;
+  }
+  const std::string normalized(canonical);
+  if (std::find(family->begin(), family->end(), normalized) != family->end()) {
+    return true;
+  }
+  if (servers->size() >= kMaxDnsServers) {
+    return false;
+  }
+  family->push_back(normalized);
+  return true;
+}
+
+static bool ParseCommaSeparatedDns(const std::string& raw,
+                                   DnsServers* servers) {
+  if (!servers || raw.empty()) {
+    return false;
+  }
+  size_t start = 0;
+  while (start <= raw.size()) {
+    const size_t comma = raw.find(',', start);
+    const std::string value = raw.substr(
+        start,
+        comma == std::string::npos ? raw.size() - start : comma - start);
+    if (!AppendDnsLiteral(value, servers)) {
+      return false;
+    }
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
+  return !servers->empty();
+}
+
+static std::vector<std::string> TaggedDnsHelperArgs(
+    const std::string& operation,
+    const DnsServers& servers) {
+  std::vector<std::string> args = {operation};
+  for (const std::string& address : servers.ipv4) {
+    args.push_back("4:" + address);
+  }
+  for (const std::string& address : servers.ipv6) {
+    args.push_back("6:" + address);
+  }
+  return args;
+}
+
 static bool SafeWireGuardHook(const std::string& key, const std::string& value) {
   static const std::set<std::string> kAllowedPostUp = {
       "sh -c 'command -v iptables >/dev/null 2>&1 && iptables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT'",
@@ -584,7 +666,8 @@ static bool ValidateWireGuardConfigContents(const std::string& path) {
   return input.eof() && saw_interface && saw_peer;
 }
 
-static bool ValidateOpenVpnConfigContents(const std::string& path) {
+static bool ValidateOpenVpnConfigContents(const std::string& path,
+                                          DnsServers* dns_servers = nullptr) {
   static const std::set<std::string> kForbiddenDirectives = {
       "up", "down", "route-up", "route-pre-down", "ipchange",
       "client-connect", "client-disconnect", "learn-address", "tls-verify",
@@ -597,6 +680,7 @@ static bool ValidateOpenVpnConfigContents(const std::string& path) {
   std::string line;
   bool saw_client = false;
   std::string inline_block;
+  DnsServers parsed_dns;
   const std::set<std::string> allowed_inline_blocks = {
       "ca", "cert", "key", "pkcs12", "tls-auth", "tls-crypt",
       "tls-crypt-v2", "connection"};
@@ -645,6 +729,14 @@ static bool ValidateOpenVpnConfigContents(const std::string& path) {
     if (directive == "client") {
       saw_client = true;
     }
+    if (directive == "dev") {
+      std::string device_type;
+      std::string extra;
+      if (!(tokens >> device_type) || Lower(device_type) != "tun" ||
+          (tokens >> extra)) {
+        return false;
+      }
+    }
     if (kForbiddenDirectives.find(directive) != kForbiddenDirectives.end()) {
       return false;
     }
@@ -654,8 +746,25 @@ static bool ValidateOpenVpnConfigContents(const std::string& path) {
         return false;
       }
     }
+    if (directive == "dhcp-option") {
+      std::string option;
+      if (!(tokens >> option) || Lower(option) != "dns") {
+        continue;
+      }
+      std::string address;
+      std::string extra;
+      if (!(tokens >> address) || (tokens >> extra) ||
+          !AppendDnsLiteral(address, &parsed_dns)) {
+        return false;
+      }
+    }
   }
-  return input.eof() && inline_block.empty() && saw_client;
+  const bool valid = input.eof() && inline_block.empty() && saw_client &&
+                     !parsed_dns.empty();
+  if (valid && dns_servers) {
+    *dns_servers = parsed_dns;
+  }
+  return valid;
 }
 
 static bool ProcessRunning(pid_t pid) {
@@ -702,12 +811,17 @@ static bool ProcessLooksLikeOpenVpn(pid_t pid, const std::string& config_path) {
     }
     start = end + 1;
   }
+  bool expected_config = false;
+  bool expected_interface = false;
   for (size_t i = 0; i + 1 < args.size(); i++) {
     if (args[i] == "--config" && args[i + 1] == config_path) {
-      return true;
+      expected_config = true;
+    }
+    if (args[i] == "--dev" && args[i + 1] == kOpenVpnInterface) {
+      expected_interface = true;
     }
   }
-  return false;
+  return expected_config && expected_interface;
 }
 
 static bool ReadPid(const std::string& path, pid_t* pid) {
@@ -764,11 +878,77 @@ static bool WireGuardPolicyRoutesExist() {
          WireGuardPolicyRoutesExistForFamily("-6");
 }
 
+static bool WgQuickNftTablePresent(const std::string& output) {
+  std::istringstream lines(output);
+  std::string line;
+  while (std::getline(lines, line)) {
+    std::istringstream fields(Trim(line));
+    std::string table_keyword;
+    std::string family;
+    std::string name;
+    std::string extra;
+    if ((fields >> table_keyword >> family >> name) &&
+        !(fields >> extra) &&
+        table_keyword == "table" &&
+        (family == "ip" || family == "ip6" || family == "inet") &&
+        name == "wg-quick-sw-wg") {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool WgQuickIptablesRulePresent(const std::string& output) {
+  const std::string marker =
+      "-m comment --comment \"wg-quick(8) rule for sw-wg\"";
+  std::istringstream lines(output);
+  std::string line;
+  while (std::getline(lines, line)) {
+    line = Trim(line);
+    if (StartsWith(line, "-A ") && line.find(marker) != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+struct WireGuardFirewallEvidence {
+  bool inspection_ok = false;
+  bool nft_table_present = false;
+  bool iptables_rule_present = false;
+  bool ip6tables_rule_present = false;
+};
+
+static WireGuardFirewallEvidence ReadWireGuardFirewallEvidence() {
+  const CommandResult nft = RunCommand({"nft", "list", "tables"});
+  const CommandResult iptables = RunCommand({"iptables-save"});
+  const CommandResult ip6tables = RunCommand({"ip6tables-save"});
+  WireGuardFirewallEvidence evidence;
+  evidence.inspection_ok = nft.ok && iptables.ok && ip6tables.ok;
+  evidence.nft_table_present = WgQuickNftTablePresent(nft.out);
+  evidence.iptables_rule_present =
+      WgQuickIptablesRulePresent(iptables.out);
+  evidence.ip6tables_rule_present =
+      WgQuickIptablesRulePresent(ip6tables.out);
+  return evidence;
+}
+
+static bool WireGuardFirewallResidueExists(
+    const WireGuardFirewallEvidence& evidence) {
+  return !evidence.inspection_ok ||
+         evidence.nft_table_present ||
+         evidence.iptables_rule_present ||
+         evidence.ip6tables_rule_present;
+}
+
 static bool WireGuardResidueExists() {
+  const WireGuardFirewallEvidence firewall =
+      ReadWireGuardFirewallEvidence();
   return WireGuardInterfaceExists() ||
          WireGuardRouteExists() ||
          WireGuardPolicyRulesExist() ||
-         WireGuardPolicyRoutesExist();
+         WireGuardPolicyRoutesExist() ||
+         WireGuardFirewallResidueExists(firewall);
 }
 
 static std::string WireGuardResidueSummary() {
@@ -784,6 +964,21 @@ static std::string WireGuardResidueSummary() {
   }
   if (WireGuardPolicyRoutesExist()) {
     parts.emplace_back("WireGuard table 51820 routes present");
+  }
+  const WireGuardFirewallEvidence firewall =
+      ReadWireGuardFirewallEvidence();
+  if (!firewall.inspection_ok) {
+    parts.emplace_back("WireGuard firewall inspection failed");
+  } else {
+    if (firewall.nft_table_present) {
+      parts.emplace_back("wg-quick-sw-wg nftables table present");
+    }
+    if (firewall.iptables_rule_present) {
+      parts.emplace_back("wg-quick sw-wg IPv4 rule present");
+    }
+    if (firewall.ip6tables_rule_present) {
+      parts.emplace_back("wg-quick sw-wg IPv6 rule present");
+    }
   }
   if (parts.empty()) {
     return "no WireGuard residue";
@@ -809,42 +1004,20 @@ static bool WaitWireGuardClean() {
 }
 
 static bool OpenVpnTunExists() {
-  if (g_file_test("/sys/class/net/tun0", G_FILE_TEST_IS_DIR)) {
-    return true;
-  }
-  g_autoptr(GDir) dir = g_dir_open("/sys/class/net", 0, nullptr);
-  if (!dir) {
-    return false;
-  }
-  const gchar* name = nullptr;
-  while ((name = g_dir_read_name(dir)) != nullptr) {
-    if (g_str_has_prefix(name, "tun")) {
-      return true;
-    }
-  }
-  return false;
+  return g_file_test(
+      (std::string("/sys/class/net/") + kOpenVpnInterface).c_str(),
+      G_FILE_TEST_IS_DIR);
 }
 
 static std::string OpenVpnInterfaceName() {
-  if (g_file_test("/sys/class/net/tun0", G_FILE_TEST_IS_DIR)) {
-    return "tun0";
-  }
-  g_autoptr(GDir) dir = g_dir_open("/sys/class/net", 0, nullptr);
-  if (!dir) {
-    return "tun0";
-  }
-  const gchar* name = nullptr;
-  while ((name = g_dir_read_name(dir)) != nullptr) {
-    if (g_str_has_prefix(name, "tun")) {
-      return name;
-    }
-  }
-  return "tun0";
+  return OpenVpnTunExists() ? kOpenVpnInterface : "";
 }
 
 static bool OpenVpnRouteExists() {
   CommandResult result = RunCommand({"ip", "route", "get", "1.1.1.1"});
-  return result.ok && result.out.find(" dev tun") != std::string::npos;
+  return result.ok &&
+         result.out.find(std::string(" dev ") + kOpenVpnInterface) !=
+             std::string::npos;
 }
 
 static bool FileContains(const std::string& path, const std::string& needle) {
@@ -912,6 +1085,34 @@ static std::string ExtractCaPem(const std::string& contents) {
   return Trim(contents.substr(data_start + 1, end_pos - data_start - 1));
 }
 
+static bool ExtractIkev2DnsServers(const std::string& contents,
+                                   DnsServers* servers) {
+  if (!servers) {
+    return false;
+  }
+  const std::string prefix = "# dns =";
+  bool found = false;
+  std::istringstream stream(contents);
+  std::string line;
+  while (std::getline(stream, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    line = Trim(line);
+    if (!StartsWith(line, prefix)) {
+      continue;
+    }
+    if (found) {
+      return false;
+    }
+    found = true;
+    if (!ParseCommaSeparatedDns(Trim(line.substr(prefix.size())), servers)) {
+      return false;
+    }
+  }
+  return found && !servers->empty();
+}
+
 static bool WritePeerOwnedFile(const std::string& path,
                                const std::string& contents,
                                uid_t peer_uid,
@@ -937,9 +1138,70 @@ static bool WritePeerOwnedFile(const std::string& path,
   return true;
 }
 
-static bool OpenVpnRuntimeEvidence(const std::string& config_path,
-                                   const std::string& pid_path,
-                                   const std::string& log_path) {
+static bool OutputContainsDelimitedValue(const std::string& output,
+                                         const std::string& value) {
+  size_t pos = output.find(value);
+  while (pos != std::string::npos) {
+    const auto dns_char = [](unsigned char c) {
+      return g_ascii_isxdigit(c) || c == ':' || c == '.';
+    };
+    const bool left_ok = pos == 0 || !dns_char(output[pos - 1]);
+    const size_t end = pos + value.size();
+    const bool right_ok = end == output.size() || !dns_char(output[end]);
+    if (left_ok && right_ok) {
+      return true;
+    }
+    pos = output.find(value, pos + 1);
+  }
+  return false;
+}
+
+static bool OutputContainsWhitespaceDelimitedToken(
+    const std::string& output,
+    const std::string& token) {
+  size_t pos = output.find(token);
+  while (pos != std::string::npos) {
+    const bool left_ok =
+        pos == 0 || g_ascii_isspace(static_cast<unsigned char>(output[pos - 1]));
+    const size_t end = pos + token.size();
+    const bool right_ok =
+        end == output.size() ||
+        g_ascii_isspace(static_cast<unsigned char>(output[end]));
+    if (left_ok && right_ok) {
+      return true;
+    }
+    pos = output.find(token, pos + 1);
+  }
+  return false;
+}
+
+static bool OpenVpnResolvedDnsEvidence(const DnsServers& dns_servers) {
+  if (dns_servers.empty()) {
+    return false;
+  }
+  CommandResult dns = RunCommand({"resolvectl", "dns", kOpenVpnInterface});
+  CommandResult domains =
+      RunCommand({"resolvectl", "domain", kOpenVpnInterface});
+  if (!dns.ok || !domains.ok ||
+      !OutputContainsWhitespaceDelimitedToken(domains.out, "~.")) {
+    return false;
+  }
+  for (const std::string& address : dns_servers.ipv4) {
+    if (!OutputContainsDelimitedValue(dns.out, address)) {
+      return false;
+    }
+  }
+  for (const std::string& address : dns_servers.ipv6) {
+    if (!OutputContainsDelimitedValue(dns.out, address)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool OpenVpnTunnelEvidence(const std::string& config_path,
+                                  const std::string& pid_path,
+                                  const std::string& log_path) {
   pid_t pid = 0;
   return ReadPid(pid_path, &pid) &&
          ProcessRunning(pid) &&
@@ -949,11 +1211,20 @@ static bool OpenVpnRuntimeEvidence(const std::string& config_path,
          OpenVpnRouteExists();
 }
 
+static bool OpenVpnRuntimeEvidence(const std::string& config_path,
+                                   const std::string& pid_path,
+                                   const std::string& log_path) {
+  DnsServers dns_servers;
+  return ValidateOpenVpnConfigContents(config_path, &dns_servers) &&
+         OpenVpnTunnelEvidence(config_path, pid_path, log_path) &&
+         OpenVpnResolvedDnsEvidence(dns_servers);
+}
+
 static bool WaitOpenVpnStarted(const std::string& config_path,
                                const std::string& pid_path,
                                const std::string& log_path) {
   for (guint i = 0; i < 40; i++) {
-    if (OpenVpnRuntimeEvidence(config_path, pid_path, log_path)) {
+    if (OpenVpnTunnelEvidence(config_path, pid_path, log_path)) {
       return true;
     }
     g_usleep(500000);
@@ -968,7 +1239,7 @@ static bool WaitOpenVpnStopped(const std::string& config_path,
     const bool openvpn_running =
         ReadPid(pid_path, &pid) && ProcessRunning(pid) &&
         ProcessLooksLikeOpenVpn(pid, config_path);
-    if (!openvpn_running && !OpenVpnRouteExists()) {
+    if (!openvpn_running && !OpenVpnTunExists() && !OpenVpnRouteExists()) {
       return true;
     }
     g_usleep(500000);
@@ -977,7 +1248,7 @@ static bool WaitOpenVpnStopped(const std::string& config_path,
   const bool openvpn_running =
       ReadPid(pid_path, &pid) && ProcessRunning(pid) &&
       ProcessLooksLikeOpenVpn(pid, config_path);
-  return !openvpn_running && !OpenVpnRouteExists();
+  return !openvpn_running && !OpenVpnTunExists() && !OpenVpnRouteExists();
 }
 
 static std::string OpenVpnLogTail(const std::string& path) {
@@ -1001,12 +1272,8 @@ static std::string OpenVpnLogTail(const std::string& path) {
   return CleanMessage(tail);
 }
 
-static bool NmcliActiveIkev2() {
-  CommandResult result = RunCommand({"nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"});
-  if (!result.ok) {
-    return false;
-  }
-  std::istringstream stream(result.out);
+static bool NmcliListHasExactIkev2(const std::string& output) {
+  std::istringstream stream(output);
   std::string line;
   const std::string expected = std::string(kIkev2ConnectionName) + ":vpn";
   while (std::getline(stream, line)) {
@@ -1017,14 +1284,35 @@ static bool NmcliActiveIkev2() {
   return false;
 }
 
-static bool Ikev2RouteOrDnsEvidence() {
-  CommandResult result = RunCommand({
-      "nmcli", "-t", "-f", "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE",
-      "connection", "show", kIkev2ConnectionName});
-  if (!result.ok) {
-    return false;
-  }
-  std::istringstream stream(result.out);
+struct Ikev2ConnectionEvidence {
+  bool inspection_ok = false;
+  bool connection_present = false;
+  bool active = false;
+};
+
+static Ikev2ConnectionEvidence ReadIkev2ConnectionEvidence() {
+  const CommandResult saved = RunCommand(
+      {"nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"});
+  const CommandResult active = RunCommand({
+      "nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"});
+  Ikev2ConnectionEvidence evidence;
+  evidence.inspection_ok = saved.ok && active.ok;
+  evidence.connection_present = NmcliListHasExactIkev2(saved.out);
+  evidence.active = NmcliListHasExactIkev2(active.out);
+  return evidence;
+}
+
+struct Ikev2NetworkEvidence {
+  bool inspected = false;
+  bool dns_present = false;
+  bool route_present = false;
+};
+
+static Ikev2NetworkEvidence ParseIkev2NetworkEvidence(
+    const std::string& output) {
+  Ikev2NetworkEvidence evidence;
+  evidence.inspected = true;
+  std::istringstream stream(output);
   std::string line;
   while (std::getline(stream, line)) {
     line = Trim(line);
@@ -1033,19 +1321,44 @@ static bool Ikev2RouteOrDnsEvidence() {
       continue;
     }
     std::string value = Trim(line.substr(colon + 1));
-    if (!value.empty() && value != "--") {
-      return true;
+    if (value.empty() || value == "--") {
+      continue;
+    }
+    const std::string field = line.substr(0, colon);
+    if (StartsWith(field, "IP4.DNS") || StartsWith(field, "IP6.DNS")) {
+      evidence.dns_present = true;
+    } else if (StartsWith(field, "IP4.ROUTE") ||
+               StartsWith(field, "IP6.ROUTE")) {
+      evidence.route_present = true;
     }
   }
-  return false;
+  return evidence;
+}
+
+static Ikev2NetworkEvidence ReadIkev2NetworkEvidence() {
+  CommandResult result = RunCommand({
+      "nmcli", "-t", "-f", "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE",
+      "connection", "show", kIkev2ConnectionName});
+  if (!result.ok) {
+    return Ikev2NetworkEvidence();
+  }
+  return ParseIkev2NetworkEvidence(result.out);
 }
 
 static bool XfrmHasEsp(const std::string& output) {
   return output.find("proto esp") != std::string::npos;
 }
 
+static bool XfrmOutputPresent(const std::string& output) {
+  return !Trim(output).empty();
+}
+
 static CommandResult ReadXfrmState() {
   return RunCommand({"ip", "-s", "xfrm", "state"});
+}
+
+static CommandResult ReadXfrmPolicy() {
+  return RunCommand({"ip", "xfrm", "policy"});
 }
 
 static CommandResult ReadIpRules(const char* family) {
@@ -1069,37 +1382,96 @@ static bool Ikev2HasUnqualifiedPref220Rule(const std::string& output) {
   return false;
 }
 
-static bool Ikev2RuntimeEvidence(std::string* xfrm_output = nullptr,
-                                 bool* routing_loop_rule_present = nullptr) {
-  CommandResult xfrm = ReadXfrmState();
-  if (xfrm_output) {
-    *xfrm_output = xfrm.out;
-  }
-  CommandResult rules4 = ReadIpRules("-4");
-  CommandResult rules6 = ReadIpRules("-6");
-  const bool routing_loop_rule =
-      (rules4.ok && Ikev2HasUnqualifiedPref220Rule(rules4.out)) ||
-      (rules6.ok && Ikev2HasUnqualifiedPref220Rule(rules6.out));
-  if (routing_loop_rule_present) {
-    *routing_loop_rule_present = routing_loop_rule;
-  }
-  return NmcliActiveIkev2() &&
-         Ikev2RouteOrDnsEvidence() &&
-         xfrm.ok &&
-         XfrmHasEsp(xfrm.out) &&
-         rules4.ok &&
-         rules6.ok &&
-         !routing_loop_rule;
+struct Ikev2RuntimeSnapshot {
+  CommandResult xfrm_state;
+  CommandResult xfrm_policy;
+  CommandResult rules4;
+  CommandResult rules6;
+  Ikev2ConnectionEvidence connection;
+  Ikev2NetworkEvidence network;
+  bool routing_loop_rule_present = false;
+  bool connected = false;
+};
+
+static Ikev2RuntimeSnapshot ReadIkev2RuntimeSnapshot() {
+  Ikev2RuntimeSnapshot snapshot;
+  snapshot.xfrm_state = ReadXfrmState();
+  snapshot.xfrm_policy = ReadXfrmPolicy();
+  snapshot.rules4 = ReadIpRules("-4");
+  snapshot.rules6 = ReadIpRules("-6");
+  snapshot.connection = ReadIkev2ConnectionEvidence();
+  snapshot.network = ReadIkev2NetworkEvidence();
+  snapshot.routing_loop_rule_present =
+      (snapshot.rules4.ok &&
+       Ikev2HasUnqualifiedPref220Rule(snapshot.rules4.out)) ||
+      (snapshot.rules6.ok &&
+       Ikev2HasUnqualifiedPref220Rule(snapshot.rules6.out));
+  snapshot.connected =
+      snapshot.connection.inspection_ok &&
+      snapshot.connection.connection_present &&
+      snapshot.connection.active &&
+      snapshot.network.inspected &&
+      snapshot.network.dns_present &&
+      snapshot.network.route_present &&
+      snapshot.xfrm_state.ok &&
+      XfrmHasEsp(snapshot.xfrm_state.out) &&
+      snapshot.xfrm_policy.ok &&
+      XfrmOutputPresent(snapshot.xfrm_policy.out) &&
+      snapshot.rules4.ok &&
+      snapshot.rules6.ok &&
+      !snapshot.routing_loop_rule_present;
+  return snapshot;
+}
+
+static bool Ikev2RuntimeEvidence() {
+  return ReadIkev2RuntimeSnapshot().connected;
+}
+
+static bool Ikev2DisconnectedStateClean(bool connection_inspection_ok,
+                                        bool connection_present,
+                                        bool nm_active,
+                                        bool state_inspection_ok,
+                                        bool state_present,
+                                        bool policy_inspection_ok,
+                                        bool policy_present) {
+  return connection_inspection_ok &&
+         !connection_present &&
+         !nm_active &&
+         state_inspection_ok &&
+         !state_present &&
+         policy_inspection_ok &&
+         !policy_present;
 }
 
 static bool WaitIkev2Stopped() {
   for (guint i = 0; i < 20; i++) {
-    if (!NmcliActiveIkev2()) {
+    const Ikev2ConnectionEvidence connection =
+        ReadIkev2ConnectionEvidence();
+    const CommandResult state = ReadXfrmState();
+    const CommandResult policy = ReadXfrmPolicy();
+    if (Ikev2DisconnectedStateClean(
+            connection.inspection_ok,
+            connection.connection_present,
+            connection.active,
+            state.ok,
+            XfrmOutputPresent(state.out),
+            policy.ok,
+            XfrmOutputPresent(policy.out))) {
       return true;
     }
     g_usleep(500000);
   }
-  return !NmcliActiveIkev2();
+  const Ikev2ConnectionEvidence connection = ReadIkev2ConnectionEvidence();
+  const CommandResult state = ReadXfrmState();
+  const CommandResult policy = ReadXfrmPolicy();
+  return Ikev2DisconnectedStateClean(
+      connection.inspection_ok,
+      connection.connection_present,
+      connection.active,
+      state.ok,
+      XfrmOutputPresent(state.out),
+      policy.ok,
+      XfrmOutputPresent(policy.out));
 }
 
 static std::set<std::string> LocalAddresses() {
@@ -1274,6 +1646,8 @@ static Fields WireGuardStatus() {
   const bool route_via_sw_wg = WireGuardRouteExists();
   const bool policy_rules_present = WireGuardPolicyRulesExist();
   const bool policy_routes_present = WireGuardPolicyRoutesExist();
+  const WireGuardFirewallEvidence firewall =
+      ReadWireGuardFirewallEvidence();
   const bool connected = interface_present && route_via_sw_wg;
   guint64 rx = 0;
   guint64 tx = 0;
@@ -1285,10 +1659,37 @@ static Fields WireGuardStatus() {
   fields["route_via_sw_wg"] = route_via_sw_wg ? "true" : "false";
   fields["policy_rules_present"] = policy_rules_present ? "true" : "false";
   fields["policy_routes_present"] = policy_routes_present ? "true" : "false";
-  fields["residue_present"] = WireGuardResidueExists() ? "true" : "false";
+  fields["firewall_inspection_ok"] =
+      firewall.inspection_ok ? "true" : "false";
+  fields["nft_table_present"] =
+      firewall.nft_table_present ? "true" : "false";
+  fields["iptables_rule_present"] =
+      firewall.iptables_rule_present ? "true" : "false";
+  fields["ip6tables_rule_present"] =
+      firewall.ip6tables_rule_present ? "true" : "false";
+  const bool firewall_residue = WireGuardFirewallResidueExists(firewall);
+  fields["firewall_residue_present"] =
+      firewall_residue ? "true" : "false";
+  fields["residue_present"] =
+      (interface_present || route_via_sw_wg || policy_rules_present ||
+       policy_routes_present || firewall_residue)
+          ? "true"
+          : "false";
   fields["rx_bytes"] = std::to_string(rx);
   fields["tx_bytes"] = std::to_string(tx);
   fields["counters_available"] = counters ? "true" : "false";
+  if (!firewall.inspection_ok) {
+    return Error(
+        "inspection_failed",
+        "Unable to inspect privileged WireGuard firewall state.",
+        fields);
+  }
+  if (!connected && firewall_residue) {
+    return Error(
+        "vpn_residue_present",
+        "WireGuard is disconnected but owned firewall residue remains.",
+        fields);
+  }
   return Ok(fields);
 }
 
@@ -1415,6 +1816,11 @@ static Fields OpenVpnStatus(const Fields& request, uid_t peer_uid) {
       FileContains(log_path, "Initialization Sequence Completed");
   const bool interface_present = !iface.empty();
   const bool route_present = OpenVpnRouteExists();
+  DnsServers dns_servers;
+  const bool dns_profile_valid =
+      ValidateOpenVpnConfigContents(config_path, &dns_servers);
+  const bool dns_configured =
+      dns_profile_valid && OpenVpnResolvedDnsEvidence(dns_servers);
   guint64 rx = 0;
   guint64 tx = 0;
   const bool counters = InterfaceCounters(iface, &rx, &tx);
@@ -1427,6 +1833,7 @@ static Fields OpenVpnStatus(const Fields& request, uid_t peer_uid) {
   fields["initialization_complete"] = initialization_complete ? "true" : "false";
   fields["interface_present"] = interface_present ? "true" : "false";
   fields["route_present"] = route_present ? "true" : "false";
+  fields["dns_configured"] = dns_configured ? "true" : "false";
   fields["rx_bytes"] = std::to_string(rx);
   fields["tx_bytes"] = std::to_string(tx);
   fields["counters_available"] = counters ? "true" : "false";
@@ -1468,8 +1875,23 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
         !ValidateRuntimeFilePath(log_path, kOpenVpnLogName, peer_uid)) {
       return Error("invalid_path", "OpenVPN config or log path is not approved.");
     }
-    if (!ValidateOpenVpnConfigContents(config_path)) {
-      return Error("invalid_config", "OpenVPN config contains unsupported privileged directives.");
+    DnsServers dns_servers;
+    if (!ValidateOpenVpnConfigContents(config_path, &dns_servers)) {
+      return Error(
+          "invalid_config",
+          "OpenVPN config contains unsupported directives or missing/invalid DNS IPs.");
+    }
+    if (OpenVpnTunExists()) {
+      return Error(
+          "vpn_connect_failed",
+          "The dedicated SecureWave OpenVPN interface already exists.");
+    }
+    CommandResult preflight_dns_revert =
+        RunHelper({"openvpn-dns-revert"});
+    if (!preflight_dns_revert.ok) {
+      return Error(
+          "vpn_connect_failed",
+          "Unable to clear stale SecureWave OpenVPN DNS state.");
     }
     std::vector<std::string> args = {"openvpn-start", config_path, pid_path, log_path};
     if (!auth_path.empty()) {
@@ -1477,6 +1899,7 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
     }
     CommandResult result = RunHelper(args);
     if (!result.ok) {
+      RunHelper({"openvpn-dns-revert"});
       return Error("vpn_connect_failed", result.message.empty() ? "OpenVPN start failed." : result.message);
     }
     if (!WaitOpenVpnStarted(config_path, pid_path, log_path)) {
@@ -1484,6 +1907,7 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
       if (ReadPid(pid_path, &pid) && ProcessLooksLikeOpenVpn(pid, config_path)) {
         RunHelper({"openvpn-stop", std::to_string(static_cast<long>(pid))});
       }
+      RunHelper({"openvpn-dns-revert"});
       const std::string tail = OpenVpnLogTail(log_path);
       WaitOpenVpnStopped(config_path, pid_path);
       unlink(pid_path.c_str());
@@ -1494,14 +1918,45 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
               ? "OpenVPN started but tunnel route evidence was not detected."
               : "OpenVPN started but tunnel route evidence was not detected. Last log lines: " + tail);
     }
+    CommandResult dns_apply =
+        RunHelper(TaggedDnsHelperArgs("openvpn-dns-apply", dns_servers));
+    if (!dns_apply.ok) {
+      RunHelper({"openvpn-dns-revert"});
+      pid_t pid = 0;
+      if (ReadPid(pid_path, &pid) && ProcessLooksLikeOpenVpn(pid, config_path)) {
+        RunHelper({"openvpn-stop", std::to_string(static_cast<long>(pid))});
+      }
+      WaitOpenVpnStopped(config_path, pid_path);
+      unlink(pid_path.c_str());
+      unlink(log_path.c_str());
+      return Error(
+          "vpn_connect_failed",
+          "OpenVPN connected but SecureWave DNS enforcement failed.");
+    }
+    if (!OpenVpnResolvedDnsEvidence(dns_servers)) {
+      RunHelper({"openvpn-dns-revert"});
+      pid_t pid = 0;
+      if (ReadPid(pid_path, &pid) && ProcessLooksLikeOpenVpn(pid, config_path)) {
+        RunHelper({"openvpn-stop", std::to_string(static_cast<long>(pid))});
+      }
+      WaitOpenVpnStopped(config_path, pid_path);
+      unlink(pid_path.c_str());
+      unlink(log_path.c_str());
+      return Error(
+          "vpn_connect_failed",
+          "OpenVPN DNS settings could not be verified on the dedicated tunnel link.");
+    }
     return OpenVpnStatus(request, peer_uid);
   }
 
   if (op == "openvpn.stop" || op == "openvpn.cleanup") {
+    CommandResult dns_revert = RunHelper({"openvpn-dns-revert"});
     pid_t pid = 0;
     if (!ReadPid(pid_path, &pid)) {
-      if (OpenVpnRouteExists()) {
-        return Error("vpn_disconnect_failed", "OpenVPN PID file is missing but tunnel route evidence remains.");
+      if (OpenVpnTunExists() || OpenVpnRouteExists()) {
+        return Error(
+            "vpn_disconnect_failed",
+            "OpenVPN PID file is missing but dedicated tunnel residue remains.");
       }
       unlink(pid_path.c_str());
       if (op == "openvpn.cleanup") {
@@ -1510,14 +1965,25 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
           unlink(auth_path.c_str());
         }
       }
+      if (!dns_revert.ok) {
+        return Error(
+            "vpn_disconnect_failed",
+            "OpenVPN stopped but SecureWave DNS state could not be reverted.");
+      }
       return OpenVpnStatus(request, peer_uid);
     }
     if (!ProcessLooksLikeOpenVpn(pid, config_path)) {
-      if (op == "openvpn.cleanup" && !OpenVpnRouteExists()) {
+      if (op == "openvpn.cleanup" && !OpenVpnTunExists() &&
+          !OpenVpnRouteExists()) {
         unlink(pid_path.c_str());
         unlink(log_path.c_str());
         if (!auth_path.empty()) {
           unlink(auth_path.c_str());
+        }
+        if (!dns_revert.ok) {
+          return Error(
+              "vpn_disconnect_failed",
+              "OpenVPN process was absent but SecureWave DNS state could not be reverted.");
         }
         return OpenVpnStatus(request, peer_uid);
       }
@@ -1537,6 +2003,11 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
         unlink(auth_path.c_str());
       }
     }
+    if (!dns_revert.ok) {
+      return Error(
+          "vpn_disconnect_failed",
+          "OpenVPN stopped but SecureWave DNS state could not be reverted.");
+    }
     return OpenVpnStatus(request, peer_uid);
   }
 
@@ -1544,25 +2015,67 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
 }
 
 static Fields Ikev2Status() {
-  std::string xfrm_output;
-  bool routing_loop_rule = false;
-  const bool connected = Ikev2RuntimeEvidence(&xfrm_output, &routing_loop_rule);
-  const bool nm_active = NmcliActiveIkev2();
-  const bool route_or_dns_present = Ikev2RouteOrDnsEvidence();
-  const bool xfrm_esp_present = XfrmHasEsp(xfrm_output);
+  const Ikev2RuntimeSnapshot snapshot = ReadIkev2RuntimeSnapshot();
+  const bool xfrm_state_present =
+      XfrmOutputPresent(snapshot.xfrm_state.out);
+  const bool xfrm_policy_present =
+      XfrmOutputPresent(snapshot.xfrm_policy.out);
+  const bool xfrm_esp_present = XfrmHasEsp(snapshot.xfrm_state.out);
   guint64 rx = 0;
   guint64 tx = 0;
-  const bool counters = ParseXfrmCounters(xfrm_output, &rx, &tx);
+  const bool counters =
+      snapshot.xfrm_state.ok &&
+      ParseXfrmCounters(snapshot.xfrm_state.out, &rx, &tx);
   Fields fields;
-  fields["status"] = connected ? "connected" : "disconnected";
+  fields["status"] = snapshot.connected ? "connected" : "disconnected";
   fields["interface"] = "xfrm";
   fields["rx_bytes"] = std::to_string(rx);
   fields["tx_bytes"] = std::to_string(tx);
   fields["counters_available"] = counters ? "true" : "false";
-  fields["routing_loop_rule_present"] = routing_loop_rule ? "true" : "false";
-  fields["nm_active"] = nm_active ? "true" : "false";
-  fields["route_or_dns_present"] = route_or_dns_present ? "true" : "false";
+  fields["routing_loop_rule_present"] =
+      snapshot.routing_loop_rule_present ? "true" : "false";
+  fields["connection_inspection_ok"] =
+      snapshot.connection.inspection_ok ? "true" : "false";
+  fields["connection_present"] =
+      snapshot.connection.connection_present ? "true" : "false";
+  fields["nm_active"] = snapshot.connection.active ? "true" : "false";
+  fields["dns_present"] = snapshot.network.dns_present ? "true" : "false";
+  fields["route_present"] =
+      snapshot.network.route_present ? "true" : "false";
+  fields["route_or_dns_present"] =
+      (snapshot.network.dns_present || snapshot.network.route_present)
+          ? "true"
+          : "false";
+  fields["xfrm_state_inspection_ok"] =
+      snapshot.xfrm_state.ok ? "true" : "false";
+  fields["xfrm_policy_inspection_ok"] =
+      snapshot.xfrm_policy.ok ? "true" : "false";
+  fields["xfrm_state_present"] = xfrm_state_present ? "true" : "false";
   fields["xfrm_esp_present"] = xfrm_esp_present ? "true" : "false";
+  fields["xfrm_policy_present"] = xfrm_policy_present ? "true" : "false";
+
+  if (!snapshot.connection.inspection_ok ||
+      !snapshot.xfrm_state.ok ||
+      !snapshot.xfrm_policy.ok) {
+    return Error(
+        "inspection_failed",
+        "Unable to inspect IKEv2 NetworkManager or privileged XFRM state.",
+        fields);
+  }
+  if (!snapshot.connected &&
+      !Ikev2DisconnectedStateClean(
+          snapshot.connection.inspection_ok,
+          snapshot.connection.connection_present,
+          snapshot.connection.active,
+          snapshot.xfrm_state.ok,
+          xfrm_state_present,
+          snapshot.xfrm_policy.ok,
+          xfrm_policy_present)) {
+    return Error(
+        "vpn_residue_present",
+        "IKEv2 is not connected but privileged runtime residue remains.",
+        fields);
+  }
   return Ok(fields);
 }
 
@@ -1578,9 +2091,7 @@ static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t pe
   if (op == "ikev2.stop" || op == "ikev2.cleanup") {
     RunHelper({"ikev2-down"});
     RunHelper({"ikev2-delete"});
-    if (!WaitIkev2Stopped()) {
-      return Error("vpn_disconnect_failed", "IKEv2 stop completed but active NetworkManager VPN evidence remains.");
-    }
+    WaitIkev2Stopped();
     return Ikev2Status();
   }
 
@@ -1602,8 +2113,14 @@ static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t pe
   const std::string password = SwanctlValueForKey(contents, "secret");
   const std::string remote_id = SwanctlValueForKey(contents, "id");
   const std::string ca_pem = ExtractCaPem(contents);
+  DnsServers dns_servers;
   if (server.empty() || username.empty() || password.empty()) {
     return Error("invalid_config", "IKEv2 config is missing server, EAP ID, or EAP secret.");
+  }
+  if (!ExtractIkev2DnsServers(contents, &dns_servers)) {
+    return Error(
+        "invalid_config",
+        "IKEv2 config is missing a valid SecureWave DNS IP marker.");
   }
 
   std::string ca_path;
@@ -1626,6 +2143,16 @@ static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t pe
   if (!add.ok) {
     RunHelper({"ikev2-delete"});
     return Error("vpn_connect_failed", add.message.empty() ? "IKEv2 NetworkManager profile creation failed." : add.message);
+  }
+  CommandResult dns =
+      RunHelper(TaggedDnsHelperArgs("ikev2-set-dns", dns_servers));
+  if (!dns.ok) {
+    RunHelper({"ikev2-delete"});
+    return Error(
+        "vpn_connect_failed",
+        dns.message.empty()
+            ? "IKEv2 NetworkManager DNS enforcement failed."
+            : dns.message);
   }
   CommandResult up = RunHelper({"ikev2-up"});
   if (!up.ok) {

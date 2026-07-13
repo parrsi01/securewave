@@ -2,6 +2,8 @@
 set -euo pipefail
 
 CONNECTION_NAME="SecureWave-IKEv2"
+OPENVPN_INTERFACE="tun-securewave"
+MAX_DNS_SERVERS=8
 
 usage() {
   cat >&2 <<'EOF'
@@ -10,10 +12,13 @@ Usage:
   securewave-wg-quick <up|down|policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset> <config-path|iface>
   securewave-wg-quick openvpn-start <config-path> <pid-path> <log-path> [auth-path]
   securewave-wg-quick openvpn-stop <pid>
+  securewave-wg-quick openvpn-dns-apply <4:address|6:address> [...]
+  securewave-wg-quick openvpn-dns-revert
   securewave-wg-quick wireguard-transfer
   securewave-wg-quick xfrm-state
   securewave-wg-quick <ikev2-up|ikev2-down|ikev2-delete>
   securewave-wg-quick ikev2-add-eap <server> <username> <password> [remote-id] [ca-cert-path]
+  securewave-wg-quick ikev2-set-dns <4:address|6:address> [...]
 EOF
 }
 
@@ -115,6 +120,39 @@ require_nonempty_single_line() {
   fi
 }
 
+require_tagged_dns_args() {
+  local tagged
+  local family
+  local address
+
+  if [[ $# -lt 1 || $# -gt "$MAX_DNS_SERVERS" ]]; then
+    echo "securewave-wg-quick: refusing missing or excessive DNS addresses" >&2
+    exit 64
+  fi
+  for tagged in "$@"; do
+    family="${tagged%%:*}"
+    address="${tagged#*:}"
+    case "$family" in
+      4)
+        if [[ ! "$address" =~ ^[0-9.]+$ || "$address" != *.* ]]; then
+          echo "securewave-wg-quick: refusing invalid IPv4 DNS address" >&2
+          exit 64
+        fi
+        ;;
+      6)
+        if [[ ! "$address" =~ ^[0-9A-Fa-f:]+$ || "$address" != *:* ]]; then
+          echo "securewave-wg-quick: refusing invalid IPv6 DNS address" >&2
+          exit 64
+        fi
+        ;;
+      *)
+        echo "securewave-wg-quick: refusing untagged DNS address" >&2
+        exit 64
+        ;;
+    esac
+  done
+}
+
 case "$action" in
   probe)
     if [[ $# -ne 1 ]]; then
@@ -124,9 +162,15 @@ case "$action" in
     case "$1" in
       wireguard)
         command -v wg-quick >/dev/null 2>&1
+        command -v nft >/dev/null 2>&1
+        command -v iptables-save >/dev/null 2>&1
+        command -v iptables-restore >/dev/null 2>&1
+        command -v ip6tables-save >/dev/null 2>&1
+        command -v ip6tables-restore >/dev/null 2>&1
         ;;
       openvpn)
         command -v openvpn >/dev/null 2>&1
+        command -v resolvectl >/dev/null 2>&1
         ;;
       ikev2)
         command -v nmcli >/dev/null 2>&1
@@ -181,6 +225,15 @@ case "$action" in
       echo "securewave-wg-quick: refusing invalid pid '$pid'" >&2
       exit 64
     }
+    ;;
+  openvpn-dns-apply|ikev2-set-dns)
+    require_tagged_dns_args "$@"
+    ;;
+  openvpn-dns-revert)
+    if [[ $# -ne 0 ]]; then
+      usage
+      exit 64
+    fi
     ;;
   wireguard-transfer|xfrm-state)
     if [[ $# -ne 0 ]]; then
@@ -288,15 +341,95 @@ clear_ikev2_route_state() {
   ip route flush cache >/dev/null 2>&1 || true
 }
 
+inspect_ikev2_connection() {
+  local connections
+
+  if ! connections="$(nmcli -t -f NAME,TYPE connection show 2>/dev/null)"; then
+    return 2
+  fi
+  if grep -Fqx "${CONNECTION_NAME}:vpn" <<< "$connections"; then
+    return 0
+  fi
+  return 1
+}
+
+clear_wg_quick_nftables() {
+  local tables
+  local table_keyword
+  local family
+  local name
+  local extra
+
+  if ! tables="$(nft list tables 2>/dev/null)"; then
+    echo "securewave-wg-quick: unable to inspect WireGuard nftables state" >&2
+    return 1
+  fi
+  while read -r table_keyword family name extra; do
+    [[ "$table_keyword" == "table" && -z "${extra:-}" ]] || continue
+    [[ "$name" == "wg-quick-sw-wg" ]] || continue
+    case "$family" in
+      ip|ip6|inet)
+        if ! nft delete table "$family" "$name"; then
+          echo "securewave-wg-quick: unable to remove owned ${family} ${name} table" >&2
+          return 1
+        fi
+        ;;
+    esac
+  done <<< "$tables"
+}
+
+clear_wg_quick_iptables_family() {
+  local tool="$1"
+  local save_command="${tool}-save"
+  local restore_command="${tool}-restore"
+  local rules
+  local restore=""
+  local line
+  local found=0
+  local marker='-m comment --comment "wg-quick(8) rule for sw-wg"'
+
+  if ! rules="$("$save_command" 2>/dev/null)"; then
+    echo "securewave-wg-quick: unable to inspect ${tool} WireGuard state" >&2
+    return 1
+  fi
+  while IFS= read -r line; do
+    if [[ "$line" == \** || "$line" == "COMMIT" ]]; then
+      restore+="${line}"$'\n'
+      continue
+    fi
+    if [[ "$line" == "-A "* && "$line" == *"$marker"* ]]; then
+      restore+="${line/#-A/-D}"$'\n'
+      found=1
+    fi
+  done <<< "$rules"
+  if [[ "$found" == "1" ]]; then
+    printf '%s' "$restore" | "$restore_command" -n
+  fi
+}
+
+clear_wg_quick_firewall() {
+  local failed=0
+
+  clear_wg_quick_nftables || failed=1
+  clear_wg_quick_iptables_family iptables || failed=1
+  clear_wg_quick_iptables_family ip6tables || failed=1
+  return "$failed"
+}
+
 clear_policy_state() {
   local remove_link="${1:-0}"
+  local remove_firewall="${2:-1}"
   local mark
-  for mark in 51820 0xca6c; do
-    while iptables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
-    if command -v ip6tables >/dev/null 2>&1; then
-      while ip6tables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
-    fi
-  done
+  local failed=0
+  if [[ "$remove_firewall" == "1" ]]; then
+    clear_wg_quick_firewall || failed=1
+    for mark in 51820 0xca6c; do
+      while iptables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
+      if command -v ip6tables >/dev/null 2>&1; then
+        while ip6tables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
+      fi
+    done
+  fi
   while ip rule del not fwmark 51820 table 51820 priority 32764 >/dev/null 2>&1; do :; done
   while ip rule del table main suppress_prefixlength 0 priority 32765 >/dev/null 2>&1; do :; done
   ip -4 route flush table 51820 >/dev/null 2>&1 || true
@@ -305,12 +438,13 @@ clear_policy_state() {
     ip link delete "$iface" >/dev/null 2>&1 || true
   fi
   ip route flush cache >/dev/null 2>&1 || true
+  return "$failed"
 }
 
 ensure_policy_state() {
   wg set "$iface" fwmark 51820
   if (( $(policy_rule_count) > 1 || $(main_suppress_count) > 1 )); then
-    clear_policy_state 0
+    clear_policy_state 0 0
   fi
   if ! table_route_present; then
     ip -4 route flush table 51820 >/dev/null 2>&1 || true
@@ -365,7 +499,7 @@ fi
 if [[ "$action" == "openvpn-start" ]]; then
   prepare_owned_runtime_file "$pid_file" "pid" "$config"
   prepare_owned_runtime_file "$log_file" "log" "$config"
-  argv=(openvpn --config "$config" --writepid "$pid_file" --daemon --log "$log_file")
+  argv=(openvpn --config "$config" --writepid "$pid_file" --daemon --log "$log_file" --dev "$OPENVPN_INTERFACE")
   if [[ -n "${auth_file:-}" ]]; then
     argv+=(--auth-user-pass "$auth_file")
   fi
@@ -375,6 +509,29 @@ fi
 if [[ "$action" == "openvpn-stop" ]]; then
   kill -TERM "$pid" >/dev/null 2>&1 || true
   exit 0
+fi
+
+if [[ "$action" == "openvpn-dns-apply" ]]; then
+  dns_addresses=()
+  for tagged in "$@"; do
+    dns_addresses+=("${tagged#*:}")
+  done
+  resolvectl dns "$OPENVPN_INTERFACE" "${dns_addresses[@]}"
+  if ! resolvectl domain "$OPENVPN_INTERFACE" '~.'; then
+    resolvectl revert "$OPENVPN_INTERFACE" >/dev/null 2>&1 || true
+    exit 1
+  fi
+  exit 0
+fi
+
+if [[ "$action" == "openvpn-dns-revert" ]]; then
+  if resolvectl revert "$OPENVPN_INTERFACE"; then
+    exit 0
+  fi
+  if ! ip link show dev "$OPENVPN_INTERFACE" >/dev/null 2>&1; then
+    exit 0
+  fi
+  exit 1
 fi
 
 if [[ "$action" == "wireguard-transfer" ]]; then
@@ -424,6 +581,41 @@ if [[ "$action" == "ikev2-add-eap" ]]; then
     vpn-type strongswan vpn.data "$vpn_data" vpn.secrets "$vpn_secrets"
 fi
 
+if [[ "$action" == "ikev2-set-dns" ]]; then
+  nmcli connection modify id "$CONNECTION_NAME" \
+    ipv4.ignore-auto-dns yes \
+    ipv6.ignore-auto-dns yes \
+    ipv4.dns "" \
+    ipv6.dns "" \
+    ipv4.dns-search "" \
+    ipv6.dns-search ""
+
+  ipv4_configured=0
+  ipv6_configured=0
+  for tagged in "$@"; do
+    family="${tagged%%:*}"
+    address="${tagged#*:}"
+    if [[ "$family" == "4" ]]; then
+      nmcli connection modify id "$CONNECTION_NAME" +ipv4.dns "$address"
+      ipv4_configured=1
+    else
+      nmcli connection modify id "$CONNECTION_NAME" +ipv6.dns "$address"
+      ipv6_configured=1
+    fi
+  done
+  if [[ "$ipv4_configured" == "1" ]]; then
+    nmcli connection modify id "$CONNECTION_NAME" \
+      ipv4.dns-priority -50 \
+      +ipv4.dns-search '~.'
+  fi
+  if [[ "$ipv6_configured" == "1" ]]; then
+    nmcli connection modify id "$CONNECTION_NAME" \
+      ipv6.dns-priority -50 \
+      +ipv6.dns-search '~.'
+  fi
+  exit 0
+fi
+
 if [[ "$action" == "ikev2-up" ]]; then
   clear_ikev2_route_state
   set +e
@@ -442,8 +634,37 @@ if [[ "$action" == "ikev2-down" ]]; then
 fi
 
 if [[ "$action" == "ikev2-delete" ]]; then
-  nmcli connection delete id "$CONNECTION_NAME" >/dev/null 2>&1 || true
+  delete_failed=0
+  set +e
+  inspect_ikev2_connection
+  connection_status=$?
+  set -e
+  if [[ "$connection_status" == "2" ]]; then
+    echo "securewave-wg-quick: unable to inspect IKEv2 NetworkManager profile" >&2
+    clear_ikev2_route_state
+    exit 1
+  fi
+  if [[ "$connection_status" == "0" ]]; then
+    if ! nmcli connection delete id "$CONNECTION_NAME" >/dev/null; then
+      delete_failed=1
+    fi
+  fi
+  set +e
+  inspect_ikev2_connection
+  connection_status=$?
+  set -e
+  if [[ "$connection_status" == "2" ]]; then
+    echo "securewave-wg-quick: unable to verify IKEv2 NetworkManager profile deletion" >&2
+    delete_failed=1
+  fi
+  if [[ "$connection_status" == "0" ]]; then
+    echo "securewave-wg-quick: IKEv2 NetworkManager profile remains after deletion" >&2
+    delete_failed=1
+  fi
   clear_ikev2_route_state
+  if [[ "$delete_failed" == "1" ]]; then
+    exit 1
+  fi
   exit 0
 fi
 

@@ -95,7 +95,7 @@ The workflow proves:
   runner helper, helper contract, systemd unit, and tmpfiles payload.
 - The package declares the expected Linux VPN runtime dependencies:
   WireGuard tools, OpenVPN, NetworkManager/strongSwan packages, `iproute2`,
-  `iptables`, `acl`, and `systemd`.
+  `iptables`, `nftables`, `acl`, `systemd`, and `systemd-resolved`.
 - The public downloads manifest remains truthful: Linux x64 `.deb` stays
   `coming_soon` until publish evidence is accepted.
 

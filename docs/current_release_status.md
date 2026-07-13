@@ -6,16 +6,16 @@ Last audited: 2026-07-13 UTC
 
 - Branch: `codex/linux-runtime-final`
 - Base: `origin/master` at `b2c69ade88a6d7d96a1478f792c39ec793888fac`
-- Application/package version: `4.0.0+1`
-- Local ARM64 package: `securewave_app/build/packaging/securewave-vpn_4.0.0+1_arm64.deb`
-- Local ARM64 package SHA-256: `6bdd66e246a5ddd6de0037266d193101291a47395857777103e954a49c73ad5b`
+- Application/package version: `4.0.0+2`
+- Local ARM64 package: pending the Phase 3 rebuild
+- Local ARM64 package SHA-256: pending the Phase 3 rebuild
 - No artifact was published, signed, or deployed by this certification.
 
 ## Protocol truth
 
 WireGuard is the primary Linux protocol. The normal Flutter -> backend profile ->
 helper IPC path is implemented. The candidate source and release bundle require
-helper contract 12; the installed host remains on contract 10 until the Phase 3
+helper contract 13; the installed host remains on contract 10 until the Phase 3
 package reinstall, so current runtime checks are intentionally fail-closed.
 
 OpenVPN remains unavailable unless both backend server evidence and fresh
@@ -33,10 +33,10 @@ green. No unsupported protocol is presented as release-ready.
   PostgreSQL; the PostgreSQL usage concurrency test passes.
 - Compose app/PostgreSQL/Redis health and migration checks pass with a production-
   style environment that does not inherit production dotenv settings.
-- The current local ARM64 release bundle contains the helper daemon, wrapper,
-  contract 12, systemd, tmpfiles, and paired strongSwan routing-mark payload. The
-  recorded `.deb` and checksum predate contract 12 and must be replaced by the
-  Phase 3 rebuild.
+- The candidate package definition includes the helper daemon, wrapper, contract
+  13, systemd, systemd-resolved, nftables, tmpfiles, and paired strongSwan
+  routing-mark payload. The recorded `.deb` and checksum predate contract 13 and
+  must be replaced by the Phase 3 rebuild.
 - The release Flutter binary starts on this Linux host. The headless graphics
   environment emits Mesa cursor/driver warnings; no crash was observed during the
   bounded run.
@@ -63,8 +63,9 @@ release commands must not instruct users to treat a feature branch as canonical.
 
 ```bash
 cd /path/to/securewave-linux-runtime-final
-deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+1_arm64.deb"
-echo "6bdd66e246a5ddd6de0037266d193101291a47395857777103e954a49c73ad5b  $deb" | sha256sum -c -
+deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+2_arm64.deb"
+# Insert the SHA-256 recorded by the Phase 3 rebuild before installing.
+echo "<phase-3-sha256>  $deb" | sha256sum -c -
 sudo apt install "$deb"
 systemctl is-enabled securewave-helper.service
 systemctl is-active securewave-helper.service

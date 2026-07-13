@@ -4,11 +4,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-wg-quick"
 HELPERD = ROOT / "securewave_app" / "linux" / "helperd" / "securewave_helperd.cc"
-CONTRACT = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-wg-quick.contract"
+CONTRACT = (
+    ROOT / "securewave_app" / "packaging" / "linux" / "securewave-wg-quick.contract"
+)
 SERVICE = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-helper.service"
-TMPFILES = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-helper.tmpfiles"
+TMPFILES = (
+    ROOT / "securewave_app" / "packaging" / "linux" / "securewave-helper.tmpfiles"
+)
 INSTALLER = ROOT / "securewave_app" / "scripts" / "install_linux_helper.sh"
-STRONGSWAN_ROUTING = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-strongswan-routing.conf"
+STRONGSWAN_ROUTING = (
+    ROOT
+    / "securewave_app"
+    / "packaging"
+    / "linux"
+    / "securewave-strongswan-routing.conf"
+)
 
 
 def _read(path: Path) -> str:
@@ -19,9 +29,11 @@ def test_helper_contract_version_matches_daemon():
     helperd = _read(HELPERD)
     contract = _read(CONTRACT).strip()
 
-    assert contract == "12"
-    assert "const guint kContractVersion = 12;" in helperd
-    assert 'kContractPath = "/usr/local/libexec/securewave-wg-quick.contract"' in helperd
+    assert contract == "13"
+    assert "const guint kContractVersion = 13;" in helperd
+    assert (
+        'kContractPath = "/usr/local/libexec/securewave-wg-quick.contract"' in helperd
+    )
 
 
 def test_helper_daemon_uses_securewave_group_socket_and_allowed_uid_file():
@@ -55,6 +67,35 @@ def test_helper_daemon_checks_ikev2_loop_rules_in_both_address_families():
     assert "rules6.ok &&" in helperd
 
 
+def test_helper_daemon_certifies_ikev2_kernel_cleanup_with_privileged_evidence():
+    helperd = _read(HELPERD)
+
+    assert 'RunCommand({"ip", "-s", "xfrm", "state"})' in helperd
+    assert 'RunCommand({"ip", "xfrm", "policy"})' in helperd
+    assert 'fields["xfrm_state_inspection_ok"]' in helperd
+    assert 'fields["xfrm_policy_inspection_ok"]' in helperd
+    assert 'fields["xfrm_esp_present"]' in helperd
+    assert 'fields["xfrm_policy_present"]' in helperd
+    assert 'fields["connection_inspection_ok"]' in helperd
+    assert 'fields["connection_present"]' in helperd
+    assert '"inspection_failed"' in helperd
+    assert '"vpn_residue_present"' in helperd
+
+
+def test_helper_daemon_inspects_exact_owned_wireguard_firewall_state():
+    helperd = _read(HELPERD)
+
+    assert 'RunCommand({"nft", "list", "tables"})' in helperd
+    assert 'RunCommand({"iptables-save"})' in helperd
+    assert 'RunCommand({"ip6tables-save"})' in helperd
+    assert 'name == "wg-quick-sw-wg"' in helperd
+    assert "wg-quick(8) rule for sw-wg" in helperd
+    assert 'fields["firewall_inspection_ok"]' in helperd
+    assert 'fields["nft_table_present"]' in helperd
+    assert 'fields["iptables_rule_present"]' in helperd
+    assert 'fields["ip6tables_rule_present"]' in helperd
+
+
 def test_privileged_helper_script_restricts_inputs_and_protocol_actions():
     helper = _read(HELPER)
 
@@ -65,7 +106,14 @@ def test_privileged_helper_script_restricts_inputs_and_protocol_actions():
     assert "wireguard-transfer" in helper
     assert "xfrm-state" in helper
     assert "openvpn-start <config-path> <pid-path> <log-path> [auth-path]" in helper
-    assert "ikev2-add-eap <server> <username> <password> [remote-id] [ca-cert-path]" in helper
+    assert (
+        "ikev2-add-eap <server> <username> <password> [remote-id] [ca-cert-path]"
+        in helper
+    )
+    assert "openvpn-dns-apply <4:address|6:address> [...]" in helper
+    assert "ikev2-set-dns <4:address|6:address> [...]" in helper
+    assert 'OPENVPN_INTERFACE="tun-securewave"' in helper
+    assert "require_tagged_dns_args" in helper
     assert "cert-source=file" in helper
 
 

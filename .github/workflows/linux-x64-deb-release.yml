@@ -66,7 +66,9 @@ jobs:
             libstrongswan-extra-plugins \
             iproute2 \
             iptables \
-            acl
+            nftables \
+            acl \
+            systemd-resolved
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -140,8 +142,10 @@ jobs:
             libstrongswan-extra-plugins \
             iproute2 \
             iptables \
+            nftables \
             acl \
-            systemd
+            systemd \
+            systemd-resolved
           do
             printf '%s\n' "$depends" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -Fx "$package" >/dev/null
             printf 'depends-ok %s\n' "$package"

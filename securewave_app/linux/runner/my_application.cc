@@ -36,7 +36,7 @@ const char* kBundledHelperDaemonRelativePath = "packaging/linux/securewave-helpe
 const char* kBundledHelperContractRelativePath = "packaging/linux/securewave-wg-quick.contract";
 const char* kBundledHelperServiceRelativePath = "packaging/linux/securewave-helper.service";
 const char* kBundledHelperTmpfilesRelativePath = "packaging/linux/securewave-helper.tmpfiles";
-const guint kSecureWaveHelperContractVersion = 12;
+const guint kSecureWaveHelperContractVersion = 13;
 const gsize kMaxHelperResponseBytes = 1024 * 1024;
 
 using Fields = std::map<std::string, std::string>;

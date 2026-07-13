@@ -50,8 +50,8 @@ if grep -Eqn 'pkexec|/bin/sh.*-c' securewave_app/linux/runner/my_application.cc;
   echo "ERROR: Linux VPN bridge contains a connect-time elevation or shell fallback."
   exit 1
 fi
-if [[ "$(tr -d '[:space:]' < securewave_app/packaging/linux/securewave-wg-quick.contract)" != "12" ]]; then
-  echo "ERROR: Linux helper contract is not version 12."
+if [[ "$(tr -d '[:space:]' < securewave_app/packaging/linux/securewave-wg-quick.contract)" != "13" ]]; then
+  echo "ERROR: Linux helper contract is not version 13."
   exit 1
 fi
 for protocol in wireguard openvpn ikev2; do
