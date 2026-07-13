@@ -112,6 +112,7 @@ class ChannelVpnService extends VpnService {
   VpnStatus _status = VpnStatus.disconnected;
   bool _nativeAvailable = false;
   final Map<VpnProtocol, bool> _protocolAvailability = {};
+  final Map<VpnProtocol, String> _protocolAvailabilityMessages = {};
   bool _mockNoticeLogged = false;
   String? _lastNativeAvailabilityMessage;
 
@@ -127,7 +128,7 @@ class ChannelVpnService extends VpnService {
 
   bool _platformImplementsProtocol(VpnProtocol protocol) {
     final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'linux') return protocol != VpnProtocol.ikev2;
+    if (os == 'linux') return true;
     if (os == 'windows' || os == 'android' || os == 'ios') {
       return protocol == VpnProtocol.wireGuard;
     }
@@ -151,10 +152,11 @@ class ChannelVpnService extends VpnService {
     if (os == 'macos') {
       return 'VPN tunneling is unavailable on macOS because this build has no Network Extension provider.';
     }
-    if (os == 'linux' && protocol == VpnProtocol.ikev2) {
-      return 'IKEv2 is unavailable because the Linux backend profile gate does not advertise it.';
+    if (!_platformImplementsProtocol(protocol)) {
+      return '${vpnProtocolLabel(protocol)} is not implemented by this $os runtime.';
     }
-    return '${vpnProtocolLabel(protocol)} is not available on this runtime.';
+    return _protocolAvailabilityMessages[protocol] ??
+        '${vpnProtocolLabel(protocol)} is unavailable because the native helper probe did not confirm this protocol.';
   }
 
   @override
@@ -396,7 +398,7 @@ class ChannelVpnService extends VpnService {
   Future<bool> _refreshNativeAvailability([VpnProtocol? protocol]) async {
     if (!_supportsNativeChannel()) {
       _nativeAvailable = false;
-      return _nativeAvailable;
+      return false;
     }
     try {
       final available = await _channel.invokeMethod<bool>(
@@ -408,6 +410,12 @@ class ChannelVpnService extends VpnService {
       if (available != null) {
         if (protocol != null) {
           _protocolAvailability[protocol] = available;
+          if (available) {
+            _protocolAvailabilityMessages.remove(protocol);
+          } else {
+            _protocolAvailabilityMessages[protocol] =
+                '${vpnProtocolLabel(protocol)} is unavailable because the native helper probe did not confirm this protocol.';
+          }
           _nativeAvailable = _protocolAvailability.values.any((value) => value);
         } else {
           _nativeAvailable = available;
@@ -415,25 +423,43 @@ class ChannelVpnService extends VpnService {
       } else {
         if (protocol != null) {
           _protocolAvailability[protocol] = false;
+          _protocolAvailabilityMessages[protocol] =
+              '${vpnProtocolLabel(protocol)} is unavailable because the native helper probe returned no availability result.';
           _nativeAvailable = _protocolAvailability.values.any((value) => value);
         } else {
           _nativeAvailable = false;
         }
       }
-      if (_nativeAvailable) {
+      if (protocol != null && (_protocolAvailability[protocol] ?? false)) {
+        _lastNativeAvailabilityMessage = null;
+      } else if (protocol != null) {
+        _lastNativeAvailabilityMessage =
+            _protocolAvailabilityMessages[protocol];
+      } else if (_nativeAvailable) {
         _lastNativeAvailabilityMessage = null;
       }
     } on MissingPluginException {
-      if (protocol != null) _protocolAvailability[protocol] = false;
+      const message = 'Native VPN plugin missing for this platform/build.';
+      if (protocol != null) {
+        _protocolAvailability[protocol] = false;
+        _protocolAvailabilityMessages[protocol] = message;
+      }
       _nativeAvailable = _protocolAvailability.values.any((value) => value);
-      _lastNativeAvailabilityMessage =
-          'Native VPN plugin missing for this platform/build.';
+      _lastNativeAvailabilityMessage = message;
     } on PlatformException catch (error) {
-      _lastNativeAvailabilityMessage = error.message;
-      if (protocol != null) _protocolAvailability[protocol] = false;
+      final message = error.message?.trim().isNotEmpty == true
+          ? error.message!.trim()
+          : 'Native VPN helper probe failed (${error.code}).';
+      _lastNativeAvailabilityMessage = message;
+      if (protocol != null) {
+        _protocolAvailability[protocol] = false;
+        _protocolAvailabilityMessages[protocol] = message;
+      }
       _nativeAvailable = _protocolAvailability.values.any((value) => value);
     }
-    return _nativeAvailable;
+    return protocol == null
+        ? _nativeAvailable
+        : (_protocolAvailability[protocol] ?? false);
   }
 
   bool _isNativeUnavailableError(PlatformException error) {

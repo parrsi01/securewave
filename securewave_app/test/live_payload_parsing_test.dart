@@ -85,8 +85,47 @@ void main() {
     });
 
     final config = profile.configForProtocol(VpnProtocol.ikev2);
-    expect(config, contains('server=138.199.204.139'));
-    expect(config, contains('username=sw-ikev2-user'));
-    expect(config, contains('ca_cert_pem<<EOF'));
+    expect(config, contains('connections {'));
+    expect(config, contains('remote_addrs = 138.199.204.139'));
+    expect(config, contains('eap_id = "sw-ikev2-user"'));
+    expect(config, contains('id = "138.199.204.139"'));
+    expect(config, contains('secret = "temporary-profile-secret"'));
+    expect(config, contains('# ca_cert_pem_begin'));
+    expect(config, contains('# ca_cert_pem_end'));
+  });
+
+  test('VpnProfile quotes live IKEv2 swanctl credentials', () {
+    final profile = VpnProfile.fromJson({
+      'protocol': 'ikev2',
+      'profile': {
+        'type': 'ikev2',
+        'server': 'vpn.example.test',
+        'remote_id': 'vpn"edge.example.test',
+        'username': r'user\name@example.test',
+        'password': r'secret"with\slashes',
+        'ca_cert_pem':
+            '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
+      },
+    });
+
+    final config = profile.configForProtocol(VpnProtocol.ikev2);
+    expect(config, contains(r'eap_id = "user\\name@example.test"'));
+    expect(config, contains(r'id = "vpn\"edge.example.test"'));
+    expect(config, contains(r'secret = "secret\"with\\slashes"'));
+  });
+
+  test('VpnProfile rejects multiline IKEv2 scalar fields', () {
+    final profile = VpnProfile.fromJson({
+      'protocol': 'ikev2',
+      'profile': {
+        'type': 'ikev2',
+        'server': 'vpn.example.test',
+        'remote_id': 'vpn.example.test\nsecret = "injected"',
+        'username': 'sw-ikev2-user',
+        'password': 'temporary-profile-secret',
+      },
+    });
+
+    expect(profile.configForProtocol(VpnProtocol.ikev2), isEmpty);
   });
 }

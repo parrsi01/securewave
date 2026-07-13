@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +63,7 @@ void main() {
     addTearDown(container.dispose);
 
     final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.ensureInitialized();
     notifier.selectServer('us-chi');
 
     await notifier.connect();
@@ -68,6 +71,24 @@ void main() {
 
     await notifier.disconnect();
     expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
+  });
+
+  test('VpnStateNotifier exposes one deterministic initialization future',
+      () async {
+    final service = _InitializationTrackingVpnService();
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    final first = notifier.ensureInitialized();
+    final second = notifier.ensureInitialized();
+    expect(identical(first, second), isTrue);
+
+    service.releaseAvailabilityChecks();
+    await first;
+    expect(service.refreshedProtocols, VpnProtocol.values);
   });
 
   test('VpnStateNotifier allows auto-select server', () async {
@@ -294,6 +315,43 @@ class _CounterVpnService extends VpnService {
     final index = trafficCalls - 1;
     return samples[index < samples.length ? index : samples.length - 1];
   }
+}
+
+class _InitializationTrackingVpnService extends VpnService {
+  final _availabilityGate = Completer<void>();
+  final refreshedProtocols = <VpnProtocol>[];
+
+  void releaseAvailabilityChecks() => _availabilityGate.complete();
+
+  @override
+  bool get isNativeAvailable => false;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => false;
+
+  @override
+  Future<bool> refreshProtocolAvailability(VpnProtocol protocol) async {
+    await _availabilityGate.future;
+    refreshedProtocols.add(protocol);
+    return false;
+  }
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) =>
+      'Helper probe unavailable.';
+
+  @override
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+  }) async =>
+      VpnStatus.disconnected;
+
+  @override
+  Future<VpnStatus> disconnect() async => VpnStatus.disconnected;
+
+  @override
+  VpnStatus getStatus() => VpnStatus.disconnected;
 }
 
 class _FailingVpnService extends VpnService {

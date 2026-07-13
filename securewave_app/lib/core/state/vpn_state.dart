@@ -108,10 +108,12 @@ final vpnStateProvider = StateNotifierProvider<VpnStateNotifier, VpnState>((
 class VpnStateNotifier extends StateNotifier<VpnState> {
   VpnStateNotifier(this._ref)
       : super(VpnState(status: _ref.read(vpnServiceProvider).getStatus())) {
-    unawaited(_initialize());
+    _initialization = _initialize();
+    unawaited(_initialization);
   }
 
   final Ref _ref;
+  late final Future<void> _initialization;
   final _predictor = const MarLXGBPredictor();
   int _stabilitySuccesses = 0;
   int _stabilityFailures = 0;
@@ -125,6 +127,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   String? _activeServerId;
   int? _usageSessionId;
   int _usageSequence = 0;
+
+  Future<void> ensureInitialized() => _initialization;
 
   @override
   void dispose() {

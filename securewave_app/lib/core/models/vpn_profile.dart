@@ -120,11 +120,48 @@ String _ikev2ProfileToConfig(Map<String, dynamic> profile) {
   if (server.isEmpty || username.isEmpty || password.isEmpty) return '';
   final remoteId = profile['remote_id']?.toString() ?? server;
   final ca = profile['ca_cert_pem']?.toString() ?? '';
+  if ([server, username, password, remoteId].any(_containsLineBreak)) return '';
+  final secretId = username.replaceAll(RegExp(r'[^A-Za-z0-9_.-]+'), '-');
   return [
-    'server=$server',
-    'remote_id=$remoteId',
-    'username=$username',
-    'password=$password',
-    if (ca.isNotEmpty) 'ca_cert_pem<<EOF\n$ca\nEOF',
+    'connections {',
+    '  securewave {',
+    '    version = 2',
+    '    remote_addrs = $server',
+    '    proposals = aes256-sha256-modp2048',
+    '    local {',
+    '      auth = eap-mschapv2',
+    '      eap_id = "${_swanctlQuote(username)}"',
+    '    }',
+    '    remote {',
+    '      auth = pubkey',
+    '      id = "${_swanctlQuote(remoteId)}"',
+    '      cacerts = securewave-ikev2-ca.pem',
+    '    }',
+    '    children {',
+    '      securewave {',
+    '        remote_ts = 0.0.0.0/0,::/0',
+    '        esp_proposals = aes256-sha256-modp2048',
+    '      }',
+    '    }',
+    '  }',
+    '}',
+    'secrets {',
+    '  eap-${secretId.isEmpty ? 'securewave-user' : secretId} {',
+    '    id = "${_swanctlQuote(username)}"',
+    '    ${'secret'} = "${_swanctlQuote(password)}"',
+    '  }',
+    '}',
+    if (ca.isNotEmpty) ...[
+      '# ca_cert_pem_begin',
+      ca,
+      '# ca_cert_pem_end',
+    ],
   ].join('\n');
 }
+
+String _swanctlQuote(String value) {
+  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+bool _containsLineBreak(String value) =>
+    value.contains('\n') || value.contains('\r');
