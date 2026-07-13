@@ -121,6 +121,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   DateTime? _lastTrafficStatsAt;
   bool _trafficPollInFlight = false;
   int _usageGeneration = 0;
+  int? _activeDeviceId;
+  String? _activeServerId;
+  int? _usageSessionId;
+  int _usageSequence = 0;
 
   @override
   void dispose() {
@@ -215,6 +219,17 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
       if (service.isNativeAvailable) {
         final identity = await DeviceIdentity.load();
+        final backendProtocols = await api.fetchProtocolAvailability(
+          deviceType: identity.type,
+        );
+        final readiness = backendProtocols[state.protocol];
+        if (readiness == null || !readiness.enabled) {
+          throw VpnServiceException(
+            'protocol_unavailable',
+            readiness?.reason ??
+                '${vpnProtocolLabel(state.protocol)} has no usable backend runtime evidence.',
+          );
+        }
         final storage = SecureStorage();
         final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
         final protocolKey = vpnProtocolStorageValue(state.protocol);
@@ -238,11 +253,13 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             );
           }
           if (profile.deviceId > 0) {
+            _activeDeviceId = profile.deviceId;
             await storage.saveInt(
               SecureStorage.vpnDeviceIdKey,
               profile.deviceId,
             );
           }
+          _activeServerId = profile.serverId;
           await storage.saveString(profileConfigKey, config);
           if (profile.expiresAt != null) {
             await storage.saveString(
@@ -307,6 +324,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           lastTunnelStartOk: true,
         );
         _updateStability(success: true);
+        await _startUsageSession(api);
         _startRateUpdates();
       } else {
         state = state.copyWith(
@@ -369,6 +387,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         stackTrace: stackTrace,
       );
     } finally {
+      await _finalizeUsageSession();
       state = state.copyWith(isBusy: false);
     }
   }
@@ -565,13 +584,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final txDelta = stats.txBytes >= previous.txBytes
           ? stats.txBytes - previous.txBytes
           : 0;
+      final nextRxBytes = state.sessionRxBytes + rxDelta;
+      final nextTxBytes = state.sessionTxBytes + txDelta;
       state = state.copyWith(
         dataRateDown: elapsedSeconds > 0 ? rxDelta / elapsedSeconds : 0,
         dataRateUp: elapsedSeconds > 0 ? txDelta / elapsedSeconds : 0,
-        sessionRxBytes: state.sessionRxBytes + rxDelta,
-        sessionTxBytes: state.sessionTxBytes + txDelta,
+        sessionRxBytes: nextRxBytes,
+        sessionTxBytes: nextTxBytes,
         sessionCountersAvailable: true,
       );
+      unawaited(_reportUsage(nextTxBytes, nextRxBytes));
     } catch (error, stackTrace) {
       AppLogger.error(
         'VPN traffic counter poll failed',
@@ -589,6 +611,73 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (generation == _usageGeneration) {
         _trafficPollInFlight = false;
       }
+    }
+  }
+
+  Future<void> _startUsageSession(ApiClient api) async {
+    final deviceId = _activeDeviceId;
+    final serverId = _activeServerId;
+    if (deviceId == null ||
+        deviceId <= 0 ||
+        serverId == null ||
+        serverId.isEmpty) {
+      return;
+    }
+    _usageSequence = 0;
+    try {
+      _usageSessionId = await api.startUsageSession(
+        deviceId: deviceId,
+        serverId: serverId,
+        protocol: state.protocol,
+        idempotencyKey:
+            'client-start-$deviceId-${DateTime.now().microsecondsSinceEpoch}',
+      );
+    } catch (error, stackTrace) {
+      _usageSessionId = null;
+      AppLogger.warning(
+          'VPN usage session could not be started; tunnel remains active.');
+      AppLogger.error('VPN usage session start failed',
+          error: error, stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _reportUsage(int bytesSent, int bytesReceived) async {
+    final sessionId = _usageSessionId;
+    if (sessionId == null) return;
+    final sequence = ++_usageSequence;
+    try {
+      await _ref.read(apiClientProvider).reportUsage(
+            sessionId: sessionId,
+            sequence: sequence,
+            bytesSent: bytesSent,
+            bytesReceived: bytesReceived,
+            idempotencyKey: 'client-increment-$sessionId-$sequence',
+          );
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+          'VPN usage report failed; will retry on the next counter poll.');
+      AppLogger.error('VPN usage report error',
+          error: error, stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _finalizeUsageSession() async {
+    final sessionId = _usageSessionId;
+    _usageSessionId = null;
+    _usageSequence = 0;
+    _activeDeviceId = null;
+    _activeServerId = null;
+    if (sessionId == null) return;
+    try {
+      await _ref.read(apiClientProvider).finalizeUsageSession(
+            sessionId: sessionId,
+            idempotencyKey:
+                'client-disconnect-$sessionId-${DateTime.now().microsecondsSinceEpoch}',
+          );
+    } catch (error, stackTrace) {
+      AppLogger.warning('VPN usage session finalization failed.');
+      AppLogger.error('VPN usage finalization error',
+          error: error, stackTrace: stackTrace);
     }
   }
 

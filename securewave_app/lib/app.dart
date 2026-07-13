@@ -13,7 +13,6 @@ import 'core/models/user_plan.dart';
 import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
 import 'core/services/auth_session.dart';
-import 'core/services/secure_storage.dart';
 import 'core/state/app_state.dart';
 import 'core/state/vpn_state.dart';
 import 'core/utils/api_error.dart';
@@ -864,6 +863,23 @@ class _ProtocolPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final vpnService = ref.watch(vpnServiceProvider);
+    final backendAvailability = ref.watch(protocolAvailabilityProvider);
+
+    bool backendAllows(VpnProtocol protocol) {
+      return backendAvailability.valueOrNull?[protocol]?.enabled == true;
+    }
+
+    String backendReason(VpnProtocol protocol) {
+      if (backendAvailability.isLoading) {
+        return 'Waiting for backend runtime evidence.';
+      }
+      if (backendAvailability.hasError) {
+        return 'Backend protocol evidence is unavailable.';
+      }
+      return backendAvailability.valueOrNull?[protocol]?.reason ??
+          'This protocol has no usable server runtime evidence.';
+    }
+
     return Column(
       children: [
         _ProtocolTile(
@@ -871,15 +887,19 @@ class _ProtocolPicker extends ConsumerWidget {
           selected: selected == VpnProtocol.wireGuard,
           title: 'WireGuard',
           detail: 'Primary Linux runtime path.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.wireGuard),
+          enabled: vpnService.canConnectProtocol(VpnProtocol.wireGuard) &&
+              backendAllows(VpnProtocol.wireGuard),
+          disabledDetail: backendReason(VpnProtocol.wireGuard),
         ),
         const SizedBox(height: 8),
         _ProtocolTile(
           protocol: VpnProtocol.openVpn,
           selected: selected == VpnProtocol.openVpn,
           title: 'OpenVPN',
-          detail: 'Requires a backend-issued OpenVPN profile.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.openVpn),
+          detail: 'Requires server runtime and data-plane evidence.',
+          enabled: vpnService.canConnectProtocol(VpnProtocol.openVpn) &&
+              backendAllows(VpnProtocol.openVpn),
+          disabledDetail: backendReason(VpnProtocol.openVpn),
         ),
         const SizedBox(height: 8),
         _ProtocolTile(
@@ -888,7 +908,9 @@ class _ProtocolPicker extends ConsumerWidget {
           title: 'IKEv2/IPSec',
           detail: vpnService.protocolUnavailableReason(VpnProtocol.ikev2) ??
               'Requires a backend-issued IKEv2 profile and strongSwan.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.ikev2),
+          enabled: vpnService.canConnectProtocol(VpnProtocol.ikev2) &&
+              backendAllows(VpnProtocol.ikev2),
+          disabledDetail: backendReason(VpnProtocol.ikev2),
         ),
       ],
     );
@@ -902,6 +924,7 @@ class _ProtocolTile extends ConsumerWidget {
     required this.title,
     required this.detail,
     required this.enabled,
+    this.disabledDetail,
   });
 
   final VpnProtocol protocol;
@@ -909,6 +932,7 @@ class _ProtocolTile extends ConsumerWidget {
   final String title;
   final String detail;
   final bool enabled;
+  final String? disabledDetail;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -916,7 +940,7 @@ class _ProtocolTile extends ConsumerWidget {
       selected: selected,
       enabled: enabled,
       title: title,
-      subtitle: detail,
+      subtitle: enabled ? detail : (disabledDetail ?? detail),
       trailing: enabled
           ? null
           : const _StatusChip(label: 'Unavailable', tone: _Tone.warning),
@@ -1583,8 +1607,14 @@ Future<void> _signOut(BuildContext context, WidgetRef ref) async {
   if (vpn.status == VpnStatus.connected || vpn.status == VpnStatus.connecting) {
     await ref.read(vpnStateProvider.notifier).disconnect();
   }
-  await SecureStorage().clearVpnRuntimeState();
-  await ref.read(authSessionProvider).clearSession();
+  try {
+    await ref.read(authServiceProvider).logout();
+  } catch (_) {
+    // AuthService has already cleared local credentials in its finally block.
+    // Continue resetting in-memory providers even when the backend is down.
+    AppLogger.warning(
+        'Logout completed locally while the backend was unavailable.');
+  }
   ref.read(vpnStateProvider.notifier).selectServer(null);
   ref.invalidate(currentUserProvider);
   ref.invalidate(userPlanProvider);

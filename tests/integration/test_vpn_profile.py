@@ -131,7 +131,11 @@ class TestVpnProfileProvisioning:
             openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
             protocol_runtime_evidence={
                 "wireguard": {"healthy": True, "observed_at": datetime.utcnow().isoformat()},
-                "openvpn": {"healthy": True, "observed_at": datetime.utcnow().isoformat()}
+                "openvpn": {
+                    "healthy": True,
+                    "data_plane_healthy": True,
+                    "observed_at": datetime.utcnow().isoformat(),
+                }
             },
             supports_ikev2=True,
         )
@@ -199,7 +203,11 @@ class TestVpnProfileProvisioning:
                 "-----END CERTIFICATE-----"
             ),
             protocol_runtime_evidence={
-                "openvpn": {"healthy": True, "observed_at": datetime.utcnow().isoformat()}
+                "openvpn": {
+                    "healthy": True,
+                    "data_plane_healthy": True,
+                    "observed_at": datetime.utcnow().isoformat(),
+                }
             },
         )
 
@@ -231,6 +239,39 @@ class TestVpnProfileProvisioning:
         openvpn = next(item for item in response.json()["protocols"] if item["protocol"] == "openvpn")
         assert openvpn["enabled"] is False
         assert "protocol-specific" in (openvpn["reason"] or "")
+
+    def test_openvpn_runtime_without_data_plane_evidence_fails_closed(
+        self, client, auth_headers, db
+    ):
+        server = _create_free_server(
+            db,
+            server_id="profile-openvpn-no-data-plane",
+            supports_openvpn=True,
+            openvpn_endpoint="10.0.0.9",
+            openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+            protocol_runtime_evidence={
+                "openvpn": {
+                    "healthy": True,
+                    "observed_at": datetime.utcnow().isoformat(),
+                }
+            },
+        )
+        response = client.get("/api/vpn/protocols?device_type=linux", headers=auth_headers)
+        openvpn = next(item for item in response.json()["protocols"] if item["protocol"] == "openvpn")
+        assert openvpn["enabled"] is False
+        assert "data-plane" in (openvpn["reason"] or "")
+
+        profile = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "OpenVPN without data plane",
+                "device_type": "linux",
+                "protocol": "openvpn",
+                "server_id": server.server_id,
+            },
+            headers=auth_headers,
+        )
+        assert profile.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
     def test_ikev2_profile_is_blocked_on_linux_even_when_server_supports_it(self, client, auth_headers, db):
         _create_free_server(

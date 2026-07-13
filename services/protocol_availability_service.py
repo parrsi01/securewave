@@ -65,6 +65,11 @@ class ProtocolAvailabilityService:
                     False,
                     "OpenVPN protocol-specific runtime evidence has not been recorded.",
                 )
+            if not self._has_fresh_data_plane_evidence(server, protocol):
+                return ProtocolReadiness(
+                    False,
+                    "OpenVPN data-plane evidence has not been recorded.",
+                )
             return ProtocolReadiness(True)
         # IKEv2 is intentionally not a public release protocol until a
         # protocol-specific runtime verifier records evidence for it.
@@ -80,16 +85,20 @@ class ProtocolAvailabilityService:
         *,
         healthy: bool,
         observed_at: datetime | None = None,
+        data_plane_healthy: bool | None = None,
     ) -> None:
         """Attach a compact probe result without persisting probe output."""
         observed = ProtocolAvailabilityService._naive_utc(
             observed_at or datetime.utcnow()
         )
         evidence = dict(server.protocol_runtime_evidence or {})
-        evidence[protocol] = {
+        protocol_evidence = {
             "healthy": bool(healthy),
             "observed_at": observed.isoformat(),
         }
+        if data_plane_healthy is not None:
+            protocol_evidence["data_plane_healthy"] = bool(data_plane_healthy)
+        evidence[protocol] = protocol_evidence
         server.protocol_runtime_evidence = evidence
 
     def _has_fresh_protocol_evidence(self, server: VPNServer, protocol: str) -> bool:
@@ -97,6 +106,22 @@ class ProtocolAvailabilityService:
         if not isinstance(evidence, dict) or evidence.get("healthy") is not True:
             return False
         observed_at = evidence.get("observed_at")
+        if not isinstance(observed_at, str):
+            return False
+        try:
+            observed = self._naive_utc(
+                datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+            )
+        except ValueError:
+            return False
+        age = self.now - observed
+        return timedelta(0) <= age <= self.evidence_ttl
+
+    def _has_fresh_data_plane_evidence(self, server: VPNServer, protocol: str) -> bool:
+        evidence = (server.protocol_runtime_evidence or {}).get(protocol)
+        if not isinstance(evidence, dict) or evidence.get("data_plane_healthy") is not True:
+            return False
+        observed_at = evidence.get("data_plane_observed_at") or evidence.get("observed_at")
         if not isinstance(observed_at, str):
             return False
         try:

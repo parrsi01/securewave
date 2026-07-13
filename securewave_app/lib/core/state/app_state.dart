@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:platform_info/platform_info.dart';
 
 import '../models/server_region.dart';
+import '../models/protocol_availability.dart';
+import '../models/vpn_protocol.dart';
 import '../models/user_account.dart';
 import '../models/user_plan.dart';
 import '../config/app_config.dart';
@@ -35,6 +37,12 @@ final userPlanProvider = FutureProvider<UserPlan>((ref) async {
 final currentUserProvider = FutureProvider<UserAccount>((ref) async {
   final api = ref.watch(apiClientProvider);
   return api.fetchCurrentUser();
+});
+
+final protocolAvailabilityProvider =
+    FutureProvider<Map<VpnProtocol, ProtocolAvailability>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  return api.fetchProtocolAvailability(deviceType: 'linux');
 });
 
 final favoriteServersProvider =

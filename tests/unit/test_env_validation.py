@@ -6,8 +6,7 @@ and production mode requirements.
 """
 
 import os
-import pytest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from utils.env_validation import (
     get_environment,
@@ -17,6 +16,7 @@ from utils.env_validation import (
     wg_mock_mode_enabled,
     email_config_issues,
     production_env_errors,
+    load_environment_dotenv,
 )
 
 
@@ -33,6 +33,14 @@ class TestGetEnvironment:
     def test_strips_whitespace(self):
         with patch.dict(os.environ, {"ENVIRONMENT": "  staging  "}):
             assert get_environment() == "staging"
+
+    def test_staging_loads_staging_dotenv_without_production_fallback(self):
+        with patch.dict(os.environ, {"ENVIRONMENT": "staging"}, clear=True), patch(
+            "utils.env_validation.load_dotenv"
+        ) as load:
+            load_environment_dotenv()
+
+        assert load.call_args_list == [call(), call(".env.staging")]
 
 
 class TestIsProduction:

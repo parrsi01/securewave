@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/vpn_profile.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
+import 'package:securewave_app/core/models/protocol_availability.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
@@ -359,6 +360,12 @@ class _ReferenceRecoveryApiClient extends ApiClient {
   int _calls = 0;
 
   @override
+  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
+    String? deviceType,
+  }) async =>
+      _allProtocolsAvailable();
+
+  @override
   Future<VpnProfile> fetchVpnProfile({
     int? deviceId,
     required String deviceName,
@@ -427,6 +434,12 @@ class _AlwaysFailingProfileApiClient extends ApiClient {
   final Map<String, dynamic> body;
 
   @override
+  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
+    String? deviceType,
+  }) async =>
+      _allProtocolsAvailable();
+
+  @override
   Future<VpnProfile> fetchVpnProfile({
     int? deviceId,
     required String deviceName,
@@ -444,4 +457,16 @@ class _AlwaysFailingProfileApiClient extends ApiClient {
       ),
     );
   }
+}
+
+Map<VpnProtocol, ProtocolAvailability> _allProtocolsAvailable() {
+  return {
+    for (final protocol in VpnProtocol.values)
+      protocol: ProtocolAvailability(
+        protocol: protocol,
+        enabled: true,
+        serverEnabled: true,
+        platformSupported: true,
+      ),
+  };
 }

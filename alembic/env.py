@@ -4,13 +4,12 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 from alembic import context
-from dotenv import load_dotenv
+from utils.env_validation import load_environment_dotenv
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# Load environment variables (production takes precedence)
-load_dotenv()
-load_dotenv(".env.production")
+# Load only the selected environment's dotenv file.
+load_environment_dotenv()
 
 from database.base import Base  # noqa: E402
 from database.session import DATABASE_URL  # noqa: E402
