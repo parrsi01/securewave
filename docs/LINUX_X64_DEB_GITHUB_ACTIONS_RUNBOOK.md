@@ -28,10 +28,11 @@ provenance. It is not built locally on ARM64.
 
 ## Trigger the Workflow
 
-After the workflow is merged to `master`, trigger it with:
+Trigger the workflow from the reviewed branch or canonical `master` only after
+the source head is identified:
 
 ```bash
-gh workflow run linux-x64-deb-release.yml --ref master
+gh workflow run linux-x64-deb-release.yml --ref codex/linux-runtime-final
 ```
 
 Watch the run:
@@ -115,23 +116,26 @@ live protocol proof are captured.
 
 ## Referenced historical build
 
-The supplied x64 build reference for this certification pass is:
+The current x64 build reference for this certification pass is:
 
-- Workflow run: `29036573515`
+- Source head: `9243c862f08049cc583e4c94232fb44bd44f407e`
+- Workflow run: `29261131617`
 - Expected SHA-256:
-  `f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92`
+  `c51616246415d405a45305d923332f989c0fa71c6b01ddc99ed86f3d0ea394c9`
 
-This reference proves neither current-branch contract 10 compatibility nor a
-clean install. Download it only as private evidence; do not publish it or change
-the downloads manifest.
+This reference proves an x86_64 build, package metadata, helper payload, and
+contract-10 packaging checks for the reviewed source head. It does not prove
+clean installation, systemd socket use, or live routing. Download it only as
+private evidence; the public manifest intentionally keeps the package
+`coming_soon`.
 
 ```bash
-rm -rf artifacts/github-linux-x64-deb-run-29036573515
-gh run download 29036573515 \
-  --dir artifacts/github-linux-x64-deb-run-29036573515
-deb="$(find artifacts/github-linux-x64-deb-run-29036573515 -type f -name '*.deb' -print -quit)"
+rm -rf /tmp/securewave-x64-29261131617
+gh run download 29261131617 \
+  --dir /tmp/securewave-x64-29261131617
+deb="$(find /tmp/securewave-x64-29261131617 -type f -name '*.deb' -print -quit)"
 test -n "$deb"
-echo "f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92  $deb" | sha256sum -c -
+echo "c51616246415d405a45305d923332f989c0fa71c6b01ddc99ed86f3d0ea394c9  $deb" | sha256sum -c -
 dpkg-deb --field "$deb" Architecture
 dpkg-deb --contents "$deb"
 ```
@@ -145,10 +149,9 @@ cat "$tmp/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
 rm -rf "$tmp"
 ```
 
-The reviewed runtime requires contract `10`. If run `29036573515` contains an
-older contract, record it as historical build evidence and stop. Trigger a new
-manual x64 workflow from the reviewed commit; do not treat the old package as
-current runtime evidence.
+The reviewed runtime requires contract `10`. If the workflow artifact contains
+an older contract, record it as historical build evidence and stop. Do not
+promote the package or change its `coming_soon` status from build evidence alone.
 
 ## Clean x86_64 VM certification
 

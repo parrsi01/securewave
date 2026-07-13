@@ -1,148 +1,77 @@
-# SecureWave — Current Release Status
+# SecureWave - Current Release Status
 
-## Canonical v1 Release Statement
+Last audited: 2026-07-13 UTC
 
-SecureWave is currently a Linux desktop first app. WireGuard is the strongest
-runtime path. OpenVPN is available only when the backend issues a real profile
-and the contract-10 Linux helper confirms its runtime evidence. IKEv2 helper
-orchestration exists but remains unavailable in the Linux app because the
-backend intentionally refuses Linux IKEv2 profiles.
+## Candidate under certification
 
-Only protocols proven end-to-end through the normal backend and client path
-should be called release-ready. The client must show backend/native errors
-instead of substituting fake connected states.
+- Branch: `codex/linux-runtime-final`
+- Base: `origin/master` at `b2c69ade88a6d7d96a1478f792c39ec793888fac`
+- Application/package version: `4.0.0+1`
+- Local ARM64 package: `securewave_app/build/packaging/securewave-vpn_4.0.0+1_arm64.deb`
+- Local ARM64 package SHA-256: `6bdd66e246a5ddd6de0037266d193101291a47395857777103e954a49c73ad5b`
+- No artifact was published, signed, or deployed by this certification.
 
-## Current Stable Release
+## Protocol truth
 
-- Version: `4.0.0+2`
-- Platform: Linux
-- Status: Fresh Flutter UI on `master` and `flutter`; Linux/WireGuard remains
-  the strongest runtime path. Apple packaging is prepared for Mac/Xcode
-  finalization but is not yet runtime-certified through App Store review.
+WireGuard is the primary Linux protocol. The normal Flutter -> backend profile ->
+helper IPC path is implemented and local helper contract-10, socket, process,
+counter, and cleanup checks pass. Live route, DNS, HTTPS, endpoint-bypass, exit-IP,
+and data-plane evidence is not claimed because no authorized staging credentials
+and infrastructure were available for this run.
 
-## Release-Ready
+OpenVPN remains unavailable unless both backend server evidence and fresh
+data-plane evidence are usable. Local helper capability alone does not enable it.
+IKEv2 remains unavailable because the backend/runtime proof gates are not both
+green. No unsupported protocol is presented as release-ready.
 
-- Login/register against the live API with visible errors
-- Session restore/logout/re-login flow in the Flutter client
-- Account email shown after startup/login
-- Server catalog loading with empty/error states
-- Usage gauge on Connect, Account, and Settings screens
-- Native Linux single-instance window lifecycle
-- Domain/TLS correctness for `https://api.securewaveapp.com/api/health`
+## Verified candidate behavior
 
-## Limited / Non-Public Release Evidence
+- Registration, login, logout, restoration, device/profile allocation, retry and
+  rollback paths, key rotation, revocation, usage accumulation/idempotency,
+  disconnect persistence, and API failure handling are covered by the backend and
+  Flutter suites.
+- Fresh and repeatable Alembic migrations pass on SQLite and disposable
+  PostgreSQL; the PostgreSQL usage concurrency test passes.
+- Compose app/PostgreSQL/Redis health and migration checks pass with a production-
+  style environment that does not inherit production dotenv settings.
+- The ARM64 release package contains the helper daemon, wrapper, contract 10,
+  systemd, and tmpfiles payload. Isolated install/upgrade/purge passed with
+  dependency checks forced only inside the disposable container.
+- The release Flutter binary starts on this Linux host. The headless graphics
+  environment emits Mesa cursor/driver warnings; no crash was observed during the
+  bounded run.
 
-- OpenVPN profile issuance works on the live API for the verified Hetzner node;
-  full app connect still depends on local OpenVPN installation and privileges.
-- Linux IKEv2 import/start/status/cleanup is implemented behind strict helper
-  evidence, but clean-host route/DNS/XFRM/no-loop certification is still
-  blocked.
-- The iOS project now uses production-style bundle identifiers
-  `com.securewave.vpn` and `com.securewave.vpn.PacketTunnel`, with the Packet
-  Tunnel Provider Network Extension entitlement. A signed iOS archive/export
-  still must be produced on macOS with Xcode and Apple signing assets.
-- The Apple Silicon macOS Flutter target is published as a
-  website-downloadable UI/account demo zip at
-  `static/downloads/securewave-macos-arm64-ui-demo.zip`. macOS VPN tunneling is
-  still not enabled; connect/disconnect returns `vpn_not_configured` until a
-  macOS Network Extension target exists.
+## Artifact and platform limits
 
-## Apple Release Packaging Handoff
+- The local ARM64 `.deb` is not a public download. Install it from its local path
+  only after verifying the checksum.
+- The Linux x64 `.deb` remains `coming_soon` in the public manifest. GitHub-hosted
+  x86_64 workflow `29261131617` from source head `9243c862` passed and produced
+  SHA-256 `c51616246415d405a45305d923332f989c0fa71c6b01ddc99ed86f3d0ea394c9`;
+  this does not prove clean VM installation or live VPN routing.
+- Portable archives are UI/runtime-independent packaging and do not install the
+  privileged Linux helper.
+- Windows, macOS VPN tunneling, and IKEv2 have no release claim from this pass.
 
-- SecureWave's Apple VPN path is NetworkExtension Packet Tunnel Provider, not
-  Hotspot Helper.
-- Public Apple reviewer support content is available at
-  `static/apple-review.html`, with links to privacy, terms, support, and
-  downloads.
-- The public download manifest is `static/downloads/manifest.json`; the Apple
-  handoff download is `static/downloads/securewave-apple-release-handoff.zip`.
-- The Apple Silicon macOS UI demo package is available as
-  `static/downloads/securewave-macos-arm64-ui-demo.zip`; the Intel macOS demo
-  slot remains `coming_soon` until an Intel Mac or matching runner publishes
-  `securewave-macos-x64-ui-demo.zip`.
-- GitHub Actions run `28514166181` on `2026-07-01` passed unsigned iOS release
-  validation, unsigned `.app` artifact collection/upload, macOS UI demo
-  build/upload, and macOS demo branch publishing.
-- Local Mac archive/export command:
+## Canonical branch model
+
+`master` is canonical. Focused work is performed on short-lived branches, based
+on updated `origin/master`, and merged through a single review. Documentation and
+release commands must not instruct users to treat a feature branch as canonical.
+
+## Install the verified local ARM64 package
 
 ```bash
-export APPLE_TEAM_ID="<team-id>"
-bash securewave_app/scripts/archive_ios_release.sh
+cd /path/to/securewave-linux-runtime-final
+deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+1_arm64.deb"
+echo "6bdd66e246a5ddd6de0037266d193101291a47395857777103e954a49c73ad5b  $deb" | sha256sum -c -
+sudo apt install "$deb"
+systemctl is-enabled securewave-helper.service
+systemctl is-active securewave-helper.service
+cat /usr/local/libexec/securewave-wg-quick.contract
 ```
 
-- Local Mac website demo package command:
-
-```bash
-bash securewave_app/scripts/package_macos_ui_demo.sh
-```
-
-- GitHub Actions can run unsigned iOS validation by default and signed
-  archive/export when manually dispatched with Apple signing secrets. As of
-  `2026-07-01`, `gh secret list` only reports a legacy CI credential unrelated
-  to the current Apple signing requirements, so signed iOS export remains
-  blocked until Apple signing secrets are configured or the archive is produced
-  locally on a Mac.
-- GitHub Actions can build the macOS UI demo on a macOS runner and optionally
-  publish the generated zip back to the branch with
-  `publish_macos_demo=true`.
-
-## Public Promotion Gated
-
-- The live backend currently suppresses synthetic region aliases that point at
-  the same Hetzner IP. Public catalog count should reflect verified inventory,
-  not placeholder region names.
-- IKEv2 remains unavailable as a public Linux release claim until profile
-  provisioning, strongSwan start/status, route/DNS/XFRM safety, and cleanup are
-  proven on each package architecture.
-
-## Experimental / Manual
-
-- IKEv2 may be kept experimental/manual outside the Linux release app unless
-  hardened enough for release.
-
-## Post-v1
-
-These items are deferred backlog only. They do not change the public v1 release
-scope, platform support, protocol visibility, packaging behavior, or release
-readiness claims.
-
-- macOS runtime enablement, including a separate signed macOS Network Extension
-  target if macOS VPN support is promoted beyond the iOS handoff path.
-- Mobile OpenVPN/IKEv2 expansion after platform-specific evidence exists.
-- Automated live multi-protocol CI with controlled test infrastructure.
-- IKEv2 hardening, including provisioning, packaging, and EAP-TLS evaluation.
-- Stronger packaging, signing, distribution, and artifact controls.
-- Optional UI-level certification follow-ups for protocol and failure flows.
-- Optional stricter runtime evidence improvements.
-
-## Branch Model Summary
-
-- `master` -> backend, docs, infra, app runtime truth, and release logistics
-- `flutter` -> current Flutter app design branch
-
-## Contributor Rules
-
-- Do not claim protocol readiness without normal backend + client-path proof.
-- Do not turn synthetic region aliases into public regions unless they are
-  explicitly labeled as placeholders or backed by real infrastructure.
-- Do not expose OpenVPN or IKEv2 as default-visible release protocols unless
-  they are proven through the normal backend and client path.
-
-## Quick Verification Commands
-
-```bash
-curl -fsS https://api.securewaveapp.com/api/health
-
-curl -fsS https://api.securewaveapp.com/api/downloads
-
-python3 scripts/live_flutter_runtime_smoke.py --profile-repeats 3
-
-curl -fLo /tmp/securewave-linux-arm64-4.0.0-2.deb \
-  https://securewaveapp.com/downloads/securewave-linux-arm64-4.0.0-2.deb
-
-echo "7c2301ce2353d8d3a1a135413a4cb8ec5574ccbf8e59a790612397a0782572ff  /tmp/securewave-linux-arm64-4.0.0-2.deb" | sha256sum -c -
-
-cd securewave_app && flutter analyze && flutter test
-
-cd securewave_app && flutter test integration_test/session_lifecycle_test.dart -d linux --reporter expanded
-```
+Upgrade with `sudo apt install /path/to/securewave-vpn_NEW.deb`; purge with
+`sudo apt purge securewave-vpn`, then run the disconnected runtime verifier and
+check that the helper socket, service payload, and contract are gone. An ARM64
+package cannot be installed on an x86_64 host; use the matching architecture.
