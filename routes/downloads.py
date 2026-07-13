@@ -218,11 +218,11 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "x64",
         "filename": "securewave-linux-x64.deb",
         "url": "https://github.com/parrsi01/securewave/actions/runs/29036573515",
-        "status": "beta",
+        "status": "coming_soon",
         "evidence_url": "https://github.com/parrsi01/securewave/actions/runs/29036573515",
         "evidence_label": "GitHub Actions build evidence",
         "checksum_sha256": "f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92",
-        "notes": "Beta Debian/Ubuntu x64 package: GitHub Actions successfully built an amd64 .deb with helper payload and dependency evidence. Clean x86_64 VM install, helper service, socket, uninstall, and live VPN runtime proof are still pending.",
+        "notes": "GitHub Actions build evidence is available for an amd64 .deb with helper payload and dependency metadata. The package remains unpublished until clean x86_64 VM install, helper service, socket, uninstall, and live VPN runtime proof are complete.",
     },
     {
         "platform": "linux",

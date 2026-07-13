@@ -75,7 +75,7 @@ def test_download_manifest_exposes_macos_demo_slots():
     assert x64_demo.url == "#"
 
 
-def test_linux_x64_deb_is_beta_build_evidence_not_release_download():
+def test_linux_x64_deb_is_withheld_build_evidence_not_release_download():
     entries = downloads._build_download_entries()
     linux_x64_deb = next(
         entry for entry in entries
@@ -84,13 +84,15 @@ def test_linux_x64_deb_is_beta_build_evidence_not_release_download():
 
     assert linux_x64_deb.platform == "linux"
     assert linux_x64_deb.architecture == "x64"
-    assert linux_x64_deb.status == "beta"
-    assert linux_x64_deb.url == "https://github.com/parrsi01/securewave/actions/runs/29036573515"
-    assert linux_x64_deb.evidence_url == linux_x64_deb.url
+    assert linux_x64_deb.status == "coming_soon"
+    assert linux_x64_deb.url == "#"
+    assert linux_x64_deb.evidence_url == (
+        "https://github.com/parrsi01/securewave/actions/runs/29036573515"
+    )
     assert linux_x64_deb.checksum_sha256 == (
         "f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92"
     )
-    assert "Clean x86_64 VM install" in (linux_x64_deb.notes or "")
+    assert "clean x86_64 VM install" in (linux_x64_deb.notes or "")
 
 
 def test_apple_review_page_and_handoff_docs_are_public():
@@ -224,9 +226,12 @@ def test_invalid_manifest_structure_uses_safe_fallback(monkeypatch, tmp_path, cl
 
     assert response.status_code == 200
     entries = response.json()["downloads"]
-    beta = next(entry for entry in entries if entry["filename"] == "securewave-linux-x64.deb")
-    assert beta["status"] == "beta"
-    assert beta["evidence_url"] == beta["url"]
+    withheld = next(entry for entry in entries if entry["filename"] == "securewave-linux-x64.deb")
+    assert withheld["status"] == "coming_soon"
+    assert withheld["url"] == "#"
+    assert withheld["evidence_url"] == (
+        "https://github.com/parrsi01/securewave/actions/runs/29036573515"
+    )
 
 
 def test_unlisted_and_traversal_files_are_not_served(monkeypatch, tmp_path, client):
