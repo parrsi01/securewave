@@ -18,8 +18,8 @@ def test_helper_contract_version_matches_daemon():
     helperd = _read(HELPERD)
     contract = _read(CONTRACT).strip()
 
-    assert contract == "10"
-    assert "const guint kContractVersion = 10;" in helperd
+    assert contract == "11"
+    assert "const guint kContractVersion = 11;" in helperd
     assert 'kContractPath = "/usr/local/libexec/securewave-wg-quick.contract"' in helperd
 
 
@@ -33,6 +33,16 @@ def test_helper_daemon_uses_securewave_group_socket_and_allowed_uid_file():
     assert "SO_PEERCRED" in helperd
     assert "UidAllowedByFile" in helperd
     assert 'Error("unauthorized"' in helperd
+
+
+def test_helper_daemon_inspects_legacy_adblock_chain_without_user_input():
+    helperd = _read(HELPERD)
+
+    assert 'kAdblockChainName = "SECUREWAVE_ADBLOCK"' in helperd
+    assert 'RunCommand({"iptables", "-S", kAdblockChainName})' in helperd
+    assert 'op == "firewall.adblock_status"' in helperd
+    assert 'RequestFieldsAllowed(request, {"version", "op"})' in helperd
+    assert '"inspection_failed"' in helperd
 
 
 def test_privileged_helper_script_restricts_inputs_and_protocol_actions():

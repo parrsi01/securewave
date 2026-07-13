@@ -149,9 +149,11 @@ cat "$tmp/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
 rm -rf "$tmp"
 ```
 
-The reviewed runtime requires contract `10`. If the workflow artifact contains
-an older contract, record it as historical build evidence and stop. Do not
-promote the package or change its `coming_soon` status from build evidence alone.
+The reviewed runtime requires contract `11`. Workflow run `29261131617` remains
+historical contract-10 build evidence and is not compatible with the current
+runtime. Trigger a new reviewed workflow before any clean-VM certification. Do
+not promote the package or change its `coming_soon` status from build evidence
+alone.
 
 ## Clean x86_64 VM certification
 

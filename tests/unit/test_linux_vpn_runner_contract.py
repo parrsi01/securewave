@@ -122,7 +122,7 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "prepare_owned_runtime_file" in helper
     assert 'prepare_owned_runtime_file "$pid_file" "pid" "$config"' in helper
     assert 'prepare_owned_runtime_file "$log_file" "log" "$config"' in helper
-    assert helper_contract == "10"
+    assert helper_contract == "11"
     assert "securewave-helper.service" in build
     assert "securewave-helper.tmpfiles" in build
     assert "securewave-helperd" in build

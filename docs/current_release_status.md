@@ -14,10 +14,9 @@ Last audited: 2026-07-13 UTC
 ## Protocol truth
 
 WireGuard is the primary Linux protocol. The normal Flutter -> backend profile ->
-helper IPC path is implemented and local helper contract-10, socket, process,
-counter, and cleanup checks pass. Live route, DNS, HTTPS, endpoint-bypass, exit-IP,
-and data-plane evidence is not claimed because no authorized staging credentials
-and infrastructure were available for this run.
+helper IPC path is implemented. The candidate source and release bundle require
+helper contract 11; the installed host remains on contract 10 until the Phase 3
+package reinstall, so current runtime checks are intentionally fail-closed.
 
 OpenVPN remains unavailable unless both backend server evidence and fresh
 data-plane evidence are usable. Local helper capability alone does not enable it.
@@ -34,9 +33,9 @@ green. No unsupported protocol is presented as release-ready.
   PostgreSQL; the PostgreSQL usage concurrency test passes.
 - Compose app/PostgreSQL/Redis health and migration checks pass with a production-
   style environment that does not inherit production dotenv settings.
-- The ARM64 release package contains the helper daemon, wrapper, contract 10,
-  systemd, and tmpfiles payload. Isolated install/upgrade/purge passed with
-  dependency checks forced only inside the disposable container.
+- The current ARM64 release bundle contains the helper daemon, wrapper, contract
+  11, systemd, and tmpfiles payload. The previously recorded `.deb` and checksum
+  predate contract 11 and must be replaced by the Phase 3 rebuild.
 - The release Flutter binary starts on this Linux host. The headless graphics
   environment emits Mesa cursor/driver warnings; no crash was observed during the
   bounded run.

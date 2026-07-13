@@ -113,9 +113,6 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         ("ip", "-6", "route", "show", "table", "51820"): CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""
         ),
-        ("iptables", "-S", "SECUREWAVE_ADBLOCK"): CompletedProcess(
-            args=[], returncode=0, stdout="-N SECUREWAVE_ADBLOCK\n", stderr=""
-        ),
         ("pgrep", "-af", "openvpn"): CompletedProcess(
             args=[], returncode=0, stdout="123 openvpn --config /tmp/securewave.ovpn\n", stderr=""
         ),
@@ -134,6 +131,15 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         return outputs[tuple(argv)]
 
     monkeypatch.setattr(verifier, "_run", fake_run)
+    monkeypatch.setattr(
+        verifier,
+        "helper_request",
+        lambda fields: {
+            "ok": "true",
+            "contract": "11",
+            "present": "true",
+        },
+    )
 
     checks = {check.name: check for check in verifier.check_residue()}
 
@@ -153,21 +159,68 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
 
 def test_residue_adblock_chain_passes_only_when_absent(monkeypatch):
     def fake_run(argv):
-        if tuple(argv) == ("iptables", "-S", "SECUREWAVE_ADBLOCK"):
-            return CompletedProcess(
-                args=[],
-                returncode=1,
-                stdout="",
-                stderr="No chain/target/match by that name.",
-            )
         return CompletedProcess(args=[], returncode=1, stdout="", stderr="unavailable")
 
     monkeypatch.setattr(verifier, "_run", fake_run)
+    monkeypatch.setattr(
+        verifier,
+        "helper_request",
+        lambda fields: {
+            "ok": "true",
+            "contract": "11",
+            "present": "false",
+        },
+    )
 
     checks = {check.name: check for check in verifier.check_residue()}
 
     assert checks["residue:adblock_chain"].ok
     assert checks["residue:adblock_chain"].detail == "SECUREWAVE_ADBLOCK chain absent"
+
+
+def test_residue_adblock_chain_fails_closed_when_helper_cannot_inspect(monkeypatch):
+    monkeypatch.setattr(
+        verifier,
+        "_run",
+        lambda argv: CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="unavailable"
+        ),
+    )
+    monkeypatch.setattr(
+        verifier,
+        "helper_request",
+        lambda fields: {
+            "ok": "false",
+            "code": "inspection_failed",
+            "contract": "11",
+            "message": "Unable to inspect legacy SecureWave adblock firewall state.",
+        },
+    )
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert not checks["residue:adblock_chain"].ok
+    assert "could not be inspected safely" in checks["residue:adblock_chain"].detail
+
+
+def test_residue_adblock_chain_rejects_old_or_missing_helper_contract(monkeypatch):
+    monkeypatch.setattr(
+        verifier,
+        "_run",
+        lambda argv: CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="unavailable"
+        ),
+    )
+    monkeypatch.setattr(
+        verifier,
+        "helper_request",
+        lambda fields: {"ok": "true", "contract": "10", "present": "false"},
+    )
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert not checks["residue:adblock_chain"].ok
+    assert "could not be inspected safely" in checks["residue:adblock_chain"].detail
 
 
 def test_verifier_paths_stay_inside_repo():
@@ -237,7 +290,7 @@ def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path
     check = verifier.check_installed_helper_contract()
 
     assert not check.ok
-    assert "required 10" in check.detail
+    assert "required 11" in check.detail
 
 
 def test_no_polkit_source_enforces_service_socket_model():

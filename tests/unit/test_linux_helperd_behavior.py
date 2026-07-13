@@ -116,9 +116,14 @@ def test_helper_rejects_unknown_fields_and_operations(helperd_harness: Path):
         helperd_harness,
         "version=1\nop=shell\ncommand=id\n",
     )
+    firewall_extra = _run_request(
+        helperd_harness,
+        "version=1\nop=firewall.adblock_status\ncommand=id\n",
+    )
 
     assert unexpected["code"] == "invalid_request"
     assert arbitrary["code"] == "invalid_operation"
+    assert firewall_extra["code"] == "invalid_request"
 
 
 def _validate_config(binary: Path, mode: str, path: Path) -> bool:

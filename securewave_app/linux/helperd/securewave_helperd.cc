@@ -46,7 +46,8 @@ const char* kOpenVpnAuthName = "securewave-openvpn.auth";
 const char* kIkev2ConfigName = "securewave-ikev2.conf";
 const char* kIkev2CaName = "securewave-ikev2-ca.pem";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
-const guint kContractVersion = 10;
+const char* kAdblockChainName = "SECUREWAVE_ADBLOCK";
+const guint kContractVersion = 11;
 const gsize kMaxRequestBytes = 64 * 1024;
 
 struct CommandResult {
@@ -1236,6 +1237,35 @@ static Fields HandleProbe(const Fields& request) {
   return Ok(fields);
 }
 
+static bool IptablesReportsMissingChain(const CommandResult& result) {
+  const std::string diagnostic = result.out + "\n" + result.err;
+  return diagnostic.find("No chain/target/match by that name") !=
+             std::string::npos ||
+         diagnostic.find("Chain 'SECUREWAVE_ADBLOCK' does not exist") !=
+             std::string::npos;
+}
+
+static Fields AdblockStatus() {
+  Fields contract_error;
+  if (!ContractOk(&contract_error)) {
+    return contract_error;
+  }
+  CommandResult inspection =
+      RunCommand({"iptables", "-S", kAdblockChainName});
+  Fields fields;
+  if (inspection.ok) {
+    fields["present"] = "true";
+    return Ok(fields);
+  }
+  if (inspection.spawned && IptablesReportsMissingChain(inspection)) {
+    fields["present"] = "false";
+    return Ok(fields);
+  }
+  return Error(
+      "inspection_failed",
+      "Unable to inspect legacy SecureWave adblock firewall state.");
+}
+
 static Fields WireGuardStatus() {
   const bool interface_present = WireGuardInterfaceExists();
   const bool route_via_sw_wg = WireGuardRouteExists();
@@ -1634,6 +1664,12 @@ static Fields HandleRequest(const Fields& request, uid_t peer_uid) {
       return Error("invalid_request", "Unexpected helper request field.");
     }
     return HandleProbe(request);
+  }
+  if (op == "firewall.adblock_status") {
+    if (!RequestFieldsAllowed(request, {"version", "op"})) {
+      return Error("invalid_request", "Unexpected helper request field.");
+    }
+    return AdblockStatus();
   }
   if (StartsWith(op, "wireguard.")) {
     if (!RequestFieldsAllowed(request, {"version", "op", "config_path"})) {

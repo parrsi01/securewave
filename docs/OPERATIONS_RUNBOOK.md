@@ -87,7 +87,7 @@ cat /usr/local/libexec/securewave-wg-quick.contract
 ```
 
 The helper must be root-owned, the socket must be restricted to the explicit
-`securewave` group/allowlist, and the contract must be `10`. Probe malformed and
+`securewave` group/allowlist, and the contract must be `11`. Probe malformed and
 unknown operations and verify they fail closed. After disconnect, logout, purge,
 and failed connect, verify there are no tunnel interfaces, processes, routes,
 DNS changes, policy rules, NetworkManager connections, or temporary profiles.

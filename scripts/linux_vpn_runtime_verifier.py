@@ -53,7 +53,7 @@ REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip"
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
 ADBLOCK_CHAIN = "SECUREWAVE_ADBLOCK"
-EXPECTED_SECUREWAVE_HELPER_CONTRACT = 10
+EXPECTED_SECUREWAVE_HELPER_CONTRACT = 11
 
 
 @dataclass(frozen=True)
@@ -321,7 +321,7 @@ def check_runner_contract() -> list[Check]:
         "runner:openvpn_disconnect_op": '"openvpn.stop"',
         "runner:ikev2_connect_op": '"ikev2.start"',
         "runner:ikev2_disconnect_op": '"ikev2.stop"',
-        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 10",
+        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 11",
         "runner:no_implicit_mock": "securewave/vpn",
     }
     return [
@@ -647,14 +647,35 @@ def check_residue() -> list[Check]:
         )
     )
 
-    adblock = _run(["iptables", "-S", ADBLOCK_CHAIN])
+    try:
+        adblock = helper_request({"op": "firewall.adblock_status"})
+    except OSError:
+        adblock = {
+            "ok": "false",
+            "code": "socket_error",
+            "message": "helper socket request failed",
+        }
+    try:
+        adblock_contract = int(adblock.get("contract", ""))
+    except (TypeError, ValueError):
+        adblock_contract = 0
+    adblock_inspected = (
+        adblock_contract >= EXPECTED_SECUREWAVE_HELPER_CONTRACT
+        and adblock.get("ok") == "true"
+        and adblock.get("present") in {"true", "false"}
+    )
+    adblock_absent = adblock_inspected and adblock.get("present") == "false"
     checks.append(
         Check(
             "residue:adblock_chain",
-            adblock.returncode != 0,
+            adblock_absent,
             f"{ADBLOCK_CHAIN} chain absent"
-            if adblock.returncode != 0
-            else f"{ADBLOCK_CHAIN} chain still exists; rules redacted",
+            if adblock_absent
+            else (
+                f"{ADBLOCK_CHAIN} chain still exists; rules redacted"
+                if adblock_inspected and adblock.get("present") == "true"
+                else f"{ADBLOCK_CHAIN} state could not be inspected safely"
+            ),
         )
     )
 
