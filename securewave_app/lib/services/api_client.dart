@@ -229,21 +229,32 @@ class ApiClient {
           id: 'us-chi',
           name: 'Chicago, IL',
           country: 'United States',
-          latencyMs: 28),
+          latencyMs: 28,
+          supportedProtocols: ['wireguard', 'openvpn']),
       ServerRegion(
           id: 'us-nyc',
           name: 'New York, NY',
           country: 'United States',
-          latencyMs: 42),
+          latencyMs: 42,
+          supportedProtocols: ['wireguard', 'openvpn']),
       ServerRegion(
           id: 'uk-lon',
           name: 'London',
           country: 'United Kingdom',
-          latencyMs: 75),
+          latencyMs: 75,
+          supportedProtocols: ['wireguard', 'openvpn']),
       ServerRegion(
-          id: 'de-fra', name: 'Frankfurt', country: 'Germany', latencyMs: 58),
+          id: 'de-fra',
+          name: 'Frankfurt',
+          country: 'Germany',
+          latencyMs: 58,
+          supportedProtocols: ['wireguard', 'openvpn']),
       ServerRegion(
-          id: 'sg-sin', name: 'Singapore', country: 'Singapore', latencyMs: 91),
+          id: 'sg-sin',
+          name: 'Singapore',
+          country: 'Singapore',
+          latencyMs: 91,
+          supportedProtocols: ['wireguard', 'openvpn']),
     ];
   }
 

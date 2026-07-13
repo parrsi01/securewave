@@ -25,6 +25,14 @@ class ServerRegion {
   final List<String> supportedProtocols;
   final bool premiumOnly;
 
+  /// Empty protocol metadata is not usable backend evidence for a release
+  /// connection decision. Keep [supportsProtocol] backward-compatible for
+  /// callers that only need legacy display behavior.
+  bool hasProtocolEvidenceFor(String protocol) {
+    if (supportedProtocols.isEmpty) return false;
+    return supportsProtocol(protocol);
+  }
+
   bool supportsProtocol(String protocol) {
     if (supportedProtocols.isEmpty) return true;
     return supportedProtocols
