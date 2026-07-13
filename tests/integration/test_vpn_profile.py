@@ -40,6 +40,39 @@ def _create_free_server(db, *, server_id="profile-free-us-1", **overrides):
     return server
 
 
+def _ikev2_evidence(
+    observed_at: datetime,
+    *,
+    healthy: bool = True,
+    data_plane_healthy: bool = True,
+    data_plane_observed_at: datetime | None = None,
+):
+    evidence = {
+        "healthy": healthy,
+        "data_plane_healthy": data_plane_healthy,
+        "observed_at": observed_at.isoformat(),
+    }
+    if data_plane_observed_at is not None:
+        evidence["data_plane_observed_at"] = data_plane_observed_at.isoformat()
+    return {"ikev2": evidence}
+
+
+def _ready_ikev2_server(db, *, server_id="profile-ikev2-us-1", **overrides):
+    observed_at = datetime.utcnow()
+    data = {
+        "supports_ikev2": True,
+        "ikev2_remote_id": "vpn.securewave.test",
+        "ikev2_ca_cert_pem": (
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIIBtest\n"
+            "-----END CERTIFICATE-----"
+        ),
+        "protocol_runtime_evidence": _ikev2_evidence(observed_at),
+    }
+    data.update(overrides)
+    return _create_free_server(db, server_id=server_id, **data)
+
+
 class TestVpnProfileProvisioning:
     def test_profile_returns_config_and_metadata(self, client, auth_headers, db):
         _create_free_server(db)
@@ -108,7 +141,10 @@ class TestVpnProfileProvisioning:
         from models.wireguard_peer import WireGuardPeer
         assert db.query(WireGuardPeer).count() == 0
 
-    def test_protocols_endpoint_keeps_linux_ikev2_blocked(self, client, auth_headers, db):
+    def test_protocols_endpoint_recognizes_linux_ikev2_but_fails_closed_without_metadata(
+        self, client, auth_headers, db, monkeypatch
+    ):
+        monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", "configured-test-secret")
         _create_free_server(db, supports_openvpn=True, supports_ikev2=True)
 
         resp = client.get(
@@ -121,7 +157,8 @@ class TestVpnProfileProvisioning:
         assert protocols["wireguard"]["enabled"] is True
         assert protocols["openvpn"]["enabled"] is False
         assert protocols["ikev2"]["enabled"] is False
-        assert protocols["ikev2"]["platform_supported"] is False
+        assert protocols["ikev2"]["platform_supported"] is True
+        assert "metadata" in (protocols["ikev2"]["reason"] or "").lower()
 
     def test_servers_endpoint_returns_supported_protocols(self, client, auth_headers, db):
         _create_free_server(
@@ -273,20 +310,38 @@ class TestVpnProfileProvisioning:
         )
         assert profile.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
-    def test_ikev2_profile_is_blocked_on_linux_even_when_server_supports_it(self, client, auth_headers, db):
-        _create_free_server(
-            db,
-            server_id="profile-ikev2-us-1",
-            supports_ikev2=True,
-            ikev2_remote_id="vpn.securewave.test",
-            ikev2_ca_cert_pem=(
-                "-----BEGIN CERTIFICATE-----\n"
-                "MIIBtest\n"
-                "-----END CERTIFICATE-----"
-            ),
+    def test_ikev2_profile_requires_complete_fresh_evidence_and_quotes_secret(
+        self, client, auth_headers, db, monkeypatch
+    ):
+        monkeypatch.setenv(
+            "SECUREWAVE_IKEV2_EAP_SECRET",
+            'test"quote\\slash-secret',
         )
+        _ready_ikev2_server(db)
 
-        resp = client.post(
+        protocols_response = client.get(
+            "/api/vpn/protocols?device_type=linux",
+            headers=auth_headers,
+        )
+        assert protocols_response.status_code == status.HTTP_200_OK
+        ikev2 = next(
+            item
+            for item in protocols_response.json()["protocols"]
+            if item["protocol"] == "ikev2"
+        )
+        assert ikev2["enabled"] is True
+        assert ikev2["server_enabled"] is True
+        assert ikev2["platform_supported"] is True
+
+        servers_response = client.get(
+            "/api/vpn/servers?device_type=linux",
+            headers=auth_headers,
+        )
+        server = servers_response.json()["servers"][0]
+        assert server["supports_ikev2"] is True
+        assert "ikev2" in server["supported_protocols"]
+
+        response = client.post(
             "/api/vpn/profile",
             json={
                 "device_name": "Linux Box",
@@ -295,8 +350,201 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert resp.status_code == 400, resp.text
-        assert "not release-ready" in resp.text
+        assert response.status_code == status.HTTP_200_OK, response.text
+        payload = response.json()
+        assert payload["protocol"] == "ikev2"
+        assert not payload["wireguard_config"]
+        config = payload["ikev2_config"]
+        assert "connections {" in config
+        assert "remote_addrs = 10.0.0.9" in config
+        assert 'eap_id = "testuser@example.com"' in config
+        assert 'id = "vpn.securewave.test"' in config
+        assert "secrets {" in config
+        assert r'secret = "test\"quote\\slash-secret"' in config
+        assert "securewave-ikev2-ca.pem" in config
+        assert "# ca_cert_pem_begin" in config
+        assert "# ca_cert_pem_end" in config
+
+    @pytest.mark.parametrize(
+        "evidence_case",
+        [
+            "missing-protocol-evidence",
+            "unhealthy-protocol-evidence",
+            "missing-data-plane-health",
+            "unhealthy-data-plane-health",
+            "stale-protocol-evidence",
+            "future-protocol-evidence",
+            "stale-data-plane-evidence",
+            "future-data-plane-evidence",
+        ],
+    )
+    def test_ikev2_missing_stale_or_future_evidence_fails_closed(
+        self, client, auth_headers, db, monkeypatch, evidence_case
+    ):
+        monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", "configured-test-secret")
+        now = datetime.utcnow()
+        evidence_by_case = {
+            "missing-protocol-evidence": None,
+            "unhealthy-protocol-evidence": _ikev2_evidence(now, healthy=False),
+            "missing-data-plane-health": {
+                "ikev2": {"healthy": True, "observed_at": now.isoformat()}
+            },
+            "unhealthy-data-plane-health": _ikev2_evidence(
+                now,
+                data_plane_healthy=False,
+            ),
+            "stale-protocol-evidence": _ikev2_evidence(now - timedelta(hours=2)),
+            "future-protocol-evidence": _ikev2_evidence(now + timedelta(minutes=10)),
+            "stale-data-plane-evidence": _ikev2_evidence(
+                now,
+                data_plane_observed_at=now - timedelta(hours=2),
+            ),
+            "future-data-plane-evidence": _ikev2_evidence(
+                now,
+                data_plane_observed_at=now + timedelta(minutes=10),
+            ),
+        }
+        server = _ready_ikev2_server(
+            db,
+            server_id="profile-ikev2-invalid-evidence",
+            protocol_runtime_evidence=evidence_by_case[evidence_case],
+        )
+
+        response = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "IKEv2 invalid evidence",
+                "device_type": "linux",
+                "protocol": "ikev2",
+                "server_id": server.server_id,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "ikev2_config" not in response.text
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"supports_ikev2": False},
+            {"endpoint": "", "public_ip": ""},
+            {"endpoint": ":51820"},
+            {"endpoint": "host.invalid:not-a-port"},
+            {"ikev2_remote_id": None, "public_ip": ""},
+            {"ikev2_ca_cert_pem": None},
+            {"ikev2_ca_cert_pem": "not-a-certificate"},
+        ],
+        ids=[
+            "server-support-disabled",
+            "missing-endpoint",
+            "empty-endpoint-host",
+            "invalid-endpoint-port",
+            "missing-remote-id",
+            "missing-ca",
+            "malformed-ca",
+        ],
+    )
+    def test_ikev2_missing_support_or_metadata_fails_closed(
+        self, client, auth_headers, db, monkeypatch, overrides
+    ):
+        monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", "configured-test-secret")
+        server = _ready_ikev2_server(
+            db,
+            server_id="profile-ikev2-invalid-metadata",
+            **overrides,
+        )
+
+        response = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "IKEv2 invalid metadata",
+                "device_type": "linux",
+                "protocol": "ikev2",
+                "server_id": server.server_id,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "metadata" in response.text.lower()
+        assert "ikev2_config" not in response.text
+
+    @pytest.mark.parametrize("secret", [None, "", " \t", "line1\nline2"])
+    def test_ikev2_missing_or_unsafe_eap_secret_fails_closed(
+        self, client, auth_headers, db, monkeypatch, secret
+    ):
+        if secret is None:
+            monkeypatch.delenv("SECUREWAVE_IKEV2_EAP_SECRET", raising=False)
+        else:
+            monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", secret)
+        server = _ready_ikev2_server(
+            db,
+            server_id="profile-ikev2-missing-secret",
+        )
+
+        response = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "IKEv2 missing secret",
+                "device_type": "linux",
+                "protocol": "ikev2",
+                "server_id": server.server_id,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "secret" in response.text.lower()
+        assert "ikev2_config" not in response.text
+
+    @pytest.mark.parametrize(
+        "state_case",
+        [
+            "inactive",
+            "unhealthy",
+            "missing-common-health",
+            "stale-common-health",
+            "future-common-health",
+            "zero-capacity",
+            "negative-current-capacity",
+            "full-capacity",
+            "missing-provider-state",
+            "stopped-provider",
+        ],
+    )
+    def test_ikev2_common_runtime_state_must_be_usable(
+        self, client, auth_headers, db, monkeypatch, state_case
+    ):
+        monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", "configured-test-secret")
+        now = datetime.utcnow()
+        overrides_by_case = {
+            "inactive": {"status": "maintenance"},
+            "unhealthy": {"health_status": "unhealthy"},
+            "missing-common-health": {"last_health_check": None},
+            "stale-common-health": {"last_health_check": now - timedelta(hours=2)},
+            "future-common-health": {"last_health_check": now + timedelta(minutes=10)},
+            "zero-capacity": {"max_connections": 0},
+            "negative-current-capacity": {"current_connections": -1},
+            "full-capacity": {"max_connections": 10, "current_connections": 10},
+            "missing-provider-state": {"hcloud_server_state": None},
+            "stopped-provider": {"hcloud_server_state": "stopped"},
+        }
+        server = _ready_ikev2_server(
+            db,
+            server_id="profile-ikev2-invalid-common-state",
+            **overrides_by_case[state_case],
+        )
+
+        response = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "IKEv2 invalid common state",
+                "device_type": "linux",
+                "protocol": "ikev2",
+                "server_id": server.server_id,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "ikev2_config" not in response.text
 
     def test_stale_runtime_evidence_fails_closed_for_listing_and_profile(self, client, auth_headers, db):
         _create_free_server(

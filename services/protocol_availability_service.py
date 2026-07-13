@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from ipaddress import ip_address
 
 from models.vpn_server import VPNServer
 
@@ -38,7 +40,16 @@ class ProtocolAvailabilityService:
             return ProtocolReadiness(False, "Runtime evidence timestamp is in the future.")
         if health_age > self.evidence_ttl:
             return ProtocolReadiness(False, "Runtime evidence is stale.")
-        if server.max_connections <= 0 or server.current_connections >= server.max_connections:
+        try:
+            max_connections = int(server.max_connections)
+            current_connections = int(server.current_connections)
+        except (TypeError, ValueError):
+            return ProtocolReadiness(False, "Server capacity is not available.")
+        if (
+            max_connections <= 0
+            or current_connections < 0
+            or current_connections >= max_connections
+        ):
             return ProtocolReadiness(False, "Server has no available capacity.")
         provider_state = (server.hcloud_server_state or "running").lower()
         if provider_state != "running":
@@ -71,12 +82,48 @@ class ProtocolAvailabilityService:
                     "OpenVPN data-plane evidence has not been recorded.",
                 )
             return ProtocolReadiness(True)
-        # IKEv2 is intentionally not a public release protocol until a
-        # protocol-specific runtime verifier records evidence for it.
+        if protocol == "ikev2":
+            if not self._has_usable_ikev2_metadata(server):
+                return ProtocolReadiness(False, "IKEv2 endpoint metadata is incomplete.")
+            if not self.configured_ikev2_eap_secret():
+                return ProtocolReadiness(
+                    False,
+                    "IKEv2 EAP profile secret issuance is not configured.",
+                )
+            # IKEv2 must never inherit the historic provider-state default.
+            # Missing state is not evidence that the host is running.
+            if (server.hcloud_server_state or "").strip().lower() != "running":
+                return ProtocolReadiness(False, "Server runtime is not running.")
+            if not self._has_fresh_protocol_evidence(server, protocol):
+                return ProtocolReadiness(
+                    False,
+                    "IKEv2 protocol-specific runtime evidence has not been recorded.",
+                )
+            if not self._has_fresh_data_plane_evidence(server, protocol):
+                return ProtocolReadiness(
+                    False,
+                    "IKEv2 data-plane evidence has not been recorded.",
+                )
+            return ProtocolReadiness(True)
         return ProtocolReadiness(False, "Protocol is not release-ready.")
 
     def supports(self, server: VPNServer, protocol: str) -> bool:
         return self.evaluate(server, protocol).enabled
+
+    @staticmethod
+    def configured_ikev2_eap_secret() -> str | None:
+        """Return the operator-provided EAP secret only when swanctl-safe.
+
+        Runtime evidence is never enough to issue a profile without an
+        explicitly configured credential. Control characters are rejected so
+        an environment value cannot break out of the quoted swanctl field.
+        """
+        value = os.getenv("SECUREWAVE_IKEV2_EAP_SECRET")
+        if not value or not value.strip():
+            return None
+        if any(not character.isprintable() for character in value):
+            return None
+        return value
 
     @staticmethod
     def record_evidence(
@@ -132,6 +179,74 @@ class ProtocolAvailabilityService:
             return False
         age = self.now - observed
         return timedelta(0) <= age <= self.evidence_ttl
+
+    @staticmethod
+    def _has_usable_ikev2_metadata(server: VPNServer) -> bool:
+        if not server.supports_ikev2:
+            return False
+
+        endpoint = (server.endpoint or "").strip() or (server.public_ip or "").strip()
+        remote_id = (server.ikev2_remote_id or server.public_ip or "").strip()
+        ca_cert = (server.ikev2_ca_cert_pem or "").strip()
+        if not ProtocolAvailabilityService._has_usable_endpoint(endpoint) or not remote_id:
+            return False
+        if any(not character.isprintable() for character in remote_id):
+            return False
+        if "-----BEGIN CERTIFICATE-----" not in ca_cert:
+            return False
+        if "-----END CERTIFICATE-----" not in ca_cert:
+            return False
+        return True
+
+    @staticmethod
+    def _has_usable_endpoint(value: str) -> bool:
+        if not value or any(character.isspace() for character in value):
+            return False
+        if value.startswith("["):
+            closing_bracket = value.find("]")
+            if closing_bracket <= 1:
+                return False
+            try:
+                if ip_address(value[1:closing_bracket]).version != 6:
+                    return False
+            except ValueError:
+                return False
+            suffix = value[closing_bracket + 1:]
+            if not suffix:
+                return True
+            if not suffix.startswith(":"):
+                return False
+            port = suffix[1:]
+            return port.isdigit() and 1 <= int(port) <= 65535
+        if value.count(":") == 1:
+            host, port = value.rsplit(":", 1)
+            return (
+                ProtocolAvailabilityService._has_usable_host(host)
+                and port.isdigit()
+                and 1 <= int(port) <= 65535
+            )
+        if value.count(":") > 1:
+            try:
+                return ip_address(value).version == 6
+            except ValueError:
+                return False
+        return ProtocolAvailabilityService._has_usable_host(value)
+
+    @staticmethod
+    def _has_usable_host(value: str) -> bool:
+        try:
+            ip_address(value)
+            return True
+        except ValueError:
+            pass
+
+        hostname = value.rstrip(".")
+        if not hostname or len(hostname) > 253:
+            return False
+        return all(
+            re.fullmatch(r"(?!-)[A-Za-z0-9-]{1,63}(?<!-)", label) is not None
+            for label in hostname.split(".")
+        )
 
     @staticmethod
     def _naive_utc(value: datetime) -> datetime:
