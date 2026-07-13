@@ -1,5 +1,8 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.13)
+message(FATAL_ERROR
+  "SECUREWAVE_LINUX_BUILD_DISABLED: this historical baseline branch is not a Linux release source. Use codex/linux-runtime-final and see linux/DO_NOT_BUILD_OR_PACKAGE.md."
+)
 project(runner LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change

@@ -8,10 +8,28 @@ CONTRACT = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-wg-quic
 SERVICE = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-helper.service"
 TMPFILES = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-helper.tmpfiles"
 INSTALLER = ROOT / "securewave_app" / "scripts" / "install_linux_helper.sh"
+LINUX_CMAKE = ROOT / "securewave_app" / "linux" / "CMakeLists.txt"
+LINUX_BUILD_BLOCKER = (
+    ROOT / "securewave_app" / "linux" / "DO_NOT_BUILD_OR_PACKAGE.md"
+)
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def test_historical_baseline_cannot_build_or_package_linux():
+    cmake = _read(LINUX_CMAKE)
+    blocker = _read(LINUX_BUILD_BLOCKER)
+    sentinel = "SECUREWAVE_LINUX_BUILD_DISABLED"
+    canonical_branch = "codex/linux-runtime-final"
+
+    assert sentinel in cmake
+    assert canonical_branch in cmake
+    assert canonical_branch in blocker
+    assert "single source of truth" in blocker
+    assert cmake.index("cmake_minimum_required") < cmake.index(sentinel)
+    assert cmake.index(sentinel) < cmake.index("project(runner")
 
 
 def test_helper_contract_version_matches_daemon():
