@@ -113,6 +113,9 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         ("ip", "-6", "route", "show", "table", "51820"): CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""
         ),
+        ("iptables", "-S", "SECUREWAVE_ADBLOCK"): CompletedProcess(
+            args=[], returncode=0, stdout="-N SECUREWAVE_ADBLOCK\n", stderr=""
+        ),
         ("pgrep", "-af", "openvpn"): CompletedProcess(
             args=[], returncode=0, stdout="123 openvpn --config /tmp/securewave.ovpn\n", stderr=""
         ),
@@ -140,10 +143,31 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
     assert not checks["residue:wireguard_policy_rules"].ok
     assert not checks["residue:wireguard_policy_routes"].ok
     assert checks["residue:ikev2_pref_220_loop"].ok
+    assert not checks["residue:adblock_chain"].ok
+    assert "rules redacted" in checks["residue:adblock_chain"].detail
     assert not checks["residue:openvpn_process"].ok
     assert not checks["residue:ikev2_sa"].ok
     assert not checks["residue:ikev2_nm_connection"].ok
     assert not checks["residue:vpn_dns"].ok
+
+
+def test_residue_adblock_chain_passes_only_when_absent(monkeypatch):
+    def fake_run(argv):
+        if tuple(argv) == ("iptables", "-S", "SECUREWAVE_ADBLOCK"):
+            return CompletedProcess(
+                args=[],
+                returncode=1,
+                stdout="",
+                stderr="No chain/target/match by that name.",
+            )
+        return CompletedProcess(args=[], returncode=1, stdout="", stderr="unavailable")
+
+    monkeypatch.setattr(verifier, "_run", fake_run)
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert checks["residue:adblock_chain"].ok
+    assert checks["residue:adblock_chain"].detail == "SECUREWAVE_ADBLOCK chain absent"
 
 
 def test_verifier_paths_stay_inside_repo():

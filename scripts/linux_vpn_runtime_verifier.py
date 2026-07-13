@@ -52,6 +52,7 @@ HELPER_SOCKET_PATH = Path("/run/securewave/helper.sock")
 REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "setfacl")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
+ADBLOCK_CHAIN = "SECUREWAVE_ADBLOCK"
 EXPECTED_SECUREWAVE_HELPER_CONTRACT = 10
 
 
@@ -643,6 +644,17 @@ def check_residue() -> list[Check]:
             "no SecureWave WireGuard table 51820 routes"
             if table_route_ok
             else "\n".join(table_route_details),
+        )
+    )
+
+    adblock = _run(["iptables", "-S", ADBLOCK_CHAIN])
+    checks.append(
+        Check(
+            "residue:adblock_chain",
+            adblock.returncode != 0,
+            f"{ADBLOCK_CHAIN} chain absent"
+            if adblock.returncode != 0
+            else f"{ADBLOCK_CHAIN} chain still exists; rules redacted",
         )
     )
 
