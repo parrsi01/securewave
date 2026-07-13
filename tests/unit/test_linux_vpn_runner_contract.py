@@ -40,6 +40,19 @@ def test_runner_uses_helper_service_socket_without_connect_time_prompts():
     assert "g_spawn_async_with_pipes" not in source
 
 
+def test_runner_rejects_missing_malformed_and_outdated_helper_contracts():
+    source = _runner_source()
+
+    assert "const std::string contract_field" in source
+    assert "contract_end != contract_field.c_str()" in source
+    assert "*contract_end == '\\0'" in source
+    assert "contract_value <= G_MAXUINT" in source
+    assert "if (!contract_valid)" in source
+    assert "returned an invalid contract" in source
+    assert "if (contract < kSecureWaveHelperContractVersion)" in source
+    assert "contract > 0 && contract < kSecureWaveHelperContractVersion" not in source
+
+
 def test_runner_allows_probe_launch_when_installed_app_is_already_running():
     source = _runner_source()
 

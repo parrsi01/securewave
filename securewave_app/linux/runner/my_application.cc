@@ -266,13 +266,32 @@ static gboolean helper_request(const Fields& request,
 
   Fields parsed = parse_fields(response_body);
   const gboolean ok = field(parsed, "ok") == "true";
-  const guint contract = static_cast<guint>(
-      g_ascii_strtoull(field(parsed, "contract").c_str(), nullptr, 10));
+  const std::string contract_field = field(parsed, "contract");
+  gchar* contract_end = nullptr;
+  errno = 0;
+  const guint64 contract_value =
+      g_ascii_strtoull(contract_field.c_str(), &contract_end, 10);
+  const gboolean contract_valid =
+      !contract_field.empty() &&
+      errno == 0 &&
+      contract_end != contract_field.c_str() &&
+      contract_end != nullptr &&
+      *contract_end == '\0' &&
+      contract_value <= G_MAXUINT;
+  const guint contract =
+      contract_valid ? static_cast<guint>(contract_value) : 0;
   if (response != nullptr) {
     response->ok = ok;
     response->fields = parsed;
   }
-  if (contract > 0 && contract < kSecureWaveHelperContractVersion) {
+  if (!contract_valid) {
+    if (detail) {
+      *detail = g_strdup(
+          "SecureWave helper service returned an invalid contract. Reinstall SecureWave and retry.");
+    }
+    return FALSE;
+  }
+  if (contract < kSecureWaveHelperContractVersion) {
     if (detail) {
       *detail = g_strdup_printf(
           "SecureWave helper service is out of date (contract %u, need %u). Reinstall SecureWave and retry.",
