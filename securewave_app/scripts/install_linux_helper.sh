@@ -12,8 +12,10 @@ SOURCE_HELPER_DAEMON="$SOURCE_DIR/securewave-helperd"
 SOURCE_CONTRACT="$SOURCE_DIR/securewave-wg-quick.contract"
 SOURCE_SERVICE="$SOURCE_DIR/securewave-helper.service"
 SOURCE_TMPFILES="$SOURCE_DIR/securewave-helper.tmpfiles"
+SOURCE_STRONGSWAN_ROUTING="$SOURCE_DIR/securewave-strongswan-routing.conf"
 SERVICE_FILE="/etc/systemd/system/securewave-helper.service"
 TMPFILES_FILE="/usr/lib/tmpfiles.d/securewave-helper.conf"
+STRONGSWAN_ROUTING_FILE="/etc/strongswan.d/securewave-routing.conf"
 RUNTIME_GROUP="securewave"
 RUNTIME_DIR="/run/securewave"
 AUTH_DIR="/etc/securewave"
@@ -31,7 +33,7 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   die "This helper installer must be run as root. Use: sudo $0"
 fi
 
-for required in "$SOURCE_HELPER_SCRIPT" "$SOURCE_HELPER_DAEMON" "$SOURCE_CONTRACT" "$SOURCE_SERVICE" "$SOURCE_TMPFILES"; do
+for required in "$SOURCE_HELPER_SCRIPT" "$SOURCE_HELPER_DAEMON" "$SOURCE_CONTRACT" "$SOURCE_SERVICE" "$SOURCE_TMPFILES" "$SOURCE_STRONGSWAN_ROUTING"; do
   [[ -f "$required" ]] || die "Required SecureWave runtime payload missing: $required"
 done
 
@@ -67,6 +69,40 @@ install_apt_dependencies() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
   apt-get install -y "${packages[@]}"
+}
+
+find_strongswan_fwmark_conflict() {
+  local candidate
+  local candidates=()
+
+  [[ -f /etc/strongswan.conf ]] && candidates+=(/etc/strongswan.conf)
+  if [[ -d /etc/strongswan.d ]]; then
+    while IFS= read -r -d '' candidate; do
+      candidates+=("$candidate")
+    done < <(find /etc/strongswan.d -type f -name '*.conf' -print0)
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    [[ "$candidate" != "$STRONGSWAN_ROUTING_FILE" ]] || continue
+    if grep -Eq '^[[:space:]]*([^#[:space:]].*[.[:space:]])?fwmark[[:space:]]*=' "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+install_strongswan_routing_config() {
+  local conflict
+  if conflict="$(find_strongswan_fwmark_conflict)"; then
+    die "Existing strongSwan fwmark configuration conflicts with SecureWave: $conflict"
+  fi
+
+  install -d -o root -g root -m 0755 /etc/strongswan.d
+  install -m 0644 "$SOURCE_STRONGSWAN_ROUTING" "$STRONGSWAN_ROUTING_FILE"
+  if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+    systemctl try-restart strongswan-starter.service
+  fi
 }
 
 seed_user() {
@@ -128,6 +164,7 @@ install_systemd_service() {
 
 install_apt_dependencies
 ensure_runtime_group
+install_strongswan_routing_config
 
 info "Installing SecureWave privileged VPN helper service."
 install -d -m 0755 "$HELPER_DIR"

@@ -47,7 +47,7 @@ const char* kIkev2ConfigName = "securewave-ikev2.conf";
 const char* kIkev2CaName = "securewave-ikev2-ca.pem";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
 const char* kAdblockChainName = "SECUREWAVE_ADBLOCK";
-const guint kContractVersion = 11;
+const guint kContractVersion = 12;
 const gsize kMaxRequestBytes = 64 * 1024;
 
 struct CommandResult {
@@ -1048,8 +1048,8 @@ static CommandResult ReadXfrmState() {
   return RunCommand({"ip", "-s", "xfrm", "state"});
 }
 
-static CommandResult ReadIpRules() {
-  return RunCommand({"ip", "rule", "show"});
+static CommandResult ReadIpRules(const char* family) {
+  return RunCommand({"ip", family, "rule", "show"});
 }
 
 static bool Ikev2HasUnqualifiedPref220Rule(const std::string& output) {
@@ -1075,9 +1075,11 @@ static bool Ikev2RuntimeEvidence(std::string* xfrm_output = nullptr,
   if (xfrm_output) {
     *xfrm_output = xfrm.out;
   }
-  CommandResult rules = ReadIpRules();
+  CommandResult rules4 = ReadIpRules("-4");
+  CommandResult rules6 = ReadIpRules("-6");
   const bool routing_loop_rule =
-      rules.ok && Ikev2HasUnqualifiedPref220Rule(rules.out);
+      (rules4.ok && Ikev2HasUnqualifiedPref220Rule(rules4.out)) ||
+      (rules6.ok && Ikev2HasUnqualifiedPref220Rule(rules6.out));
   if (routing_loop_rule_present) {
     *routing_loop_rule_present = routing_loop_rule;
   }
@@ -1085,7 +1087,8 @@ static bool Ikev2RuntimeEvidence(std::string* xfrm_output = nullptr,
          Ikev2RouteOrDnsEvidence() &&
          xfrm.ok &&
          XfrmHasEsp(xfrm.out) &&
-         rules.ok &&
+         rules4.ok &&
+         rules6.ok &&
          !routing_loop_rule;
 }
 

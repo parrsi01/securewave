@@ -236,67 +236,55 @@ table_route_present() {
   ip -4 route show table 51820 | grep -q "^default dev ${iface}( |$)"
 }
 
-clear_ikev2_pref220_rules() {
-  while ip rule del pref 220 table 220 >/dev/null 2>&1; do :; done
-}
-
-other_active_vpn_exists() {
-  nmcli -t -f NAME,TYPE connection show --active 2>/dev/null |
-    awk -F: -v securewave="$CONNECTION_NAME" '$2 == "vpn" && $1 != securewave { found = 1 } END { exit found ? 0 : 1 }'
-}
-
-clear_ikev2_unqualified_rule() {
+clear_ikev2_unqualified_rule_family() {
+  local family="$1"
   local rules
-  local fwmark
-  local safe_fwmarks=()
+  local unsafe_count
+  local other_pref220_count
+  local remaining_count
 
-  rules="$(ip rule show 2>/dev/null || true)"
-  if ! grep -Eq '^220:[[:space:]]+from all lookup 220$' <<< "$rules"; then
-    return
+  if ! rules="$(ip "$family" rule show 2>/dev/null)"; then
+    echo "securewave-wg-quick: unable to inspect ${family} policy rules" >&2
+    return 1
   fi
 
-  while IFS= read -r fwmark; do
-    [[ -n "$fwmark" ]] || continue
-    safe_fwmarks+=("$fwmark")
-  done < <(
+  unsafe_count="$(
     printf '%s\n' "$rules" |
-      awk '$1 == "220:" && /lookup 220/ && /not/ {
-        for (i = 1; i <= NF; i++) {
-          if ($i == "fwmark" && !seen[$(i + 1)]++) {
-            print $(i + 1)
-          }
-        }
-      }'
-    )
+      awk '$0 ~ /^220:[[:space:]]+from all lookup 220$/ { count++ } END { print count + 0 }'
+  )"
+  (( unsafe_count > 0 )) || return 0
 
-  clear_ikev2_pref220_rules
+  other_pref220_count="$(
+    printf '%s\n' "$rules" |
+      awk '$1 == "220:" && /lookup 220/ && $0 !~ /^220:[[:space:]]+from all lookup 220$/ { count++ } END { print count + 0 }'
+  )"
+  if (( other_pref220_count > 0 )); then
+    echo "securewave-wg-quick: refusing to alter mixed ${family} pref-220 policy rules" >&2
+    return 1
+  fi
 
-  for fwmark in "${safe_fwmarks[@]}"; do
-    ip rule add pref 220 not fwmark "$fwmark" table 220 >/dev/null 2>&1 || true
+  while (( unsafe_count > 0 )); do
+    ip "$family" rule del pref 220 from all table 220
+    rules="$(ip "$family" rule show)"
+    remaining_count="$(
+      printf '%s\n' "$rules" |
+        awk '$0 ~ /^220:[[:space:]]+from all lookup 220$/ { count++ } END { print count + 0 }'
+    )"
+    if (( remaining_count >= unsafe_count )); then
+      echo "securewave-wg-quick: ${family} pref-220 rule reconciliation made no progress" >&2
+      return 1
+    fi
+    unsafe_count="$remaining_count"
   done
 }
 
-clear_ikev2_xfrm_routes() {
-  local route
-
-  while IFS= read -r route; do
-    [[ "$route" == *" dev nm-xfrm-"* ]] || continue
-    ip -4 route del table 220 $route >/dev/null 2>&1 || true
-  done < <(ip -4 route show table 220 2>/dev/null || true)
-
-  while IFS= read -r route; do
-    [[ "$route" == *" dev nm-xfrm-"* ]] || continue
-    ip -6 route del table 220 $route >/dev/null 2>&1 || true
-  done < <(ip -6 route show table 220 2>/dev/null || true)
+clear_ikev2_unqualified_rules() {
+  clear_ikev2_unqualified_rule_family -4
+  clear_ikev2_unqualified_rule_family -6
 }
 
 clear_ikev2_route_state() {
-  if other_active_vpn_exists; then
-    clear_ikev2_unqualified_rule
-  else
-    clear_ikev2_pref220_rules
-    clear_ikev2_xfrm_routes
-  fi
+  clear_ikev2_unqualified_rules
   ip route flush cache >/dev/null 2>&1 || true
 }
 
@@ -442,7 +430,7 @@ if [[ "$action" == "ikev2-up" ]]; then
   nmcli connection up id "$CONNECTION_NAME"
   status=$?
   set -e
-  clear_ikev2_unqualified_rule
+  clear_ikev2_unqualified_rules
   ip route flush cache >/dev/null 2>&1 || true
   exit "$status"
 fi

@@ -74,8 +74,9 @@ def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
     helperd = bundle / "packaging/linux/securewave-helperd"
     service = bundle / "packaging/linux/securewave-helper.service"
     tmpfiles = bundle / "packaging/linux/securewave-helper.tmpfiles"
+    strongswan_routing = bundle / "packaging/linux/securewave-strongswan-routing.conf"
     installer = bundle / "scripts/install_linux_helper.sh"
-    for path in (helper, contract, helperd, service, tmpfiles, installer):
+    for path in (helper, contract, helperd, service, tmpfiles, strongswan_routing, installer):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("x", encoding="utf-8")
 
@@ -86,8 +87,25 @@ def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
     assert checks["build:helper_service_payload"].ok
     assert checks["build:helper_tmpfiles_payload"].ok
     assert checks["build:helper_contract_payload"].ok
+    assert checks["build:strongswan_routing_payload"].ok
     assert checks["build:helper_installer_payload"].ok
     assert all(str(bundle) in check.detail for check in checks.values())
+
+
+def test_installed_strongswan_routing_config_must_match_source(monkeypatch, tmp_path):
+    source = tmp_path / "source.conf"
+    installed = tmp_path / "installed.conf"
+    source.write_text("fwmark = !0xdc\n", encoding="utf-8")
+    installed.write_text("fwmark = !0xdc\n", encoding="utf-8")
+    monkeypatch.setattr(verifier, "STRONGSWAN_ROUTING_SOURCE_PATH", source)
+    monkeypatch.setattr(verifier, "STRONGSWAN_ROUTING_CONFIG_PATH", installed)
+
+    assert verifier.check_strongswan_routing_install().ok
+
+    installed.write_text("fwmark = 0x99\n", encoding="utf-8")
+    check = verifier.check_strongswan_routing_install()
+    assert not check.ok
+    assert "differ" in check.detail
 
 
 def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
@@ -104,13 +122,22 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
             stdout="default dev sw-wg table 51820\n0.0.0.0/1 dev tun0\n128.0.0.0/1 dev tun0\n",
             stderr="",
         ),
-        ("ip", "rule", "show"): CompletedProcess(
+        ("ip", "-4", "rule", "show"): CompletedProcess(
             args=[], returncode=0, stdout="32765: from all lookup 51820\n", stderr=""
+        ),
+        ("ip", "-6", "rule", "show"): CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
         ),
         ("ip", "-4", "route", "show", "table", "51820"): CompletedProcess(
             args=[], returncode=0, stdout="default dev sw-wg\n", stderr=""
         ),
         ("ip", "-6", "route", "show", "table", "51820"): CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        ),
+        ("ip", "-4", "route", "show", "table", "220"): CompletedProcess(
+            args=[], returncode=0, stdout="default dev nm-xfrm-1\n", stderr=""
+        ),
+        ("ip", "-6", "route", "show", "table", "220"): CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""
         ),
         ("pgrep", "-af", "openvpn"): CompletedProcess(
@@ -136,7 +163,7 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         "helper_request",
         lambda fields: {
             "ok": "true",
-            "contract": "11",
+            "contract": "12",
             "present": "true",
         },
     )
@@ -149,6 +176,7 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
     assert not checks["residue:wireguard_policy_rules"].ok
     assert not checks["residue:wireguard_policy_routes"].ok
     assert checks["residue:ikev2_pref_220_loop"].ok
+    assert not checks["residue:ikev2_table_220_routes"].ok
     assert not checks["residue:adblock_chain"].ok
     assert "rules redacted" in checks["residue:adblock_chain"].detail
     assert not checks["residue:openvpn_process"].ok
@@ -167,7 +195,7 @@ def test_residue_adblock_chain_passes_only_when_absent(monkeypatch):
         "helper_request",
         lambda fields: {
             "ok": "true",
-            "contract": "11",
+            "contract": "12",
             "present": "false",
         },
     )
@@ -192,7 +220,7 @@ def test_residue_adblock_chain_fails_closed_when_helper_cannot_inspect(monkeypat
         lambda fields: {
             "ok": "false",
             "code": "inspection_failed",
-            "contract": "11",
+            "contract": "12",
             "message": "Unable to inspect legacy SecureWave adblock firewall state.",
         },
     )
@@ -214,13 +242,49 @@ def test_residue_adblock_chain_rejects_old_or_missing_helper_contract(monkeypatc
     monkeypatch.setattr(
         verifier,
         "helper_request",
-        lambda fields: {"ok": "true", "contract": "10", "present": "false"},
+        lambda fields: {"ok": "true", "contract": "11", "present": "false"},
     )
 
     checks = {check.name: check for check in verifier.check_residue()}
 
     assert not checks["residue:adblock_chain"].ok
     assert "could not be inspected safely" in checks["residue:adblock_chain"].detail
+
+
+def test_residue_detects_ipv6_unqualified_pref_220_rule(monkeypatch):
+    def fake_run(argv):
+        command = tuple(argv)
+        if command == ("ip", "-4", "rule", "show"):
+            return CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+        if command == ("ip", "-6", "rule", "show"):
+            return CompletedProcess(
+                args=argv,
+                returncode=0,
+                stdout="220:\tfrom all lookup 220\n",
+                stderr="",
+            )
+        if command[:2] == ("ip", "link"):
+            return CompletedProcess(args=argv, returncode=1, stdout="", stderr="missing")
+        if command in {
+            ("ip", "-4", "route", "show", "table", "51820"),
+            ("ip", "-6", "route", "show", "table", "51820"),
+            ("ip", "-4", "route", "show", "table", "220"),
+            ("ip", "-6", "route", "show", "table", "220"),
+        }:
+            return CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+        return CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(verifier, "_run", fake_run)
+    monkeypatch.setattr(
+        verifier,
+        "helper_request",
+        lambda fields: {"ok": "true", "contract": "12", "present": "false"},
+    )
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert not checks["residue:ikev2_pref_220_loop"].ok
+    assert "-6" in checks["residue:ikev2_pref_220_loop"].detail
 
 
 def test_verifier_paths_stay_inside_repo():
@@ -290,7 +354,7 @@ def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path
     check = verifier.check_installed_helper_contract()
 
     assert not check.ok
-    assert "required 11" in check.detail
+    assert "required 12" in check.detail
 
 
 def test_no_polkit_source_enforces_service_socket_model():

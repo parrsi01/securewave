@@ -8,6 +8,7 @@ CONTRACT = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-wg-quic
 SERVICE = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-helper.service"
 TMPFILES = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-helper.tmpfiles"
 INSTALLER = ROOT / "securewave_app" / "scripts" / "install_linux_helper.sh"
+STRONGSWAN_ROUTING = ROOT / "securewave_app" / "packaging" / "linux" / "securewave-strongswan-routing.conf"
 
 
 def _read(path: Path) -> str:
@@ -18,8 +19,8 @@ def test_helper_contract_version_matches_daemon():
     helperd = _read(HELPERD)
     contract = _read(CONTRACT).strip()
 
-    assert contract == "11"
-    assert "const guint kContractVersion = 11;" in helperd
+    assert contract == "12"
+    assert "const guint kContractVersion = 12;" in helperd
     assert 'kContractPath = "/usr/local/libexec/securewave-wg-quick.contract"' in helperd
 
 
@@ -43,6 +44,15 @@ def test_helper_daemon_inspects_legacy_adblock_chain_without_user_input():
     assert 'op == "firewall.adblock_status"' in helperd
     assert 'RequestFieldsAllowed(request, {"version", "op"})' in helperd
     assert '"inspection_failed"' in helperd
+
+
+def test_helper_daemon_checks_ikev2_loop_rules_in_both_address_families():
+    helperd = _read(HELPERD)
+
+    assert 'ReadIpRules("-4")' in helperd
+    assert 'ReadIpRules("-6")' in helperd
+    assert "rules4.ok &&" in helperd
+    assert "rules6.ok &&" in helperd
 
 
 def test_privileged_helper_script_restricts_inputs_and_protocol_actions():
@@ -72,7 +82,17 @@ def test_systemd_and_tmpfiles_define_no_prompt_helper_socket_model():
     assert "UMask=0077" in service
     assert "LockPersonality=yes" in service
     assert "RestrictSUIDSGID=yes" in service
+    assert "strongswan-starter.service" in service
     assert tmpfiles.strip() == "d /run/securewave 0750 root securewave -"
+
+
+def test_strongswan_routing_dropin_pairs_marks_for_both_daemons():
+    routing = _read(STRONGSWAN_ROUTING)
+
+    assert routing.count("fwmark = !0xdc") == 2
+    assert routing.count("fwmark = 0xdc") == 2
+    assert "charon {" in routing
+    assert "charon-nm {" in routing
 
 
 def test_install_helper_script_installs_payload_and_removes_old_polkit_rule():
@@ -89,3 +109,5 @@ def test_install_helper_script_installs_payload_and_removes_old_polkit_rule():
     assert 'rm -f "$OLD_POLKIT_RULE"' in installer
     assert "systemctl daemon-reload" in installer
     assert "systemctl enable --now securewave-helper.service" in installer
+    assert "find_strongswan_fwmark_conflict" in installer
+    assert "systemctl try-restart strongswan-starter.service" in installer

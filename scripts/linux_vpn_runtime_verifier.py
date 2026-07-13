@@ -49,11 +49,15 @@ HELPER_SERVICE_PATH = Path("/etc/systemd/system/securewave-helper.service")
 HELPER_TMPFILES_PATH = Path("/usr/lib/tmpfiles.d/securewave-helper.conf")
 HELPER_ALLOWLIST_PATH = Path("/etc/securewave/helper-users")
 HELPER_SOCKET_PATH = Path("/run/securewave/helper.sock")
+STRONGSWAN_ROUTING_CONFIG_PATH = Path("/etc/strongswan.d/securewave-routing.conf")
+STRONGSWAN_ROUTING_SOURCE_PATH = (
+    REPO_ROOT / "securewave_app/packaging/linux/securewave-strongswan-routing.conf"
+)
 REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "setfacl")
 WIREGUARD_INTERFACE = "sw-wg"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
 ADBLOCK_CHAIN = "SECUREWAVE_ADBLOCK"
-EXPECTED_SECUREWAVE_HELPER_CONTRACT = 11
+EXPECTED_SECUREWAVE_HELPER_CONTRACT = 12
 
 
 @dataclass(frozen=True)
@@ -177,6 +181,39 @@ def check_installed_helper_contract() -> Check:
         "privilege:securewave_helper_contract",
         ok,
         f"installed contract {installed}; required {EXPECTED_SECUREWAVE_HELPER_CONTRACT}",
+    )
+
+
+def check_strongswan_routing_install() -> Check:
+    if not STRONGSWAN_ROUTING_SOURCE_PATH.exists():
+        return Check(
+            "privilege:strongswan_routing_config",
+            False,
+            f"source payload missing: {STRONGSWAN_ROUTING_SOURCE_PATH}",
+        )
+    if not STRONGSWAN_ROUTING_CONFIG_PATH.exists():
+        return Check(
+            "privilege:strongswan_routing_config",
+            False,
+            f"{STRONGSWAN_ROUTING_CONFIG_PATH} not installed",
+        )
+    try:
+        matches = (
+            STRONGSWAN_ROUTING_CONFIG_PATH.read_bytes()
+            == STRONGSWAN_ROUTING_SOURCE_PATH.read_bytes()
+        )
+    except OSError as exc:
+        return Check(
+            "privilege:strongswan_routing_config",
+            False,
+            f"unable to inspect installed strongSwan routing config: {type(exc).__name__}",
+        )
+    return Check(
+        "privilege:strongswan_routing_config",
+        matches,
+        "installed strongSwan routing marks match the package payload"
+        if matches
+        else "installed strongSwan routing marks differ from the package payload",
     )
 
 
@@ -321,7 +358,7 @@ def check_runner_contract() -> list[Check]:
         "runner:openvpn_disconnect_op": '"openvpn.stop"',
         "runner:ikev2_connect_op": '"ikev2.start"',
         "runner:ikev2_disconnect_op": '"ikev2.stop"',
-        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 11",
+        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 12",
         "runner:no_implicit_mock": "securewave/vpn",
     }
     return [
@@ -358,6 +395,7 @@ def check_build_helper_payload() -> list[Check]:
         "build:helper_service_payload": bundle_dir / "packaging/linux/securewave-helper.service",
         "build:helper_tmpfiles_payload": bundle_dir / "packaging/linux/securewave-helper.tmpfiles",
         "build:helper_contract_payload": bundle_dir / "packaging/linux/securewave-wg-quick.contract",
+        "build:strongswan_routing_payload": bundle_dir / "packaging/linux/securewave-strongswan-routing.conf",
         "build:helper_installer_payload": bundle_dir / "scripts/install_linux_helper.sh",
     }
     return [
@@ -581,10 +619,19 @@ def check_residue() -> list[Check]:
         )
     )
 
-    rules = _run(["ip", "rule", "show"])
+    rules_by_family = {
+        family: _run(["ip", family, "rule", "show"])
+        for family in ("-4", "-6")
+    }
+    rules_ok = all(result.returncode == 0 for result in rules_by_family.values())
+    rule_lines = [
+        (family, line)
+        for family, result in rules_by_family.items()
+        for line in result.stdout.splitlines()
+    ]
     securewave_rules = [
-        line
-        for line in rules.stdout.splitlines()
+        (family, line)
+        for family, line in rule_lines
         if (
             "lookup 51820" in line
             or "table 51820" in line
@@ -594,9 +641,9 @@ def check_residue() -> list[Check]:
     checks.append(
         Check(
             "residue:wireguard_policy_rules",
-            rules.returncode == 0 and not securewave_rules,
+            rules_ok and not securewave_rules,
             "no SecureWave WireGuard policy rules"
-            if rules.returncode == 0 and not securewave_rules
+            if rules_ok and not securewave_rules
             else (
                 f"{len(securewave_rules)} WireGuard policy rules remain; details redacted"
                 if securewave_rules
@@ -606,20 +653,22 @@ def check_residue() -> list[Check]:
     )
 
     unqualified_pref_220 = [
-        line
-        for line in rules.stdout.splitlines()
-        if line.strip().startswith("220:")
-        and "from all" in line
-        and "lookup 220" in line
-        and "fwmark" not in line
+        (family, line)
+        for family, line in rule_lines
+        if " ".join(line.split()) == "220: from all lookup 220"
     ]
     checks.append(
         Check(
             "residue:ikev2_pref_220_loop",
-            rules.returncode == 0 and not unqualified_pref_220,
-            "no unqualified IKEv2 pref-220 routing-loop rule"
-            if rules.returncode == 0 and not unqualified_pref_220
-            else "unqualified IKEv2 pref-220 routing-loop rule remains",
+            rules_ok and not unqualified_pref_220,
+            "no unqualified IKEv2 pref-220 routing-loop rule in IPv4 or IPv6"
+            if rules_ok and not unqualified_pref_220
+            else (
+                "unqualified IKEv2 pref-220 routing-loop rule remains in "
+                + ", ".join(sorted({family for family, _ in unqualified_pref_220}))
+                if unqualified_pref_220
+                else "IPv4/IPv6 policy-rule inspection failed"
+            ),
         )
     )
 
@@ -644,6 +693,34 @@ def check_residue() -> list[Check]:
             "no SecureWave WireGuard table 51820 routes"
             if table_route_ok
             else "\n".join(table_route_details),
+        )
+    )
+
+    ikev2_table_220_routes: list[tuple[str, str]] = []
+    ikev2_table_220_ok = True
+    for family in ("-4", "-6"):
+        table_routes = _run(["ip", family, "route", "show", "table", "220"])
+        if table_routes.returncode != 0:
+            if "FIB table does not exist" in table_routes.stderr:
+                continue
+            ikev2_table_220_ok = False
+            continue
+        ikev2_table_220_routes.extend(
+            (family, line)
+            for line in table_routes.stdout.splitlines()
+            if " dev nm-xfrm-" in line
+        )
+    checks.append(
+        Check(
+            "residue:ikev2_table_220_routes",
+            ikev2_table_220_ok and not ikev2_table_220_routes,
+            "no nm-xfrm routes remain in IPv4 or IPv6 table 220"
+            if ikev2_table_220_ok and not ikev2_table_220_routes
+            else (
+                f"{len(ikev2_table_220_routes)} possible IKEv2 table-220 routes remain; details redacted"
+                if ikev2_table_220_routes
+                else "IPv4/IPv6 table-220 route inspection failed"
+            ),
         )
     )
 
@@ -796,6 +873,7 @@ def main() -> int:
         *check_tools(),
         *check_no_polkit_source(),
         check_installed_helper_contract(),
+        check_strongswan_routing_install(),
         *check_helper_service_install(),
         *check_helper_socket(),
         *check_helper_ipc(),

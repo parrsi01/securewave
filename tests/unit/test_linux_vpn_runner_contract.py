@@ -6,6 +6,7 @@ HELPER = Path("securewave_app/packaging/linux/securewave-wg-quick")
 HELPER_CONTRACT = Path("securewave_app/packaging/linux/securewave-wg-quick.contract")
 HELPER_SERVICE = Path("securewave_app/packaging/linux/securewave-helper.service")
 HELPER_TMPFILES = Path("securewave_app/packaging/linux/securewave-helper.tmpfiles")
+STRONGSWAN_ROUTING = Path("securewave_app/packaging/linux/securewave-strongswan-routing.conf")
 BUILD_DEB = Path("securewave_app/scripts/build_deb.sh")
 BUILD_APPS = Path("scripts/build_apps.sh")
 DOWNLOAD_INSTALLER = Path("static/downloads/install-linux.sh")
@@ -122,11 +123,12 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "prepare_owned_runtime_file" in helper
     assert 'prepare_owned_runtime_file "$pid_file" "pid" "$config"' in helper
     assert 'prepare_owned_runtime_file "$log_file" "log" "$config"' in helper
-    assert helper_contract == "11"
+    assert helper_contract == "12"
     assert "securewave-helper.service" in build
     assert "securewave-helper.tmpfiles" in build
     assert "securewave-helperd" in build
     assert "securewave-wg-quick.contract" in build
+    assert "securewave-strongswan-routing.conf" in build
     assert "systemctl enable --now securewave-helper.service" in build
     assert "done < /etc/passwd" not in build
     assert '"$HELPER" policy-clear-link sw-wg' in build
@@ -137,38 +139,55 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libstrongswan-extra-plugins, iproute2, iptables, acl, systemd" in build
     assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build
     assert "render_polkit_rule" not in build
+    assert "find_strongswan_fwmark_conflict" in build
+    assert "systemctl try-restart strongswan-starter.service" in build
+    assert "remove|purge" in build
 
 
-def test_ikev2_helper_cleans_only_unqualified_pref_220_loop_rule():
+def test_ikev2_helper_reconciles_only_unqualified_dual_stack_pref_220_rules():
     helper = HELPER.read_text(encoding="utf-8")
 
-    assert "clear_ikev2_unqualified_rule()" in helper
-    assert "clear_ikev2_pref220_rules()" in helper
+    assert "clear_ikev2_unqualified_rule_family()" in helper
+    assert "clear_ikev2_unqualified_rules()" in helper
     assert "clear_ikev2_route_state()" in helper
-    assert "other_active_vpn_exists()" in helper
-    assert "grep -Eq '^220:[[:space:]]+from all lookup 220$'" in helper
-    assert "ip rule del pref 220 table 220" in helper
-    assert 'ip rule add pref 220 not fwmark "$fwmark" table 220' in helper
+    assert "clear_ikev2_unqualified_rule_family -4" in helper
+    assert "clear_ikev2_unqualified_rule_family -6" in helper
+    assert 'ip "$family" rule del pref 220 from all table 220' in helper
+    assert "refusing to alter mixed ${family} pref-220 policy rules" in helper
+    assert "clear_ikev2_pref220_rules" not in helper
+    assert "clear_ikev2_xfrm_routes" not in helper
+    assert 'ip rule add pref 220 not fwmark "$fwmark" table 220' not in helper
     assert 'exec nmcli connection up id "$CONNECTION_NAME"' not in helper
 
-    rule_block = helper.split("clear_ikev2_unqualified_rule() {", 1)[1].split("clear_ikev2_xfrm_routes() {", 1)[0]
+    rule_block = helper.split("clear_ikev2_unqualified_rule_family() {", 1)[1].split("clear_ikev2_unqualified_rules() {", 1)[0]
     assert "ip rule del not fwmark" not in rule_block
+    assert 'awk \'$1 == "220:" && /lookup 220/' in rule_block
 
     route_state_block = helper.split("clear_ikev2_route_state() {", 1)[1].split("clear_policy_state() {", 1)[0]
-    assert "if other_active_vpn_exists; then" in route_state_block
-    assert "clear_ikev2_pref220_rules" in route_state_block
-    assert "clear_ikev2_unqualified_rule" in route_state_block
+    assert "clear_ikev2_unqualified_rules" in route_state_block
+    assert "route del table 220" not in route_state_block
 
     up_block = helper.split('if [[ "$action" == "ikev2-up" ]]; then', 1)[1].split("\nfi\n", 1)[0]
     assert up_block.count("clear_ikev2_route_state") == 1
-    assert "clear_ikev2_unqualified_rule" in up_block
+    assert "clear_ikev2_unqualified_rules" in up_block
     assert up_block.index("clear_ikev2_route_state") < up_block.index('nmcli connection up id "$CONNECTION_NAME"')
-    assert up_block.index("clear_ikev2_unqualified_rule") > up_block.index('nmcli connection up id "$CONNECTION_NAME"')
+    assert up_block.index("clear_ikev2_unqualified_rules") > up_block.index('nmcli connection up id "$CONNECTION_NAME"')
 
     down_block = helper.split('if [[ "$action" == "ikev2-down" ]]; then', 1)[1].split("\nfi\n", 1)[0]
     delete_block = helper.split('if [[ "$action" == "ikev2-delete" ]]; then', 1)[1].split("\nfi\n", 1)[0]
     assert "clear_ikev2_route_state" in down_block
     assert "clear_ikev2_route_state" in delete_block
+
+
+def test_strongswan_routing_payload_pairs_socket_and_inverted_route_marks():
+    routing = STRONGSWAN_ROUTING.read_text(encoding="utf-8")
+
+    assert routing.count("fwmark = !0xdc") == 2
+    assert routing.count("fwmark = 0xdc") == 2
+    assert "charon {" in routing
+    assert "charon-nm {" in routing
+    assert "kernel-netlink {" in routing
+    assert "socket-default {" in routing
 
 
 def test_linux_tarball_and_installer_are_truthful_portable_ui_builds():
@@ -203,6 +222,9 @@ def test_helper_installer_installs_service_socket_model():
     assert "SECUREWAVE_ALLOWED_USER" in helper_installer
     assert 'install -m 0755 "$SOURCE_HELPER_DAEMON" "$HELPER_DAEMON"' in helper_installer
     assert 'install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"' in helper_installer
+    assert 'install -m 0644 "$SOURCE_STRONGSWAN_ROUTING" "$STRONGSWAN_ROUTING_FILE"' in helper_installer
+    assert "find_strongswan_fwmark_conflict" in helper_installer
+    assert "systemctl try-restart strongswan-starter.service" in helper_installer
     assert "systemctl enable --now securewave-helper.service" in helper_installer
     assert "rm -f \"$OLD_POLKIT_RULE\"" in helper_installer
 
@@ -215,6 +237,7 @@ def test_flutter_linux_bundle_ships_deb_runtime_payload():
     assert "../packaging/linux/securewave-wg-quick.contract" in cmake
     assert "../packaging/linux/securewave-helper.service" in cmake
     assert "../packaging/linux/securewave-helper.tmpfiles" in cmake
+    assert "../packaging/linux/securewave-strongswan-routing.conf" in cmake
     assert "../scripts/install_linux_helper.sh" in cmake
     assert 'DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"' in cmake
     assert 'DESTINATION "${CMAKE_INSTALL_PREFIX}/scripts"' in cmake
@@ -231,4 +254,5 @@ def test_helper_service_owns_runtime_socket_path():
     assert "RuntimeDirectoryMode=0750" in service
     assert "NoNewPrivileges=yes" in service
     assert "UMask=0077" in service
+    assert "After=network-online.target NetworkManager.service strongswan-starter.service" in service
     assert "d /run/securewave 0750 root securewave -" in tmpfiles

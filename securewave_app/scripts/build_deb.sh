@@ -70,6 +70,7 @@ cp -f "$ROOT_DIR/packaging/linux/securewave-helper.service" "$staging_dir/usr/sh
 cp -f "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" "$staging_dir/usr/share/securewave/packaging/linux/securewave-helper.tmpfiles"
 cp -f "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" "$staging_dir/usr/lib/tmpfiles.d/securewave-helper.conf"
 cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
+cp -f "$ROOT_DIR/packaging/linux/securewave-strongswan-routing.conf" "$staging_dir/usr/share/securewave/packaging/linux/securewave-strongswan-routing.conf"
 chmod 0755 "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick" \
   "$staging_dir/usr/share/securewave/packaging/linux/securewave-helperd"
 
@@ -118,12 +119,41 @@ SOURCE_HELPERD=$SOURCE_DIR/securewave-helperd
 SOURCE_CONTRACT=$SOURCE_DIR/securewave-wg-quick.contract
 SOURCE_SERVICE=$SOURCE_DIR/securewave-helper.service
 SOURCE_TMPFILES=$SOURCE_DIR/securewave-helper.tmpfiles
+SOURCE_STRONGSWAN_ROUTING=$SOURCE_DIR/securewave-strongswan-routing.conf
 SERVICE_FILE=/etc/systemd/system/securewave-helper.service
 TMPFILES_FILE=/usr/lib/tmpfiles.d/securewave-helper.conf
+STRONGSWAN_ROUTING_FILE=/etc/strongswan.d/securewave-routing.conf
 RUNTIME_GROUP=securewave
 RUNTIME_DIR=/run/securewave
 AUTH_DIR=/etc/securewave
 AUTH_FILE=$AUTH_DIR/helper-users
+find_strongswan_fwmark_conflict() {
+  local candidate
+  local candidates=()
+  [[ -f /etc/strongswan.conf ]] && candidates+=(/etc/strongswan.conf)
+  if [[ -d /etc/strongswan.d ]]; then
+    while IFS= read -r -d '' candidate; do
+      candidates+=("$candidate")
+    done < <(find /etc/strongswan.d -type f -name '*.conf' -print0)
+  fi
+  for candidate in "${candidates[@]}"; do
+    [[ "$candidate" != "$STRONGSWAN_ROUTING_FILE" ]] || continue
+    if grep -Eq '^[[:space:]]*([^#[:space:]].*[.[:space:]])?fwmark[[:space:]]*=' "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+if conflict="$(find_strongswan_fwmark_conflict)"; then
+  echo "Existing strongSwan fwmark configuration conflicts with SecureWave: $conflict" >&2
+  exit 1
+fi
+install -d -o root -g root -m 0755 /etc/strongswan.d
+install -m 0644 "$SOURCE_STRONGSWAN_ROUTING" "$STRONGSWAN_ROUTING_FILE"
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  systemctl try-restart strongswan-starter.service
+fi
 install -d -m 0755 "$HELPER_DIR"
 install -m 0755 "$SOURCE_HELPER" "$HELPER"
 install -m 0755 "$SOURCE_HELPERD" "$HELPERD"
@@ -199,6 +229,14 @@ rm -f /usr/lib/tmpfiles.d/securewave-helper.conf
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
   systemctl daemon-reload >/dev/null 2>&1 || true
 fi
+case "${1:-}" in
+  remove|purge)
+    rm -f /etc/strongswan.d/securewave-routing.conf
+    if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+      systemctl try-restart strongswan-starter.service >/dev/null 2>&1 || true
+    fi
+    ;;
+esac
 rm -f /run/securewave/helper.sock
 rm -f /run/securewave/sw-wg.output-policy /run/securewave/sw-wg.endpoint-ips
 rmdir /run/securewave >/dev/null 2>&1 || true
