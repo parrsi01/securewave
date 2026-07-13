@@ -90,3 +90,57 @@ def test_device_registration_failure_does_not_leave_an_active_assignment(
     ).one()
     assert peer.is_active is False
     assert peer.server_id is None
+
+
+def test_device_profile_rotation_and_revocation_lifecycle(
+    client, auth_headers, test_vpn_server
+):
+    created = client.post(
+        "/api/vpn/devices",
+        headers=auth_headers,
+        json={
+            "name": "Certification Linux device",
+            "device_type": "linux",
+            "server_id": test_vpn_server.server_id,
+        },
+    )
+    assert created.status_code == status.HTTP_201_CREATED, created.text
+    device = created.json()
+    device_id = device["id"]
+    assert device["key_version"] == 1
+
+    first_profile = client.post(
+        "/api/vpn/profile",
+        headers=auth_headers,
+        json={"device_id": device_id, "server_id": test_vpn_server.server_id},
+    )
+    assert first_profile.status_code == status.HTTP_200_OK, first_profile.text
+    first_config = first_profile.json()["wireguard_config"]
+
+    rotated = client.post(
+        f"/api/vpn/devices/{device_id}/rotate-keys",
+        headers=auth_headers,
+    )
+    assert rotated.status_code == status.HTTP_200_OK, rotated.text
+    assert rotated.json()["key_version"] == 2
+
+    reconnected = client.post(
+        "/api/vpn/profile",
+        headers=auth_headers,
+        json={"device_id": device_id, "server_id": test_vpn_server.server_id},
+    )
+    assert reconnected.status_code == status.HTTP_200_OK, reconnected.text
+    assert reconnected.json()["wireguard_config"] != first_config
+
+    revoked = client.delete(
+        f"/api/vpn/devices/{device_id}",
+        headers=auth_headers,
+    )
+    assert revoked.status_code == status.HTTP_204_NO_CONTENT
+
+    blocked = client.post(
+        "/api/vpn/profile",
+        headers=auth_headers,
+        json={"device_id": device_id, "server_id": test_vpn_server.server_id},
+    )
+    assert blocked.status_code == status.HTTP_404_NOT_FOUND

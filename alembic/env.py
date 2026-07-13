@@ -4,9 +4,13 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 from alembic import context
-from utils.env_validation import load_environment_dotenv
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+# Import project-local configuration only after the repository root is on the
+# module path. This is required when Alembic runs from a container console
+# script whose initial sys.path contains /usr/local/bin rather than /app.
+from utils.env_validation import load_environment_dotenv  # noqa: E402
 
 # Load only the selected environment's dotenv file.
 load_environment_dotenv()
