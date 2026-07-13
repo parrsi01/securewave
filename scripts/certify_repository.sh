@@ -81,18 +81,25 @@ if command -v flutter >/dev/null 2>&1; then
   run_check "Flutter dependency resolution" bash -c 'cd securewave_app && flutter pub get'
   run_check "Flutter analyze" bash -c 'cd securewave_app && flutter analyze'
   run_check "Flutter tests" bash -c 'cd securewave_app && flutter test --reporter compact'
-  run_check "Flutter Linux release build" bash -c 'cd securewave_app && flutter build linux --release'
-  if command -v java >/dev/null 2>&1; then
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    run_check "Flutter Linux release build" bash -c \
+      'cd securewave_app && flutter build linux --release'
+  else
+    blocked "Flutter Linux release build requires a Linux host."
+  fi
+  if command -v java >/dev/null 2>&1 && \
+    [[ -n "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}" ]]; then
     run_check "Flutter Android debug build" bash -c \
       'cd securewave_app && flutter build apk --debug'
   else
-    blocked "Java is unavailable; the Flutter Android build was not run."
+    blocked "Java and an Android SDK are required for the Flutter Android build."
   fi
 else
   blocked "Flutter is unavailable; Flutter checks were not run."
 fi
 
-migration_db="$(mktemp --suffix=.sqlite)"
+migration_dir="$(mktemp -d -t securewave-certification)"
+migration_db="$migration_dir/certification.sqlite"
 if AUTO_CREATE_TABLES=false DATABASE_URL="sqlite:///$migration_db" \
   "$PYTHON_BIN" -m alembic upgrade head >/dev/null 2>&1; then
   echo "[PASS] fresh SQLite migration to head"
@@ -100,7 +107,7 @@ else
   echo "[FAIL] fresh SQLite migration to head" >&2
   FAILURES=$((FAILURES + 1))
 fi
-rm -f "$migration_db"
+rm -rf "$migration_dir"
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   run_check "Docker build check" docker build --check .
