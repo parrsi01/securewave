@@ -32,11 +32,11 @@ from services.vpn_peer_manager import get_peer_manager
 from services.vpn_server_service import VPNServerService
 from services.protocol_availability_service import ProtocolAvailabilityService
 from services.subscription_access import require_active_subscription
-from services.wireguard_server_manager import (
-    get_wireguard_server_manager,
-    server_connection_from_db,
+from services.wireguard_peer_lifecycle import (
+    WireGuardPeerSyncError,
+    confirm_peer_assignment,
+    revoke_peer_after_remote_removal,
 )
-from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn/devices", tags=["devices"])
@@ -77,29 +77,6 @@ def _require_wireguard_runtime_evidence(server: VPNServer) -> None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=readiness.reason or "WireGuard runtime evidence is unavailable.",
-        )
-
-
-async def _register_peer_or_raise(server: VPNServer, peer: WireGuardPeer) -> None:
-    """Confirm data-plane registration before any config-bearing response."""
-    if os.getenv("TESTING", "").lower() == "true" or os.getenv("WG_MOCK_MODE", "").lower() == "true":
-        return
-    try:
-        manager = get_wireguard_server_manager()
-        conn = server_connection_from_db(server)
-        success, _ = await manager.add_peer(conn, peer.public_key, peer.ipv4_address)
-    except Exception as exc:
-        logger.warning(
-            "WireGuard peer registration failed device_id=%s server_id=%s exception_type=%s",
-            peer.id,
-            server.server_id,
-            type(exc).__name__,
-        )
-        success = False
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="VPN peer registration could not be confirmed.",
         )
 
 
@@ -295,7 +272,9 @@ async def add_device(
     try:
         peer = peer_manager.create_peer(
             user=current_user,
-            server=server,
+            # Assignment is committed only after the remote server accepts
+            # this key; a DB row alone is never a usable tunnel assignment.
+            server=None,
             device_name=device_name,
             device_type=device_type,
             max_active_devices=device_limit,
@@ -303,12 +282,16 @@ async def add_device(
 
         if server:
             try:
-                await _register_peer_or_raise(server, peer)
-            except HTTPException:
+                peer = await confirm_peer_assignment(db, peer_manager, peer, server)
+            except WireGuardPeerSyncError as exc:
                 peer.server_id = None
                 peer.is_active = False
+                db.add(peer)
                 db.commit()
-                raise
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="VPN peer registration could not be confirmed.",
+                ) from exc
 
         return _device_response(peer)
 
@@ -439,23 +422,21 @@ async def set_device_server_preference(
             )
         _require_wireguard_runtime_evidence(server)
 
-    # Best-effort cleanup on old server to avoid stale peers.
-    if peer.server_id and (server is None or peer.server_id != server.id):
-        old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-        if old_server:
-            try:
-                manager = get_wireguard_server_manager()
-                conn = server_connection_from_db(old_server)
-                await manager.remove_peer(conn, peer.public_key)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to remove peer {peer.id} from server {old_server.server_id}: {e}"
-                )
-
-    peer.server_id = server.id if server else None
-    db.add(peer)
-    db.commit()
-    db.refresh(peer)
+    if server is None:
+        # Clearing a preference must not remove a currently working remote
+        # peer.  It only drops the local preference for future selection.
+        peer.server_id = None
+        db.add(peer)
+        db.commit()
+        db.refresh(peer)
+    else:
+        try:
+            peer = await confirm_peer_assignment(db, get_peer_manager(db), peer, server)
+        except WireGuardPeerSyncError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="VPN peer migration could not be confirmed.",
+            ) from exc
     return _device_response(peer)
 
 
@@ -488,21 +469,13 @@ async def revoke_device(
         )
 
     peer_manager = get_peer_manager(db)
-    if peer.server_id:
-        server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-        if server:
-            try:
-                manager = get_wireguard_server_manager()
-                conn = server_connection_from_db(server)
-                await manager.remove_peer(conn, peer.public_key)
-            except Exception as e:
-                logger.warning(
-                    "Peer removal failed device_id=%s server_id=%s exception_type=%s",
-                    peer.id,
-                    server.server_id,
-                    type(e).__name__,
-                )
-    success = peer_manager.revoke_peer(device_id)
+    try:
+        success = await revoke_peer_after_remote_removal(peer_manager, peer)
+    except WireGuardPeerSyncError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VPN peer removal could not be confirmed.",
+        ) from exc
 
     if not success:
         raise HTTPException(
@@ -568,25 +541,7 @@ async def get_device_config(
     peer_manager = get_peer_manager(db)
 
     try:
-        if peer.server_id != server.id:
-            if peer.server_id:
-                old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-                if old_server:
-                    try:
-                        manager = get_wireguard_server_manager()
-                        conn = server_connection_from_db(old_server)
-                        await manager.remove_peer(conn, peer.public_key)
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to remove peer {peer.id} from server {old_server.server_id}: {e}"
-                        )
-
-            peer.server_id = server.id
-            db.add(peer)
-            db.flush()
-
-        await _register_peer_or_raise(server, peer)
-        db.commit()
+        peer = await confirm_peer_assignment(db, peer_manager, peer, server)
 
         config = peer_manager.generate_config(peer, server)
         qr_bytes = peer_manager.generate_config_qr_code(peer, server)
@@ -656,28 +611,13 @@ async def download_device_config(
     _require_wireguard_runtime_evidence(server)
 
     peer_manager = get_peer_manager(db)
-    if peer.server_id != server.id:
-        if peer.server_id:
-            old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-            if old_server:
-                try:
-                    manager = get_wireguard_server_manager()
-                    conn = server_connection_from_db(old_server)
-                    await manager.remove_peer(conn, peer.public_key)
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to remove peer {peer.id} from server {old_server.server_id}: {e}"
-                    )
-
-        peer.server_id = server.id
-        db.add(peer)
-        db.flush()
     try:
-        await _register_peer_or_raise(server, peer)
-        db.commit()
-    except HTTPException:
-        db.rollback()
-        raise
+        peer = await confirm_peer_assignment(db, peer_manager, peer, server)
+    except WireGuardPeerSyncError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VPN peer registration could not be confirmed.",
+        ) from exc
     filename, config = peer_manager.generate_config_file(peer, server)
 
     return Response(
@@ -750,33 +690,29 @@ async def rotate_device_keys(
             detail="Device not found or revoked"
         )
 
-    peer_manager = get_peer_manager(db)
-    old_public_key = peer.public_key
-
     try:
-        updated_peer = peer_manager.rotate_peer_keys(device_id)
-
-        if (
-            updated_peer.server_id
-            and not demo_mode_enabled()
-            and not wg_mock_mode_enabled()
-            and os.getenv("TESTING", "").lower() != "true"
-        ):
-            server = db.query(VPNServer).filter(VPNServer.id == updated_peer.server_id).first()
-            if server:
-                try:
-                    manager = get_wireguard_server_manager()
-                    conn = server_connection_from_db(server)
-                    await manager.remove_peer(conn, old_public_key)
-                    await manager.add_peer(conn, updated_peer.public_key, updated_peer.ipv4_address)
-                except Exception as e:
-                    logger.warning(
-                        "Peer rotation sync deferred device_id=%s exception_type=%s",
-                        device_id,
-                        type(e).__name__,
-                    )
+        peer_manager = get_peer_manager(db)
+        server = peer.server
+        if server is None and peer.server_id:
+            server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+        if server is None:
+            updated_peer = peer_manager.rotate_peer_keys(device_id)
+        else:
+            updated_peer = await confirm_peer_assignment(
+                db,
+                peer_manager,
+                peer,
+                server,
+                rotate_keys=True,
+            )
 
         return _device_response(updated_peer)
+
+    except WireGuardPeerSyncError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VPN key rotation could not be confirmed.",
+        ) from exc
 
     except Exception as e:
         logger.error("Failed to rotate keys exception_type=%s", type(e).__name__)

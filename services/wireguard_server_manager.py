@@ -229,15 +229,28 @@ class WireGuardServerManager:
         Returns:
             Tuple of (healthy, message)
         """
+        healthy, _, message = await self.authenticated_health_check(conn)
+        return healthy, message
+
+    async def authenticated_health_check(
+        self,
+        conn: ServerConnection,
+    ) -> Tuple[bool, bool, str]:
+        """Return health plus whether the remote probe was authenticated.
+
+        A plain successful TCP/HTTP response is not sufficient evidence for
+        advertising a WireGuard server. HTTP management probes require a
+        configured API key and an accepted authenticated response; SSH probes
+        require the remote command itself to execute successfully.
+        """
         if not self.remote_operations_enabled():
-            return True, "WireGuard server probe simulated (local test/mock mode)"
+            return True, False, "WireGuard server probe simulated (local test/mock mode)"
 
         if conn.method == "http_api":
-            return await self._health_check_via_api(conn)
-        elif conn.method == "ssh":
-            return await self._health_check_via_ssh(conn)
-        else:
-            return False, f"Unknown communication method: {conn.method}"
+            return await self._authenticated_health_check_via_api(conn)
+        if conn.method == "ssh":
+            return await self._authenticated_health_check_via_ssh(conn)
+        return False, False, f"Unknown communication method: {conn.method}"
 
     # =========================================================================
     # HTTP API Implementation
@@ -341,6 +354,35 @@ class WireGuardServerManager:
         except Exception as e:
             logger.warning("Management API health check failed exception_type=%s", type(e).__name__)
             return False, "Management API unavailable"
+
+    async def _authenticated_health_check_via_api(
+        self,
+        conn: ServerConnection,
+    ) -> Tuple[bool, bool, str]:
+        api_key = conn.api_key or self.default_api_key
+        if not api_key:
+            return False, False, "Management API authentication is not configured"
+        try:
+            url = f"http://{conn.public_ip}:{conn.api_port}/health"
+            response = await self.http_client.get(
+                url,
+                headers={"X-API-Key": api_key},
+                timeout=10,
+            )
+            if response.status_code in (401, 403):
+                return False, False, "Management API authentication was rejected"
+            if response.status_code != 200:
+                return False, False, "Management API unavailable"
+            result = response.json()
+            return bool(result.get("healthy")), True, (
+                "Server healthy" if result.get("healthy") else "Server unhealthy"
+            )
+        except Exception as exc:
+            logger.warning(
+                "Authenticated management API health check failed exception_type=%s",
+                type(exc).__name__,
+            )
+            return False, False, "Management API unavailable"
 
     # =========================================================================
     # SSH Implementation
@@ -508,6 +550,17 @@ class WireGuardServerManager:
             return True, "Server healthy"
         else:
             return False, "Server unhealthy"
+
+    async def _authenticated_health_check_via_ssh(
+        self,
+        conn: ServerConnection,
+    ) -> Tuple[bool, bool, str]:
+        cmd = "sudo wg show wg0 > /dev/null 2>&1 && echo 'OK' || echo 'FAIL'"
+        success, stdout, _ = await self._run_ssh_command(conn, cmd)
+        if not success:
+            return False, False, "Server unhealthy"
+        healthy = stdout.strip() == "OK"
+        return healthy, True, "Server healthy" if healthy else "Server unhealthy"
 
 # Singleton instance
 _manager_instance: Optional[WireGuardServerManager] = None

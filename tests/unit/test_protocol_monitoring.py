@@ -77,6 +77,20 @@ def test_explicitly_unauthenticated_evidence_fails_closed():
     assert "protocol-specific" in readiness.reason
 
 
+def test_missing_authentication_evidence_fails_closed():
+    from services.protocol_availability_service import ProtocolAvailabilityService
+
+    server = _server()
+    now = datetime.utcnow()
+    server.protocol_runtime_evidence = {
+        "wireguard": {"healthy": True, "observed_at": now.isoformat()}
+    }
+
+    readiness = ProtocolAvailabilityService(now=now).evaluate(server, "wireguard")
+    assert readiness.enabled is False
+    assert "protocol-specific" in readiness.reason
+
+
 @pytest.mark.asyncio
 async def test_runtime_evidence_persistence_rolls_back(monkeypatch):
     import services.vpn_health_monitor as monitor_module
@@ -95,8 +109,8 @@ async def test_runtime_evidence_persistence_rolls_back(monkeypatch):
             self.rolled_back = True
 
     class FakeManager:
-        async def health_check(self, _connection):
-            return True, "private probe output"
+        async def authenticated_health_check(self, _connection):
+            return True, True, "private probe output"
 
     session = FailingSession()
     monkeypatch.setattr(monitor_module, "wg_mock_mode_enabled", lambda: False)

@@ -388,7 +388,7 @@ async def run_health_check(
     try:
         manager = get_wireguard_server_manager()
         conn = server_connection_from_db(server)
-        healthy, message = await manager.health_check(conn)
+        healthy, authenticated, message = await manager.authenticated_health_check(conn)
 
     except Exception as e:
         logger.error("Health check failed server_id=%s exception_type=%s", server_id, type(e).__name__)
@@ -405,7 +405,7 @@ async def run_health_check(
             healthy=False,
             observed_at=server.last_health_check,
             failure_reason="probe_exception",
-            authenticated=True,
+            authenticated=False,
         )
         try:
             db.commit()
@@ -433,7 +433,7 @@ async def run_health_check(
             healthy=healthy,
             observed_at=server.last_health_check,
             failure_reason="probe_failed" if not healthy else None,
-            authenticated=True,
+            authenticated=authenticated,
         )
         if healthy:
             server.health_status = "healthy"

@@ -1,10 +1,16 @@
 import asyncio
 import logging
+from datetime import datetime
 from typing import Optional
 
 from services.vpn_health_monitor import get_health_monitor
 from database.session import SessionLocal
+from models.wireguard_peer import WireGuardPeer
 from services.vpn_peer_manager import get_peer_manager
+from services.wireguard_peer_lifecycle import (
+    WireGuardPeerSyncError,
+    confirm_peer_assignment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +30,41 @@ class BackgroundTaskManager:
             try:
                 db = SessionLocal()
                 peer_manager = get_peer_manager(db)
-                rotated = peer_manager.rotate_all_due_keys()
+                due_peers = db.query(WireGuardPeer).filter(
+                    WireGuardPeer.is_active.is_(True),
+                    WireGuardPeer.is_revoked.is_(False),
+                    WireGuardPeer.next_key_rotation_at.isnot(None),
+                    WireGuardPeer.next_key_rotation_at <= datetime.utcnow(),
+                ).all()
+                rotated = 0
+                for peer in due_peers:
+                    try:
+                        if peer.server_id is None:
+                            peer_manager.rotate_peer_keys(peer.id)
+                        elif peer.server is None:
+                            raise WireGuardPeerSyncError(
+                                "Assigned WireGuard server is unavailable."
+                            )
+                        else:
+                            await confirm_peer_assignment(
+                                db,
+                                peer_manager,
+                                peer,
+                                peer.server,
+                                rotate_keys=True,
+                            )
+                        rotated += 1
+                    except WireGuardPeerSyncError:
+                        logger.warning(
+                            "Scheduled WireGuard key rotation was not confirmed device_id=%s",
+                            peer.id,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Scheduled WireGuard key rotation failed device_id=%s exception_type=%s",
+                            peer.id,
+                            type(exc).__name__,
+                        )
                 logger.info(f"Key rotation completed: {rotated} peers rotated")
             except Exception as e:
                 logger.warning(f"Key rotation failed: {e}")

@@ -108,7 +108,7 @@ class VPNHealthMonitor:
         observed_at = datetime.utcnow()
         healthy = False
         probe_exception = False
-        authenticated = not wg_mock_mode_enabled()
+        authenticated = False
         if server.supports_wireguard:
             try:
                 if wg_mock_mode_enabled():
@@ -116,7 +116,9 @@ class VPNHealthMonitor:
                 else:
                     manager = get_wireguard_server_manager()
                     connection = server_connection_from_db(server)
-                    healthy, _ = await manager.health_check(connection)
+                    healthy, authenticated, _ = await manager.authenticated_health_check(
+                        connection
+                    )
             except Exception as exc:
                 probe_exception = True
                 logger.warning(

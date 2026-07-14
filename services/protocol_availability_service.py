@@ -186,7 +186,10 @@ class ProtocolAvailabilityService:
         if (
             not isinstance(evidence, dict)
             or evidence.get("healthy") is not True
-            or evidence.get("authenticated", True) is not True
+            # Missing authentication is stale legacy metadata, not evidence
+            # that this authenticated control-plane probe reached a usable
+            # server runtime.
+            or evidence.get("authenticated") is not True
         ):
             return False
         observed_at = evidence.get("observed_at")
@@ -203,7 +206,11 @@ class ProtocolAvailabilityService:
 
     def _has_fresh_data_plane_evidence(self, server: VPNServer, protocol: str) -> bool:
         evidence = (server.protocol_runtime_evidence or {}).get(protocol)
-        if not isinstance(evidence, dict) or evidence.get("data_plane_healthy") is not True:
+        if (
+            not isinstance(evidence, dict)
+            or evidence.get("authenticated") is not True
+            or evidence.get("data_plane_healthy") is not True
+        ):
             return False
         observed_at = evidence.get("data_plane_observed_at") or evidence.get("observed_at")
         if not isinstance(observed_at, str):

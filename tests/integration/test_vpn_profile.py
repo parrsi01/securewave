@@ -24,7 +24,7 @@ def _create_free_server(db, *, server_id="profile-free-us-1", **overrides):
         health_status="healthy",
         last_health_check=observed_at,
         protocol_runtime_evidence={
-            "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+            "wireguard": {"healthy": True, "authenticated": True, "observed_at": observed_at.isoformat()}
         },
         max_connections=1000,
         current_connections=0,
@@ -49,6 +49,7 @@ def _ikev2_evidence(
 ):
     evidence = {
         "healthy": healthy,
+        "authenticated": True,
         "data_plane_healthy": data_plane_healthy,
         "observed_at": observed_at.isoformat(),
     }
@@ -167,9 +168,10 @@ class TestVpnProfileProvisioning:
             openvpn_endpoint="10.0.0.9",
             openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
             protocol_runtime_evidence={
-                "wireguard": {"healthy": True, "observed_at": datetime.utcnow().isoformat()},
+                "wireguard": {"healthy": True, "authenticated": True, "observed_at": datetime.utcnow().isoformat()},
                 "openvpn": {
                     "healthy": True,
+                    "authenticated": True,
                     "data_plane_healthy": True,
                     "observed_at": datetime.utcnow().isoformat(),
                 }
@@ -185,6 +187,39 @@ class TestVpnProfileProvisioning:
         server = resp.json()["servers"][0]
         assert server["supported_protocols"] == ["wireguard", "openvpn"]
         assert server["supports_ikev2"] is False
+
+    def test_server_inventory_does_not_advertise_unauthenticated_wireguard(
+        self, client, auth_headers, db
+    ):
+        _create_free_server(
+            db,
+            server_id="profile-unauthenticated-wireguard",
+            protocol_runtime_evidence={
+                "wireguard": {
+                    "healthy": True,
+                    "observed_at": datetime.utcnow().isoformat(),
+                }
+            },
+        )
+
+        response = client.get(
+            "/api/vpn/servers?device_type=linux", headers=auth_headers
+        )
+        assert response.status_code == status.HTTP_200_OK
+        server = response.json()["servers"][0]
+        assert server["supports_wireguard"] is False
+        assert "wireguard" not in server["supported_protocols"]
+
+        profile = client.post(
+            "/api/vpn/profile",
+            headers=auth_headers,
+            json={
+                "device_name": "No authenticated evidence",
+                "device_type": "linux",
+                "server_id": server["server_id"],
+            },
+        )
+        assert profile.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
     def test_linux_profile_includes_wg_quick_kill_switch_hooks(self, client, auth_headers, db):
         _create_free_server(db)
@@ -242,6 +277,7 @@ class TestVpnProfileProvisioning:
             protocol_runtime_evidence={
                 "openvpn": {
                     "healthy": True,
+                    "authenticated": True,
                     "data_plane_healthy": True,
                     "observed_at": datetime.utcnow().isoformat(),
                 }
@@ -289,6 +325,7 @@ class TestVpnProfileProvisioning:
             protocol_runtime_evidence={
                 "openvpn": {
                     "healthy": True,
+                    "authenticated": True,
                     "observed_at": datetime.utcnow().isoformat(),
                 }
             },
@@ -387,7 +424,7 @@ class TestVpnProfileProvisioning:
             "missing-protocol-evidence": None,
             "unhealthy-protocol-evidence": _ikev2_evidence(now, healthy=False),
             "missing-data-plane-health": {
-                "ikev2": {"healthy": True, "observed_at": now.isoformat()}
+                "ikev2": {"healthy": True, "authenticated": True, "observed_at": now.isoformat()}
             },
             "unhealthy-data-plane-health": _ikev2_evidence(
                 now,
@@ -598,7 +635,7 @@ class TestVpnProfileProvisioning:
             server_id="profile-future-evidence",
             last_health_check=future_at,
             protocol_runtime_evidence={
-                "wireguard": {"healthy": True, "observed_at": future_at.isoformat()}
+                "wireguard": {"healthy": True, "authenticated": True, "observed_at": future_at.isoformat()}
             },
         )
         future_response = client.post(
@@ -617,10 +654,12 @@ class TestVpnProfileProvisioning:
         _create_free_server(db, server_id="profile-registration-failure")
         import routes.vpn as vpn_routes
 
-        async def registration_failed(*_args, **_kwargs):
-            return False, "backend unavailable"
+        from services.wireguard_peer_lifecycle import WireGuardPeerSyncError
 
-        monkeypatch.setattr(vpn_routes, "register_peer_on_server", registration_failed)
+        async def registration_failed(*_args, **_kwargs):
+            raise WireGuardPeerSyncError("backend unavailable")
+
+        monkeypatch.setattr(vpn_routes, "confirm_peer_assignment", registration_failed)
         response = client.post(
             "/api/vpn/profile",
             json={"device_name": "Registration failure", "device_type": "linux"},
@@ -674,8 +713,8 @@ async def test_background_wireguard_probe_records_only_compact_runtime_evidence(
     )
 
     class FakeManager:
-        async def health_check(self, _connection):
-            return True, "sensitive manager output must not be persisted"
+        async def authenticated_health_check(self, _connection):
+            return True, True, "sensitive manager output must not be persisted"
 
     monkeypatch.setattr(monitor_module, "wg_mock_mode_enabled", lambda: False)
     monkeypatch.setattr(monitor_module, "get_wireguard_server_manager", lambda: FakeManager())

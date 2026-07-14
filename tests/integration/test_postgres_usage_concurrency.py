@@ -127,3 +127,74 @@ def test_postgres_concurrent_usage_sequence_has_single_winner():
             cleanup.commit()
         finally:
             cleanup.close()
+
+
+@pytest.mark.skipif(not POSTGRES_URL, reason="SECUREWAVE_TEST_POSTGRES_URL is required for PostgreSQL concurrency coverage")
+def test_postgres_concurrent_peer_issuance_reuses_device_and_keeps_keys_and_ips_unique():
+    """The profile peer allocator must serialize retries and distinct devices."""
+    from models.user import User
+    from models.wireguard_peer import WireGuardPeer
+    from services.hashing_service import hash_password
+    from services.vpn_peer_manager import VPNPeerManager
+
+    engine = create_engine(POSTGRES_URL, pool_pre_ping=True)
+    sessions = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    suffix = uuid.uuid4().hex[:12]
+    peer_ids: set[int] = set()
+    user_id = None
+
+    seed = sessions()
+    try:
+        user = User(
+            email=f"peer-race-{suffix}@example.com",
+            hashed_password=hash_password("RacePass123"),
+            email_verified=True,
+            is_active=True,
+        )
+        seed.add(user)
+        seed.commit()
+        user_id = user.id
+
+        def create_peer(device_name: str):
+            db = sessions()
+            try:
+                current_user = db.get(User, user_id)
+                assert current_user is not None
+                peer = VPNPeerManager(db).create_peer(
+                    current_user,
+                    device_name=device_name,
+                    max_active_devices=4,
+                    reuse_existing_device=True,
+                )
+                return peer.id, peer.public_key, peer.ipv4_address
+            finally:
+                db.close()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            duplicate_request_results = list(
+                pool.map(create_peer, ["Primary Linux", "Primary Linux"])
+            )
+        assert duplicate_request_results[0] == duplicate_request_results[1]
+        peer_ids.add(duplicate_request_results[0][0])
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            distinct_device_results = list(
+                pool.map(create_peer, ["Laptop A", "Laptop B"])
+            )
+        peer_ids.update(result[0] for result in distinct_device_results)
+        assert len({result[1] for result in distinct_device_results}) == 2
+        assert len({result[2] for result in distinct_device_results}) == 2
+        assert distinct_device_results[0][2] != duplicate_request_results[0][2]
+        assert distinct_device_results[1][2] != duplicate_request_results[0][2]
+    finally:
+        cleanup = sessions()
+        try:
+            if peer_ids:
+                cleanup.query(WireGuardPeer).filter(WireGuardPeer.id.in_(peer_ids)).delete(
+                    synchronize_session=False
+                )
+            if user_id is not None:
+                cleanup.query(User).filter(User.id == user_id).delete()
+            cleanup.commit()
+        finally:
+            cleanup.close()

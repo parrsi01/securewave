@@ -40,6 +40,11 @@ from services.wireguard_server_manager import (
     server_connection_from_db,
     ServerConnection,
 )
+from services.wireguard_peer_lifecycle import (
+    WireGuardPeerSyncError,
+    confirm_peer_assignment,
+    revoke_peer_after_remote_removal,
+)
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -623,7 +628,7 @@ async def list_servers(
             load_percent=round(load_percent, 1),
             status=server.status,
             health_status=server.health_status,
-            supports_wireguard=bool(server.supports_wireguard),
+            supports_wireguard=_server_supports_protocol(server, "wireguard"),
             supports_openvpn=bool(server.supports_openvpn),
             supports_ikev2=_server_supports_protocol(server, "ikev2"),
             supported_protocols=[
@@ -715,7 +720,7 @@ async def get_server(
         load_percent=round(load_percent, 1),
         status=server.status,
         health_status=server.health_status,
-        supports_wireguard=bool(server.supports_wireguard),
+        supports_wireguard=_server_supports_protocol(server, "wireguard"),
         supports_openvpn=bool(server.supports_openvpn),
         supports_ikev2=_server_supports_protocol(server, "ikev2"),
         supported_protocols=_server_supported_protocols(server),
@@ -908,76 +913,60 @@ async def provision_profile(
             device_name=device_name,
             device_type=device_type,
             max_active_devices=limit,
+            reuse_existing_device=True,
         )
 
-    # Optional key rotation
-    if payload.force_rotate_keys:
-        old_public_key = peer.public_key
-        peer = peer_manager.rotate_peer_keys(peer.id)
-        if peer.server_id:
-            old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-            if old_server:
-                try:
-                    manager = get_wireguard_server_manager()
-                    conn = server_connection_from_db(old_server)
-                    await manager.remove_peer(conn, old_public_key)
-                except Exception as e:
-                    logger.warning(
-                        "Peer rotation cleanup deferred device_id=%s exception_type=%s",
-                        peer.id,
-                        type(e).__name__,
-                    )
-
-    # Ensure peer is associated with selected server.
-    if peer.server_id != server.id:
-        # Best-effort remove old peer from old server.
-        if peer.server_id:
-            old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-            if old_server:
-                try:
-                    manager = get_wireguard_server_manager()
-                    conn = server_connection_from_db(old_server)
-                    await manager.remove_peer(conn, peer.public_key)
-                except Exception as e:
-                    logger.warning(
-                        "Old peer removal failed device_id=%s server_id=%s exception_type=%s",
-                        peer.id,
-                        old_server.server_id,
-                        type(e).__name__,
-                    )
-
-        peer.server_id = server.id
-        peer.is_active = True
-        db.add(peer)
-        db.commit()
-        db.refresh(peer)
-
-    # Register WireGuard peers before returning private-key-bearing material.
-    # Local DB state alone is not proof that the data plane accepted a peer.
     peer_registered = False
     registration_status: Optional[str] = None
     if protocol == "wireguard":
-        success, message = await register_peer_on_server(server, peer.public_key, peer.ipv4_address)
-        peer_registered = success
-        registration_status = "registered" if success else "registration_failed"
-        if not success:
-            # Keep the device for a retry, but do not retain an apparently
-            # active assignment that the data plane rejected.
-            peer.server_id = None
-            peer.is_active = False
-            db.add(peer)
-            db.commit()
+        # Confirm the target server before issuing private-key-bearing data.
+        # A migration or key rotation adds the new peer before removing the
+        # old peer and rolls back both local and remote state on failure.
+        try:
+            peer = await confirm_peer_assignment(
+                db,
+                peer_manager,
+                peer,
+                server,
+                rotate_keys=payload.force_rotate_keys,
+                auto_register=AUTO_REGISTER_PEERS,
+            )
+        except WireGuardPeerSyncError as exc:
+            # A newly created device has no previously working assignment;
+            # preserve it only as an inactive retry record. Existing devices
+            # retain their last confirmed assignment through the rollback.
+            if peer.server_id is None:
+                failed_peer = db.query(WireGuardPeer).filter(
+                    WireGuardPeer.id == peer.id
+                ).first()
+                if failed_peer and failed_peer.server_id is None:
+                    failed_peer.is_active = False
+                    db.add(failed_peer)
+                    db.commit()
             logger.warning(
-                "VPN profile issuance denied user_id=%s device_id=%s server_id=%s reason=%s",
+                "VPN profile issuance denied user_id=%s device_id=%s server_id=%s exception_type=%s",
                 current_user.id,
                 peer.id,
                 server.server_id,
-                type(message).__name__,
+                type(exc).__name__,
             )
             raise HTTPException(
-                status_code=503,
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="VPN peer registration could not be confirmed.",
-            )
+            ) from exc
+        peer_registered = True
+        registration_status = "registered"
+    else:
+        # Secondary protocol profiles keep the long-standing device record
+        # behavior, but never claim a WireGuard data-plane registration.
+        if payload.force_rotate_keys:
+            peer = peer_manager.rotate_peer_keys(peer.id)
+        if peer.server_id != server.id:
+            peer.server_id = server.id
+            peer.is_active = True
+            db.add(peer)
+            db.commit()
+            db.refresh(peer)
 
     wireguard_config = ""
     openvpn_config: Optional[str] = None
@@ -1308,11 +1297,7 @@ async def create_device(
     peer_manager = get_peer_manager(db)
 
     # Enforce device limits
-    from routes.devices import (
-        _register_peer_or_raise,
-        _require_wireguard_runtime_evidence,
-        get_device_limit,
-    )
+    from routes.devices import _require_wireguard_runtime_evidence, get_device_limit
     existing_peers = peer_manager.list_user_peers(current_user.id)
     active_count = len([p for p in existing_peers if p.is_active and not p.is_revoked])
     device_limit = get_device_limit(current_user, db)
@@ -1331,7 +1316,10 @@ async def create_device(
 
     peer = peer_manager.create_peer(
         user=current_user,
-        server=server,
+        # Keep the new device unassigned until the remote server confirms the
+        # key. This compatibility endpoint must follow the primary profile
+        # issuance contract as well.
+        server=None,
         device_name=payload.name,
         device_type=payload.device_type,
         max_active_devices=device_limit,
@@ -1339,12 +1327,22 @@ async def create_device(
 
     if server:
         try:
-            await _register_peer_or_raise(server, peer)
-        except HTTPException:
+            peer = await confirm_peer_assignment(
+                db,
+                peer_manager,
+                peer,
+                server,
+                auto_register=AUTO_REGISTER_PEERS,
+            )
+        except WireGuardPeerSyncError as exc:
             peer.server_id = None
             peer.is_active = False
+            db.add(peer)
             db.commit()
-            raise
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="VPN peer registration could not be confirmed.",
+            ) from exc
 
     return {
         "device_id": peer.id,
@@ -1372,23 +1370,16 @@ async def revoke_device(
     if peer.is_revoked:
         return {"device_id": peer.id, "status": "already_revoked"}
 
-    if peer.server_id:
-        server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-        if server:
-            try:
-                manager = get_wireguard_server_manager()
-                conn = server_connection_from_db(server)
-                await manager.remove_peer(conn, peer.public_key)
-            except Exception as e:
-                logger.warning(
-                    "Peer removal failed device_id=%s server_id=%s exception_type=%s",
-                    peer.id,
-                    server.server_id,
-                    type(e).__name__,
-                )
-
     peer_manager = get_peer_manager(db)
-    peer_manager.revoke_peer(peer.id)
+    try:
+        revoked = await revoke_peer_after_remote_removal(peer_manager, peer)
+    except WireGuardPeerSyncError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VPN peer removal could not be confirmed.",
+        ) from exc
+    if not revoked:
+        raise HTTPException(status_code=500, detail="Failed to revoke device")
     return {"device_id": peer.id, "status": "revoked"}
 
 

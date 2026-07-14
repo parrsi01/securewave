@@ -239,7 +239,7 @@ def test_vpn_server(db):
         health_status="healthy",
         last_health_check=observed_at,
         protocol_runtime_evidence={
-            "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+            "wireguard": {"healthy": True, "authenticated": True, "observed_at": observed_at.isoformat()}
         },
         hcloud_server_state="running",
         max_connections=1000,
@@ -260,7 +260,7 @@ def test_vpn_servers(db):
 
     observed_at = datetime.utcnow()
     runtime_evidence = {
-        "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+        "wireguard": {"healthy": True, "authenticated": True, "observed_at": observed_at.isoformat()}
     }
     servers_data = [
         {
