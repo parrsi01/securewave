@@ -13,8 +13,9 @@ native helper has created the expected tunnel state.
   authorization; connect/disconnect must not invoke `sudo` or `pkexec`.
 - `swanctl`, `ipsec`, NetworkManager, and NetworkManager-strongSwan installed
   before IKEv2 testing.
-- Live API URL defaults to `https://api.securewaveapp.com/api`; override with
-  `SECUREWAVE_API_BASE_URL` only for staging/local testing.
+- Supply an explicit authorized staging or loopback API URL with
+  `SECUREWAVE_API_BASE_URL`; certification proof refuses to select the
+  production API implicitly.
 - Real test account available. Do not add credentials to the repo.
 
 ## Startup

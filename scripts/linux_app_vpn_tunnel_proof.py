@@ -37,7 +37,7 @@ DEFAULT_AUTH_FILE = REPO_ROOT / "securewave_private" / "live_certification_accou
 SHARED_AUTH_RELATIVE_PATH = Path("securewave_private/live_certification_account.env")
 SUPPORTED_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
 DEFAULT_PROTOCOLS = SUPPORTED_PROTOCOLS
-DEFAULT_API_BASE = "https://api.securewaveapp.com/api"
+DEFAULT_API_BASE: str | None = None
 MINIMUM_HELPER_CONTRACT = 13
 RELEASE_PROBE_BUILD_TIMEOUT_SECONDS = 120
 PROCESS_TERMINATION_GRACE_SECONDS = 10
@@ -241,16 +241,27 @@ def _redact_sensitive_value(value: object, *, email: str, password: str) -> obje
     return value
 
 
-def _default_api_base() -> str:
-    return DEFAULT_API_BASE
+def _default_api_base() -> str | None:
+    return os.environ.get("SECUREWAVE_API_BASE_URL", "").strip() or None
 
 
 def _canonical_api_base(raw: str) -> str:
-    if raw.strip().rstrip("/") == DEFAULT_API_BASE:
-        return DEFAULT_API_BASE
-    raise argparse.ArgumentTypeError(
-        f"must remain {DEFAULT_API_BASE}; only the live production API can be certified"
-    )
+    value = raw.strip().rstrip("/")
+    parsed = urllib.parse.urlsplit(value)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise argparse.ArgumentTypeError(
+            "must be an explicit local or staging HTTP(S) API base"
+        )
+    if parsed.scheme == "http" and host not in {"localhost", "127.0.0.1", "::1"}:
+        raise argparse.ArgumentTypeError(
+            "plain HTTP is allowed only for loopback local staging"
+        )
+    if host == "api.securewaveapp.com":
+        raise argparse.ArgumentTypeError(
+            "production API certification is blocked; provide an authorized staging or loopback API base"
+        )
+    return value
 
 
 def _sanitized_build_environment() -> dict[str, str]:
@@ -379,7 +390,12 @@ def _build_probe_environment(
 ) -> dict[str, str]:
     auth_mode = _login_auth_mode(auth_mode)
     use_mock_api = _disabled_mock_api(use_mock_api)
-    api_base = _canonical_api_base(api_base or DEFAULT_API_BASE)
+    raw_api_base = api_base or _default_api_base()
+    if not raw_api_base:
+        raise ValueError(
+            "an explicit --api-base or SECUREWAVE_API_BASE_URL is required; production is never selected implicitly"
+        )
+    api_base = _canonical_api_base(raw_api_base)
     env = {
         name: value
         for name, value in os.environ.items()
@@ -614,12 +630,18 @@ def _cleanup_protocol_residue(protocol: str) -> list[dict[str, object]]:
 
 
 def _health_url(api_base: str | None) -> str:
-    return (api_base or DEFAULT_API_BASE).rstrip("/") + "/health"
+    return (api_base or "").rstrip("/") + "/health"
 
 
 def _backend_health_evidence(
     api_base: str | None, *, timeout: float = 15.0
 ) -> dict[str, object]:
+    if not api_base:
+        return {
+            "ok": False,
+            "error_kind": "api_base_required",
+            "error": "an explicit local or staging API base is required",
+        }
     url = _health_url(api_base)
     if timeout <= 0:
         return {
@@ -2215,8 +2237,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--api-base",
-        type=_canonical_api_base,
-        default=DEFAULT_API_BASE,
+        help="Explicit authorized staging or loopback API base; production is blocked.",
     )
     parser.add_argument(
         "--auth-file",
@@ -2238,6 +2259,10 @@ def main() -> int:
     parser.add_argument("--evidence-timeout", type=_positive_int, default=180)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
+    try:
+        args.api_base = _canonical_api_base(args.api_base or _default_api_base() or "")
+    except argparse.ArgumentTypeError as exc:
+        parser.error(str(exc))
 
     credential_values: dict[str, str] = {}
     auth_file_path = _credential_file_path(args.auth_file)

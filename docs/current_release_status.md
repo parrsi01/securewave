@@ -1,22 +1,23 @@
 # SecureWave - Current Release Status
 
-Last audited: 2026-07-13 UTC
+Last audited: 2026-07-14 UTC
 
 ## Candidate under certification
 
 - Branch: `codex/linux-runtime-final`
 - Base: `origin/master` at `b2c69ade88a6d7d96a1478f792c39ec793888fac`
-- Application/package version: `4.0.0+2`
-- Local ARM64 package: pending the Phase 3 rebuild
-- Local ARM64 package SHA-256: pending the Phase 3 rebuild
+- Application/package version: `4.0.0+3`
+- Local ARM64 package: `securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb`
+- Local ARM64 package SHA-256: `2d4118bcb6eed30806798030388647eccc84323c37b30a9e329bb8a015d29d68`
 - No artifact was published, signed, or deployed by this certification.
 
 ## Protocol truth
 
 WireGuard is the primary Linux protocol. The normal Flutter -> backend profile ->
 helper IPC path is implemented. The candidate source and release bundle require
-helper contract 13; the installed host remains on contract 10 until the Phase 3
-package reinstall, so current runtime checks are intentionally fail-closed.
+helper contract 13. The local host has contract 13 in its existing helper
+installation, but the rebuilt package has not been installed because administrator
+authorization was unavailable; fresh package-install proof remains outstanding.
 
 OpenVPN remains unavailable unless both backend server evidence and fresh
 data-plane evidence are usable. Local helper capability alone does not enable it.
@@ -31,6 +32,9 @@ green. No unsupported protocol is presented as release-ready.
   Flutter suites.
 - Fresh and repeatable Alembic migrations pass on SQLite and disposable
   PostgreSQL; the PostgreSQL usage concurrency test passes.
+- The documented infrastructure target is Hetzner Cloud, with managed
+  PostgreSQL and Redis; no provider or production endpoint was contacted by
+  this local certification.
 - Compose app/PostgreSQL/Redis health and migration checks pass with a production-
   style environment that does not inherit production dotenv settings.
 - The candidate package definition includes the helper daemon, wrapper, contract
@@ -40,6 +44,10 @@ green. No unsupported protocol is presented as release-ready.
 - The release Flutter binary starts on this Linux host. The headless graphics
   environment emits Mesa cursor/driver warnings; no crash was observed during the
   bounded run.
+- Real interface, handshake, endpoint-bypass, IPv4/IPv6 route, DNS, HTTPS,
+  exit-IP, counter, disconnect, upgrade, purge, and residue evidence requires an
+  explicitly authorized staging account and an installed package. It was not
+  claimed from local mocks or helper capability probes.
 
 ## Artifact and platform limits
 
@@ -63,9 +71,8 @@ release commands must not instruct users to treat a feature branch as canonical.
 
 ```bash
 cd /path/to/securewave-linux-runtime-final
-deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+2_arm64.deb"
-# Insert the SHA-256 recorded by the Phase 3 rebuild before installing.
-echo "<phase-3-sha256>  $deb" | sha256sum -c -
+deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb"
+echo "2d4118bcb6eed30806798030388647eccc84323c37b30a9e329bb8a015d29d68  $deb" | sha256sum -c -
 sudo apt install "$deb"
 systemctl is-enabled securewave-helper.service
 systemctl is-active securewave-helper.service

@@ -8,6 +8,9 @@ import pytest
 from scripts import linux_app_vpn_tunnel_proof as proof
 
 
+TEST_API_BASE = "https://staging.example.test/api"
+
+
 def _passing_network_gates(monkeypatch):
     monkeypatch.setattr(
         proof,
@@ -815,18 +818,21 @@ def test_redact_email_keeps_domain_only():
     assert proof._redact_email("not-an-email") == "configured"
 
 
-def test_default_api_base_uses_live_api_when_env_missing(monkeypatch):
+def test_default_api_base_requires_explicit_environment_value(monkeypatch):
     monkeypatch.delenv("SECUREWAVE_API_BASE_URL", raising=False)
 
-    assert proof._default_api_base() == "https://api.securewaveapp.com/api"
+    assert proof._default_api_base() is None
 
 
-def test_default_api_base_ignores_nonproduction_environment_override(monkeypatch):
-    monkeypatch.setenv("SECUREWAVE_API_BASE_URL", "http://localhost:8000/api")
+def test_default_api_base_accepts_explicit_staging_and_loopback_only(monkeypatch):
+    monkeypatch.setenv("SECUREWAVE_API_BASE_URL", TEST_API_BASE)
 
-    assert proof._default_api_base() == proof.DEFAULT_API_BASE
+    assert proof._default_api_base() == TEST_API_BASE
+    assert proof._canonical_api_base(
+        "http://127.0.0.1:9443/api"
+    ) == "http://127.0.0.1:9443/api"
     with pytest.raises(argparse.ArgumentTypeError, match="production API"):
-        proof._canonical_api_base("http://localhost:8000/api")
+        proof._canonical_api_base("https://api.securewaveapp.com/api")
 
 
 def test_backend_health_probe_disables_inherited_proxies(monkeypatch):
@@ -864,10 +870,10 @@ def test_backend_health_probe_disables_inherited_proxies(monkeypatch):
         lambda *args, **kwargs: pytest.fail("direct urlopen must not be used"),
     )
 
-    evidence = proof._backend_health_evidence(proof.DEFAULT_API_BASE, timeout=3)
+    evidence = proof._backend_health_evidence(TEST_API_BASE, timeout=3)
 
     assert evidence["ok"] is True
-    assert opened == [(f"{proof.DEFAULT_API_BASE}/health", 3)]
+    assert opened == [(f"{TEST_API_BASE}/health", 3)]
 
 
 def test_release_probe_command_executes_prebuilt_binary_without_flutter_args():
@@ -909,7 +915,7 @@ def test_probe_values_are_passed_in_minimal_runtime_environment(monkeypatch):
         auth_mode="login",
         server_id="server-1",
         hold_seconds=12,
-        api_base=proof.DEFAULT_API_BASE,
+        api_base=TEST_API_BASE,
         use_mock_api="false",
     )
 
@@ -919,7 +925,7 @@ def test_probe_values_are_passed_in_minimal_runtime_environment(monkeypatch):
     assert environment["SECUREWAVE_RUNTIME_PROBE_PASSWORD"] == "runtime-secret"
     assert environment["SECUREWAVE_RUNTIME_PROBE_PROTOCOL"] == "wireguard"
     assert environment["SECUREWAVE_RUNTIME_PROBE_SERVER_ID"] == "server-1"
-    assert environment["SECUREWAVE_API_BASE_URL"] == proof.DEFAULT_API_BASE
+    assert environment["SECUREWAVE_API_BASE_URL"] == TEST_API_BASE
     assert "runtime-secret" not in " ".join(
         proof._build_probe_command(Path("/tmp/securewave_app"))
     )
@@ -1901,7 +1907,7 @@ def _run_protocol_with_timed_hold(
         server_id=None,
         hold_seconds=60,
         evidence_timeout=180,
-        api_base=proof.DEFAULT_API_BASE,
+        api_base=TEST_API_BASE,
         use_mock_api="false",
     )
     return result, evidence_calls, timeline
@@ -2043,7 +2049,7 @@ def test_run_protocol_fails_when_post_disconnect_verifier_fails(monkeypatch):
         server_id=None,
         hold_seconds=60,
         evidence_timeout=180,
-        api_base=proof.DEFAULT_API_BASE,
+        api_base=TEST_API_BASE,
         use_mock_api="false",
     )
 
@@ -2111,7 +2117,12 @@ def _prepare_main_test(monkeypatch, tmp_path, protocols):
     monkeypatch.setattr(proof, "_build_release_probe", fake_build_release)
     monkeypatch.setattr(proof, "_probe_binary_path", fake_probe_binary)
     monkeypatch.setattr(proof, "_remove_probe_workspace", fake_remove_workspace)
-    argv = ["linux_app_vpn_tunnel_proof.py", "--json"]
+    argv = [
+        "linux_app_vpn_tunnel_proof.py",
+        "--json",
+        "--api-base",
+        TEST_API_BASE,
+    ]
     for protocol in protocols:
         argv.extend(["--protocol", protocol])
     monkeypatch.setattr(proof.sys, "argv", argv)
