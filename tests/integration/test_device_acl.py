@@ -97,8 +97,11 @@ def test_device_profile_rotation_and_revocation_lifecycle(
 ):
     import routes.devices as device_routes
 
+    remote_sync_attempted = []
+
     def fail_if_remote_sync_is_attempted():
-        pytest.fail("local test lifecycle attempted remote WireGuard synchronization")
+        remote_sync_attempted.append(True)
+        raise RuntimeError("local test lifecycle attempted remote WireGuard synchronization")
 
     monkeypatch.setattr(
         device_routes,
@@ -133,6 +136,7 @@ def test_device_profile_rotation_and_revocation_lifecycle(
     )
     assert rotated.status_code == status.HTTP_200_OK, rotated.text
     assert rotated.json()["key_version"] == 2
+    assert not remote_sync_attempted
 
     reconnected = client.post(
         "/api/vpn/profile",
