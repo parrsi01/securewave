@@ -120,10 +120,10 @@ the exact source revision also has authorized live protocol proof.
 
 The current contract-13 workflow evidence is:
 
-- Source head: `29174a55cf5c6b493344b89c6edabd1be3818927`
-- Workflow run: `29339889834`
+- Source head: `b45b093b4969a0ff3e8c27b0011ebf30a4d6070c`
+- Workflow run: `29348489573`
 - SHA-256:
-  `157a1f8f270b9147fa9796212ead4ad683ac23ba2a4ea24d9a706ab44d7f7bcf`
+  `4d1733bd5a9e0d23806543fe36956feb7766e7ea101342270ea9f09d0f1aa80e`
 
 The run passed amd64 ELF and contract-13 checks, dependency and helper payload
 checks, ephemeral install/service/socket verification, structural verifier,
@@ -131,46 +131,13 @@ bounded application launch, purge, and SecureWave-owned networking residue
 checks. Keep the artifact private: live authenticated WireGuard/OpenVPN/IKEv2
 data-plane proof and a clean VM are still required.
 
-## Referenced historical build
+## Superseded evidence
 
-The prior x64 build reference for this certification pass is:
-
-- Source head: `9243c862f08049cc583e4c94232fb44bd44f407e`
-- Workflow run: `29261131617`
-- Expected SHA-256:
-  `c51616246415d405a45305d923332f989c0fa71c6b01ddc99ed86f3d0ea394c9`
-
-This reference proves an x86_64 build, package metadata, helper payload, and
-contract-10 packaging checks for the reviewed source head. It does not prove
-clean installation, systemd socket use, or live routing. Download it only as
-private evidence; the public manifest intentionally keeps the package
-`coming_soon`.
-
-```bash
-rm -rf /tmp/securewave-x64-29261131617
-gh run download 29261131617 \
-  --dir /tmp/securewave-x64-29261131617
-deb="$(find /tmp/securewave-x64-29261131617 -type f -name '*.deb' -print -quit)"
-test -n "$deb"
-echo "c51616246415d405a45305d923332f989c0fa71c6b01ddc99ed86f3d0ea394c9  $deb" | sha256sum -c -
-dpkg-deb --field "$deb" Architecture
-dpkg-deb --contents "$deb"
-```
-
-Extract and inspect the helper contract before installation:
-
-```bash
-tmp="$(mktemp -d)"
-dpkg-deb -x "$deb" "$tmp"
-cat "$tmp/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
-rm -rf "$tmp"
-```
-
-The reviewed runtime requires contract `13`. Workflow run `29261131617` remains
-historical contract-10 build evidence and is not compatible with the current
-runtime. Trigger the workflow on the exact contract-13 branch head before any
-clean-VM certification. Do not promote the package or change its `coming_soon`
-status from build/lifecycle evidence alone.
+Pre-contract-13 package evidence is intentionally excluded from this runbook.
+It is not compatible with the current helper/runtime and must not be downloaded,
+installed, or used for release decisions. Trigger this workflow on the exact
+current `codex/linux-runtime-final` head and record only that artifact's source
+SHA, checksum, and lifecycle evidence.
 
 ## Clean x86_64 VM certification
 

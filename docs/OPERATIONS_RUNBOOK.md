@@ -1,9 +1,10 @@
 # SecureWave Linux Support and Certification Runbook
 
-`master` is canonical. Run certification from a clean worktree based on updated
-`origin/master` or from the focused review branch named in the certification
-report. Never place credentials, raw VPN profiles, private keys, or unredacted
-public/internal addresses in the repository or captured logs.
+Run this certification from the checked-out `codex/linux-runtime-final` worktree
+at the exact source head recorded in the current release status. Do not use the
+sibling `/home/sp/cyber-course/projects/securewave` worktree. Never place
+credentials, raw VPN profiles, private keys, or unredacted public/internal
+addresses in the repository or captured logs.
 
 ## Daily control-plane checks
 

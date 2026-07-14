@@ -1,6 +1,7 @@
 # SecureWave Repository Certification Report
 
-Last audited: 2026-07-11 UTC
+Last audited: 2026-07-14 UTC; current Linux certification is tracked on
+`codex/linux-runtime-final`.
 
 ## Verdict
 
@@ -11,7 +12,7 @@ does not treat blocked platform or live-runtime evidence as a pass.
 Audit basis:
 
 - Base: `origin/master` at `5fc8dc7d` (PRs #26 and #27 merged)
-- Branch: `codex/repository-security-certification`
+- Branch: `codex/linux-runtime-final`
 - Host: Linux ARM64
 - Rebased after the merged backend/API and VPN-runtime changes. Conflicts were
   resolved by preserving the migration entrypoint, runtime imports, token

@@ -39,10 +39,10 @@
       "filename": "securewave-linux-x64.deb",
       "url": "#",
       "status": "coming_soon",
-      "evidence_url": "https://github.com/parrsi01/securewave/actions/runs/29261131617",
+      "evidence_url": "https://github.com/parrsi01/securewave/actions/runs/29348489573",
       "evidence_label": "GitHub Actions build evidence",
-      "checksum_sha256": "c51616246415d405a45305d923332f989c0fa71c6b01ddc99ed86f3d0ea394c9",
-      "notes": "GitHub Actions build evidence from the reviewed source head is available for an amd64 .deb with helper payload and dependency metadata. The package remains unpublished until clean x86_64 VM install, helper service, socket, uninstall, and live VPN runtime proof are complete."
+      "checksum_sha256": "4d1733bd5a9e0d23806543fe36956feb7766e7ea101342270ea9f09d0f1aa80e",
+      "notes": "GitHub Actions build evidence from source head b45b093b is available for an amd64 .deb with contract-13 helper payload, dependencies, ephemeral lifecycle, and cleanup checks. The package remains unpublished until clean x86_64 VM install and live VPN runtime proof are complete."
     },
     {
       "platform": "linux",

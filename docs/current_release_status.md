@@ -5,10 +5,11 @@ Last audited: 2026-07-14 UTC
 ## Candidate under certification
 
 - Branch: `codex/linux-runtime-final`
+- Source head: `b45b093b4969a0ff3e8c27b0011ebf30a4d6070c`
 - Base: `origin/master` at `b2c69ade88a6d7d96a1478f792c39ec793888fac`
 - Application/package version: `4.0.0+3`
 - Local ARM64 package: `securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb`
-- Local ARM64 package SHA-256: `4476553ad8578541c6bc0f12ab0e234e6b7f99767439443999ed156c1f56bbea`
+- Local ARM64 package SHA-256: `bc6c47e209138567e4f07d8e24b681cd3195b33d6dec8d036f0a916f6b20e909`
 - No artifact was published, signed, or deployed by this certification.
 
 ## Protocol truth
@@ -31,7 +32,8 @@ green. No unsupported protocol is presented as release-ready.
   disconnect persistence, and API failure handling are covered by the backend and
   Flutter suites.
 - Fresh and repeatable Alembic migrations pass on SQLite and disposable
-  PostgreSQL; the PostgreSQL usage concurrency test passes.
+  PostgreSQL; PostgreSQL `alembic check` and the concurrent usage single-winner
+  test pass.
 - The documented infrastructure target is Hetzner Cloud, with managed
   PostgreSQL and Redis; no provider or production endpoint was contacted by
   this local certification.
@@ -54,10 +56,10 @@ green. No unsupported protocol is presented as release-ready.
 - The local ARM64 `.deb` is not a public download. Install it from its local path
   only after verifying the checksum.
 - The Linux x64 `.deb` remains `coming_soon` in the public manifest. Workflow
-  `29339889834` at source head `29174a55cf5c6b493344b89c6edabd1be3818927`
+  `29348489573` at source head `b45b093b4969a0ff3e8c27b0011ebf30a4d6070c`
   passed the contract-13 package and ephemeral lifecycle checks and produced
   private evidence with SHA-256
-  `157a1f8f270b9147fa9796212ead4ad683ac23ba2a4ea24d9a706ab44d7f7bcf`.
+  `4d1733bd5a9e0d23806543fe36956feb7766e7ea101342270ea9f09d0f1aa80e`.
   No x64 artifact is public because live authenticated data-plane evidence is
   still absent.
 
@@ -83,7 +85,7 @@ release commands must not instruct users to treat a feature branch as canonical.
 ```bash
 cd /path/to/securewave-linux-runtime-final
 deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb"
-echo "4476553ad8578541c6bc0f12ab0e234e6b7f99767439443999ed156c1f56bbea  $deb" | sha256sum -c -
+echo "bc6c47e209138567e4f07d8e24b681cd3195b33d6dec8d036f0a916f6b20e909  $deb" | sha256sum -c -
 sudo apt install "$deb"
 systemctl is-enabled securewave-helper.service
 systemctl is-active securewave-helper.service
