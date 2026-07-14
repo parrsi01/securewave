@@ -688,5 +688,7 @@ async def test_background_wireguard_probe_records_only_compact_runtime_evidence(
     db.refresh(server)
     evidence = server.protocol_runtime_evidence["wireguard"]
     assert evidence["healthy"] is True
-    assert set(evidence) == {"healthy", "observed_at"}
+    assert evidence["authenticated"] is True
+    assert evidence["transition"] == "initial"
+    assert set(evidence) == {"healthy", "observed_at", "transition", "authenticated"}
     assert "sensitive" not in str(server.protocol_runtime_evidence)

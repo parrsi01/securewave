@@ -92,6 +92,9 @@ class VPNHealthMonitor:
                         server.server_id,
                         type(e).__name__,
                     )
+                    # A failed server must not poison the session for the
+                    # remaining fleet. No exception detail is retained.
+                    self.db.rollback()
 
             self.db.close()
 
@@ -104,6 +107,8 @@ class VPNHealthMonitor:
         """Refresh protocol evidence without retaining manager output."""
         observed_at = datetime.utcnow()
         healthy = False
+        probe_exception = False
+        authenticated = not wg_mock_mode_enabled()
         if server.supports_wireguard:
             try:
                 if wg_mock_mode_enabled():
@@ -113,19 +118,31 @@ class VPNHealthMonitor:
                     connection = server_connection_from_db(server)
                     healthy, _ = await manager.health_check(connection)
             except Exception as exc:
+                probe_exception = True
                 logger.warning(
                     "WireGuard runtime probe failed server_id=%s exception_type=%s",
                     server.server_id,
                     type(exc).__name__,
                 )
-        ProtocolAvailabilityService.record_evidence(
-            server,
-            "wireguard",
-            healthy=healthy,
-            observed_at=observed_at,
-        )
-        self.db.add(server)
-        self.db.commit()
+        try:
+            ProtocolAvailabilityService.record_evidence(
+                server,
+                "wireguard",
+                healthy=healthy,
+                observed_at=observed_at,
+                failure_reason="probe_exception" if probe_exception else None,
+                authenticated=authenticated,
+            )
+            self.db.add(server)
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            logger.error(
+                "WireGuard runtime evidence rollback server_id=%s exception_type=%s",
+                server.server_id,
+                type(exc).__name__,
+            )
+            return False
         return healthy
 
     async def probe_server(self, server: VPNServer) -> Dict:

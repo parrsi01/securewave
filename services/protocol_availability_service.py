@@ -20,6 +20,11 @@ class ProtocolReadiness:
 class ProtocolAvailabilityService:
     """Keep endpoint metadata separate from evidence that the backend is usable."""
 
+    _FAILURE_REASONS = frozenset({"probe_failed", "probe_exception"})
+    _TRANSITIONS = frozenset(
+        {"initial", "steady_healthy", "steady_failed", "failed", "recovered"}
+    )
+
     def __init__(self, *, now: datetime | None = None):
         self.now = self._naive_utc(now or datetime.utcnow())
         try:
@@ -133,24 +138,56 @@ class ProtocolAvailabilityService:
         healthy: bool,
         observed_at: datetime | None = None,
         data_plane_healthy: bool | None = None,
-    ) -> None:
-        """Attach a compact probe result without persisting probe output."""
+        failure_reason: str | None = None,
+        authenticated: bool | None = None,
+    ) -> str:
+        """Attach compact, fail-closed probe state without persisting output.
+
+        The transition is deliberately a small fixed vocabulary. Probe output,
+        credentials, endpoints, and exception messages never become runtime
+        evidence or alert data.
+        """
         observed = ProtocolAvailabilityService._naive_utc(
             observed_at or datetime.utcnow()
         )
         evidence = dict(server.protocol_runtime_evidence or {})
+        previous = evidence.get(protocol)
+        previous_healthy = (
+            previous.get("healthy") if isinstance(previous, dict) else None
+        )
+        if previous_healthy is None:
+            transition = "initial"
+        elif bool(healthy) and previous_healthy is False:
+            transition = "recovered"
+        elif not healthy and previous_healthy is True:
+            transition = "failed"
+        elif healthy:
+            transition = "steady_healthy"
+        else:
+            transition = "steady_failed"
         protocol_evidence = {
             "healthy": bool(healthy),
             "observed_at": observed.isoformat(),
+            "transition": transition,
         }
         if data_plane_healthy is not None:
             protocol_evidence["data_plane_healthy"] = bool(data_plane_healthy)
+        if authenticated is not None:
+            protocol_evidence["authenticated"] = bool(authenticated)
+        if not healthy:
+            reason = failure_reason if failure_reason in ProtocolAvailabilityService._FAILURE_REASONS else "probe_failed"
+            protocol_evidence["failure_reason"] = reason
         evidence[protocol] = protocol_evidence
         server.protocol_runtime_evidence = evidence
+        return transition
 
     def _has_fresh_protocol_evidence(self, server: VPNServer, protocol: str) -> bool:
         evidence = (server.protocol_runtime_evidence or {}).get(protocol)
-        if not isinstance(evidence, dict) or evidence.get("healthy") is not True:
+        if (
+            not isinstance(evidence, dict)
+            or evidence.get("healthy") is not True
+            or evidence.get("authenticated", True) is not True
+        ):
             return False
         observed_at = evidence.get("observed_at")
         if not isinstance(observed_at, str):

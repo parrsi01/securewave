@@ -1,11 +1,18 @@
+import hashlib
 import os
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.session import get_db
+from models.user import User
+from models.vpn_server import VPNServer
+from services.protocol_availability_service import (
+    ProtocolAvailabilityService,
+    ProtocolReadiness,
+)
 from utils.env_validation import demo_mode_enabled
 from models.audit_log import AuditLog
 from models.vpn_demo_session import VPNDemoSession
@@ -37,6 +44,16 @@ class TelemetryBatch(BaseModel):
 
 # In-memory telemetry store (production would use TimescaleDB or similar)
 _telemetry_store: List[dict] = []
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Protect fleet diagnostics without exposing an operator identity."""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
 
 
 @router.post("/telemetry")
@@ -205,3 +222,97 @@ def diagnostics_events(
         .all()
     )
     return [event.to_dict() for event in events]
+
+
+@router.get("/operational")
+def operational_diagnostics(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Return redacted fleet state for bounded operational support.
+
+    This endpoint intentionally omits users, addresses, provider IDs,
+    endpoints, certificates, keys, VPN configurations, and raw probe output.
+    A short hash lets operators correlate a server across two snapshots without
+    disclosing its configured identity.
+    """
+    del admin
+    now = datetime.utcnow()
+    availability = ProtocolAvailabilityService(now=now)
+    protocols = ("wireguard", "openvpn", "ikev2")
+    servers = (
+        db.query(VPNServer)
+        .filter(VPNServer.status.in_(["active", "demo"]))
+        .order_by(VPNServer.server_id.asc())
+        .all()
+    )
+
+    redacted_servers = []
+    for server in servers:
+        server_ref = hashlib.sha256(server.server_id.encode("utf-8")).hexdigest()[:12]
+        evidence_by_protocol = server.protocol_runtime_evidence or {}
+        protocol_state = {}
+        for protocol in protocols:
+            evidence = evidence_by_protocol.get(protocol)
+            if not isinstance(evidence, dict):
+                evidence = {}
+            transition = evidence.get("transition")
+            if transition not in ProtocolAvailabilityService._TRANSITIONS:
+                transition = "unknown"
+            failure_reason = evidence.get("failure_reason")
+            if failure_reason not in ProtocolAvailabilityService._FAILURE_REASONS:
+                failure_reason = None
+            try:
+                readiness = availability.evaluate(server, protocol)
+            except Exception:
+                # A malformed row is unavailable, never an endpoint failure.
+                readiness = ProtocolReadiness(False, "Malformed runtime evidence.")
+            protocol_state[protocol] = {
+                "available": readiness.enabled,
+                "reason": readiness.reason,
+                "healthy": evidence.get("healthy") is True if evidence else None,
+                "authenticated": evidence.get("authenticated") is True if evidence else None,
+                "observed_at": evidence.get("observed_at") if evidence else None,
+                "transition": transition,
+                "failure_reason": failure_reason,
+            }
+
+        redacted_servers.append(
+            {
+                "server_ref": server_ref,
+                "status": server.status,
+                "health_status": server.health_status,
+                "last_health_check": (
+                    server.last_health_check.isoformat()
+                    if server.last_health_check
+                    else None
+                ),
+                "consecutive_health_failures": int(
+                    server.consecutive_health_failures or 0
+                ),
+                "capacity": {
+                    "current": int(server.current_connections or 0),
+                    "maximum": int(server.max_connections or 0),
+                },
+                "protocols": protocol_state,
+            }
+        )
+
+    return {
+        "schema_version": 1,
+        "generated_at": now.isoformat(),
+        "environment": os.getenv("ENVIRONMENT", "development"),
+        "demo_mode": demo_mode_enabled(),
+        "database": {
+            "engine": getattr(getattr(db, "bind", None), "dialect", None).name
+            if getattr(getattr(db, "bind", None), "dialect", None)
+            else "unknown"
+        },
+        "thresholds": {
+            "protocol_evidence_ttl_seconds": int(
+                availability.evidence_ttl.total_seconds()
+            ),
+            "allowed_transitions": sorted(ProtocolAvailabilityService._TRANSITIONS),
+        },
+        "servers": redacted_servers,
+    }
