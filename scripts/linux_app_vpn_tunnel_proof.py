@@ -45,11 +45,17 @@ LATE_HOLD_EVIDENCE_MAX_LEAD_SECONDS = 15.0
 WIREGUARD_INTERFACE = "sw-wg"
 OPENVPN_INTERFACE = "tun-securewave"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
+IKEV2_INTERFACE = "nm-xfrm-sw"
 HELPER_SOCKET = Path("/run/securewave/helper.sock")
 DATA_PLANE_TEST_IPS = ("1.1.1.1", "9.9.9.9")
 DNS_TEST_HOSTS = ("example.com", "api.ipify.org")
 EXIT_IP_URLS = (
     "https://api.ipify.org",
+    "https://ifconfig.me/ip",
+    "https://icanhazip.com",
+)
+IPV6_EXIT_IP_URLS = (
+    "https://api6.ipify.org",
     "https://ifconfig.me/ip",
     "https://icanhazip.com",
 )
@@ -704,29 +710,23 @@ def _dns_interface_evidence(
             "log": log,
         }
     if protocol == "ikev2":
-        command = [
-            "nmcli",
-            "-g",
-            "GENERAL.DEVICES",
-            "connection",
-            "show",
-            "--active",
-            "id",
-            IKEV2_CONNECTION,
-        ]
-        result = _run_with_budget(command, timeout=8, deadline=deadline)
-        interface = next(
-            (
-                line.strip()
-                for line in result.stdout.splitlines()
-                if re.fullmatch(r"[0-9A-Za-z_.:-]+", line.strip())
-            ),
-            None,
+        status = _helper_evidence_with_budget(
+            {"op": "ikev2.status"}, timeout=10, deadline=deadline
+        )
+        response = status.get("response")
+        interface = (
+            IKEV2_INTERFACE
+            if isinstance(response, dict)
+            and response.get("status") == "connected"
+            and response.get("interface") == IKEV2_INTERFACE
+            and response.get("interface_present") == "true"
+            and response.get("xfrm_interface") == "true"
+            else None
         )
         return {
-            "ok": result.returncode == 0 and interface is not None,
+            "ok": bool(status.get("ok")) and interface is not None,
             "interface": interface,
-            "active_connection": _attempt(command, result),
+            "helper_status": status,
         }
     raise ValueError(f"unsupported protocol: {protocol}")
 
@@ -761,6 +761,15 @@ def _helper_counter_snapshot(
     except (TypeError, ValueError):
         rx_bytes = -1
         tx_bytes = -1
+    owned_ikev2 = (
+        protocol != "ikev2"
+        or (
+            isinstance(response, dict)
+            and response.get("interface") == IKEV2_INTERFACE
+            and response.get("ownership_inspection_ok") == "true"
+            and response.get("xfrm_pair_present") == "true"
+        )
+    )
     available = (
         bool(result.get("ok"))
         and isinstance(response, dict)
@@ -768,6 +777,7 @@ def _helper_counter_snapshot(
         and response.get("counters_available") == "true"
         and rx_bytes >= 0
         and tx_bytes >= 0
+        and owned_ikev2
     )
     return {
         "ok": available,
@@ -836,47 +846,60 @@ def _dns_evidence(
         }
 
     attempts: list[dict[str, object]] = []
-    for host in DNS_TEST_HOSTS:
-        before = _helper_counter_snapshot(protocol, deadline=deadline)
-        command = [
-            "resolvectl",
-            f"--interface={interface}",
-            "--cache=no",
-            "--network=yes",
-            "--legend=no",
-            "--type=A",
-            "query",
-            host,
-        ]
-        result = _run_with_budget(command, timeout=8, deadline=deadline)
-        after = _helper_counter_snapshot(protocol, deadline=deadline)
-        rx_delta = int(after.get("rx_bytes", 0)) - int(before.get("rx_bytes", 0))
-        tx_delta = int(after.get("tx_bytes", 0)) - int(before.get("tx_bytes", 0))
-        owned_response = f"-- link: {interface}" in result.stdout
-        attempt = {
-            **_attempt(command, result),
-            "counter_before": before,
-            "counter_after": after,
-            "rx_delta": rx_delta,
-            "tx_delta": tx_delta,
-            "owned_response": owned_response,
-        }
-        attempts.append(attempt)
-        if (
-            before.get("ok") is True
-            and after.get("ok") is True
-            and result.returncode == 0
-            and owned_response
-            and rx_delta > 0
-            and tx_delta > 0
-        ):
-            return {
-                "ok": True,
-                "hostname": host,
-                "interface": interface,
-                "resolver_config": resolver_config,
-                "attempts": attempts,
+    successful_hosts: dict[str, str] = {}
+    for record_type in ("A", "AAAA"):
+        for host in DNS_TEST_HOSTS:
+            before = _helper_counter_snapshot(protocol, deadline=deadline)
+            command = [
+                "resolvectl",
+                f"--interface={interface}",
+                "--cache=no",
+                "--network=yes",
+                "--legend=no",
+                f"--type={record_type}",
+                "query",
+                host,
+            ]
+            result = _run_with_budget(command, timeout=8, deadline=deadline)
+            after = _helper_counter_snapshot(protocol, deadline=deadline)
+            rx_delta = int(after.get("rx_bytes", 0)) - int(
+                before.get("rx_bytes", 0)
+            )
+            tx_delta = int(after.get("tx_bytes", 0)) - int(
+                before.get("tx_bytes", 0)
+            )
+            owned_response = f"-- link: {interface}" in result.stdout
+            attempt = {
+                **_attempt(command, result),
+                "record_type": record_type,
+                "counter_before": before,
+                "counter_after": after,
+                "rx_delta": rx_delta,
+                "tx_delta": tx_delta,
+                "owned_response": owned_response,
             }
+            attempts.append(attempt)
+            if (
+                before.get("ok") is True
+                and after.get("ok") is True
+                and result.returncode == 0
+                and owned_response
+                and rx_delta > 0
+                and tx_delta > 0
+            ):
+                successful_hosts[record_type] = host
+                break
+        if record_type not in successful_hosts:
+            break
+    if set(successful_hosts) == {"A", "AAAA"}:
+        return {
+            "ok": True,
+            "hostname": successful_hosts["A"],
+            "record_types": successful_hosts,
+            "interface": interface,
+            "resolver_config": resolver_config,
+            "attempts": attempts,
+        }
     return {
         "ok": False,
         "error_kind": "dns_broken_or_outside_tunnel",
@@ -894,6 +917,18 @@ def _extract_ipv4(value: str) -> str | None:
         except ValueError:
             continue
         if address.version == 4:
+            return str(address)
+    return None
+
+
+def _extract_ipv6(value: str) -> str | None:
+    for raw in value.replace(",", " ").split():
+        token = raw.strip()
+        try:
+            address = ipaddress.ip_address(token)
+        except ValueError:
+            continue
+        if address.version == 6:
             return str(address)
     return None
 
@@ -925,6 +960,37 @@ def _exit_ip_lookup(deadline: float | None = None) -> dict[str, object]:
         "ok": False,
         "ip": None,
         "error_kind": "exit_ip_unavailable",
+        "attempts": attempts,
+    }
+
+
+def _ipv6_exit_ip_lookup(deadline: float | None = None) -> dict[str, object]:
+    attempts: list[dict[str, object]] = []
+    for url in IPV6_EXIT_IP_URLS:
+        command = [
+            "curl",
+            "-6",
+            "--noproxy",
+            "*",
+            "-m",
+            "8",
+            "-fsS",
+            url,
+        ]
+        result = _run_with_budget(command, timeout=9, deadline=deadline)
+        attempts.append(_attempt(command, result, redact_stdout=True))
+        ip = _extract_ipv6(result.stdout)
+        if result.returncode == 0 and ip:
+            return {
+                "ok": True,
+                "ip": ip,
+                "url": url,
+                "attempts": attempts,
+            }
+    return {
+        "ok": False,
+        "ip": None,
+        "error_kind": "ipv6_exit_ip_unavailable",
         "attempts": attempts,
     }
 
@@ -993,27 +1059,157 @@ def _exit_ip_evidence(
     return evidence
 
 
+def _ipv6_block_status(
+    protocol: str,
+    *,
+    deadline: float | None,
+) -> dict[str, object]:
+    if protocol == "wireguard":
+        request = {"op": "wireguard.status"}
+        required = {
+            "status": "connected",
+            "interface": WIREGUARD_INTERFACE,
+            "ipv6_mode": "block",
+            "ipv6_route_via_sw_wg": "true",
+            "firewall_inspection_ok": "true",
+            "ipv6_block_present": "true",
+        }
+    elif protocol == "openvpn":
+        request = {
+            "op": "openvpn.status",
+            "config_path": _state_path("securewave.ovpn"),
+            "pid_path": _state_path("securewave-openvpn.pid"),
+            "log_path": _state_path("securewave-openvpn.log"),
+        }
+        required = {
+            "status": "connected",
+            "interface": OPENVPN_INTERFACE,
+            "ipv6_mode": "block",
+            "ipv6_route_present": "true",
+            "ipv6_block_configured": "true",
+        }
+    elif protocol == "ikev2":
+        request = {"op": "ikev2.status"}
+        required = {
+            "status": "connected",
+            "interface": IKEV2_INTERFACE,
+            "ipv6_mode": "block",
+            "ipv6_block_inspection_ok": "true",
+            "ipv6_block_present": "true",
+            "ownership_inspection_ok": "true",
+        }
+    else:
+        raise ValueError(f"unsupported protocol: {protocol}")
+    helper = _helper_evidence_with_budget(request, timeout=10, deadline=deadline)
+    response = helper.get("response")
+    matched = bool(helper.get("ok")) and isinstance(response, dict) and all(
+        response.get(key) == value for key, value in required.items()
+    )
+    return {
+        "ok": matched,
+        "mode": "block",
+        "required": required,
+        "observed": {
+            key: response.get(key)
+            for key in required
+            if isinstance(response, dict) and key in response
+        },
+    }
+
+
+def _ipv6_protection_evidence(
+    protocol: str,
+    pre_connect_ipv6_exit_ip: dict[str, object] | None,
+    *,
+    deadline: float | None = None,
+) -> dict[str, object]:
+    baseline = pre_connect_ipv6_exit_ip or {
+        "ok": False,
+        "ip": None,
+        "error_kind": "ipv6_baseline_unavailable",
+        "attempts": [],
+    }
+    block = _ipv6_block_status(protocol, deadline=deadline)
+    connected = _ipv6_exit_ip_lookup(deadline=deadline)
+    evidence: dict[str, object] = {
+        "ok": False,
+        "mode": "block",
+        "pre_connect_observed": bool(baseline.get("ip")),
+        "connected_observed": bool(connected.get("ip")),
+        "block": block,
+        "connected_probe": _public_exit_ip_lookup(connected),
+    }
+    if baseline.get("ok") is not True or not baseline.get("ip"):
+        evidence["error_kind"] = "ipv6_baseline_unavailable"
+        return evidence
+    if block.get("ok") is not True:
+        evidence["error_kind"] = "ipv6_block_not_owned"
+        return evidence
+    if connected.get("ok") is True or connected.get("ip"):
+        evidence["error_kind"] = "ipv6_not_blocked"
+        return evidence
+    evidence["ok"] = True
+    return evidence
+
+
+def _ipv6_recovery_evidence(
+    pre_connect_ipv6_exit_ip: dict[str, object] | None,
+    *,
+    deadline: float | None = None,
+) -> dict[str, object]:
+    baseline_observed = bool(
+        pre_connect_ipv6_exit_ip
+        and pre_connect_ipv6_exit_ip.get("ok") is True
+        and pre_connect_ipv6_exit_ip.get("ip")
+    )
+    recovered = _ipv6_exit_ip_lookup(deadline=deadline)
+    return {
+        "ok": baseline_observed and recovered.get("ok") is True,
+        "baseline_observed": baseline_observed,
+        "recovered": _public_exit_ip_lookup(recovered),
+        "error_kind": (
+            None
+            if baseline_observed and recovered.get("ok") is True
+            else "ipv6_not_restored_after_disconnect"
+        ),
+    }
+
+
 def _ikev2_routing_rule_evidence(deadline: float | None = None) -> dict[str, object]:
     bad_rules: list[str] = []
+    safe_rule_counts: dict[str, int] = {}
     inspections: dict[str, object] = {}
     inspection_ok = True
     for label, family in (("ipv4", "-4"), ("ipv6", "-6")):
-        command = ["ip", family, "rule", "show"]
+        command = ["ip", family, "-N", "rule", "show"]
         result = _run_with_budget(command, timeout=5, deadline=deadline)
         inspections[label] = _attempt(command, result)
         inspection_ok = inspection_ok and result.returncode == 0
+        safe_count = 0
+        bad_count_before_family = len(bad_rules)
         for raw_line in result.stdout.splitlines():
             line = " ".join(raw_line.split())
-            targets_ikev2_table = line.startswith("220:") and (
-                "lookup 220" in line or "table 220" in line
-            )
+            targets_ikev2_table = re.search(
+                r"(?:^| )(?:lookup|table) 210(?: |$)", line
+            ) is not None
             expected_safe_rule = re.fullmatch(
-                r"220: (?:not from all|from all not) fwmark "
-                r"0xdc(?:/0xffffffff)? (?:lookup|table) 220",
+                r"210: (?:not from all|from all not) fwmark "
+                r"0xdc(?:/0xffffffff)? (?:lookup|table) 210",
                 line,
             )
             if targets_ikev2_table and expected_safe_rule is None:
                 bad_rules.append(f"{label}: {raw_line.strip()}")
+            elif targets_ikev2_table:
+                safe_count += 1
+        safe_rule_counts[label] = safe_count
+        if (
+            result.returncode == 0
+            and safe_count != 1
+            and len(bad_rules) == bad_count_before_family
+        ):
+            bad_rules.append(
+                f"{label}: expected one safe table-210 rule, found {safe_count}"
+            )
     return {
         "ok": inspection_ok and not bad_rules,
         "error_kind": (
@@ -1022,6 +1218,7 @@ def _ikev2_routing_rule_evidence(deadline: float | None = None) -> dict[str, obj
             else (None if inspection_ok else "ikev2_routing_rule_inspection_failed")
         ),
         "bad_rules": bad_rules,
+        "safe_rule_counts": safe_rule_counts,
         "ip_rules": inspections,
     }
 
@@ -1143,13 +1340,39 @@ def _runtime_evidence_for(
             timeout=5,
             deadline=deadline,
         )
-        route = _run_with_budget(
-            ["ip", "route", "get", "1.1.1.1"],
+        route4 = _run_with_budget(
+            ["ip", "-4", "route", "get", "1.1.1.1"],
             timeout=5,
             deadline=deadline,
         )
-        route_ok = (
-            route.returncode == 0 and f" dev {WIREGUARD_INTERFACE}" in route.stdout
+        route6 = _run_with_budget(
+            ["ip", "-6", "route", "get", "2606:4700:4700::1111"],
+            timeout=5,
+            deadline=deadline,
+        )
+        route_ok = all(
+            route.returncode == 0
+            and f" dev {WIREGUARD_INTERFACE}" in route.stdout
+            for route in (route4, route6)
+        )
+        helper_status = _helper_evidence_with_budget(
+            {"op": "wireguard.status"}, timeout=10, deadline=deadline
+        )
+        helper_response = helper_status.get("response")
+        helper_ok = (
+            bool(helper_status.get("ok"))
+            and isinstance(helper_response, dict)
+            and helper_response.get("status") == "connected"
+            and helper_response.get("interface") == WIREGUARD_INTERFACE
+            and helper_response.get("route_via_sw_wg") == "true"
+            and helper_response.get("ipv4_route_via_sw_wg") == "true"
+            and helper_response.get("ipv6_route_via_sw_wg") == "true"
+            and helper_response.get("policy_rules_present") == "true"
+            and helper_response.get("policy_routes_present") == "true"
+            and helper_response.get("firewall_inspection_ok") == "true"
+            and helper_response.get("ipv4_kill_switch_present") == "true"
+            and helper_response.get("ipv6_block_present") == "true"
+            and helper_response.get("ipv6_mode") == "block"
         )
         backend_health = _backend_health_evidence(
             api_base,
@@ -1159,17 +1382,24 @@ def _runtime_evidence_for(
         return {
             "ok": link.returncode == 0
             and route_ok
+            and helper_ok
             and bool(backend_health.get("ok"))
             and bool(counters.get("ok")),
             "interface": link.as_dict(),
-            "route": route.as_dict(),
+            "routes": {"ipv4": route4.as_dict(), "ipv6": route6.as_dict()},
+            "helper_status": helper_status,
             "backend_health": backend_health,
             "traffic_counters": counters,
         }
     if protocol == "openvpn":
         tun = _tun_interface_evidence(deadline=deadline)
-        route = _run_with_budget(
-            ["ip", "route", "get", "1.1.1.1"],
+        route4 = _run_with_budget(
+            ["ip", "-4", "route", "get", "1.1.1.1"],
+            timeout=5,
+            deadline=deadline,
+        )
+        route6 = _run_with_budget(
+            ["ip", "-6", "route", "get", "2606:4700:4700::1111"],
             timeout=5,
             deadline=deadline,
         )
@@ -1191,8 +1421,10 @@ def _runtime_evidence_for(
             isinstance(log_interface, str)
             and isinstance(tun_interfaces, list)
             and log_interface in tun_interfaces
-            and route.returncode == 0
-            and f" dev {log_interface}" in route.stdout
+            and all(
+                route.returncode == 0 and f" dev {log_interface}" in route.stdout
+                for route in (route4, route6)
+            )
             and isinstance(helper_response, dict)
             and helper_response.get("interface") == log_interface
         )
@@ -1204,6 +1436,10 @@ def _runtime_evidence_for(
             and helper_response.get("initialization_complete") == "true"
             and helper_response.get("interface_present") == "true"
             and helper_response.get("route_present") == "true"
+            and helper_response.get("ipv4_route_present") == "true"
+            and helper_response.get("ipv6_route_present") == "true"
+            and helper_response.get("ipv6_block_configured") == "true"
+            and helper_response.get("ipv6_mode") == "block"
             and helper_response.get("dns_configured") == "true"
             and helper_response.get("interface") == OPENVPN_INTERFACE
             and _positive_helper_counters(helper_response)
@@ -1219,7 +1455,7 @@ def _runtime_evidence_for(
             and bool(log.get("ok"))
             and bool(backend_health.get("ok")),
             "interface": tun,
-            "route": route.as_dict(),
+            "routes": {"ipv4": route4.as_dict(), "ipv6": route6.as_dict()},
             "helper_status": helper_status,
             "log": log,
             "backend_health": backend_health,
@@ -1230,12 +1466,12 @@ def _runtime_evidence_for(
             timeout=8,
             deadline=deadline,
         )
-        route_dns = _run_with_budget(
+        dns = _run_with_budget(
             [
                 "nmcli",
                 "-t",
                 "-f",
-                "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE",
+                "IP4.DNS,IP6.DNS",
                 "connection",
                 "show",
                 IKEV2_CONNECTION,
@@ -1257,37 +1493,51 @@ def _runtime_evidence_for(
             active.returncode == 0
             and f"{IKEV2_CONNECTION}:vpn" in active.stdout.splitlines()
         )
-        dns_ok = route_dns.returncode == 0 and _nmcli_has_value(
-            route_dns.stdout,
+        dns_ok = dns.returncode == 0 and _nmcli_has_value(
+            dns.stdout,
             ("IP4.DNS", "IP6.DNS"),
         )
-        route_ok = route_dns.returncode == 0 and _nmcli_has_value(
-            route_dns.stdout,
-            ("IP4.ROUTE", "IP6.ROUTE"),
-        )
-        xfrm_ok = (
+        owned_runtime_ok = (
             bool(helper_status.get("ok"))
             and isinstance(helper_response, dict)
             and helper_response.get("status") == "connected"
             and helper_response.get("connection_inspection_ok") == "true"
             and helper_response.get("connection_present") == "true"
             and helper_response.get("nm_active") == "true"
+            and helper_response.get("interface_name_configured") == "true"
+            and helper_response.get("interface_inspection_ok") == "true"
+            and helper_response.get("interface_present") == "true"
+            and helper_response.get("interface") == IKEV2_INTERFACE
+            and helper_response.get("xfrm_interface") == "true"
+            and helper_response.get("xfrm_if_id_present") == "true"
+            and helper_response.get("xfrm_if_id_persisted") == "true"
+            and helper_response.get("ownership_inspection_ok") == "true"
+            and helper_response.get("route_inspection_ok") == "true"
+            and helper_response.get("route_present") == "true"
+            and helper_response.get("ipv4_full_route_present") == "true"
+            and helper_response.get("ipv6_mode") == "block"
+            and helper_response.get("ipv6_block_inspection_ok") == "true"
+            and helper_response.get("ipv6_block_present") == "true"
+            and helper_response.get("route_conflict_present") == "false"
+            and helper_response.get("dns_present") == "true"
             and helper_response.get("xfrm_state_inspection_ok") == "true"
             and helper_response.get("xfrm_state_present") == "true"
             and helper_response.get("xfrm_esp_present") == "true"
             and helper_response.get("xfrm_policy_inspection_ok") == "true"
             and helper_response.get("xfrm_policy_present") == "true"
+            and helper_response.get("xfrm_pair_present") == "true"
+            and helper_response.get("routing_rule_inspection_ok") == "true"
+            and helper_response.get("routing_rules_safe") == "true"
             and helper_response.get("routing_loop_rule_present") == "false"
             and _positive_helper_counters(helper_response)
         )
         return {
             "ok": active_ok
             and dns_ok
-            and route_ok
-            and xfrm_ok
+            and owned_runtime_ok
             and bool(backend_health.get("ok")),
             "active_connection": active.as_dict(),
-            "route_dns": route_dns.as_dict(),
+            "dns": dns.as_dict(),
             "helper_status": helper_status,
             "backend_health": backend_health,
         }
@@ -1300,6 +1550,7 @@ def _failed_network_evidence(
     data_plane: dict[str, object],
     dns: dict[str, object] | None = None,
     exit_ip: dict[str, object] | None = None,
+    ipv6_protection: dict[str, object] | None = None,
     ikev2_routing_rule: dict[str, object] | None = None,
 ) -> dict[str, object]:
     evidence: dict[str, object] = {
@@ -1311,6 +1562,8 @@ def _failed_network_evidence(
         evidence["dns"] = dns
     if exit_ip is not None:
         evidence["exit_ip"] = exit_ip
+    if ipv6_protection is not None:
+        evidence["ipv6_protection"] = ipv6_protection
     if ikev2_routing_rule is not None:
         evidence["ikev2_routing_rule"] = ikev2_routing_rule
     return evidence
@@ -1321,6 +1574,7 @@ def _evidence_for(
     api_base: str | None,
     *,
     pre_connect_exit_ip: dict[str, object] | None = None,
+    pre_connect_ipv6_exit_ip: dict[str, object] | None = None,
     evidence_deadline: float | None = None,
 ) -> dict[str, object]:
     data_plane = _data_plane_evidence(deadline=evidence_deadline)
@@ -1347,6 +1601,22 @@ def _evidence_for(
             exit_ip=exit_ip,
         )
 
+    ipv6_protection = _ipv6_protection_evidence(
+        protocol,
+        pre_connect_ipv6_exit_ip,
+        deadline=evidence_deadline,
+    )
+    if not ipv6_protection.get("ok"):
+        return _failed_network_evidence(
+            error_kind=str(
+                ipv6_protection.get("error_kind") or "ipv6_protection_failed"
+            ),
+            data_plane=data_plane,
+            dns=dns,
+            exit_ip=exit_ip,
+            ipv6_protection=ipv6_protection,
+        )
+
     ikev2_routing_rule = None
     if protocol == "ikev2":
         ikev2_routing_rule = _ikev2_routing_rule_evidence(deadline=evidence_deadline)
@@ -1359,6 +1629,7 @@ def _evidence_for(
                 data_plane=data_plane,
                 dns=dns,
                 exit_ip=exit_ip,
+                ipv6_protection=ipv6_protection,
                 ikev2_routing_rule=ikev2_routing_rule,
             )
 
@@ -1368,6 +1639,7 @@ def _evidence_for(
             "data_plane": data_plane,
             "dns": dns,
             "exit_ip": exit_ip,
+            "ipv6_protection": ipv6_protection,
         }
     )
     if ikev2_routing_rule is not None:
@@ -1677,6 +1949,9 @@ def run_protocol(
         use_mock_api=use_mock_api,
     )
     pre_connect_exit_ip = _exit_ip_lookup(deadline=time.monotonic() + 20)
+    pre_connect_ipv6_exit_ip = _ipv6_exit_ip_lookup(
+        deadline=time.monotonic() + 20
+    )
 
     started_at = time.monotonic()
     evidence_deadline = started_at + evidence_timeout
@@ -1732,6 +2007,7 @@ def run_protocol(
                                     protocol,
                                     api_base,
                                     pre_connect_exit_ip=pre_connect_exit_ip,
+                                    pre_connect_ipv6_exit_ip=pre_connect_ipv6_exit_ip,
                                     evidence_deadline=evidence_deadline,
                                 )
                         elif event.get("event") == "runtime_probe_error":
@@ -1752,6 +2028,7 @@ def run_protocol(
                     protocol,
                     api_base,
                     pre_connect_exit_ip=pre_connect_exit_ip,
+                    pre_connect_ipv6_exit_ip=pre_connect_ipv6_exit_ip,
                     evidence_deadline=late_hold_evidence_deadline,
                 )
             if terminate_requested:
@@ -1801,6 +2078,10 @@ def run_protocol(
             "error": loop_error or "probe exited before evidence window",
         }
     event_evidence = _probe_event_evidence(probe_events, protocol, hold_seconds)
+    ipv6_recovery = _ipv6_recovery_evidence(
+        pre_connect_ipv6_exit_ip,
+        deadline=time.monotonic() + 20,
+    )
     post_disconnect_verifier = _verifier()
     post_disconnect_checks = _json_object(post_disconnect_verifier.stdout)
 
@@ -1811,6 +2092,7 @@ def run_protocol(
         and late_hold_evidence is not None
         and bool(late_hold_evidence.get("ok"))
         and bool(event_evidence.get("ok"))
+        and bool(ipv6_recovery.get("ok"))
         and _verifier_succeeded(post_disconnect_verifier)
     )
     result = {
@@ -1822,8 +2104,12 @@ def run_protocol(
         "probe_events": probe_events,
         "event_evidence": event_evidence,
         "pre_connect_exit_ip": _public_exit_ip_lookup(pre_connect_exit_ip),
+        "pre_connect_ipv6_exit_ip": _public_exit_ip_lookup(
+            pre_connect_ipv6_exit_ip
+        ),
         "evidence": evidence,
         "late_hold_evidence": late_hold_evidence,
+        "post_disconnect_ipv6_recovery": ipv6_recovery,
         "post_disconnect_verifier_command": _verifier_command(),
         "post_disconnect_verifier": post_disconnect_verifier.as_dict(),
         "post_disconnect_checks": post_disconnect_checks,

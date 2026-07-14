@@ -59,15 +59,19 @@ REQUIRED_TOOLS = (
     "openvpn",
     "nmcli",
     "resolvectl",
-    "swanctl",
-    "ipsec",
     "ip",
     "nft",
     "setfacl",
 )
+REQUIRED_IKEV2_RUNTIME_FILES = (
+    Path("/usr/lib/ipsec/charon-nm"),
+    Path("/usr/lib/NetworkManager/VPN/nm-strongswan-service.name"),
+    Path("/usr/lib/ipsec/plugins/libstrongswan-eap-mschapv2.so"),
+)
 WIREGUARD_INTERFACE = "sw-wg"
 OPENVPN_INTERFACE = "tun-securewave"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
+IKEV2_INTERFACE = "nm-xfrm-sw"
 ADBLOCK_CHAIN = "SECUREWAVE_ADBLOCK"
 EXPECTED_SECUREWAVE_HELPER_CONTRACT = 13
 
@@ -90,6 +94,33 @@ def _run(argv: Iterable[str]) -> subprocess.CompletedProcess[str]:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         timeout=10,
+    )
+
+
+def _ikev2_rule_targets_table_210(line: str) -> bool:
+    tokens = line.split()
+    return any(
+        token in {"lookup", "table"}
+        and index + 1 < len(tokens)
+        and tokens[index + 1] == "210"
+        for index, token in enumerate(tokens)
+    )
+
+
+def _ikev2_rule_is_expected_safe_rule(line: str) -> bool:
+    tokens = line.split()
+    if len(tokens) != 8:
+        return False
+    if (
+        tokens[0] != "210:"
+        or tokens[5] not in {"0xdc", "0xdc/0xffffffff"}
+        or tokens[6] not in {"lookup", "table"}
+        or tokens[7] != "210"
+    ):
+        return False
+    return tokens[1:5] in (
+        ["not", "from", "all", "fwmark"],
+        ["from", "all", "not", "fwmark"],
     )
 
 
@@ -148,6 +179,17 @@ def check_tools() -> list[Check]:
                 name=f"tool:{tool}",
                 ok=path is not None,
                 detail=path or f"{tool} not found in PATH",
+            )
+        )
+    for path in REQUIRED_IKEV2_RUNTIME_FILES:
+        available = path.is_file() and (
+            path.name != "charon-nm" or os.access(path, os.X_OK)
+        )
+        checks.append(
+            Check(
+                name=f"tool:{path.name}",
+                ok=available,
+                detail=str(path) if available else f"{path} is unavailable",
             )
         )
     return checks
@@ -452,21 +494,34 @@ def check_active_runtime(protocol: str) -> list[Check]:
     service_ok = response.get("ok") == "true"
     connected = service_ok and response.get("status") == "connected"
     if protocol == "wireguard":
-        route_ok = response.get("route_via_sw_wg") == "true"
+        route_ok = (
+            response.get("route_via_sw_wg") == "true"
+            and response.get("ipv4_route_via_sw_wg") == "true"
+            and response.get("ipv6_route_via_sw_wg") == "true"
+        )
         safety_ok = (
             response.get("policy_rules_present") == "true"
             and response.get("policy_routes_present") == "true"
             and response.get("firewall_inspection_ok") == "true"
+            and response.get("ipv4_kill_switch_present") == "true"
+            and response.get("ipv6_block_present") == "true"
+            and response.get("ipv6_mode") == "block"
         )
         interface = "sw-wg"
     elif protocol == "openvpn":
-        route_ok = response.get("route_present") == "true"
+        route_ok = (
+            response.get("route_present") == "true"
+            and response.get("ipv4_route_present") == "true"
+            and response.get("ipv6_route_present") == "true"
+        )
         safety_ok = (
             response.get("process_present") == "true"
             and response.get("initialization_complete") == "true"
             and response.get("interface_present") == "true"
             and response.get("dns_configured") == "true"
             and response.get("interface") == OPENVPN_INTERFACE
+            and response.get("ipv6_block_configured") == "true"
+            and response.get("ipv6_mode") == "block"
         )
         interface = OPENVPN_INTERFACE
     else:
@@ -474,30 +529,38 @@ def check_active_runtime(protocol: str) -> list[Check]:
             response.get("connection_inspection_ok") == "true"
             and response.get("connection_present") == "true"
             and response.get("nm_active") == "true"
+            and response.get("interface_name_configured") == "true"
+            and response.get("interface_inspection_ok") == "true"
+            and response.get("interface_present") == "true"
+            and response.get("interface") == IKEV2_INTERFACE
+            and response.get("xfrm_interface") == "true"
+            and response.get("xfrm_if_id_present") == "true"
+            and response.get("xfrm_if_id_persisted") == "true"
+            and response.get("ownership_inspection_ok") == "true"
+            and response.get("route_inspection_ok") == "true"
             and response.get("route_present") == "true"
+            and response.get("ipv4_full_route_present") == "true"
+            and response.get("route_conflict_present") == "false"
+            and response.get("ipv6_mode") == "block"
+            and response.get("ipv6_block_inspection_ok") == "true"
+            and response.get("ipv6_block_present") == "true"
             and response.get("dns_present") == "true"
             and response.get("xfrm_state_inspection_ok") == "true"
             and response.get("xfrm_state_present") == "true"
             and response.get("xfrm_esp_present") == "true"
             and response.get("xfrm_policy_inspection_ok") == "true"
             and response.get("xfrm_policy_present") == "true"
+            and response.get("xfrm_pair_present") == "true"
         )
-        safety_ok = response.get("routing_loop_rule_present") == "false"
-        active = _run(
-            [
-                "nmcli",
-                "-g",
-                "GENERAL.DEVICES",
-                "connection",
-                "show",
-                "--active",
-                "id",
-                IKEV2_CONNECTION,
-            ]
+        safety_ok = (
+            response.get("routing_rule_inspection_ok") == "true"
+            and response.get("routing_rules_safe") == "true"
+            and response.get("routing_loop_rule_present") == "false"
         )
-        interface = next(
-            (line.strip() for line in active.stdout.splitlines() if line.strip()),
-            "",
+        interface = (
+            IKEV2_INTERFACE
+            if response.get("interface") == IKEV2_INTERFACE
+            else ""
         )
 
     dns = _run(["resolvectl", "dns", interface]) if interface else None
@@ -625,6 +688,8 @@ def check_residue() -> list[Check]:
         and wireguard_status.get("nft_table_present") == "false"
         and wireguard_status.get("iptables_rule_present") == "false"
         and wireguard_status.get("ip6tables_rule_present") == "false"
+        and wireguard_status.get("ipv4_kill_switch_present") == "false"
+        and wireguard_status.get("ipv6_block_present") == "false"
         and wireguard_status.get("firewall_residue_present") == "false"
     )
     checks.append(
@@ -649,8 +714,7 @@ def check_residue() -> list[Check]:
             all_interfaces.append(interface)
             if (
                 interface == OPENVPN_INTERFACE
-                or interface.startswith("tun")
-                or interface.startswith("nm-xfrm-")
+                or interface == IKEV2_INTERFACE
             ):
                 tunnel_interfaces.append(interface)
     wireguard_absent = (
@@ -673,7 +737,7 @@ def check_residue() -> list[Check]:
         Check(
             "residue:tun0_interface",
             all_links.returncode == 0 and not tunnel_interfaces,
-            "no tun/nm-xfrm tunnel interface remains"
+            "no owned OpenVPN/IKEv2 tunnel interface remains"
             if all_links.returncode == 0 and not tunnel_interfaces
             else (
                 f"{len(tunnel_interfaces)} tunnel interfaces remain; names redacted"
@@ -690,10 +754,7 @@ def check_residue() -> list[Check]:
         if (
             WIREGUARD_INTERFACE in line
             or OPENVPN_INTERFACE in line
-            or "securewave" in line
-            or " dev tun" in line
-            or " dev nm-xfrm-" in line
-            or line.startswith(("0.0.0.0/1 ", "128.0.0.0/1 "))
+            or IKEV2_INTERFACE in line
         )
     ]
     checks.append(
@@ -711,7 +772,7 @@ def check_residue() -> list[Check]:
     )
 
     rules_by_family = {
-        family: _run(["ip", family, "rule", "show"])
+        family: _run(["ip", family, "-N", "rule", "show"])
         for family in ("-4", "-6")
     }
     rules_ok = all(result.returncode == 0 for result in rules_by_family.values())
@@ -743,28 +804,44 @@ def check_residue() -> list[Check]:
         )
     )
 
-    pref_220_table_220 = [
+    ikev2_rules_by_family = {
+        family: [
+            line
+            for line in result.stdout.splitlines()
+            if _ikev2_rule_targets_table_210(line)
+        ]
+        for family, result in rules_by_family.items()
+    }
+    unexpected_ikev2_rules = [
         (family, line)
-        for family, line in rule_lines
-        if (
-            " ".join(line.split()).startswith("220:")
-            and (
-                "lookup 220" in " ".join(line.split())
-                or "table 220" in " ".join(line.split())
-            )
-        )
+        for family, lines in ikev2_rules_by_family.items()
+        for line in lines
+        if not _ikev2_rule_is_expected_safe_rule(line)
     ]
+    safe_ikev2_rule_counts = {
+        family: sum(_ikev2_rule_is_expected_safe_rule(line) for line in lines)
+        for family, lines in ikev2_rules_by_family.items()
+    }
+    safe_rule_count_values = tuple(safe_ikev2_rule_counts.values())
+    ikev2_rules_safe = (
+        rules_ok
+        and not unexpected_ikev2_rules
+        and safe_rule_count_values in ((0, 0), (1, 1))
+    )
     checks.append(
         Check(
-            "residue:ikev2_pref_220_loop",
-            rules_ok and not pref_220_table_220,
-            "no IKEv2 pref-220/table-220 policy rule in IPv4 or IPv6"
-            if rules_ok and not pref_220_table_220
+            "residue:ikev2_client_policy_rule",
+            ikev2_rules_safe,
+            "no charon-nm rule, or one exact safe table-210 rule per address family"
+            if ikev2_rules_safe
             else (
-                "IKEv2 pref-220/table-220 policy rule remains in "
-                + ", ".join(sorted({family for family, _ in pref_220_table_220}))
-                if pref_220_table_220
-                else "IPv4/IPv6 policy-rule inspection failed"
+                f"{len(unexpected_ikev2_rules)} unsafe table-210 rule(s) found; details redacted"
+                if unexpected_ikev2_rules
+                else (
+                    "charon-nm table-210 rules are missing, asymmetric, or duplicated"
+                    if rules_ok
+                    else "IPv4/IPv6 policy-rule inspection failed"
+                )
             ),
         )
     )
@@ -793,28 +870,31 @@ def check_residue() -> list[Check]:
         )
     )
 
-    ikev2_table_220_routes: list[tuple[str, str]] = []
-    ikev2_table_220_ok = True
+    ikev2_table_210_routes: list[tuple[str, str]] = []
+    ikev2_table_210_ok = True
     for family in ("-4", "-6"):
-        table_routes = _run(["ip", family, "route", "show", "table", "220"])
+        table_routes = _run(
+            ["ip", family, "-o", "-N", "route", "show", "table", "all"]
+        )
         if table_routes.returncode != 0:
-            if "FIB table does not exist" in table_routes.stderr:
-                continue
-            ikev2_table_220_ok = False
+            ikev2_table_210_ok = False
             continue
-        ikev2_table_220_routes.extend(
-            (family, line) for line in table_routes.stdout.splitlines() if line.strip()
+        ikev2_table_210_routes.extend(
+            (family, line)
+            for line in table_routes.stdout.splitlines()
+            if f" dev {IKEV2_INTERFACE} " in f" {line.strip()} "
+            and " table 210 " in f" {line.strip()} "
         )
     checks.append(
         Check(
-            "residue:ikev2_table_220_routes",
-            ikev2_table_220_ok and not ikev2_table_220_routes,
-            "no routes remain in IPv4 or IPv6 table 220"
-            if ikev2_table_220_ok and not ikev2_table_220_routes
+            "residue:ikev2_client_policy_routes",
+            ikev2_table_210_ok and not ikev2_table_210_routes,
+            "no routes remain via the owned IKEv2 interface in table 210"
+            if ikev2_table_210_ok and not ikev2_table_210_routes
             else (
-                f"{len(ikev2_table_220_routes)} possible IKEv2 table-220 routes remain; details redacted"
-                if ikev2_table_220_routes
-                else "IPv4/IPv6 table-220 route inspection failed"
+                f"{len(ikev2_table_210_routes)} possible IKEv2 table-210 routes remain; details redacted"
+                if ikev2_table_210_routes
+                else "IPv4/IPv6 table-210 route inspection failed"
             ),
         )
     )
@@ -890,11 +970,20 @@ def check_residue() -> list[Check]:
         and ikev2_status.get("connection_inspection_ok") == "true"
         and ikev2_status.get("connection_present") == "false"
         and ikev2_status.get("nm_active") == "false"
+        and ikev2_status.get("interface_inspection_ok") == "true"
+        and ikev2_status.get("interface_present") == "false"
+        and ikev2_status.get("ownership_inspection_ok") == "true"
+        and ikev2_status.get("route_inspection_ok") == "true"
+        and ikev2_status.get("owned_route_present") == "false"
+        and ikev2_status.get("ipv6_block_inspection_ok") == "true"
+        and ikev2_status.get("ipv6_block_present") == "false"
         and ikev2_status.get("xfrm_state_inspection_ok") == "true"
         and ikev2_status.get("xfrm_policy_inspection_ok") == "true"
         and ikev2_status.get("xfrm_state_present") == "false"
         and ikev2_status.get("xfrm_esp_present") == "false"
         and ikev2_status.get("xfrm_policy_present") == "false"
+        and ikev2_status.get("routing_rule_inspection_ok") == "true"
+        and ikev2_status.get("routing_rules_idle_safe") == "true"
     )
     checks.append(
         Check(
@@ -919,8 +1008,7 @@ def check_residue() -> list[Check]:
             if (
                 current_device == WIREGUARD_INTERFACE
                 or current_device == OPENVPN_INTERFACE
-                or current_device.startswith("tun")
-                or current_device.startswith("nm-xfrm-")
+                or current_device == IKEV2_INTERFACE
             ):
                 stale_dns_devices.add(current_device)
     checks.append(

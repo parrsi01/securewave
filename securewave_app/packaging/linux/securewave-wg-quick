@@ -2,8 +2,19 @@
 set -euo pipefail
 
 CONNECTION_NAME="SecureWave-IKEv2"
+IKEV2_INTERFACE="nm-xfrm-sw"
 OPENVPN_INTERFACE="tun-securewave"
 MAX_DNS_SERVERS=8
+IKEV2_ROUTING_TABLE=210
+IKEV2_ROUTING_PRIORITY=210
+WIREGUARD_ROUTING_TABLE=51820
+WIREGUARD_POLICY_PRIORITY=32764
+WIREGUARD_SUPPRESS_PRIORITY=32765
+WIREGUARD_IPV4_KILL_SWITCH_COMMENT="securewave-wireguard-ipv4-kill-switch-v1"
+WIREGUARD_IPV6_BLOCK_COMMENT="securewave-wireguard-ipv6-block-v1"
+IKEV2_IPV6_BLOCK_COMMENT="securewave-ikev2-ipv6-block-v1"
+PUBLIC_IPV6_PREFIX="2000::/3"
+IKEV2_OUTER_MARK="0xdc/0xffffffff"
 
 usage() {
   cat >&2 <<'EOF'
@@ -174,7 +185,12 @@ case "$action" in
         ;;
       ikev2)
         command -v nmcli >/dev/null 2>&1
-        command -v ipsec >/dev/null 2>&1
+        command -v ip6tables >/dev/null 2>&1
+        command -v ip6tables-save >/dev/null 2>&1
+        command -v ip6tables-restore >/dev/null 2>&1
+        [[ -x /usr/lib/ipsec/charon-nm ]]
+        [[ -r /usr/lib/NetworkManager/VPN/nm-strongswan-service.name ]]
+        [[ -r /usr/lib/ipsec/plugins/libstrongswan-eap-mschapv2.so ]]
         ;;
       *)
         echo "securewave-wg-quick: invalid probe target '$1'" >&2
@@ -278,53 +294,115 @@ case "$action" in
  esac
 
 policy_rule_count() {
-  ip rule show | awk '/lookup 51820/ && /fwmark/ && /not/ { count++ } END { print count + 0 }'
+  local family="$1"
+  ip "$family" -N rule show | awk \
+    -v table="$WIREGUARD_ROUTING_TABLE" '
+      $0 ~ /(^| )not( |$)/ &&
+      $0 ~ /(^| )fwmark (0xca6c|0xca6c\/0xffffffff|51820)( |$)/ &&
+      $0 ~ ("(^| )(lookup|table) " table "( |$)") { count++ }
+      END { print count + 0 }
+    '
 }
 
 main_suppress_count() {
-  ip rule show | awk '/lookup main/ && /suppress_prefixlength 0/ { count++ } END { print count + 0 }'
+  local family="$1"
+  ip "$family" -N rule show | awk '
+      $0 ~ /(^| )(lookup|table) main( |$)/ &&
+      $0 ~ /(^| )suppress_prefixlength 0( |$)/ { count++ }
+      END { print count + 0 }
+    '
 }
 
-table_route_present() {
-  ip -4 route show table 51820 | grep -q "^default dev ${iface}( |$)"
+table_route_count() {
+  local family="$1"
+  local routes
+  if ! routes="$(
+    ip "$family" -N route show table "$WIREGUARD_ROUTING_TABLE" 2>&1
+  )"; then
+    if [[ "$routes" == *"FIB table does not exist"* ]]; then
+      routes=""
+    else
+      echo "securewave-wg-quick: unable to inspect ${family} WireGuard routes" >&2
+      return 1
+    fi
+  fi
+  printf '%s\n' "$routes" | awk \
+    -v interface="$iface" '
+      $1 == "default" {
+        for (i = 1; i < NF; i++) {
+          if ($i == "dev" && $(i + 1) == interface) {
+            count++
+          }
+        }
+      }
+      END { print count + 0 }
+    '
+}
+
+flush_wireguard_route_table() {
+  local family="$1"
+  local diagnostic
+  if diagnostic="$(
+    ip "$family" route flush table "$WIREGUARD_ROUTING_TABLE" 2>&1
+  )"; then
+    return 0
+  fi
+  if [[ "$diagnostic" == *"FIB table does not exist"* ]]; then
+    return 0
+  fi
+  echo "securewave-wg-quick: unable to clear ${family} WireGuard routes" >&2
+  return 1
 }
 
 clear_ikev2_unqualified_rule_family() {
   local family="$1"
   local rules
   local unsafe_count
-  local other_pref220_count
+  local other_pref_count
   local remaining_count
 
-  if ! rules="$(ip "$family" rule show 2>/dev/null)"; then
+  if ! rules="$(ip "$family" -N rule show 2>/dev/null)"; then
     echo "securewave-wg-quick: unable to inspect ${family} policy rules" >&2
     return 1
   fi
 
   unsafe_count="$(
     printf '%s\n' "$rules" |
-      awk '$0 ~ /^220:[[:space:]]+from all lookup 220$/ { count++ } END { print count + 0 }'
+      awk -v priority="${IKEV2_ROUTING_PRIORITY}:" -v table="$IKEV2_ROUTING_TABLE" '
+        $1 == priority && $2 == "from" && $3 == "all" &&
+          $4 == "lookup" && $5 == table && NF == 5 { count++ }
+        END { print count + 0 }
+      '
   )"
   (( unsafe_count > 0 )) || return 0
 
-  other_pref220_count="$(
+  other_pref_count="$(
     printf '%s\n' "$rules" |
-      awk '$1 == "220:" && /lookup 220/ && $0 !~ /^220:[[:space:]]+from all lookup 220$/ { count++ } END { print count + 0 }'
+      awk -v priority="${IKEV2_ROUTING_PRIORITY}:" -v table="$IKEV2_ROUTING_TABLE" '
+        $1 == priority && $0 ~ ("lookup " table) &&
+          !($2 == "from" && $3 == "all" && $4 == "lookup" &&
+            $5 == table && NF == 5) { count++ }
+        END { print count + 0 }
+      '
   )"
-  if (( other_pref220_count > 0 )); then
-    echo "securewave-wg-quick: refusing to alter mixed ${family} pref-220 policy rules" >&2
+  if (( other_pref_count > 0 )); then
+    echo "securewave-wg-quick: refusing to alter mixed ${family} charon-nm policy rules" >&2
     return 1
   fi
 
   while (( unsafe_count > 0 )); do
-    ip "$family" rule del pref 220 from all table 220
-    rules="$(ip "$family" rule show)"
+    ip "$family" rule del pref "$IKEV2_ROUTING_PRIORITY" from all table "$IKEV2_ROUTING_TABLE"
+    rules="$(ip "$family" -N rule show)"
     remaining_count="$(
       printf '%s\n' "$rules" |
-        awk '$0 ~ /^220:[[:space:]]+from all lookup 220$/ { count++ } END { print count + 0 }'
+        awk -v priority="${IKEV2_ROUTING_PRIORITY}:" -v table="$IKEV2_ROUTING_TABLE" '
+          $1 == priority && $2 == "from" && $3 == "all" &&
+            $4 == "lookup" && $5 == table && NF == 5 { count++ }
+          END { print count + 0 }
+        '
     )"
     if (( remaining_count >= unsafe_count )); then
-      echo "securewave-wg-quick: ${family} pref-220 rule reconciliation made no progress" >&2
+      echo "securewave-wg-quick: ${family} charon-nm rule reconciliation made no progress" >&2
       return 1
     fi
     unsafe_count="$remaining_count"
@@ -351,6 +429,49 @@ inspect_ikev2_connection() {
     return 0
   fi
   return 1
+}
+
+inspect_ikev2_active_connection() {
+  local connections
+
+  if ! connections="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null)"; then
+    return 2
+  fi
+  if grep -Fqx "${CONNECTION_NAME}:vpn" <<< "$connections"; then
+    return 0
+  fi
+  return 1
+}
+
+ensure_ikev2_inactive() {
+  local connection_status
+
+  if inspect_ikev2_active_connection; then
+    connection_status=0
+  else
+    connection_status=$?
+  fi
+  if [[ "$connection_status" == "2" ]]; then
+    echo "securewave-wg-quick: unable to inspect active IKEv2 NetworkManager profiles" >&2
+    return 1
+  fi
+  if [[ "$connection_status" == "0" ]]; then
+    if ! nmcli connection down id "$CONNECTION_NAME" >/dev/null; then
+      echo "securewave-wg-quick: unable to deactivate the IKEv2 connection" >&2
+      return 1
+    fi
+  fi
+  if inspect_ikev2_active_connection; then
+    echo "securewave-wg-quick: IKEv2 connection remains active" >&2
+    return 1
+  else
+    connection_status=$?
+  fi
+  if [[ "$connection_status" == "2" ]]; then
+    echo "securewave-wg-quick: unable to verify IKEv2 deactivation" >&2
+    return 1
+  fi
+  return 0
 }
 
 clear_wg_quick_nftables() {
@@ -407,18 +528,139 @@ clear_wg_quick_iptables_family() {
   fi
 }
 
+clear_owned_iptables_comment_rules() {
+  local tool="$1"
+  local comment="$2"
+  local save_command="${tool}-save"
+  local restore_command="${tool}-restore"
+  local rules
+  local restore=""
+  local line
+  local found=0
+
+  if ! rules="$("$save_command" 2>/dev/null)"; then
+    echo "securewave-wg-quick: unable to inspect ${tool} owned firewall state" >&2
+    return 1
+  fi
+  while IFS= read -r line; do
+    if [[ "$line" == \** || "$line" == "COMMIT" ]]; then
+      restore+="${line}"$'\n'
+      continue
+    fi
+    if [[ "$line" == "-A "* ]] &&
+       { [[ "$line" == *"--comment \"${comment}\""* ]] ||
+         [[ "$line" == *"--comment ${comment} "* ]] ||
+         [[ "$line" == *"--comment ${comment}" ]]; }; then
+      restore+="${line/#-A/-D}"$'\n'
+      found=1
+    fi
+  done <<< "$rules"
+  if [[ "$found" == "1" ]]; then
+    printf '%s' "$restore" | "$restore_command" -n
+  fi
+}
+
+ikev2_ipv6_block_line_is_exact() {
+  local line="$1"
+  local expected_quoted
+  local expected_unquoted
+  expected_quoted="-A OUTPUT -d ${PUBLIC_IPV6_PREFIX} -m mark ! --mark ${IKEV2_OUTER_MARK} -m comment --comment \"${IKEV2_IPV6_BLOCK_COMMENT}\" -j REJECT --reject-with icmp6-adm-prohibited"
+  expected_unquoted="-A OUTPUT -d ${PUBLIC_IPV6_PREFIX} -m mark ! --mark ${IKEV2_OUTER_MARK} -m comment --comment ${IKEV2_IPV6_BLOCK_COMMENT} -j REJECT --reject-with icmp6-adm-prohibited"
+  [[ "$line" == "$expected_quoted" || "$line" == "$expected_unquoted" ]]
+}
+
+ikev2_ipv6_block_counts() {
+  local rules
+  local line
+  local marker_count=0
+  local exact_count=0
+
+  if ! rules="$(ip6tables-save 2>/dev/null)"; then
+    echo "securewave-wg-quick: unable to inspect IKEv2 IPv6 block state" >&2
+    return 1
+  fi
+  while IFS= read -r line; do
+    if [[ "$line" == "-A "* ]] &&
+       { [[ "$line" == *"--comment \"${IKEV2_IPV6_BLOCK_COMMENT}\""* ]] ||
+         [[ "$line" == *"--comment ${IKEV2_IPV6_BLOCK_COMMENT} "* ]] ||
+         [[ "$line" == *"--comment ${IKEV2_IPV6_BLOCK_COMMENT}" ]]; }; then
+      marker_count=$((marker_count + 1))
+      if ikev2_ipv6_block_line_is_exact "$line"; then
+        exact_count=$((exact_count + 1))
+      fi
+    fi
+  done <<< "$rules"
+  printf '%s %s\n' "$marker_count" "$exact_count"
+}
+
+ensure_ikev2_ipv6_block() {
+  local counts
+  local marker_count
+  local exact_count
+
+  counts="$(ikev2_ipv6_block_counts)" || return 1
+  read -r marker_count exact_count <<< "$counts"
+  if (( marker_count != exact_count || exact_count > 1 )); then
+    echo "securewave-wg-quick: refusing ambiguous IKEv2 IPv6 block state" >&2
+    return 1
+  fi
+  if (( exact_count == 0 )); then
+    ip6tables -I OUTPUT 1 \
+      -d "$PUBLIC_IPV6_PREFIX" \
+      -m mark '!' --mark "$IKEV2_OUTER_MARK" \
+      -m comment --comment "$IKEV2_IPV6_BLOCK_COMMENT" \
+      -j REJECT --reject-with icmp6-adm-prohibited
+  fi
+  counts="$(ikev2_ipv6_block_counts)" || return 1
+  read -r marker_count exact_count <<< "$counts"
+  if (( marker_count != 1 || exact_count != 1 )); then
+    echo "securewave-wg-quick: unable to verify IKEv2 IPv6 block state" >&2
+    return 1
+  fi
+}
+
+clear_ikev2_ipv6_block() {
+  local counts
+  local marker_count
+  local exact_count
+
+  counts="$(ikev2_ipv6_block_counts)" || return 1
+  read -r marker_count exact_count <<< "$counts"
+  if (( marker_count != exact_count )); then
+    echo "securewave-wg-quick: refusing ambiguous IKEv2 IPv6 block cleanup" >&2
+    return 1
+  fi
+  if (( exact_count > 0 )); then
+    clear_owned_iptables_comment_rules \
+      ip6tables "$IKEV2_IPV6_BLOCK_COMMENT" || return 1
+  fi
+  counts="$(ikev2_ipv6_block_counts)" || return 1
+  read -r marker_count exact_count <<< "$counts"
+  if (( marker_count != 0 || exact_count != 0 )); then
+    echo "securewave-wg-quick: IKEv2 IPv6 block residue remains" >&2
+    return 1
+  fi
+}
+
 clear_wg_quick_firewall() {
   local failed=0
 
   clear_wg_quick_nftables || failed=1
   clear_wg_quick_iptables_family iptables || failed=1
   clear_wg_quick_iptables_family ip6tables || failed=1
+  clear_owned_iptables_comment_rules \
+    iptables "$WIREGUARD_IPV4_KILL_SWITCH_COMMENT" || failed=1
+  clear_owned_iptables_comment_rules \
+    ip6tables "$WIREGUARD_IPV6_BLOCK_COMMENT" || failed=1
   return "$failed"
 }
 
 clear_policy_state() {
   local remove_link="${1:-0}"
   local remove_firewall="${2:-1}"
+  local family
+  local count
+  local index
   local mark
   local failed=0
   if [[ "$remove_firewall" == "1" ]]; then
@@ -427,37 +669,82 @@ clear_policy_state() {
       while iptables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
       if command -v ip6tables >/dev/null 2>&1; then
         while ip6tables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
+        while ip6tables -D OUTPUT -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
       fi
     done
   fi
-  while ip rule del not fwmark 51820 table 51820 priority 32764 >/dev/null 2>&1; do :; done
-  while ip rule del table main suppress_prefixlength 0 priority 32765 >/dev/null 2>&1; do :; done
-  ip -4 route flush table 51820 >/dev/null 2>&1 || true
-  ip -6 route flush table 51820 >/dev/null 2>&1 || true
+  for family in -4 -6; do
+    if count="$(policy_rule_count "$family")"; then
+      for ((index = 0; index < count; index++)); do
+        ip "$family" rule del not fwmark "$WIREGUARD_ROUTING_TABLE" \
+          table "$WIREGUARD_ROUTING_TABLE" >/dev/null 2>&1 || {
+            failed=1
+            break
+          }
+      done
+    else
+      failed=1
+    fi
+    if count="$(main_suppress_count "$family")"; then
+      for ((index = 0; index < count; index++)); do
+        ip "$family" rule del table main suppress_prefixlength 0 \
+          >/dev/null 2>&1 || {
+            failed=1
+            break
+          }
+      done
+    else
+      failed=1
+    fi
+    flush_wireguard_route_table "$family" || failed=1
+  done
   if [[ "$remove_link" == "1" ]]; then
     ip link delete "$iface" >/dev/null 2>&1 || true
   fi
-  ip route flush cache >/dev/null 2>&1 || true
+  ip -4 route flush cache >/dev/null 2>&1 || true
+  ip -6 route flush cache >/dev/null 2>&1 || true
   return "$failed"
 }
 
 ensure_policy_state() {
-  wg set "$iface" fwmark 51820
-  if (( $(policy_rule_count) > 1 || $(main_suppress_count) > 1 )); then
+  local family
+  local policy_count
+  local suppress_count
+  local route_count
+  local reset_required=0
+
+  wg set "$iface" fwmark "$WIREGUARD_ROUTING_TABLE"
+  for family in -4 -6; do
+    policy_count="$(policy_rule_count "$family")"
+    suppress_count="$(main_suppress_count "$family")"
+    route_count="$(table_route_count "$family")"
+    if (( policy_count > 1 || suppress_count > 1 || route_count > 1 )); then
+      reset_required=1
+    fi
+  done
+  if [[ "$reset_required" == "1" ]]; then
     clear_policy_state 0 0
   fi
-  if ! table_route_present; then
-    ip -4 route flush table 51820 >/dev/null 2>&1 || true
-    ip -6 route flush table 51820 >/dev/null 2>&1 || true
-    ip route replace default dev "$iface" table 51820
-  fi
-  if (( $(policy_rule_count) == 0 )); then
-    ip rule add not fwmark 51820 table 51820 priority 32764
-  fi
-  if (( $(main_suppress_count) == 0 )); then
-    ip rule add table main suppress_prefixlength 0 priority 32765
-  fi
-  ip route flush cache >/dev/null 2>&1 || true
+  for family in -4 -6; do
+    route_count="$(table_route_count "$family")"
+    if (( route_count == 0 )); then
+      ip "$family" route replace default dev "$iface" \
+        table "$WIREGUARD_ROUTING_TABLE"
+    fi
+    policy_count="$(policy_rule_count "$family")"
+    if (( policy_count == 0 )); then
+      ip "$family" rule add not fwmark "$WIREGUARD_ROUTING_TABLE" \
+        table "$WIREGUARD_ROUTING_TABLE" \
+        priority "$WIREGUARD_POLICY_PRIORITY"
+    fi
+    suppress_count="$(main_suppress_count "$family")"
+    if (( suppress_count == 0 )); then
+      ip "$family" rule add table main suppress_prefixlength 0 \
+        priority "$WIREGUARD_SUPPRESS_PRIORITY"
+    fi
+  done
+  ip -4 route flush cache >/dev/null 2>&1 || true
+  ip -6 route flush cache >/dev/null 2>&1 || true
 }
 
 if [[ "$action" == "up" ]]; then
@@ -577,7 +864,7 @@ if [[ "$action" == "ikev2-add-eap" ]]; then
     vpn_data="${vpn_data},certificate=${ca_cert},cert-source=file"
   fi
   vpn_secrets="password=${password}"
-  exec nmcli connection add type vpn ifname '*' con-name "$CONNECTION_NAME" \
+  exec nmcli connection add type vpn ifname "$IKEV2_INTERFACE" con-name "$CONNECTION_NAME" \
     vpn-type strongswan vpn.data "$vpn_data" vpn.secrets "$vpn_secrets"
 fi
 
@@ -618,53 +905,80 @@ fi
 
 if [[ "$action" == "ikev2-up" ]]; then
   clear_ikev2_route_state
-  set +e
-  nmcli connection up id "$CONNECTION_NAME"
-  status=$?
-  set -e
-  clear_ikev2_unqualified_rules
+  ensure_ikev2_ipv6_block
+  if nmcli connection up id "$CONNECTION_NAME"; then
+    status=0
+  else
+    status=$?
+  fi
+  if [[ "$status" == "0" ]] && ! clear_ikev2_unqualified_rules; then
+    status=1
+  fi
   ip route flush cache >/dev/null 2>&1 || true
+  if [[ "$status" != "0" ]]; then
+    cleanup_safe=0
+    if ensure_ikev2_inactive && clear_ikev2_route_state; then
+      cleanup_safe=1
+    fi
+    if [[ "$cleanup_safe" == "1" ]]; then
+      if ! clear_ikev2_ipv6_block; then
+        echo "securewave-wg-quick: failed IKEv2 activation left IPv6 block residue" >&2
+      fi
+    else
+      echo "securewave-wg-quick: failed IKEv2 activation left the IPv6 block in place" >&2
+    fi
+  fi
   exit "$status"
 fi
 
 if [[ "$action" == "ikev2-down" ]]; then
-  nmcli connection down id "$CONNECTION_NAME" >/dev/null 2>&1 || true
+  ensure_ikev2_inactive
   clear_ikev2_route_state
+  clear_ikev2_ipv6_block
   exit 0
 fi
 
 if [[ "$action" == "ikev2-delete" ]]; then
-  delete_failed=0
-  set +e
-  inspect_ikev2_connection
-  connection_status=$?
-  set -e
+  if inspect_ikev2_connection; then
+    connection_status=0
+  else
+    connection_status=$?
+  fi
   if [[ "$connection_status" == "2" ]]; then
     echo "securewave-wg-quick: unable to inspect IKEv2 NetworkManager profile" >&2
-    clear_ikev2_route_state
     exit 1
   fi
   if [[ "$connection_status" == "0" ]]; then
     if ! nmcli connection delete id "$CONNECTION_NAME" >/dev/null; then
-      delete_failed=1
+      echo "securewave-wg-quick: unable to delete the IKEv2 NetworkManager profile" >&2
+      exit 1
     fi
   fi
-  set +e
-  inspect_ikev2_connection
-  connection_status=$?
-  set -e
+  if inspect_ikev2_connection; then
+    connection_status=0
+  else
+    connection_status=$?
+  fi
   if [[ "$connection_status" == "2" ]]; then
     echo "securewave-wg-quick: unable to verify IKEv2 NetworkManager profile deletion" >&2
-    delete_failed=1
+    exit 1
   fi
   if [[ "$connection_status" == "0" ]]; then
     echo "securewave-wg-quick: IKEv2 NetworkManager profile remains after deletion" >&2
-    delete_failed=1
-  fi
-  clear_ikev2_route_state
-  if [[ "$delete_failed" == "1" ]]; then
     exit 1
   fi
+  if inspect_ikev2_active_connection; then
+    echo "securewave-wg-quick: IKEv2 connection remains active after profile deletion" >&2
+    exit 1
+  else
+    connection_status=$?
+  fi
+  if [[ "$connection_status" == "2" ]]; then
+    echo "securewave-wg-quick: unable to verify IKEv2 deactivation after profile deletion" >&2
+    exit 1
+  fi
+  clear_ikev2_route_state
+  clear_ikev2_ipv6_block
   exit 0
 fi
 

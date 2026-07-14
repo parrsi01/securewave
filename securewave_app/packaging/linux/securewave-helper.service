@@ -1,6 +1,6 @@
 [Unit]
 Description=SecureWave VPN helper service
-After=network-online.target NetworkManager.service strongswan-starter.service
+After=network-online.target NetworkManager.service
 Wants=network-online.target
 
 [Service]

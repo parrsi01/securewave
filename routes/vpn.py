@@ -336,24 +336,28 @@ def _profile_mtu() -> Optional[int]:
 
 def _linux_kill_switch_snippet() -> str:
     """
-    Best-effort Linux kill switch via wg-quick hooks.
+    Fail-closed Linux kill switch and public-IPv6 block via wg-quick hooks.
 
     This uses the WireGuard fwmark to allow the tunnel handshake while
-    rejecting non-tunnel traffic when the interface is down.
+    rejecting non-tunnel traffic while the interface is active.
     """
     return (
         "PostUp = sh -c 'command -v iptables >/dev/null 2>&1 && "
         "iptables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT'\n"
+        "-m addrtype ! --dst-type LOCAL -m comment "
+        "--comment securewave-wireguard-ipv4-kill-switch-v1 -j REJECT'\n"
         "PostDown = sh -c 'command -v iptables >/dev/null 2>&1 && "
         "iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT || true'\n"
+        "-m addrtype ! --dst-type LOCAL -m comment "
+        "--comment securewave-wireguard-ipv4-kill-switch-v1 -j REJECT || true'\n"
         "PostUp = sh -c 'command -v ip6tables >/dev/null 2>&1 && "
-        "ip6tables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT'\n"
+        "ip6tables -I OUTPUT -d 2000::/3 -m mark ! --mark $(wg show %i fwmark) "
+        "-m comment --comment securewave-wireguard-ipv6-block-v1 "
+        "-j REJECT --reject-with icmp6-adm-prohibited'\n"
         "PostDown = sh -c 'command -v ip6tables >/dev/null 2>&1 && "
-        "ip6tables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) "
-        "-m addrtype ! --dst-type LOCAL -j REJECT || true'\n"
+        "ip6tables -D OUTPUT -d 2000::/3 -m mark ! --mark $(wg show %i fwmark) "
+        "-m comment --comment securewave-wireguard-ipv6-block-v1 "
+        "-j REJECT --reject-with icmp6-adm-prohibited || true'\n"
     )
 
 
@@ -496,7 +500,12 @@ def _build_openvpn_profile_config(server: VPNServer) -> str:
         "remote-cert-tls server",
         "auth-user-pass",
         "auth-nocache",
-        "redirect-gateway def1",
+        # This service currently provides an IPv4 OpenVPN data plane. Route
+        # public IPv6 into the TUN device and reject it there so a dual-stack
+        # Linux client cannot bypass the VPN over its physical interface.
+        "ifconfig-ipv6 fd53:6563:7572:6577::2/64 fd53:6563:7572:6577::1",
+        "redirect-gateway def1 ipv6",
+        "block-ipv6",
         *dns_lines,
         "verb 3",
         "<ca>",
@@ -558,6 +567,7 @@ def _build_ikev2_profile_config(server: VPNServer, current_user: User) -> str:
         f"    secret = {_swanctl_quote(eap_secret)}",
         "  }",
         "}",
+        "# ipv6_mode = block",
         f"# dns = {dns_servers}",
         "# ca_cert_pem_begin",
         server.ikev2_ca_cert_pem.strip(),

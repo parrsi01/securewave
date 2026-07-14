@@ -385,10 +385,17 @@ static guint installed_contract_version() {
     return 0;
   }
   g_strstrip(contents);
-  if (*contents == '\0') {
+  if (*contents == '\0' || *contents == '+' || *contents == '-') {
     return 0;
   }
-  return static_cast<guint>(g_ascii_strtoull(contents, nullptr, 10));
+  gchar* end = nullptr;
+  errno = 0;
+  const guint64 parsed = g_ascii_strtoull(contents, &end, 10);
+  if (errno != 0 || end == contents || *end != '\0' || parsed == 0 ||
+      parsed > UINT32_MAX) {
+    return 0;
+  }
+  return static_cast<guint>(parsed);
 }
 
 static gboolean helper_daemon_installed() {

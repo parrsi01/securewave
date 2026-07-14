@@ -51,7 +51,7 @@ if grep -Eqn 'pkexec|/bin/sh.*-c' securewave_app/linux/runner/my_application.cc;
   exit 1
 fi
 if [[ "$(tr -d '[:space:]' < securewave_app/packaging/linux/securewave-wg-quick.contract)" != "13" ]]; then
-  echo "ERROR: Linux helper contract is not version 13."
+  echo "ERROR: Linux helper contract is not version 14."
   exit 1
 fi
 for protocol in wireguard openvpn ikev2; do

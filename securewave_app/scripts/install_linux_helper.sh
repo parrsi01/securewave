@@ -52,11 +52,9 @@ install_apt_dependencies() {
   command -v openvpn >/dev/null 2>&1 || packages+=(openvpn)
   command -v nmcli >/dev/null 2>&1 || packages+=(network-manager)
   command -v resolvectl >/dev/null 2>&1 || packages+=(systemd-resolved)
-  command -v ipsec >/dev/null 2>&1 || packages+=(strongswan)
   package_installed network-manager-strongswan || packages+=(network-manager-strongswan)
-  package_installed strongswan-swanctl || packages+=(strongswan-swanctl)
-  package_installed strongswan-charon || packages+=(strongswan-charon)
   package_installed libcharon-extra-plugins || packages+=(libcharon-extra-plugins)
+  package_installed libcharon-extauth-plugins || packages+=(libcharon-extauth-plugins)
   package_installed libstrongswan-extra-plugins || packages+=(libstrongswan-extra-plugins)
   command -v ip >/dev/null 2>&1 || packages+=(iproute2)
   command -v iptables >/dev/null 2>&1 || packages+=(iptables)
@@ -73,6 +71,50 @@ install_apt_dependencies() {
   apt-get install -y "${packages[@]}"
 }
 
+strongswan_file_has_charon_nm_routing_settings() {
+  awk '
+    BEGIN { depth = 0; nm_depth = 0; pending_nm = 0; found = 0 }
+    {
+      line = $0
+      sub(/[[:space:]]*#.*/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line == "") {
+        next
+      }
+      if (line ~ /^charon-nm[.].*(fwmark|routing_table|routing_table_prio)[[:space:]]*=/) {
+        found = 1
+      }
+      if (line ~ /^charon-nm[[:space:]]*\{/) {
+        nm_depth = depth + 1
+        pending_nm = 0
+      } else if (line == "charon-nm") {
+        pending_nm = 1
+      } else if (pending_nm && line ~ /^\{/) {
+        nm_depth = depth + 1
+        pending_nm = 0
+      } else if (pending_nm) {
+        pending_nm = 0
+      }
+      if (nm_depth > 0 &&
+          line ~ /(^|[.[:space:]])(fwmark|routing_table|routing_table_prio)[[:space:]]*=/) {
+        found = 1
+      }
+      if (nm_depth > 0 && line ~ /^include[[:space:]]+/) {
+        found = 1
+      }
+      braces = line
+      opens = gsub(/\{/, "{", braces)
+      braces = line
+      closes = gsub(/\}/, "}", braces)
+      depth += opens - closes
+      if (nm_depth > 0 && depth < nm_depth) {
+        nm_depth = 0
+      }
+    }
+    END { exit found ? 0 : 1 }
+  ' "$1"
+}
+
 find_strongswan_fwmark_conflict() {
   local candidate
   local candidates=()
@@ -86,7 +128,7 @@ find_strongswan_fwmark_conflict() {
 
   for candidate in "${candidates[@]}"; do
     [[ "$candidate" != "$STRONGSWAN_ROUTING_FILE" ]] || continue
-    if grep -Eq '^[[:space:]]*([^#[:space:]].*[.[:space:]])?fwmark[[:space:]]*=' "$candidate"; then
+    if strongswan_file_has_charon_nm_routing_settings "$candidate"; then
       printf '%s\n' "$candidate"
       return 0
     fi
@@ -96,14 +138,51 @@ find_strongswan_fwmark_conflict() {
 
 install_strongswan_routing_config() {
   local conflict
+  local legacy_system_charon_config=0
   if conflict="$(find_strongswan_fwmark_conflict)"; then
-    die "Existing strongSwan fwmark configuration conflicts with SecureWave: $conflict"
+    die "Existing charon-nm routing/mark configuration conflicts with SecureWave: $conflict"
   fi
 
+  if [[ -f "$STRONGSWAN_ROUTING_FILE" ]] &&
+     grep -Eq '^[[:space:]]*charon[[:space:]]*\{' "$STRONGSWAN_ROUTING_FILE"; then
+    legacy_system_charon_config=1
+  fi
   install -d -o root -g root -m 0755 /etc/strongswan.d
   install -m 0644 "$SOURCE_STRONGSWAN_ROUTING" "$STRONGSWAN_ROUTING_FILE"
-  if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
-    systemctl try-restart strongswan-starter.service
+  if [[ "$legacy_system_charon_config" == "1" ]]; then
+    warn "SecureWave removed its legacy system-charon configuration. If a regular strongSwan daemon was already running, it may retain the old packet marks and pref-220 rule until an administrator-approved restart or reboot. SecureWave did not restart it because doing so could interrupt unrelated IPsec SAs. Review active SAs and restart only during a maintenance window."
+  fi
+}
+
+charon_nm_running() {
+  local proc_dir
+  local process_name
+  local process_owner
+  local process_exe
+  for proc_dir in /proc/[0-9]*; do
+    [[ -r "$proc_dir/comm" && -L "$proc_dir/exe" ]] || continue
+    IFS= read -r process_name < "$proc_dir/comm" || continue
+    [[ "$process_name" == "charon-nm" ]] || continue
+    process_owner="$(stat -c %u "$proc_dir" 2>/dev/null || true)"
+    [[ "$process_owner" == "0" ]] || continue
+    process_exe="$(readlink "$proc_dir/exe" 2>/dev/null || true)"
+    [[ "$process_exe" == "/usr/lib/ipsec/charon-nm" ||
+       "$process_exe" == "/usr/lib/ipsec/charon-nm (deleted)" ]] && return 0
+  done
+  return 1
+}
+
+preflight_install() {
+  local conflict
+  command -v systemctl >/dev/null 2>&1 ||
+    die "systemctl is required for the SecureWave helper service."
+  [[ -d /run/systemd/system ]] ||
+    die "systemd is required for the SecureWave helper service."
+  if charon_nm_running; then
+    die "charon-nm is running; disconnect all NetworkManager strongSwan VPNs before installing the helper."
+  fi
+  if conflict="$(find_strongswan_fwmark_conflict)"; then
+    die "Existing charon-nm routing/mark configuration conflicts with SecureWave: $conflict"
   fi
 }
 
@@ -124,7 +203,14 @@ ensure_runtime_group() {
   fi
 
   install -d -o root -g root -m 0755 "$AUTH_DIR"
-  : > "$AUTH_FILE"
+  if [[ -e "$AUTH_FILE" || -L "$AUTH_FILE" ]]; then
+    if [[ ! -f "$AUTH_FILE" || -L "$AUTH_FILE" ||
+          "$(stat -c %u "$AUTH_FILE" 2>/dev/null || true)" != "0" ]]; then
+      die "Existing SecureWave helper allowlist is not a regular root-owned file: $AUTH_FILE"
+    fi
+  else
+    install -o root -g root -m 0644 /dev/null "$AUTH_FILE"
+  fi
   chmod 0644 "$AUTH_FILE"
 
   add_allowed_user "$(seed_user)"
@@ -164,7 +250,9 @@ install_systemd_service() {
   systemctl restart securewave-helper.service
 }
 
+preflight_install
 install_apt_dependencies
+preflight_install
 ensure_runtime_group
 install_strongswan_routing_config
 
