@@ -56,10 +56,10 @@ green. No unsupported protocol is presented as release-ready.
 - The local ARM64 `.deb` is not a public download. Install it from its local path
   only after verifying the checksum.
 - The Linux x64 `.deb` remains `coming_soon` in the public manifest. Workflow
-  `29348489573` at source head `b45b093b4969a0ff3e8c27b0011ebf30a4d6070c`
+  `29348878602` at source head `164098b136c9d6eeba7d0a94ec8a4ab38c0d19e9`
   passed the contract-13 package and ephemeral lifecycle checks and produced
   private evidence with SHA-256
-  `4d1733bd5a9e0d23806543fe36956feb7766e7ea101342270ea9f09d0f1aa80e`.
+  `48768524c4682d5d85027531fae9a499acd6eb4f45f6cc83b9d13f8bae54fd91`.
   No x64 artifact is public because live authenticated data-plane evidence is
   still absent.
 

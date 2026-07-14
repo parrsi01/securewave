@@ -87,10 +87,10 @@ def test_linux_x64_deb_is_withheld_build_evidence_not_release_download():
     assert linux_x64_deb.status == "coming_soon"
     assert linux_x64_deb.url == "#"
     assert linux_x64_deb.evidence_url == (
-        "https://github.com/parrsi01/securewave/actions/runs/29348489573"
+        "https://github.com/parrsi01/securewave/actions/runs/29348878602"
     )
     assert linux_x64_deb.checksum_sha256 == (
-        "4d1733bd5a9e0d23806543fe36956feb7766e7ea101342270ea9f09d0f1aa80e"
+        "48768524c4682d5d85027531fae9a499acd6eb4f45f6cc83b9d13f8bae54fd91"
     )
     assert "clean x86_64 VM install" in (linux_x64_deb.notes or "")
 
@@ -230,7 +230,7 @@ def test_invalid_manifest_structure_uses_safe_fallback(monkeypatch, tmp_path, cl
     assert withheld["status"] == "coming_soon"
     assert withheld["url"] == "#"
     assert withheld["evidence_url"] == (
-        "https://github.com/parrsi01/securewave/actions/runs/29348489573"
+        "https://github.com/parrsi01/securewave/actions/runs/29348878602"
     )
 
 
