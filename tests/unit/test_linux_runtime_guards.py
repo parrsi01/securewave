@@ -129,6 +129,19 @@ def test_helper_daemon_requires_recent_handshake_and_endpoint_bypass():
     assert '"handshake_present"' in helperd
 
 
+def test_helper_daemon_rolls_back_a_started_tunnel_without_handshake_proof():
+    helperd = _read(HELPERD)
+
+    up_block = helperd.split('if (op == "wireguard.up") {', 1)[1].split(
+        'if (op == "wireguard.down") {', 1
+    )[0]
+    assert "Fields runtime_status = WireGuardStatus();" in up_block
+    assert 'Field(runtime_status, "status") == "connected"' in up_block
+    assert 'RunHelper({"down", config_path});' in up_block
+    assert "WireGuard start did not produce authenticated tunnel evidence" in up_block
+    assert "WaitWireGuardClean()" in up_block
+
+
 def test_privileged_helper_script_restricts_inputs_and_protocol_actions():
     helper = _read(HELPER)
 

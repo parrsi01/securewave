@@ -2828,7 +2828,25 @@ static Fields HandleWireGuard(const std::string& op, const Fields& request, uid_
           "vpn_connect_failed",
           "WireGuard command completed but IPv4/IPv6 route evidence did not use sw-wg.");
     }
-    return WireGuardStatus();
+    Fields runtime_status = WireGuardStatus();
+    if (Field(runtime_status, "ok") == "true" &&
+        Field(runtime_status, "status") == "connected") {
+      return runtime_status;
+    }
+    const std::string runtime_message = Field(runtime_status, "message");
+    RunHelper({"down", config_path});
+    RunHelper({"policy-clear-link", kWireGuardInterface});
+    if (!WaitWireGuardClean()) {
+      return Error(
+          "vpn_connect_failed",
+          std::string("WireGuard start did not produce authenticated tunnel evidence. Cleanup residue remains: ") +
+              WireGuardResidueSummary());
+    }
+    return Error(
+        "vpn_connect_failed",
+        runtime_message.empty()
+            ? "WireGuard start did not produce authenticated tunnel evidence."
+            : runtime_message);
   }
 
   if (op == "wireguard.down") {
