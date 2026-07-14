@@ -38,6 +38,12 @@ def helperd_harness(tmp_path_factory: pytest.TempPathFactory) -> Path:
 int main(int argc, char** argv) {{
   if (argc < 2) return 64;
   const std::string mode = argv[1];
+  if (mode == "allowlist" && argc == 3) {{
+    const char* path = AllowlistedExecutablePath(argv[2]);
+    if (path == nullptr) return 1;
+    std::cout << path << "\\n";
+    return 0;
+  }}
   if (mode == "wireguard" && argc == 3) {{
     return ValidateWireGuardConfigContents(argv[2]) ? 0 : 1;
   }}
@@ -301,6 +307,19 @@ def test_helper_rejects_malformed_or_duplicate_fields(helperd_harness: Path, bod
 
     assert response["ok"] == "false"
     assert response["code"] == "invalid_request"
+
+
+def test_helper_allowlists_nmcli_for_ikev2_status_inspection(
+    helperd_harness: Path,
+):
+    result = subprocess.run(  # nosec B603
+        [str(helperd_harness), "allowlist", "nmcli"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.stdout.strip() == "/usr/bin/nmcli"
 
 
 def test_helper_rejects_unknown_fields_and_operations(helperd_harness: Path):

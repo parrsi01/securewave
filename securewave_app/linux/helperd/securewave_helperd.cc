@@ -350,6 +350,7 @@ static const char* AllowlistedExecutablePath(const std::string& executable) {
       {"iptables-restore", "/usr/sbin/iptables-restore"},
       {"iptables-save", "/usr/sbin/iptables-save"},
       {"nft", "/usr/sbin/nft"},
+      {"nmcli", "/usr/bin/nmcli"},
       {"resolvectl", "/usr/bin/resolvectl"},
       {"setfacl", "/usr/bin/setfacl"},
       {"wg", "/usr/bin/wg"},
