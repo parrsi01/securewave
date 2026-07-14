@@ -560,8 +560,8 @@ if [[ -n "$(securewave_openvpn_pids)" ]]; then
   echo "SecureWave OpenVPN process remains; refusing package removal." >&2
   exit 1
 fi
-if [[ -x "$HELPER" ]]; then
-  "$HELPER" openvpn-dns-revert
+if [[ "$helper_service_active" == "1" && -x "$HELPERD" ]]; then
+  helper_request openvpn-dns-revert
 elif ! offline_owned_runtime_clean; then
   echo "SecureWave OpenVPN helper is unavailable and owned runtime state could not be verified clean; refusing package removal." >&2
   exit 1

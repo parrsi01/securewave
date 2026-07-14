@@ -133,7 +133,7 @@ exit 64
     assert "ip -4 rule add" not in events
 
 
-def test_wireguard_cleanup_removes_versioned_and_legacy_owned_rules(tmp_path: Path):
+def test_wireguard_cleanup_removes_versioned_rules_and_preserves_unmarked_rules(tmp_path: Path):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     events = tmp_path / "events.log"
@@ -227,5 +227,5 @@ exit 64
     assert result.returncode == 0, result.stderr
     assert v4_versioned.read_text(encoding="utf-8") == ""
     assert v6_versioned.read_text(encoding="utf-8") == ""
-    assert v4_legacy.read_text(encoding="utf-8") == ""
-    assert v6_legacy.read_text(encoding="utf-8") == ""
+    assert v4_legacy.read_text(encoding="utf-8") == "present\n"
+    assert v6_legacy.read_text(encoding="utf-8") == "present\n"

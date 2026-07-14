@@ -661,17 +661,9 @@ clear_policy_state() {
   local family
   local count
   local index
-  local mark
   local failed=0
   if [[ "$remove_firewall" == "1" ]]; then
     clear_wg_quick_firewall || failed=1
-    for mark in 51820 0xca6c; do
-      while iptables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
-      if command -v ip6tables >/dev/null 2>&1; then
-        while ip6tables -D OUTPUT ! -o sw-wg -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
-        while ip6tables -D OUTPUT -m mark ! --mark "$mark" -m addrtype ! --dst-type LOCAL -j REJECT >/dev/null 2>&1; do :; done
-      fi
-    done
   fi
   for family in -4 -6; do
     if count="$(policy_rule_count "$family")"; then
@@ -748,25 +740,6 @@ ensure_policy_state() {
 }
 
 if [[ "$action" == "up" ]]; then
-  STATE_DIR=/run/securewave
-  POLICY_FILE=$STATE_DIR/sw-wg.output-policy
-  ENDPOINT_FILE=$STATE_DIR/sw-wg.endpoint-ips
-  if [[ -f "$ENDPOINT_FILE" ]]; then
-    while IFS= read -r ip; do
-      [[ -n "$ip" ]] || continue
-      iptables -D OUTPUT -d "$ip" -j ACCEPT >/dev/null 2>&1 || true
-      ip route del "$ip/32" >/dev/null 2>&1 || true
-    done < "$ENDPOINT_FILE"
-  fi
-  iptables -D OUTPUT -o sw-wg -j ACCEPT >/dev/null 2>&1 || true
-  if [[ -f "$POLICY_FILE" ]]; then
-    prev_policy="$(tr -d '[:space:]' < "$POLICY_FILE")"
-    [[ -n "$prev_policy" ]] || prev_policy=ACCEPT
-    iptables -P OUTPUT "$prev_policy" >/dev/null 2>&1 || true
-  else
-    iptables -P OUTPUT ACCEPT >/dev/null 2>&1 || true
-  fi
-  rm -f "$POLICY_FILE" "$ENDPOINT_FILE"
   wg-quick down "$config" >/dev/null 2>&1 || true
   iface="sw-wg"
   clear_policy_state 1

@@ -9,6 +9,15 @@ ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / "securewave_app/packaging/linux/securewave-wg-quick"
 
 
+def test_wireguard_cleanup_has_no_unowned_global_firewall_or_policy_mutations():
+    source = HELPER.read_text(encoding="utf-8")
+
+    assert "iptables -P OUTPUT" not in source
+    assert 'iptables -D OUTPUT ! -o sw-wg -m mark ! --mark' not in source
+    assert "ENDPOINT_FILE" not in source
+    assert "sw-wg.output-policy" not in source
+
+
 def _write_fake(binary: Path, body: str) -> None:
     binary.write_text("#!/usr/bin/env bash\nset -eu\n" + body, encoding="utf-8")
     binary.chmod(0o755)
