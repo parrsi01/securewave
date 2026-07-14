@@ -1,16 +1,16 @@
 # SecureWave VPN Runtime Portability Matrix
 
-Last audited: 2026-07-13 UTC
+Last audited: 2026-07-14 UTC
 
 Audit basis:
 
 - Candidate branch: `codex/linux-runtime-final`
 - Base: `origin/master` at `b2c69ade88a6d7d96a1478f792c39ec793888fac`
-- Source head when the local runtime/package checks ran:
-  `9243c862f08049cc583e4c94232fb44bd44f407e`
+- Source head when the local runtime/package checks ran: current
+  `codex/linux-runtime-final` certification head
 - Audit host: Linux `aarch64` / Debian `arm64`
 - Local ARM64 package SHA-256:
-  `6bdd66e246a5ddd6de0037266d193101291a47395857777103e954a49c73ad5b`
+  `4476553ad8578541c6bc0f12ab0e234e6b7f99767439443999ed156c1f56bbea`
 - Publication, signing, production deployment, and live credentials were
   excluded.
 
@@ -32,7 +32,7 @@ Audit basis:
 | Linux ARM64 `.deb` | WireGuard | Yes: contract-13 helper, routes/policy/status/counters, cleanup | Yes: local ARM64 package and AArch64 helper payload | Blocked: no clean ARM64 systemd VM; current host helper IPC/service/socket checks pass | Blocked: no authorized staging credentials/infrastructure | Primary path, package-proven, not live-release-proven |
 | Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status and config/process safety | Yes: local package payload and dependency metadata | Blocked: no clean ARM64 systemd VM | Blocked: no backend + data-plane evidence in authorized staging | Unavailable unless backend and data-plane gates pass |
 | Linux ARM64 `.deb` | IKEv2 | Helper orchestration exists | Yes: package contains the declared strongSwan/NetworkManager dependencies | Blocked: no clean install/runtime proof | Blocked: backend and clean Linux runtime gates are not both green | Intentionally unavailable |
-| Linux x64 `.deb` | WireGuard/OpenVPN/IKEv2 | Same portable source paths | Workflow `29261131617` from source head `9243c862` passed; SHA-256 `c51616246415d405a45305d923332f989c0fa71c6b01ddc99ed86f3d0ea394c9`; contract-10 payload/dependencies checked | Blocked: clean x86_64 systemd VM required | Blocked: authorized staging evidence required | Build-proven only; manifest remains `coming_soon` |
+| Linux x64 `.deb` | WireGuard/OpenVPN/IKEv2 | Same portable source paths | Contract-13 workflow evidence pending on the exact current branch head; prior run was stale contract 10 | Blocked: clean x86_64 systemd VM required | Blocked: authorized staging evidence required | Unavailable until current package/lifecycle evidence is green; manifest remains `coming_soon` |
 | Linux portable archive | All | UI can call an already-installed matching helper | Archive build may be proven independently | Not supplied by the archive | Not proven | UI-only until a matching helper package is installed and certified |
 | Windows x64 | WireGuard | Source bridge exists | No Windows artifact in this pass | No Windows service proof in this pass | No Windows route/DNS/data-plane proof | Implemented, not release-proven |
 | Windows x64 | OpenVPN/IKEv2 | No | No | No | No | Intentionally unavailable |

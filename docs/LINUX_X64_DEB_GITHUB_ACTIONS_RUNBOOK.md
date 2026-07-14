@@ -99,24 +99,26 @@ The workflow proves:
 - The public downloads manifest remains truthful: Linux x64 `.deb` stays
   `coming_soon` until publish evidence is accepted.
 
-## What This Does Not Prove
+## Evidence boundary
 
-The workflow does not prove:
+On a green current run, the workflow proves the package on an ephemeral
+GitHub-hosted x86_64 Ubuntu runner: amd64 ELF payloads, contract 13, declared
+dependencies, install, systemd helper/socket state, structural verifier,
+bounded application launch, purge, and SecureWave-owned network residue checks.
+It does not prove:
 
 - Clean x86_64 VM installation with `dpkg -i` or `apt install -f`.
-- `securewave-helper.service` starts under systemd on a clean x86_64 VM.
-- `/run/securewave/helper.sock` is created and usable after install.
-- Connect/disconnect works without per-connect privilege prompts.
-- Live WireGuard, OpenVPN, or IKEv2 routing works.
-- Runtime verifier success.
+- Connect/disconnect with a real authenticated staging profile.
+- Live WireGuard, OpenVPN, or IKEv2 routing, DNS, HTTPS, exit-IP, handshake,
+  or counter evidence.
 - That the `.deb` is publicly downloadable or release-ready.
 
-Keep public claims limited to x64 build evidence until clean-VM helper proof and
-live protocol proof are captured.
+Keep public claims limited to private beta/build-and-lifecycle evidence until
+the exact source revision also has authorized live protocol proof.
 
 ## Referenced historical build
 
-The current x64 build reference for this certification pass is:
+The prior x64 build reference for this certification pass is:
 
 - Source head: `9243c862f08049cc583e4c94232fb44bd44f407e`
 - Workflow run: `29261131617`
@@ -149,11 +151,11 @@ cat "$tmp/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
 rm -rf "$tmp"
 ```
 
-The reviewed runtime requires contract `14`. Workflow run `29261131617` remains
+The reviewed runtime requires contract `13`. Workflow run `29261131617` remains
 historical contract-10 build evidence and is not compatible with the current
-runtime. Trigger a new reviewed workflow before any clean-VM certification. Do
-not promote the package or change its `coming_soon` status from build evidence
-alone.
+runtime. Trigger the workflow on the exact contract-13 branch head before any
+clean-VM certification. Do not promote the package or change its `coming_soon`
+status from build/lifecycle evidence alone.
 
 ## Clean x86_64 VM certification
 

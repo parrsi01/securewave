@@ -174,7 +174,7 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "groupdel securewave" in build
     assert "rm -f /run/securewave/helper.sock" in build
     assert (
-        "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, libcharon-extra-plugins, libcharon-extauth-plugins, libstrongswan-extra-plugins, iproute2, iptables, nftables, acl, systemd, systemd-resolved"
+        "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libcharon-extauth-plugins, libstrongswan-extra-plugins, iproute2, iptables, nftables, acl, systemd, systemd-resolved"
         in build
     )
     assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build

@@ -8,16 +8,16 @@ Last audited: 2026-07-14 UTC
 - Base: `origin/master` at `b2c69ade88a6d7d96a1478f792c39ec793888fac`
 - Application/package version: `4.0.0+3`
 - Local ARM64 package: `securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb`
-- Local ARM64 package SHA-256: `dcc96b741c3458158b41269edd2e71d03e4068e04a600596e74753a86b048185`
+- Local ARM64 package SHA-256: `4476553ad8578541c6bc0f12ab0e234e6b7f99767439443999ed156c1f56bbea`
 - No artifact was published, signed, or deployed by this certification.
 
 ## Protocol truth
 
 WireGuard is the primary Linux protocol. The normal Flutter -> backend profile ->
 helper IPC path is implemented. The candidate source and release bundle require
-helper contract 13. The local host has contract 13 in its existing helper
-installation, but the rebuilt package has not been installed because administrator
-authorization was unavailable; fresh package-install proof remains outstanding.
+helper contract 13. The local host has an existing contract-13 helper
+installation, while this rebuilt package remains a local artifact pending a
+fresh install/lifecycle proof.
 
 OpenVPN remains unavailable unless both backend server evidence and fresh
 data-plane evidence are usable. Local helper capability alone does not enable it.
@@ -39,8 +39,8 @@ green. No unsupported protocol is presented as release-ready.
   style environment that does not inherit production dotenv settings.
 - The candidate package definition includes the helper daemon, wrapper, contract
   13, systemd, systemd-resolved, nftables, tmpfiles, and paired strongSwan
-  routing-mark payload. The recorded `.deb` and checksum predate contract 13 and
-  must be replaced by the Phase 3 rebuild.
+  routing-mark payload. The current local ARM64 rebuild is the recorded
+  contract-13 package; it has not been published or deployed.
 - The release Flutter binary starts on this Linux host. The headless graphics
   environment emits Mesa cursor/driver warnings; no crash was observed during the
   bounded run.
@@ -53,10 +53,10 @@ green. No unsupported protocol is presented as release-ready.
 
 - The local ARM64 `.deb` is not a public download. Install it from its local path
   only after verifying the checksum.
-- The Linux x64 `.deb` remains `coming_soon` in the public manifest. GitHub-hosted
-  x86_64 workflow `29261131617` from source head `9243c862` passed and produced
-  SHA-256 `c51616246415d405a45305d923332f989c0fa71c6b01ddc99ed86f3d0ea394c9`;
-  this does not prove clean VM installation or live VPN routing.
+- The Linux x64 `.deb` remains `coming_soon` in the public manifest. The prior
+  GitHub-hosted x86_64 workflow was stale/contract-10 evidence; the new
+  contract-13 workflow must pass its package and ephemeral lifecycle checks
+  before it is retained as private beta evidence. No x64 artifact is public.
 - Portable archives are UI/runtime-independent packaging and do not install the
   privileged Linux helper.
 - Windows, macOS VPN tunneling, and IKEv2 have no release claim from this pass.
@@ -72,7 +72,7 @@ release commands must not instruct users to treat a feature branch as canonical.
 ```bash
 cd /path/to/securewave-linux-runtime-final
 deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb"
-echo "dcc96b741c3458158b41269edd2e71d03e4068e04a600596e74753a86b048185  $deb" | sha256sum -c -
+echo "4476553ad8578541c6bc0f12ab0e234e6b7f99767439443999ed156c1f56bbea  $deb" | sha256sum -c -
 sudo apt install "$deb"
 systemctl is-enabled securewave-helper.service
 systemctl is-active securewave-helper.service
