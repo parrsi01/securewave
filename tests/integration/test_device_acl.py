@@ -93,8 +93,18 @@ def test_device_registration_failure_does_not_leave_an_active_assignment(
 
 
 def test_device_profile_rotation_and_revocation_lifecycle(
-    client, auth_headers, test_vpn_server
+    client, auth_headers, test_vpn_server, monkeypatch
 ):
+    import routes.devices as device_routes
+
+    def fail_if_remote_sync_is_attempted():
+        pytest.fail("local test lifecycle attempted remote WireGuard synchronization")
+
+    monkeypatch.setattr(
+        device_routes,
+        "get_wireguard_server_manager",
+        fail_if_remote_sync_is_attempted,
+    )
     created = client.post(
         "/api/vpn/devices",
         headers=auth_headers,

@@ -64,6 +64,19 @@ class WireGuardServerManager:
         self.ssh_path = shutil.which("ssh")
         self._wg_key_pattern = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
 
+    @staticmethod
+    def remote_operations_enabled() -> bool:
+        """Return whether this process may contact a WireGuard server.
+
+        Test and mock runs must remain local.  In particular, fixture server
+        addresses are documentation-only values and must never trigger SSH or
+        HTTP traffic during backend lifecycle tests.
+        """
+        return not (
+            os.getenv("TESTING", "").lower() == "true"
+            or os.getenv("WG_MOCK_MODE", "").lower() == "true"
+        )
+
     def _load_fernet(self) -> Optional[Fernet]:
         """Load Fernet encryption key for API keys"""
         key = os.getenv("WG_ENCRYPTION_KEY")
@@ -120,6 +133,9 @@ class WireGuardServerManager:
         """
         logger.info("Adding peer to server_id=%s", conn.server_id)
 
+        if not self.remote_operations_enabled():
+            return True, "Peer addition simulated (local test/mock mode)"
+
         if conn.method == "http_api":
             return await self._add_peer_via_api(conn, public_key, allowed_ips)
         elif conn.method == "ssh":
@@ -144,6 +160,9 @@ class WireGuardServerManager:
         """
         logger.info("Removing peer from server_id=%s", conn.server_id)
 
+        if not self.remote_operations_enabled():
+            return True, "Peer removal simulated (local test/mock mode)"
+
         if conn.method == "http_api":
             return await self._remove_peer_via_api(conn, public_key)
         elif conn.method == "ssh":
@@ -164,6 +183,9 @@ class WireGuardServerManager:
         Returns:
             Tuple of (success, list of peer dicts)
         """
+        if not self.remote_operations_enabled():
+            return True, []
+
         if conn.method == "http_api":
             return await self._list_peers_via_api(conn)
         elif conn.method == "ssh":
@@ -184,6 +206,9 @@ class WireGuardServerManager:
         Returns:
             Tuple of (success, status dict)
         """
+        if not self.remote_operations_enabled():
+            return True, {"status": "mock"}
+
         if conn.method == "http_api":
             return await self._get_status_via_api(conn)
         elif conn.method == "ssh":
@@ -204,6 +229,9 @@ class WireGuardServerManager:
         Returns:
             Tuple of (healthy, message)
         """
+        if not self.remote_operations_enabled():
+            return True, "WireGuard server probe simulated (local test/mock mode)"
+
         if conn.method == "http_api":
             return await self._health_check_via_api(conn)
         elif conn.method == "ssh":
