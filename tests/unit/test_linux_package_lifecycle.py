@@ -201,6 +201,8 @@ elif [[ "${FAKE_MODE:-clean}" == "paired_safe_rule" && "$*" == *"rule show"* ]];
   printf '%s\n' '210: not from all fwmark 0xdc lookup 210'
 elif [[ "${FAKE_MODE:-clean}" == "unsafe_xfrm" && "$*" == *"xfrm state"* ]]; then
   printf '%s\n' 'if_id 0x2a'
+elif [[ "${FAKE_MODE:-clean}" == "unsafe_xfrm_policy" && "$*" == *"xfrm policy"* ]]; then
+  printf '%s\n' 'if_id 0x2a'
 fi
 """,
         "nmcli": "#!/bin/bash\nexit 0\n",
@@ -230,6 +232,7 @@ fi
         ("iptables_failure", False),
         ("wireguard_firewall", False),
         ("unsafe_xfrm", False),
+        ("unsafe_xfrm_policy", False),
         ("ikev2_firewall", False),
     ),
 )

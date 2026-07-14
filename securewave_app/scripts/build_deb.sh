@@ -513,8 +513,8 @@ offline_owned_runtime_clean() {
   [[ "${safe_rule_counts[0]}" == "${safe_rule_counts[1]}" ]] || return 1
   xfrm_state="$(ip -s xfrm state)" || return 1
   xfrm_policy="$(ip xfrm policy)" || return 1
-  if grep -Eq '(^|[[:space:]])if_id[[:space:]]+(0x)?[0-9]+' <<< "$xfrm_state
-$xfrm_policy"; then
+  if printf '%s\n%s\n' "$xfrm_state" "$xfrm_policy" |
+    grep -Eq '(^|[[:space:]])if_id[[:space:]]+(0x)?[0-9]+'; then
     return 1
   fi
   tables="$(nft list tables)" || return 1
