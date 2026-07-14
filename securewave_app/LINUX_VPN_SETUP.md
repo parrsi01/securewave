@@ -10,7 +10,7 @@ time.
 - Socket: `/run/securewave/helper.sock`
 - Daemon: `/usr/local/libexec/securewave-helperd`
 - Narrow wrapper: `/usr/local/libexec/securewave-wg-quick`
-- Contract: `/usr/local/libexec/securewave-wg-quick.contract` (required: `14`)
+- Contract: `/usr/local/libexec/securewave-wg-quick.contract` (required: `13`)
 - Service: `securewave-helper.service`
 - Runtime group: `securewave`
 - Explicit UID allowlist: `/etc/securewave/helper-users`
