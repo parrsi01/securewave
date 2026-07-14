@@ -120,10 +120,10 @@ the exact source revision also has authorized live protocol proof.
 
 The current contract-13 workflow evidence is:
 
-- Source head: `bded069a4f1ba8b08b4c3c88b7356b52298665da`
-- Workflow run: `29339542678`
+- Source head: `29174a55cf5c6b493344b89c6edabd1be3818927`
+- Workflow run: `29339889834`
 - SHA-256:
-  `bdf82fe3ac16c764a1c26a9dbd7cc8831c15cfefa40dffb73ae4bc32f514787f`
+  `157a1f8f270b9147fa9796212ead4ad683ac23ba2a4ea24d9a706ab44d7f7bcf`
 
 The run passed amd64 ELF and contract-13 checks, dependency and helper payload
 checks, ephemeral install/service/socket verification, structural verifier,

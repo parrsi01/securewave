@@ -54,17 +54,17 @@ green. No unsupported protocol is presented as release-ready.
 - The local ARM64 `.deb` is not a public download. Install it from its local path
   only after verifying the checksum.
 - The Linux x64 `.deb` remains `coming_soon` in the public manifest. Workflow
-  `29339542678` at source head `bded069a4f1ba8b08b4c3c88b7356b52298665da`
+  `29339889834` at source head `29174a55cf5c6b493344b89c6edabd1be3818927`
   passed the contract-13 package and ephemeral lifecycle checks and produced
   private evidence with SHA-256
-  `bdf82fe3ac16c764a1c26a9dbd7cc8831c15cfefa40dffb73ae4bc32f514787f`.
+  `157a1f8f270b9147fa9796212ead4ad683ac23ba2a4ea24d9a706ab44d7f7bcf`.
   No x64 artifact is public because live authenticated data-plane evidence is
   still absent.
 
 ## Current private x64 workflow evidence
 
 The current x64 evidence is retained only in the GitHub Actions artifact for
-run `29339542678`; it is not a public download. It proves x86_64/amd64 ELF
+run `29339889834`; it is not a public download. It proves x86_64/amd64 ELF
 payloads, contract 13, declared dependencies, ephemeral install, active
 helper/socket, structural verifier, bounded app launch, purge, and networking
 residue checks. It does not prove live protocol routing or release readiness.

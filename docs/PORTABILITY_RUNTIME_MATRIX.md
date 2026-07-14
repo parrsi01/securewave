@@ -7,7 +7,7 @@ Audit basis:
 - Candidate branch: `codex/linux-runtime-final`
 - Base: `origin/master` at `b2c69ade88a6d7d96a1478f792c39ec793888fac`
 - Source head when the local runtime/package checks ran:
-  `bded069a4f1ba8b08b4c3c88b7356b52298665da`
+  `29174a55cf5c6b493344b89c6edabd1be3818927`
 - Audit host: Linux `aarch64` / Debian `arm64`
 - Local ARM64 package SHA-256:
   `4476553ad8578541c6bc0f12ab0e234e6b7f99767439443999ed156c1f56bbea`
@@ -32,7 +32,7 @@ Audit basis:
 | Linux ARM64 `.deb` | WireGuard | Yes: contract-13 helper, routes/policy/status/counters, cleanup | Yes: local ARM64 package and AArch64 helper payload | Blocked: no clean ARM64 systemd VM; current host helper IPC/service/socket checks pass | Blocked: no authorized staging credentials/infrastructure | Primary path, package-proven, not live-release-proven |
 | Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status and config/process safety | Yes: local package payload and dependency metadata | Blocked: no clean ARM64 systemd VM | Blocked: no backend + data-plane evidence in authorized staging | Unavailable unless backend and data-plane gates pass |
 | Linux ARM64 `.deb` | IKEv2 | Helper orchestration exists | Yes: package contains the declared strongSwan/NetworkManager dependencies | Blocked: no clean install/runtime proof | Blocked: backend and clean Linux runtime gates are not both green | Intentionally unavailable |
-| Linux x64 `.deb` | WireGuard/OpenVPN/IKEv2 | Same portable source paths | Workflow `29339542678` at source head `bded069a` passed amd64 ELF, contract 13, metadata, install/helper/socket, verifier, launch, purge, and residue checks; SHA-256 `bdf82fe3ac16c764a1c26a9dbd7cc8831c15cfefa40dffb73ae4bc32f514787f` | Blocked: clean x86_64 systemd VM required | Blocked: authorized staging evidence required | Private beta evidence only; manifest remains `coming_soon` |
+| Linux x64 `.deb` | WireGuard/OpenVPN/IKEv2 | Same portable source paths | Workflow `29339889834` at source head `29174a55` passed amd64 ELF, contract 13, metadata, install/helper/socket, verifier, launch, purge, and residue checks; SHA-256 `157a1f8f270b9147fa9796212ead4ad683ac23ba2a4ea24d9a706ab44d7f7bcf` | Blocked: clean x86_64 systemd VM required | Blocked: authorized staging evidence required | Private beta evidence only; manifest remains `coming_soon` |
 | Linux portable archive | All | UI can call an already-installed matching helper | Archive build may be proven independently | Not supplied by the archive | Not proven | UI-only until a matching helper package is installed and certified |
 | Windows x64 | WireGuard | Source bridge exists | No Windows artifact in this pass | No Windows service proof in this pass | No Windows route/DNS/data-plane proof | Implemented, not release-proven |
 | Windows x64 | OpenVPN/IKEv2 | No | No | No | No | Intentionally unavailable |
