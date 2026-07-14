@@ -149,6 +149,30 @@ void main() {
     expect(state.lastTunnelStartOk, isFalse);
   });
 
+  test('OpenVPN rolls back when authenticated egress proof fails', () async {
+    final service = _NativeSuccessVpnService();
+    final api = _OpenVpnEgressApiClient(egressVerified: false);
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.ensureInitialized();
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+    await notifier.connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(api.baselineCalls, 1);
+    expect(api.verifyCalls, 1);
+    expect(service.disconnectCalls, 1);
+    expect(state.status, VpnStatus.error);
+    expect(state.lastTunnelStartOk, isFalse);
+  });
+
   test('stale stored VPN device id is cleared and profile fetch retries',
       () async {
     final service = _NativeSuccessVpnService();
@@ -296,6 +320,8 @@ class _CounterVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
     bool backendEvidence = false,
   }) async {
     _status = VpnStatus.connected;
@@ -350,6 +376,8 @@ class _InitializationTrackingVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
     bool backendEvidence = false,
   }) async =>
       VpnStatus.disconnected;
@@ -375,6 +403,8 @@ class _FailingVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
     bool backendEvidence = false,
   }) {
     throw VpnServiceException('vpn_connect_failed', 'native connect failed');
@@ -389,6 +419,7 @@ class _FailingVpnService extends VpnService {
 
 class _NativeSuccessVpnService extends VpnService {
   VpnStatus _status = VpnStatus.disconnected;
+  int disconnectCalls = 0;
 
   @override
   bool get isNativeAvailable => true;
@@ -403,6 +434,8 @@ class _NativeSuccessVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
     bool backendEvidence = false,
   }) async {
     if (config == null || config.trim().isEmpty) {
@@ -414,6 +447,7 @@ class _NativeSuccessVpnService extends VpnService {
 
   @override
   Future<VpnStatus> disconnect() async {
+    disconnectCalls += 1;
     _status = VpnStatus.disconnected;
     return _status;
   }
@@ -529,6 +563,86 @@ class _AlwaysFailingProfileApiClient extends ApiClient {
       ),
     );
   }
+}
+
+class _OpenVpnEgressApiClient extends ApiClient {
+  _OpenVpnEgressApiClient({required this.egressVerified})
+      : super(AppConfig.defaults());
+
+  final bool egressVerified;
+  int baselineCalls = 0;
+  int verifyCalls = 0;
+
+  @override
+  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
+    String? deviceType,
+  }) async =>
+      _allProtocolsAvailable();
+
+  @override
+  Future<String> captureVpnEgressBaseline() async {
+    baselineCalls += 1;
+    return 'a' * 64;
+  }
+
+  @override
+  Future<bool> verifyVpnEgress({
+    required String serverId,
+    required int deviceId,
+    required VpnProtocol protocol,
+    required String baselineFingerprint,
+  }) async {
+    verifyCalls += 1;
+    expect(serverId, 'de-nue-1');
+    expect(deviceId, 321);
+    expect(protocol, VpnProtocol.openVpn);
+    expect(baselineFingerprint, 'a' * 64);
+    return egressVerified;
+  }
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    return VpnProfile.fromJson({
+      'device_id': 321,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'protocol': 'openvpn',
+      'server_id': 'de-nue-1',
+      'server_location': 'Nuremberg, Germany',
+      'issued_at': DateTime.now().toIso8601String(),
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'openvpn_config': 'client\ndev tun\n',
+      'openvpn_username': 'swovpn-0123456789abcdef0123456789abcdef',
+      'openvpn_password': 'fresh-openvpn-password-012345',
+      'dns': {
+        'servers': ['94.140.14.14'],
+        'enforcement': 'config',
+      },
+      'kill_switch': {
+        'mode': 'enabled',
+        'enforcement': 'best effort',
+      },
+      'peer_registered': true,
+      'registration_status': 'test',
+    });
+  }
+
+  @override
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {}
+
+  @override
+  Future<void> notifyVpnDisconnected() async {}
 }
 
 Map<VpnProtocol, ProtocolAvailability> _allProtocolsAvailable() {

@@ -29,6 +29,7 @@ const char* kWireGuardConfigFileName = "sw-wg.conf";
 const char* kOpenVpnConfigFileName = "securewave.ovpn";
 const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
 const char* kOpenVpnLogFileName = "securewave-openvpn.log";
+const char* kOpenVpnAuthFileName = "securewave-openvpn.auth";
 const char* kIkev2ConfigFileName = "securewave-ikev2.conf";
 const char* kActiveProtocolFileName = "securewave-active-protocol";
 const char* kBundledHelperScriptRelativePath = "packaging/linux/securewave-wg-quick";
@@ -46,6 +47,7 @@ typedef struct {
   gchar* config_path;
   gchar* openvpn_pid_path;
   gchar* openvpn_log_path;
+  gchar* openvpn_auth_path;
   gchar* active_protocol_path;
   gchar* active_protocol;
 } VpnChannelState;
@@ -63,6 +65,7 @@ static void vpn_channel_state_free(VpnChannelState* state) {
   g_clear_pointer(&state->config_path, g_free);
   g_clear_pointer(&state->openvpn_pid_path, g_free);
   g_clear_pointer(&state->openvpn_log_path, g_free);
+  g_clear_pointer(&state->openvpn_auth_path, g_free);
   g_clear_pointer(&state->active_protocol_path, g_free);
   g_clear_pointer(&state->active_protocol, g_free);
   g_free(state);
@@ -503,6 +506,9 @@ static void ensure_protocol_paths(VpnChannelState* state, const gchar* protocol)
     if (!state->openvpn_log_path) {
       state->openvpn_log_path = build_state_path(kOpenVpnLogFileName);
     }
+    if (!state->openvpn_auth_path) {
+      state->openvpn_auth_path = build_state_path(kOpenVpnAuthFileName);
+    }
     return;
   }
   if (!state->config_path) {
@@ -525,6 +531,9 @@ static Fields helper_args_for_protocol(VpnChannelState* state, const gchar* prot
     }
     if (state->openvpn_log_path) {
       args["log_path"] = state->openvpn_log_path;
+    }
+    if (state->openvpn_auth_path) {
+      args["auth_path"] = state->openvpn_auth_path;
     }
   }
   return args;
@@ -780,7 +789,7 @@ static void respond_traffic_stats(FlMethodCall* method_call,
   gboolean counters_available = FALSE;
   std::string interface_name =
       g_strcmp0(protocol, "openvpn") == 0
-          ? "tun0"
+          ? "tun-securewave"
           : (g_strcmp0(protocol, "ikev2") == 0 ? "xfrm" : "sw-wg");
 
   if (g_strcmp0(protocol, "wireguard") == 0 &&
@@ -883,6 +892,48 @@ static gboolean supported_protocol(const gchar* protocol) {
   return g_strcmp0(protocol, "wireguard") == 0 ||
          g_strcmp0(protocol, "openvpn") == 0 ||
          g_strcmp0(protocol, "ikev2") == 0;
+}
+
+static gboolean safe_openvpn_username(const gchar* value) {
+  if (!value || !g_str_has_prefix(value, "swovpn-") || strlen(value) != 38) {
+    return FALSE;
+  }
+  for (const gchar* cursor = value + 6; *cursor; cursor++) {
+    if (!g_ascii_isxdigit(*cursor) || g_ascii_isupper(*cursor)) {
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
+
+static gboolean safe_openvpn_password(const gchar* value) {
+  if (!value || *value == '\0' || strlen(value) > 256) {
+    return FALSE;
+  }
+  for (const gchar* cursor = value; *cursor; cursor++) {
+    if (!(g_ascii_isalnum(*cursor) || *cursor == '-' || *cursor == '_')) {
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
+
+static gboolean write_openvpn_auth_file(FlMethodCall* method_call,
+                                        const gchar* path,
+                                        const gchar* username,
+                                        const gchar* password) {
+  if (!path || !safe_openvpn_username(username) || !safe_openvpn_password(password)) {
+    respond_error(method_call, "invalid_config", "OpenVPN credential is invalid.", nullptr);
+    return FALSE;
+  }
+  g_autofree gchar* contents = g_strdup_printf("%s\n%s\n", username, password);
+  g_autoptr(GError) error = nullptr;
+  if (!g_file_set_contents(path, contents, -1, &error) || g_chmod(path, 0600) != 0) {
+    g_unlink(path);
+    respond_error(method_call, "vpn_config_write_failed", "Unable to write the OpenVPN credential file.", nullptr);
+    return FALSE;
+  }
+  return TRUE;
 }
 
 static void handle_vpn_call(FlMethodChannel* channel,
@@ -1006,13 +1057,24 @@ static void handle_vpn_call(FlMethodChannel* channel,
     g_clear_pointer(&state->config_path, g_free);
     g_clear_pointer(&state->openvpn_pid_path, g_free);
     g_clear_pointer(&state->openvpn_log_path, g_free);
+    g_clear_pointer(&state->openvpn_auth_path, g_free);
     state->config_path = build_state_path(config_file_for_protocol(protocol));
     if (g_strcmp0(protocol, "openvpn") == 0) {
       state->openvpn_pid_path = build_state_path(kOpenVpnPidFileName);
       state->openvpn_log_path = build_state_path(kOpenVpnLogFileName);
+      state->openvpn_auth_path = build_state_path(kOpenVpnAuthFileName);
     }
     if (!write_config_file(method_call, state->config_path, config)) {
       return;
+    }
+    if (g_strcmp0(protocol, "openvpn") == 0) {
+      const gchar* username = get_string_arg(args, "openvpn_username");
+      const gchar* password = get_string_arg(args, "openvpn_password");
+      if (!write_openvpn_auth_file(
+              method_call, state->openvpn_auth_path, username, password)) {
+        g_unlink(state->config_path);
+        return;
+      }
     }
     persist_active_protocol(state, protocol);
     Fields helper_args = helper_args_for_protocol(state, protocol);

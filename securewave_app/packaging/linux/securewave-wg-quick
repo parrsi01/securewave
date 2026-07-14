@@ -759,10 +759,20 @@ fi
 if [[ "$action" == "openvpn-start" ]]; then
   prepare_owned_runtime_file "$pid_file" "pid" "$config"
   prepare_owned_runtime_file "$log_file" "log" "$config"
-  argv=(openvpn --config "$config" --writepid "$pid_file" --daemon --log "$log_file" --dev "$OPENVPN_INTERFACE")
-  if [[ -n "${auth_file:-}" ]]; then
-    argv+=(--auth-user-pass "$auth_file")
-  fi
+  [[ -n "${auth_file:-}" ]] || {
+    echo "securewave-wg-quick: refusing missing OpenVPN credential file" >&2
+    exit 64
+  }
+  [[ -f "$auth_file" && ! -L "$auth_file" ]] || {
+    echo "securewave-wg-quick: refusing invalid OpenVPN credential file" >&2
+    exit 64
+  }
+  auth_mode="$(stat -c '%a' "$auth_file")"
+  [[ "$auth_mode" == "600" ]] || {
+    echo "securewave-wg-quick: refusing OpenVPN credential file permissions" >&2
+    exit 64
+  }
+  argv=(openvpn --config "$config" --writepid "$pid_file" --daemon --log "$log_file" --dev "$OPENVPN_INTERFACE" --auth-user-pass "$auth_file")
   exec "${argv[@]}"
 fi
 

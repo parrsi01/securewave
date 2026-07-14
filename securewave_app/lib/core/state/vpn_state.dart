@@ -220,6 +220,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final service = _ref.read(vpnServiceProvider);
       final api = _ref.read(apiClientProvider);
       String? config;
+      String? openVpnUsername;
+      String? openVpnPassword;
+      String? openVpnEgressBaseline;
+      String? openVpnServerId;
+      int? openVpnDeviceId;
       var backendEvidence = false;
 
       if (service.isNativeAvailable) {
@@ -247,6 +252,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
                 '${vpnProtocolLabel(state.protocol)} is unavailable on this Linux runtime.',
           );
         }
+        if (state.protocol == VpnProtocol.openVpn) {
+          // Capture the public source before any routes change. The backend
+          // returns only an HMAC fingerprint, never an address.
+          openVpnEgressBaseline = await api.captureVpnEgressBaseline();
+        }
         final storage = SecureStorage();
         final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
         final protocolKey = vpnProtocolStorageValue(state.protocol);
@@ -269,6 +279,19 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
               '${vpnProtocolLabel(state.protocol)} profile did not include a runnable Linux configuration.',
             );
           }
+          if (state.protocol == VpnProtocol.openVpn) {
+            openVpnUsername = profile.openVpnUsername;
+            openVpnPassword = profile.openVpnPassword;
+            if (openVpnUsername == null ||
+                openVpnUsername.trim().isEmpty ||
+                openVpnPassword == null ||
+                openVpnPassword.isEmpty) {
+              throw VpnServiceException(
+                'protocol_unavailable',
+                'OpenVPN profile did not include a fresh device credential.',
+              );
+            }
+          }
           if (profile.deviceId > 0) {
             _activeDeviceId = profile.deviceId;
             await storage.saveInt(
@@ -277,7 +300,17 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             );
           }
           _activeServerId = profile.serverId;
-          await storage.saveString(profileConfigKey, config);
+          if (state.protocol == VpnProtocol.openVpn) {
+            openVpnServerId = profile.serverId;
+            openVpnDeviceId = profile.deviceId;
+          }
+          if (state.protocol == VpnProtocol.openVpn) {
+            // OpenVPN credentials are short lived and deliberately never
+            // persisted with a reconnectable profile.
+            await storage.delete(profileConfigKey);
+          } else {
+            await storage.saveString(profileConfigKey, config);
+          }
           if (profile.expiresAt != null) {
             await storage.saveString(
               SecureStorage.vpnProfileExpiresAtKey,
@@ -299,6 +332,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             await storage.delete(profileConfigKey);
             rethrow;
           }
+          // OpenVPN credentials must always come from a fresh, authenticated
+          // backend response. A cached profile can never contain a usable
+          // password after process restart or expiry.
+          if (state.protocol == VpnProtocol.openVpn) rethrow;
           // Fallback: try last known config from secure storage for resilience.
           final cached = await storage.getString(profileConfigKey);
           if (cached != null && cached.trim().isNotEmpty) {
@@ -325,10 +362,43 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final nextStatus = await service.connect(
         protocol: state.protocol,
         config: config,
+        openVpnUsername: openVpnUsername,
+        openVpnPassword: openVpnPassword,
         backendEvidence: backendEvidence,
       );
       _setStatus(nextStatus);
       if (nextStatus == VpnStatus.connected) {
+        if (service.isNativeAvailable &&
+            state.protocol == VpnProtocol.openVpn) {
+          final baseline = openVpnEgressBaseline;
+          final serverId = openVpnServerId;
+          final deviceId = openVpnDeviceId;
+          var egressVerified = false;
+          try {
+            egressVerified = baseline != null &&
+                serverId != null &&
+                deviceId != null &&
+                await api.verifyVpnEgress(
+                  serverId: serverId,
+                  deviceId: deviceId,
+                  protocol: VpnProtocol.openVpn,
+                  baselineFingerprint: baseline,
+                );
+          } catch (_) {
+            egressVerified = false;
+          }
+          if (!egressVerified) {
+            try {
+              await service.disconnect();
+            } catch (_) {
+              // The original failed-proof error remains the useful outcome.
+            }
+            throw VpnServiceException(
+              'vpn_egress_unverified',
+              'OpenVPN tunnel did not prove authenticated HTTPS exit-IP movement.',
+            );
+          }
+        }
         try {
           await api.notifyVpnConnected(
             serverId: state.selectedServerId,

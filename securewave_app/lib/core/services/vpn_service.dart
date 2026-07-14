@@ -10,6 +10,8 @@ abstract class VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
     bool backendEvidence = false,
   });
   Future<VpnStatus> disconnect();
@@ -184,6 +186,8 @@ class ChannelVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
     bool backendEvidence = false,
   }) async {
     if (_status == VpnStatus.connected ||
@@ -234,9 +238,24 @@ class ChannelVpnService extends VpnService {
           'Missing ${vpnProtocolLabel(protocol)} configuration. Please refresh and try again.',
         );
       }
+      if (protocol == VpnProtocol.openVpn &&
+          (openVpnUsername == null ||
+              openVpnUsername.trim().isEmpty ||
+              openVpnPassword == null ||
+              openVpnPassword.isEmpty)) {
+        _status = VpnStatus.disconnected;
+        throw VpnServiceException(
+          'invalid_config',
+          'Missing fresh OpenVPN device credential. Refresh and try again.',
+        );
+      }
       await _channel.invokeMethod('connect', {
         'protocol': vpnProtocolStorageValue(protocol),
         'config': config,
+        if (protocol == VpnProtocol.openVpn) ...{
+          'openvpn_username': openVpnUsername,
+          'openvpn_password': openVpnPassword,
+        },
         if (backendEvidence) 'backend_evidence': true,
       });
       _status = VpnStatus.connected;
@@ -530,6 +549,8 @@ class MockVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
     bool backendEvidence = false,
   }) async {
     if (_status == VpnStatus.connected ||

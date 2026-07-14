@@ -12,6 +12,8 @@ class VpnProfile {
     required this.expiresAt,
     required this.wireguardConfig,
     required this.openVpnConfig,
+    required this.openVpnUsername,
+    required this.openVpnPassword,
     required this.ikev2Config,
     required this.dnsServers,
     required this.adMalwareBlocking,
@@ -32,6 +34,8 @@ class VpnProfile {
   final DateTime? expiresAt;
   final String wireguardConfig;
   final String openVpnConfig;
+  final String? openVpnUsername;
+  final String? openVpnPassword;
   final String ikev2Config;
 
   final List<String> dnsServers;
@@ -97,6 +101,8 @@ class VpnProfile {
           nestedProfile['openvpn_config']?.toString() ??
           nestedProfile['ovpn_config']?.toString() ??
           '',
+      openVpnUsername: json['openvpn_username']?.toString(),
+      openVpnPassword: json['openvpn_password']?.toString(),
       ikev2Config: json['ikev2_config']?.toString() ??
           nestedProfile['ikev2_config']?.toString() ??
           _ikev2ProfileToConfig(nestedProfile),

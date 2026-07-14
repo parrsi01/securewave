@@ -440,7 +440,6 @@ persist-tun
 remote-cert-tls server
 auth-user-pass
 auth-nocache
-ifconfig-ipv6 fd53:6563:7572:6577::2/64 fd53:6563:7572:6577::1
 redirect-gateway def1 ipv6
 block-ipv6
 dhcp-option DNS 1.1.1.1
@@ -456,13 +455,51 @@ test-ca-data
 
 
 @pytest.mark.parametrize(
+    "directive",
+    (
+        "setenv UV_TEST injected",
+        "route 0.0.0.0 0.0.0.0",
+        "tls-version-min 1.2",
+        "ifconfig-ipv6 fd53:6563:7572:6577::2/64 fd53:6563:7572:6577::1",
+    ),
+)
+def test_openvpn_config_rejects_any_unallowlisted_directive(
+    helperd_harness: Path, tmp_path: Path, directive: str
+):
+    config = tmp_path / "securewave.ovpn"
+    config.write_text(
+        """client
+dev tun
+proto udp
+remote vpn.example.invalid 1194
+resolv-retry infinite
+nobind
+persist-key
+persist-tun
+remote-cert-tls server
+auth-user-pass
+auth-nocache
+redirect-gateway def1 ipv6
+block-ipv6
+dhcp-option DNS 1.1.1.1
+verb 3
+<ca>
+test-ca-data
+</ca>
+""".replace("verb 3", f"{directive}\nverb 3"),
+        encoding="utf-8",
+    )
+    assert not _validate_config(helperd_harness, "openvpn", config)
+
+
+@pytest.mark.parametrize(
     "invalid_line",
     (
         "",
         "block-ipv6 extra",
-        "ifconfig-ipv6 fd00::2/64 fd00::1",
         "redirect-gateway def1",
         "redirect-gateway ipv6 def1",
+        "ifconfig-ipv6 fd53:6563:7572:6577::2/64 fd53:6563:7572:6577::1",
     ),
 )
 def test_openvpn_config_requires_exact_public_ipv6_block_contract(
@@ -471,18 +508,19 @@ def test_openvpn_config_requires_exact_public_ipv6_block_contract(
     invalid_line: str,
 ):
     required = [
-        "ifconfig-ipv6 fd53:6563:7572:6577::2/64 fd53:6563:7572:6577::1",
         "redirect-gateway def1 ipv6",
         "block-ipv6",
     ]
     replacement_index = {
-        "": 2,
-        "block-ipv6 extra": 2,
-        "ifconfig-ipv6 fd00::2/64 fd00::1": 0,
-        "redirect-gateway def1": 1,
-        "redirect-gateway ipv6 def1": 1,
-    }[invalid_line]
-    required[replacement_index] = invalid_line
+        "": 1,
+        "block-ipv6 extra": 1,
+        "redirect-gateway def1": 0,
+        "redirect-gateway ipv6 def1": 0,
+    }
+    if invalid_line.startswith("ifconfig-ipv6"):
+        required.append(invalid_line)
+    else:
+        required[replacement_index[invalid_line]] = invalid_line
     config = tmp_path / "securewave.ovpn"
     config.write_text(
         "client\ndev tun\ndhcp-option DNS 1.1.1.1\n"
@@ -530,11 +568,13 @@ def test_openvpn_config_requires_literal_dns_and_canonicalizes_families(
 ):
     config = tmp_path / "securewave.ovpn"
     config.write_text(
-        "client\ndev tun\n"
-        "ifconfig-ipv6 fd53:6563:7572:6577::2/64 fd53:6563:7572:6577::1\n"
+        "client\ndev tun\nproto udp\nremote vpn.example.invalid 1194\n"
+        "resolv-retry infinite\nnobind\npersist-key\npersist-tun\n"
+        "remote-cert-tls server\nauth-user-pass\nauth-nocache\n"
         "redirect-gateway def1 ipv6\nblock-ipv6\n"
         "dhcp-option DNS 1.1.1.1\n"
-        "dhcp-option DNS 2606:4700:4700:0:0:0:0:1111\n",
+        "dhcp-option DNS 2606:4700:4700:0:0:0:0:1111\nverb 3\n"
+        "<ca>\ntest-ca\n</ca>\n",
         encoding="utf-8",
     )
 
@@ -558,11 +598,11 @@ def test_openvpn_config_requires_literal_dns_and_canonicalizes_families(
     ):
         line = "" if not value else f"dhcp-option DNS {value}\n"
         config.write_text(
-            "client\ndev tun\n"
-            "ifconfig-ipv6 fd53:6563:7572:6577::2/64 "
-            "fd53:6563:7572:6577::1\n"
+            "client\ndev tun\nproto udp\nremote vpn.example.invalid 1194\n"
+            "resolv-retry infinite\nnobind\npersist-key\npersist-tun\n"
+            "remote-cert-tls server\nauth-user-pass\nauth-nocache\n"
             "redirect-gateway def1 ipv6\nblock-ipv6\n"
-            f"{line}",
+            f"{line}verb 3\n<ca>\ntest-ca\n</ca>\n",
             encoding="utf-8",
         )
         assert not _validate_config(helperd_harness, "openvpn", config)

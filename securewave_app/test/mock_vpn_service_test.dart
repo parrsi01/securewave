@@ -115,4 +115,41 @@ void main() {
     },
     testOn: 'linux',
   );
+
+  test('ChannelVpnService requires and forwards fresh OpenVPN credentials',
+      () async {
+    const channel = MethodChannel('securewave/vpn');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return true;
+    });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+
+    final service = ChannelVpnService(allowFallback: false);
+    await expectLater(
+      service.connect(
+        protocol: VpnProtocol.openVpn,
+        config: 'client\ndev tun\n',
+        backendEvidence: true,
+      ),
+      throwsA(isA<VpnServiceException>()),
+    );
+    await service.connect(
+      protocol: VpnProtocol.openVpn,
+      config: 'client\ndev tun\n',
+      openVpnUsername: 'swovpn-0123456789abcdef0123456789abcdef',
+      openVpnPassword: 'fresh-openvpn-password-012345',
+      backendEvidence: true,
+    );
+
+    final connect = calls.lastWhere((call) => call.method == 'connect');
+    final arguments = Map<Object?, Object?>.from(connect.arguments as Map);
+    expect(arguments['openvpn_username'], startsWith('swovpn-'));
+    expect(arguments['openvpn_password'], isNotEmpty);
+  }, testOn: 'linux');
 }

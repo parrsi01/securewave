@@ -724,139 +724,196 @@ static bool ValidateWireGuardConfigContents(const std::string& path) {
   return input.eof() && saw_interface && saw_peer;
 }
 
+static bool IsSafeOpenVpnRemoteHost(const std::string& host) {
+  if (host.empty() || host.size() > 253 || host.find_first_of(" \t/\\@") != std::string::npos) {
+    return false;
+  }
+  unsigned char address[sizeof(struct in6_addr)] = {};
+  if (inet_pton(AF_INET, host.c_str(), address) == 1 ||
+      inet_pton(AF_INET6, host.c_str(), address) == 1) {
+    return true;
+  }
+  if (host.back() == '.') {
+    return false;
+  }
+  size_t start = 0;
+  while (start < host.size()) {
+    const size_t end = host.find('.', start);
+    const size_t length = (end == std::string::npos ? host.size() : end) - start;
+    if (length == 0 || length > 63 || host[start] == '-' ||
+        host[start + length - 1] == '-') {
+      return false;
+    }
+    for (size_t i = start; i < start + length; i++) {
+      const unsigned char c = static_cast<unsigned char>(host[i]);
+      if (!(g_ascii_isalnum(c) || c == '-')) {
+        return false;
+      }
+    }
+    if (end == std::string::npos) {
+      break;
+    }
+    start = end + 1;
+  }
+  return true;
+}
+
+static bool IsOpenVpnPort(const std::string& value) {
+  char* end = nullptr;
+  errno = 0;
+  const long port = strtol(value.c_str(), &end, 10);
+  return errno == 0 && end != value.c_str() && *end == '\0' &&
+         port >= 1 && port <= 65535;
+}
+
 static bool ValidateOpenVpnConfigContents(const std::string& path,
                                           DnsServers* dns_servers = nullptr) {
-  static const std::set<std::string> kForbiddenDirectives = {
-      "up", "down", "route-up", "route-pre-down", "ipchange",
-      "client-connect", "client-disconnect", "learn-address", "tls-verify",
-      "auth-user-pass-verify", "plugin", "script-security", "management",
-      "management-client-user", "management-client-group", "config", "include",
-      "cd", "chroot", "daemon", "user", "group", "writepid", "log",
-      "log-append", "status", "client-config-dir", "ifconfig-pool-persist",
-      "replay-persist", "askpass", "tmp-dir"};
+  // This is a grammar, not a deny-list. The privileged helper accepts only
+  // the exact client profile the backend issues; every unknown OpenVPN option
+  // is rejected before a root-owned process can read it.
   std::ifstream input(path, std::ios::binary);
   std::string line;
-  bool saw_client = false;
-  bool saw_block_ipv6 = false;
-  bool saw_ifconfig_ipv6 = false;
-  bool saw_redirect_gateway = false;
   std::string inline_block;
+  std::string ca_contents;
+  std::set<std::string> seen;
   DnsServers parsed_dns;
-  const std::set<std::string> allowed_inline_blocks = {
-      "ca", "cert", "key", "pkcs12", "tls-auth", "tls-crypt",
-      "tls-crypt-v2", "connection"};
   while (std::getline(input, line)) {
     if (!line.empty() && line.back() == '\r') {
       line.pop_back();
     }
-    if (line.find('\0') != std::string::npos) {
+    if (line.find('\0') != std::string::npos || line.size() > 4096) {
       return false;
     }
     line = Trim(line);
     if (line.empty() || line[0] == '#' || line[0] == ';') {
       continue;
     }
-    if (line.front() == '<' && line.back() == '>') {
-      const bool closing = line.size() > 2 && line[1] == '/';
-      const size_t name_start = closing ? 2 : 1;
-      const std::string name =
-          Lower(Trim(line.substr(name_start, line.size() - name_start - 1)));
-      if (allowed_inline_blocks.find(name) == allowed_inline_blocks.end()) {
-        return false;
-      }
-      if (closing) {
-        if (inline_block != name) {
+    if (!inline_block.empty()) {
+      if (line == "</ca>") {
+        if (ca_contents.empty()) {
           return false;
         }
         inline_block.clear();
+      } else if (line.find('<') != std::string::npos || line.find('>') != std::string::npos) {
+        return false;
       } else {
-        if (!inline_block.empty()) {
-          return false;
-        }
-        inline_block = name;
+        ca_contents.append(line).append("\n");
       }
       continue;
     }
-    if (!inline_block.empty() && inline_block != "connection") {
+    if (line == "<ca>") {
+      if (!seen.insert("ca").second) {
+        return false;
+      }
+      inline_block = "ca";
       continue;
     }
+    if (line.front() == '<' || line.back() == '>') {
+      return false;
+    }
+
     std::istringstream tokens(line);
     std::string directive;
+    std::string first;
+    std::string second;
+    std::string extra;
     tokens >> directive;
     directive = Lower(directive);
     if (StartsWith(directive, "--")) {
-      directive = directive.substr(2);
-    }
-    if (directive == "client") {
-      saw_client = true;
-    }
-    if (directive == "dev") {
-      std::string device_type;
-      std::string extra;
-      if (!(tokens >> device_type) || Lower(device_type) != "tun" ||
-          (tokens >> extra)) {
-        return false;
-      }
-    }
-    if (directive == "block-ipv6") {
-      std::string extra;
-      if (saw_block_ipv6 || (tokens >> extra)) {
-        return false;
-      }
-      saw_block_ipv6 = true;
-    }
-    if (directive == "ifconfig-ipv6") {
-      std::string local;
-      std::string remote;
-      std::string extra;
-      if (saw_ifconfig_ipv6 || !(tokens >> local) || !(tokens >> remote) ||
-          (tokens >> extra) ||
-          local != "fd53:6563:7572:6577::2/64" ||
-          remote != "fd53:6563:7572:6577::1") {
-        return false;
-      }
-      saw_ifconfig_ipv6 = true;
-    }
-    if (directive == "redirect-gateway") {
-      std::string first;
-      std::string second;
-      std::string extra;
-      if (saw_redirect_gateway || !(tokens >> first) || !(tokens >> second) ||
-          (tokens >> extra) || Lower(first) != "def1" ||
-          Lower(second) != "ipv6") {
-        return false;
-      }
-      saw_redirect_gateway = true;
-    }
-    if (kForbiddenDirectives.find(directive) != kForbiddenDirectives.end()) {
       return false;
     }
-    if (directive == "auth-user-pass") {
-      std::string path_arg;
-      if (tokens >> path_arg) {
+    const auto mark_once = [&seen, &directive]() {
+      return seen.insert(directive).second;
+    };
+    if (directive == "client" || directive == "nobind" ||
+        directive == "persist-key" || directive == "persist-tun" ||
+        directive == "auth-nocache" || directive == "block-ipv6") {
+      if (!mark_once() || (tokens >> extra)) {
         return false;
       }
+      continue;
+    }
+    if (directive == "dev") {
+      if (!mark_once() || !(tokens >> first) || (tokens >> extra) ||
+          Lower(first) != "tun") {
+        return false;
+      }
+      continue;
+    }
+    if (directive == "proto") {
+      if (!mark_once() || !(tokens >> first) || (tokens >> extra) ||
+          (Lower(first) != "udp" && Lower(first) != "tcp-client")) {
+        return false;
+      }
+      continue;
+    }
+    if (directive == "remote") {
+      if (!mark_once() || !(tokens >> first) || !(tokens >> second) ||
+          (tokens >> extra) || !IsSafeOpenVpnRemoteHost(first) ||
+          !IsOpenVpnPort(second)) {
+        return false;
+      }
+      continue;
+    }
+    if (directive == "resolv-retry") {
+      if (!mark_once() || !(tokens >> first) || (tokens >> extra) ||
+          Lower(first) != "infinite") {
+        return false;
+      }
+      continue;
+    }
+    if (directive == "remote-cert-tls") {
+      if (!mark_once() || !(tokens >> first) || (tokens >> extra) ||
+          Lower(first) != "server") {
+        return false;
+      }
+      continue;
+    }
+    if (directive == "auth-user-pass") {
+      if (!mark_once() || (tokens >> extra)) {
+        return false;
+      }
+      continue;
+    }
+    if (directive == "redirect-gateway") {
+      if (!mark_once() || !(tokens >> first) || !(tokens >> second) ||
+          (tokens >> extra) || Lower(first) != "def1" || Lower(second) != "ipv6") {
+        return false;
+      }
+      continue;
     }
     if (directive == "dhcp-option") {
-      std::string option;
-      if (!(tokens >> option) || Lower(option) != "dns") {
-        continue;
-      }
-      std::string address;
-      std::string extra;
-      if (!(tokens >> address) || (tokens >> extra) ||
-          !AppendDnsLiteral(address, &parsed_dns)) {
+      if (!(tokens >> first) || !(tokens >> second) || (tokens >> extra) ||
+          Lower(first) != "dns" || !AppendDnsLiteral(second, &parsed_dns)) {
         return false;
       }
+      continue;
+    }
+    if (directive == "verb") {
+      if (!mark_once() || !(tokens >> first) || (tokens >> extra) || first != "3") {
+        return false;
+      }
+      continue;
+    }
+    return false;
+  }
+  static const std::set<std::string> kRequired = {
+      "client", "dev", "proto", "remote", "resolv-retry", "nobind",
+      "persist-key", "persist-tun", "remote-cert-tls", "auth-user-pass",
+      "auth-nocache", "redirect-gateway", "block-ipv6",
+      "verb", "ca"};
+  if (!input.eof() || !inline_block.empty() || parsed_dns.empty()) {
+    return false;
+  }
+  for (const std::string& required : kRequired) {
+    if (seen.find(required) == seen.end()) {
+      return false;
     }
   }
-  const bool valid = input.eof() && inline_block.empty() && saw_client &&
-                     saw_block_ipv6 && saw_ifconfig_ipv6 &&
-                     saw_redirect_gateway && !parsed_dns.empty();
-  if (valid && dns_servers) {
+  if (dns_servers) {
     *dns_servers = parsed_dns;
   }
-  return valid;
+  return true;
 }
 
 static bool ProcessRunning(pid_t pid) {
@@ -2983,16 +3040,20 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
 
   if (op == "openvpn.start") {
     if (!ValidateConfigPath(config_path, "securewave.ovpn", peer_uid) ||
-        !ValidateRuntimeFilePath(log_path, kOpenVpnLogName, peer_uid)) {
-      return Error("invalid_path", "OpenVPN config or log path is not approved.");
+        !ValidateRuntimeFilePath(log_path, kOpenVpnLogName, peer_uid) ||
+        auth_path.empty() ||
+        !ValidateConfigPath(auth_path, kOpenVpnAuthName, peer_uid)) {
+      return Error("invalid_path", "OpenVPN config, credential, or log path is not approved.");
     }
     DnsServers dns_servers;
     if (!ValidateOpenVpnConfigContents(config_path, &dns_servers)) {
+      unlink(auth_path.c_str());
       return Error(
           "invalid_config",
           "OpenVPN config contains unsupported directives or missing/invalid DNS IPs.");
     }
     if (OpenVpnTunExists()) {
+      unlink(auth_path.c_str());
       return Error(
           "vpn_connect_failed",
           "The dedicated SecureWave OpenVPN interface already exists.");
@@ -3000,6 +3061,7 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
     CommandResult preflight_dns_revert =
         RunHelper({"openvpn-dns-revert"});
     if (!preflight_dns_revert.ok) {
+      unlink(auth_path.c_str());
       return Error(
           "vpn_connect_failed",
           "Unable to clear stale SecureWave OpenVPN DNS state.");
@@ -3011,6 +3073,7 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
     CommandResult result = RunHelper(args);
     if (!result.ok) {
       RunHelper({"openvpn-dns-revert"});
+      unlink(auth_path.c_str());
       return Error("vpn_connect_failed", result.message.empty() ? "OpenVPN start failed." : result.message);
     }
     if (!WaitOpenVpnStarted(config_path, pid_path, log_path)) {
@@ -3023,6 +3086,7 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
       WaitOpenVpnStopped(config_path, pid_path);
       unlink(pid_path.c_str());
       unlink(log_path.c_str());
+      unlink(auth_path.c_str());
       return Error(
           "vpn_connect_failed",
           tail.empty()
@@ -3040,6 +3104,7 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
       WaitOpenVpnStopped(config_path, pid_path);
       unlink(pid_path.c_str());
       unlink(log_path.c_str());
+      unlink(auth_path.c_str());
       return Error(
           "vpn_connect_failed",
           "OpenVPN connected but SecureWave DNS enforcement failed.");
@@ -3053,6 +3118,7 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
       WaitOpenVpnStopped(config_path, pid_path);
       unlink(pid_path.c_str());
       unlink(log_path.c_str());
+      unlink(auth_path.c_str());
       return Error(
           "vpn_connect_failed",
           "OpenVPN DNS settings could not be verified on the dedicated tunnel link.");
@@ -3065,6 +3131,9 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
     pid_t pid = 0;
     if (!ReadPid(pid_path, &pid)) {
       if (OpenVpnTunExists() || OpenVpnRouteExists()) {
+        if (!auth_path.empty()) {
+          unlink(auth_path.c_str());
+        }
         return Error(
             "vpn_disconnect_failed",
             "OpenVPN PID file is missing but dedicated tunnel residue remains.");
@@ -3072,9 +3141,9 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
       unlink(pid_path.c_str());
       if (op == "openvpn.cleanup") {
         unlink(log_path.c_str());
-        if (!auth_path.empty()) {
-          unlink(auth_path.c_str());
-        }
+      }
+      if (!auth_path.empty()) {
+        unlink(auth_path.c_str());
       }
       if (!dns_revert.ok) {
         return Error(
@@ -3098,21 +3167,30 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
         }
         return OpenVpnStatus(request, peer_uid);
       }
+      if (!auth_path.empty()) {
+        unlink(auth_path.c_str());
+      }
       return Error("vpn_disconnect_failed", "OpenVPN PID file does not point to an OpenVPN process.");
     }
     CommandResult result = RunHelper({"openvpn-stop", std::to_string(static_cast<long>(pid))});
     if (!result.ok) {
+      if (!auth_path.empty()) {
+        unlink(auth_path.c_str());
+      }
       return Error("vpn_disconnect_failed", result.message.empty() ? "OpenVPN stop failed." : result.message);
     }
     if (!WaitOpenVpnStopped(config_path, pid_path)) {
+      if (!auth_path.empty()) {
+        unlink(auth_path.c_str());
+      }
       return Error("vpn_disconnect_failed", "OpenVPN stop completed but process or route evidence remains.");
     }
     unlink(pid_path.c_str());
     if (op == "openvpn.cleanup") {
       unlink(log_path.c_str());
-      if (!auth_path.empty()) {
-        unlink(auth_path.c_str());
-      }
+    }
+    if (!auth_path.empty()) {
+      unlink(auth_path.c_str());
     }
     if (!dns_revert.ok) {
       return Error(

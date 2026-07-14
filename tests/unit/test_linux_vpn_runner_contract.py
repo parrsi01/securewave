@@ -79,6 +79,10 @@ def test_runner_connect_disconnect_use_allowlisted_helper_operations():
     assert "disconnect_op_for_protocol(protocol)" in source
     assert "write_config_file(method_call, state->config_path, config)" in source
     assert "g_chmod(path, 0600)" in source
+    assert 'kOpenVpnAuthFileName = "securewave-openvpn.auth"' in source
+    assert '"openvpn_username"' in source
+    assert '"openvpn_password"' in source
+    assert "write_openvpn_auth_file" in source
 
 
 def test_helper_exposes_socket_only_openvpn_dns_revert_operation():

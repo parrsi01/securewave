@@ -380,6 +380,47 @@ class ApiClient {
     }
   }
 
+  /// Capture a non-identifying pre-connect source observation.
+  ///
+  /// The backend returns an HMAC fingerprint, never the observed public IP.
+  /// It is consumed once by [verifyVpnEgress] after the OpenVPN helper has
+  /// established the tunnel.
+  Future<String> captureVpnEgressBaseline() async {
+    if (_config.useMockApi) {
+      throw StateError('Mock API cannot certify a VPN egress path.');
+    }
+    final response =
+        await _dio.post<Map<String, dynamic>>('/vpn/egress/baseline');
+    final fingerprint = response.data?['fingerprint']?.toString() ?? '';
+    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint)) {
+      throw StateError('VPN egress baseline response was malformed.');
+    }
+    return fingerprint;
+  }
+
+  /// Verify that OpenVPN moved HTTPS egress to its selected server.
+  ///
+  /// This is intentionally an authenticated control-plane request after the
+  /// native tunnel is up. A false result is a failed proof, never a warning.
+  Future<bool> verifyVpnEgress({
+    required String serverId,
+    required int deviceId,
+    required VpnProtocol protocol,
+    required String baselineFingerprint,
+  }) async {
+    if (_config.useMockApi) return false;
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/vpn/egress/verify',
+      data: {
+        'server_id': serverId,
+        'device_id': deviceId,
+        'protocol': vpnProtocolStorageValue(protocol),
+        'baseline_fingerprint': baselineFingerprint,
+      },
+    );
+    return response.data?['verified'] == true;
+  }
+
   /// Notify the backend that the VPN tunnel has been established.
   ///
   /// In demo/mock mode this triggers the demo VPN session on the server so
