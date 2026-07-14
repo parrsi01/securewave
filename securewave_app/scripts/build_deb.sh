@@ -420,6 +420,7 @@ offline_owned_runtime_clean() {
   local safe_rule_count
   local -a safe_rule_counts=()
   local rules
+  local resolved_status
   local tables
   local xfrm_policy
   local xfrm_state
@@ -428,6 +429,7 @@ offline_owned_runtime_clean() {
   command -v nft >/dev/null 2>&1 || return 1
   command -v iptables-save >/dev/null 2>&1 || return 1
   command -v ip6tables-save >/dev/null 2>&1 || return 1
+  command -v resolvectl >/dev/null 2>&1 || return 1
   links="$(ip -o link show)" || return 1
   if awk -F: '
       NF >= 2 {
@@ -517,6 +519,10 @@ offline_owned_runtime_clean() {
     grep -Eq '(^|[[:space:]])if_id[[:space:]]+(0x)?[0-9]+'; then
     return 1
   fi
+  resolved_status="$(resolvectl status)" || return 1
+  if grep -Eq '(^|[[:space:]])(sw-wg|tun-securewave|nm-xfrm-sw)([[:space:]]|$)' <<< "$resolved_status"; then
+    return 1
+  fi
   tables="$(nft list tables)" || return 1
   if awk '
       $1 == "table" && ($2 == "ip" || $2 == "ip6" || $2 == "inet") &&
@@ -575,7 +581,12 @@ if [[ -n "$(securewave_openvpn_pids)" ]]; then
   exit 1
 fi
 if [[ "$helper_service_active" == "1" && -x "$HELPERD" ]]; then
-  helper_request openvpn-dns-revert
+  if ! helper_request openvpn.dns_revert; then
+    if ! offline_owned_runtime_clean; then
+      echo "SecureWave OpenVPN DNS cleanup failed and offline ownership inspection was not clean; refusing package removal." >&2
+      exit 1
+    fi
+  fi
 elif ! offline_owned_runtime_clean; then
   echo "SecureWave OpenVPN helper is unavailable and owned runtime state could not be verified clean; refusing package removal." >&2
   exit 1

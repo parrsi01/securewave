@@ -2930,6 +2930,18 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
     return OpenVpnStatus(request, peer_uid);
   }
 
+  if (op == "openvpn.dns_revert") {
+    const CommandResult result = RunHelper({"openvpn-dns-revert"});
+    if (!result.ok) {
+      return Error(
+          "vpn_disconnect_failed",
+          result.message.empty()
+              ? "SecureWave OpenVPN DNS state could not be reverted."
+              : result.message);
+    }
+    return Ok();
+  }
+
   const std::string config_path = Field(request, "config_path");
   const std::string pid_path = Field(request, "pid_path");
   const std::string log_path = Field(request, "log_path");

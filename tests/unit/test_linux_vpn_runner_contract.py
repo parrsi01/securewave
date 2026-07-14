@@ -3,6 +3,7 @@ from pathlib import Path
 
 RUNNER = Path("securewave_app/linux/runner/my_application.cc")
 HELPER = Path("securewave_app/packaging/linux/securewave-wg-quick")
+HELPERD_SOURCE = Path("securewave_app/linux/helperd/securewave_helperd.cc")
 HELPER_CONTRACT = Path("securewave_app/packaging/linux/securewave-wg-quick.contract")
 HELPER_SERVICE = Path("securewave_app/packaging/linux/securewave-helper.service")
 HELPER_TMPFILES = Path("securewave_app/packaging/linux/securewave-helper.tmpfiles")
@@ -78,6 +79,13 @@ def test_runner_connect_disconnect_use_allowlisted_helper_operations():
     assert "disconnect_op_for_protocol(protocol)" in source
     assert "write_config_file(method_call, state->config_path, config)" in source
     assert "g_chmod(path, 0600)" in source
+
+
+def test_helper_exposes_socket_only_openvpn_dns_revert_operation():
+    source = HELPERD_SOURCE.read_text(encoding="utf-8")
+
+    assert 'if (op == "openvpn.dns_revert")' in source
+    assert 'RunHelper({"openvpn-dns-revert"})' in source
 
 
 def test_runner_does_not_enable_secondary_protocols_from_local_tools_alone():
@@ -160,6 +168,7 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "done < /etc/passwd" not in build
     assert "helper_request wireguard.cleanup" in build
     assert "helper_request ikev2.cleanup" in build
+    assert "helper_request openvpn.dns_revert" in build
     assert '"$HELPERD" --request' in build
     assert "securewave\\.ovpn$" in build
     assert "groupdel securewave" in build

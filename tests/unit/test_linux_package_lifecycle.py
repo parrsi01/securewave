@@ -46,7 +46,7 @@ def test_maintainer_script_actions_are_scoped_for_dpkg_rollback():
     assert "abort-upgrade|abort-remove|abort-deconfigure)" in postinst
     assert 'case "${1:-}" in\n  remove|upgrade|failed-upgrade|deconfigure)' in prerm
     assert 'case "${1:-}" in\n  remove|purge)' in postrm
-    assert 'helper_request openvpn-dns-revert' in prerm
+    assert 'helper_request openvpn.dns_revert' in prerm
     assert '"$HELPER" openvpn-dns-revert' not in prerm
     assert "upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)" in postrm
 
@@ -315,7 +315,7 @@ def test_prerm_half_configured_removal_and_service_retry_are_idempotent():
     assert "offline_owned_runtime_clean()" in prerm
     assert 'elif [[ -x "$HELPER" && -x "$HELPERD" ]]' in prerm
     assert "systemctl start securewave-helper.service" in prerm
-    assert 'if [[ "$helper_service_active" == "1" && -x "$HELPERD" ]]; then\n  helper_request openvpn-dns-revert' in prerm
+    assert 'if [[ "$helper_service_active" == "1" && -x "$HELPERD" ]]; then\n  if ! helper_request openvpn.dns_revert; then' in prerm
     assert "elif ! offline_owned_runtime_clean; then" in prerm
     assert "if ! systemctl stop securewave-helper.service; then" in prerm
     assert "systemctl is-active --quiet securewave-helper.service" in prerm
