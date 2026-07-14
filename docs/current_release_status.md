@@ -53,10 +53,21 @@ green. No unsupported protocol is presented as release-ready.
 
 - The local ARM64 `.deb` is not a public download. Install it from its local path
   only after verifying the checksum.
-- The Linux x64 `.deb` remains `coming_soon` in the public manifest. The prior
-  GitHub-hosted x86_64 workflow was stale/contract-10 evidence; the new
-  contract-13 workflow must pass its package and ephemeral lifecycle checks
-  before it is retained as private beta evidence. No x64 artifact is public.
+- The Linux x64 `.deb` remains `coming_soon` in the public manifest. Workflow
+  `29339542678` at source head `bded069a4f1ba8b08b4c3c88b7356b52298665da`
+  passed the contract-13 package and ephemeral lifecycle checks and produced
+  private evidence with SHA-256
+  `bdf82fe3ac16c764a1c26a9dbd7cc8831c15cfefa40dffb73ae4bc32f514787f`.
+  No x64 artifact is public because live authenticated data-plane evidence is
+  still absent.
+
+## Current private x64 workflow evidence
+
+The current x64 evidence is retained only in the GitHub Actions artifact for
+run `29339542678`; it is not a public download. It proves x86_64/amd64 ELF
+payloads, contract 13, declared dependencies, ephemeral install, active
+helper/socket, structural verifier, bounded app launch, purge, and networking
+residue checks. It does not prove live protocol routing or release readiness.
 - Portable archives are UI/runtime-independent packaging and do not install the
   privileged Linux helper.
 - Windows, macOS VPN tunneling, and IKEv2 have no release claim from this pass.

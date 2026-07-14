@@ -116,6 +116,21 @@ It does not prove:
 Keep public claims limited to private beta/build-and-lifecycle evidence until
 the exact source revision also has authorized live protocol proof.
 
+## Current private workflow evidence
+
+The current contract-13 workflow evidence is:
+
+- Source head: `bded069a4f1ba8b08b4c3c88b7356b52298665da`
+- Workflow run: `29339542678`
+- SHA-256:
+  `bdf82fe3ac16c764a1c26a9dbd7cc8831c15cfefa40dffb73ae4bc32f514787f`
+
+The run passed amd64 ELF and contract-13 checks, dependency and helper payload
+checks, ephemeral install/service/socket verification, structural verifier,
+bounded application launch, purge, and SecureWave-owned networking residue
+checks. Keep the artifact private: live authenticated WireGuard/OpenVPN/IKEv2
+data-plane proof and a clean VM are still required.
+
 ## Referenced historical build
 
 The prior x64 build reference for this certification pass is:
