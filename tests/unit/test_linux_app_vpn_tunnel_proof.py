@@ -97,6 +97,10 @@ def test_wireguard_evidence_requires_sw_wg_route(monkeypatch):
                 "ipv4_kill_switch_present": "true",
                 "ipv6_block_present": "true",
                 "ipv6_mode": "block",
+                "handshake_inspection_ok": "true",
+                "handshake_present": "true",
+                "endpoint_inspection_ok": "true",
+                "endpoint_bypass_present": "true",
             },
         },
     )

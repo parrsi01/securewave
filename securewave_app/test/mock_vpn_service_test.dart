@@ -34,13 +34,17 @@ void main() {
     expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNotNull);
   }, testOn: 'linux');
 
-  test('ChannelVpnService enables Linux IKEv2 only after its helper probe',
+  test(
+      'ChannelVpnService requires backend evidence in addition to its helper probe',
       () async {
     const channel = MethodChannel('securewave/vpn');
+    final calls = <Map<Object?, Object?>>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
       final arguments = Map<Object?, Object?>.from(call.arguments as Map);
-      return arguments['protocol'] == 'ikev2';
+      calls.add(arguments);
+      return arguments['protocol'] == 'ikev2' &&
+          arguments['backend_evidence'] == true;
     });
     addTearDown(
       () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -51,8 +55,17 @@ void main() {
     expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
     expect(
       await service.refreshProtocolAvailability(VpnProtocol.ikev2),
+      isFalse,
+    );
+    expect(calls, isEmpty);
+    expect(
+      await service.refreshProtocolAvailability(
+        VpnProtocol.ikev2,
+        backendEvidence: true,
+      ),
       isTrue,
     );
+    expect(calls.single['backend_evidence'], isTrue);
     expect(service.canConnectProtocol(VpnProtocol.ikev2), isTrue);
     expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNull);
   }, testOn: 'linux');
@@ -87,7 +100,10 @@ void main() {
       expect(service.isNativeAvailable, isTrue);
 
       expect(
-        await service.refreshProtocolAvailability(VpnProtocol.ikev2),
+        await service.refreshProtocolAvailability(
+          VpnProtocol.ikev2,
+          backendEvidence: true,
+        ),
         isFalse,
       );
       expect(service.isNativeAvailable, isTrue);

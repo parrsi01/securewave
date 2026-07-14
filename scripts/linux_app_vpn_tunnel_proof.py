@@ -1073,6 +1073,10 @@ def _ipv6_block_status(
             "ipv6_route_via_sw_wg": "true",
             "firewall_inspection_ok": "true",
             "ipv6_block_present": "true",
+            "handshake_inspection_ok": "true",
+            "handshake_present": "true",
+            "endpoint_inspection_ok": "true",
+            "endpoint_bypass_present": "true",
         }
     elif protocol == "openvpn":
         request = {
@@ -1373,6 +1377,10 @@ def _runtime_evidence_for(
             and helper_response.get("ipv4_kill_switch_present") == "true"
             and helper_response.get("ipv6_block_present") == "true"
             and helper_response.get("ipv6_mode") == "block"
+            and helper_response.get("handshake_inspection_ok") == "true"
+            and helper_response.get("handshake_present") == "true"
+            and helper_response.get("endpoint_inspection_ok") == "true"
+            and helper_response.get("endpoint_bypass_present") == "true"
         )
         backend_health = _backend_health_evidence(
             api_base,

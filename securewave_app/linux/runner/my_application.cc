@@ -79,6 +79,17 @@ static const gchar* get_string_arg(FlValue* args, const gchar* key) {
   return fl_value_get_string(value);
 }
 
+static gboolean get_bool_arg(FlValue* args, const gchar* key) {
+  if (!args || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* value = fl_value_lookup_string(args, key);
+  if (!value || fl_value_get_type(value) != FL_VALUE_TYPE_BOOL) {
+    return FALSE;
+  }
+  return fl_value_get_bool(value);
+}
+
 static std::string field(const Fields& fields, const std::string& key) {
   const auto it = fields.find(key);
   return it == fields.end() ? "" : it->second;
@@ -540,9 +551,9 @@ static void respond_runtime_install_state(FlMethodCall* method_call) {
   const gboolean payload_available = bundled_runtime_payload_available(&payload_detail);
   const guint contract_version = installed_contract_version();
   gboolean service_seen = FALSE;
-  gboolean wireguard_available = FALSE;
-  gboolean openvpn_available = FALSE;
-  gboolean ikev2_available = FALSE;
+  gboolean wireguard_helper_probe = FALSE;
+  gboolean openvpn_helper_probe = FALSE;
+  gboolean ikev2_helper_probe = FALSE;
   g_autofree gchar* probe_detail = nullptr;
   const gchar* protocols[] = {"wireguard", "openvpn", "ikev2"};
   for (const gchar* protocol : protocols) {
@@ -555,11 +566,11 @@ static void respond_runtime_install_state(FlMethodCall* method_call) {
       service_seen = TRUE;
     }
     if (ok && g_strcmp0(protocol, "wireguard") == 0) {
-      wireguard_available = TRUE;
+      wireguard_helper_probe = TRUE;
     } else if (ok && g_strcmp0(protocol, "openvpn") == 0) {
-      openvpn_available = TRUE;
+      openvpn_helper_probe = TRUE;
     } else if (ok && g_strcmp0(protocol, "ikev2") == 0) {
-      ikev2_available = TRUE;
+      ikev2_helper_probe = TRUE;
     }
     if (probe_detail == nullptr && op_detail != nullptr) {
       probe_detail = g_strdup(op_detail);
@@ -601,9 +612,11 @@ static void respond_runtime_install_state(FlMethodCall* method_call) {
       response,
       "required_contract",
       fl_value_new_int(static_cast<int64_t>(kSecureWaveHelperContractVersion)));
-  fl_value_set_string_take(response, "wireguard_available", fl_value_new_bool(wireguard_available));
-  fl_value_set_string_take(response, "openvpn_available", fl_value_new_bool(openvpn_available));
-  fl_value_set_string_take(response, "ikev2_available", fl_value_new_bool(ikev2_available));
+  // These are local helper probes only. Backend runtime and data-plane
+  // evidence is required before OpenVPN/IKEv2 can be release-enabled.
+  fl_value_set_string_take(response, "wireguard_helper_probe", fl_value_new_bool(wireguard_helper_probe));
+  fl_value_set_string_take(response, "openvpn_helper_probe", fl_value_new_bool(openvpn_helper_probe));
+  fl_value_set_string_take(response, "ikev2_helper_probe", fl_value_new_bool(ikev2_helper_probe));
   fl_value_set_string_take(response, "message", fl_value_new_string(message));
   g_autoptr(FlMethodResponse) method_response = FL_METHOD_RESPONSE(
       fl_method_success_response_new(response));
@@ -900,6 +913,15 @@ static void handle_vpn_call(FlMethodChannel* channel,
             nullptr);
         return;
       }
+      if (g_strcmp0(protocol, "wireguard") != 0 &&
+          !get_bool_arg(args, "backend_evidence")) {
+        respond_error(
+            method_call,
+            "protocol_unavailable",
+            "OpenVPN and IKEv2 require fresh backend runtime and data-plane evidence.",
+            nullptr);
+        return;
+      }
       Fields probe_args;
       probe_args["protocol"] = protocol;
       HelperResponse probe_response {};
@@ -952,6 +974,15 @@ static void handle_vpn_call(FlMethodChannel* channel,
     }
     if (!supported_protocol(protocol)) {
       respond_error(method_call, "protocol_unavailable", "Unsupported VPN protocol.", nullptr);
+      return;
+    }
+    if (g_strcmp0(protocol, "wireguard") != 0 &&
+        !get_bool_arg(args, "backend_evidence")) {
+      respond_error(
+          method_call,
+          "protocol_unavailable",
+          "OpenVPN and IKEv2 require fresh backend runtime and data-plane evidence.",
+          nullptr);
       return;
     }
     HelperResponse probe_response {};

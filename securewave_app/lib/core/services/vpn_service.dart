@@ -7,7 +7,11 @@ import '../models/vpn_status.dart';
 import '../logging/app_logger.dart';
 
 abstract class VpnService {
-  Future<VpnStatus> connect({required VpnProtocol protocol, String? config});
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    bool backendEvidence = false,
+  });
   Future<VpnStatus> disconnect();
   Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async =>
       VpnTrafficStats.unavailable;
@@ -16,7 +20,10 @@ abstract class VpnService {
       VpnRuntimeStatus(status: getStatus());
   bool get isNativeAvailable;
   bool canConnectProtocol(VpnProtocol protocol);
-  Future<bool> refreshProtocolAvailability(VpnProtocol protocol) async =>
+  Future<bool> refreshProtocolAvailability(
+    VpnProtocol protocol, {
+    bool backendEvidence = false,
+  }) async =>
       canConnectProtocol(protocol);
   String? protocolUnavailableReason(VpnProtocol protocol);
 }
@@ -136,13 +143,27 @@ class ChannelVpnService extends VpnService {
   }
 
   @override
-  Future<bool> refreshProtocolAvailability(VpnProtocol protocol) async {
+  Future<bool> refreshProtocolAvailability(
+    VpnProtocol protocol, {
+    bool backendEvidence = false,
+  }) async {
     if (_allowFallback) return true;
     if (!_platformImplementsProtocol(protocol)) {
       _protocolAvailability[protocol] = false;
       return false;
     }
-    return _refreshNativeAvailability(protocol);
+    final evidenceRequired = protocol != VpnProtocol.wireGuard;
+    if (evidenceRequired && !backendEvidence) {
+      _protocolAvailability[protocol] = false;
+      _protocolAvailabilityMessages[protocol] =
+          '${vpnProtocolLabel(protocol)} requires fresh backend runtime and data-plane evidence.';
+      _nativeAvailable = _protocolAvailability.values.any((value) => value);
+      return false;
+    }
+    return _refreshNativeAvailability(
+      protocol: protocol,
+      backendEvidence: backendEvidence,
+    );
   }
 
   @override
@@ -163,6 +184,7 @@ class ChannelVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    bool backendEvidence = false,
   }) async {
     if (_status == VpnStatus.connected ||
         _status == VpnStatus.connecting ||
@@ -180,7 +202,10 @@ class ChannelVpnService extends VpnService {
         );
       }
       final os = platform.operatingSystem.name.toLowerCase();
-      final available = await refreshProtocolAvailability(protocol);
+      final available = await refreshProtocolAvailability(
+        protocol,
+        backendEvidence: backendEvidence,
+      );
       if (!available) {
         if (os == 'ios') {
           _status = VpnStatus.disconnected;
@@ -212,6 +237,7 @@ class ChannelVpnService extends VpnService {
       await _channel.invokeMethod('connect', {
         'protocol': vpnProtocolStorageValue(protocol),
         'config': config,
+        if (backendEvidence) 'backend_evidence': true,
       });
       _status = VpnStatus.connected;
     } on PlatformException catch (error) {
@@ -395,7 +421,10 @@ class ChannelVpnService extends VpnService {
         os == 'linux';
   }
 
-  Future<bool> _refreshNativeAvailability([VpnProtocol? protocol]) async {
+  Future<bool> _refreshNativeAvailability({
+    VpnProtocol? protocol,
+    bool backendEvidence = false,
+  }) async {
     if (!_supportsNativeChannel()) {
       _nativeAvailable = false;
       return false;
@@ -405,7 +434,10 @@ class ChannelVpnService extends VpnService {
         'isAvailable',
         protocol == null
             ? null
-            : {'protocol': vpnProtocolStorageValue(protocol)},
+            : {
+                'protocol': vpnProtocolStorageValue(protocol),
+                if (backendEvidence) 'backend_evidence': true,
+              },
       );
       if (available != null) {
         if (protocol != null) {
@@ -498,6 +530,7 @@ class MockVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    bool backendEvidence = false,
   }) async {
     if (_status == VpnStatus.connected ||
         _status == VpnStatus.connecting ||

@@ -220,6 +220,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final service = _ref.read(vpnServiceProvider);
       final api = _ref.read(apiClientProvider);
       String? config;
+      var backendEvidence = false;
 
       if (service.isNativeAvailable) {
         final identity = await DeviceIdentity.load();
@@ -232,6 +233,18 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             'protocol_unavailable',
             readiness?.reason ??
                 '${vpnProtocolLabel(state.protocol)} has no usable backend runtime evidence.',
+          );
+        }
+        backendEvidence = true;
+        final nativeProtocolReady = await service.refreshProtocolAvailability(
+          state.protocol,
+          backendEvidence: true,
+        );
+        if (!nativeProtocolReady) {
+          throw VpnServiceException(
+            'protocol_unavailable',
+            service.protocolUnavailableReason(state.protocol) ??
+                '${vpnProtocolLabel(state.protocol)} is unavailable on this Linux runtime.',
           );
         }
         final storage = SecureStorage();
@@ -312,6 +325,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final nextStatus = await service.connect(
         protocol: state.protocol,
         config: config,
+        backendEvidence: backendEvidence,
       );
       _setStatus(nextStatus);
       if (nextStatus == VpnStatus.connected) {

@@ -26,6 +26,7 @@ def test_runner_contract_covers_all_protocol_runtime_evidence():
     assert checks["runner:openvpn_disconnect_op"].ok
     assert checks["runner:ikev2_connect_op"].ok
     assert checks["runner:ikev2_disconnect_op"].ok
+    assert checks["runner:secondary_protocol_backend_gate"].ok
     assert checks["runner:securewave_helper_contract"].ok
     assert checks["runner:no_implicit_mock"].ok
 
@@ -715,6 +716,10 @@ def _active_wireguard_status(**overrides):
         "ipv4_kill_switch_present": "true",
         "ipv6_block_present": "true",
         "ipv6_mode": "block",
+        "handshake_inspection_ok": "true",
+        "handshake_present": "true",
+        "endpoint_inspection_ok": "true",
+        "endpoint_bypass_present": "true",
         "counters_available": "true",
     }
     response.update(overrides)
@@ -766,6 +771,8 @@ def test_active_wireguard_requires_policy_routes_rules_and_firewall_inspection(
         {"policy_rules_present": "false"},
         {"policy_routes_present": "false"},
         {"firewall_inspection_ok": "false"},
+        {"handshake_present": "false"},
+        {"endpoint_bypass_present": "false"},
     ),
 )
 def test_active_wireguard_fails_closed_on_missing_safety_evidence(

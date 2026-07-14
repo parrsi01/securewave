@@ -15,6 +15,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstdint>
+#include <ctime>
 #include <cstring>
 #include <fstream>
 #include <map>
@@ -338,6 +339,25 @@ static Fields Error(const std::string& code, const std::string& message, Fields 
   return fields;
 }
 
+static const char* AllowlistedExecutablePath(const std::string& executable) {
+  static const std::map<std::string, const char*> kExecutables = {
+      {"/usr/local/libexec/securewave-wg-quick", "/usr/local/libexec/securewave-wg-quick"},
+      {"ip", "/usr/sbin/ip"},
+      {"ip6tables", "/usr/sbin/ip6tables"},
+      {"ip6tables-restore", "/usr/sbin/ip6tables-restore"},
+      {"ip6tables-save", "/usr/sbin/ip6tables-save"},
+      {"iptables", "/usr/sbin/iptables"},
+      {"iptables-restore", "/usr/sbin/iptables-restore"},
+      {"iptables-save", "/usr/sbin/iptables-save"},
+      {"nft", "/usr/sbin/nft"},
+      {"resolvectl", "/usr/bin/resolvectl"},
+      {"setfacl", "/usr/bin/setfacl"},
+      {"wg", "/usr/bin/wg"},
+  };
+  const auto it = kExecutables.find(executable);
+  return it == kExecutables.end() ? nullptr : it->second;
+}
+
 static CommandResult RunCommand(const std::vector<std::string>& args) {
   CommandResult result;
   if (args.empty()) {
@@ -345,8 +365,24 @@ static CommandResult RunCommand(const std::vector<std::string>& args) {
     return result;
   }
 
+  const char* executable = AllowlistedExecutablePath(args.front());
+  if (executable == nullptr) {
+    result.message = "Command executable is not allowlisted.";
+    return result;
+  }
+  std::vector<std::string> canonical_args = args;
+  canonical_args.front() = executable;
+  for (const std::string& arg : canonical_args) {
+    if (arg.find('\0') != std::string::npos ||
+        arg.find('\n') != std::string::npos ||
+        arg.find('\r') != std::string::npos) {
+      result.message = "Command argument contains a forbidden control character.";
+      return result;
+    }
+  }
+
   GPtrArray* argv_array = g_ptr_array_new_with_free_func(g_free);
-  for (const std::string& arg : args) {
+  for (const std::string& arg : canonical_args) {
     g_ptr_array_add(argv_array, g_strdup(arg.c_str()));
   }
   g_ptr_array_add(argv_array, nullptr);
@@ -359,7 +395,7 @@ static CommandResult RunCommand(const std::vector<std::string>& args) {
       nullptr,
       reinterpret_cast<gchar**>(argv_array->pdata),
       nullptr,
-      G_SPAWN_SEARCH_PATH,
+      G_SPAWN_DEFAULT,
       nullptr,
       nullptr,
       &stdout_text,
@@ -2478,6 +2514,104 @@ static bool InterfaceCounters(const std::string& iface, guint64* rx, guint64* tx
   return true;
 }
 
+static bool WireGuardHandshakeEvidence(bool* inspection_ok) {
+  if (inspection_ok) {
+    *inspection_ok = true;
+  }
+  CommandResult result = RunCommand(
+      {"wg", "show", kWireGuardInterface, "latest-handshakes"});
+  if (!result.ok) {
+    if (inspection_ok) {
+      *inspection_ok = false;
+    }
+    return false;
+  }
+
+  const guint64 now = static_cast<guint64>(std::time(nullptr));
+  std::istringstream lines(result.out);
+  std::string public_key;
+  std::string timestamp;
+  while (lines >> public_key >> timestamp) {
+    if (public_key.empty() || timestamp.empty() ||
+        timestamp.find_first_not_of("0123456789") != std::string::npos) {
+      if (inspection_ok) {
+        *inspection_ok = false;
+      }
+      return false;
+    }
+    const guint64 observed = g_ascii_strtoull(timestamp.c_str(), nullptr, 10);
+    if (observed > 0 && observed <= now && now - observed <= 180) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool WireGuardEndpointBypassEvidence(bool* inspection_ok) {
+  if (inspection_ok) {
+    *inspection_ok = true;
+  }
+  CommandResult endpoints =
+      RunCommand({"wg", "show", kWireGuardInterface, "endpoints"});
+  if (!endpoints.ok) {
+    if (inspection_ok) {
+      *inspection_ok = false;
+    }
+    return false;
+  }
+
+  bool saw_endpoint = false;
+  std::istringstream lines(endpoints.out);
+  std::string public_key;
+  std::string endpoint;
+  while (lines >> public_key >> endpoint) {
+    std::string host;
+    std::string family;
+    if (!endpoint.empty() && endpoint.front() == '[') {
+      const size_t closing = endpoint.find(']');
+      if (closing <= 1 || endpoint.size() <= closing + 2 ||
+          endpoint[closing + 1] != ':') {
+        if (inspection_ok) {
+          *inspection_ok = false;
+        }
+        return false;
+      }
+      host = endpoint.substr(1, closing - 1);
+      family = "-6";
+    } else {
+      const size_t separator = endpoint.rfind(':');
+      if (separator == std::string::npos || separator == 0 ||
+          separator == endpoint.size() - 1) {
+        if (inspection_ok) {
+          *inspection_ok = false;
+        }
+        return false;
+      }
+      host = endpoint.substr(0, separator);
+      family = host.find(':') == std::string::npos ? "-4" : "-6";
+    }
+    struct in_addr ipv4 {};
+    struct in6_addr ipv6 {};
+    const bool valid_address =
+        (family == "-4" && inet_pton(AF_INET, host.c_str(), &ipv4) == 1) ||
+        (family == "-6" && inet_pton(AF_INET6, host.c_str(), &ipv6) == 1);
+    if (!valid_address) {
+      if (inspection_ok) {
+        *inspection_ok = false;
+      }
+      return false;
+    }
+
+    const CommandResult route = RunCommand(
+        {"ip", family, "route", "get", host, "mark", "51820"});
+    if (!route.ok || route.out.find(" dev sw-wg") != std::string::npos) {
+      return false;
+    }
+    saw_endpoint = true;
+  }
+  return saw_endpoint;
+}
+
 static Fields HandleProbe(const Fields& request) {
   Fields contract_error;
   if (!ContractOk(&contract_error)) {
@@ -2546,11 +2680,21 @@ static Fields WireGuardStatus() {
   const bool policy_route_residue = WireGuardPolicyRoutesExist();
   const WireGuardFirewallEvidence firewall =
       ReadWireGuardFirewallEvidence();
+  bool handshake_inspection_ok = true;
+  const bool handshake_present = interface_present
+      ? WireGuardHandshakeEvidence(&handshake_inspection_ok)
+      : false;
+  bool endpoint_inspection_ok = true;
+  const bool endpoint_bypass_present = interface_present
+      ? WireGuardEndpointBypassEvidence(&endpoint_inspection_ok)
+      : false;
   const bool connected = interface_present && route_via_sw_wg &&
                          policy_rules_present && policy_routes_present &&
                          firewall.inspection_ok &&
                          firewall.ipv4_kill_switch_present &&
-                         firewall.ipv6_block_present;
+                         firewall.ipv6_block_present &&
+                         handshake_inspection_ok && handshake_present &&
+                         endpoint_inspection_ok && endpoint_bypass_present;
   guint64 rx = 0;
   guint64 tx = 0;
   const bool counters = InterfaceCounters(kWireGuardInterface, &rx, &tx);
@@ -2584,6 +2728,13 @@ static Fields WireGuardStatus() {
   fields["ipv6_block_present"] =
       firewall.ipv6_block_present ? "true" : "false";
   fields["ipv6_mode"] = "block";
+  fields["handshake_inspection_ok"] =
+      handshake_inspection_ok ? "true" : "false";
+  fields["handshake_present"] = handshake_present ? "true" : "false";
+  fields["endpoint_inspection_ok"] =
+      endpoint_inspection_ok ? "true" : "false";
+  fields["endpoint_bypass_present"] =
+      endpoint_bypass_present ? "true" : "false";
   const bool firewall_residue = WireGuardFirewallResidueExists(firewall);
   const bool runtime_residue =
       interface_present || OwnedTunnelRoutePresent(routes) ||
@@ -2595,7 +2746,8 @@ static Fields WireGuardStatus() {
   fields["rx_bytes"] = std::to_string(rx);
   fields["tx_bytes"] = std::to_string(tx);
   fields["counters_available"] = counters ? "true" : "false";
-  if (!firewall.inspection_ok || !policy_rule_inspection_ok) {
+  if (!firewall.inspection_ok || !policy_rule_inspection_ok ||
+      !handshake_inspection_ok || !endpoint_inspection_ok) {
     return Error(
         "inspection_failed",
         "Unable to inspect privileged WireGuard policy or firewall state.",

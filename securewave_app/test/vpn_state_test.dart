@@ -293,8 +293,11 @@ class _CounterVpnService extends VpnService {
   String? protocolUnavailableReason(VpnProtocol protocol) => null;
 
   @override
-  Future<VpnStatus> connect(
-      {required VpnProtocol protocol, String? config}) async {
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    bool backendEvidence = false,
+  }) async {
     _status = VpnStatus.connected;
     return _status;
   }
@@ -330,7 +333,10 @@ class _InitializationTrackingVpnService extends VpnService {
   bool canConnectProtocol(VpnProtocol protocol) => false;
 
   @override
-  Future<bool> refreshProtocolAvailability(VpnProtocol protocol) async {
+  Future<bool> refreshProtocolAvailability(
+    VpnProtocol protocol, {
+    bool backendEvidence = false,
+  }) async {
     await _availabilityGate.future;
     refreshedProtocols.add(protocol);
     return false;
@@ -344,6 +350,7 @@ class _InitializationTrackingVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    bool backendEvidence = false,
   }) async =>
       VpnStatus.disconnected;
 
@@ -365,7 +372,11 @@ class _FailingVpnService extends VpnService {
   String? protocolUnavailableReason(VpnProtocol protocol) => null;
 
   @override
-  Future<VpnStatus> connect({required VpnProtocol protocol, String? config}) {
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    bool backendEvidence = false,
+  }) {
     throw VpnServiceException('vpn_connect_failed', 'native connect failed');
   }
 
@@ -389,8 +400,11 @@ class _NativeSuccessVpnService extends VpnService {
   String? protocolUnavailableReason(VpnProtocol protocol) => null;
 
   @override
-  Future<VpnStatus> connect(
-      {required VpnProtocol protocol, String? config}) async {
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    bool backendEvidence = false,
+  }) async {
     if (config == null || config.trim().isEmpty) {
       throw VpnServiceException('invalid_config', 'missing config');
     }

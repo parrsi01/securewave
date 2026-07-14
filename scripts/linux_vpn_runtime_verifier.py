@@ -412,6 +412,7 @@ def check_runner_contract() -> list[Check]:
         "runner:openvpn_disconnect_op": '"openvpn.stop"',
         "runner:ikev2_connect_op": '"ikev2.start"',
         "runner:ikev2_disconnect_op": '"ikev2.stop"',
+        "runner:secondary_protocol_backend_gate": 'get_bool_arg(args, "backend_evidence")',
         "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 13",
         "runner:no_implicit_mock": "securewave/vpn",
     }
@@ -506,6 +507,10 @@ def check_active_runtime(protocol: str) -> list[Check]:
             and response.get("ipv4_kill_switch_present") == "true"
             and response.get("ipv6_block_present") == "true"
             and response.get("ipv6_mode") == "block"
+            and response.get("handshake_inspection_ok") == "true"
+            and response.get("handshake_present") == "true"
+            and response.get("endpoint_inspection_ok") == "true"
+            and response.get("endpoint_bypass_present") == "true"
         )
         interface = "sw-wg"
     elif protocol == "openvpn":

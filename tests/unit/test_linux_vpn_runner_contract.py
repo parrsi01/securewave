@@ -80,6 +80,17 @@ def test_runner_connect_disconnect_use_allowlisted_helper_operations():
     assert "g_chmod(path, 0600)" in source
 
 
+def test_runner_does_not_enable_secondary_protocols_from_local_tools_alone():
+    source = _runner_source()
+
+    assert 'get_bool_arg(args, "backend_evidence")' in source
+    assert '"OpenVPN and IKEv2 require fresh backend runtime and data-plane evidence."' in source
+    assert '"openvpn_helper_probe"' in source
+    assert '"ikev2_helper_probe"' in source
+    assert '"openvpn_available"' not in source
+    assert '"ikev2_available"' not in source
+
+
 def test_runner_exposes_runtime_status_and_traffic_stats_from_helper():
     source = _runner_source()
 

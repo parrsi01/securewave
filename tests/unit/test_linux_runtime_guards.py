@@ -48,6 +48,15 @@ def test_helper_daemon_uses_securewave_group_socket_and_allowed_uid_file():
     assert 'Error("unauthorized"' in helperd
 
 
+def test_helper_daemon_runs_only_absolute_allowlisted_executables():
+    helperd = _read(HELPERD)
+
+    assert "AllowlistedExecutablePath" in helperd
+    assert 'G_SPAWN_DEFAULT' in helperd
+    assert 'G_SPAWN_SEARCH_PATH' not in helperd
+    assert 'Command executable is not allowlisted.' in helperd
+
+
 def test_helper_daemon_inspects_legacy_adblock_chain_without_user_input():
     helperd = _read(HELPERD)
 
@@ -107,6 +116,17 @@ def test_helper_daemon_inspects_exact_owned_wireguard_firewall_state():
     assert 'fields["nft_table_present"]' in helperd
     assert 'fields["iptables_rule_present"]' in helperd
     assert 'fields["ip6tables_rule_present"]' in helperd
+
+
+def test_helper_daemon_requires_recent_handshake_and_endpoint_bypass():
+    helperd = _read(HELPERD)
+
+    assert "WireGuardHandshakeEvidence" in helperd
+    assert '"wg", "show", kWireGuardInterface, "latest-handshakes"' in helperd
+    assert "WireGuardEndpointBypassEvidence" in helperd
+    assert '"wg", "show", kWireGuardInterface, "endpoints"' in helperd
+    assert '"endpoint_bypass_present"' in helperd
+    assert '"handshake_present"' in helperd
 
 
 def test_privileged_helper_script_restricts_inputs_and_protocol_actions():
