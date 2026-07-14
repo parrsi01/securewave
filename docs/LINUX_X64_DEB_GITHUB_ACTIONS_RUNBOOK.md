@@ -149,7 +149,7 @@ cat "$tmp/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
 rm -rf "$tmp"
 ```
 
-The reviewed runtime requires contract `11`. Workflow run `29261131617` remains
+The reviewed runtime requires contract `14`. Workflow run `29261131617` remains
 historical contract-10 build evidence and is not compatible with the current
 runtime. Trigger a new reviewed workflow before any clean-VM certification. Do
 not promote the package or change its `coming_soon` status from build evidence
@@ -196,7 +196,7 @@ python3 scripts/linux_vpn_runtime_verifier.py --skip-build-checks --json \
 ```
 
 Do not call this a pass if the verifier reports helper, socket, contract,
-pref-220, or cleanup failures.
+charon-nm table-210, or cleanup failures.
 
 ### 3. Authorized per-protocol proof
 
@@ -218,12 +218,13 @@ python3 scripts/linux_vpn_runtime_verifier.py \
 
 Repeat with `openvpn` and `ikev2` only if the helper probe and backend profile
 both advertise them. IKEv2 must fail if XFRM ESP evidence is absent or an
-unqualified pref-220 loop rule is present. The verifier output redacts public
-addresses and counter values.
+expected safe charon-nm table-210 rule is missing, duplicated, or replaced by
+an unsafe rule. The verifier output redacts public addresses and counter values.
 
 4. Disconnect through the app and rerun the disconnected verifier. No process,
-   interface, route, DNS, policy-table, pref-220, or NetworkManager VPN residue
-   may remain.
+   interface, route, DNS, charon-nm table-210 route, ESP-template policy, or
+   NetworkManager VPN residue may remain. An exact paired table-210 rule is
+   allowed only as idle daemon infrastructure.
 
 ### 4. Uninstall and cleanup
 

@@ -10,7 +10,7 @@ time.
 - Socket: `/run/securewave/helper.sock`
 - Daemon: `/usr/local/libexec/securewave-helperd`
 - Narrow wrapper: `/usr/local/libexec/securewave-wg-quick`
-- Contract: `/usr/local/libexec/securewave-wg-quick.contract` (required: `11`)
+- Contract: `/usr/local/libexec/securewave-wg-quick.contract` (required: `14`)
 - Service: `securewave-helper.service`
 - Runtime group: `securewave`
 - Explicit UID allowlist: `/etc/securewave/helper-users`
@@ -28,9 +28,11 @@ installed separately.
 - OpenVPN requires `openvpn`. Connected status requires the expected root
   process/config, initialization marker, tunnel interface, and route.
 - IKEv2 helper orchestration requires `nmcli`, `ipsec`, NetworkManager
-  strongSwan support, route or DNS evidence, XFRM ESP state, and absence of an
-  unqualified pref-220 routing-loop rule. The app intentionally keeps IKEv2
-  unavailable while the backend refuses Linux IKEv2 profiles.
+  strongSwan support, route and DNS evidence, XFRM ESP state/policy, and one
+  exact negated-mark charon-nm rule per address family while connected.
+  SecureWave isolates charon-nm in table/priority 210 while regular charon
+  remains in table 220; unsafe, asymmetric, or duplicate table-210 rules fail
+  closed.
 - Missing tools, service/socket, contract, or runtime evidence returns an
   unavailable/error result. The app does not substitute a mock connection in
   live mode.

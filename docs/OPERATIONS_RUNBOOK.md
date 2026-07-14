@@ -54,7 +54,7 @@ For a verified local ARM64 package, first check the recorded SHA-256 and then le
 `apt` resolve declared dependencies:
 
 ```bash
-deb=/path/to/securewave-vpn_4.0.0+1_arm64.deb
+deb=/path/to/securewave-vpn_VERSION_arm64.deb
 sha256sum "$deb"
 sudo apt install "$deb"
 systemctl is-enabled securewave-helper.service
@@ -87,7 +87,7 @@ cat /usr/local/libexec/securewave-wg-quick.contract
 ```
 
 The helper must be root-owned, the socket must be restricted to the explicit
-`securewave` group/allowlist, and the contract must be `11`. Probe malformed and
+`securewave` group/allowlist, and the contract must be `14`. Probe malformed and
 unknown operations and verify they fail closed. After disconnect, logout, purge,
 and failed connect, verify there are no tunnel interfaces, processes, routes,
 DNS changes, policy rules, NetworkManager connections, or temporary profiles.

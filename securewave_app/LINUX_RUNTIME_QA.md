@@ -100,11 +100,11 @@ ip route
 
 ### IKEv2
 
-IKEv2 helper orchestration exists but the Linux app/backend product gate keeps
-it unavailable. The expected UI result is a disabled protocol with a backend
-profile-gate reason. Future certification must require an active NetworkManager
-VPN, route or DNS evidence, XFRM ESP state, and no unqualified pref-220 rule
-before this gate changes.
+IKEv2 certification requires an active exact NetworkManager VPN profile, route
+and DNS evidence, XFRM ESP state and policy, positive transfer counters, and one
+exact safe charon-nm table-210 rule per address family. Regular charon remains
+isolated in table 220. Missing, unqualified, asymmetric, duplicate, or otherwise
+unexpected table-210 rules fail closed.
 
 ## Repeatability
 
