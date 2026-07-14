@@ -179,7 +179,7 @@ jobs:
             if dpkg-query -W -f='${Status}' securewave-vpn 2>/dev/null | grep -Fxq 'install ok installed'; then
               sudo systemctl disable --now securewave-helper.service >/dev/null 2>&1 || true
               sudo apt-get purge -y securewave-vpn \
-                > "$EVIDENCE_DIR/emergency-purge.log" 2>&1 || true
+                2>&1 | sudo tee "$EVIDENCE_DIR/emergency-purge.log" >/dev/null || true
             fi
             exit "$status"
           }
@@ -193,7 +193,7 @@ jobs:
           test "$(sudo cat /usr/local/libexec/securewave-wg-quick.contract)" = "13"
           sudo python3 scripts/linux_vpn_runtime_verifier.py \
             --skip-build-checks --json | tee "$EVIDENCE_DIR/pre-purge-verifier.json"
-          if ! sudo python3 - <<'PY' > "$EVIDENCE_DIR/pre-purge-verifier-status.txt"
+          if ! sudo python3 - <<'PY' | tee "$EVIDENCE_DIR/pre-purge-verifier-status.txt" >/dev/null
           import json
           from pathlib import Path
           payload = json.loads(Path("artifacts/linux-x64-deb/pre-purge-verifier.json").read_text())
@@ -206,7 +206,7 @@ jobs:
           sudo timeout --signal=TERM 20s xvfb-run -a \
             --server-args='-screen 0 1280x720x24' \
             /usr/lib/securewave/securewave_app --disable-gpu \
-            > "$EVIDENCE_DIR/application-launch.log" 2>&1 || launch_status=$?
+            2>&1 | tee "$EVIDENCE_DIR/application-launch.log" >/dev/null || launch_status=$?
           launch_status="${launch_status:-0}"
           test "$launch_status" = "124" || test "$launch_status" = "143"
           sudo apt-get purge -y securewave-vpn
@@ -214,15 +214,15 @@ jobs:
           test ! -e /usr/local/libexec/securewave-helperd
           test ! -e /usr/local/libexec/securewave-wg-quick
           test ! -e /usr/local/libexec/securewave-wg-quick.contract
-          ! ip link show sw-wg >/dev/null 2>&1
-          ! ip link show tun-securewave >/dev/null 2>&1
-          ! ip link show nm-xfrm-sw >/dev/null 2>&1
-          ! sudo ip -4 route show table 51820 | grep -E 'sw-wg|tun-securewave'
-          ! sudo ip -6 route show table 51820 | grep -E 'sw-wg|tun-securewave'
-          ! sudo ip -4 rule show | grep -E '51820|securewave'
-          ! sudo ip -6 rule show | grep -E '51820|securewave'
-          ! sudo iptables-save | grep -E 'securewave-|wg-quick\(8\) rule for sw-wg'
-          ! sudo ip6tables-save | grep -E 'securewave-|wg-quick\(8\) rule for sw-wg'
+          if ip link show sw-wg >/dev/null 2>&1; then exit 1; fi
+          if ip link show tun-securewave >/dev/null 2>&1; then exit 1; fi
+          if ip link show nm-xfrm-sw >/dev/null 2>&1; then exit 1; fi
+          if sudo ip -4 route show table 51820 | grep -E 'sw-wg|tun-securewave' >/dev/null; then exit 1; fi
+          if sudo ip -6 route show table 51820 | grep -E 'sw-wg|tun-securewave' >/dev/null; then exit 1; fi
+          if sudo ip -4 rule show | grep -E '51820|securewave' >/dev/null; then exit 1; fi
+          if sudo ip -6 rule show | grep -E '51820|securewave' >/dev/null; then exit 1; fi
+          if sudo iptables-save | grep -E 'securewave-|wg-quick\(8\) rule for sw-wg' >/dev/null; then exit 1; fi
+          if sudo ip6tables-save | grep -E 'securewave-|wg-quick\(8\) rule for sw-wg' >/dev/null; then exit 1; fi
 
       - name: Check manifest syntax and status
         run: |
