@@ -36,6 +36,16 @@ def _passing_network_gates(monkeypatch):
     )
     monkeypatch.setattr(
         proof,
+        "_ipv6_protection_evidence",
+        lambda protocol, pre_connect_ipv6_exit_ip, deadline=None: {
+            "ok": True,
+            "mode": "block",
+            "pre_connect_observed": True,
+            "connected_observed": False,
+        },
+    )
+    monkeypatch.setattr(
+        proof,
         "_ikev2_routing_rule_evidence",
         lambda deadline=None: {"ok": True, "bad_rules": [], "ip_rules": {}},
     )
@@ -47,8 +57,10 @@ def test_wireguard_evidence_requires_sw_wg_route(monkeypatch):
     def fake_run(argv, *, timeout=15):
         if argv[:4] == ["ip", "link", "show", "sw-wg"]:
             return proof.CommandResult(0, "10: sw-wg: <POINTOPOINT>\n", "")
-        if argv[:4] == ["ip", "route", "get", "1.1.1.1"]:
+        if argv == ["ip", "-4", "route", "get", "1.1.1.1"]:
             return proof.CommandResult(0, "1.1.1.1 dev sw-wg src 10.8.0.2\n", "")
+        if argv == ["ip", "-6", "route", "get", "2606:4700:4700::1111"]:
+            return proof.CommandResult(0, "2606:4700:4700::1111 dev sw-wg\n", "")
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
@@ -66,6 +78,28 @@ def test_wireguard_evidence_requires_sw_wg_route(monkeypatch):
             "total_bytes": 46,
         },
     )
+    monkeypatch.setattr(
+        proof,
+        "_helper_evidence",
+        lambda fields, timeout=20.0: {
+            "ok": True,
+            "response": {
+                "ok": "true",
+                "contract": "13",
+                "status": "connected",
+                "interface": proof.WIREGUARD_INTERFACE,
+                "route_via_sw_wg": "true",
+                "ipv4_route_via_sw_wg": "true",
+                "ipv6_route_via_sw_wg": "true",
+                "policy_rules_present": "true",
+                "policy_routes_present": "true",
+                "firewall_inspection_ok": "true",
+                "ipv4_kill_switch_present": "true",
+                "ipv6_block_present": "true",
+                "ipv6_mode": "block",
+            },
+        },
+    )
 
     assert (
         proof._evidence_for("wireguard", "https://api.example.test/api")["ok"] is True
@@ -81,10 +115,16 @@ def test_openvpn_evidence_requires_tun_route_and_connected_helper_status(monkeyp
             return proof.CommandResult(
                 0, f"11: {proof.OPENVPN_INTERFACE}: <POINTOPOINT>\n", ""
             )
-        if argv[:4] == ["ip", "route", "get", "1.1.1.1"]:
+        if argv == ["ip", "-4", "route", "get", "1.1.1.1"]:
             return proof.CommandResult(
                 0,
                 f"1.1.1.1 dev {proof.OPENVPN_INTERFACE} src 10.9.0.2\n",
+                "",
+            )
+        if argv == ["ip", "-6", "route", "get", "2606:4700:4700::1111"]:
+            return proof.CommandResult(
+                0,
+                f"2606:4700:4700::1111 dev {proof.OPENVPN_INTERFACE}\n",
                 "",
             )
         raise AssertionError(argv)
@@ -106,6 +146,10 @@ def test_openvpn_evidence_requires_tun_route_and_connected_helper_status(monkeyp
                     "initialization_complete": "true",
                     "interface_present": "true",
                     "route_present": "true",
+                    "ipv4_route_present": "true",
+                    "ipv6_route_present": "true",
+                    "ipv6_block_configured": "true",
+                    "ipv6_mode": "block",
                     "dns_configured": "true",
                     "counters_available": "true",
                     "rx_bytes": "12",
@@ -144,12 +188,12 @@ def test_ikev2_evidence_requires_nm_vpn_route_dns_and_xfrm_state(monkeypatch):
             "nmcli",
             "-t",
             "-f",
-            "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE",
+            "IP4.DNS,IP6.DNS",
             "connection",
         ]:
             return proof.CommandResult(
                 0,
-                "IP4.DNS[1]:94.140.14.14\nIP4.ROUTE[1]:dst = 0.0.0.0/0\n",
+                "IP4.DNS[1]:94.140.14.14\n",
                 "",
             )
         raise AssertionError(argv)
@@ -160,23 +204,7 @@ def test_ikev2_evidence_requires_nm_vpn_route_dns_and_xfrm_state(monkeypatch):
         "_helper_evidence",
         lambda fields, timeout=20.0: {
             "ok": True,
-            "response": {
-                "ok": "true",
-                "contract": "13",
-                "status": "connected",
-                "connection_inspection_ok": "true",
-                "connection_present": "true",
-                "nm_active": "true",
-                "xfrm_state_inspection_ok": "true",
-                "xfrm_state_present": "true",
-                "xfrm_esp_present": "true",
-                "xfrm_policy_inspection_ok": "true",
-                "xfrm_policy_present": "true",
-                "routing_loop_rule_present": "false",
-                "counters_available": "true",
-                "rx_bytes": "12",
-                "tx_bytes": "34",
-            },
+            "response": _ikev2_status_response(),
         },
     )
     monkeypatch.setattr(
@@ -210,8 +238,10 @@ def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
     def fake_run(argv, *, timeout=15):
         if argv[:4] == ["ip", "link", "show", "sw-wg"]:
             return proof.CommandResult(0, "10: sw-wg: <POINTOPOINT>\n", "")
-        if argv[:4] == ["ip", "route", "get", "1.1.1.1"]:
+        if argv == ["ip", "-4", "route", "get", "1.1.1.1"]:
             return proof.CommandResult(0, "1.1.1.1 via 192.168.64.1 dev enp0s1\n", "")
+        if argv == ["ip", "-6", "route", "get", "2606:4700:4700::1111"]:
+            return proof.CommandResult(0, "2606:4700:4700::1111 dev enp0s1\n", "")
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
@@ -252,9 +282,22 @@ def test_hold_evidence_passes_with_data_dns_exit_ip_and_ikev2_rule(monkeypatch):
             "-fsS",
         ]:
             return proof.CommandResult(0, "138.199.204.139\n", "")
-        if argv in (["ip", "-4", "rule", "show"], ["ip", "-6", "rule", "show"]):
+        if argv[:7] == [
+            "curl",
+            "-6",
+            "--noproxy",
+            "*",
+            "-m",
+            "8",
+            "-fsS",
+        ]:
+            return proof.CommandResult(6, "", "IPv6 egress blocked")
+        if argv in (
+            ["ip", "-4", "-N", "rule", "show"],
+            ["ip", "-6", "-N", "rule", "show"],
+        ):
             return proof.CommandResult(
-                0, "220: not from all fwmark 0xdc lookup 220\n", ""
+                0, "210: not from all fwmark 0xdc lookup 210\n", ""
             )
         if argv[:5] == ["nmcli", "-t", "-f", "NAME,TYPE", "connection"]:
             return proof.CommandResult(0, "SecureWave-IKEv2:vpn\n", "")
@@ -262,11 +305,11 @@ def test_hold_evidence_passes_with_data_dns_exit_ip_and_ikev2_rule(monkeypatch):
             "nmcli",
             "-t",
             "-f",
-            "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE",
+            "IP4.DNS,IP6.DNS",
             "connection",
         ]:
             return proof.CommandResult(
-                0, "IP4.DNS[1]:1.1.1.1\nIP4.ROUTE[1]:dst = 0.0.0.0/0\n", ""
+                0, "IP4.DNS[1]:1.1.1.1\n", ""
             )
         raise AssertionError(argv)
 
@@ -279,7 +322,7 @@ def test_hold_evidence_passes_with_data_dns_exit_ip_and_ikev2_rule(monkeypatch):
             or {
                 "ok": True,
                 "hostname": "example.com",
-                "interface": "nm-xfrm-1",
+                "interface": proof.IKEV2_INTERFACE,
                 "attempts": [],
             }
         ),
@@ -289,23 +332,7 @@ def test_hold_evidence_passes_with_data_dns_exit_ip_and_ikev2_rule(monkeypatch):
         "_helper_evidence",
         lambda fields, timeout=20.0: {
             "ok": True,
-            "response": {
-                "ok": "true",
-                "contract": "13",
-                "status": "connected",
-                "connection_inspection_ok": "true",
-                "connection_present": "true",
-                "nm_active": "true",
-                "xfrm_state_inspection_ok": "true",
-                "xfrm_state_present": "true",
-                "xfrm_esp_present": "true",
-                "xfrm_policy_inspection_ok": "true",
-                "xfrm_policy_present": "true",
-                "routing_loop_rule_present": "false",
-                "counters_available": "true",
-                "rx_bytes": "12",
-                "tx_bytes": "34",
-            },
+            "response": _ikev2_status_response(),
         },
     )
     monkeypatch.setattr(
@@ -316,6 +343,11 @@ def test_hold_evidence_passes_with_data_dns_exit_ip_and_ikev2_rule(monkeypatch):
         "ikev2",
         "https://api.example.test/api",
         pre_connect_exit_ip={"ok": True, "ip": "92.105.134.148", "attempts": []},
+        pre_connect_ipv6_exit_ip={
+            "ok": True,
+            "ip": "2001:db8::10",
+            "attempts": [],
+        },
     )
 
     assert evidence["ok"] is True
@@ -344,7 +376,9 @@ def test_hold_evidence_passes_with_data_dns_exit_ip_and_ikev2_rule(monkeypatch):
         == ["curl", "-4", "--noproxy", "*", "-m", "8", "-fsS"]
     )
     rule_index = next(
-        i for i, call in enumerate(calls) if call == ["ip", "-4", "rule", "show"]
+        i
+        for i, call in enumerate(calls)
+        if call == ["ip", "-4", "-N", "rule", "show"]
     )
     assert data_plane_index < dns_index < exit_ip_index < rule_index
 
@@ -412,22 +446,11 @@ def test_hold_evidence_fails_when_dns_only_is_broken(monkeypatch):
 def test_dns_evidence_uses_exact_tunnel_link_and_positive_counter_deltas(
     monkeypatch,
 ):
-    interface = "nm-xfrm-7"
+    interface = proof.IKEV2_INTERFACE
     calls = []
 
     def fake_run(argv, *, timeout=15):
         calls.append(list(argv))
-        if argv == [
-            "nmcli",
-            "-g",
-            "GENERAL.DEVICES",
-            "connection",
-            "show",
-            "--active",
-            "id",
-            proof.IKEV2_CONNECTION,
-        ]:
-            return proof.CommandResult(0, f"{interface}\n", "")
         if argv == ["resolvectl", "dns", interface]:
             return proof.CommandResult(0, f"Link 12 ({interface}): 94.140.14.14\n", "")
         if argv == ["resolvectl", "domain", interface]:
@@ -444,6 +467,8 @@ def test_dns_evidence_uses_exact_tunnel_link_and_positive_counter_deltas(
         (
             {"ok": True, "rx_bytes": 100, "tx_bytes": 200},
             {"ok": True, "rx_bytes": 101, "tx_bytes": 201},
+            {"ok": True, "rx_bytes": 102, "tx_bytes": 202},
+            {"ok": True, "rx_bytes": 103, "tx_bytes": 203},
         )
     )
     counter_protocols = []
@@ -453,6 +478,14 @@ def test_dns_evidence_uses_exact_tunnel_link_and_positive_counter_deltas(
         return next(snapshots)
 
     monkeypatch.setattr(proof, "_run", fake_run)
+    monkeypatch.setattr(
+        proof,
+        "_helper_evidence",
+        lambda fields, timeout=20.0: {
+            "ok": True,
+            "response": _ikev2_status_response(),
+        },
+    )
     monkeypatch.setattr(proof, "_helper_counter_snapshot", fake_counter_snapshot)
 
     evidence = proof._dns_evidence("ikev2")
@@ -464,7 +497,7 @@ def test_dns_evidence_uses_exact_tunnel_link_and_positive_counter_deltas(
     assert evidence["attempts"][0]["owned_response"] is True
     assert evidence["attempts"][0]["rx_delta"] == 1
     assert evidence["attempts"][0]["tx_delta"] == 1
-    assert counter_protocols == ["ikev2", "ikev2"]
+    assert counter_protocols == ["ikev2", "ikev2", "ikev2", "ikev2"]
     assert [
         "resolvectl",
         f"--interface={interface}",
@@ -619,6 +652,16 @@ def test_hold_evidence_fails_when_exit_ip_is_unchanged(monkeypatch):
             "attempts": [],
         },
     )
+    monkeypatch.setattr(
+        proof,
+        "_ipv6_protection_evidence",
+        lambda protocol, pre_connect_ipv6_exit_ip, deadline=None: {
+            "ok": True,
+            "mode": "block",
+            "pre_connect_observed": True,
+            "connected_observed": False,
+        },
+    )
 
     evidence = proof._evidence_for(
         "wireguard",
@@ -636,7 +679,7 @@ def test_hold_evidence_fails_when_exit_ip_is_unchanged(monkeypatch):
     assert '"stdout"' not in serialized
 
 
-def test_hold_evidence_fails_on_bad_ikev2_pref_220_rule(monkeypatch):
+def test_hold_evidence_fails_on_bad_ikev2_charon_nm_rule(monkeypatch):
     def fake_run(argv, *, timeout=15):
         if argv[:6] == ["curl", "-4", "--noproxy", "*", "-m", "5"]:
             return proof.CommandResult(0, "200\n", "")
@@ -650,11 +693,11 @@ def test_hold_evidence_fails_on_bad_ikev2_pref_220_rule(monkeypatch):
             "-fsS",
         ]:
             return proof.CommandResult(0, "138.199.204.139\n", "")
-        if argv == ["ip", "-4", "rule", "show"]:
-            return proof.CommandResult(0, "220: from all lookup 220\n", "")
-        if argv == ["ip", "-6", "rule", "show"]:
+        if argv == ["ip", "-4", "-N", "rule", "show"]:
+            return proof.CommandResult(0, "210: from all lookup 210\n", "")
+        if argv == ["ip", "-6", "-N", "rule", "show"]:
             return proof.CommandResult(
-                0, "220: not from all fwmark 0xdc lookup 220\n", ""
+                0, "210: not from all fwmark 0xdc lookup 210\n", ""
             )
         raise AssertionError(argv)
 
@@ -664,8 +707,19 @@ def test_hold_evidence_fails_on_bad_ikev2_pref_220_rule(monkeypatch):
         "_dns_evidence",
         lambda protocol, deadline=None: {
             "ok": True,
-            "interface": "nm-xfrm-1",
+            "interface": proof.IKEV2_INTERFACE,
             "attempts": [],
+        },
+    )
+
+    monkeypatch.setattr(
+        proof,
+        "_ipv6_protection_evidence",
+        lambda protocol, pre_connect_ipv6_exit_ip, deadline=None: {
+            "ok": True,
+            "mode": "block",
+            "pre_connect_observed": True,
+            "connected_observed": False,
         },
     )
 
@@ -678,7 +732,7 @@ def test_hold_evidence_fails_on_bad_ikev2_pref_220_rule(monkeypatch):
     assert evidence["ok"] is False
     assert evidence["error_kind"] == "ikev2_routing_loop_rule"
     assert evidence["ikev2_routing_rule"]["bad_rules"] == [
-        "ipv4: 220: from all lookup 220"
+        "ipv4: 210: from all lookup 210"
     ]
 
 
@@ -1179,10 +1233,16 @@ def test_openvpn_evidence_fails_on_disconnected_or_unconfigured_dns(
             return proof.CommandResult(
                 0, f"11: {proof.OPENVPN_INTERFACE}: <POINTOPOINT>\n", ""
             )
-        if argv[:4] == ["ip", "route", "get", "1.1.1.1"]:
+        if argv == ["ip", "-4", "route", "get", "1.1.1.1"]:
             return proof.CommandResult(
                 0,
                 f"1.1.1.1 dev {proof.OPENVPN_INTERFACE} src 10.9.0.2\n",
+                "",
+            )
+        if argv == ["ip", "-6", "route", "get", "2606:4700:4700::1111"]:
+            return proof.CommandResult(
+                0,
+                f"2606:4700:4700::1111 dev {proof.OPENVPN_INTERFACE}\n",
                 "",
             )
         raise AssertionError(argv)
@@ -1197,6 +1257,10 @@ def test_openvpn_evidence_fails_on_disconnected_or_unconfigured_dns(
         "initialization_complete": "true",
         "interface_present": "true",
         "route_present": "true",
+        "ipv4_route_present": "true",
+        "ipv6_route_present": "true",
+        "ipv6_block_configured": "true",
+        "ipv6_mode": "block",
         "dns_configured": "true",
         "counters_available": "true",
         "rx_bytes": "12",
@@ -1238,9 +1302,15 @@ def test_openvpn_evidence_requires_one_exact_interface_across_all_sources(
             return proof.CommandResult(
                 0, f"11: {proof.OPENVPN_INTERFACE}: <POINTOPOINT>\n", ""
             )
-        if argv[:4] == ["ip", "route", "get", "1.1.1.1"]:
+        if argv == ["ip", "-4", "route", "get", "1.1.1.1"]:
             return proof.CommandResult(
                 0, f"1.1.1.1 dev {route_interface} src 10.9.0.2\n", ""
+            )
+        if argv == ["ip", "-6", "route", "get", "2606:4700:4700::1111"]:
+            return proof.CommandResult(
+                0,
+                f"2606:4700:4700::1111 dev {route_interface}\n",
+                "",
             )
         raise AssertionError(argv)
 
@@ -1259,6 +1329,10 @@ def test_openvpn_evidence_requires_one_exact_interface_across_all_sources(
                 "initialization_complete": "true",
                 "interface_present": "true",
                 "route_present": "true",
+                "ipv4_route_present": "true",
+                "ipv6_route_present": "true",
+                "ipv6_block_configured": "true",
+                "ipv6_mode": "block",
                 "dns_configured": "true",
                 "counters_available": "true",
                 "rx_bytes": "12",
@@ -1288,11 +1362,31 @@ def _ikev2_status_response(**overrides):
         "connection_inspection_ok": "true",
         "connection_present": "true",
         "nm_active": "true",
+        "interface_name_configured": "true",
+        "interface_inspection_ok": "true",
+        "interface_present": "true",
+        "interface": proof.IKEV2_INTERFACE,
+        "xfrm_interface": "true",
+        "xfrm_if_id_present": "true",
+        "xfrm_if_id_persisted": "true",
+        "ownership_inspection_ok": "true",
+        "route_inspection_ok": "true",
+        "route_present": "true",
+        "ipv4_full_route_present": "true",
+        "ipv6_full_route_present": "true",
+        "ipv6_mode": "block",
+        "ipv6_block_inspection_ok": "true",
+        "ipv6_block_present": "true",
+        "route_conflict_present": "false",
+        "dns_present": "true",
         "xfrm_state_inspection_ok": "true",
         "xfrm_state_present": "true",
         "xfrm_esp_present": "true",
         "xfrm_policy_inspection_ok": "true",
         "xfrm_policy_present": "true",
+        "xfrm_pair_present": "true",
+        "routing_rule_inspection_ok": "true",
+        "routing_rules_safe": "true",
         "routing_loop_rule_present": "false",
         "counters_available": "true",
         "rx_bytes": "12",
@@ -1302,7 +1396,7 @@ def _ikev2_status_response(**overrides):
     return response
 
 
-def _mock_ikev2_runtime(monkeypatch, *, route_dns, helper_response):
+def _mock_ikev2_runtime(monkeypatch, *, dns_output, helper_response):
     def fake_run(argv, *, timeout=15):
         if argv[:5] == ["nmcli", "-t", "-f", "NAME,TYPE", "connection"]:
             return proof.CommandResult(0, "SecureWave-IKEv2:vpn\n", "")
@@ -1310,10 +1404,10 @@ def _mock_ikev2_runtime(monkeypatch, *, route_dns, helper_response):
             "nmcli",
             "-t",
             "-f",
-            "IP4.DNS,IP4.ROUTE,IP6.DNS,IP6.ROUTE",
+            "IP4.DNS,IP6.DNS",
             "connection",
         ]:
-            return proof.CommandResult(0, route_dns, "")
+            return proof.CommandResult(0, dns_output, "")
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
@@ -1334,11 +1428,25 @@ def _mock_ikev2_runtime(monkeypatch, *, route_dns, helper_response):
         {"connection_inspection_ok": "false"},
         {"connection_present": "false"},
         {"nm_active": "false"},
+        {"interface_name_configured": "false"},
+        {"interface_inspection_ok": "false"},
+        {"interface_present": "false"},
+        {"interface": "enp0s1"},
+        {"xfrm_interface": "false"},
+        {"xfrm_if_id_present": "false"},
+        {"xfrm_if_id_persisted": "false"},
+        {"ownership_inspection_ok": "false"},
+        {"route_inspection_ok": "false"},
+        {"route_present": "false"},
+        {"ipv4_full_route_present": "false"},
+        {"route_conflict_present": "true"},
+        {"dns_present": "false"},
         {"xfrm_state_inspection_ok": "false"},
         {"xfrm_state_present": "false"},
         {"xfrm_esp_present": "false"},
         {"xfrm_policy_inspection_ok": "false"},
         {"xfrm_policy_present": "false"},
+        {"xfrm_pair_present": "false"},
         {"routing_loop_rule_present": "true"},
         {"counters_available": "false"},
         {"rx_bytes": "0", "tx_bytes": "0"},
@@ -1349,7 +1457,7 @@ def test_ikev2_runtime_fails_closed_on_incomplete_helper_evidence(
 ):
     _mock_ikev2_runtime(
         monkeypatch,
-        route_dns="IP4.DNS[1]:1.1.1.1\nIP4.ROUTE[1]:dst = 0.0.0.0/0\n",
+        dns_output="IP4.DNS[1]:1.1.1.1\n",
         helper_response=_ikev2_status_response(**override),
     )
 
@@ -1359,17 +1467,19 @@ def test_ikev2_runtime_fails_closed_on_incomplete_helper_evidence(
 
 
 @pytest.mark.parametrize(
-    "route_dns",
+    ("dns_output", "helper_override"),
     (
-        "IP4.DNS[1]:1.1.1.1\n",
-        "IP4.ROUTE[1]:dst = 0.0.0.0/0\n",
+        ("", {}),
+        ("IP4.DNS[1]:1.1.1.1\n", {"route_present": "false"}),
     ),
 )
-def test_ikev2_runtime_requires_both_route_and_dns(monkeypatch, route_dns):
+def test_ikev2_runtime_requires_owned_kernel_route_and_dns(
+    monkeypatch, dns_output, helper_override
+):
     _mock_ikev2_runtime(
         monkeypatch,
-        route_dns=route_dns,
-        helper_response=_ikev2_status_response(),
+        dns_output=dns_output,
+        helper_response=_ikev2_status_response(**helper_override),
     )
 
     evidence = proof._runtime_evidence_for("ikev2", "https://api.example.test/api")
@@ -1377,17 +1487,17 @@ def test_ikev2_runtime_requires_both_route_and_dns(monkeypatch, route_dns):
     assert evidence["ok"] is False
 
 
-def test_ikev2_pref_220_tripwire_checks_ipv4_and_ipv6(monkeypatch):
+def test_ikev2_charon_nm_rule_tripwire_checks_ipv4_and_ipv6(monkeypatch):
     calls = []
 
     def fake_run(argv, *, timeout=15):
         calls.append(list(argv))
-        if argv == ["ip", "-4", "rule", "show"]:
+        if argv == ["ip", "-4", "-N", "rule", "show"]:
             return proof.CommandResult(
-                0, "220: not from all fwmark 0xdc lookup 220\n", ""
+                0, "210: not from all fwmark 0xdc lookup 210\n", ""
             )
-        if argv == ["ip", "-6", "rule", "show"]:
-            return proof.CommandResult(0, "220: from all lookup 220\n", "")
+        if argv == ["ip", "-6", "-N", "rule", "show"]:
+            return proof.CommandResult(0, "210: from all lookup 210\n", "")
         raise AssertionError(argv)
 
     monkeypatch.setattr(proof, "_run", fake_run)
@@ -1395,21 +1505,23 @@ def test_ikev2_pref_220_tripwire_checks_ipv4_and_ipv6(monkeypatch):
     evidence = proof._ikev2_routing_rule_evidence()
 
     assert evidence["ok"] is False
-    assert evidence["bad_rules"] == ["ipv6: 220: from all lookup 220"]
+    assert evidence["bad_rules"] == ["ipv6: 210: from all lookup 210"]
     assert calls == [
-        ["ip", "-4", "rule", "show"],
-        ["ip", "-6", "rule", "show"],
+        ["ip", "-4", "-N", "rule", "show"],
+        ["ip", "-6", "-N", "rule", "show"],
     ]
 
 
 @pytest.mark.parametrize(
     "rule",
     (
-        "220: not from all fwmark 0xdc lookup 220",
-        "220: from all not fwmark 0xdc/0xffffffff table 220",
+        "210: not from all fwmark 0xdc lookup 210",
+        "210: from all not fwmark 0xdc/0xffffffff table 210",
     ),
 )
-def test_ikev2_pref_220_accepts_expected_negated_mark_print_forms(monkeypatch, rule):
+def test_ikev2_charon_nm_rule_accepts_expected_negated_mark_print_forms(
+    monkeypatch, rule
+):
     monkeypatch.setattr(
         proof,
         "_run",
@@ -1420,25 +1532,41 @@ def test_ikev2_pref_220_accepts_expected_negated_mark_print_forms(monkeypatch, r
 
     assert evidence["ok"] is True
     assert evidence["bad_rules"] == []
+    assert evidence["safe_rule_counts"] == {"ipv4": 1, "ipv6": 1}
+
+
+@pytest.mark.parametrize("output", ("", "210: not from all fwmark 0xdc lookup 210\n" * 2))
+def test_ikev2_charon_nm_rule_requires_exactly_one_per_family(monkeypatch, output):
+    monkeypatch.setattr(
+        proof,
+        "_run",
+        lambda argv, timeout=15: proof.CommandResult(0, output, ""),
+    )
+
+    evidence = proof._ikev2_routing_rule_evidence()
+
+    assert evidence["ok"] is False
+    assert evidence["bad_rules"]
 
 
 @pytest.mark.parametrize(
     "rule",
     (
-        "220: from all fwmark 0xdc lookup 220",
-        "220: not from all fwmark 0xdd lookup 220",
-        "220: from 192.0.2.0/24 fwmark 0xdc lookup 220",
+        "210: from all fwmark 0xdc lookup 210",
+        "210: not from all fwmark 0xdd lookup 210",
+        "210: from 192.0.2.0/24 fwmark 0xdc lookup 210",
+        "211: not from all fwmark 0xdc lookup 210",
     ),
 )
-def test_ikev2_pref_220_rejects_non_negated_wrong_mark_or_foreign_selector(
+def test_ikev2_charon_nm_rule_rejects_non_negated_wrong_mark_or_foreign_selector(
     monkeypatch, rule
 ):
     def fake_run(argv, *, timeout=15):
-        if argv == ["ip", "-4", "rule", "show"]:
+        if argv == ["ip", "-4", "-N", "rule", "show"]:
             return proof.CommandResult(0, f"{rule}\n", "")
-        if argv == ["ip", "-6", "rule", "show"]:
+        if argv == ["ip", "-6", "-N", "rule", "show"]:
             return proof.CommandResult(
-                0, "220: not from all fwmark 0xdc lookup 220\n", ""
+                0, "210: not from all fwmark 0xdc lookup 210\n", ""
             )
         raise AssertionError(argv)
 
@@ -1743,6 +1871,16 @@ def _run_protocol_with_timed_hold(
             "attempts": [],
         },
     )
+    monkeypatch.setattr(
+        proof,
+        "_ipv6_exit_ip_lookup",
+        lambda deadline=None: {
+            "ok": True,
+            "ip": "2001:db8::10",
+            "url": "https://example.test/ipv6",
+            "attempts": [],
+        },
+    )
     monkeypatch.setattr(proof, "_evidence_for", fake_evidence)
     monkeypatch.setattr(
         proof,
@@ -1868,6 +2006,16 @@ def test_run_protocol_fails_when_post_disconnect_verifier_fails(monkeypatch):
             "ok": True,
             "ip": "192.0.2.10",
             "url": "https://example.test/ip",
+            "attempts": [],
+        },
+    )
+    monkeypatch.setattr(
+        proof,
+        "_ipv6_exit_ip_lookup",
+        lambda deadline=None: {
+            "ok": True,
+            "ip": "2001:db8::10",
+            "url": "https://example.test/ipv6",
             "attempts": [],
         },
     )

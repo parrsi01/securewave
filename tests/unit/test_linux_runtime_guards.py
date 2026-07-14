@@ -76,6 +76,19 @@ def test_helper_daemon_certifies_ikev2_kernel_cleanup_with_privileged_evidence()
     assert 'fields["xfrm_policy_inspection_ok"]' in helperd
     assert 'fields["xfrm_esp_present"]' in helperd
     assert 'fields["xfrm_policy_present"]' in helperd
+    assert "ParseXfrmStateRecords" in helperd
+    assert "ParseXfrmPolicyRecords" in helperd
+    assert "OwnedXfrmPairPresent" in helperd
+    assert "ParseOwnedXfrmCounters" in helperd
+    assert 'kIkev2InterfaceName = "nm-xfrm-sw"' in helperd
+    assert 'kIkev2IfIdPath = "/run/securewave/ikev2-xfrm-if-id"' in helperd
+    assert 'fields["xfrm_pair_present"]' in helperd
+    assert 'fields["route_inspection_ok"]' in helperd
+    assert 'fields["ipv4_full_route_present"]' in helperd
+    assert 'fields["ipv6_full_route_present"]' in helperd
+    assert 'fields["routing_rule_inspection_ok"]' in helperd
+    assert 'fields["routing_rules_safe"]' in helperd
+    assert 'fields["routing_rules_idle_safe"]' in helperd
     assert 'fields["connection_inspection_ok"]' in helperd
     assert 'fields["connection_present"]' in helperd
     assert '"inspection_failed"' in helperd
@@ -130,16 +143,18 @@ def test_systemd_and_tmpfiles_define_no_prompt_helper_socket_model():
     assert "UMask=0077" in service
     assert "LockPersonality=yes" in service
     assert "RestrictSUIDSGID=yes" in service
-    assert "strongswan-starter.service" in service
+    assert "strongswan-starter.service" not in service
     assert tmpfiles.strip() == "d /run/securewave 0750 root securewave -"
 
 
 def test_strongswan_routing_dropin_pairs_marks_for_both_daemons():
     routing = _read(STRONGSWAN_ROUTING)
 
-    assert routing.count("fwmark = !0xdc") == 2
-    assert routing.count("fwmark = 0xdc") == 2
-    assert "charon {" in routing
+    assert routing.count("fwmark = !0xdc") == 1
+    assert routing.count("fwmark = 0xdc") == 1
+    assert "charon {" not in routing
+    assert "routing_table = 210" in routing
+    assert "routing_table_prio = 210" in routing
     assert "charon-nm {" in routing
 
 
@@ -158,4 +173,5 @@ def test_install_helper_script_installs_payload_and_removes_old_polkit_rule():
     assert "systemctl daemon-reload" in installer
     assert "systemctl enable --now securewave-helper.service" in installer
     assert "find_strongswan_fwmark_conflict" in installer
-    assert "systemctl try-restart strongswan-starter.service" in installer
+    assert "charon_nm_running" in installer
+    assert "systemctl try-restart strongswan-starter.service" not in installer
