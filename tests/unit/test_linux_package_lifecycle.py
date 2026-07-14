@@ -199,6 +199,8 @@ elif [[ "${FAKE_MODE:-clean}" == "asymmetric_safe_rule" && "$1" == "-4" && "$*" 
   printf '%s\n' '210: not from all fwmark 0xdc lookup 210'
 elif [[ "${FAKE_MODE:-clean}" == "paired_safe_rule" && "$*" == *"rule show"* ]]; then
   printf '%s\n' '210: not from all fwmark 0xdc lookup 210'
+elif [[ "${FAKE_MODE:-clean}" == "unsafe_xfrm" && "$*" == *"xfrm state"* ]]; then
+  printf '%s\n' 'if_id 0x2a'
 fi
 """,
         "nmcli": "#!/bin/bash\nexit 0\n",
@@ -207,7 +209,9 @@ fi
 [[ "${FAKE_MODE:-clean}" != "iptables_failure" ]] || exit 1
 [[ "${FAKE_MODE:-clean}" != "wireguard_firewall" ]] || printf '%s\n' 'wg-quick(8) rule for sw-wg'
 """,
-        "ip6tables-save": "#!/bin/bash\nexit 0\n",
+        "ip6tables-save": """#!/bin/bash
+[[ "${FAKE_MODE:-clean}" != "ikev2_firewall" ]] || printf '%s\\n' 'securewave-ikev2-ipv6-block-v1'
+""",
     }
     for name, contents in commands.items():
         command = bin_dir / name
@@ -225,6 +229,8 @@ fi
         ("asymmetric_safe_rule", False),
         ("iptables_failure", False),
         ("wireguard_firewall", False),
+        ("unsafe_xfrm", False),
+        ("ikev2_firewall", False),
     ),
 )
 def test_prerm_offline_cleanup_inspection_fails_closed(
@@ -253,6 +259,51 @@ def test_prerm_offline_cleanup_inspection_fails_closed(
     )
 
     assert (result.returncode == 0) is expected_success, result.stderr
+
+
+def test_prerm_falls_back_to_clean_offline_inspection_for_legacy_ikev2_helper(
+    tmp_path: Path,
+):
+    prerm = _maintainer_script("PRERM")
+    helper_functions = _function_region(
+        prerm, "response_field() {", "charon_nm_running() {"
+    )
+    offline_functions = _function_region(
+        prerm, "securewave_openvpn_pids() {", "helper_service_active=0"
+    )
+    helperd = tmp_path / "securewave-helperd"
+    contract = tmp_path / "securewave-wg-quick.contract"
+    runtime_dir = tmp_path / "runtime"
+    bin_dir = tmp_path / "bin"
+    runtime_dir.mkdir()
+    bin_dir.mkdir()
+    _write_fake_helperd(helperd)
+    contract.write_text("13\n", encoding="utf-8")
+    _write_fake_runtime_commands(bin_dir)
+    script = (
+        "set -euo pipefail\n"
+        'HELPERD="$1"\n'
+        'HELPER_CONTRACT="$2"\n'
+        + helper_functions
+        + offline_functions.replace("/run/securewave", str(runtime_dir))
+        + "\n"
+        + "if ! helper_request ikev2.cleanup; then\n"
+        + "  offline_owned_runtime_clean\n"
+        + "fi\n"
+    )
+    env = os.environ.copy()
+    env["FAKE_RESPONSE"] = "ok=false\ncontract=13\nmessage=inspection_failed"
+    env["FAKE_EXIT"] = "1"
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(helperd), str(contract)],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_prerm_half_configured_removal_and_service_retry_are_idempotent():

@@ -8,7 +8,7 @@ Last audited: 2026-07-14 UTC
 - Base: `origin/master` at `b2c69ade88a6d7d96a1478f792c39ec793888fac`
 - Application/package version: `4.0.0+3`
 - Local ARM64 package: `securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb`
-- Local ARM64 package SHA-256: `2d4118bcb6eed30806798030388647eccc84323c37b30a9e329bb8a015d29d68`
+- Local ARM64 package SHA-256: `6e6692e6e55e194c6f9cbd1b423198729ee4a68fab6a74f3b8c3ca73b7e5218a`
 - No artifact was published, signed, or deployed by this certification.
 
 ## Protocol truth
@@ -72,7 +72,7 @@ release commands must not instruct users to treat a feature branch as canonical.
 ```bash
 cd /path/to/securewave-linux-runtime-final
 deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb"
-echo "2d4118bcb6eed30806798030388647eccc84323c37b30a9e329bb8a015d29d68  $deb" | sha256sum -c -
+echo "6e6692e6e55e194c6f9cbd1b423198729ee4a68fab6a74f3b8c3ca73b7e5218a  $deb" | sha256sum -c -
 sudo apt install "$deb"
 systemctl is-enabled securewave-helper.service
 systemctl is-active securewave-helper.service

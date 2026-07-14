@@ -421,6 +421,8 @@ offline_owned_runtime_clean() {
   local -a safe_rule_counts=()
   local rules
   local tables
+  local xfrm_policy
+  local xfrm_state
   command -v ip >/dev/null 2>&1 || return 1
   command -v nmcli >/dev/null 2>&1 || return 1
   command -v nft >/dev/null 2>&1 || return 1
@@ -509,6 +511,12 @@ offline_owned_runtime_clean() {
     safe_rule_counts+=("$safe_rule_count")
   done
   [[ "${safe_rule_counts[0]}" == "${safe_rule_counts[1]}" ]] || return 1
+  xfrm_state="$(ip -s xfrm state)" || return 1
+  xfrm_policy="$(ip xfrm policy)" || return 1
+  if grep -Eq '(^|[[:space:]])if_id[[:space:]]+(0x)?[0-9]+' <<< "$xfrm_state
+$xfrm_policy"; then
+    return 1
+  fi
   tables="$(nft list tables)" || return 1
   if awk '
       $1 == "table" && ($2 == "ip" || $2 == "ip6" || $2 == "inet") &&
@@ -521,6 +529,7 @@ offline_owned_runtime_clean() {
   grep -Fq 'wg-quick(8) rule for sw-wg' <<< "$iptables_rules" && return 1
   ip6tables_rules="$(ip6tables-save)" || return 1
   grep -Fq 'wg-quick(8) rule for sw-wg' <<< "$ip6tables_rules" && return 1
+  grep -Fq 'securewave-ikev2-ipv6-block-v1' <<< "$ip6tables_rules" && return 1
   [[ ! -e /run/securewave/sw-wg.output-policy &&
      ! -e /run/securewave/sw-wg.endpoint-ips &&
      ! -e /run/securewave/ikev2-xfrm-if-id ]] || return 1
@@ -539,7 +548,12 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
 fi
 if [[ "$helper_service_active" == "1" && -x "$HELPER" && -x "$HELPERD" ]]; then
   helper_request wireguard.cleanup
-  helper_request ikev2.cleanup
+  if ! helper_request ikev2.cleanup; then
+    if ! offline_owned_runtime_clean; then
+      echo "SecureWave IKEv2 cleanup failed and offline ownership inspection was not clean; refusing package removal." >&2
+      exit 1
+    fi
+  fi
 elif ! offline_owned_runtime_clean; then
   echo "SecureWave cleanup service is unavailable and owned runtime state could not be verified clean; refusing package removal." >&2
   exit 1
