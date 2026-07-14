@@ -11,7 +11,10 @@ This module provides endpoints for:
 import os
 import logging
 import re
+import hashlib
+import hmac
 from datetime import datetime, timedelta
+from ipaddress import ip_address, ip_network
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
@@ -24,6 +27,7 @@ from models.user import User
 from models.wireguard_peer import WireGuardPeer
 from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
+from models.openvpn_credential import OpenVpnCredential
 from services.jwt_service import get_current_user
 from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 from services.subscription_access import require_active_subscription
@@ -31,6 +35,10 @@ from services.vpn_peer_manager import get_peer_manager
 from services.wireguard_service import WireGuardService
 from services.vpn_server_service import VPNServerService
 from services.protocol_availability_service import ProtocolAvailabilityService
+from services.openvpn_credential_manager import (
+    OpenVpnCredentialError,
+    OpenVpnCredentialManager,
+)
 from services.usage_metering_service import (
     UsageMeteringError,
     UsageMeteringService,
@@ -219,6 +227,23 @@ class UsageFinalizeRequest(BaseModel):
     reason: str = Field("client_disconnect", min_length=1, max_length=32, pattern=r"^[a-z_]+$")
 
 
+class VpnEgressEvidenceRequest(BaseModel):
+    server_id: str = Field(..., min_length=1, max_length=128)
+    device_id: int = Field(..., gt=0)
+    protocol: str = Field(..., min_length=2, max_length=16)
+    baseline_fingerprint: str = Field(
+        ..., min_length=64, max_length=64, pattern=r"^[a-f0-9]{64}$"
+    )
+
+
+class VpnEgressBaselineResponse(BaseModel):
+    fingerprint: str
+
+
+class VpnEgressEvidenceResponse(BaseModel):
+    verified: bool
+
+
 class VpnProfileDns(BaseModel):
     mode: str = "tunnel"
     servers: List[str]
@@ -244,6 +269,10 @@ class VpnProfileResponse(BaseModel):
     expires_at: str
     wireguard_config: str = ""
     openvpn_config: Optional[str] = None
+    # Deliberately separate from the profile config: Linux writes it to an
+    # ephemeral mode-0600 auth file and never logs or caches it with config.
+    openvpn_username: Optional[str] = None
+    openvpn_password: Optional[str] = None
     ikev2_config: Optional[str] = None
     dns: VpnProfileDns
     kill_switch: VpnProfileKillSwitch
@@ -489,14 +518,59 @@ def _build_openvpn_profile_config(server: VPNServer) -> str:
             detail="OpenVPN server metadata is incomplete.",
         )
 
-    host = server.openvpn_endpoint or server.public_ip
-    port = int(server.openvpn_port or 1194)
+    host = _endpoint_host(server.openvpn_endpoint or "", server.public_ip).strip()
+    try:
+        ip_address(host)
+    except ValueError:
+        if (
+            not host
+            or len(host) > 253
+            or host.endswith(".")
+            or any(
+                not label
+                or len(label) > 63
+                or label.startswith("-")
+                or label.endswith("-")
+                or not re.fullmatch(r"[A-Za-z0-9-]+", label)
+                for label in host.split(".")
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="OpenVPN endpoint metadata is invalid.",
+            )
+    try:
+        port = int(server.openvpn_port or 1194)
+    except (TypeError, ValueError):
+        port = 0
+    if not 1 <= port <= 65535:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenVPN port metadata is invalid.",
+        )
     transport = (server.openvpn_transport or "udp").lower()
+    if transport not in {"udp", "tcp"}:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenVPN transport metadata is invalid.",
+        )
+    ca_pem = server.openvpn_ca_cert_pem.strip()
+    if (
+        not ca_pem
+        or "</ca" in ca_pem.lower()
+        or "<" in ca_pem
+        or ">" in ca_pem
+        or any(not char.isprintable() and char not in "\n\r\t" for char in ca_pem)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenVPN CA metadata is invalid.",
+        )
     dns_lines = [f"dhcp-option DNS {dns}" for dns in _profile_dns_servers()]
     return "\n".join([
         "client",
         "dev tun",
-        f"proto {transport}",
+        f"proto {'tcp-client' if transport == 'tcp' else 'udp'}",
         f"remote {host} {port}",
         "resolv-retry infinite",
         "nobind",
@@ -505,16 +579,16 @@ def _build_openvpn_profile_config(server: VPNServer) -> str:
         "remote-cert-tls server",
         "auth-user-pass",
         "auth-nocache",
-        # This service currently provides an IPv4 OpenVPN data plane. Route
-        # public IPv6 into the TUN device and reject it there so a dual-stack
-        # Linux client cannot bypass the VPN over its physical interface.
-        "ifconfig-ipv6 fd53:6563:7572:6577::2/64 fd53:6563:7572:6577::1",
+        # The OpenVPN server assigns a unique IPv6 address. A client must
+        # never hard-code one here: doing so would duplicate it across peers.
+        # Public IPv6 is routed into the TUN device and blocked there. OpenVPN
+        # does not claim IPv6 exit capability until that is separately proven.
         "redirect-gateway def1 ipv6",
         "block-ipv6",
         *dns_lines,
         "verb 3",
         "<ca>",
-        server.openvpn_ca_cert_pem.strip(),
+        ca_pem,
         "</ca>",
         "",
     ])
@@ -581,9 +655,118 @@ def _build_ikev2_profile_config(server: VPNServer, current_user: User) -> str:
     ])
 
 
+def _canonical_ip(value: str | None) -> str | None:
+    try:
+        return str(ip_address((value or "").strip()))
+    except ValueError:
+        return None
+
+
+def _trusted_proxy_networks() -> list:
+    networks = []
+    for raw in os.getenv("SECUREWAVE_TRUSTED_PROXY_CIDRS", "").split(","):
+        try:
+            networks.append(ip_network(raw.strip(), strict=False))
+        except ValueError:
+            continue
+    return networks
+
+
+def _observed_egress_ip(request: Request) -> str | None:
+    """Return a canonical client address without trusting arbitrary headers."""
+    direct = _canonical_ip(request.client.host if request.client else None)
+    if direct is None:
+        return None
+    direct_address = ip_address(direct)
+    if not any(direct_address in network for network in _trusted_proxy_networks()):
+        return direct
+    forwarded = request.headers.get("x-forwarded-for", "")
+    candidate = forwarded.split(",", 1)[0].strip() if forwarded else ""
+    return _canonical_ip(candidate) or direct
+
+
+def _egress_fingerprint(source_ip: str | None) -> str | None:
+    secret = ProtocolAvailabilityService.configured_egress_evidence_secret()
+    if not source_ip or not secret:
+        return None
+    return hmac.new(
+        secret.encode("utf-8"), source_ip.encode("ascii"), hashlib.sha256
+    ).hexdigest()
+
+
 # =============================================================================
 # Server Listing Endpoints
 # =============================================================================
+
+
+@router.post("/egress/baseline", response_model=VpnEgressBaselineResponse)
+@rate_limit("30/minute")
+async def capture_vpn_egress_baseline(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Capture a redacted authenticated pre-connect egress observation."""
+    del current_user
+    fingerprint = _egress_fingerprint(_observed_egress_ip(request))
+    if fingerprint is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VPN egress evidence is not configured.",
+        )
+    return VpnEgressBaselineResponse(fingerprint=fingerprint)
+
+
+@router.post("/egress/verify", response_model=VpnEgressEvidenceResponse)
+@rate_limit("30/minute")
+async def verify_vpn_egress(
+    payload: VpnEgressEvidenceRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Verify a selected OpenVPN server's post-connect egress fail closed."""
+    protocol = _normalize_profile_protocol(payload.protocol)
+    if protocol != "openvpn":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Egress verification is required only for OpenVPN.",
+        )
+    server = db.query(VPNServer).filter(VPNServer.server_id == payload.server_id).first()
+    if server is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VPN server not found.")
+    readiness = ProtocolAvailabilityService().evaluate(server, protocol)
+    if not readiness.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=readiness.reason or "OpenVPN runtime evidence is unavailable.",
+        )
+    credential = db.query(OpenVpnCredential).filter(
+        OpenVpnCredential.user_id == current_user.id,
+        OpenVpnCredential.device_id == payload.device_id,
+        OpenVpnCredential.server_id == server.id,
+        OpenVpnCredential.is_active.is_(True),
+        OpenVpnCredential.revoked_at.is_(None),
+        OpenVpnCredential.expires_at > datetime.utcnow(),
+    ).first()
+    if credential is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="OpenVPN device credential is not active.",
+        )
+
+    observed = _observed_egress_ip(request)
+    expected = _canonical_ip(server.public_ip)
+    current_fingerprint = _egress_fingerprint(observed)
+    if expected is None or current_fingerprint is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VPN egress verification is unavailable.",
+        )
+    verified = (
+        not hmac.compare_digest(payload.baseline_fingerprint, current_fingerprint)
+        and hmac.compare_digest(observed or "", expected)
+    )
+    return VpnEgressEvidenceResponse(verified=verified)
 
 @router.get("/servers", response_model=ServerListResponse)
 async def list_servers(
@@ -629,7 +812,7 @@ async def list_servers(
             status=server.status,
             health_status=server.health_status,
             supports_wireguard=_server_supports_protocol(server, "wireguard"),
-            supports_openvpn=bool(server.supports_openvpn),
+            supports_openvpn=_server_supports_protocol(server, "openvpn"),
             supports_ikev2=_server_supports_protocol(server, "ikev2"),
             supported_protocols=[
                 protocol
@@ -721,7 +904,7 @@ async def get_server(
         status=server.status,
         health_status=server.health_status,
         supports_wireguard=_server_supports_protocol(server, "wireguard"),
-        supports_openvpn=bool(server.supports_openvpn),
+        supports_openvpn=_server_supports_protocol(server, "openvpn"),
         supports_ikev2=_server_supports_protocol(server, "ikev2"),
         supported_protocols=_server_supported_protocols(server),
     )
@@ -890,9 +1073,17 @@ async def provision_profile(
             detail=readiness.reason or "Protocol runtime evidence is unavailable.",
         )
 
+    # Validate every helper-accepted OpenVPN directive before creating a
+    # device record or sending a credential verifier to the remote server.
+    # Invalid server metadata must leave no client or server-side residue.
+    validated_openvpn_config: Optional[str] = None
+    if protocol == "openvpn":
+        validated_openvpn_config = _build_openvpn_profile_config(server)
+
     # Do not generate or persist device key material until the selected
     # runtime has passed the fail-closed availability gate.  A backend outage
     # must not consume an account's device slot.
+    created_peer = False
     if peer is None:
         from services.subscription_access import get_effective_device_limit
 
@@ -915,6 +1106,7 @@ async def provision_profile(
             max_active_devices=limit,
             reuse_existing_device=True,
         )
+        created_peer = True
 
     peer_registered = False
     registration_status: Optional[str] = None
@@ -956,26 +1148,46 @@ async def provision_profile(
             ) from exc
         peer_registered = True
         registration_status = "registered"
-    else:
-        # Secondary protocol profiles keep the long-standing device record
-        # behavior, but never claim a WireGuard data-plane registration.
-        if payload.force_rotate_keys:
-            peer = peer_manager.rotate_peer_keys(peer.id)
-        if peer.server_id != server.id:
-            peer.server_id = server.id
-            peer.is_active = True
-            db.add(peer)
-            db.commit()
-            db.refresh(peer)
-
     wireguard_config = ""
     openvpn_config: Optional[str] = None
+    openvpn_username: Optional[str] = None
+    openvpn_password: Optional[str] = None
     ikev2_config: Optional[str] = None
     if protocol == "wireguard":
         wireguard_config = _build_wireguard_profile_config(peer, server, device_type=payload.device_type)
     elif protocol == "openvpn":
-        openvpn_config = _build_openvpn_profile_config(server)
-        registration_status = "openvpn_profile_issued"
+        try:
+            credential = await OpenVpnCredentialManager(db).issue(
+                user_id=current_user.id,
+                peer=peer,
+                server=server,
+                force_rotate=payload.force_rotate_keys,
+            )
+        except OpenVpnCredentialError as exc:
+            if created_peer:
+                failed_peer = db.query(WireGuardPeer).filter(
+                    WireGuardPeer.id == peer.id,
+                    WireGuardPeer.server_id.is_(None),
+                ).first()
+                if failed_peer is not None:
+                    failed_peer.is_active = False
+                    db.add(failed_peer)
+                    db.commit()
+            logger.warning(
+                "OpenVPN profile issuance denied user_id=%s device_id=%s server_id=%s exception_type=%s",
+                current_user.id,
+                peer.id,
+                server.server_id,
+                type(exc).__name__,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="OpenVPN credential issuance could not be confirmed.",
+            ) from exc
+        openvpn_config = validated_openvpn_config
+        openvpn_username = credential.username
+        openvpn_password = credential.password
+        registration_status = "openvpn_credential_issued"
     elif protocol == "ikev2":
         ikev2_config = _build_ikev2_profile_config(server, current_user)
         registration_status = "ikev2_profile_issued"
@@ -998,6 +1210,10 @@ async def provision_profile(
     if ttl_seconds < 60:
         ttl_seconds = 60
     expires_at = issued_at + timedelta(seconds=ttl_seconds)
+    if protocol == "openvpn":
+        # The runner must fetch a fresh profile after a credential expires;
+        # never let a cached configuration outlive server-side authorization.
+        expires_at = min(expires_at, credential.expires_at)
 
     return VpnProfileResponse(
         device_id=peer.id,
@@ -1011,6 +1227,8 @@ async def provision_profile(
         expires_at=expires_at.isoformat(),
         wireguard_config=wireguard_config,
         openvpn_config=openvpn_config,
+        openvpn_username=openvpn_username,
+        openvpn_password=openvpn_password,
         ikev2_config=ikev2_config,
         dns=VpnProfileDns(servers=dns_servers, enforcement="config"),
         kill_switch=kill_switch,

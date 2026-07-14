@@ -25,7 +25,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
-from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session  # noqa: F401
+from models import audit_log, openvpn_credential, subscription, user, vpn_connection, vpn_demo_session, vpn_server  # noqa: F401
 from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
 from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user
 from services.wireguard_service import WireGuardService

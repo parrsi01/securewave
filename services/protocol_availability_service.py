@@ -86,6 +86,11 @@ class ProtocolAvailabilityService:
                     False,
                     "OpenVPN data-plane evidence has not been recorded.",
                 )
+            if not self.configured_egress_evidence_secret():
+                return ProtocolReadiness(
+                    False,
+                    "OpenVPN authenticated egress evidence is not configured.",
+                )
             return ProtocolReadiness(True)
         if protocol == "ikev2":
             if not self._has_usable_ikev2_metadata(server):
@@ -131,6 +136,21 @@ class ProtocolAvailabilityService:
         return value
 
     @staticmethod
+    def configured_egress_evidence_secret() -> str | None:
+        """Return the secret used to redact authenticated egress observations.
+
+        OpenVPN is unavailable unless the API can verify a post-connect source
+        without returning an address to the client. Tests use a fixed
+        non-production value; development and production must configure one.
+        """
+        if os.getenv("TESTING", "").lower() == "true":
+            return "securewave-openvpn-egress-test-only-secret"
+        value = os.getenv("SECUREWAVE_EGRESS_EVIDENCE_SECRET", "")
+        if len(value) < 32 or any(not character.isprintable() for character in value):
+            return None
+        return value
+
+    @staticmethod
     def record_evidence(
         server: VPNServer,
         protocol: str,
@@ -172,6 +192,14 @@ class ProtocolAvailabilityService:
         }
         if data_plane_healthy is not None:
             protocol_evidence["data_plane_healthy"] = bool(data_plane_healthy)
+            protocol_evidence["data_plane_observed_at"] = observed.isoformat()
+        elif isinstance(previous, dict):
+            # Runtime health checks occur more frequently than independent
+            # data-plane probes. Retain the original timestamp so old proof
+            # naturally expires instead of being accidentally refreshed.
+            for key in ("data_plane_healthy", "data_plane_observed_at"):
+                if key in previous:
+                    protocol_evidence[key] = previous[key]
         if authenticated is not None:
             protocol_evidence["authenticated"] = bool(authenticated)
         if not healthy:

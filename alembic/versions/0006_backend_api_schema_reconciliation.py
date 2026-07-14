@@ -20,6 +20,7 @@ from models import (  # noqa: F401
     email_log,
     gdpr,
     invoice,
+    openvpn_credential,
     subscription,
     support_ticket,
     usage_analytics,

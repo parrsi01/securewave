@@ -66,6 +66,7 @@ def _ensure_tables():
         support_ticket,
         usage_analytics,
         invoice,
+        openvpn_credential,
         email_log,
     )
     Base.metadata.create_all(bind=TEST_ENGINE)

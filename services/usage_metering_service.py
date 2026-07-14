@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from models.vpn_connection import VPNConnection
 from models.vpn_usage_event import VPNUsageEvent
 from models.wireguard_peer import WireGuardPeer
+from models.openvpn_credential import OpenVpnCredential
 
 
 class UsageMeteringError(Exception):
@@ -104,7 +105,18 @@ class UsageMeteringService:
         ).first()
         if peer is None:
             raise UsageSessionNotFound()
-        if peer.server_id != server_id:
+        if protocol == "openvpn":
+            credential = self.db.query(OpenVpnCredential).filter(
+                OpenVpnCredential.user_id == user_id,
+                OpenVpnCredential.device_id == device_id,
+                OpenVpnCredential.server_id == server_id,
+                OpenVpnCredential.is_active.is_(True),
+                OpenVpnCredential.revoked_at.is_(None),
+                OpenVpnCredential.expires_at > datetime.utcnow(),
+            ).first()
+            if credential is None:
+                raise UsageDeviceServerMismatch()
+        elif peer.server_id != server_id:
             raise UsageDeviceServerMismatch()
 
         now = datetime.utcnow()

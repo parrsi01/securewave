@@ -301,7 +301,10 @@ def main() -> int:
     parser.add_argument(
         "--supports-openvpn",
         action="store_true",
-        help="Mark synced servers as OpenVPN-capable (requires server-side OpenVPN to actually be configured).",
+        help=(
+            "Attach OpenVPN public metadata only after explicit host provisioning; "
+            "API/UI remain unavailable until authenticated runtime and fresh data-plane evidence exist."
+        ),
     )
     parser.add_argument(
         "--supports-ikev2",
