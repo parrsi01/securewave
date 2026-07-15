@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from models.vpn_connection import VPNConnection
 from models.vpn_usage_event import VPNUsageEvent
 from models.wireguard_peer import WireGuardPeer
+from models.ikev2_credential import Ikev2Credential
 from models.openvpn_credential import OpenVpnCredential
 
 
@@ -113,6 +114,17 @@ class UsageMeteringService:
                 OpenVpnCredential.is_active.is_(True),
                 OpenVpnCredential.revoked_at.is_(None),
                 OpenVpnCredential.expires_at > datetime.utcnow(),
+            ).first()
+            if credential is None:
+                raise UsageDeviceServerMismatch()
+        elif protocol == "ikev2":
+            credential = self.db.query(Ikev2Credential).filter(
+                Ikev2Credential.user_id == user_id,
+                Ikev2Credential.device_id == device_id,
+                Ikev2Credential.server_id == server_id,
+                Ikev2Credential.is_active.is_(True),
+                Ikev2Credential.revoked_at.is_(None),
+                Ikev2Credential.expires_at > datetime.utcnow(),
             ).first()
             if credential is None:
                 raise UsageDeviceServerMismatch()

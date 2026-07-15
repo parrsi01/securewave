@@ -17,6 +17,7 @@ from services.wireguard_server_manager import (
     server_connection_from_db,
 )
 from services.openvpn_server_manager import get_openvpn_server_manager
+from services.ikev2_server_manager import get_ikev2_server_manager
 from utils.env_validation import wg_mock_mode_enabled
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ class VPNHealthMonitor:
                     )
                     await self._probe_wireguard_runtime(server)
                     await self._probe_openvpn_runtime(server)
+                    await self._probe_ikev2_runtime(server)
 
                     # Update optimizer with fresh metrics
                     try:
@@ -187,6 +189,50 @@ class VPNHealthMonitor:
             self.db.rollback()
             logger.error(
                 "OpenVPN runtime evidence rollback server_id=%s exception_type=%s",
+                server.server_id,
+                type(exc).__name__,
+            )
+            return False
+        return healthy
+
+    async def _probe_ikev2_runtime(self, server: VPNServer) -> bool:
+        """Refresh authenticated IKEv2 server health without claiming egress proof."""
+        observed_at = datetime.utcnow()
+        healthy = False
+        authenticated = False
+        probe_exception = False
+        if server.supports_ikev2:
+            try:
+                if wg_mock_mode_enabled():
+                    # Simulated reachability is deliberately not authenticated
+                    # evidence and must not enable the IKEv2 API/UI path.
+                    healthy = False
+                else:
+                    healthy, authenticated, _ = await get_ikev2_server_manager().authenticated_health_check(
+                        server_connection_from_db(server)
+                    )
+            except Exception as exc:
+                probe_exception = True
+                logger.warning(
+                    "IKEv2 runtime probe failed server_id=%s exception_type=%s",
+                    server.server_id,
+                    type(exc).__name__,
+                )
+        try:
+            ProtocolAvailabilityService.record_evidence(
+                server,
+                "ikev2",
+                healthy=healthy,
+                observed_at=observed_at,
+                failure_reason="probe_exception" if probe_exception else None,
+                authenticated=authenticated,
+            )
+            self.db.add(server)
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            logger.error(
+                "IKEv2 runtime evidence rollback server_id=%s exception_type=%s",
                 server.server_id,
                 type(exc).__name__,
             )

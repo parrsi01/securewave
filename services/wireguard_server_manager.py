@@ -392,6 +392,10 @@ class WireGuardServerManager:
         self,
         conn: ServerConnection,
         command: str,
+        *,
+        stdin: str | None = None,
+        strict_host_key_checking: bool = False,
+        known_hosts_path: str | None = None,
     ) -> Tuple[bool, str, str]:
         """
         Execute a command via SSH.
@@ -408,22 +412,42 @@ class WireGuardServerManager:
         ssh_cmd = [
             self.ssh_path,
             "-i", ssh_key,
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
             "-o", f"ConnectTimeout={self.timeout}",
             "-p", str(conn.ssh_port),
             ssh_target,
             command
         ]
+        if strict_host_key_checking:
+            if not known_hosts_path or not os.path.isfile(known_hosts_path):
+                return False, "", "SSH host verification is not configured"
+            try:
+                if os.stat(known_hosts_path).st_mode & 0o022:
+                    return False, "", "SSH known-hosts file must not be group or world writable"
+            except OSError:
+                return False, "", "SSH host verification is not configured"
+            ssh_cmd[3:3] = [
+                "-o", "StrictHostKeyChecking=yes",
+                "-o", f"UserKnownHostsFile={known_hosts_path}",
+            ]
+        else:
+            # Historical WireGuard/OpenVPN provisioning currently supplies no
+            # pinned host-key material.  IKEv2 uses the strict branch above
+            # because its credential lifecycle is a separate authenticated
+            # control plane.
+            ssh_cmd[3:3] = [
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+            ]
 
         try:
             process = await asyncio.create_subprocess_exec(
                 *ssh_cmd,
+                stdin=asyncio.subprocess.PIPE if stdin is not None else None,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
+                process.communicate(stdin.encode("utf-8") if stdin is not None else None),
                 timeout=self.timeout
             )
 

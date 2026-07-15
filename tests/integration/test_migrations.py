@@ -33,7 +33,15 @@ def test_fresh_migration_head_is_repeatable_and_covers_runtime_models(monkeypatc
     engine = create_engine(database_url)
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
-    assert {"users", "vpn_servers", "vpn_connections", "vpn_usage_events", "invoices", "openvpn_credentials"} <= tables
+    assert {
+        "users",
+        "vpn_servers",
+        "vpn_connections",
+        "vpn_usage_events",
+        "invoices",
+        "openvpn_credentials",
+        "ikev2_credentials",
+    } <= tables
     user_columns = {
         column["name"]: column for column in inspector.get_columns("users")
     }
@@ -88,7 +96,7 @@ def test_legacy_orm_audit_shape_upgrades_without_duplicate_columns(monkeypatch, 
     # Simulate the former runtime create_all path that pre-created the current
     # audit table before revision 0005 ran.
     from database.base import Base
-    from models import audit_log, email_log, gdpr, invoice, openvpn_credential, subscription, support_ticket, usage_analytics, user, vpn_connection, vpn_demo_session, vpn_server, vpn_usage_event, wireguard_peer  # noqa: F401
+    from models import audit_log, email_log, gdpr, ikev2_credential, invoice, openvpn_credential, subscription, support_ticket, usage_analytics, user, vpn_connection, vpn_demo_session, vpn_server, vpn_usage_event, wireguard_peer  # noqa: F401
 
     engine = create_engine(database_url)
     Base.metadata.tables["audit_logs"].create(bind=engine, checkfirst=False)

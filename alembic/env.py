@@ -26,6 +26,7 @@ from models import (  # noqa: E402,F401
     email_log,
     gdpr,
     invoice,
+    ikev2_credential,
     openvpn_credential,
     subscription,
     support_ticket,

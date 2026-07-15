@@ -27,6 +27,7 @@ from models.user import User
 from models.wireguard_peer import WireGuardPeer
 from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
+from models.ikev2_credential import Ikev2Credential
 from models.openvpn_credential import OpenVpnCredential
 from services.jwt_service import get_current_user
 from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
@@ -38,6 +39,11 @@ from services.protocol_availability_service import ProtocolAvailabilityService
 from services.openvpn_credential_manager import (
     OpenVpnCredentialError,
     OpenVpnCredentialManager,
+)
+from services.ikev2_credential_manager import (
+    Ikev2CredentialError,
+    Ikev2CredentialManager,
+    IssuedIkev2Credential,
 )
 from services.usage_metering_service import (
     UsageMeteringError,
@@ -75,17 +81,8 @@ WG_MOCK_MODE = wg_mock_mode_enabled()
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
 
 
-def _ikev2_eap_secret() -> Optional[str]:
-    return ProtocolAvailabilityService.configured_ikev2_eap_secret()
-
-
 def _swanctl_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
-def _swanctl_secret_id(value: str) -> str:
-    normalized = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip())
-    return normalized[:64] or "securewave-user"
 
 
 # =============================================================================
@@ -594,29 +591,54 @@ def _build_openvpn_profile_config(server: VPNServer) -> str:
     ])
 
 
-def _build_ikev2_profile_config(server: VPNServer, current_user: User) -> str:
+def _ikev2_endpoint_ip(server: VPNServer) -> str:
+    """Return the numeric IKE endpoint used for route-bypass verification."""
+    endpoint = _endpoint_host(server.endpoint, server.public_ip).strip()
+    endpoint_ip = _canonical_ip(endpoint) or _canonical_ip(server.public_ip)
+    if endpoint_ip is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="IKEv2 endpoint metadata must include a numeric public address.",
+        )
+    return endpoint_ip
+
+
+def _build_ikev2_profile_config(
+    server: VPNServer,
+    credential: IssuedIkev2Credential,
+) -> str:
     if not server.supports_ikev2:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="IKEv2 is not enabled for this server.",
         )
     remote_id = (server.ikev2_remote_id or server.public_ip or "").strip()
-    remote_addrs = _endpoint_host(server.endpoint, server.public_ip).strip()
-    if not server.ikev2_ca_cert_pem or not remote_id or not remote_addrs:
+    remote_addrs = _ikev2_endpoint_ip(server)
+    if not server.ikev2_ca_cert_pem or not remote_id:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="IKEv2 server metadata is incomplete.",
         )
-    eap_secret = _ikev2_eap_secret()
-    if not eap_secret:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:@-]{0,252}", remote_id):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="IKEv2 EAP profile secret issuance is not configured.",
+            detail="IKEv2 remote identity metadata is invalid.",
+        )
+    ca_pem = server.ikev2_ca_cert_pem.strip()
+    if (
+        ca_pem.count("-----BEGIN CERTIFICATE-----") != 1
+        or ca_pem.count("-----END CERTIFICATE-----") != 1
+        or "PRIVATE KEY" in ca_pem
+        or any(not char.isprintable() and char not in "\n\r\t" for char in ca_pem)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="IKEv2 CA metadata is invalid.",
         )
 
     dns_servers = ",".join(_profile_dns_servers())
-    eap_id = current_user.email
-    secret_id = _swanctl_secret_id(eap_id)
+    eap_id = credential.username
+    secret_id = credential.username
     return "\n".join([
         "connections {",
         "  securewave {",
@@ -643,13 +665,14 @@ def _build_ikev2_profile_config(server: VPNServer, current_user: User) -> str:
         "secrets {",
         f"  eap-{secret_id} {{",
         f"    id = {_swanctl_quote(eap_id)}",
-        f"    secret = {_swanctl_quote(eap_secret)}",
+        f"    secret = {_swanctl_quote(credential.password)}",
         "  }",
         "}",
         "# ipv6_mode = block",
         f"# dns = {dns_servers}",
+        f"# endpoint_ip = {remote_addrs}",
         "# ca_cert_pem_begin",
-        server.ikev2_ca_cert_pem.strip(),
+        ca_pem,
         "# ca_cert_pem_end",
         "",
     ])
@@ -724,12 +747,12 @@ async def verify_vpn_egress(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Verify a selected OpenVPN server's post-connect egress fail closed."""
+    """Verify a credentialed tunnel's post-connect egress fail closed."""
     protocol = _normalize_profile_protocol(payload.protocol)
-    if protocol != "openvpn":
+    if protocol not in {"openvpn", "ikev2"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Egress verification is required only for OpenVPN.",
+            detail="Egress verification is required only for credentialed Linux protocols.",
         )
     server = db.query(VPNServer).filter(VPNServer.server_id == payload.server_id).first()
     if server is None:
@@ -738,20 +761,30 @@ async def verify_vpn_egress(
     if not readiness.enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=readiness.reason or "OpenVPN runtime evidence is unavailable.",
+            detail=readiness.reason or "VPN runtime evidence is unavailable.",
         )
-    credential = db.query(OpenVpnCredential).filter(
-        OpenVpnCredential.user_id == current_user.id,
-        OpenVpnCredential.device_id == payload.device_id,
-        OpenVpnCredential.server_id == server.id,
-        OpenVpnCredential.is_active.is_(True),
-        OpenVpnCredential.revoked_at.is_(None),
-        OpenVpnCredential.expires_at > datetime.utcnow(),
-    ).first()
+    if protocol == "openvpn":
+        credential = db.query(OpenVpnCredential).filter(
+            OpenVpnCredential.user_id == current_user.id,
+            OpenVpnCredential.device_id == payload.device_id,
+            OpenVpnCredential.server_id == server.id,
+            OpenVpnCredential.is_active.is_(True),
+            OpenVpnCredential.revoked_at.is_(None),
+            OpenVpnCredential.expires_at > datetime.utcnow(),
+        ).first()
+    else:
+        credential = db.query(Ikev2Credential).filter(
+            Ikev2Credential.user_id == current_user.id,
+            Ikev2Credential.device_id == payload.device_id,
+            Ikev2Credential.server_id == server.id,
+            Ikev2Credential.is_active.is_(True),
+            Ikev2Credential.revoked_at.is_(None),
+            Ikev2Credential.expires_at > datetime.utcnow(),
+        ).first()
     if credential is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="OpenVPN device credential is not active.",
+            detail="VPN device credential is not active.",
         )
 
     observed = _observed_egress_ip(request)
@@ -1153,6 +1186,7 @@ async def provision_profile(
     openvpn_username: Optional[str] = None
     openvpn_password: Optional[str] = None
     ikev2_config: Optional[str] = None
+    ikev2_credential = None
     if protocol == "wireguard":
         wireguard_config = _build_wireguard_profile_config(peer, server, device_type=payload.device_type)
     elif protocol == "openvpn":
@@ -1189,8 +1223,38 @@ async def provision_profile(
         openvpn_password = credential.password
         registration_status = "openvpn_credential_issued"
     elif protocol == "ikev2":
-        ikev2_config = _build_ikev2_profile_config(server, current_user)
-        registration_status = "ikev2_profile_issued"
+        # Validate endpoint metadata before creating any remote credential.
+        _ikev2_endpoint_ip(server)
+        try:
+            ikev2_credential = await Ikev2CredentialManager(db).issue(
+                user_id=current_user.id,
+                peer=peer,
+                server=server,
+                force_rotate=payload.force_rotate_keys,
+            )
+        except Ikev2CredentialError as exc:
+            if created_peer:
+                failed_peer = db.query(WireGuardPeer).filter(
+                    WireGuardPeer.id == peer.id,
+                    WireGuardPeer.server_id.is_(None),
+                ).first()
+                if failed_peer is not None:
+                    failed_peer.is_active = False
+                    db.add(failed_peer)
+                    db.commit()
+            logger.warning(
+                "IKEv2 profile issuance denied user_id=%s device_id=%s server_id=%s exception_type=%s",
+                current_user.id,
+                peer.id,
+                server.server_id,
+                type(exc).__name__,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="IKEv2 credential issuance could not be confirmed.",
+            ) from exc
+        ikev2_config = _build_ikev2_profile_config(server, ikev2_credential)
+        registration_status = "ikev2_credential_issued"
 
     dns_servers = _profile_dns_servers()
 
@@ -1214,6 +1278,10 @@ async def provision_profile(
         # The runner must fetch a fresh profile after a credential expires;
         # never let a cached configuration outlive server-side authorization.
         expires_at = min(expires_at, credential.expires_at)
+    elif protocol == "ikev2" and ikev2_credential is not None:
+        # IKEv2 EAP credentials are also short-lived and may not be restored
+        # from an old profile after a process restart, rotation, or revocation.
+        expires_at = min(expires_at, ikev2_credential.expires_at)
 
     return VpnProfileResponse(
         device_id=peer.id,

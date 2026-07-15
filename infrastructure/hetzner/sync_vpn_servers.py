@@ -309,7 +309,11 @@ def main() -> int:
     parser.add_argument(
         "--supports-ikev2",
         action="store_true",
-        help="Mark synced servers as IKEv2-capable (requires server-side IKEv2/IPsec to actually be configured).",
+        help=(
+            "Attach dedicated SecureWave IKEv2 metadata only after "
+            "provision_ikev2_server.sh, authenticated health, and fresh "
+            "data-plane evidence; this flag alone never enables API/UI availability."
+        ),
     )
     parser.add_argument(
         "--openvpn-port",
@@ -330,12 +334,12 @@ def main() -> int:
     parser.add_argument(
         "--ikev2-remote-id",
         default=os.getenv("SECUREWAVE_IKEV2_REMOTE_ID", ""),
-        help="IKEv2 remote ID (optional; defaults to server IP if omitted).",
+        help="Dedicated-gateway certificate identity (DNS name or numeric address).",
     )
     parser.add_argument(
         "--ikev2-ca-cert-path",
         default=os.getenv("SECUREWAVE_IKEV2_CA_CERT_PATH", ""),
-        help="Path to IKEv2 CA cert PEM to attach to synced servers.",
+        help="Path to the dedicated gateway's public IKEv2 CA PEM (never a private key).",
     )
 
     args = parser.parse_args()
@@ -366,6 +370,20 @@ def main() -> int:
 
     openvpn_ca_cert_pem = _read_optional_text(args.openvpn_ca_cert_path)
     ikev2_ca_cert_pem = _read_optional_text(args.ikev2_ca_cert_path)
+    ikev2_remote_id = str(args.ikev2_remote_id or "").strip()
+    if args.supports_ikev2:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:@-]{0,252}", ikev2_remote_id):
+            raise SystemExit(
+                "--supports-ikev2 requires a safe --ikev2-remote-id from the dedicated gateway certificate."
+            )
+        if (
+            ikev2_ca_cert_pem.count("-----BEGIN CERTIFICATE-----") != 1
+            or ikev2_ca_cert_pem.count("-----END CERTIFICATE-----") != 1
+            or "PRIVATE KEY" in ikev2_ca_cert_pem
+        ):
+            raise SystemExit(
+                "--supports-ikev2 requires exactly one public CA certificate via --ikev2-ca-cert-path."
+            )
 
     results: list[str] = []
     for hcloud_id, name, ipv4 in zip(outputs.server_ids, outputs.server_names, outputs.server_ipv4):
@@ -419,7 +437,7 @@ def main() -> int:
                 openvpn_port=int(args.openvpn_port),
                 openvpn_transport=openvpn_transport,
                 openvpn_ca_cert_pem=openvpn_ca_cert_pem,
-                ikev2_remote_id=str(args.ikev2_remote_id or ""),
+                ikev2_remote_id=ikev2_remote_id,
                 ikev2_ca_cert_pem=ikev2_ca_cert_pem,
             )
         )

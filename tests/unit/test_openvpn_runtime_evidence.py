@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
-from models.vpn_server import VPNServer
 from services.protocol_availability_service import ProtocolAvailabilityService
 
 
 def _server(evidence):
     now = datetime.utcnow()
-    return VPNServer(
+    return SimpleNamespace(
         server_id="openvpn-evidence",
         location="Evidence City",
         country="Testland",

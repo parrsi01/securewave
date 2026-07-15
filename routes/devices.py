@@ -35,6 +35,10 @@ from services.openvpn_credential_manager import (
     OpenVpnCredentialError,
     OpenVpnCredentialManager,
 )
+from services.ikev2_credential_manager import (
+    Ikev2CredentialError,
+    Ikev2CredentialManager,
+)
 from services.subscription_access import require_active_subscription
 from services.wireguard_peer_lifecycle import (
     WireGuardPeerSyncError,
@@ -478,8 +482,16 @@ async def revoke_device(
             user_id=current_user.id,
             peer=peer,
         )
+        await Ikev2CredentialManager(db).revoke_device_credentials(
+            user_id=current_user.id,
+            peer=peer,
+        )
         success = await revoke_peer_after_remote_removal(peer_manager, peer)
-    except (WireGuardPeerSyncError, OpenVpnCredentialError) as exc:
+    except (
+        WireGuardPeerSyncError,
+        OpenVpnCredentialError,
+        Ikev2CredentialError,
+    ) as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="VPN peer removal could not be confirmed.",

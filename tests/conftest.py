@@ -66,6 +66,7 @@ def _ensure_tables():
         support_ticket,
         usage_analytics,
         invoice,
+        ikev2_credential,
         openvpn_credential,
         email_log,
     )

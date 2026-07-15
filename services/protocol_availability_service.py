@@ -95,11 +95,6 @@ class ProtocolAvailabilityService:
         if protocol == "ikev2":
             if not self._has_usable_ikev2_metadata(server):
                 return ProtocolReadiness(False, "IKEv2 endpoint metadata is incomplete.")
-            if not self.configured_ikev2_eap_secret():
-                return ProtocolReadiness(
-                    False,
-                    "IKEv2 EAP profile secret issuance is not configured.",
-                )
             # IKEv2 must never inherit the historic provider-state default.
             # Missing state is not evidence that the host is running.
             if (server.hcloud_server_state or "").strip().lower() != "running":
@@ -114,6 +109,11 @@ class ProtocolAvailabilityService:
                     False,
                     "IKEv2 data-plane evidence has not been recorded.",
                 )
+            if not self.configured_egress_evidence_secret():
+                return ProtocolReadiness(
+                    False,
+                    "IKEv2 authenticated egress evidence is not configured.",
+                )
             return ProtocolReadiness(True)
         return ProtocolReadiness(False, "Protocol is not release-ready.")
 
@@ -121,27 +121,13 @@ class ProtocolAvailabilityService:
         return self.evaluate(server, protocol).enabled
 
     @staticmethod
-    def configured_ikev2_eap_secret() -> str | None:
-        """Return the operator-provided EAP secret only when swanctl-safe.
-
-        Runtime evidence is never enough to issue a profile without an
-        explicitly configured credential. Control characters are rejected so
-        an environment value cannot break out of the quoted swanctl field.
-        """
-        value = os.getenv("SECUREWAVE_IKEV2_EAP_SECRET")
-        if not value or not value.strip():
-            return None
-        if any(not character.isprintable() for character in value):
-            return None
-        return value
-
-    @staticmethod
     def configured_egress_evidence_secret() -> str | None:
         """Return the secret used to redact authenticated egress observations.
 
-        OpenVPN is unavailable unless the API can verify a post-connect source
-        without returning an address to the client. Tests use a fixed
-        non-production value; development and production must configure one.
+        Credentialed Linux protocols are unavailable unless the API can verify
+        a post-connect source without returning an address to the client.
+        Tests use a fixed non-production value; development and production
+        must configure one.
         """
         if os.getenv("TESTING", "").lower() == "true":
             return "securewave-openvpn-egress-test-only-secret"
@@ -262,11 +248,20 @@ class ProtocolAvailabilityService:
         ca_cert = (server.ikev2_ca_cert_pem or "").strip()
         if not ProtocolAvailabilityService._has_usable_endpoint(endpoint) or not remote_id:
             return False
-        if any(not character.isprintable() for character in remote_id):
+        try:
+            ip_address((server.public_ip or "").strip())
+        except ValueError:
             return False
-        if "-----BEGIN CERTIFICATE-----" not in ca_cert:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:@-]{0,252}", remote_id):
             return False
-        if "-----END CERTIFICATE-----" not in ca_cert:
+        if ca_cert.count("-----BEGIN CERTIFICATE-----") != 1:
+            return False
+        if ca_cert.count("-----END CERTIFICATE-----") != 1:
+            return False
+        if "PRIVATE KEY" in ca_cert or any(
+            not character.isprintable() and character not in "\n\r\t"
+            for character in ca_cert
+        ):
             return False
         return True
 

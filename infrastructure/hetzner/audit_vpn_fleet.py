@@ -354,7 +354,11 @@ def _ssh_protocol_and_routing_checks(
     sudo = "sudo -n "
     wg_bin = _ssh_bool(host, "bash -lc 'command -v wg >/dev/null && command -v wg-quick >/dev/null && echo 1 || echo 0'", **kwargs)
     ovpn_bin = _ssh_bool(host, "bash -lc 'command -v openvpn >/dev/null && echo 1 || echo 0'", **kwargs)
-    ike_bin = _ssh_bool(host, "bash -lc '(command -v swanctl >/dev/null || command -v ipsec >/dev/null) && echo 1 || echo 0'", **kwargs)
+    ike_bin = _ssh_bool(
+        host,
+        "bash -lc 'command -v swanctl >/dev/null && systemctl cat strongswan-swanctl.service >/dev/null 2>&1 && echo 1 || echo 0'",
+        **kwargs,
+    )
 
     ok, ss_udp = run(f"bash -lc '{sudo}ss -H -lunp 2>/dev/null || ss -H -lunp 2>/dev/null || true'")
     ok2, ss_tcp = run(f"bash -lc '{sudo}ss -H -ltnp 2>/dev/null || ss -H -ltnp 2>/dev/null || true'")
@@ -372,7 +376,7 @@ def _ssh_protocol_and_routing_checks(
 
     wg_service = _svc("wg-quick@wg0")
     openvpn_service = _svc("openvpn-server@server", "openvpn@server", "openvpn")
-    ikev2_service = _svc("strongswan-starter", "strongswan", "charon-systemd")
+    ikev2_service = _svc("strongswan-swanctl")
 
     wg_conf = _ssh_bool(host, "bash -lc '[ -f /etc/wireguard/wg0.conf ] && echo 1 || echo 0'", **kwargs)
     ovpn_conf = _ssh_bool(
@@ -382,7 +386,9 @@ def _ssh_protocol_and_routing_checks(
     )
     ikev2_conf = _ssh_bool(
         host,
-        "bash -lc 'if [ -f /etc/ipsec.conf ] || [ -f /etc/swanctl/swanctl.conf ]; then echo 1; else echo 0; fi'",
+        "bash -lc '"
+        "grep -Fqx \"# SecureWave dedicated IKEv2 gateway\" /etc/swanctl/swanctl.conf 2>/dev/null && "
+        "test -f /etc/swanctl/conf.d/securewave.conf && echo 1 || echo 0'",
         **kwargs,
     )
 
@@ -397,10 +403,31 @@ def _ssh_protocol_and_routing_checks(
 
     ok, ikev2_certs_text = run(
         "bash -lc '"
-        "([ -f /etc/ipsec.d/cacerts/ca-cert.pem ] || [ -d /etc/ipsec.d/cacerts ]) && "
-        "([ -f /etc/ipsec.d/certs/server-cert.pem ] || [ -d /etc/ipsec.d/certs ]) && echo 1 || echo 0'"
+        "test -s /etc/securewave/ikev2/pki/securewave-ikev2-ca.pem && "
+        "test -s /etc/swanctl/x509/securewave-ikev2-server.pem && "
+        "test -s /etc/swanctl/private/securewave-ikev2-server-key.pem && echo 1 || echo 0'"
     )
     ikev2_certs = (ikev2_certs_text.strip() == "1") if ok else None
+    ikev2_helpers = _ssh_bool(
+        host,
+        "bash -lc '"
+        "test -x /usr/local/libexec/securewave-ikev2-health && "
+        "test -x /usr/local/libexec/securewave-ikev2-credential && "
+        "test -x /usr/local/libexec/securewave-ikev2-network && echo 1 || echo 0'",
+        **kwargs,
+    )
+    ikev2_dedicated = _ssh_bool(
+        host,
+        "bash -lc '"
+        "grep -Fqx \"# SecureWave dedicated IKEv2 gateway\" /etc/swanctl/swanctl.conf 2>/dev/null && "
+        "! systemctl is-enabled --quiet strongswan-starter.service 2>/dev/null && "
+        "! systemctl is-active --quiet strongswan-starter.service 2>/dev/null && echo 1 || echo 0'",
+        **kwargs,
+    )
+    ok, ikev2_health_text = run(
+        f"bash -lc '{sudo}/usr/local/libexec/securewave-ikev2-health 2>/dev/null || true'"
+    )
+    ikev2_health = (ikev2_health_text.strip() == "OK") if ok else None
 
     ok, ip_forward_out = run(f"bash -lc '{sudo}sysctl -n net.ipv4.ip_forward 2>/dev/null || sysctl -n net.ipv4.ip_forward 2>/dev/null || echo 0'")
     ip_forward = (ip_forward_out.strip() == "1") if ok else None
@@ -412,6 +439,7 @@ def _ssh_protocol_and_routing_checks(
 
     nat_has_eth0_masq = any("MASQUERADE" in line and ("-o eth0" in line or "-o ens" in line) for line in nat_rules.splitlines())
     wg_hooks_has_nat = "MASQUERADE" in wg_hooks
+    ikev2_owned_nat = any("securewave-ikev2-nat-v1" in line for line in nat_rules.splitlines())
 
     return {
         "wireguard": {
@@ -437,6 +465,9 @@ def _ssh_protocol_and_routing_checks(
             "port_bound_udp_4500": 4500 in udp_ports,
             "config_present": ikev2_conf,
             "certs_present": ikev2_certs,
+            "dedicated_gateway": ikev2_dedicated,
+            "helpers_present": ikev2_helpers,
+            "authenticated_health": ikev2_health,
         },
         "routing": {
             "default_route": default_route.splitlines(),
@@ -445,6 +476,7 @@ def _ssh_protocol_and_routing_checks(
             "wg0_postup_postdown_lines": wg_hooks.splitlines(),
             "docker_bridge_present": docker_present,
             "nat_has_primary_masquerade": nat_has_eth0_masq,
+            "ikev2_owned_nat_present": ikev2_owned_nat,
         },
     }
 

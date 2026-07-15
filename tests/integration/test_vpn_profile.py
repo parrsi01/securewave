@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import re
 
 import pytest
 from fastapi import status
@@ -143,9 +144,8 @@ class TestVpnProfileProvisioning:
         assert db.query(WireGuardPeer).count() == 0
 
     def test_protocols_endpoint_recognizes_linux_ikev2_but_fails_closed_without_metadata(
-        self, client, auth_headers, db, monkeypatch
+        self, client, auth_headers, db
     ):
-        monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", "configured-test-secret")
         _create_free_server(db, supports_openvpn=True, supports_ikev2=True)
 
         resp = client.get(
@@ -347,13 +347,11 @@ class TestVpnProfileProvisioning:
         )
         assert profile.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
-    def test_ikev2_profile_requires_complete_fresh_evidence_and_quotes_secret(
-        self, client, auth_headers, db, monkeypatch
+    def test_ikev2_profile_requires_complete_fresh_evidence_and_opaque_credential(
+        self, client, auth_headers, db
     ):
-        monkeypatch.setenv(
-            "SECUREWAVE_IKEV2_EAP_SECRET",
-            'test"quote\\slash-secret',
-        )
+        from models.ikev2_credential import Ikev2Credential
+
         _ready_ikev2_server(db)
 
         protocols_response = client.get(
@@ -394,11 +392,18 @@ class TestVpnProfileProvisioning:
         config = payload["ikev2_config"]
         assert "connections {" in config
         assert "remote_addrs = 10.0.0.9" in config
-        assert 'eap_id = "testuser@example.com"' in config
+        assert re.search(r'eap_id = "swikev2-[a-f0-9]{32}"', config)
+        assert "testuser@example.com" not in config
         assert 'id = "vpn.securewave.test"' in config
         assert "secrets {" in config
-        assert r'secret = "test\"quote\\slash-secret"' in config
+        secret_match = re.search(r'secret = "([A-Za-z0-9_-]{32,128})"', config)
+        assert secret_match
+        credential = db.query(Ikev2Credential).one()
+        assert credential.username in config
+        assert secret_match.group(1) not in credential.password_encrypted
+        assert credential.is_active is True
         assert "securewave-ikev2-ca.pem" in config
+        assert "# endpoint_ip = 10.0.0.9" in config
         assert "# ca_cert_pem_begin" in config
         assert "# ca_cert_pem_end" in config
 
@@ -416,9 +421,8 @@ class TestVpnProfileProvisioning:
         ],
     )
     def test_ikev2_missing_stale_or_future_evidence_fails_closed(
-        self, client, auth_headers, db, monkeypatch, evidence_case
+        self, client, auth_headers, db, evidence_case
     ):
-        monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", "configured-test-secret")
         now = datetime.utcnow()
         evidence_by_case = {
             "missing-protocol-evidence": None,
@@ -482,9 +486,8 @@ class TestVpnProfileProvisioning:
         ],
     )
     def test_ikev2_missing_support_or_metadata_fails_closed(
-        self, client, auth_headers, db, monkeypatch, overrides
+        self, client, auth_headers, db, overrides
     ):
-        monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", "configured-test-secret")
         server = _ready_ikev2_server(
             db,
             server_id="profile-ikev2-invalid-metadata",
@@ -505,32 +508,34 @@ class TestVpnProfileProvisioning:
         assert "metadata" in response.text.lower()
         assert "ikev2_config" not in response.text
 
-    @pytest.mark.parametrize("secret", [None, "", " \t", "line1\nline2"])
-    def test_ikev2_missing_or_unsafe_eap_secret_fails_closed(
-        self, client, auth_headers, db, monkeypatch, secret
+    @pytest.mark.parametrize("legacy_secret", [None, "", " \t", "line1\nline2"])
+    def test_ikev2_ignores_legacy_global_eap_secret(
+        self, client, auth_headers, db, monkeypatch, legacy_secret
     ):
-        if secret is None:
+        if legacy_secret is None:
             monkeypatch.delenv("SECUREWAVE_IKEV2_EAP_SECRET", raising=False)
         else:
-            monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", secret)
+            monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", legacy_secret)
         server = _ready_ikev2_server(
             db,
-            server_id="profile-ikev2-missing-secret",
+            server_id="profile-ikev2-legacy-secret",
         )
 
         response = client.post(
             "/api/vpn/profile",
             json={
-                "device_name": "IKEv2 missing secret",
+                "device_name": "IKEv2 independent secret",
                 "device_type": "linux",
                 "protocol": "ikev2",
                 "server_id": server.server_id,
             },
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-        assert "secret" in response.text.lower()
-        assert "ikev2_config" not in response.text
+        assert response.status_code == status.HTTP_200_OK, response.text
+        config = response.json()["ikev2_config"]
+        assert re.search(r'secret = "[A-Za-z0-9_-]{32,128}"', config)
+        if legacy_secret:
+            assert legacy_secret not in config
 
     @pytest.mark.parametrize(
         "state_case",
@@ -548,9 +553,8 @@ class TestVpnProfileProvisioning:
         ],
     )
     def test_ikev2_common_runtime_state_must_be_usable(
-        self, client, auth_headers, db, monkeypatch, state_case
+        self, client, auth_headers, db, state_case
     ):
-        monkeypatch.setenv("SECUREWAVE_IKEV2_EAP_SECRET", "configured-test-secret")
         now = datetime.utcnow()
         overrides_by_case = {
             "inactive": {"status": "maintenance"},
