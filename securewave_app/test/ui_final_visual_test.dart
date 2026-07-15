@@ -15,6 +15,9 @@ import 'package:securewave_app/core/state/app_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  goldenFileComparator = _StrictCrossArchitectureGoldenComparator(
+    Uri.parse('test/ui_final_visual_test.dart'),
+  );
 
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -192,6 +195,31 @@ Future<void> _pumpEvidence(
 }
 
 const _goldenRootKey = ValueKey<String>('securewave-golden-root');
+
+class _StrictCrossArchitectureGoldenComparator extends LocalFileComparator {
+  _StrictCrossArchitectureGoldenComparator(super.testFile);
+
+  // Allows at most three changed pixels in the 1280x800 golden. This absorbs
+  // the observed two-pixel ARM64/x86-64 rasterization difference without
+  // accepting a visible layout, color, text, or availability-state regression.
+  static const _precisionTolerance = 0.000003;
+
+  @override
+  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
+    final result = await GoldenFileComparator.compareLists(
+      imageBytes,
+      await getGoldenBytes(golden),
+    );
+    if (result.passed || result.diffPercent <= _precisionTolerance) {
+      result.dispose();
+      return true;
+    }
+
+    final error = await generateFailureOutput(result, golden, basedir);
+    result.dispose();
+    throw FlutterError(error);
+  }
+}
 
 class _VisualVpnService extends VpnService {
   _VisualVpnService(this.status);
