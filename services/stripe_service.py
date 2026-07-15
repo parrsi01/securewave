@@ -7,13 +7,12 @@ import os
 import logging
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
+from utils.env_validation import load_environment_dotenv
 
 import stripe
 
 # Load environment variables
-load_dotenv()
-load_dotenv(".env.production")
+load_environment_dotenv()
 
 logger = logging.getLogger(__name__)
 

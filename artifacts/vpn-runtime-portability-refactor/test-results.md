@@ -4,8 +4,8 @@
 
 - Full Python suite:
   `/home/sp/cyber-course/projects/securewave/.venv/bin/python -m pytest -q`
-  -> `372 passed, 1 skipped` after the rebase; the skip is the opt-in
-  PostgreSQL concurrency lane without a configured local test URL.
+  -> `750 passed, 1 skipped`; the local default skip is the opt-in PostgreSQL
+  concurrency lane, which separately passed against disposable PostgreSQL.
 - Focused Linux VPN/helper/package/verifier/download suite -> `84 passed`
   after the rebase.
 - Full Flutter suite: `flutter test --reporter compact` -> `26 passed`.
@@ -18,13 +18,13 @@
 
 - `bash securewave_app/scripts/build_deb.sh` -> ARM64 package built locally;
   no publication. Package metadata/payload inspection confirmed the declared
-  runtime dependencies, helper staging, and contract `10` install source.
+  runtime dependencies, helper staging, and contract `13` install source.
 - Linux Flutter release build -> success.
 - Helper daemon `g++ -std=c++14 -Wall -Wextra -Werror ... -fsyntax-only` ->
   pass.
 - Modified shell scripts `bash -n` -> pass.
 - `bash scripts/verify_release_guards.sh` -> pass with socket-helper,
-  no-connect-time-elevation, contract-10, and per-protocol source guards.
+  no-connect-time-elevation, contract-13, and per-protocol source guards.
 - Bandit high-severity scan of the verifier and behavior tests -> pass; one
   acknowledged `nosec B603` subprocess test-harness annotation warning.
 - `git diff --check` -> pass after documentation newline cleanup.

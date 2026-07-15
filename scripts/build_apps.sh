@@ -88,17 +88,24 @@ build_linux() {
     exit 1
   fi
 
-  # Portable archives intentionally exclude the privileged helper payload.
-  # Full no-prompt VPN routing is installed only by the architecture-matched
-  # .deb, which owns the root helper, systemd unit, allowlist, and socket.
+  # Keep the helper payload in the archive so a fresh clone or extracted build
+  # has one deterministic installation path. The helper still remains root-
+  # owned and is installed only by the explicit install-linux.sh step.
   PACKAGE_STAGING="$APP_DIR/build/packaging/portable-linux-$ARCH_LABEL"
   rm -rf "$PACKAGE_STAGING"
   mkdir -p "$PACKAGE_STAGING"
   cp -a "$BUNDLE_DIR/." "$PACKAGE_STAGING/"
-  rm -rf "$PACKAGE_STAGING/packaging/linux" "$PACKAGE_STAGING/scripts/install_linux_helper.sh"
+
+  cat > "$PACKAGE_STAGING/install-linux.sh" <<'INSTALL'
+#!/usr/bin/env bash
+set -euo pipefail
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$root_dir/scripts/install_linux_helper.sh" "$root_dir/packaging/linux"
+INSTALL
+  chmod 0755 "$PACKAGE_STAGING/install-linux.sh"
 
   TARBALL="$DOWNLOADS_DIR/securewave-linux-$ARCH_LABEL.tar.gz"
-  echo "==> Packaging SecureWave portable Linux package (UI-only) as $TARBALL ..."
+  echo "==> Packaging SecureWave portable Linux package with helper payload as $TARBALL ..."
   tar -czf "$TARBALL" -C "$PACKAGE_STAGING" .
   echo "==> Linux tarball created: $TARBALL ($(du -h "$TARBALL" | cut -f1))"
 
@@ -109,9 +116,8 @@ build_linux() {
     echo "==> NOTE: Run the project to generate install-linux.sh in static/downloads/"
   fi
 
-  echo "==> Linux portable UI build complete."
-  echo "==> Full-device VPN routing requires the root-owned SecureWave helper service."
-  echo "==> Install the matching SecureWave .deb package for full no-prompt VPN connect/disconnect."
+  echo "==> Linux portable build complete."
+  echo "==> Run ./install-linux.sh once with administrator authentication for VPN routing."
 }
 
 # ---------------------------------------------------------------------------

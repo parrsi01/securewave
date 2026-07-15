@@ -46,4 +46,15 @@ class AuthService {
       refreshToken: tokens.refreshToken,
     );
   }
+
+  Future<void> logout() async {
+    try {
+      await _api.logout();
+    } finally {
+      // Local credentials must be removed even when the control plane is
+      // unreachable, so logout never strands a usable session on disk.
+      await _session.clearSession();
+      await SecureStorage().clearVpnRuntimeState();
+    }
+  }
 }

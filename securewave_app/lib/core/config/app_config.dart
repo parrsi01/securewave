@@ -52,7 +52,9 @@ class AppConfig {
     if (_cached != null) return _cached!;
     try {
       if (!dotenv.isInitialized) {
-        await dotenv.load(fileName: '.env');
+        // Runtime configuration is optional. Release artifacts must not need
+        // a generated or secret-bearing asset just to start.
+        await dotenv.load(fileName: '.env', isOptional: true);
       }
     } catch (error, stackTrace) {
       AppLogger.warning('Config: .env load failed, using defaults');

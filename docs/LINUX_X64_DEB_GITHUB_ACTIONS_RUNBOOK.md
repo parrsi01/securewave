@@ -28,10 +28,11 @@ provenance. It is not built locally on ARM64.
 
 ## Trigger the Workflow
 
-After the workflow is merged to `master`, trigger it with:
+Trigger the workflow from the reviewed branch or canonical `master` only after
+the source head is identified:
 
 ```bash
-gh workflow run linux-x64-deb-release.yml --ref master
+gh workflow run linux-x64-deb-release.yml --ref codex/linux-runtime-final
 ```
 
 Watch the run:
@@ -94,61 +95,49 @@ The workflow proves:
   runner helper, helper contract, systemd unit, and tmpfiles payload.
 - The package declares the expected Linux VPN runtime dependencies:
   WireGuard tools, OpenVPN, NetworkManager/strongSwan packages, `iproute2`,
-  `iptables`, `acl`, and `systemd`.
+  `iptables`, `nftables`, `acl`, `systemd`, and `systemd-resolved`.
 - The public downloads manifest remains truthful: Linux x64 `.deb` stays
   `coming_soon` until publish evidence is accepted.
 
-## What This Does Not Prove
+## Evidence boundary
 
-The workflow does not prove:
+On a green current run, the workflow proves the package on an ephemeral
+GitHub-hosted x86_64 Ubuntu runner: amd64 ELF payloads, contract 13, declared
+dependencies, install, systemd helper/socket state, structural verifier,
+bounded application launch, purge, and SecureWave-owned network residue checks.
+It does not prove:
 
 - Clean x86_64 VM installation with `dpkg -i` or `apt install -f`.
-- `securewave-helper.service` starts under systemd on a clean x86_64 VM.
-- `/run/securewave/helper.sock` is created and usable after install.
-- Connect/disconnect works without per-connect privilege prompts.
-- Live WireGuard, OpenVPN, or IKEv2 routing works.
-- Runtime verifier success.
+- Connect/disconnect with a real authenticated staging profile.
+- Live WireGuard, OpenVPN, or IKEv2 routing, DNS, HTTPS, exit-IP, handshake,
+  or counter evidence.
 - That the `.deb` is publicly downloadable or release-ready.
 
-Keep public claims limited to x64 build evidence until clean-VM helper proof and
-live protocol proof are captured.
+Keep public claims limited to private beta/build-and-lifecycle evidence until
+the exact source revision also has authorized live protocol proof.
 
-## Referenced historical build
+## Current private workflow evidence
 
-The supplied x64 build reference for this certification pass is:
+The current contract-13 workflow evidence is:
 
-- Workflow run: `29036573515`
-- Expected SHA-256:
-  `f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92`
+- Source head: `164098b136c9d6eeba7d0a94ec8a4ab38c0d19e9`
+- Workflow run: `29348878602`
+- SHA-256:
+  `48768524c4682d5d85027531fae9a499acd6eb4f45f6cc83b9d13f8bae54fd91`
 
-This reference proves neither current-branch contract 10 compatibility nor a
-clean install. Download it only as private evidence; do not publish it or change
-the downloads manifest.
+The run passed amd64 ELF and contract-13 checks, dependency and helper payload
+checks, ephemeral install/service/socket verification, structural verifier,
+bounded application launch, purge, and SecureWave-owned networking residue
+checks. Keep the artifact private: live authenticated WireGuard/OpenVPN/IKEv2
+data-plane proof and a clean VM are still required.
 
-```bash
-rm -rf artifacts/github-linux-x64-deb-run-29036573515
-gh run download 29036573515 \
-  --dir artifacts/github-linux-x64-deb-run-29036573515
-deb="$(find artifacts/github-linux-x64-deb-run-29036573515 -type f -name '*.deb' -print -quit)"
-test -n "$deb"
-echo "f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92  $deb" | sha256sum -c -
-dpkg-deb --field "$deb" Architecture
-dpkg-deb --contents "$deb"
-```
+## Superseded evidence
 
-Extract and inspect the helper contract before installation:
-
-```bash
-tmp="$(mktemp -d)"
-dpkg-deb -x "$deb" "$tmp"
-cat "$tmp/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
-rm -rf "$tmp"
-```
-
-The reviewed runtime requires contract `10`. If run `29036573515` contains an
-older contract, record it as historical build evidence and stop. Trigger a new
-manual x64 workflow from the reviewed commit; do not treat the old package as
-current runtime evidence.
+Pre-contract-13 package evidence is intentionally excluded from this runbook.
+It is not compatible with the current helper/runtime and must not be downloaded,
+installed, or used for release decisions. Trigger this workflow on the exact
+current `codex/linux-runtime-final` head and record only that artifact's source
+SHA, checksum, and lifecycle evidence.
 
 ## Clean x86_64 VM certification
 
@@ -191,7 +180,7 @@ python3 scripts/linux_vpn_runtime_verifier.py --skip-build-checks --json \
 ```
 
 Do not call this a pass if the verifier reports helper, socket, contract,
-pref-220, or cleanup failures.
+charon-nm table-210, or cleanup failures.
 
 ### 3. Authorized per-protocol proof
 
@@ -213,12 +202,13 @@ python3 scripts/linux_vpn_runtime_verifier.py \
 
 Repeat with `openvpn` and `ikev2` only if the helper probe and backend profile
 both advertise them. IKEv2 must fail if XFRM ESP evidence is absent or an
-unqualified pref-220 loop rule is present. The verifier output redacts public
-addresses and counter values.
+expected safe charon-nm table-210 rule is missing, duplicated, or replaced by
+an unsafe rule. The verifier output redacts public addresses and counter values.
 
 4. Disconnect through the app and rerun the disconnected verifier. No process,
-   interface, route, DNS, policy-table, pref-220, or NetworkManager VPN residue
-   may remain.
+   interface, route, DNS, charon-nm table-210 route, ESP-template policy, or
+   NetworkManager VPN residue may remain. An exact paired table-210 rule is
+   allowed only as idle daemon infrastructure.
 
 ### 4. Uninstall and cleanup
 

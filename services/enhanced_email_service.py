@@ -8,15 +8,14 @@ import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from datetime import datetime
-from dotenv import load_dotenv
 from jinja2 import Template
 
 from utils.sensitive_data import redact_text, sanitize_for_evidence
+from utils.env_validation import load_environment_dotenv
 
-load_dotenv()
-load_dotenv(".env.production")
+load_environment_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +56,7 @@ class EnhancedEmailService:
         elif self.provider == "aws_ses":
             # AWS SES uses boto3 with environment credentials
             try:
-                import boto3
+                import boto3  # noqa: F401 - import verifies optional SES support
                 return True
             except ImportError:
                 logger.error("boto3 not installed - required for AWS SES")

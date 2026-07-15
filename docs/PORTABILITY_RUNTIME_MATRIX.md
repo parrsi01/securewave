@@ -1,73 +1,61 @@
 # SecureWave VPN Runtime Portability Matrix
 
-Last audited: 2026-07-11 UTC
+Last audited: 2026-07-15 UTC
 
 Audit basis:
 
-- Branch: `codex/vpn-runtime-portability-refactor`
-- Base: `origin/master` at `81f8a655`
+- Candidate branch: `codex/linux-runtime-final`
+- Base incorporated: `origin/master` at
+  `56d3126116120176152e98ab213d0fa1b19e1fdc`
+- Source: current PR #48 candidate; use the final PR head for remote evidence.
 - Audit host: Linux `aarch64` / Debian `arm64`
-- Current local package proof: ARM64 only
-- Production deploy, publication, signing, live credentials, and live infrastructure
-  changes were excluded.
+- Local ARM64 package checksum: record it with the exact retained build in the
+  private PR evidence; never reuse a checksum from an earlier local rebuild.
+- Publication, signing, production deployment, and live credentials were
+  excluded.
 
 ## Status meanings
 
 | Status | Meaning |
 | --- | --- |
-| Implemented | A complete source path exists from Flutter through a native runtime boundary. |
-| Package/build proven | The named architecture was built and its package metadata/payload were inspected. |
+| Implemented | A complete source path exists to a native runtime boundary. |
+| Package/build proven | The named architecture was built and its package metadata/payload inspected. |
 | Install/helper proven | A clean target host installed the package and proved the helper/service/socket contract. |
-| Live routing proven | Route, DNS, public exit-IP, data-plane, disconnect, and cleanup evidence exists for the exact platform/architecture/protocol. |
-| Blocked | Evidence cannot be produced in the current authorized environment. |
-| Intentionally unavailable | The app rejects the protocol because no native implementation exists. |
+| Live routing proven | Route, DNS, HTTPS, exit-IP, data-plane, disconnect, and cleanup evidence exists for the exact target. |
+| Blocked | Evidence requires an environment or authorization not available in this run. |
+| Intentionally unavailable | Product gates reject the protocol until its required evidence exists. |
 
 ## Protocol truth matrix
 
-| OS / architecture / artifact | Protocol | Implemented | Package/build proven | Install/helper proven | Live routing proven | Current truth |
+| Target | Protocol | Implemented | Package/build proven | Install/helper proven | Live routing proven | Current truth |
 | --- | --- | --- | --- | --- | --- | --- |
-| Linux ARM64 `.deb` | WireGuard | Yes: contract-10 helper, `sw-wg`, route/policy/status/counters, cleanup | Yes on this ARM64 host; app and helper are AArch64 ELF files | Blocked: no passwordless root or clean ARM64 systemd VM | Blocked: no authorized live credentials/infrastructure run | Implemented and package-proven, not release-proven |
-| Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status, config validation, root process/config pinning, counters | Yes on this ARM64 host | Blocked: same clean-install/root gate | Blocked: no authorized live proof and the deployed server authentication mode was not inspected | Implemented and package-proven; profile authentication compatibility remains unproven |
-| Linux ARM64 `.deb` | IKEv2 | Helper path exists: NetworkManager/strongSwan start/status/cleanup, route/DNS, XFRM ESP, pref-220 loop rejection | Yes on this ARM64 host | Blocked: same clean-install/root gate | Blocked: the backend intentionally does not advertise Linux IKEv2; a stale pref-220 rule is also present on this host | Intentionally unavailable in the app/backend despite packaged helper code |
-| Linux x64 `.deb` | WireGuard / OpenVPN / IKEv2 | Same portable source paths as ARM64 | Historical workflow run `29036573515` produced an x64 build with supplied SHA-256 `f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92`; it predates contract 10 and is not a current-branch runtime artifact | Blocked: clean x86_64 VM run required | Blocked: exact x64 artifact and authorized credentials required | No x64 release-readiness claim |
-| Linux portable tar/zip/AppImage, ARM64 or x64 | All | UI can call an already-installed matching helper | Portable build script now strips helper/service installer payload | Not supplied by portable archive | Not proven | UI-only unless the matching `.deb` helper is separately installed and proven |
-| Windows x64 | WireGuard | Yes: official WireGuard tunnel-service install/uninstall; status requires a running service | Blocked: no Windows host/build artifact in this pass | N/A to Linux helper; Windows admin/service proof is missing | Blocked: Windows route/DNS/exit-IP/data-plane proof required | Implemented, not release-proven |
-| Windows x64 | OpenVPN / IKEv2 | No | No | No | No | Intentionally unavailable; native bridge rejects non-WireGuard protocols |
-| Windows ARM64 | All | No certified target path | No | No | No | Blocked/unsupported until a native ARM64 build and runtime implementation are proven |
-| macOS ARM64 / x64 UI demo | WireGuard / OpenVPN / IKEv2 | No Network Extension provider exists | UI demo build evidence may exist separately; it is not VPN evidence | No VPN runtime to install | No | Intentionally unavailable; `isAvailable=false`, status is disconnected, counters unavailable |
-| Other Linux architectures | All | Not assessed | No | No | No | Unsupported until architecture-native build and runtime proof exists |
+| Linux ARM64 `.deb` | WireGuard | Yes: contract-13 helper, routes/policy/status/counters, cleanup | Yes: local ARM64 package and AArch64 helper payload | Yes: fresh Ubuntu 24.04 ARM64 systemd container passed install, helper/socket/IPC, verifier, launch, upgrade, purge, and residue checks | Blocked: no authorized staging credentials/infrastructure | Primary path, package-proven, not live-release-proven |
+| Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status and config/process safety | Yes: local package payload and dependency metadata | Yes: dependency, helper probe, malformed/unauthorized IPC rejection, verifier, upgrade, purge, and residue checks passed | Blocked: no backend + data-plane evidence in authorized staging | Unavailable unless backend and data-plane gates pass |
+| Linux ARM64 `.deb` | IKEv2 | Yes: allowlisted NetworkManager/strongSwan orchestration and safe table-210 routing | Yes: required NetworkManager/strongSwan plugins are declared and installed without a standalone charon daemon | Yes: clean package lifecycle passed; isolated lab additionally passed EAP, ESP/XFRM, rekey, failed auth, reconnect, and cleanup | Blocked: no authenticated backend plus authorized external exit-IP proof | Intentionally unavailable |
+| Linux x64 `.deb` | WireGuard/OpenVPN/IKEv2 | Same portable source paths | Exact-head build/architecture/checksum evidence belongs to the private workflow and PR review; earlier-run checksums are never reused | Exact-head ephemeral lifecycle result belongs to the private workflow and PR review | Blocked: authorized staging evidence required | Manifest remains `coming_soon`; no public artifact claim |
+| Linux portable archive | All | UI can call an already-installed matching helper | Archive build may be proven independently | Not supplied by the archive | Not proven | UI-only until a matching helper package is installed and certified |
+| Windows x64 | WireGuard | Source bridge exists | No Windows artifact in this pass | No Windows service proof in this pass | No Windows route/DNS/data-plane proof | Implemented, not release-proven |
+| Windows x64 | OpenVPN/IKEv2 | No | No | No | No | Intentionally unavailable |
+| macOS ARM64/x64 demo | All VPN protocols | No Network Extension provider | UI demo is not VPN evidence | No VPN runtime to install | No | Intentionally unavailable |
+| Other architectures | All | Not assessed | No | No | No | Unsupported until native build and runtime proof exist |
 
 ## Fail-closed boundaries
 
-- The Linux app uses only `/run/securewave/helper.sock`; it has no connect-time
-  `sudo`, `pkexec`, raw `wg-quick`, or `/bin/sh -c` fallback.
-- `isAvailable` probes the selected Linux protocol. One installed protocol does
-  not make the other protocols available. The Dart product gate additionally
-  keeps Linux IKEv2 unavailable while the backend refuses Linux IKEv2 profiles.
-- Helper request fields and operations are allowlisted. Malformed, duplicate,
-  unknown, over-sized, unsafe-path, and contract-mismatch requests are rejected.
-- WireGuard configs reject arbitrary pre/post hooks. Only the exact
-  backend-generated IPv4/IPv6 kill-switch hooks are accepted.
-- OpenVPN configs reject script, plugin, include, management, external
-  credential-path, daemonization, and arbitrary root file-write directives.
-- The current OpenVPN profile/client authentication contract is not treated as
-  runtime proof. Server authentication compatibility requires an authorized
-  live certification run.
-- Windows accepts WireGuard only. macOS accepts no VPN protocol.
-- A connected UI state is insufficient. Active certification also requires
-  helper status, interface/process, route, DNS, protocol safety, counters,
-  changed public exit IP, HTTPS data-plane success, disconnect, and cleanup.
+- Linux connect uses only `/run/securewave/helper.sock`; there is no connect-time
+  `sudo`, `pkexec`, raw `wg-quick`, or shell fallback.
+- A local helper capability probe never enables a protocol by itself. Backend
+  server evidence and, for OpenVPN, data-plane evidence are also required.
+- IKEv2 stays unavailable while backend advertising and authorized external
+  data-plane proof are incomplete, even though the isolated local lab is green.
+- A connected UI state is not certification evidence. Active proof requires
+  handshake/process state, routes, DNS, HTTPS, endpoint bypass, exit-IP movement,
+  counters, disconnect, and residue cleanup.
 
 ## Evidence still required
 
-- Clean ARM64 systemd VM install, service/socket ownership and mode, no-prompt
-  connect/disconnect, uninstall, and cleanup.
-- Clean x86_64 systemd VM certification of a contract-10 package built from the
-  reviewed commit.
-- Authorized per-protocol live route, DNS, exit-IP, data-plane, counter, and
-  cleanup evidence.
-- Windows x64 build/install/service/routing evidence.
-- A signed native macOS Network Extension implementation before any macOS VPN
-  claim.
-
-No artifact status was changed and no artifact was published by this refactor.
+- Passing exact-head x86_64 package, helper, lifecycle, and cleanup workflow
+  evidence in the private PR review record.
+- Authorized staging WireGuard, OpenVPN, and IKEv2 route/data-plane proof. No
+  production load test or implicit production probe is permitted.
+- Windows service/runtime proof and a signed macOS Network Extension before those
+  platforms receive VPN release claims.

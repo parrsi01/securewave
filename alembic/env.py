@@ -4,13 +4,16 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 from alembic import context
-from dotenv import load_dotenv
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# Load environment variables (production takes precedence)
-load_dotenv()
-load_dotenv(".env.production")
+# Import project-local configuration only after the repository root is on the
+# module path. This is required when Alembic runs from a container console
+# script whose initial sys.path contains /usr/local/bin rather than /app.
+from utils.env_validation import load_environment_dotenv  # noqa: E402
+
+# Load only the selected environment's dotenv file.
+load_environment_dotenv()
 
 from database.base import Base  # noqa: E402
 from database.session import DATABASE_URL  # noqa: E402
@@ -23,6 +26,8 @@ from models import (  # noqa: E402,F401
     email_log,
     gdpr,
     invoice,
+    ikev2_credential,
+    openvpn_credential,
     subscription,
     support_ticket,
     usage_analytics,

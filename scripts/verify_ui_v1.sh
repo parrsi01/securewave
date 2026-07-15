@@ -108,7 +108,16 @@ if ! test -f securewave_app/lib/ui/app_ui_v1.dart; then
   exit 1
 fi
 
-EXTRA_THEME_FILES=$(find securewave_app/lib/ui -maxdepth 1 -type f ! -name "app_ui_v1.dart" ! -name "app_haptics.dart")
+EXTRA_THEME_FILES=$(find securewave_app/lib/ui -maxdepth 1 -type f \
+  ! -name "app_ui_v1.dart" \
+  ! -name "app_haptics.dart" \
+  ! -name "auth_screen.dart" \
+  ! -name "catalog_screens.dart" \
+  ! -name "connect_screen.dart" \
+  ! -name "connection_widgets.dart" \
+  ! -name "main_shell.dart" \
+  ! -name "ui_models.dart" \
+  ! -name "ui_primitives.dart")
 if [[ -n "${EXTRA_THEME_FILES}" ]]; then
   echo "Unexpected Flutter UI files present:" >&2
   echo "${EXTRA_THEME_FILES}" >&2

@@ -8,6 +8,21 @@ import os
 from typing import List, Optional, Tuple
 
 from cryptography.fernet import Fernet
+from dotenv import load_dotenv
+
+
+def load_environment_dotenv() -> None:
+    """Load only the dotenv file for the selected environment.
+
+    A staging process must never fall through to ``.env.production``. The
+    process environment still wins because dotenv's default is non-overriding.
+    """
+    load_dotenv()
+    environment = get_environment()
+    if environment == "production":
+        load_dotenv(".env.production")
+    elif environment == "staging":
+        load_dotenv(".env.staging")
 
 
 def get_environment() -> str:

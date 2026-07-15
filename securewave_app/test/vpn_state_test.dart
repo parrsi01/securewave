@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/vpn_profile.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
+import 'package:securewave_app/core/models/protocol_availability.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
@@ -60,6 +63,7 @@ void main() {
     addTearDown(container.dispose);
 
     final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.ensureInitialized();
     notifier.selectServer('us-chi');
 
     await notifier.connect();
@@ -67,6 +71,24 @@ void main() {
 
     await notifier.disconnect();
     expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
+  });
+
+  test('VpnStateNotifier exposes one deterministic initialization future',
+      () async {
+    final service = _InitializationTrackingVpnService();
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    final first = notifier.ensureInitialized();
+    final second = notifier.ensureInitialized();
+    expect(identical(first, second), isTrue);
+
+    service.releaseAvailabilityChecks();
+    await first;
+    expect(service.refreshedProtocols, VpnProtocol.values);
   });
 
   test('VpnStateNotifier allows auto-select server', () async {
@@ -125,6 +147,74 @@ void main() {
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.error);
     expect(state.lastTunnelStartOk, isFalse);
+  });
+
+  test('OpenVPN rolls back when authenticated egress proof fails', () async {
+    final service = _NativeSuccessVpnService();
+    final api = _CredentialedEgressApiClient(
+      protocol: VpnProtocol.openVpn,
+      egressVerified: false,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.ensureInitialized();
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+    await notifier.connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(api.baselineCalls, 1);
+    expect(api.verifyCalls, 1);
+    expect(service.disconnectCalls, 1);
+    expect(state.status, VpnStatus.error);
+    expect(state.lastTunnelStartOk, isFalse);
+  });
+
+  test('IKEv2 rolls back when authenticated egress proof fails', () async {
+    final service = _NativeSuccessVpnService();
+    final api = _CredentialedEgressApiClient(
+      protocol: VpnProtocol.ikev2,
+      egressVerified: false,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.ensureInitialized();
+    await notifier.selectProtocol(VpnProtocol.ikev2);
+    await notifier.connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(api.baselineCalls, 1);
+    expect(api.verifyCalls, 1);
+    expect(service.disconnectCalls, 1);
+    expect(state.status, VpnStatus.error);
+    expect(state.lastTunnelStartOk, isFalse);
+  });
+
+  test('IKEv2 runtime restoration disconnects without a fresh egress baseline',
+      () async {
+    final service = _RestoredCredentialedVpnService(VpnProtocol.ikev2);
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).ensureInitialized();
+
+    expect(service.disconnectCalls, 1);
+    expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
   });
 
   test('stale stored VPN device id is cleared and profile fetch retries',
@@ -271,8 +361,13 @@ class _CounterVpnService extends VpnService {
   String? protocolUnavailableReason(VpnProtocol protocol) => null;
 
   @override
-  Future<VpnStatus> connect(
-      {required VpnProtocol protocol, String? config}) async {
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
+    bool backendEvidence = false,
+  }) async {
     _status = VpnStatus.connected;
     return _status;
   }
@@ -295,6 +390,49 @@ class _CounterVpnService extends VpnService {
   }
 }
 
+class _InitializationTrackingVpnService extends VpnService {
+  final _availabilityGate = Completer<void>();
+  final refreshedProtocols = <VpnProtocol>[];
+
+  void releaseAvailabilityChecks() => _availabilityGate.complete();
+
+  @override
+  bool get isNativeAvailable => false;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => false;
+
+  @override
+  Future<bool> refreshProtocolAvailability(
+    VpnProtocol protocol, {
+    bool backendEvidence = false,
+  }) async {
+    await _availabilityGate.future;
+    refreshedProtocols.add(protocol);
+    return false;
+  }
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) =>
+      'Helper probe unavailable.';
+
+  @override
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
+    bool backendEvidence = false,
+  }) async =>
+      VpnStatus.disconnected;
+
+  @override
+  Future<VpnStatus> disconnect() async => VpnStatus.disconnected;
+
+  @override
+  VpnStatus getStatus() => VpnStatus.disconnected;
+}
+
 class _FailingVpnService extends VpnService {
   @override
   bool get isNativeAvailable => false;
@@ -306,7 +444,13 @@ class _FailingVpnService extends VpnService {
   String? protocolUnavailableReason(VpnProtocol protocol) => null;
 
   @override
-  Future<VpnStatus> connect({required VpnProtocol protocol, String? config}) {
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
+    bool backendEvidence = false,
+  }) {
     throw VpnServiceException('vpn_connect_failed', 'native connect failed');
   }
 
@@ -319,6 +463,7 @@ class _FailingVpnService extends VpnService {
 
 class _NativeSuccessVpnService extends VpnService {
   VpnStatus _status = VpnStatus.disconnected;
+  int disconnectCalls = 0;
 
   @override
   bool get isNativeAvailable => true;
@@ -330,8 +475,13 @@ class _NativeSuccessVpnService extends VpnService {
   String? protocolUnavailableReason(VpnProtocol protocol) => null;
 
   @override
-  Future<VpnStatus> connect(
-      {required VpnProtocol protocol, String? config}) async {
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
+    bool backendEvidence = false,
+  }) async {
     if (config == null || config.trim().isEmpty) {
       throw VpnServiceException('invalid_config', 'missing config');
     }
@@ -341,12 +491,25 @@ class _NativeSuccessVpnService extends VpnService {
 
   @override
   Future<VpnStatus> disconnect() async {
+    disconnectCalls += 1;
     _status = VpnStatus.disconnected;
     return _status;
   }
 
   @override
   VpnStatus getStatus() => _status;
+}
+
+class _RestoredCredentialedVpnService extends _NativeSuccessVpnService {
+  _RestoredCredentialedVpnService(this.restoredProtocol);
+
+  final VpnProtocol restoredProtocol;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async => VpnRuntimeStatus(
+        status: VpnStatus.connected,
+        protocol: restoredProtocol,
+      );
 }
 
 class _ReferenceRecoveryApiClient extends ApiClient {
@@ -357,6 +520,12 @@ class _ReferenceRecoveryApiClient extends ApiClient {
   final deviceIds = <int?>[];
   final serverIds = <String?>[];
   int _calls = 0;
+
+  @override
+  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
+    String? deviceType,
+  }) async =>
+      _allProtocolsAvailable();
 
   @override
   Future<VpnProfile> fetchVpnProfile({
@@ -427,6 +596,12 @@ class _AlwaysFailingProfileApiClient extends ApiClient {
   final Map<String, dynamic> body;
 
   @override
+  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
+    String? deviceType,
+  }) async =>
+      _allProtocolsAvailable();
+
+  @override
   Future<VpnProfile> fetchVpnProfile({
     int? deviceId,
     required String deviceName,
@@ -444,4 +619,107 @@ class _AlwaysFailingProfileApiClient extends ApiClient {
       ),
     );
   }
+}
+
+class _CredentialedEgressApiClient extends ApiClient {
+  _CredentialedEgressApiClient({
+    required this.protocol,
+    required this.egressVerified,
+  }) : super(AppConfig.defaults());
+
+  final VpnProtocol protocol;
+  final bool egressVerified;
+  int baselineCalls = 0;
+  int verifyCalls = 0;
+
+  @override
+  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
+    String? deviceType,
+  }) async =>
+      _allProtocolsAvailable();
+
+  @override
+  Future<String> captureVpnEgressBaseline() async {
+    baselineCalls += 1;
+    return 'a' * 64;
+  }
+
+  @override
+  Future<bool> verifyVpnEgress({
+    required String serverId,
+    required int deviceId,
+    required VpnProtocol protocol,
+    required String baselineFingerprint,
+  }) async {
+    verifyCalls += 1;
+    expect(serverId, 'de-nue-1');
+    expect(deviceId, 321);
+    expect(protocol, this.protocol);
+    expect(baselineFingerprint, 'a' * 64);
+    return egressVerified;
+  }
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    return VpnProfile.fromJson({
+      'device_id': 321,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'protocol': this.protocol == VpnProtocol.openVpn ? 'openvpn' : 'ikev2',
+      'server_id': 'de-nue-1',
+      'server_location': 'Nuremberg, Germany',
+      'issued_at': DateTime.now().toIso8601String(),
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'openvpn_config':
+          this.protocol == VpnProtocol.openVpn ? 'client\ndev tun\n' : '',
+      'openvpn_username': this.protocol == VpnProtocol.openVpn
+          ? 'swovpn-0123456789abcdef0123456789abcdef'
+          : null,
+      'openvpn_password': this.protocol == VpnProtocol.openVpn
+          ? 'fresh-openvpn-password-012345'
+          : null,
+      'ikev2_config': this.protocol == VpnProtocol.ikev2
+          ? 'connections { securewave {} }\n# endpoint_ip = 192.0.2.10\n'
+          : '',
+      'dns': {
+        'servers': ['94.140.14.14'],
+        'enforcement': 'config',
+      },
+      'kill_switch': {
+        'mode': 'enabled',
+        'enforcement': 'best effort',
+      },
+      'peer_registered': true,
+      'registration_status': 'test',
+    });
+  }
+
+  @override
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {}
+
+  @override
+  Future<void> notifyVpnDisconnected() async {}
+}
+
+Map<VpnProtocol, ProtocolAvailability> _allProtocolsAvailable() {
+  return {
+    for (final protocol in VpnProtocol.values)
+      protocol: ProtocolAvailability(
+        protocol: protocol,
+        enabled: true,
+        serverEnabled: true,
+        platformSupported: true,
+      ),
+  };
 }

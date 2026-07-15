@@ -43,7 +43,7 @@ def _create_free_server(db):
         health_status="healthy",
         last_health_check=observed_at,
         protocol_runtime_evidence={
-            "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+            "wireguard": {"healthy": True, "authenticated": True, "observed_at": observed_at.isoformat()}
         },
         max_connections=1000,
         current_connections=10,
@@ -78,7 +78,7 @@ def _create_premium_server(db):
         health_status="healthy",
         last_health_check=observed_at,
         protocol_runtime_evidence={
-            "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+            "wireguard": {"healthy": True, "authenticated": True, "observed_at": observed_at.isoformat()}
         },
         max_connections=500,
         current_connections=5,

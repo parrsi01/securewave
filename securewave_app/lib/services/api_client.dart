@@ -9,6 +9,7 @@ import '../core/models/user_plan.dart';
 import '../core/services/auth_session.dart';
 import '../core/models/vpn_profile.dart';
 import '../core/models/vpn_protocol.dart';
+import '../core/models/protocol_availability.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final config = ref.watch(appConfigProvider);
@@ -216,6 +217,61 @@ class ApiClient {
     }
   }
 
+  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
+    String? deviceType,
+  }) async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return {
+        VpnProtocol.wireGuard: const ProtocolAvailability(
+          protocol: VpnProtocol.wireGuard,
+          enabled: true,
+          serverEnabled: true,
+          platformSupported: true,
+        ),
+        VpnProtocol.openVpn: const ProtocolAvailability(
+          protocol: VpnProtocol.openVpn,
+          enabled: false,
+          serverEnabled: false,
+          platformSupported: true,
+          reason: 'OpenVPN runtime evidence is not configured in mock mode.',
+        ),
+        VpnProtocol.ikev2: const ProtocolAvailability(
+          protocol: VpnProtocol.ikev2,
+          enabled: false,
+          serverEnabled: false,
+          platformSupported: false,
+          reason: 'IKEv2 is not release-ready for Linux.',
+        ),
+      };
+    }
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/vpn/protocols',
+        queryParameters: {
+          if (deviceType != null && deviceType.isNotEmpty)
+            'device_type': deviceType,
+        },
+      );
+      final rawProtocols = response.data?['protocols'];
+      if (rawProtocols is! List) {
+        throw StateError('Protocol availability response was malformed.');
+      }
+      final availability = <VpnProtocol, ProtocolAvailability>{};
+      for (final entry in rawProtocols.whereType<Map>()) {
+        final item = ProtocolAvailability.fromJson(
+          Map<String, dynamic>.from(entry),
+        );
+        availability[item.protocol] = item;
+      }
+      return availability;
+    } catch (error, stackTrace) {
+      AppLogger.error('Protocol availability lookup failed',
+          error: error, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
   AuthTokens _mockTokens(String email) {
     final handle = email.split('@').first;
     return AuthTokens(
@@ -324,6 +380,47 @@ class ApiClient {
     }
   }
 
+  /// Capture a non-identifying pre-connect source observation.
+  ///
+  /// The backend returns an HMAC fingerprint, never the observed public IP.
+  /// It is consumed once by [verifyVpnEgress] after the OpenVPN helper has
+  /// established the tunnel.
+  Future<String> captureVpnEgressBaseline() async {
+    if (_config.useMockApi) {
+      throw StateError('Mock API cannot certify a VPN egress path.');
+    }
+    final response =
+        await _dio.post<Map<String, dynamic>>('/vpn/egress/baseline');
+    final fingerprint = response.data?['fingerprint']?.toString() ?? '';
+    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint)) {
+      throw StateError('VPN egress baseline response was malformed.');
+    }
+    return fingerprint;
+  }
+
+  /// Verify that OpenVPN moved HTTPS egress to its selected server.
+  ///
+  /// This is intentionally an authenticated control-plane request after the
+  /// native tunnel is up. A false result is a failed proof, never a warning.
+  Future<bool> verifyVpnEgress({
+    required String serverId,
+    required int deviceId,
+    required VpnProtocol protocol,
+    required String baselineFingerprint,
+  }) async {
+    if (_config.useMockApi) return false;
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/vpn/egress/verify',
+      data: {
+        'server_id': serverId,
+        'device_id': deviceId,
+        'protocol': vpnProtocolStorageValue(protocol),
+        'baseline_fingerprint': baselineFingerprint,
+      },
+    );
+    return response.data?['verified'] == true;
+  }
+
   /// Notify the backend that the VPN tunnel has been established.
   ///
   /// In demo/mock mode this triggers the demo VPN session on the server so
@@ -368,6 +465,72 @@ class ApiClient {
       AppLogger.error('VPN disconnect notify error',
           error: error, stackTrace: stackTrace);
     }
+  }
+
+  Future<void> logout() async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return;
+    }
+    try {
+      await _dio.post<Map<String, dynamic>>('/auth/logout');
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+          'Backend logout failed; local session will still clear.');
+      AppLogger.error('Logout error', error: error, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  Future<int?> startUsageSession({
+    required int deviceId,
+    required String serverId,
+    required VpnProtocol protocol,
+    required String idempotencyKey,
+  }) async {
+    if (_config.useMockApi) return null;
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/vpn/usage/sessions/start',
+      data: {
+        'device_id': deviceId,
+        'server_id': serverId,
+        'protocol': vpnProtocolStorageValue(protocol),
+        'idempotency_key': idempotencyKey,
+      },
+    );
+    final sessionId = response.data?['session_id'];
+    return sessionId is num ? sessionId.toInt() : int.tryParse('$sessionId');
+  }
+
+  Future<void> reportUsage({
+    required int sessionId,
+    required int sequence,
+    required int bytesSent,
+    required int bytesReceived,
+    required String idempotencyKey,
+  }) async {
+    if (_config.useMockApi) return;
+    await _dio.post<Map<String, dynamic>>(
+      '/vpn/usage/sessions/$sessionId/increment',
+      data: {
+        'sequence': sequence,
+        'bytes_sent': bytesSent,
+        'bytes_received': bytesReceived,
+        'idempotency_key': idempotencyKey,
+      },
+    );
+  }
+
+  Future<void> finalizeUsageSession({
+    required int sessionId,
+    required String idempotencyKey,
+    String reason = 'client_disconnect',
+  }) async {
+    if (_config.useMockApi) return;
+    await _dio.post<Map<String, dynamic>>(
+      '/vpn/usage/sessions/$sessionId/disconnect',
+      data: {'idempotency_key': idempotencyKey, 'reason': reason},
+    );
   }
 
   void _logMockApi() {

@@ -3,14 +3,13 @@ import logging
 import tempfile
 from typing import Generator
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, pool, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import Engine
+from utils.env_validation import load_environment_dotenv
 
 # Load environment variables
-load_dotenv()
-load_dotenv(".env.production")  # Load production env if exists
+load_environment_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +109,7 @@ elif DATABASE_URL.startswith("postgresql"):
     engine = create_engine(DATABASE_URL, **engine_config)
 
     # Log connection pool info
-    logger.info(f"PostgreSQL connection pool configured:")
+    logger.info("PostgreSQL connection pool configured:")
     logger.info(f"  Pool size: {POOL_SIZE}")
     logger.info(f"  Max overflow: {MAX_OVERFLOW}")
     logger.info(f"  Pool timeout: {POOL_TIMEOUT}s")

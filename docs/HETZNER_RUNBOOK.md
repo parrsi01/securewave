@@ -128,6 +128,7 @@ In production, SecureWave fails fast unless production config is explicit:
 You must also set:
 - `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`
 - `AUTH_ENCRYPTION_KEY`, `WG_ENCRYPTION_KEY`
+- `SECUREWAVE_EGRESS_EVIDENCE_SECRET` (a unique 32+ character secret when OpenVPN or IKEv2 is provisioned)
 - `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PRICE_BASIC_MONTHLY`, `STRIPE_PRICE_PREMIUM_MONTHLY`, `STRIPE_PRICE_ULTRA_MONTHLY`
 - `EMAIL_PROVIDER=smtp` plus `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`/`FROM_EMAIL`
@@ -136,6 +137,43 @@ You must also set:
 Peer auto-registration (optional):
 - Set `WG_AUTO_REGISTER_PEERS=true`
 - Configure either SSH access (`WG_SSH_USER`, `WG_SSH_KEY_PATH`) or management API (`WG_API_KEY`, `WG_API_PORT`)
+
+## OpenVPN (Explicit Host Provisioning)
+
+OpenVPN is never enabled merely by this provisioning or registry metadata. On an explicitly authorized Hetzner host, run the checked-in host script as root, retrieve only its public CA, and then sync the public metadata:
+
+```bash
+sudo infrastructure/hetzner/provision_openvpn_server.sh --public-host vpn.example.com --transport udp
+sudo infrastructure/hetzner/provision_openvpn_server.sh --print-ca > /secure/path/openvpn-ca.pem
+python3 infrastructure/hetzner/sync_vpn_servers.py \
+  --fetch-wg-public-key --supports-openvpn \
+  --openvpn-transport udp --openvpn-ca-cert-path /secure/path/openvpn-ca.pem
+```
+
+Do not commit the CA export path, server keys, SSH keys, egress-evidence secret, or generated profiles. The API/UI stay unavailable until the authenticated OpenVPN health probe and fresh independent data-plane evidence are both recorded. The Linux app then requires an authenticated HTTPS egress movement proof before marking OpenVPN connected. See [OPENVPN_HETZNER_RUNBOOK.md](OPENVPN_HETZNER_RUNBOOK.md) for the scoped credential and proxy requirements.
+
+## IKEv2 (Dedicated Gateway Provisioning)
+
+IKEv2 uses a dedicated `charon-systemd`/`swanctl` gateway, not the Linux
+client's `charon-nm` process. The host provisioning script refuses a shared
+strongSwan installation and creates only root-owned SecureWave credential and
+networking state. After explicitly authorizing a gateway, provision it, export
+only its public CA, and register the certificate identity:
+
+```bash
+sudo infrastructure/hetzner/provision_ikev2_server.sh --public-host vpn.example.com
+sudo infrastructure/hetzner/provision_ikev2_server.sh --print-ca > /secure/path/securewave-ikev2-ca.pem
+python3 infrastructure/hetzner/sync_vpn_servers.py \
+  --fetch-wg-public-key --supports-ikev2 \
+  --ikev2-remote-id vpn.example.com \
+  --ikev2-ca-cert-path /secure/path/securewave-ikev2-ca.pem
+```
+
+The inventory flag does not enable IKEv2. Authenticated gateway health, fresh
+matching data-plane evidence, a clean contract-13 client runtime, HTTPS egress
+movement, ESP/XFRM evidence, and residue cleanup are all required first. See
+[IKEV2_HETZNER_RUNBOOK.md](IKEV2_HETZNER_RUNBOOK.md) for lifecycle, routing-loop,
+lab, and redaction requirements.
 
 ## Region Selection (Barbados + Europe)
 

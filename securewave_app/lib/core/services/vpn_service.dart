@@ -7,7 +7,13 @@ import '../models/vpn_status.dart';
 import '../logging/app_logger.dart';
 
 abstract class VpnService {
-  Future<VpnStatus> connect({required VpnProtocol protocol, String? config});
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
+    bool backendEvidence = false,
+  });
   Future<VpnStatus> disconnect();
   Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async =>
       VpnTrafficStats.unavailable;
@@ -16,7 +22,10 @@ abstract class VpnService {
       VpnRuntimeStatus(status: getStatus());
   bool get isNativeAvailable;
   bool canConnectProtocol(VpnProtocol protocol);
-  Future<bool> refreshProtocolAvailability(VpnProtocol protocol) async =>
+  Future<bool> refreshProtocolAvailability(
+    VpnProtocol protocol, {
+    bool backendEvidence = false,
+  }) async =>
       canConnectProtocol(protocol);
   String? protocolUnavailableReason(VpnProtocol protocol);
 }
@@ -112,6 +121,7 @@ class ChannelVpnService extends VpnService {
   VpnStatus _status = VpnStatus.disconnected;
   bool _nativeAvailable = false;
   final Map<VpnProtocol, bool> _protocolAvailability = {};
+  final Map<VpnProtocol, String> _protocolAvailabilityMessages = {};
   bool _mockNoticeLogged = false;
   String? _lastNativeAvailabilityMessage;
 
@@ -127,7 +137,7 @@ class ChannelVpnService extends VpnService {
 
   bool _platformImplementsProtocol(VpnProtocol protocol) {
     final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'linux') return protocol != VpnProtocol.ikev2;
+    if (os == 'linux') return true;
     if (os == 'windows' || os == 'android' || os == 'ios') {
       return protocol == VpnProtocol.wireGuard;
     }
@@ -135,13 +145,27 @@ class ChannelVpnService extends VpnService {
   }
 
   @override
-  Future<bool> refreshProtocolAvailability(VpnProtocol protocol) async {
+  Future<bool> refreshProtocolAvailability(
+    VpnProtocol protocol, {
+    bool backendEvidence = false,
+  }) async {
     if (_allowFallback) return true;
     if (!_platformImplementsProtocol(protocol)) {
       _protocolAvailability[protocol] = false;
       return false;
     }
-    return _refreshNativeAvailability(protocol);
+    final evidenceRequired = protocol != VpnProtocol.wireGuard;
+    if (evidenceRequired && !backendEvidence) {
+      _protocolAvailability[protocol] = false;
+      _protocolAvailabilityMessages[protocol] =
+          '${vpnProtocolLabel(protocol)} requires fresh backend runtime and data-plane evidence.';
+      _nativeAvailable = _protocolAvailability.values.any((value) => value);
+      return false;
+    }
+    return _refreshNativeAvailability(
+      protocol: protocol,
+      backendEvidence: backendEvidence,
+    );
   }
 
   @override
@@ -151,16 +175,20 @@ class ChannelVpnService extends VpnService {
     if (os == 'macos') {
       return 'VPN tunneling is unavailable on macOS because this build has no Network Extension provider.';
     }
-    if (os == 'linux' && protocol == VpnProtocol.ikev2) {
-      return 'IKEv2 is unavailable because the Linux backend profile gate does not advertise it.';
+    if (!_platformImplementsProtocol(protocol)) {
+      return '${vpnProtocolLabel(protocol)} is not implemented by this $os runtime.';
     }
-    return '${vpnProtocolLabel(protocol)} is not available on this runtime.';
+    return _protocolAvailabilityMessages[protocol] ??
+        '${vpnProtocolLabel(protocol)} is unavailable because the native helper probe did not confirm this protocol.';
   }
 
   @override
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
+    bool backendEvidence = false,
   }) async {
     if (_status == VpnStatus.connected ||
         _status == VpnStatus.connecting ||
@@ -178,7 +206,10 @@ class ChannelVpnService extends VpnService {
         );
       }
       final os = platform.operatingSystem.name.toLowerCase();
-      final available = await refreshProtocolAvailability(protocol);
+      final available = await refreshProtocolAvailability(
+        protocol,
+        backendEvidence: backendEvidence,
+      );
       if (!available) {
         if (os == 'ios') {
           _status = VpnStatus.disconnected;
@@ -207,9 +238,25 @@ class ChannelVpnService extends VpnService {
           'Missing ${vpnProtocolLabel(protocol)} configuration. Please refresh and try again.',
         );
       }
+      if (protocol == VpnProtocol.openVpn &&
+          (openVpnUsername == null ||
+              openVpnUsername.trim().isEmpty ||
+              openVpnPassword == null ||
+              openVpnPassword.isEmpty)) {
+        _status = VpnStatus.disconnected;
+        throw VpnServiceException(
+          'invalid_config',
+          'Missing fresh OpenVPN device credential. Refresh and try again.',
+        );
+      }
       await _channel.invokeMethod('connect', {
         'protocol': vpnProtocolStorageValue(protocol),
         'config': config,
+        if (protocol == VpnProtocol.openVpn) ...{
+          'openvpn_username': openVpnUsername,
+          'openvpn_password': openVpnPassword,
+        },
+        if (backendEvidence) 'backend_evidence': true,
       });
       _status = VpnStatus.connected;
     } on PlatformException catch (error) {
@@ -393,21 +440,37 @@ class ChannelVpnService extends VpnService {
         os == 'linux';
   }
 
-  Future<bool> _refreshNativeAvailability([VpnProtocol? protocol]) async {
+  Future<bool> _refreshNativeAvailability({
+    VpnProtocol? protocol,
+    bool backendEvidence = false,
+  }) async {
     if (!_supportsNativeChannel()) {
       _nativeAvailable = false;
-      return _nativeAvailable;
+      return false;
     }
     try {
       final available = await _channel.invokeMethod<bool>(
         'isAvailable',
         protocol == null
             ? null
-            : {'protocol': vpnProtocolStorageValue(protocol)},
+            : {
+                'protocol': vpnProtocolStorageValue(protocol),
+                if (backendEvidence) 'backend_evidence': true,
+                // Availability tiles need a local capability probe before a
+                // backend profile is fetched. Connect still passes fresh
+                // backend evidence and remains fail-closed in the runner.
+                if (!backendEvidence) 'runtime_only': true,
+              },
       );
       if (available != null) {
         if (protocol != null) {
           _protocolAvailability[protocol] = available;
+          if (available) {
+            _protocolAvailabilityMessages.remove(protocol);
+          } else {
+            _protocolAvailabilityMessages[protocol] =
+                '${vpnProtocolLabel(protocol)} is unavailable because the native helper probe did not confirm this protocol.';
+          }
           _nativeAvailable = _protocolAvailability.values.any((value) => value);
         } else {
           _nativeAvailable = available;
@@ -415,25 +478,43 @@ class ChannelVpnService extends VpnService {
       } else {
         if (protocol != null) {
           _protocolAvailability[protocol] = false;
+          _protocolAvailabilityMessages[protocol] =
+              '${vpnProtocolLabel(protocol)} is unavailable because the native helper probe returned no availability result.';
           _nativeAvailable = _protocolAvailability.values.any((value) => value);
         } else {
           _nativeAvailable = false;
         }
       }
-      if (_nativeAvailable) {
+      if (protocol != null && (_protocolAvailability[protocol] ?? false)) {
+        _lastNativeAvailabilityMessage = null;
+      } else if (protocol != null) {
+        _lastNativeAvailabilityMessage =
+            _protocolAvailabilityMessages[protocol];
+      } else if (_nativeAvailable) {
         _lastNativeAvailabilityMessage = null;
       }
     } on MissingPluginException {
-      if (protocol != null) _protocolAvailability[protocol] = false;
+      const message = 'Native VPN plugin missing for this platform/build.';
+      if (protocol != null) {
+        _protocolAvailability[protocol] = false;
+        _protocolAvailabilityMessages[protocol] = message;
+      }
       _nativeAvailable = _protocolAvailability.values.any((value) => value);
-      _lastNativeAvailabilityMessage =
-          'Native VPN plugin missing for this platform/build.';
+      _lastNativeAvailabilityMessage = message;
     } on PlatformException catch (error) {
-      _lastNativeAvailabilityMessage = error.message;
-      if (protocol != null) _protocolAvailability[protocol] = false;
+      final message = error.message?.trim().isNotEmpty == true
+          ? error.message!.trim()
+          : 'Native VPN helper probe failed (${error.code}).';
+      _lastNativeAvailabilityMessage = message;
+      if (protocol != null) {
+        _protocolAvailability[protocol] = false;
+        _protocolAvailabilityMessages[protocol] = message;
+      }
       _nativeAvailable = _protocolAvailability.values.any((value) => value);
     }
-    return _nativeAvailable;
+    return protocol == null
+        ? _nativeAvailable
+        : (_protocolAvailability[protocol] ?? false);
   }
 
   bool _isNativeUnavailableError(PlatformException error) {
@@ -472,6 +553,9 @@ class MockVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
+    String? openVpnUsername,
+    String? openVpnPassword,
+    bool backendEvidence = false,
   }) async {
     if (_status == VpnStatus.connected ||
         _status == VpnStatus.connecting ||

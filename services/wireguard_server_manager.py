@@ -64,6 +64,19 @@ class WireGuardServerManager:
         self.ssh_path = shutil.which("ssh")
         self._wg_key_pattern = re.compile(r"^[A-Za-z0-9+/=]{43,44}$")
 
+    @staticmethod
+    def remote_operations_enabled() -> bool:
+        """Return whether this process may contact a WireGuard server.
+
+        Test and mock runs must remain local.  In particular, fixture server
+        addresses are documentation-only values and must never trigger SSH or
+        HTTP traffic during backend lifecycle tests.
+        """
+        return not (
+            os.getenv("TESTING", "").lower() == "true"
+            or os.getenv("WG_MOCK_MODE", "").lower() == "true"
+        )
+
     def _load_fernet(self) -> Optional[Fernet]:
         """Load Fernet encryption key for API keys"""
         key = os.getenv("WG_ENCRYPTION_KEY")
@@ -120,6 +133,9 @@ class WireGuardServerManager:
         """
         logger.info("Adding peer to server_id=%s", conn.server_id)
 
+        if not self.remote_operations_enabled():
+            return True, "Peer addition simulated (local test/mock mode)"
+
         if conn.method == "http_api":
             return await self._add_peer_via_api(conn, public_key, allowed_ips)
         elif conn.method == "ssh":
@@ -144,6 +160,9 @@ class WireGuardServerManager:
         """
         logger.info("Removing peer from server_id=%s", conn.server_id)
 
+        if not self.remote_operations_enabled():
+            return True, "Peer removal simulated (local test/mock mode)"
+
         if conn.method == "http_api":
             return await self._remove_peer_via_api(conn, public_key)
         elif conn.method == "ssh":
@@ -164,6 +183,9 @@ class WireGuardServerManager:
         Returns:
             Tuple of (success, list of peer dicts)
         """
+        if not self.remote_operations_enabled():
+            return True, []
+
         if conn.method == "http_api":
             return await self._list_peers_via_api(conn)
         elif conn.method == "ssh":
@@ -184,6 +206,9 @@ class WireGuardServerManager:
         Returns:
             Tuple of (success, status dict)
         """
+        if not self.remote_operations_enabled():
+            return True, {"status": "mock"}
+
         if conn.method == "http_api":
             return await self._get_status_via_api(conn)
         elif conn.method == "ssh":
@@ -204,12 +229,28 @@ class WireGuardServerManager:
         Returns:
             Tuple of (healthy, message)
         """
+        healthy, _, message = await self.authenticated_health_check(conn)
+        return healthy, message
+
+    async def authenticated_health_check(
+        self,
+        conn: ServerConnection,
+    ) -> Tuple[bool, bool, str]:
+        """Return health plus whether the remote probe was authenticated.
+
+        A plain successful TCP/HTTP response is not sufficient evidence for
+        advertising a WireGuard server. HTTP management probes require a
+        configured API key and an accepted authenticated response; SSH probes
+        require the remote command itself to execute successfully.
+        """
+        if not self.remote_operations_enabled():
+            return True, False, "WireGuard server probe simulated (local test/mock mode)"
+
         if conn.method == "http_api":
-            return await self._health_check_via_api(conn)
-        elif conn.method == "ssh":
-            return await self._health_check_via_ssh(conn)
-        else:
-            return False, f"Unknown communication method: {conn.method}"
+            return await self._authenticated_health_check_via_api(conn)
+        if conn.method == "ssh":
+            return await self._authenticated_health_check_via_ssh(conn)
+        return False, False, f"Unknown communication method: {conn.method}"
 
     # =========================================================================
     # HTTP API Implementation
@@ -314,6 +355,35 @@ class WireGuardServerManager:
             logger.warning("Management API health check failed exception_type=%s", type(e).__name__)
             return False, "Management API unavailable"
 
+    async def _authenticated_health_check_via_api(
+        self,
+        conn: ServerConnection,
+    ) -> Tuple[bool, bool, str]:
+        api_key = conn.api_key or self.default_api_key
+        if not api_key:
+            return False, False, "Management API authentication is not configured"
+        try:
+            url = f"http://{conn.public_ip}:{conn.api_port}/health"
+            response = await self.http_client.get(
+                url,
+                headers={"X-API-Key": api_key},
+                timeout=10,
+            )
+            if response.status_code in (401, 403):
+                return False, False, "Management API authentication was rejected"
+            if response.status_code != 200:
+                return False, False, "Management API unavailable"
+            result = response.json()
+            return bool(result.get("healthy")), True, (
+                "Server healthy" if result.get("healthy") else "Server unhealthy"
+            )
+        except Exception as exc:
+            logger.warning(
+                "Authenticated management API health check failed exception_type=%s",
+                type(exc).__name__,
+            )
+            return False, False, "Management API unavailable"
+
     # =========================================================================
     # SSH Implementation
     # =========================================================================
@@ -322,6 +392,10 @@ class WireGuardServerManager:
         self,
         conn: ServerConnection,
         command: str,
+        *,
+        stdin: str | None = None,
+        strict_host_key_checking: bool = False,
+        known_hosts_path: str | None = None,
     ) -> Tuple[bool, str, str]:
         """
         Execute a command via SSH.
@@ -338,22 +412,42 @@ class WireGuardServerManager:
         ssh_cmd = [
             self.ssh_path,
             "-i", ssh_key,
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
             "-o", f"ConnectTimeout={self.timeout}",
             "-p", str(conn.ssh_port),
             ssh_target,
             command
         ]
+        if strict_host_key_checking:
+            if not known_hosts_path or not os.path.isfile(known_hosts_path):
+                return False, "", "SSH host verification is not configured"
+            try:
+                if os.stat(known_hosts_path).st_mode & 0o022:
+                    return False, "", "SSH known-hosts file must not be group or world writable"
+            except OSError:
+                return False, "", "SSH host verification is not configured"
+            ssh_cmd[3:3] = [
+                "-o", "StrictHostKeyChecking=yes",
+                "-o", f"UserKnownHostsFile={known_hosts_path}",
+            ]
+        else:
+            # Historical WireGuard/OpenVPN provisioning currently supplies no
+            # pinned host-key material.  IKEv2 uses the strict branch above
+            # because its credential lifecycle is a separate authenticated
+            # control plane.
+            ssh_cmd[3:3] = [
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+            ]
 
         try:
             process = await asyncio.create_subprocess_exec(
                 *ssh_cmd,
+                stdin=asyncio.subprocess.PIPE if stdin is not None else None,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
+                process.communicate(stdin.encode("utf-8") if stdin is not None else None),
                 timeout=self.timeout
             )
 
@@ -480,6 +574,17 @@ class WireGuardServerManager:
             return True, "Server healthy"
         else:
             return False, "Server unhealthy"
+
+    async def _authenticated_health_check_via_ssh(
+        self,
+        conn: ServerConnection,
+    ) -> Tuple[bool, bool, str]:
+        cmd = "sudo wg show wg0 > /dev/null 2>&1 && echo 'OK' || echo 'FAIL'"
+        success, stdout, _ = await self._run_ssh_command(conn, cmd)
+        if not success:
+            return False, False, "Server unhealthy"
+        healthy = stdout.strip() == "OK"
+        return healthy, True, "Server healthy" if healthy else "Server unhealthy"
 
 # Singleton instance
 _manager_instance: Optional[WireGuardServerManager] = None

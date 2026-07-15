@@ -49,10 +49,31 @@ HELPER_SERVICE_PATH = Path("/etc/systemd/system/securewave-helper.service")
 HELPER_TMPFILES_PATH = Path("/usr/lib/tmpfiles.d/securewave-helper.conf")
 HELPER_ALLOWLIST_PATH = Path("/etc/securewave/helper-users")
 HELPER_SOCKET_PATH = Path("/run/securewave/helper.sock")
-REQUIRED_TOOLS = ("wg-quick", "wg", "openvpn", "nmcli", "swanctl", "ipsec", "ip", "setfacl")
+STRONGSWAN_ROUTING_CONFIG_PATH = Path("/etc/strongswan.d/securewave-routing.conf")
+STRONGSWAN_ROUTING_SOURCE_PATH = (
+    REPO_ROOT / "securewave_app/packaging/linux/securewave-strongswan-routing.conf"
+)
+REQUIRED_TOOLS = (
+    "wg-quick",
+    "wg",
+    "openvpn",
+    "nmcli",
+    "resolvectl",
+    "ip",
+    "nft",
+    "setfacl",
+)
+REQUIRED_IKEV2_RUNTIME_FILES = (
+    Path("/usr/lib/ipsec/charon-nm"),
+    Path("/usr/lib/NetworkManager/VPN/nm-strongswan-service.name"),
+    Path("/usr/lib/ipsec/plugins/libstrongswan-eap-mschapv2.so"),
+)
 WIREGUARD_INTERFACE = "sw-wg"
+OPENVPN_INTERFACE = "tun-securewave"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
-EXPECTED_SECUREWAVE_HELPER_CONTRACT = 10
+IKEV2_INTERFACE = "nm-xfrm-sw"
+ADBLOCK_CHAIN = "SECUREWAVE_ADBLOCK"
+EXPECTED_SECUREWAVE_HELPER_CONTRACT = 13
 
 
 @dataclass(frozen=True)
@@ -73,6 +94,45 @@ def _run(argv: Iterable[str]) -> subprocess.CompletedProcess[str]:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         timeout=10,
+    )
+
+
+def _ikev2_rule_targets_table_210(line: str) -> bool:
+    tokens = line.split()
+    return any(
+        token in {"lookup", "table"}
+        and index + 1 < len(tokens)
+        and tokens[index + 1] == "210"
+        for index, token in enumerate(tokens)
+    )
+
+
+def _ikev2_rule_is_expected_safe_rule(line: str) -> bool:
+    tokens = line.split()
+    if len(tokens) != 8:
+        return False
+    if (
+        tokens[0] != "210:"
+        or tokens[5] not in {"0xdc", "0xdc/0xffffffff"}
+        or tokens[6] not in {"lookup", "table"}
+        or tokens[7] != "210"
+    ):
+        return False
+    return tokens[1:5] in (
+        ["not", "from", "all", "fwmark"],
+        ["from", "all", "not", "fwmark"],
+    )
+
+
+def _is_unqualified_legacy_ikev2_rule(line: str) -> bool:
+    """Identify only the historic, unsafe pref-220/table-220 loop rule."""
+    tokens = line.split()
+    return (
+        len(tokens) == 5
+        and tokens[0] == "220:"
+        and tokens[1:3] == ["from", "all"]
+        and tokens[3] in {"lookup", "table"}
+        and tokens[4] == "220"
     )
 
 
@@ -133,6 +193,17 @@ def check_tools() -> list[Check]:
                 detail=path or f"{tool} not found in PATH",
             )
         )
+    for path in REQUIRED_IKEV2_RUNTIME_FILES:
+        available = path.is_file() and (
+            path.name != "charon-nm" or os.access(path, os.X_OK)
+        )
+        checks.append(
+            Check(
+                name=f"tool:{path.name}",
+                ok=available,
+                detail=str(path) if available else f"{path} is unavailable",
+            )
+        )
     return checks
 
 
@@ -176,6 +247,39 @@ def check_installed_helper_contract() -> Check:
         "privilege:securewave_helper_contract",
         ok,
         f"installed contract {installed}; required {EXPECTED_SECUREWAVE_HELPER_CONTRACT}",
+    )
+
+
+def check_strongswan_routing_install() -> Check:
+    if not STRONGSWAN_ROUTING_SOURCE_PATH.exists():
+        return Check(
+            "privilege:strongswan_routing_config",
+            False,
+            f"source payload missing: {STRONGSWAN_ROUTING_SOURCE_PATH}",
+        )
+    if not STRONGSWAN_ROUTING_CONFIG_PATH.exists():
+        return Check(
+            "privilege:strongswan_routing_config",
+            False,
+            f"{STRONGSWAN_ROUTING_CONFIG_PATH} not installed",
+        )
+    try:
+        matches = (
+            STRONGSWAN_ROUTING_CONFIG_PATH.read_bytes()
+            == STRONGSWAN_ROUTING_SOURCE_PATH.read_bytes()
+        )
+    except OSError as exc:
+        return Check(
+            "privilege:strongswan_routing_config",
+            False,
+            f"unable to inspect installed strongSwan routing config: {type(exc).__name__}",
+        )
+    return Check(
+        "privilege:strongswan_routing_config",
+        matches,
+        "installed strongSwan routing marks match the package payload"
+        if matches
+        else "installed strongSwan routing marks differ from the package payload",
     )
 
 
@@ -320,7 +424,8 @@ def check_runner_contract() -> list[Check]:
         "runner:openvpn_disconnect_op": '"openvpn.stop"',
         "runner:ikev2_connect_op": '"ikev2.start"',
         "runner:ikev2_disconnect_op": '"ikev2.stop"',
-        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 10",
+        "runner:secondary_protocol_backend_gate": 'get_bool_arg(args, "backend_evidence")',
+        "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 13",
         "runner:no_implicit_mock": "securewave/vpn",
     }
     return [
@@ -357,6 +462,7 @@ def check_build_helper_payload() -> list[Check]:
         "build:helper_service_payload": bundle_dir / "packaging/linux/securewave-helper.service",
         "build:helper_tmpfiles_payload": bundle_dir / "packaging/linux/securewave-helper.tmpfiles",
         "build:helper_contract_payload": bundle_dir / "packaging/linux/securewave-wg-quick.contract",
+        "build:strongswan_routing_payload": bundle_dir / "packaging/linux/securewave-strongswan-routing.conf",
         "build:helper_installer_payload": bundle_dir / "scripts/install_linux_helper.sh",
     }
     return [
@@ -401,46 +507,92 @@ def check_active_runtime(protocol: str) -> list[Check]:
     service_ok = response.get("ok") == "true"
     connected = service_ok and response.get("status") == "connected"
     if protocol == "wireguard":
-        route_ok = response.get("route_via_sw_wg") == "true"
-        safety_ok = response.get("residue_present") == "false"
+        route_ok = (
+            response.get("route_via_sw_wg") == "true"
+            and response.get("ipv4_route_via_sw_wg") == "true"
+            and response.get("ipv6_route_via_sw_wg") == "true"
+        )
+        safety_ok = (
+            response.get("policy_rules_present") == "true"
+            and response.get("policy_routes_present") == "true"
+            and response.get("firewall_inspection_ok") == "true"
+            and response.get("ipv4_kill_switch_present") == "true"
+            and response.get("ipv6_block_present") == "true"
+            and response.get("ipv6_mode") == "block"
+            and response.get("handshake_inspection_ok") == "true"
+            and response.get("handshake_present") == "true"
+            and response.get("endpoint_inspection_ok") == "true"
+            and response.get("endpoint_bypass_present") == "true"
+        )
         interface = "sw-wg"
     elif protocol == "openvpn":
-        route_ok = response.get("route_present") == "true"
+        route_ok = (
+            response.get("route_present") == "true"
+            and response.get("ipv4_route_present") == "true"
+            and response.get("ipv6_route_present") == "true"
+        )
         safety_ok = (
             response.get("process_present") == "true"
             and response.get("initialization_complete") == "true"
             and response.get("interface_present") == "true"
+            and response.get("dns_configured") == "true"
+            and response.get("interface") == OPENVPN_INTERFACE
+            and response.get("ipv6_block_configured") == "true"
+            and response.get("ipv6_mode") == "block"
         )
-        interface = response.get("interface", "")
+        interface = OPENVPN_INTERFACE
     else:
         route_ok = (
-            response.get("route_or_dns_present") == "true"
+            response.get("connection_inspection_ok") == "true"
+            and response.get("connection_present") == "true"
+            and response.get("nm_active") == "true"
+            and response.get("interface_name_configured") == "true"
+            and response.get("interface_inspection_ok") == "true"
+            and response.get("interface_present") == "true"
+            and response.get("interface") == IKEV2_INTERFACE
+            and response.get("xfrm_interface") == "true"
+            and response.get("xfrm_if_id_present") == "true"
+            and response.get("xfrm_if_id_persisted") == "true"
+            and response.get("ownership_inspection_ok") == "true"
+            and response.get("route_inspection_ok") == "true"
+            and response.get("route_present") == "true"
+            and response.get("ipv4_full_route_present") == "true"
+            and response.get("route_conflict_present") == "false"
+            and response.get("ipv6_mode") == "block"
+            and response.get("ipv6_block_inspection_ok") == "true"
+            and response.get("ipv6_block_present") == "true"
+            and response.get("dns_present") == "true"
+            and response.get("xfrm_state_inspection_ok") == "true"
+            and response.get("xfrm_state_present") == "true"
             and response.get("xfrm_esp_present") == "true"
+            and response.get("xfrm_policy_inspection_ok") == "true"
+            and response.get("xfrm_policy_present") == "true"
+            and response.get("xfrm_pair_present") == "true"
+            and response.get("endpoint_bypass_inspection_ok") == "true"
+            and response.get("endpoint_bypass_present") == "true"
         )
-        safety_ok = response.get("routing_loop_rule_present") == "false"
-        active = _run(
-            [
-                "nmcli",
-                "-g",
-                "GENERAL.DEVICES",
-                "connection",
-                "show",
-                "--active",
-                "id",
-                IKEV2_CONNECTION,
-            ]
+        safety_ok = (
+            response.get("routing_rule_inspection_ok") == "true"
+            and response.get("routing_rules_safe") == "true"
+            and response.get("routing_loop_rule_present") == "false"
+            and response.get("legacy_routing_loop_rule_present") == "false"
         )
-        interface = next(
-            (line.strip() for line in active.stdout.splitlines() if line.strip()),
-            "",
+        interface = (
+            IKEV2_INTERFACE
+            if response.get("interface") == IKEV2_INTERFACE
+            else ""
         )
 
-    dns = (
-        _run(["nmcli", "-g", "IP4.DNS,IP6.DNS", "device", "show", interface])
-        if interface
-        else None
+    dns = _run(["resolvectl", "dns", interface]) if interface else None
+    domains = _run(["resolvectl", "domain", interface]) if interface else None
+    dns_ok = bool(
+        dns
+        and dns.returncode == 0
+        and dns.stdout.partition(":")[2].strip()
+        and domains
+        and domains.returncode == 0
+        and "~." in domains.stdout.split()
     )
-    dns_ok = bool(dns and dns.returncode == 0 and dns.stdout.strip())
     counters_ok = response.get("counters_available") == "true"
     return [
         Check(
@@ -504,9 +656,10 @@ def check_external_data_plane(
         for url in (exit_ip_url, data_plane_url):
             if urllib.parse.urlparse(url).scheme != "https":
                 raise ValueError("external probe URLs must use HTTPS")
-        with urllib.request.urlopen(exit_ip_url, timeout=10) as response:  # nosec B310
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(exit_ip_url, timeout=10) as response:  # nosec B310
             observed = ipaddress.ip_address(response.read(128).decode("ascii").strip())
-        with urllib.request.urlopen(data_plane_url, timeout=10) as response:  # nosec B310
+        with opener.open(data_plane_url, timeout=10) as response:  # nosec B310
             response.read(1)
             data_plane_ok = 200 <= response.status < 400
     except (OSError, ValueError, UnicodeError) as exc:
@@ -535,23 +688,82 @@ def check_external_data_plane(
 def check_residue() -> list[Check]:
     checks: list[Check] = []
 
-    link = _run(["ip", "link", "show", WIREGUARD_INTERFACE])
+    try:
+        wireguard_status = helper_request({"op": "wireguard.status"})
+    except OSError:
+        wireguard_status = {
+            "ok": "false",
+            "code": "socket_error",
+            "message": "helper socket request failed",
+        }
+    try:
+        wireguard_contract = int(wireguard_status.get("contract", ""))
+    except (TypeError, ValueError):
+        wireguard_contract = 0
+    wireguard_firewall_clean = (
+        wireguard_contract >= EXPECTED_SECUREWAVE_HELPER_CONTRACT
+        and wireguard_status.get("ok") == "true"
+        and wireguard_status.get("status") == "disconnected"
+        and wireguard_status.get("firewall_inspection_ok") == "true"
+        and wireguard_status.get("nft_table_present") == "false"
+        and wireguard_status.get("iptables_rule_present") == "false"
+        and wireguard_status.get("ip6tables_rule_present") == "false"
+        and wireguard_status.get("ipv4_kill_switch_present") == "false"
+        and wireguard_status.get("ipv6_block_present") == "false"
+        and wireguard_status.get("firewall_residue_present") == "false"
+    )
     checks.append(
         Check(
-            "residue:wireguard_interface",
-            link.returncode != 0,
-            f"{WIREGUARD_INTERFACE} interface absent"
-            if link.returncode != 0
-            else f"{WIREGUARD_INTERFACE} interface is still present",
+            "residue:wireguard_firewall",
+            wireguard_firewall_clean,
+            "privileged helper confirms no owned WireGuard nftables/iptables residue"
+            if wireguard_firewall_clean
+            else "privileged WireGuard firewall inspection failed or owned residue remains",
         )
     )
 
-    tun0 = _run(["ip", "link", "show", "tun0"])
+    all_links = _run(["ip", "-o", "link", "show"])
+    all_interfaces: list[str] = []
+    tunnel_interfaces: list[str] = []
+    if all_links.returncode == 0:
+        for line in all_links.stdout.splitlines():
+            parts = line.split(":", 2)
+            if len(parts) < 2:
+                continue
+            interface = parts[1].strip().split("@", 1)[0]
+            all_interfaces.append(interface)
+            if (
+                interface == OPENVPN_INTERFACE
+                or interface == IKEV2_INTERFACE
+            ):
+                tunnel_interfaces.append(interface)
+    wireguard_absent = (
+        all_links.returncode == 0 and WIREGUARD_INTERFACE not in all_interfaces
+    )
+    checks.append(
+        Check(
+            "residue:wireguard_interface",
+            wireguard_absent,
+            f"{WIREGUARD_INTERFACE} interface absent"
+            if wireguard_absent
+            else (
+                f"{WIREGUARD_INTERFACE} interface is still present"
+                if WIREGUARD_INTERFACE in all_interfaces
+                else "interface inspection failed"
+            ),
+        )
+    )
     checks.append(
         Check(
             "residue:tun0_interface",
-            tun0.returncode != 0,
-            "tun0 interface absent" if tun0.returncode != 0 else "tun0 interface is still present",
+            all_links.returncode == 0 and not tunnel_interfaces,
+            "no owned OpenVPN/IKEv2 tunnel interface remains"
+            if all_links.returncode == 0 and not tunnel_interfaces
+            else (
+                f"{len(tunnel_interfaces)} tunnel interfaces remain; names redacted"
+                if tunnel_interfaces
+                else "tunnel interface inspection failed"
+            ),
         )
     )
 
@@ -561,9 +773,8 @@ def check_residue() -> list[Check]:
         for line in routes.stdout.splitlines()
         if (
             WIREGUARD_INTERFACE in line
-            or "securewave" in line
-            or "tun0" in line
-            or line.startswith(("0.0.0.0/1 ", "128.0.0.0/1 "))
+            or OPENVPN_INTERFACE in line
+            or IKEV2_INTERFACE in line
         )
     ]
     checks.append(
@@ -580,10 +791,19 @@ def check_residue() -> list[Check]:
         )
     )
 
-    rules = _run(["ip", "rule", "show"])
+    rules_by_family = {
+        family: _run(["ip", family, "-N", "rule", "show"])
+        for family in ("-4", "-6")
+    }
+    rules_ok = all(result.returncode == 0 for result in rules_by_family.values())
+    rule_lines = [
+        (family, line)
+        for family, result in rules_by_family.items()
+        for line in result.stdout.splitlines()
+    ]
     securewave_rules = [
-        line
-        for line in rules.stdout.splitlines()
+        (family, line)
+        for family, line in rule_lines
         if (
             "lookup 51820" in line
             or "table 51820" in line
@@ -593,9 +813,9 @@ def check_residue() -> list[Check]:
     checks.append(
         Check(
             "residue:wireguard_policy_rules",
-            rules.returncode == 0 and not securewave_rules,
+            rules_ok and not securewave_rules,
             "no SecureWave WireGuard policy rules"
-            if rules.returncode == 0 and not securewave_rules
+            if rules_ok and not securewave_rules
             else (
                 f"{len(securewave_rules)} WireGuard policy rules remain; details redacted"
                 if securewave_rules
@@ -604,21 +824,64 @@ def check_residue() -> list[Check]:
         )
     )
 
-    unqualified_pref_220 = [
-        line
-        for line in rules.stdout.splitlines()
-        if line.strip().startswith("220:")
-        and "from all" in line
-        and "lookup 220" in line
-        and "fwmark" not in line
+    legacy_ikev2_rules = [
+        (family, line)
+        for family, line in rule_lines
+        if _is_unqualified_legacy_ikev2_rule(line)
     ]
     checks.append(
         Check(
-            "residue:ikev2_pref_220_loop",
-            rules.returncode == 0 and not unqualified_pref_220,
-            "no unqualified IKEv2 pref-220 routing-loop rule"
-            if rules.returncode == 0 and not unqualified_pref_220
-            else "unqualified IKEv2 pref-220 routing-loop rule remains",
+            "residue:ikev2_legacy_policy_loop",
+            rules_ok and not legacy_ikev2_rules,
+            "no unqualified pref-220/table-220 IKEv2 routing loop"
+            if rules_ok and not legacy_ikev2_rules
+            else (
+                f"{len(legacy_ikev2_rules)} unqualified pref-220 IKEv2 rule(s) found; details redacted"
+                if legacy_ikev2_rules
+                else "IPv4/IPv6 policy-rule inspection failed"
+            ),
+        )
+    )
+
+    ikev2_rules_by_family = {
+        family: [
+            line
+            for line in result.stdout.splitlines()
+            if _ikev2_rule_targets_table_210(line)
+        ]
+        for family, result in rules_by_family.items()
+    }
+    unexpected_ikev2_rules = [
+        (family, line)
+        for family, lines in ikev2_rules_by_family.items()
+        for line in lines
+        if not _ikev2_rule_is_expected_safe_rule(line)
+    ]
+    safe_ikev2_rule_counts = {
+        family: sum(_ikev2_rule_is_expected_safe_rule(line) for line in lines)
+        for family, lines in ikev2_rules_by_family.items()
+    }
+    safe_rule_count_values = tuple(safe_ikev2_rule_counts.values())
+    ikev2_rules_safe = (
+        rules_ok
+        and not unexpected_ikev2_rules
+        and safe_rule_count_values in ((0, 0), (1, 1))
+    )
+    checks.append(
+        Check(
+            "residue:ikev2_client_policy_rule",
+            ikev2_rules_safe,
+            "no charon-nm rule, or one exact safe table-210 rule per address family"
+            if ikev2_rules_safe
+            else (
+                f"{len(unexpected_ikev2_rules)} unsafe table-210 rule(s) found; details redacted"
+                if unexpected_ikev2_rules
+                else (
+                    "charon-nm table-210 rules are missing, asymmetric, or duplicated"
+                    if rules_ok
+                    else "IPv4/IPv6 policy-rule inspection failed"
+                )
+            ),
         )
     )
 
@@ -646,6 +909,67 @@ def check_residue() -> list[Check]:
         )
     )
 
+    ikev2_table_210_routes: list[tuple[str, str]] = []
+    ikev2_table_210_ok = True
+    for family in ("-4", "-6"):
+        table_routes = _run(
+            ["ip", family, "-o", "-N", "route", "show", "table", "all"]
+        )
+        if table_routes.returncode != 0:
+            ikev2_table_210_ok = False
+            continue
+        ikev2_table_210_routes.extend(
+            (family, line)
+            for line in table_routes.stdout.splitlines()
+            if f" dev {IKEV2_INTERFACE} " in f" {line.strip()} "
+            and " table 210 " in f" {line.strip()} "
+        )
+    checks.append(
+        Check(
+            "residue:ikev2_client_policy_routes",
+            ikev2_table_210_ok and not ikev2_table_210_routes,
+            "no routes remain via the owned IKEv2 interface in table 210"
+            if ikev2_table_210_ok and not ikev2_table_210_routes
+            else (
+                f"{len(ikev2_table_210_routes)} possible IKEv2 table-210 routes remain; details redacted"
+                if ikev2_table_210_routes
+                else "IPv4/IPv6 table-210 route inspection failed"
+            ),
+        )
+    )
+
+    try:
+        adblock = helper_request({"op": "firewall.adblock_status"})
+    except OSError:
+        adblock = {
+            "ok": "false",
+            "code": "socket_error",
+            "message": "helper socket request failed",
+        }
+    try:
+        adblock_contract = int(adblock.get("contract", ""))
+    except (TypeError, ValueError):
+        adblock_contract = 0
+    adblock_inspected = (
+        adblock_contract >= EXPECTED_SECUREWAVE_HELPER_CONTRACT
+        and adblock.get("ok") == "true"
+        and adblock.get("present") in {"true", "false"}
+    )
+    adblock_absent = adblock_inspected and adblock.get("present") == "false"
+    checks.append(
+        Check(
+            "residue:adblock_chain",
+            adblock_absent,
+            f"{ADBLOCK_CHAIN} chain absent"
+            if adblock_absent
+            else (
+                f"{ADBLOCK_CHAIN} chain still exists; rules redacted"
+                if adblock_inspected and adblock.get("present") == "true"
+                else f"{ADBLOCK_CHAIN} state could not be inspected safely"
+            ),
+        )
+    )
+
     procs = _run(["pgrep", "-af", "openvpn"])
     securewave_processes = [
         line
@@ -655,22 +979,59 @@ def check_residue() -> list[Check]:
     checks.append(
         Check(
             "residue:openvpn_process",
-            not securewave_processes,
+            procs.returncode in (0, 1) and not securewave_processes,
             "no SecureWave OpenVPN process"
-            if not securewave_processes
-            else f"{len(securewave_processes)} SecureWave OpenVPN process entries remain; details redacted",
+            if procs.returncode in (0, 1) and not securewave_processes
+            else (
+                f"{len(securewave_processes)} SecureWave OpenVPN process entries remain; details redacted"
+                if securewave_processes
+                else "OpenVPN process inspection failed"
+            ),
         )
     )
 
-    sas = _run(["swanctl", "--list-sas"])
-    securewave_sas = [line for line in sas.stdout.splitlines() if "securewave" in line]
+    try:
+        ikev2_status = helper_request({"op": "ikev2.status"})
+    except OSError:
+        ikev2_status = {
+            "ok": "false",
+            "code": "socket_error",
+            "message": "helper socket request failed",
+        }
+    try:
+        ikev2_contract = int(ikev2_status.get("contract", ""))
+    except (TypeError, ValueError):
+        ikev2_contract = 0
+    ikev2_kernel_clean = (
+        ikev2_contract >= EXPECTED_SECUREWAVE_HELPER_CONTRACT
+        and ikev2_status.get("ok") == "true"
+        and ikev2_status.get("status") == "disconnected"
+        and ikev2_status.get("connection_inspection_ok") == "true"
+        and ikev2_status.get("connection_present") == "false"
+        and ikev2_status.get("nm_active") == "false"
+        and ikev2_status.get("interface_inspection_ok") == "true"
+        and ikev2_status.get("interface_present") == "false"
+        and ikev2_status.get("ownership_inspection_ok") == "true"
+        and ikev2_status.get("route_inspection_ok") == "true"
+        and ikev2_status.get("owned_route_present") == "false"
+        and ikev2_status.get("ipv6_block_inspection_ok") == "true"
+        and ikev2_status.get("ipv6_block_present") == "false"
+        and ikev2_status.get("xfrm_state_inspection_ok") == "true"
+        and ikev2_status.get("xfrm_policy_inspection_ok") == "true"
+        and ikev2_status.get("xfrm_state_present") == "false"
+        and ikev2_status.get("xfrm_esp_present") == "false"
+        and ikev2_status.get("xfrm_policy_present") == "false"
+        and ikev2_status.get("routing_rule_inspection_ok") == "true"
+        and ikev2_status.get("routing_rules_idle_safe") == "true"
+        and ikev2_status.get("legacy_routing_loop_rule_present") == "false"
+    )
     checks.append(
         Check(
             "residue:ikev2_sa",
-            not securewave_sas,
-            "no SecureWave IKEv2 SA"
-            if not securewave_sas
-            else f"{len(securewave_sas)} SecureWave IKEv2 SA entries remain; details redacted",
+            ikev2_kernel_clean,
+            "privileged helper confirms no IKEv2 NetworkManager or kernel XFRM state/policy residue"
+            if ikev2_kernel_clean
+            else "privileged IKEv2 kernel residue inspection failed or state/policy remains",
         )
     )
 
@@ -684,7 +1045,11 @@ def check_residue() -> list[Check]:
             current_device = line.split(":", 1)[1]
             continue
         if line.startswith(("IP4.DNS", "IP6.DNS")) and line.split(":", 1)[-1]:
-            if current_device == WIREGUARD_INTERFACE or current_device == "tun0" or current_device.startswith("nm-xfrm-"):
+            if (
+                current_device == WIREGUARD_INTERFACE
+                or current_device == OPENVPN_INTERFACE
+                or current_device == IKEV2_INTERFACE
+            ):
                 stale_dns_devices.add(current_device)
     checks.append(
         Check(
@@ -763,6 +1128,7 @@ def main() -> int:
         *check_tools(),
         *check_no_polkit_source(),
         check_installed_helper_contract(),
+        check_strongswan_routing_install(),
         *check_helper_service_install(),
         *check_helper_socket(),
         *check_helper_ipc(),

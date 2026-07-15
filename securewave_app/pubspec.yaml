@@ -1,5 +1,5 @@
 name: securewave_app
-version: 4.0.0+1
+version: 4.0.0+3
 publish_to: 'none'
 
 environment:
@@ -28,7 +28,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
-    - .env
 
 flutter_launcher_icons:
   android: true

@@ -51,3 +51,32 @@ async def test_manager_exceptions_return_normalized_failures(monkeypatch):
     assert success is False
     assert message == "Management API unavailable"
     assert "token" not in message
+
+
+@pytest.mark.asyncio
+async def test_strict_ssh_rejects_missing_or_writable_known_hosts(tmp_path):
+    manager = WireGuardServerManager()
+    connection = ServerConnection(server_id="test", public_ip="192.0.2.10")
+
+    missing = await manager._run_ssh_command(
+        connection,
+        "true",
+        strict_host_key_checking=True,
+        known_hosts_path=str(tmp_path / "missing"),
+    )
+    assert missing == (False, "", "SSH host verification is not configured")
+
+    writable = tmp_path / "known_hosts"
+    writable.write_text("example ssh-ed25519 AAAA\n")
+    writable.chmod(0o666)
+    unsafe = await manager._run_ssh_command(
+        connection,
+        "true",
+        strict_host_key_checking=True,
+        known_hosts_path=str(writable),
+    )
+    assert unsafe == (
+        False,
+        "",
+        "SSH known-hosts file must not be group or world writable",
+    )

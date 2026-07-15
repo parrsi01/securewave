@@ -35,7 +35,7 @@ def _server(db, *, server_id="metering-us-1"):
         health_status="healthy",
         last_health_check=observed_at,
         protocol_runtime_evidence={
-            "wireguard": {"healthy": True, "observed_at": observed_at.isoformat()}
+            "wireguard": {"healthy": True, "authenticated": True, "observed_at": observed_at.isoformat()}
         },
         hcloud_server_state="running",
         max_connections=100,

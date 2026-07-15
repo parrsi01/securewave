@@ -13,8 +13,9 @@ native helper has created the expected tunnel state.
   authorization; connect/disconnect must not invoke `sudo` or `pkexec`.
 - `swanctl`, `ipsec`, NetworkManager, and NetworkManager-strongSwan installed
   before IKEv2 testing.
-- Live API URL defaults to `https://api.securewaveapp.com/api`; override with
-  `SECUREWAVE_API_BASE_URL` only for staging/local testing.
+- Supply an explicit authorized staging or loopback API URL with
+  `SECUREWAVE_API_BASE_URL`; certification proof refuses to select the
+  production API implicitly.
 - Real test account available. Do not add credentials to the repo.
 
 ## Startup
@@ -100,11 +101,11 @@ ip route
 
 ### IKEv2
 
-IKEv2 helper orchestration exists but the Linux app/backend product gate keeps
-it unavailable. The expected UI result is a disabled protocol with a backend
-profile-gate reason. Future certification must require an active NetworkManager
-VPN, route or DNS evidence, XFRM ESP state, and no unqualified pref-220 rule
-before this gate changes.
+IKEv2 certification requires an active exact NetworkManager VPN profile, route
+and DNS evidence, XFRM ESP state and policy, positive transfer counters, and one
+exact safe charon-nm table-210 rule per address family. Regular charon remains
+isolated in table 220. Missing, unqualified, asymmetric, duplicate, or otherwise
+unexpected table-210 rules fail closed.
 
 ## Repeatability
 

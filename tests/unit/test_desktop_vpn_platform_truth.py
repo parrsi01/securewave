@@ -47,10 +47,13 @@ def test_dart_service_fails_closed_by_platform_and_passes_protocol_to_native():
     source = _read(DART_SERVICE)
 
     assert "ChannelVpnService({VpnService? fallback, bool allowFallback = false})" in source
-    assert "if (os == 'linux') return protocol != VpnProtocol.ikev2;" in source
+    assert "if (os == 'linux') return true;" in source
     assert "os == 'windows' || os == 'android' || os == 'ios'" in source
     assert "return protocol == VpnProtocol.wireGuard;" in source
-    assert "final available = await refreshProtocolAvailability(protocol);" in source
+    assert "final available = await refreshProtocolAvailability(" in source
+    assert "backendEvidence: backendEvidence" in source
     assert "{'protocol': vpnProtocolStorageValue(protocol)}" in source
     assert "(_protocolAvailability[protocol] ?? false)" in source
+    assert "_protocolAvailabilityMessages[protocol]" in source
+    assert "return protocol == null" in source
     assert "_nativeAvailable = false;" in source

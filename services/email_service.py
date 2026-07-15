@@ -9,10 +9,9 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional, Dict
-from dotenv import load_dotenv
+from utils.env_validation import load_environment_dotenv
 
-load_dotenv()
-load_dotenv(".env.production")
+load_environment_dotenv()
 
 logger = logging.getLogger(__name__)
 

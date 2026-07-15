@@ -359,9 +359,24 @@ async def run_health_check(
             "wireguard",
             healthy=True,
             observed_at=server.last_health_check,
+            authenticated=False,
         )
         server.consecutive_health_failures = 0
-        db.commit()
+        try:
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            logger.error(
+                "Mock health evidence rollback server_id=%s exception_type=%s",
+                server_id,
+                type(exc).__name__,
+            )
+            return {
+                "server_id": server_id,
+                "healthy": False,
+                "message": "Health result could not be recorded",
+                "error": True,
+            }
 
         return {
             "server_id": server_id,
@@ -373,38 +388,14 @@ async def run_health_check(
     try:
         manager = get_wireguard_server_manager()
         conn = server_connection_from_db(server)
-        healthy, message = await manager.health_check(conn)
-
-        # Update server record
-        server.last_health_check = datetime.utcnow()
-        ProtocolAvailabilityService.record_evidence(
-            server,
-            "wireguard",
-            healthy=healthy,
-            observed_at=server.last_health_check,
-        )
-        if healthy:
-            server.health_status = "healthy"
-            server.consecutive_health_failures = 0
-        else:
-            server.consecutive_health_failures += 1
-            if server.consecutive_health_failures >= 3:
-                server.health_status = "unhealthy"
-            else:
-                server.health_status = "degraded"
-
-        db.commit()
-
-        return {
-            "server_id": server_id,
-            "healthy": healthy,
-            "message": message,
-            "consecutive_failures": server.consecutive_health_failures,
-            "health_status": server.health_status,
-        }
+        healthy, authenticated, message = await manager.authenticated_health_check(conn)
 
     except Exception as e:
         logger.error("Health check failed server_id=%s exception_type=%s", server_id, type(e).__name__)
+        db.rollback()
+        server = db.query(VPNServer).filter(VPNServer.server_id == server_id).first()
+        if not server:
+            raise HTTPException(status_code=404, detail="Server not found")
         server.consecutive_health_failures += 1
         server.health_status = "unreachable"
         server.last_health_check = datetime.utcnow()
@@ -413,8 +404,18 @@ async def run_health_check(
             "wireguard",
             healthy=False,
             observed_at=server.last_health_check,
+            failure_reason="probe_exception",
+            authenticated=False,
         )
-        db.commit()
+        try:
+            db.commit()
+        except Exception as persist_exc:
+            db.rollback()
+            logger.error(
+                "Health failure evidence rollback server_id=%s exception_type=%s",
+                server_id,
+                type(persist_exc).__name__,
+            )
 
         return {
             "server_id": server_id,
@@ -422,6 +423,48 @@ async def run_health_check(
             "message": "Health check failed",
             "error": True,
         }
+
+    try:
+        # Persist only the boolean result and fixed transition metadata.
+        server.last_health_check = datetime.utcnow()
+        ProtocolAvailabilityService.record_evidence(
+            server,
+            "wireguard",
+            healthy=healthy,
+            observed_at=server.last_health_check,
+            failure_reason="probe_failed" if not healthy else None,
+            authenticated=authenticated,
+        )
+        if healthy:
+            server.health_status = "healthy"
+            server.consecutive_health_failures = 0
+        else:
+            server.consecutive_health_failures += 1
+            server.health_status = (
+                "unhealthy" if server.consecutive_health_failures >= 3 else "degraded"
+            )
+        db.commit()
+    except Exception as persist_exc:
+        db.rollback()
+        logger.error(
+            "Health evidence rollback server_id=%s exception_type=%s",
+            server_id,
+            type(persist_exc).__name__,
+        )
+        return {
+            "server_id": server_id,
+            "healthy": False,
+            "message": "Health result could not be recorded",
+            "error": True,
+        }
+
+    return {
+        "server_id": server_id,
+        "healthy": healthy,
+        "message": message,
+        "consecutive_failures": server.consecutive_health_failures,
+        "health_status": server.health_status,
+    }
 
 
 @router.post("/health-check-all")

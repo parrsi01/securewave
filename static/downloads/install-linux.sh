@@ -76,6 +76,17 @@ else
   error "The application may not launch correctly."
 fi
 
+# The archive carries the architecture-matched contract-13 helper payload.
+# Install it explicitly as root so a tarball install has the same runtime
+# behavior as the .deb package. Connect-time elevation is never used.
+if [[ -x "$INSTALL_DIR/scripts/install_linux_helper.sh" &&
+      -d "$INSTALL_DIR/packaging/linux" ]]; then
+  info "Installing the SecureWave contract-13 VPN helper service ..."
+  "$INSTALL_DIR/scripts/install_linux_helper.sh" "$INSTALL_DIR/packaging/linux"
+else
+  die "The Linux archive is missing its VPN helper payload. Rebuild it from the canonical Linux runtime source."
+fi
+
 # ---------------------------------------------------------------------------
 # Symlink to PATH
 # ---------------------------------------------------------------------------
@@ -111,11 +122,9 @@ update-desktop-database /usr/share/applications 2>/dev/null || true
 # ---------------------------------------------------------------------------
 
 info ""
-info "SecureWave portable Linux UI installed successfully."
-info "This installs a portable UI-only build; it does not install privileged VPN routing."
-info ".deb package: full VPN routing with the root-owned SecureWave helper service."
-info "Portable AppImage/tarball/zip: UI-only unless the .deb helper service is already installed."
-info "After the .deb is installed, pressing Connect should not ask for sudo, pkexec, or a password."
+info "SecureWave Linux app and helper service installed successfully."
+info "The root-owned helper owns privileged VPN routing through contract 13."
+info "After installation, pressing Connect should not ask for sudo, pkexec, or a password."
 info ""
 info "Launch options:"
 info "  - From your application menu: search for 'SecureWave VPN'"

@@ -2,15 +2,13 @@
 
 ## Current host blockers
 
-- Helper daemon, wrapper, contract, systemd unit, allowlist, and socket are not
-  installed.
-- `sudo -n` is unavailable, so package install/service/socket proof was not
-  attempted.
-- The read-only verifier found an unqualified IKEv2 pref-220 routing-loop rule.
-  It was not removed because root access is required.
-- No authorized live credentials or infrastructure change was available.
-  WireGuard, OpenVPN, and IKEv2 live route/DNS/exit-IP/data-plane proof was not
-  run.
+- The rebuilt ARM64 package is not installed over the existing host package, so
+  clean install, upgrade, and purge evidence for this exact package is not
+  claimed.
+- The current host's existing helper/service/socket are contract 13 and pass the
+  read-only verifier, but that is not proof for the rebuilt package payload.
+- No current authorized staging credentials or infrastructure target was
+  supplied. WireGuard live route/DNS/exit-IP/data-plane proof was not run.
 - The master backend intentionally refuses Linux IKEv2 profiles, so the app
   keeps IKEv2 unavailable even when local strongSwan tools are installed.
 - The backend-generated OpenVPN profile includes an authentication directive,
@@ -23,10 +21,8 @@
 
 ## Platform blockers
 
-- Historical x64 workflow run `29036573515` and supplied checksum
-  `f2718810c7dea6e2c298c159f25d904321423ab3a359c1d1428b3e824d7b4d92`
-  predate contract 10. A new reviewed-commit x64 build and clean VM run are
-  required.
+- An exact-head x64 workflow artifact and a clean x86_64 systemd VM lifecycle
+  proof are required before x64 availability can change.
 - Windows x64 build/install/service/routing evidence requires Windows.
 - Windows ARM64 has no certified target.
 - macOS has no native Network Extension provider; all VPN protocols are

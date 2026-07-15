@@ -51,6 +51,7 @@ class VPNPeerManager:
         device_name: Optional[str] = None,
         device_type: Optional[str] = None,
         max_active_devices: Optional[int] = None,
+        reuse_existing_device: bool = False,
     ) -> WireGuardPeer:
         """
         Create new WireGuard peer for user
@@ -70,6 +71,14 @@ class VPNPeerManager:
             # unique indexes as the final safety net.
             if max_active_devices is not None:
                 self.db.query(User).filter(User.id == user.id).with_for_update().one()
+                if reuse_existing_device and device_name:
+                    existing = self.db.query(WireGuardPeer).filter(
+                        WireGuardPeer.user_id == user.id,
+                        WireGuardPeer.is_revoked.is_(False),
+                        func.lower(WireGuardPeer.device_name) == device_name.lower(),
+                    ).first()
+                    if existing:
+                        return existing
                 active_count = self.db.query(WireGuardPeer).filter(
                     WireGuardPeer.user_id == user.id,
                     WireGuardPeer.is_active.is_(True),
@@ -340,7 +349,7 @@ class VPNPeerManager:
     # KEY ROTATION
     # ===========================
 
-    def rotate_peer_keys(self, peer_id: int) -> WireGuardPeer:
+    def rotate_peer_keys(self, peer_id: int, *, commit: bool = True) -> WireGuardPeer:
         """
         Rotate WireGuard keys for peer
 
@@ -369,8 +378,13 @@ class VPNPeerManager:
             peer.last_key_rotation_at = datetime.utcnow()
             peer.next_key_rotation_at = datetime.utcnow() + timedelta(days=DEFAULT_KEY_ROTATION_DAYS)
 
-            self.db.commit()
-            self.db.refresh(peer)
+            if commit:
+                self.db.commit()
+                self.db.refresh(peer)
+            else:
+                # Surface a duplicate public-key collision before any remote
+                # server mutation, while keeping the transaction reversible.
+                self.db.flush()
 
             logger.info(f"✓ Keys rotated for peer {peer_id} (version {peer.key_version})")
             return peer
@@ -388,10 +402,14 @@ class VPNPeerManager:
             Number of peers rotated
         """
         try:
-            # Find peers due for rotation
+            # Assigned peers require asynchronous remote add-before-remove
+            # confirmation. The background task performs that lifecycle; this
+            # synchronous compatibility helper may rotate only unassigned
+            # records without invalidating a live server peer.
             due_peers = self.db.query(WireGuardPeer).filter(
                 WireGuardPeer.is_active == True,
                 WireGuardPeer.is_revoked == False,
+                WireGuardPeer.server_id.is_(None),
                 WireGuardPeer.next_key_rotation_at <= datetime.utcnow()
             ).all()
 

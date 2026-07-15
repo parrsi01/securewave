@@ -28,11 +28,13 @@ storage, and hands it to the Linux runner.
 ## Quick Start (Linux/macOS with Flutter)
 
 1. Install Flutter SDK and run `flutter doctor`.
-2. From `securewave_app/`:
-   - `flutter pub get`
-   - `flutter run -d linux`
+2. From the repository root:
+   - `make flutter-run`
    - Add `--dart-define=SECUREWAVE_USE_MOCK_API=true` only for isolated demo UI work.
-   - `flutter run -d macos` (UI only; VPN tunneling is unavailable on macOS yet)
+3. For Linux VPN connect/disconnect, install the privileged runtime once:
+   - `make linux-runtime-install`
+   - rerun `make flutter-run`
+4. `flutter run -d macos` is UI-only; VPN tunneling is unavailable on macOS yet.
 
 ## iOS Setup
 
