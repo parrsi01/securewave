@@ -9,8 +9,8 @@ Audit basis:
   `56d3126116120176152e98ab213d0fa1b19e1fdc`
 - Source: current PR #48 candidate; use the final PR head for remote evidence.
 - Audit host: Linux `aarch64` / Debian `arm64`
-- Local ARM64 package SHA-256:
-  `3ae555b3a78160cd18eebbf08d380694b172091518d61701a128ee99f998c7db`
+- Local ARM64 package checksum: record it with the exact retained build in the
+  private PR evidence; never reuse a checksum from an earlier local rebuild.
 - Publication, signing, production deployment, and live credentials were
   excluded.
 

@@ -11,7 +11,9 @@ Last audited: 2026-07-15 UTC
   `56d3126116120176152e98ab213d0fa1b19e1fdc`
 - Application/package version: `4.0.0+3`
 - Local ARM64 package: `securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb`
-- Local ARM64 package SHA-256: `3ae555b3a78160cd18eebbf08d380694b172091518d61701a128ee99f998c7db`
+- Local ARM64 package SHA-256: record the checksum from the exact retained build
+  in the private PR evidence; local Debian archive timestamps make a checksum
+  from an earlier rebuild unsafe to copy forward.
 - No artifact was published, signed, or deployed by this certification.
 
 ## Protocol truth
@@ -90,12 +92,15 @@ release commands must not instruct users to treat a feature branch as canonical.
 ```bash
 cd /path/to/securewave-linux-runtime-final
 deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb"
-echo "3ae555b3a78160cd18eebbf08d380694b172091518d61701a128ee99f998c7db  $deb" | sha256sum -c -
+sha256sum "$deb"
 sudo apt install "$deb"
 systemctl is-enabled securewave-helper.service
 systemctl is-active securewave-helper.service
 cat /usr/local/libexec/securewave-wg-quick.contract
 ```
+
+Compare the output with the checksum attached to the exact build in the private
+PR evidence. Never substitute a checksum from an earlier local rebuild.
 
 Upgrade with `sudo apt install /path/to/securewave-vpn_NEW.deb`; purge with
 `sudo apt purge securewave-vpn`, then run the disconnected runtime verifier and
