@@ -32,7 +32,7 @@ Audit basis:
 | Linux ARM64 `.deb` | WireGuard | Yes: contract-13 helper, routes/policy/status/counters, cleanup | Yes: local ARM64 package and AArch64 helper payload | Yes: fresh Ubuntu 24.04 ARM64 systemd container passed install, helper/socket/IPC, verifier, launch, upgrade, purge, and residue checks | Blocked: no authorized staging credentials/infrastructure | Primary path, package-proven, not live-release-proven |
 | Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status and config/process safety | Yes: local package payload and dependency metadata | Yes: dependency, helper probe, malformed/unauthorized IPC rejection, verifier, upgrade, purge, and residue checks passed | Blocked: no backend + data-plane evidence in authorized staging | Unavailable unless backend and data-plane gates pass |
 | Linux ARM64 `.deb` | IKEv2 | Yes: allowlisted NetworkManager/strongSwan orchestration and safe table-210 routing | Yes: required NetworkManager/strongSwan plugins are declared and installed without a standalone charon daemon | Yes: clean package lifecycle passed; isolated lab additionally passed EAP, ESP/XFRM, rekey, failed auth, reconnect, and cleanup | Blocked: no authenticated backend plus authorized external exit-IP proof | Intentionally unavailable |
-| Linux x64 `.deb` | WireGuard/OpenVPN/IKEv2 | Same portable source paths | Pending exact-head private workflow after push; earlier-run checksums are intentionally not reused | Pending exact-head ephemeral lifecycle workflow | Blocked: authorized staging evidence required | Manifest remains `coming_soon`; no public artifact claim |
+| Linux x64 `.deb` | WireGuard/OpenVPN/IKEv2 | Same portable source paths | Exact-head build/architecture/checksum evidence belongs to the private workflow and PR review; earlier-run checksums are never reused | Exact-head ephemeral lifecycle result belongs to the private workflow and PR review | Blocked: authorized staging evidence required | Manifest remains `coming_soon`; no public artifact claim |
 | Linux portable archive | All | UI can call an already-installed matching helper | Archive build may be proven independently | Not supplied by the archive | Not proven | UI-only until a matching helper package is installed and certified |
 | Windows x64 | WireGuard | Source bridge exists | No Windows artifact in this pass | No Windows service proof in this pass | No Windows route/DNS/data-plane proof | Implemented, not release-proven |
 | Windows x64 | OpenVPN/IKEv2 | No | No | No | No | Intentionally unavailable |
@@ -53,7 +53,8 @@ Audit basis:
 
 ## Evidence still required
 
-- Exact-head x86_64 package, helper, lifecycle, and cleanup workflow evidence.
+- Passing exact-head x86_64 package, helper, lifecycle, and cleanup workflow
+  evidence in the private PR review record.
 - Authorized staging WireGuard, OpenVPN, and IKEv2 route/data-plane proof. No
   production load test or implicit production probe is permitted.
 - Windows service/runtime proof and a signed macOS Network Extension before those

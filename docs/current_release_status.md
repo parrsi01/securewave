@@ -62,10 +62,10 @@ presented as release-ready.
 
 - The local ARM64 `.deb` is not a public download. Install it from its local path
   only after verifying the checksum.
-- The Linux x64 `.deb` remains `coming_soon` in the public manifest. An exact-head
-  private workflow must be rerun after the candidate is pushed; do not reuse a
-  checksum from an earlier source revision. No x64 artifact is public because
-  live authenticated data-plane evidence is still absent.
+- The Linux x64 `.deb` remains `coming_soon` in the public manifest. Exact-head
+  package evidence and its checksum are recorded in the private workflow and PR
+  review, never copied forward from an earlier source revision. No x64 artifact
+  is public because live authenticated data-plane evidence is still absent.
 
 ## Current private x64 workflow evidence
 
