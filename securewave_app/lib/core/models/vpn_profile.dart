@@ -101,8 +101,16 @@ class VpnProfile {
           nestedProfile['openvpn_config']?.toString() ??
           nestedProfile['ovpn_config']?.toString() ??
           '',
-      openVpnUsername: json['openvpn_username']?.toString(),
-      openVpnPassword: json['openvpn_password']?.toString(),
+      // The current API returns protocol-specific credentials inside the
+      // nested `profile` object. Keep the top-level fields for the established
+      // schema and fall back to the nested shape without logging or persisting
+      // the values.
+      openVpnUsername: json['openvpn_username']?.toString() ??
+          nestedProfile['openvpn_username']?.toString() ??
+          nestedProfile['username']?.toString(),
+      openVpnPassword: json['openvpn_password']?.toString() ??
+          nestedProfile['openvpn_password']?.toString() ??
+          nestedProfile['password']?.toString(),
       ikev2Config: json['ikev2_config']?.toString() ??
           nestedProfile['ikev2_config']?.toString() ??
           _ikev2ProfileToConfig(nestedProfile),

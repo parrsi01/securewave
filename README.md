@@ -95,10 +95,22 @@ Then open:
 ### Flutter app
 
 ```bash
-cd securewave_app
-flutter pub get
-flutter run -d linux
+# Works from a fresh clone when Flutter is installed.
+make flutter-run
 ```
+
+The UI can run without administrator access, but the Linux VPN protocols are
+fail-closed until the contract-13 helper service is installed. For a complete
+Linux runtime on the host, run this once:
+
+```bash
+make linux-runtime-install
+make flutter-run
+```
+
+The installer uses the architecture-matched Flutter bundle, installs only the
+allowlisted root helper and systemd unit, and never elevates at connect time.
+Use `make linux-runtime-check` to inspect helper, package, and residue gates.
 
 See `securewave_app/README.md` for platform-specific notes.
 

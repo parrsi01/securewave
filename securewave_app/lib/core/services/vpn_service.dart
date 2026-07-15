@@ -456,6 +456,10 @@ class ChannelVpnService extends VpnService {
             : {
                 'protocol': vpnProtocolStorageValue(protocol),
                 if (backendEvidence) 'backend_evidence': true,
+                // Availability tiles need a local capability probe before a
+                // backend profile is fetched. Connect still passes fresh
+                // backend evidence and remains fail-closed in the runner.
+                if (!backendEvidence) 'runtime_only': true,
               },
       );
       if (available != null) {

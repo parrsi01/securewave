@@ -96,6 +96,7 @@ def test_runner_does_not_enable_secondary_protocols_from_local_tools_alone():
     source = _runner_source()
 
     assert 'get_bool_arg(args, "backend_evidence")' in source
+    assert 'get_bool_arg(args, "runtime_only")' in source
     assert '"OpenVPN and IKEv2 require fresh backend runtime and data-plane evidence."' in source
     assert '"openvpn_helper_probe"' in source
     assert '"ikev2_helper_probe"' in source
@@ -265,31 +266,15 @@ def test_linux_tarball_and_installer_are_truthful_portable_ui_builds():
     build_apps = BUILD_APPS.read_text(encoding="utf-8")
     installer = DOWNLOAD_INSTALLER.read_text(encoding="utf-8")
 
-    assert (
-        'rm -rf "$PACKAGE_STAGING/packaging/linux" "$PACKAGE_STAGING/scripts/install_linux_helper.sh"'
-        in build_apps
-    )
+    assert "Keep the helper payload in the archive" in build_apps
+    assert 'cat > "$PACKAGE_STAGING/install-linux.sh"' in build_apps
     assert "SecureWave portable Linux package" in build_apps
-    assert (
-        "Full-device VPN routing requires the root-owned SecureWave helper service."
-        in build_apps
-    )
-    assert (
-        "Install the matching SecureWave .deb package for full no-prompt VPN connect/disconnect."
-        in build_apps
-    )
+    assert "Run ./install-linux.sh once with administrator authentication for VPN routing." in build_apps
     assert 'aarch64|arm64) ARCH_LABEL="arm64"' in build_apps
     assert 'TARBALL="$DOWNLOADS_DIR/securewave-linux-$ARCH_LABEL.tar.gz"' in build_apps
     assert 'ARCH_LABEL="x64";   FLUTTER_ARCH="arm64"' not in build_apps
-    assert "This installs a portable UI-only build" in installer
-    assert (
-        ".deb package: full VPN routing with the root-owned SecureWave helper service."
-        in installer
-    )
-    assert (
-        "Portable AppImage/tarball/zip: UI-only unless the .deb helper service is already installed."
-        in installer
-    )
+    assert '"$INSTALL_DIR/scripts/install_linux_helper.sh"' in installer
+    assert "SecureWave Linux app and helper service installed successfully." in installer
     assert (
         "pressing Connect should not ask for sudo, pkexec, or a password" in installer
     )

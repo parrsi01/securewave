@@ -1002,7 +1002,8 @@ static void handle_vpn_call(FlMethodChannel* channel,
         return;
       }
       if (g_strcmp0(protocol, "wireguard") != 0 &&
-          !get_bool_arg(args, "backend_evidence")) {
+          !get_bool_arg(args, "backend_evidence") &&
+          !get_bool_arg(args, "runtime_only")) {
         respond_error(
             method_call,
             "protocol_unavailable",

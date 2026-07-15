@@ -52,6 +52,8 @@ void main() {
       'profile': {
         'type': 'openvpn',
         'ovpn_config': 'client\nremote 138.199.204.139 1194\n',
+        'username': 'swovpn-0123456789abcdef0123456789abcdef',
+        'password': 'fresh-openvpn-password-012345',
       },
       'dns': {
         'servers': ['94.140.14.14'],
@@ -64,6 +66,8 @@ void main() {
     });
 
     expect(profile.configForProtocol(VpnProtocol.openVpn), contains('client'));
+    expect(profile.openVpnUsername, startsWith('swovpn-'));
+    expect(profile.openVpnPassword, isNotEmpty);
     expect(profile.configForProtocol(VpnProtocol.wireGuard), isEmpty);
   });
 
