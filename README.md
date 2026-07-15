@@ -2,11 +2,11 @@
 
 SecureWave is a full-stack VPN platform repository that combines a Python/FastAPI backend, a Flutter client app, VPN provisioning logic, payment flows, and infrastructure automation.
 
-Current app truth is Linux desktop first. WireGuard is the strongest verified
-runtime path, OpenVPN has a Linux helper path when the backend issues a real
-profile, and IKEv2 is disabled in the Linux release UI until the backend and
-strongSwan runtime are enabled end to end. The Flutter client must never mark a
-VPN as connected unless the native runtime reports success.
+Current app truth is Linux desktop first. WireGuard, OpenVPN, and IKEv2 share
+the contract-13 Linux helper boundary, but each protocol remains unavailable
+until its local runtime, backend evidence, and live data-plane checks pass.
+The Flutter client must never mark a VPN as connected unless the native
+runtime reports success.
 
 Apple/iOS work currently means signed archive preparation and App Store review
 support, not a public mobile release. The iOS target uses NetworkExtension
