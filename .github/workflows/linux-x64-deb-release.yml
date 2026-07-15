@@ -61,9 +61,6 @@ jobs:
             openvpn \
             network-manager \
             network-manager-strongswan \
-            strongswan \
-            strongswan-swanctl \
-            strongswan-charon \
             libcharon-extra-plugins \
             libcharon-extauth-plugins \
             libstrongswan-standard-plugins \
@@ -155,9 +152,6 @@ jobs:
             openvpn \
             network-manager \
             network-manager-strongswan \
-            strongswan \
-            strongswan-swanctl \
-            strongswan-charon \
             libcharon-extra-plugins \
             libcharon-extauth-plugins \
             libstrongswan-standard-plugins \

@@ -178,9 +178,11 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "groupdel securewave" in build
     assert "rm -f /run/securewave/helper.sock" in build
     assert (
-        "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan-nm, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libcharon-extauth-plugins, libstrongswan-standard-plugins, libstrongswan-extra-plugins, iproute2, iptables, nftables, acl, systemd, systemd-resolved"
+        "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan-nm, libcharon-extra-plugins, libcharon-extauth-plugins, libstrongswan-standard-plugins, libstrongswan-extra-plugins, iproute2, iptables, nftables, acl, systemd, systemd-resolved"
         in build
     )
+    assert "strongswan-swanctl" not in build
+    assert "strongswan-charon" not in build
     assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build
     assert "render_polkit_rule" not in build
     assert "find_strongswan_fwmark_conflict" in build
@@ -305,6 +307,9 @@ def test_helper_installer_installs_service_socket_model():
     assert "systemd-resolved" in helper_installer
     assert "nftables" in helper_installer
     assert "network-manager-strongswan" in helper_installer
+    assert "package_installed strongswan " not in helper_installer
+    assert "strongswan-swanctl" not in helper_installer
+    assert "strongswan-charon" not in helper_installer
     assert "libcharon-extauth-plugins" in helper_installer
     assert "libstrongswan-standard-plugins" in helper_installer
     assert "libstrongswan-extra-plugins" in helper_installer
