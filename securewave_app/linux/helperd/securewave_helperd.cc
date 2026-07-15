@@ -51,6 +51,7 @@ const char* kIkev2CaName = "securewave-ikev2-ca.pem";
 const char* kIkev2ConnectionName = "SecureWave-IKEv2";
 const char* kIkev2InterfaceName = "nm-xfrm-sw";
 const char* kIkev2IfIdPath = "/run/securewave/ikev2-xfrm-if-id";
+const char* kIkev2EndpointPath = "/run/securewave/ikev2-endpoint";
 const char* kAdblockChainName = "SECUREWAVE_ADBLOCK";
 const guint kContractVersion = 13;
 const gsize kMaxRequestBytes = 64 * 1024;
@@ -1430,6 +1431,84 @@ static bool Ikev2Ipv6BlockModeConfigured(const std::string& contents) {
   return found;
 }
 
+static bool CanonicalIpLiteral(const std::string& raw,
+                               std::string* canonical,
+                               int* family);
+
+static bool ExtractIkev2EndpointIp(const std::string& contents,
+                                   std::string* endpoint) {
+  if (!endpoint) {
+    return false;
+  }
+  const std::string prefix = "# endpoint_ip =";
+  bool found = false;
+  std::istringstream stream(contents);
+  std::string line;
+  while (std::getline(stream, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    line = Trim(line);
+    if (!StartsWith(line, prefix)) {
+      continue;
+    }
+    if (found) {
+      return false;
+    }
+    found = true;
+    std::string canonical;
+    int family = AF_UNSPEC;
+    if (!CanonicalIpLiteral(Trim(line.substr(prefix.size())), &canonical,
+                            &family)) {
+      return false;
+    }
+    *endpoint = canonical;
+  }
+  return found;
+}
+
+static bool Ikev2EapUsernameIsValid(const std::string& value) {
+  const std::string prefix = "swikev2-";
+  if (value.size() != prefix.size() + 32 || !StartsWith(value, prefix)) {
+    return false;
+  }
+  return std::all_of(value.begin() + prefix.size(), value.end(),
+                     [](unsigned char c) { return g_ascii_isxdigit(c); });
+}
+
+static bool Ikev2EapPasswordIsValid(const std::string& value) {
+  if (value.size() < 32 || value.size() > 128) {
+    return false;
+  }
+  return std::all_of(value.begin(), value.end(), [](unsigned char c) {
+    return g_ascii_isalnum(c) || c == '_' || c == '-';
+  });
+}
+
+static bool Ikev2RemoteIdentityIsValid(const std::string& value) {
+  if (value.empty() || value.size() > 253) {
+    return false;
+  }
+  return std::all_of(value.begin(), value.end(), [](unsigned char c) {
+    return g_ascii_isalnum(c) || c == '.' || c == '-' || c == '_' ||
+           c == ':' || c == '@';
+  });
+}
+
+static bool Ikev2ProfileValuesAreSafe(const std::string& server,
+                                      const std::string& username,
+                                      const std::string& password,
+                                      const std::string& remote_id,
+                                      const std::string& endpoint) {
+  std::string canonical_server;
+  int family = AF_UNSPEC;
+  return Ikev2EapUsernameIsValid(username) &&
+         Ikev2EapPasswordIsValid(password) &&
+         (remote_id.empty() || Ikev2RemoteIdentityIsValid(remote_id)) &&
+         CanonicalIpLiteral(server, &canonical_server, &family) &&
+         canonical_server == endpoint;
+}
+
 static bool WritePeerOwnedFile(const std::string& path,
                                const std::string& contents,
                                uid_t peer_uid,
@@ -2029,6 +2108,94 @@ static bool ClearPersistedIkev2IfId() {
   return unlink(kIkev2IfIdPath) == 0 || errno == ENOENT;
 }
 
+struct PersistedIkev2Endpoint {
+  bool inspection_ok = false;
+  bool present = false;
+  bool valid = false;
+  std::string value;
+  int family = AF_UNSPEC;
+};
+
+static bool CanonicalIpLiteral(const std::string& raw,
+                               std::string* canonical,
+                               int* family) {
+  if (!canonical || !family || raw.empty() || raw.size() >= INET6_ADDRSTRLEN) {
+    return false;
+  }
+  struct in_addr ipv4 {};
+  struct in6_addr ipv6 {};
+  char buffer[INET6_ADDRSTRLEN] = {};
+  if (inet_pton(AF_INET, raw.c_str(), &ipv4) == 1 &&
+      inet_ntop(AF_INET, &ipv4, buffer, sizeof(buffer))) {
+    *canonical = buffer;
+    *family = AF_INET;
+    return true;
+  }
+  if (inet_pton(AF_INET6, raw.c_str(), &ipv6) == 1 &&
+      inet_ntop(AF_INET6, &ipv6, buffer, sizeof(buffer))) {
+    *canonical = buffer;
+    *family = AF_INET6;
+    return true;
+  }
+  return false;
+}
+
+static PersistedIkev2Endpoint ReadPersistedIkev2Endpoint() {
+  PersistedIkev2Endpoint evidence;
+  struct stat st {};
+  if (lstat(kIkev2EndpointPath, &st) != 0) {
+    evidence.inspection_ok = errno == ENOENT;
+    evidence.valid = evidence.inspection_ok;
+    return evidence;
+  }
+  evidence.present = true;
+  if (!S_ISREG(st.st_mode) || S_ISLNK(st.st_mode) || st.st_uid != 0 ||
+      (st.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
+    evidence.inspection_ok = true;
+    return evidence;
+  }
+  std::ifstream input(kIkev2EndpointPath);
+  std::ostringstream contents;
+  contents << input.rdbuf();
+  evidence.inspection_ok = !input.bad();
+  std::string raw = Trim(contents.str());
+  evidence.valid = evidence.inspection_ok &&
+                   CanonicalIpLiteral(raw, &evidence.value, &evidence.family);
+  return evidence;
+}
+
+static bool PersistIkev2Endpoint(const std::string& endpoint) {
+  std::string canonical;
+  int family = AF_UNSPEC;
+  if (!CanonicalIpLiteral(endpoint, &canonical, &family)) {
+    return false;
+  }
+  const PersistedIkev2Endpoint existing = ReadPersistedIkev2Endpoint();
+  if (!existing.inspection_ok || (existing.present && !existing.valid)) {
+    return false;
+  }
+  if (existing.present) {
+    return existing.value == canonical && existing.family == family;
+  }
+  const std::string contents = canonical + "\n";
+  GError* error = nullptr;
+  const bool written = g_file_set_contents(
+      kIkev2EndpointPath, contents.c_str(), contents.size(), &error);
+  if (error) {
+    g_error_free(error);
+  }
+  if (!written || chmod(kIkev2EndpointPath, 0600) != 0) {
+    return false;
+  }
+  const PersistedIkev2Endpoint verified = ReadPersistedIkev2Endpoint();
+  return verified.inspection_ok && verified.present && verified.valid &&
+         verified.value == canonical && verified.family == family;
+}
+
+static bool ClearPersistedIkev2Endpoint() {
+  return unlink(kIkev2EndpointPath) == 0 || errno == ENOENT;
+}
+
 struct Ikev2InterfaceEvidence {
   bool inspection_ok = false;
   bool present = false;
@@ -2182,6 +2349,32 @@ static CommandResult ReadIpRules(const char* family) {
   return RunCommand({"ip", family, "-N", "rule", "show"});
 }
 
+static bool Ikev2EndpointBypassEvidence(
+    const PersistedIkev2Endpoint& endpoint,
+    bool* inspection_ok) {
+  if (inspection_ok) {
+    *inspection_ok = false;
+  }
+  if (!endpoint.present || !endpoint.valid ||
+      (endpoint.family != AF_INET && endpoint.family != AF_INET6)) {
+    return false;
+  }
+  const char* family = endpoint.family == AF_INET ? "-4" : "-6";
+  // charon-nm's socket mark (0xdc == 220) must bypass the table-210
+  // full-tunnel rule so IKE packets continue to use the physical endpoint.
+  const CommandResult route = RunCommand(
+      {"ip", family, "route", "get", endpoint.value, "mark", "220"});
+  if (!route.ok) {
+    return false;
+  }
+  if (inspection_ok) {
+    *inspection_ok = true;
+  }
+  return route.out.find(std::string(" dev ") + kIkev2InterfaceName) ==
+             std::string::npos &&
+         route.out.find(" table 210") == std::string::npos;
+}
+
 struct Ikev2Ipv6BlockEvidence {
   CommandResult inspection;
   bool present = false;
@@ -2233,6 +2426,26 @@ static bool Ikev2HasUnqualifiedPref210Rule(const std::string& output) {
     if (line.find("from all") != std::string::npos &&
         line.find("lookup 210") != std::string::npos &&
         line.find("fwmark") == std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool Ikev2HasUnqualifiedPref220Rule(const std::string& output) {
+  std::istringstream stream(output);
+  std::string line;
+  while (std::getline(stream, line)) {
+    std::istringstream tokens(Trim(line));
+    std::vector<std::string> values;
+    std::string value;
+    while (tokens >> value) {
+      values.push_back(value);
+    }
+    if (values.size() == 5 && values[0] == "220:" &&
+        values[1] == "from" && values[2] == "all" &&
+        (values[3] == "lookup" || values[3] == "table") &&
+        values[4] == "220") {
       return true;
     }
   }
@@ -2317,6 +2530,7 @@ struct Ikev2RuntimeSnapshot {
   Ikev2NetworkEvidence network;
   Ikev2InterfaceEvidence interface;
   PersistedIkev2IfId persisted_if_id;
+  PersistedIkev2Endpoint endpoint;
   Ikev2RouteEvidence routes;
   Ikev2Ipv6BlockEvidence ipv6_block;
   std::vector<XfrmStateRecord> states;
@@ -2330,7 +2544,10 @@ struct Ikev2RuntimeSnapshot {
   bool owned_xfrm_esp_present = false;
   bool owned_xfrm_policy_present = false;
   bool owned_xfrm_pair_present = false;
+  bool endpoint_bypass_inspection_ok = false;
+  bool endpoint_bypass_present = false;
   bool routing_loop_rule_present = false;
+  bool legacy_routing_loop_rule_present = false;
   bool routing_rules_safe = false;
   bool routing_rules_idle_safe = false;
   bool connected = false;
@@ -2346,6 +2563,7 @@ static Ikev2RuntimeSnapshot ReadIkev2RuntimeSnapshot() {
   snapshot.network = ReadIkev2NetworkEvidence();
   snapshot.interface = ReadIkev2InterfaceEvidence();
   snapshot.persisted_if_id = ReadPersistedIkev2IfId();
+  snapshot.endpoint = ReadPersistedIkev2Endpoint();
   snapshot.routes = ReadIkev2RouteEvidence();
   snapshot.ipv6_block = ReadIkev2Ipv6BlockEvidence();
   snapshot.ownership_inspection_ok =
@@ -2388,10 +2606,24 @@ static Ikev2RuntimeSnapshot ReadIkev2RuntimeSnapshot() {
         OwnedXfrmPairPresent(
             snapshot.states, snapshot.policies, snapshot.owned_if_id);
   }
+  if (snapshot.connection.active) {
+    snapshot.endpoint_bypass_present = Ikev2EndpointBypassEvidence(
+        snapshot.endpoint, &snapshot.endpoint_bypass_inspection_ok);
+  } else {
+    // No route-get request is meaningful after teardown. A missing endpoint
+    // record is clean; a malformed record remains an inspection failure.
+    snapshot.endpoint_bypass_inspection_ok = snapshot.endpoint.inspection_ok &&
+        (!snapshot.endpoint.present || snapshot.endpoint.valid);
+  }
   const Ikev2RuleEvidence rules4 =
       ParseIkev2RuleEvidence(snapshot.rules4.out);
   const Ikev2RuleEvidence rules6 =
       ParseIkev2RuleEvidence(snapshot.rules6.out);
+  snapshot.legacy_routing_loop_rule_present =
+      (snapshot.rules4.ok &&
+       Ikev2HasUnqualifiedPref220Rule(snapshot.rules4.out)) ||
+      (snapshot.rules6.ok &&
+       Ikev2HasUnqualifiedPref220Rule(snapshot.rules6.out));
   snapshot.routing_loop_rule_present =
       (snapshot.rules4.ok &&
        Ikev2HasUnqualifiedPref210Rule(snapshot.rules4.out)) ||
@@ -2400,7 +2632,8 @@ static Ikev2RuntimeSnapshot ReadIkev2RuntimeSnapshot() {
       rules4.unexpected_table_210_rule ||
       rules6.unexpected_table_210_rule ||
       rules4.expected_safe_count > 1 ||
-      rules6.expected_safe_count > 1;
+      rules6.expected_safe_count > 1 ||
+      snapshot.legacy_routing_loop_rule_present;
   snapshot.routing_rules_safe =
       snapshot.rules4.ok && snapshot.rules6.ok &&
       Ikev2RuleEvidenceSafe(rules4) && Ikev2RuleEvidenceSafe(rules6);
@@ -2427,6 +2660,8 @@ static Ikev2RuntimeSnapshot ReadIkev2RuntimeSnapshot() {
       snapshot.xfrm_state_inspection_ok &&
       snapshot.xfrm_policy_inspection_ok &&
       snapshot.owned_xfrm_pair_present &&
+      snapshot.endpoint_bypass_inspection_ok &&
+      snapshot.endpoint_bypass_present &&
       snapshot.rules4.ok &&
       snapshot.rules6.ok &&
       snapshot.routing_rules_safe &&
@@ -3226,6 +3461,8 @@ static Fields Ikev2Status() {
       snapshot.ipv6_block.present ? "true" : "false";
   fields["routing_loop_rule_present"] =
       snapshot.routing_loop_rule_present ? "true" : "false";
+  fields["legacy_routing_loop_rule_present"] =
+      snapshot.legacy_routing_loop_rule_present ? "true" : "false";
   fields["routing_rule_inspection_ok"] =
       (snapshot.rules4.ok && snapshot.rules6.ok) ? "true" : "false";
   fields["routing_rules_safe"] =
@@ -3250,6 +3487,10 @@ static Fields Ikev2Status() {
       snapshot.interface.if_id_persisted ? "true" : "false";
   fields["ownership_inspection_ok"] =
       snapshot.ownership_inspection_ok ? "true" : "false";
+  fields["endpoint_bypass_inspection_ok"] =
+      snapshot.endpoint_bypass_inspection_ok ? "true" : "false";
+  fields["endpoint_bypass_present"] =
+      snapshot.endpoint_bypass_present ? "true" : "false";
   fields["dns_present"] = snapshot.network.dns_present ? "true" : "false";
   fields["route_inspection_ok"] =
       snapshot.routes.inspection_ok ? "true" : "false";
@@ -3283,6 +3524,7 @@ static Fields Ikev2Status() {
   if (!snapshot.connection.inspection_ok ||
       !snapshot.interface.inspection_ok ||
       !snapshot.ownership_inspection_ok ||
+      !snapshot.endpoint_bypass_inspection_ok ||
       !snapshot.xfrm_state_inspection_ok ||
       !snapshot.xfrm_policy_inspection_ok ||
       !snapshot.routes.inspection_ok ||
@@ -3316,7 +3558,8 @@ static Fields Ikev2Status() {
         "IKEv2 is not connected but owned privileged runtime residue remains.",
         fields);
   }
-  if (!snapshot.connected && !ClearPersistedIkev2IfId()) {
+  if (!snapshot.connected &&
+      (!ClearPersistedIkev2IfId() || !ClearPersistedIkev2Endpoint())) {
     return Error(
         "inspection_failed",
         "Owned IKEv2 runtime state is clean but its ownership record could not be cleared.",
@@ -3403,9 +3646,16 @@ static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t pe
   const std::string password = SwanctlValueForKey(contents, "secret");
   const std::string remote_id = SwanctlValueForKey(contents, "id");
   const std::string ca_pem = ExtractCaPem(contents);
+  std::string endpoint;
   DnsServers dns_servers;
   if (server.empty() || username.empty() || password.empty()) {
     return Error("invalid_config", "IKEv2 config is missing server, EAP ID, or EAP secret.");
+  }
+  if (!Ikev2EapUsernameIsValid(username) || !Ikev2EapPasswordIsValid(password) ||
+      (!remote_id.empty() && !Ikev2RemoteIdentityIsValid(remote_id))) {
+    return Error(
+        "invalid_config",
+        "IKEv2 config contains an unsafe endpoint, identity, or credential value.");
   }
   if (!ExtractIkev2DnsServers(contents, &dns_servers)) {
     return Error(
@@ -3416,6 +3666,17 @@ static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t pe
     return Error(
         "invalid_config",
         "IKEv2 config is missing the required SecureWave IPv6 block mode.");
+  }
+  if (!ExtractIkev2EndpointIp(contents, &endpoint)) {
+    return Error(
+        "invalid_config",
+        "IKEv2 config is missing a valid numeric endpoint-bypass marker.");
+  }
+  if (!Ikev2ProfileValuesAreSafe(server, username, password, remote_id,
+                                 endpoint)) {
+    return Error(
+        "invalid_config",
+        "IKEv2 server must be the exact numeric endpoint used for bypass verification.");
   }
 
   std::string ca_path;
@@ -3432,6 +3693,11 @@ static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t pe
     return Error(
         "vpn_connect_failed",
         "Unable to establish a clean IKEv2 baseline: " + cleanup_message);
+  }
+  if (!PersistIkev2Endpoint(endpoint)) {
+    return Error(
+        "vpn_connect_failed",
+        "Unable to persist the owned IKEv2 endpoint-bypass identity.");
   }
   const auto connect_failure = [](const std::string& primary) {
     std::string cleanup_error;
@@ -3475,8 +3741,8 @@ static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t pe
   const bool cleaned = StopIkev2Runtime(&cleanup_message);
   return Error(
       "vpn_connect_failed",
-      std::string("IKEv2 started but exact IPv4 table-210 routing, IPv6 blocking, DNS, owned XFRM state/policy, counters, and routing-loop safety evidence were not detected.") +
-          (cleaned ? "" : " Cleanup also failed: " + cleanup_message));
+      std::string("IKEv2 started but exact IPv4 table-210 routing, endpoint bypass, IPv6 blocking, DNS, owned XFRM state/policy, and routing-loop safety evidence were not detected.") +
+      (cleaned ? "" : " Cleanup also failed: " + cleanup_message));
 }
 
 static bool RequestFieldsAllowed(const Fields& request,

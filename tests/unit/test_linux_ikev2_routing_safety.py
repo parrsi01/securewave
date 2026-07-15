@@ -141,6 +141,30 @@ def test_helper_fails_closed_on_mixed_unsafe_and_foreign_rules(tmp_path):
     assert "rule del" not in log
 
 
+def test_ikev2_add_eap_rejects_non_allowlisted_profile_values():
+    invalid_args = (
+        ("vpn.example.test", "swikev2-" + "a" * 32, "A" * 32),
+        ("192.0.2.10", "testuser@example.com", "A" * 32),
+        ("192.0.2.10", "swikev2-" + "a" * 32, "unsafe secret"),
+        (
+            "192.0.2.10",
+            "swikev2-" + "a" * 32,
+            "A" * 32,
+            "vpn.example.test,method=eap",
+        ),
+    )
+    for args in invalid_args:
+        result = subprocess.run(
+            [str(HELPER), "ikev2-add-eap", *args],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert result.returncode == 64
+        assert "refusing" in result.stderr
+
+
 def _run_ikev2_delete(
     tmp_path: Path,
     *,
@@ -237,6 +261,8 @@ def _install_ikev2_lifecycle_fakes(tmp_path: Path) -> tuple[Path, dict[str, Path
         "firewall": tmp_path / "firewall.rules",
         "active": tmp_path / "active.connections",
         "profiles": tmp_path / "profiles.connections",
+        "rules4": tmp_path / "rules4",
+        "rules6": tmp_path / "rules6",
     }
     for path in paths.values():
         path.write_text("", encoding="utf-8")
@@ -246,9 +272,11 @@ def _install_ikev2_lifecycle_fakes(tmp_path: Path) -> tuple[Path, dict[str, Path
         """#!/usr/bin/env bash
 printf 'ip %s\\n' "$*" >> "$SECUREWAVE_TEST_EVENTS"
 if [[ "${1:-}" == "-4" || "${1:-}" == "-6" ]]; then
+  family="$1"
   shift
   [[ "${1:-}" == "-N" ]] && shift
   if [[ "${1:-} ${2:-}" == "rule show" ]]; then
+    [[ "$family" == "-4" ]] && cat "$SECUREWAVE_TEST_RULES4" || cat "$SECUREWAVE_TEST_RULES6"
     exit 0
   fi
   if [[ "${1:-} ${2:-}" == "route flush" ]]; then
@@ -350,6 +378,7 @@ def _run_ikev2_lifecycle(
     fail_up: bool = False,
     fail_down: bool = False,
     fail_delete: bool = False,
+    legacy_loop: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, Path]]:
     fake_bin, paths = _install_ikev2_lifecycle_fakes(tmp_path)
     if block_present:
@@ -358,6 +387,10 @@ def _run_ikev2_lifecycle(
         paths["active"].write_text("SecureWave-IKEv2:vpn\n", encoding="utf-8")
     if profile:
         paths["profiles"].write_text("SecureWave-IKEv2:vpn\n", encoding="utf-8")
+    if legacy_loop:
+        legacy = "220: from all lookup 220\n"
+        paths["rules4"].write_text(legacy, encoding="utf-8")
+        paths["rules6"].write_text(legacy, encoding="utf-8")
     env = os.environ.copy()
     env.update(
         {
@@ -366,6 +399,8 @@ def _run_ikev2_lifecycle(
             "SECUREWAVE_TEST_FIREWALL": str(paths["firewall"]),
             "SECUREWAVE_TEST_ACTIVE": str(paths["active"]),
             "SECUREWAVE_TEST_PROFILES": str(paths["profiles"]),
+            "SECUREWAVE_TEST_RULES4": str(paths["rules4"]),
+            "SECUREWAVE_TEST_RULES6": str(paths["rules6"]),
             "SECUREWAVE_TEST_FAIL_UP": "1" if fail_up else "0",
             "SECUREWAVE_TEST_FAIL_DOWN": "1" if fail_down else "0",
             "SECUREWAVE_TEST_FAIL_DELETE": "1" if fail_delete else "0",
@@ -391,6 +426,22 @@ def test_ikev2_up_installs_block_before_nmcli_and_rolls_back_failed_up(tmp_path)
         "nmcli connection up id SecureWave-IKEv2"
     )
     assert "ip6tables-restore -n" in events
+
+
+def test_ikev2_up_refuses_legacy_pref_220_loop_without_modifying_it(tmp_path):
+    result, paths = _run_ikev2_lifecycle(
+        tmp_path,
+        "ikev2-up",
+        legacy_loop=True,
+    )
+
+    assert result.returncode != 0
+    assert "unqualified pref-220 lookup-220 routing" in result.stderr
+    assert paths["rules4"].read_text(encoding="utf-8") == "220: from all lookup 220\n"
+    assert paths["rules6"].read_text(encoding="utf-8") == "220: from all lookup 220\n"
+    events = paths["events"].read_text(encoding="utf-8")
+    assert "nmcli connection up" not in events
+    assert "ip6tables -I OUTPUT" not in events
 
 
 def test_ikev2_down_keeps_block_until_deactivation_is_confirmed(tmp_path):

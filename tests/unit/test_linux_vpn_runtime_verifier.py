@@ -277,6 +277,7 @@ def _clean_disconnected_ikev2_status(**overrides):
         "xfrm_policy_present": "false",
         "routing_rule_inspection_ok": "true",
         "routing_rules_idle_safe": "true",
+        "legacy_routing_loop_rule_present": "false",
     }
     response.update(overrides)
     return response
@@ -826,6 +827,9 @@ def _active_ikev2_status(**overrides):
         "routing_rule_inspection_ok": "true",
         "routing_rules_safe": "true",
         "routing_loop_rule_present": "false",
+        "legacy_routing_loop_rule_present": "false",
+        "endpoint_bypass_inspection_ok": "true",
+        "endpoint_bypass_present": "true",
         "counters_available": "true",
     }
     response.update(overrides)
@@ -886,6 +890,8 @@ def test_active_ikev2_requires_route_dns_xfrm_and_safe_charon_nm_rules(monkeypat
         {"route_inspection_ok": "false"},
         {"ipv4_full_route_present": "false"},
         {"route_conflict_present": "true"},
+        {"endpoint_bypass_inspection_ok": "false"},
+        {"endpoint_bypass_present": "false"},
         {"xfrm_state_inspection_ok": "false"},
         {"xfrm_state_present": "false"},
         {"xfrm_policy_inspection_ok": "false"},
@@ -928,6 +934,22 @@ def test_active_ikev2_fails_closed_on_unsafe_charon_nm_rule(monkeypatch):
     assert not checks["runtime:ikev2:status"].ok
     assert not checks["runtime:ikev2:safety"].ok
     assert not checks["runtime:ikev2:dns"].ok
+
+
+def test_active_ikev2_fails_closed_on_legacy_pref_220_loop(monkeypatch):
+    monkeypatch.setattr(
+        verifier,
+        "helper_request",
+        lambda fields, timeout=5.0: _active_ikev2_status(
+            legacy_routing_loop_rule_present="true",
+        ),
+    )
+    monkeypatch.setattr(verifier, "_run", _active_tunnel_dns_run)
+
+    checks = {check.name: check for check in verifier.check_active_runtime("ikev2")}
+
+    assert checks["runtime:ikev2:route"].ok
+    assert not checks["runtime:ikev2:safety"].ok
 
 
 @pytest.mark.parametrize(

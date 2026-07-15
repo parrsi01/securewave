@@ -670,6 +670,32 @@ static HelperTaskContext* helper_task_context_new(
   return ctx;
 }
 
+static void remove_ephemeral_credentialed_profile(const HelperTaskContext* ctx) {
+  if (!ctx) {
+    return;
+  }
+  const std::string config_path = field(ctx->args, "config_path");
+  if (!config_path.empty()) {
+    g_unlink(config_path.c_str());
+  }
+  if (g_strcmp0(ctx->op, "openvpn.stop") == 0 ||
+      g_strcmp0(ctx->op, "openvpn.start") == 0) {
+    const std::string auth_path = field(ctx->args, "auth_path");
+    if (!auth_path.empty()) {
+      g_unlink(auth_path.c_str());
+    }
+  }
+  if (g_strcmp0(ctx->op, "ikev2.stop") == 0 ||
+      g_strcmp0(ctx->op, "ikev2.start") == 0) {
+    g_autofree gchar* directory = g_path_get_dirname(config_path.c_str());
+    if (directory && *directory) {
+      g_autofree gchar* ca_path =
+          g_build_filename(directory, "securewave-ikev2-ca.pem", nullptr);
+      g_unlink(ca_path);
+    }
+  }
+}
+
 static void helper_operation_worker(GTask* task,
                                     gpointer source_object,
                                     gpointer task_data,
@@ -699,8 +725,19 @@ static void helper_operation_complete(GObject* source_object,
   g_autoptr(GError) error = nullptr;
   const gboolean ok = g_task_propagate_boolean(G_TASK(result), &error);
   if (ok) {
+    if (g_strcmp0(ctx->op, "openvpn.stop") == 0 ||
+        g_strcmp0(ctx->op, "ikev2.stop") == 0) {
+      remove_ephemeral_credentialed_profile(ctx);
+    }
     respond_success(ctx->method_call);
   } else {
+    if (g_strcmp0(ctx->op, "openvpn.start") == 0 ||
+        g_strcmp0(ctx->op, "ikev2.start") == 0) {
+      // The helper has already attempted fail-closed runtime rollback. The
+      // untrusted user-owned config and any copied IKE CA must not outlive a
+      // failed credentialed connection attempt.
+      remove_ephemeral_credentialed_profile(ctx);
+    }
     respond_error(
         ctx->method_call,
         ctx->error_code,

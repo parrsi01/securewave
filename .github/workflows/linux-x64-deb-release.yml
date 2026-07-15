@@ -66,6 +66,7 @@ jobs:
             strongswan-charon \
             libcharon-extra-plugins \
             libcharon-extauth-plugins \
+            libstrongswan-standard-plugins \
             libstrongswan-extra-plugins \
             iproute2 \
             iptables \
@@ -159,6 +160,7 @@ jobs:
             strongswan-charon \
             libcharon-extra-plugins \
             libcharon-extauth-plugins \
+            libstrongswan-standard-plugins \
             libstrongswan-extra-plugins \
             iproute2 \
             iptables \

@@ -790,6 +790,8 @@ def _helper_counter_snapshot(
             and response.get("interface") == IKEV2_INTERFACE
             and response.get("ownership_inspection_ok") == "true"
             and response.get("xfrm_pair_present") == "true"
+            and response.get("endpoint_bypass_inspection_ok") == "true"
+            and response.get("endpoint_bypass_present") == "true"
         )
     )
     available = (
@@ -1215,6 +1217,9 @@ def _ikev2_routing_rule_evidence(deadline: float | None = None) -> dict[str, obj
         bad_count_before_family = len(bad_rules)
         for raw_line in result.stdout.splitlines():
             line = " ".join(raw_line.split())
+            if re.fullmatch(r"220: from all (?:lookup|table) 220", line):
+                bad_rules.append(f"{label}: unqualified pref-220/table-220 rule")
+                continue
             targets_ikev2_table = re.search(
                 r"(?:^| )(?:lookup|table) 210(?: |$)", line
             ) is not None
@@ -1556,9 +1561,12 @@ def _runtime_evidence_for(
             and helper_response.get("xfrm_policy_inspection_ok") == "true"
             and helper_response.get("xfrm_policy_present") == "true"
             and helper_response.get("xfrm_pair_present") == "true"
+            and helper_response.get("endpoint_bypass_inspection_ok") == "true"
+            and helper_response.get("endpoint_bypass_present") == "true"
             and helper_response.get("routing_rule_inspection_ok") == "true"
             and helper_response.get("routing_rules_safe") == "true"
             and helper_response.get("routing_loop_rule_present") == "false"
+            and helper_response.get("legacy_routing_loop_rule_present") == "false"
             and _positive_helper_counters(helper_response)
         )
         return {

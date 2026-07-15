@@ -151,7 +151,10 @@ void main() {
 
   test('OpenVPN rolls back when authenticated egress proof fails', () async {
     final service = _NativeSuccessVpnService();
-    final api = _OpenVpnEgressApiClient(egressVerified: false);
+    final api = _CredentialedEgressApiClient(
+      protocol: VpnProtocol.openVpn,
+      egressVerified: false,
+    );
     final container = ProviderContainer(
       overrides: [
         vpnServiceProvider.overrideWithValue(service),
@@ -171,6 +174,47 @@ void main() {
     expect(service.disconnectCalls, 1);
     expect(state.status, VpnStatus.error);
     expect(state.lastTunnelStartOk, isFalse);
+  });
+
+  test('IKEv2 rolls back when authenticated egress proof fails', () async {
+    final service = _NativeSuccessVpnService();
+    final api = _CredentialedEgressApiClient(
+      protocol: VpnProtocol.ikev2,
+      egressVerified: false,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.ensureInitialized();
+    await notifier.selectProtocol(VpnProtocol.ikev2);
+    await notifier.connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(api.baselineCalls, 1);
+    expect(api.verifyCalls, 1);
+    expect(service.disconnectCalls, 1);
+    expect(state.status, VpnStatus.error);
+    expect(state.lastTunnelStartOk, isFalse);
+  });
+
+  test('IKEv2 runtime restoration disconnects without a fresh egress baseline',
+      () async {
+    final service = _RestoredCredentialedVpnService(VpnProtocol.ikev2);
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).ensureInitialized();
+
+    expect(service.disconnectCalls, 1);
+    expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
   });
 
   test('stale stored VPN device id is cleared and profile fetch retries',
@@ -456,6 +500,18 @@ class _NativeSuccessVpnService extends VpnService {
   VpnStatus getStatus() => _status;
 }
 
+class _RestoredCredentialedVpnService extends _NativeSuccessVpnService {
+  _RestoredCredentialedVpnService(this.restoredProtocol);
+
+  final VpnProtocol restoredProtocol;
+
+  @override
+  Future<VpnRuntimeStatus> refreshRuntimeStatus() async => VpnRuntimeStatus(
+        status: VpnStatus.connected,
+        protocol: restoredProtocol,
+      );
+}
+
 class _ReferenceRecoveryApiClient extends ApiClient {
   _ReferenceRecoveryApiClient({required this.failFirstDetail})
       : super(AppConfig.defaults());
@@ -565,10 +621,13 @@ class _AlwaysFailingProfileApiClient extends ApiClient {
   }
 }
 
-class _OpenVpnEgressApiClient extends ApiClient {
-  _OpenVpnEgressApiClient({required this.egressVerified})
-      : super(AppConfig.defaults());
+class _CredentialedEgressApiClient extends ApiClient {
+  _CredentialedEgressApiClient({
+    required this.protocol,
+    required this.egressVerified,
+  }) : super(AppConfig.defaults());
 
+  final VpnProtocol protocol;
   final bool egressVerified;
   int baselineCalls = 0;
   int verifyCalls = 0;
@@ -595,7 +654,7 @@ class _OpenVpnEgressApiClient extends ApiClient {
     verifyCalls += 1;
     expect(serverId, 'de-nue-1');
     expect(deviceId, 321);
-    expect(protocol, VpnProtocol.openVpn);
+    expect(protocol, this.protocol);
     expect(baselineFingerprint, 'a' * 64);
     return egressVerified;
   }
@@ -613,15 +672,23 @@ class _OpenVpnEgressApiClient extends ApiClient {
       'device_id': 321,
       'device_name': deviceName,
       'device_type': deviceType,
-      'protocol': 'openvpn',
+      'protocol': this.protocol == VpnProtocol.openVpn ? 'openvpn' : 'ikev2',
       'server_id': 'de-nue-1',
       'server_location': 'Nuremberg, Germany',
       'issued_at': DateTime.now().toIso8601String(),
       'expires_at':
           DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
-      'openvpn_config': 'client\ndev tun\n',
-      'openvpn_username': 'swovpn-0123456789abcdef0123456789abcdef',
-      'openvpn_password': 'fresh-openvpn-password-012345',
+      'openvpn_config':
+          this.protocol == VpnProtocol.openVpn ? 'client\ndev tun\n' : '',
+      'openvpn_username': this.protocol == VpnProtocol.openVpn
+          ? 'swovpn-0123456789abcdef0123456789abcdef'
+          : null,
+      'openvpn_password': this.protocol == VpnProtocol.openVpn
+          ? 'fresh-openvpn-password-012345'
+          : null,
+      'ikev2_config': this.protocol == VpnProtocol.ikev2
+          ? 'connections { securewave {} }\n# endpoint_ip = 192.0.2.10\n'
+          : '',
       'dns': {
         'servers': ['94.140.14.14'],
         'enforcement': 'config',

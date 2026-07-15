@@ -68,7 +68,7 @@ def test_openvpn_dns_rejects_untagged_or_command_shaped_values(tmp_path: Path):
     assert not trace.exists()
 
 
-def test_openvpn_dns_revert_is_fixed_to_securewave_link(tmp_path: Path):
+def test_openvpn_dns_revert_is_a_quiet_noop_when_dedicated_link_is_absent(tmp_path: Path):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     trace = tmp_path / "trace"
@@ -86,9 +86,29 @@ def test_openvpn_dns_revert_is_fixed_to_securewave_link(tmp_path: Path):
     )
 
     assert result.returncode == 0, result.stderr
-    assert (
-        trace.read_text(encoding="utf-8").strip() == "resolvectl revert tun-securewave"
+    assert not trace.exists()
+
+
+def test_openvpn_dns_revert_uses_only_existing_dedicated_link(tmp_path: Path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    trace = tmp_path / "trace"
+    _write_fake(fake_bin / "ip", "exit 0\n")
+    _write_fake(
+        fake_bin / "resolvectl",
+        'printf \'resolvectl %s\\n\' "$*" >> "$TRACE_FILE"\n',
     )
+
+    result = subprocess.run(  # nosec B603
+        [str(HELPER), "openvpn-dns-revert"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=_environment(fake_bin, trace),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert trace.read_text(encoding="utf-8").strip() == "resolvectl revert tun-securewave"
 
 
 def test_ikev2_dns_is_split_by_family_with_exclusive_priority(tmp_path: Path):

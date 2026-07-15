@@ -80,7 +80,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
-Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libcharon-extauth-plugins, libstrongswan-extra-plugins, iproute2, iptables, nftables, acl, systemd, systemd-resolved
+Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan-nm, strongswan, strongswan-swanctl, strongswan-charon, libcharon-extra-plugins, libcharon-extauth-plugins, libstrongswan-standard-plugins, libstrongswan-extra-plugins, iproute2, iptables, nftables, acl, systemd, systemd-resolved
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave VPN desktop client
 CONTROL
@@ -538,7 +538,8 @@ offline_owned_runtime_clean() {
   grep -Fq 'securewave-ikev2-ipv6-block-v1' <<< "$ip6tables_rules" && return 1
   [[ ! -e /run/securewave/sw-wg.output-policy &&
      ! -e /run/securewave/sw-wg.endpoint-ips &&
-     ! -e /run/securewave/ikev2-xfrm-if-id ]] || return 1
+     ! -e /run/securewave/ikev2-xfrm-if-id &&
+     ! -e /run/securewave/ikev2-endpoint ]] || return 1
   return 0
 }
 helper_service_active=0
@@ -637,7 +638,7 @@ case "${1:-}" in
     rm -f /etc/strongswan.d/securewave-routing.conf
     rm -f /run/securewave/helper.sock
     rm -f /run/securewave/sw-wg.output-policy /run/securewave/sw-wg.endpoint-ips
-    rm -f /run/securewave/ikev2-xfrm-if-id
+    rm -f /run/securewave/ikev2-xfrm-if-id /run/securewave/ikev2-endpoint
     rmdir /run/securewave >/dev/null 2>&1 || true
     rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules
     rm -f /usr/local/libexec/securewave-wg-quick.contract

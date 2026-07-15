@@ -124,6 +124,18 @@ def _ikev2_rule_is_expected_safe_rule(line: str) -> bool:
     )
 
 
+def _is_unqualified_legacy_ikev2_rule(line: str) -> bool:
+    """Identify only the historic, unsafe pref-220/table-220 loop rule."""
+    tokens = line.split()
+    return (
+        len(tokens) == 5
+        and tokens[0] == "220:"
+        and tokens[1:3] == ["from", "all"]
+        and tokens[3] in {"lookup", "table"}
+        and tokens[4] == "220"
+    )
+
+
 def _escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
 
@@ -556,11 +568,14 @@ def check_active_runtime(protocol: str) -> list[Check]:
             and response.get("xfrm_policy_inspection_ok") == "true"
             and response.get("xfrm_policy_present") == "true"
             and response.get("xfrm_pair_present") == "true"
+            and response.get("endpoint_bypass_inspection_ok") == "true"
+            and response.get("endpoint_bypass_present") == "true"
         )
         safety_ok = (
             response.get("routing_rule_inspection_ok") == "true"
             and response.get("routing_rules_safe") == "true"
             and response.get("routing_loop_rule_present") == "false"
+            and response.get("legacy_routing_loop_rule_present") == "false"
         )
         interface = (
             IKEV2_INTERFACE
@@ -809,6 +824,25 @@ def check_residue() -> list[Check]:
         )
     )
 
+    legacy_ikev2_rules = [
+        (family, line)
+        for family, line in rule_lines
+        if _is_unqualified_legacy_ikev2_rule(line)
+    ]
+    checks.append(
+        Check(
+            "residue:ikev2_legacy_policy_loop",
+            rules_ok and not legacy_ikev2_rules,
+            "no unqualified pref-220/table-220 IKEv2 routing loop"
+            if rules_ok and not legacy_ikev2_rules
+            else (
+                f"{len(legacy_ikev2_rules)} unqualified pref-220 IKEv2 rule(s) found; details redacted"
+                if legacy_ikev2_rules
+                else "IPv4/IPv6 policy-rule inspection failed"
+            ),
+        )
+    )
+
     ikev2_rules_by_family = {
         family: [
             line
@@ -989,6 +1023,7 @@ def check_residue() -> list[Check]:
         and ikev2_status.get("xfrm_policy_present") == "false"
         and ikev2_status.get("routing_rule_inspection_ok") == "true"
         and ikev2_status.get("routing_rules_idle_safe") == "true"
+        and ikev2_status.get("legacy_routing_loop_rule_present") == "false"
     )
     checks.append(
         Check(

@@ -72,6 +72,23 @@ int main(int argc, char** argv) {{
     for (const std::string& value : servers.ipv6) std::cout << value << "\\n";
     return 0;
   }}
+  if (mode == "ikev2-endpoint" && argc == 3) {{
+    std::ifstream input(argv[2], std::ios::binary);
+    const std::string contents(
+        (std::istreambuf_iterator<char>(input)),
+        std::istreambuf_iterator<char>());
+    std::string endpoint;
+    if (!ExtractIkev2EndpointIp(contents, &endpoint)) return 1;
+    std::cout << "endpoint=" << endpoint << "\\n";
+    return 0;
+  }}
+  if (mode == "ikev2-profile-values" && argc == 7) {{
+    std::cout << "valid="
+              << Ikev2ProfileValuesAreSafe(
+                     argv[2], argv[3], argv[4], argv[5], argv[6])
+              << "\\n";
+    return 0;
+  }}
   if (mode == "ikev2-network") {{
     const std::string output(
         (std::istreambuf_iterator<char>(std::cin)),
@@ -173,6 +190,13 @@ int main(int argc, char** argv) {{
         output.substr(split + delimiter.size()));
     std::cout << "idle_safe=" << Ikev2RuleEvidenceIdleSafe(rules4, rules6)
               << "\\n";
+    return 0;
+  }}
+  if (mode == "ikev2-legacy-rule") {{
+    const std::string output(
+        (std::istreambuf_iterator<char>(std::cin)),
+        std::istreambuf_iterator<char>());
+    std::cout << "present=" << Ikev2HasUnqualifiedPref220Rule(output) << "\\n";
     return 0;
   }}
   if (mode == "wg-nft-output") {{
@@ -645,6 +669,120 @@ def test_ikev2_dns_marker_is_required_unique_and_literal(
         assert result.returncode == 1
 
 
+def test_ikev2_endpoint_marker_is_required_unique_and_canonical(
+    helperd_harness: Path, tmp_path: Path
+):
+    config = tmp_path / "securewave-ikev2.conf"
+    config.write_text(
+        "connections {}\n# endpoint_ip = 2001:db8::1\n",
+        encoding="utf-8",
+    )
+    valid = subprocess.run(  # nosec B603
+        [str(helperd_harness), "ikev2-endpoint", str(config)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert valid.stdout == "endpoint=2001:db8::1\n"
+
+    for contents in (
+        "connections {}\n",
+        "# endpoint_ip = vpn.example.test\n",
+        "# endpoint_ip = 999.999.999.999\n",
+        "# endpoint_ip = 2001:::1\n",
+        "# endpoint_ip = 192.0.2.1 extra\n",
+        "# endpoint_ip = 192.0.2.1\n# endpoint_ip = 192.0.2.2\n",
+    ):
+        config.write_text(contents, encoding="utf-8")
+        result = subprocess.run(  # nosec B603
+            [str(helperd_harness), "ikev2-endpoint", str(config)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1
+
+
+@pytest.mark.parametrize(
+    ("server", "username", "password", "remote_id", "endpoint", "expected"),
+    (
+        (
+            "192.0.2.10",
+            "swikev2-0123456789abcdef0123456789abcdef",
+            "A" * 32,
+            "vpn.securewave.test",
+            "192.0.2.10",
+            True,
+        ),
+        (
+            "2001:db8::10",
+            "swikev2-0123456789abcdef0123456789abcdef",
+            "A" * 32,
+            "2001:db8::10",
+            "2001:db8::10",
+            True,
+        ),
+        (
+            "192.0.2.10",
+            "swikev2-0123456789abcdef0123456789abcdef",
+            "A" * 32,
+            "vpn.securewave.test,method=eap",
+            "192.0.2.10",
+            False,
+        ),
+        (
+            "192.0.2.11",
+            "swikev2-0123456789abcdef0123456789abcdef",
+            "A" * 32,
+            "vpn.securewave.test",
+            "192.0.2.10",
+            False,
+        ),
+        (
+            "192.0.2.10",
+            "testuser@example.com",
+            "A" * 32,
+            "vpn.securewave.test",
+            "192.0.2.10",
+            False,
+        ),
+        (
+            "192.0.2.10",
+            "swikev2-0123456789abcdef0123456789abcdef",
+            "unsafe secret with spaces",
+            "vpn.securewave.test",
+            "192.0.2.10",
+            False,
+        ),
+    ),
+)
+def test_ikev2_profile_values_bind_numeric_endpoint_and_reject_injection(
+    helperd_harness: Path,
+    server: str,
+    username: str,
+    password: str,
+    remote_id: str,
+    endpoint: str,
+    expected: bool,
+):
+    result = subprocess.run(  # nosec B603
+        [
+            str(helperd_harness),
+            "ikev2-profile-values",
+            server,
+            username,
+            password,
+            remote_id,
+            endpoint,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert ("valid=1" in result.stdout) is expected
+
+
 def test_ikev2_network_metadata_is_dns_only(helperd_harness: Path):
     result = subprocess.run(  # nosec B603
         [str(helperd_harness), "ikev2-network"],
@@ -953,6 +1091,31 @@ def test_ikev2_idle_rule_parser_allows_only_paired_or_absent_safe_rules(
     )
 
     assert ("idle_safe=1" in result.stdout) is expected
+
+
+@pytest.mark.parametrize(
+    ("rule", "expected"),
+    (
+        ("220: from all lookup 220\n", True),
+        ("220: from all table 220\n", True),
+        ("220: from all fwmark 0xdc lookup 220\n", False),
+        ("221: from all lookup 220\n", False),
+        ("220: from all lookup 210\n", False),
+        ("220: from all lookup 220 extra\n", False),
+    ),
+)
+def test_ikev2_legacy_pref_220_loop_parser_is_exact(
+    helperd_harness: Path, rule: str, expected: bool
+):
+    result = subprocess.run(  # nosec B603
+        [str(helperd_harness), "ikev2-legacy-rule"],
+        input=rule,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert ("present=1" in result.stdout) is expected
 
 
 _CLEAN_IKEV2_FLAGS = (

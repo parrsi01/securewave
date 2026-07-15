@@ -7,6 +7,8 @@ OPENVPN_INTERFACE="tun-securewave"
 MAX_DNS_SERVERS=8
 IKEV2_ROUTING_TABLE=210
 IKEV2_ROUTING_PRIORITY=210
+IKEV2_LEGACY_ROUTING_TABLE=220
+IKEV2_LEGACY_ROUTING_PRIORITY=220
 WIREGUARD_ROUTING_TABLE=51820
 WIREGUARD_POLICY_PRIORITY=32764
 WIREGUARD_SUPPRESS_PRIORITY=32765
@@ -127,6 +129,39 @@ require_nonempty_single_line() {
   local label="$2"
   if [[ -z "$value" || "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
     echo "securewave-wg-quick: refusing invalid ${label}" >&2
+    exit 64
+  fi
+}
+
+require_ikev2_endpoint() {
+  local value="$1"
+  if [[ ! "$value" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ &&
+        ! "$value" =~ ^[0-9A-Fa-f:]+$ ]]; then
+    echo "securewave-wg-quick: refusing non-numeric IKEv2 endpoint" >&2
+    exit 64
+  fi
+}
+
+require_ikev2_eap_username() {
+  local value="$1"
+  if [[ ! "$value" =~ ^swikev2-[a-f0-9]{32}$ ]]; then
+    echo "securewave-wg-quick: refusing invalid IKEv2 EAP username" >&2
+    exit 64
+  fi
+}
+
+require_ikev2_eap_secret() {
+  local value="$1"
+  if [[ ! "$value" =~ ^[A-Za-z0-9_-]{32,128}$ ]]; then
+    echo "securewave-wg-quick: refusing invalid IKEv2 EAP secret" >&2
+    exit 64
+  fi
+}
+
+require_ikev2_remote_identity() {
+  local value="$1"
+  if [[ ! "$value" =~ ^[A-Za-z0-9][A-Za-z0-9._:@-]{0,252}$ ]]; then
+    echo "securewave-wg-quick: refusing invalid IKEv2 remote identity" >&2
     exit 64
   fi
 }
@@ -267,11 +302,11 @@ case "$action" in
     password="$3"
     remote_id="${4:-}"
     ca_cert="${5:-}"
-    require_nonempty_single_line "$server" "server"
-    require_nonempty_single_line "$username" "username"
-    require_nonempty_single_line "$password" "password"
+    require_ikev2_endpoint "$server"
+    require_ikev2_eap_username "$username"
+    require_ikev2_eap_secret "$password"
     if [[ -n "$remote_id" ]]; then
-      require_nonempty_single_line "$remote_id" "remote-id"
+      require_ikev2_remote_identity "$remote_id"
     fi
     if [[ -n "$ca_cert" ]]; then
       require_safe_runtime_file "$ca_cert" "ca certificate"
@@ -412,6 +447,37 @@ clear_ikev2_unqualified_rule_family() {
 clear_ikev2_unqualified_rules() {
   clear_ikev2_unqualified_rule_family -4
   clear_ikev2_unqualified_rule_family -6
+}
+
+reject_ikev2_legacy_routing_loop_family() {
+  local family="$1"
+  local rules
+
+  if ! rules="$(ip "$family" -N rule show 2>/dev/null)"; then
+    echo "securewave-wg-quick: unable to inspect ${family} legacy policy rules" >&2
+    return 1
+  fi
+  if printf '%s\n' "$rules" | awk \
+      -v priority="${IKEV2_LEGACY_ROUTING_PRIORITY}:" \
+      -v table="$IKEV2_LEGACY_ROUTING_TABLE" '
+        $1 == priority && $2 == "from" && $3 == "all" &&
+          ($4 == "lookup" || $4 == "table") && $5 == table && NF == 5 {
+            found = 1
+          }
+        END { exit found ? 0 : 1 }
+      '; then
+    # This exact historic rule can belong to a non-SecureWave system charon
+    # deployment. Never delete it implicitly; refuse a SecureWave start so we
+    # neither reintroduce the routing loop nor damage unrelated IPsec state.
+    echo "securewave-wg-quick: refusing IKEv2 start while unqualified pref-220 lookup-220 routing is present" >&2
+    return 1
+  fi
+  return 0
+}
+
+reject_ikev2_legacy_routing_loop() {
+  reject_ikev2_legacy_routing_loop_family -4
+  reject_ikev2_legacy_routing_loop_family -6
 }
 
 clear_ikev2_route_state() {
@@ -795,13 +861,14 @@ if [[ "$action" == "openvpn-dns-apply" ]]; then
 fi
 
 if [[ "$action" == "openvpn-dns-revert" ]]; then
-  if resolvectl revert "$OPENVPN_INTERFACE"; then
-    exit 0
-  fi
   if ! ip link show dev "$OPENVPN_INTERFACE" >/dev/null 2>&1; then
+    # systemd-resolved removes per-link DNS state when the dedicated TUN link
+    # disappears.  Avoid asking resolvectl about an already absent interface:
+    # it is a clean idempotent state, not a package-upgrade failure.
     exit 0
   fi
-  exit 1
+  resolvectl revert "$OPENVPN_INTERFACE"
+  exit 0
 fi
 
 if [[ "$action" == "wireguard-transfer" ]]; then
@@ -888,13 +955,15 @@ fi
 
 if [[ "$action" == "ikev2-up" ]]; then
   clear_ikev2_route_state
+  reject_ikev2_legacy_routing_loop
   ensure_ikev2_ipv6_block
   if nmcli connection up id "$CONNECTION_NAME"; then
     status=0
   else
     status=$?
   fi
-  if [[ "$status" == "0" ]] && ! clear_ikev2_unqualified_rules; then
+  if [[ "$status" == "0" ]] &&
+     { ! clear_ikev2_unqualified_rules || ! reject_ikev2_legacy_routing_loop; }; then
     status=1
   fi
   ip route flush cache >/dev/null 2>&1 || true
