@@ -121,6 +121,18 @@ Keep IKEv2 unavailable unless backend advertising and clean Linux runtime proof
 both pass. Never run these probes or concurrency tests against production by
 inference.
 
+The repository's isolated IKEv2 lab is safe for deterministic local negotiation
+and cleanup proof and does not contact staging:
+
+```bash
+bash scripts/ikev2_container_lab.sh --preflight
+bash scripts/ikev2_container_lab.sh --run
+```
+
+Treat its private DNS/HTTPS egress as lab-only evidence. It cannot substitute
+for an authorized external exit-IP movement check or enable the protocol in the
+API/UI.
+
 ## Bounded concurrency
 
 Use local or explicitly authorized staging only. The certified local model used

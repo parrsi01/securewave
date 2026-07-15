@@ -8,6 +8,14 @@ before marking Linux ARM64/x64, Windows, or macOS artifacts available.
 
 ## Release Checklist
 
+Local pre-release evidence on 2026-07-15 completed the ARM64 package lifecycle,
+contract-13 verifier, isolated IKEv2 lab, disposable PostgreSQL concurrency,
+Flutter/Linux build, Docker/Compose syntax/build, and repository/security
+checks. This does not check off any production, publication, external staging,
+or x86-64 exact-head item below. Ruff still has repository-wide baseline
+findings, and authorized external proof is unavailable; both remain explicit
+release blockers.
+
 - [ ] Production Compose validation: on the authorized production host, run `docker compose --env-file .env -f deploy/hetzner/compose.yaml config --quiet` with the reviewed image tag and record redacted pass/fail evidence.
 - [ ] Hetzner fleet audit: with `HETZNER_API_TOKEN` set, run `python3 infrastructure/hetzner/audit_vpn_fleet.py --json-out artifacts/post-merge-enterprise-release/hetzner-fleet-audit.json`; do not include token values in logs or artifacts.
 - [ ] Authorized external load test: run the approved load plan only against SecureWave-owned infrastructure, including WireGuard/OpenVPN/IKEv2 profile fetches and usage reporting, and record p95/p99 latency plus error rate.

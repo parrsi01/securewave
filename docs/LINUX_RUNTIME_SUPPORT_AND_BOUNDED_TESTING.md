@@ -46,9 +46,12 @@ The default bounded envelope for an explicitly authorized staging run is:
 
 The abort action is to stop the client, disconnect any test tunnel, run the
 SecureWave-only cleanup verifier, and retain redacted logs. No load test was
-run against production as part of this certification. The local pass uses
-single-process in-memory SQLite and bounded pytest execution; it does not
-claim staging performance or live data-plane proof.
+run against production as part of this certification. The 2026-07-15 local pass
+used bounded pytest execution, fresh SQLite migrations, and the two
+usage-accounting concurrency tests against a disposable PostgreSQL 15 container.
+The isolated IKEv2 lab also exercised monitor-visible failure and recovery
+transitions without exporting addresses or credentials. These checks do not
+claim staging performance or live external data-plane proof.
 
 Representative local checks:
 

@@ -1,16 +1,16 @@
 # SecureWave VPN Runtime Portability Matrix
 
-Last audited: 2026-07-14 UTC
+Last audited: 2026-07-15 UTC
 
 Audit basis:
 
 - Candidate branch: `codex/linux-runtime-final`
-- Base: `origin/master` at `b2c69ade88a6d7d96a1478f792c39ec793888fac`
-- Source head when the local runtime/package checks ran:
-  `b45b093b4969a0ff3e8c27b0011ebf30a4d6070c`
+- Base incorporated: `origin/master` at
+  `56d3126116120176152e98ab213d0fa1b19e1fdc`
+- Source: current PR #48 candidate; use the final PR head for remote evidence.
 - Audit host: Linux `aarch64` / Debian `arm64`
 - Local ARM64 package SHA-256:
-  `bc6c47e209138567e4f07d8e24b681cd3195b33d6dec8d036f0a916f6b20e909`
+  `3ae555b3a78160cd18eebbf08d380694b172091518d61701a128ee99f998c7db`
 - Publication, signing, production deployment, and live credentials were
   excluded.
 
@@ -29,10 +29,10 @@ Audit basis:
 
 | Target | Protocol | Implemented | Package/build proven | Install/helper proven | Live routing proven | Current truth |
 | --- | --- | --- | --- | --- | --- | --- |
-| Linux ARM64 `.deb` | WireGuard | Yes: contract-13 helper, routes/policy/status/counters, cleanup | Yes: local ARM64 package and AArch64 helper payload | Blocked: no clean ARM64 systemd VM; current host helper IPC/service/socket checks pass | Blocked: no authorized staging credentials/infrastructure | Primary path, package-proven, not live-release-proven |
-| Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status and config/process safety | Yes: local package payload and dependency metadata | Blocked: no clean ARM64 systemd VM | Blocked: no backend + data-plane evidence in authorized staging | Unavailable unless backend and data-plane gates pass |
-| Linux ARM64 `.deb` | IKEv2 | Helper orchestration exists | Yes: package contains the declared strongSwan/NetworkManager dependencies | Blocked: no clean install/runtime proof | Blocked: backend and clean Linux runtime gates are not both green | Intentionally unavailable |
-| Linux x64 `.deb` | WireGuard/OpenVPN/IKEv2 | Same portable source paths | Workflow `29348878602` at source head `164098b1` passed x86-64 ELF, contract 13, metadata, install/helper/socket, verifier, launch, purge, and residue checks; SHA-256 `48768524c4682d5d85027531fae9a499acd6eb4f45f6cc83b9d13f8bae54fd91` | Blocked: clean x86_64 systemd VM required | Blocked: authorized staging evidence required | Private beta evidence only; manifest remains `coming_soon` |
+| Linux ARM64 `.deb` | WireGuard | Yes: contract-13 helper, routes/policy/status/counters, cleanup | Yes: local ARM64 package and AArch64 helper payload | Yes: fresh Ubuntu 24.04 ARM64 systemd container passed install, helper/socket/IPC, verifier, launch, upgrade, purge, and residue checks | Blocked: no authorized staging credentials/infrastructure | Primary path, package-proven, not live-release-proven |
+| Linux ARM64 `.deb` | OpenVPN | Yes: allowlisted start/stop/status and config/process safety | Yes: local package payload and dependency metadata | Yes: dependency, helper probe, malformed/unauthorized IPC rejection, verifier, upgrade, purge, and residue checks passed | Blocked: no backend + data-plane evidence in authorized staging | Unavailable unless backend and data-plane gates pass |
+| Linux ARM64 `.deb` | IKEv2 | Yes: allowlisted NetworkManager/strongSwan orchestration and safe table-210 routing | Yes: required NetworkManager/strongSwan plugins are declared and installed without a standalone charon daemon | Yes: clean package lifecycle passed; isolated lab additionally passed EAP, ESP/XFRM, rekey, failed auth, reconnect, and cleanup | Blocked: no authenticated backend plus authorized external exit-IP proof | Intentionally unavailable |
+| Linux x64 `.deb` | WireGuard/OpenVPN/IKEv2 | Same portable source paths | Pending exact-head private workflow after push; earlier-run checksums are intentionally not reused | Pending exact-head ephemeral lifecycle workflow | Blocked: authorized staging evidence required | Manifest remains `coming_soon`; no public artifact claim |
 | Linux portable archive | All | UI can call an already-installed matching helper | Archive build may be proven independently | Not supplied by the archive | Not proven | UI-only until a matching helper package is installed and certified |
 | Windows x64 | WireGuard | Source bridge exists | No Windows artifact in this pass | No Windows service proof in this pass | No Windows route/DNS/data-plane proof | Implemented, not release-proven |
 | Windows x64 | OpenVPN/IKEv2 | No | No | No | No | Intentionally unavailable |
@@ -45,17 +45,16 @@ Audit basis:
   `sudo`, `pkexec`, raw `wg-quick`, or shell fallback.
 - A local helper capability probe never enables a protocol by itself. Backend
   server evidence and, for OpenVPN, data-plane evidence are also required.
-- IKEv2 stays unavailable while backend advertising and clean Linux runtime proof
-  are incomplete.
+- IKEv2 stays unavailable while backend advertising and authorized external
+  data-plane proof are incomplete, even though the isolated local lab is green.
 - A connected UI state is not certification evidence. Active proof requires
   handshake/process state, routes, DNS, HTTPS, endpoint bypass, exit-IP movement,
   counters, disconnect, and residue cleanup.
 
 ## Evidence still required
 
-- Clean ARM64 and x86_64 systemd VM install, upgrade, no-prompt helper use,
-  uninstall, and cleanup.
-- Authorized staging WireGuard and OpenVPN route/data-plane proof. No production
-  load test or implicit production probe is permitted.
+- Exact-head x86_64 package, helper, lifecycle, and cleanup workflow evidence.
+- Authorized staging WireGuard, OpenVPN, and IKEv2 route/data-plane proof. No
+  production load test or implicit production probe is permitted.
 - Windows service/runtime proof and a signed macOS Network Extension before those
   platforms receive VPN release claims.
