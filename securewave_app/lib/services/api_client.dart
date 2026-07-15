@@ -26,8 +26,15 @@ class ApiClient {
             headers: {'Content-Type': 'application/json'},
           ),
         );
+    // Handle all HTTP responses in the interceptor below. This guarantees an
+    // expired token cannot leave the shell authenticated just because Dio
+    // converted the 401 into an error before application code sees it.
+    _dio.options.validateStatus = (_) => true;
     if (session != null) {
-      _dio.interceptors.add(
+      // Insert first so failures raised by later transport/interceptor layers
+      // still return through this error handler.
+      _dio.interceptors.insert(
+        0,
         InterceptorsWrapper(
           onRequest: (options, handler) {
             final token = session.accessToken;
@@ -35,6 +42,32 @@ class ApiClient {
               options.headers['Authorization'] = 'Bearer $token';
             }
             return handler.next(options);
+          },
+          onResponse: (response, handler) async {
+            final status = response.statusCode ?? 0;
+            if (status == 401) {
+              await _expireSession(session);
+            }
+            if (status >= 400) {
+              return handler.reject(
+                DioException(
+                  requestOptions: response.requestOptions,
+                  response: response,
+                  type: DioExceptionType.badResponse,
+                ),
+              );
+            }
+            return handler.next(response);
+          },
+          onError: (error, handler) async {
+            // A restored token only proves that secure storage was readable;
+            // it does not prove that the token is still valid. Without this
+            // recovery path the app keeps rendering the authenticated shell
+            // while every backend-backed provider fails with 401.
+            if (error.response?.statusCode == 401) {
+              await _expireSession(session);
+            }
+            return handler.next(error);
           },
         ),
       );
@@ -48,9 +81,16 @@ class ApiClient {
   UserPlan? _cachedPlan;
   DateTime? _planFetchedAt;
   bool _mockNoticeLogged = false;
+  Future<void>? _sessionExpiryInFlight;
 
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
+
+  Future<void> _expireSession(AuthSession session) {
+    return _sessionExpiryInFlight ??= session.clearSession().whenComplete(() {
+      _sessionExpiryInFlight = null;
+    });
+  }
 
   Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
