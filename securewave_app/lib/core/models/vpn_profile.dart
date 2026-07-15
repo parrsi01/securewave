@@ -51,7 +51,11 @@ class VpnProfile {
   String configForProtocol(VpnProtocol protocol) {
     switch (protocol) {
       case VpnProtocol.wireGuard:
-        return wireguardConfig;
+        // Linux helpers own routes, DNS, and kill-switch policy. Older
+        // control planes may still attach wg-quick hook directives to an
+        // otherwise valid profile; do not execute those backend-supplied
+        // privileged commands in the client process.
+        return _withoutLegacyWireGuardPrivilegedDirectives(wireguardConfig);
       case VpnProtocol.openVpn:
         return openVpnConfig;
       case VpnProtocol.ikev2:
@@ -124,6 +128,37 @@ class VpnProfile {
       registrationStatus: json['registration_status']?.toString(),
     );
   }
+}
+
+String _withoutLegacyWireGuardPrivilegedDirectives(String config) {
+  const privilegedKeys = {
+    'table',
+    'fwmark',
+    'saveconfig',
+    'preup',
+    'postup',
+    'predown',
+    'postdown',
+  };
+  var section = '';
+  final kept = <String>[];
+  for (final line in config.split('\n')) {
+    final trimmed = line.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      section = trimmed.toLowerCase();
+      kept.add(line);
+      continue;
+    }
+    final separator = trimmed.indexOf('=');
+    final key = separator < 0
+        ? ''
+        : trimmed.substring(0, separator).trim().toLowerCase();
+    if (section == '[interface]' && privilegedKeys.contains(key)) {
+      continue;
+    }
+    kept.add(line);
+  }
+  return kept.join('\n');
 }
 
 String _ikev2ProfileToConfig(Map<String, dynamic> profile) {

@@ -98,6 +98,30 @@ void main() {
     expect(config, contains('# ca_cert_pem_end'));
   });
 
+  test('VpnProfile strips legacy privileged WireGuard directives', () {
+    final profile = VpnProfile.fromJson({
+      'wireguard_config': '''[Interface]
+PrivateKey = test-private-key
+Address = 10.8.0.2/32
+Table = off
+PostUp = ip rule add table 51820
+PostDown = ip rule del table 51820
+
+[Peer]
+PublicKey = test-public-key
+Endpoint = 198.51.100.1:51820
+AllowedIPs = 0.0.0.0/0, ::/0
+''',
+    });
+
+    final config = profile.configForProtocol(VpnProtocol.wireGuard);
+    expect(config, contains('PrivateKey = test-private-key'));
+    expect(config, contains('AllowedIPs = 0.0.0.0/0, ::/0'));
+    expect(config, isNot(contains('Table =')));
+    expect(config, isNot(contains('PostUp =')));
+    expect(config, isNot(contains('PostDown =')));
+  });
+
   test('VpnProfile quotes live IKEv2 swanctl credentials', () {
     final profile = VpnProfile.fromJson({
       'protocol': 'ikev2',
