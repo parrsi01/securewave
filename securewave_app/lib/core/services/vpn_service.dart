@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:platform_info/platform_info.dart';
 
 import '../models/vpn_protocol.dart';
+import '../models/vpn_runtime_policy.dart';
 import '../models/vpn_status.dart';
 import '../logging/app_logger.dart';
 
@@ -136,6 +137,7 @@ class ChannelVpnService extends VpnService {
   }
 
   bool _platformImplementsProtocol(VpnProtocol protocol) {
+    if (!VpnRuntimePolicy.isReleased(protocol)) return false;
     final os = platform.operatingSystem.name.toLowerCase();
     if (os == 'linux') return true;
     if (os == 'windows' || os == 'android' || os == 'ios') {
@@ -154,7 +156,13 @@ class ChannelVpnService extends VpnService {
       _protocolAvailability[protocol] = false;
       return false;
     }
-    final evidenceRequired = protocol != VpnProtocol.wireGuard;
+    if (!VpnRuntimePolicy.isReleased(protocol)) {
+      _protocolAvailability[protocol] = false;
+      _protocolAvailabilityMessages[protocol] =
+          VpnRuntimePolicy.unavailableReason(protocol);
+      return false;
+    }
+    final evidenceRequired = VpnRuntimePolicy.requiresBackendEvidence(protocol);
     if (evidenceRequired && !backendEvidence) {
       _protocolAvailability[protocol] = false;
       _protocolAvailabilityMessages[protocol] =
@@ -171,6 +179,9 @@ class ChannelVpnService extends VpnService {
   @override
   String? protocolUnavailableReason(VpnProtocol protocol) {
     if (canConnectProtocol(protocol)) return null;
+    if (!VpnRuntimePolicy.isReleased(protocol)) {
+      return VpnRuntimePolicy.unavailableReason(protocol);
+    }
     final os = platform.operatingSystem.name.toLowerCase();
     if (os == 'macos') {
       return 'VPN tunneling is unavailable on macOS because this build has no Network Extension provider.';
@@ -544,10 +555,14 @@ class MockVpnService extends VpnService {
   bool get isNativeAvailable => false;
 
   @override
-  bool canConnectProtocol(VpnProtocol protocol) => true;
+  bool canConnectProtocol(VpnProtocol protocol) =>
+      VpnRuntimePolicy.isReleased(protocol);
 
   @override
-  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+  String? protocolUnavailableReason(VpnProtocol protocol) =>
+      VpnRuntimePolicy.isReleased(protocol)
+          ? null
+          : VpnRuntimePolicy.unavailableReason(protocol);
 
   @override
   Future<VpnStatus> connect({
@@ -557,6 +572,12 @@ class MockVpnService extends VpnService {
     String? openVpnPassword,
     bool backendEvidence = false,
   }) async {
+    if (!VpnRuntimePolicy.isReleased(protocol)) {
+      throw VpnServiceException(
+        'protocol_unavailable',
+        VpnRuntimePolicy.unavailableReason(protocol),
+      );
+    }
     if (_status == VpnStatus.connected ||
         _status == VpnStatus.connecting ||
         _status == VpnStatus.disconnecting) {

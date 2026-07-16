@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../logging/app_logger.dart';
 import '../models/vpn_profile.dart';
 import '../models/vpn_protocol.dart';
+import '../models/vpn_runtime_policy.dart';
 import '../models/vpn_status.dart';
 import '../optimization/marlxgb.dart';
 import '../services/device_identity.dart';
@@ -158,8 +159,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final snapshot = await service.refreshRuntimeStatus();
       if (!mounted || snapshot.status != VpnStatus.connected) return;
       final activeProtocol = snapshot.protocol ?? state.protocol;
-      if (activeProtocol == VpnProtocol.openVpn ||
-          activeProtocol == VpnProtocol.ikev2) {
+      if (VpnRuntimePolicy.mustDisconnectAfterProcessRestore(activeProtocol)) {
         // A credentialed tunnel may survive a UI process restart, but this UI
         // has no trustworthy pre-connect egress baseline after restart. Do
         // not resurrect a green state from interface/process/XFRM evidence;
@@ -233,6 +233,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     try {
       final service = _ref.read(vpnServiceProvider);
       final api = _ref.read(apiClientProvider);
+      if (!VpnRuntimePolicy.isReleased(state.protocol)) {
+        throw VpnServiceException(
+          'protocol_unavailable',
+          VpnRuntimePolicy.unavailableReason(state.protocol),
+        );
+      }
       String? config;
       String? openVpnUsername;
       String? openVpnPassword;
@@ -240,8 +246,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       String? credentialedServerId;
       int? credentialedDeviceId;
       final requiresCredentialedEgress =
-          state.protocol == VpnProtocol.openVpn ||
-              state.protocol == VpnProtocol.ikev2;
+          VpnRuntimePolicy.requiresFreshEgressProof(state.protocol);
       var backendEvidence = false;
 
       if (service.isNativeAvailable) {

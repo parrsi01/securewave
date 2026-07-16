@@ -176,7 +176,7 @@ void main() {
     expect(state.lastTunnelStartOk, isFalse);
   });
 
-  test('IKEv2 rolls back when authenticated egress proof fails', () async {
+  test('IKEv2 is rejected before profile or egress activity', () async {
     final service = _NativeSuccessVpnService();
     final api = _CredentialedEgressApiClient(
       protocol: VpnProtocol.ikev2,
@@ -196,11 +196,12 @@ void main() {
     await notifier.connect();
 
     final state = container.read(vpnStateProvider);
-    expect(api.baselineCalls, 1);
-    expect(api.verifyCalls, 1);
-    expect(service.disconnectCalls, 1);
+    expect(api.baselineCalls, 0);
+    expect(api.verifyCalls, 0);
+    expect(service.disconnectCalls, 0);
     expect(state.status, VpnStatus.error);
     expect(state.lastTunnelStartOk, isFalse);
+    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
   });
 
   test('IKEv2 runtime restoration disconnects without a fresh egress baseline',

@@ -1001,6 +1001,14 @@ static void handle_vpn_call(FlMethodChannel* channel,
             nullptr);
         return;
       }
+      if (g_strcmp0(protocol, "ikev2") == 0) {
+        respond_error(
+            method_call,
+            "protocol_unavailable",
+            "IKEv2 is temporarily unavailable while its dedicated gateway is not provisioned.",
+            nullptr);
+        return;
+      }
       if (g_strcmp0(protocol, "wireguard") != 0 &&
           !get_bool_arg(args, "backend_evidence") &&
           !get_bool_arg(args, "runtime_only")) {
@@ -1063,6 +1071,14 @@ static void handle_vpn_call(FlMethodChannel* channel,
     }
     if (!supported_protocol(protocol)) {
       respond_error(method_call, "protocol_unavailable", "Unsupported VPN protocol.", nullptr);
+      return;
+    }
+    if (g_strcmp0(protocol, "ikev2") == 0) {
+      respond_error(
+          method_call,
+          "protocol_unavailable",
+          "IKEv2 is temporarily unavailable while its dedicated gateway is not provisioned.",
+          nullptr);
       return;
     }
     if (g_strcmp0(protocol, "wireguard") != 0 &&

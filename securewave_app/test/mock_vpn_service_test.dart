@@ -2,18 +2,28 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:securewave_app/core/models/vpn_protocol.dart';
-import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
+import 'package:securewave_app/core/models/vpn_status.dart';
 
 void main() {
+  test('IKEv2 remains unavailable even in the mock runtime', () async {
+    final service = MockVpnService(connectDelay: Duration.zero);
+
+    expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
+    expect(
+      () => service.connect(protocol: VpnProtocol.ikev2),
+      throwsA(isA<VpnServiceException>()),
+    );
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('MockVpnService connects and disconnects with delays', () async {
     final service = MockVpnService(
         connectDelay: Duration.zero, disconnectDelay: Duration.zero);
 
-    expect(service.canConnectProtocol(VpnProtocol.ikev2), isTrue);
-    expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNull);
+    expect(service.canConnectProtocol(VpnProtocol.openVpn), isTrue);
+    expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNotNull);
     expect(service.getStatus(), VpnStatus.disconnected);
 
     final connected = await service.connect(protocol: VpnProtocol.wireGuard);
@@ -63,11 +73,11 @@ void main() {
         VpnProtocol.ikev2,
         backendEvidence: true,
       ),
-      isTrue,
+      isFalse,
     );
-    expect(calls.single['backend_evidence'], isTrue);
-    expect(service.canConnectProtocol(VpnProtocol.ikev2), isTrue);
-    expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNull);
+    expect(calls, isEmpty);
+    expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
+    expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNotNull);
   }, testOn: 'linux');
 
   test(
@@ -110,7 +120,7 @@ void main() {
       expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
       expect(
         service.protocolUnavailableReason(VpnProtocol.ikev2),
-        'IKEv2 helper probe could not find swanctl.',
+        contains('temporarily unavailable'),
       );
     },
     testOn: 'linux',

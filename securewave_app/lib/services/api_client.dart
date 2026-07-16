@@ -9,6 +9,7 @@ import '../core/models/user_plan.dart';
 import '../core/services/auth_session.dart';
 import '../core/models/vpn_profile.dart';
 import '../core/models/vpn_protocol.dart';
+import '../core/models/vpn_runtime_policy.dart';
 import '../core/models/protocol_availability.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
@@ -276,12 +277,12 @@ class ApiClient {
           platformSupported: true,
           reason: 'OpenVPN runtime evidence is not configured in mock mode.',
         ),
-        VpnProtocol.ikev2: const ProtocolAvailability(
+        VpnProtocol.ikev2: ProtocolAvailability(
           protocol: VpnProtocol.ikev2,
           enabled: false,
           serverEnabled: false,
           platformSupported: false,
-          reason: 'IKEv2 is not release-ready for Linux.',
+          reason: VpnRuntimePolicy.unavailableReason(VpnProtocol.ikev2),
         ),
       };
     }
