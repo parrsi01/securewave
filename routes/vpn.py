@@ -188,6 +188,7 @@ class VpnProtocolsResponse(BaseModel):
     user_tier: str
     device_type: Optional[str] = None
     protocols: List[VpnProtocolAvailability]
+    runtime_contract: str = ProtocolAvailabilityService.OPENVPN_RUNTIME_CONTRACT
 
 class VpnProfileRequest(BaseModel):
     """Provision an app-consumable VPN tunnel profile (no downloadable files)."""
@@ -231,6 +232,8 @@ class VpnEgressEvidenceRequest(BaseModel):
     baseline_fingerprint: str = Field(
         ..., min_length=64, max_length=64, pattern=r"^[a-f0-9]{64}$"
     )
+    external_baseline_ip: Optional[str] = Field(None, max_length=64)
+    external_exit_ip: Optional[str] = Field(None, max_length=64)
 
 
 class VpnEgressBaselineResponse(BaseModel):
@@ -475,7 +478,9 @@ def _normalize_profile_protocol(raw: Optional[str]) -> str:
 def _platform_supported_protocols(device_type: Optional[str]) -> set[str]:
     normalized = (device_type or "").lower().strip()
     if normalized == "linux":
-        return {"wireguard", "openvpn", "ikev2"}
+        # IKEv2 remains out of the release surface until its dedicated
+        # gateway has a separately certified runtime and data plane.
+        return {"wireguard", "openvpn"}
     return {"wireguard", "openvpn"}
 
 
@@ -757,7 +762,7 @@ async def verify_vpn_egress(
     server = db.query(VPNServer).filter(VPNServer.server_id == payload.server_id).first()
     if server is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VPN server not found.")
-    readiness = ProtocolAvailabilityService().evaluate(server, protocol)
+    readiness = ProtocolAvailabilityService().evaluate_for_profile(server, protocol)
     if not readiness.enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -795,10 +800,30 @@ async def verify_vpn_egress(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="VPN egress verification is unavailable.",
         )
-    verified = (
+    verified_by_server_source = (
         not hmac.compare_digest(payload.baseline_fingerprint, current_fingerprint)
         and hmac.compare_digest(observed or "", expected)
     )
+    external_baseline = _canonical_ip(payload.external_baseline_ip)
+    external_exit = _canonical_ip(payload.external_exit_ip)
+    verified_by_external_https = (
+        protocol == "openvpn"
+        and external_baseline is not None
+        and external_exit == expected
+        and external_baseline != external_exit
+    )
+    verified = verified_by_server_source or verified_by_external_https
+    if verified:
+        ProtocolAvailabilityService.record_evidence(
+            server,
+            protocol,
+            healthy=True,
+            authenticated=True,
+            data_plane_healthy=True,
+            observed_at=datetime.utcnow(),
+        )
+        db.add(server)
+        db.commit()
     return VpnEgressEvidenceResponse(verified=verified)
 
 @router.get("/servers", response_model=ServerListResponse)
@@ -888,7 +913,11 @@ async def list_protocols(
         enabled = platform_supported and server_enabled
         reason = None
         if not platform_supported:
-            reason = f"{protocol} is not release-ready for Linux."
+            reason = (
+                "IKEv2 is unavailable pending dedicated gateway certification."
+                if protocol == "ikev2"
+                else f"{protocol} is not release-ready for Linux."
+            )
         elif not server_enabled:
             reason = next(
                 (result.reason for result in readiness if result.reason),
@@ -1024,10 +1053,18 @@ async def provision_profile(
     device_type = (payload.device_type or "").lower().strip() or None
     if protocol not in _platform_supported_protocols(device_type):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=(
+                status.HTTP_503_SERVICE_UNAVAILABLE
+                if protocol == "ikev2"
+                else status.HTTP_400_BAD_REQUEST
+            ),
             detail=(
-                f"{protocol} is not release-ready for Linux. "
-                "Use WireGuard or OpenVPN on the Linux release path."
+                "IKEv2 is unavailable pending dedicated gateway certification."
+                if protocol == "ikev2"
+                else (
+                    f"{protocol} is not release-ready for Linux. "
+                    "Use WireGuard or OpenVPN on the Linux release path."
+                )
             ),
         )
 
@@ -1106,6 +1143,20 @@ async def provision_profile(
             candidate for candidate in candidates
             if _server_supports_protocol(candidate, protocol)
         ]
+        if not candidates and protocol == "openvpn":
+            # A certification run may need the first credentialed profile in
+            # order to establish the client tunnel that will record global
+            # data-plane evidence.  Keep this bootstrap path out of public
+            # availability/listing decisions: normal clients only reach it
+            # after the app has opted into the isolated probe, and the
+            # protocol remains disabled until /egress/verify records proof.
+            candidates = [
+                candidate
+                for candidate in VPNServerService.get_active_servers(db, user_tier)
+                if ProtocolAvailabilityService().evaluate_for_profile(
+                    candidate, "openvpn"
+                ).enabled
+            ]
         if not candidates:
             raise HTTPException(
                 status_code=503,
@@ -1127,7 +1178,7 @@ async def provision_profile(
 
     assert server is not None
 
-    readiness = ProtocolAvailabilityService().evaluate(server, protocol)
+    readiness = ProtocolAvailabilityService().evaluate_for_profile(server, protocol)
     if not readiness.enabled:
         raise HTTPException(
             status_code=503,

@@ -170,10 +170,38 @@ void main() {
 
     final state = container.read(vpnStateProvider);
     expect(api.baselineCalls, 1);
-    expect(api.verifyCalls, 1);
+    expect(api.verifyCalls, 2);
     expect(service.disconnectCalls, 1);
     expect(state.status, VpnStatus.error);
     expect(state.lastTunnelStartOk, isFalse);
+  });
+
+  test('OpenVPN accepts independent HTTPS movement on a co-hosted API',
+      () async {
+    final service = _NativeSuccessVpnService();
+    final api = _CredentialedEgressApiClient(
+      protocol: VpnProtocol.openVpn,
+      egressVerified: false,
+      externalExitIps: ['192.0.2.10', '198.51.100.20'],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.ensureInitialized();
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+    await notifier.connect();
+
+    expect(api.baselineCalls, 1);
+    expect(api.verifyCalls, 2);
+    expect(api.externalExitCalls, 2);
+    expect(service.disconnectCalls, 0);
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
   });
 
   test('IKEv2 is rejected before profile or egress activity', () async {
@@ -715,12 +743,15 @@ class _CredentialedEgressApiClient extends ApiClient {
   _CredentialedEgressApiClient({
     required this.protocol,
     required this.egressVerified,
+    this.externalExitIps = const ['192.0.2.10', '192.0.2.10'],
   }) : super(AppConfig.defaults());
 
   final VpnProtocol protocol;
   final bool egressVerified;
+  final List<String> externalExitIps;
   int baselineCalls = 0;
   int verifyCalls = 0;
+  int externalExitCalls = 0;
 
   @override
   Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
@@ -740,13 +771,25 @@ class _CredentialedEgressApiClient extends ApiClient {
     required int deviceId,
     required VpnProtocol protocol,
     required String baselineFingerprint,
+    String? externalBaselineIp,
+    String? externalExitIp,
   }) async {
     verifyCalls += 1;
     expect(serverId, 'de-nue-1');
     expect(deviceId, 321);
     expect(protocol, this.protocol);
     expect(baselineFingerprint, 'a' * 64);
+    if (externalExitIp != null) {
+      return externalExitIp != externalBaselineIp;
+    }
     return egressVerified;
+  }
+
+  @override
+  Future<String> captureExternalExitIp() async {
+    final index = externalExitCalls;
+    externalExitCalls += 1;
+    return externalExitIps[index.clamp(0, externalExitIps.length - 1)];
   }
 
   @override

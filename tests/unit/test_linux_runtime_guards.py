@@ -19,10 +19,19 @@ STRONGSWAN_ROUTING = (
     / "linux"
     / "securewave-strongswan-routing.conf"
 )
+RUNNER = ROOT / "securewave_app" / "linux" / "runner" / "my_application.cc"
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def test_linux_runner_accepts_only_bounded_openvpn_username_contracts():
+    runner = _read(RUNNER)
+
+    assert 'g_str_has_prefix(value, "swovpn-") && length == 38' in runner
+    assert 'g_str_has_prefix(value, "sw-ovpn-")' in runner
+    assert "length < 9 || length > 64" in runner
 
 
 def test_helper_contract_version_matches_daemon():
@@ -135,8 +144,8 @@ def test_helper_daemon_rolls_back_a_started_tunnel_without_handshake_proof():
     up_block = helperd.split('if (op == "wireguard.up") {', 1)[1].split(
         'if (op == "wireguard.down") {', 1
     )[0]
-    assert "Fields runtime_status = WireGuardStatus();" in up_block
-    assert 'Field(runtime_status, "status") == "connected"' in up_block
+    assert "if (WaitWireGuardConnected()) {" in up_block
+    assert "return WireGuardStatus();" in up_block
     assert 'RunHelper({"down", config_path});' in up_block
     assert "WireGuard start did not produce authenticated tunnel evidence" in up_block
     assert "WaitWireGuardClean()" in up_block

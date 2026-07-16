@@ -53,6 +53,11 @@ class VPNServer(Base):
     openvpn_port = Column(Integer, default=1194)
     openvpn_transport = Column(String, default="udp")
     openvpn_ca_cert_pem = Column(String, nullable=True)
+    # OpenVPN is credentialed with the packaged user/password helper.  These
+    # flags are explicit capability metadata; a legacy row with NULL values
+    # therefore remains fail-closed until the server is re-synced.
+    openvpn_requires_client_cert = Column(Boolean, default=True, nullable=True)
+    openvpn_supports_userpass = Column(Boolean, default=False, nullable=True)
     ikev2_remote_id = Column(String, nullable=True)
     ikev2_ca_cert_pem = Column(String, nullable=True)
     # Operator/monitor-provided protocol probes.  Endpoint metadata is never
@@ -159,7 +164,9 @@ class VPNServer(Base):
             "protocol": self.protocol,
             "supports_wireguard": self.supports_wireguard,
             "supports_openvpn": self.supports_openvpn,
-            "supports_ikev2": self.supports_ikev2,
+            # IKEv2 is deliberately withheld from every public inventory
+            # shape until its dedicated gateway is separately certified.
+            "supports_ikev2": False,
             "status": self.status,
             "health_status": self.health_status,
             "current_connections": self.current_connections,

@@ -20,7 +20,7 @@ void main() {
     expect(region.latencyMs, 0);
     expect(region.loadPercent, 12.4);
     expect(region.supportsProtocol('openvpn'), isTrue);
-    expect(region.supportsProtocol('ikev2'), isTrue);
+    expect(region.supportsProtocol('ikev2'), isFalse);
     expect(region.premiumOnly, isFalse);
   });
 

@@ -31,7 +31,6 @@ part 'ui/auth_screen.dart';
 part 'ui/main_shell.dart';
 part 'ui/connect_screen.dart';
 part 'ui/catalog_screens.dart';
-part 'ui/wireguard_debug.dart';
 
 typedef FreshTheme = AppUIv1;
 

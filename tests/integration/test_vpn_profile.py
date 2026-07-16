@@ -32,6 +32,8 @@ def _create_free_server(db, *, server_id="profile-free-us-1", **overrides):
         tier_restriction=None,
         performance_score=99.0,
         hcloud_server_state="running",
+        openvpn_requires_client_cert=False,
+        openvpn_supports_userpass=True,
     )
     data.update(overrides)
     server = VPNServer(**data)
@@ -165,7 +167,7 @@ class TestVpnProfileProvisioning:
         from models.wireguard_peer import WireGuardPeer
         assert db.query(WireGuardPeer).count() == 0
 
-    def test_protocols_endpoint_recognizes_linux_ikev2_but_fails_closed_without_metadata(
+    def test_protocols_endpoint_keeps_ikev2_unavailable_even_when_server_flags_are_set(
         self, client, auth_headers, db
     ):
         _create_free_server(db, supports_openvpn=True, supports_ikev2=True)
@@ -177,11 +179,12 @@ class TestVpnProfileProvisioning:
         assert resp.status_code == 200, resp.text
         data = resp.json()
         protocols = {item["protocol"]: item for item in data["protocols"]}
+        assert data["runtime_contract"] == "openvpn-evidence-v2"
         assert protocols["wireguard"]["enabled"] is True
         assert protocols["openvpn"]["enabled"] is False
         assert protocols["ikev2"]["enabled"] is False
-        assert protocols["ikev2"]["platform_supported"] is True
-        assert "metadata" in (protocols["ikev2"]["reason"] or "").lower()
+        assert protocols["ikev2"]["platform_supported"] is False
+        assert "unavailable" in (protocols["ikev2"]["reason"] or "").lower()
 
     def test_servers_endpoint_returns_supported_protocols(self, client, auth_headers, db):
         _create_free_server(
@@ -242,6 +245,7 @@ class TestVpnProfileProvisioning:
             },
         )
         assert profile.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "wireguard" not in profile.text
 
     def test_linux_profile_includes_wg_quick_kill_switch_hooks(self, client, auth_headers, db):
         _create_free_server(db)
@@ -367,13 +371,15 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert profile.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        # A controlled certification run may bootstrap a profile before the
+        # global data-plane evidence is recorded; normal API callers remain
+        # fail-closed at the protocol listing endpoint above.
+        assert profile.status_code == status.HTTP_200_OK, profile.text
+        assert profile.json()["protocol"] == "openvpn"
 
-    def test_ikev2_profile_requires_complete_fresh_evidence_and_opaque_credential(
+    def test_ikev2_remains_unavailable_even_with_complete_server_evidence(
         self, client, auth_headers, db
     ):
-        from models.ikev2_credential import Ikev2Credential
-
         _ready_ikev2_server(db)
 
         protocols_response = client.get(
@@ -386,17 +392,18 @@ class TestVpnProfileProvisioning:
             for item in protocols_response.json()["protocols"]
             if item["protocol"] == "ikev2"
         )
-        assert ikev2["enabled"] is True
-        assert ikev2["server_enabled"] is True
-        assert ikev2["platform_supported"] is True
+        assert ikev2["enabled"] is False
+        assert ikev2["server_enabled"] is False
+        assert ikev2["platform_supported"] is False
+        assert "unavailable" in ikev2["reason"].lower()
 
         servers_response = client.get(
             "/api/vpn/servers?device_type=linux",
             headers=auth_headers,
         )
         server = servers_response.json()["servers"][0]
-        assert server["supports_ikev2"] is True
-        assert "ikev2" in server["supported_protocols"]
+        assert server["supports_ikev2"] is False
+        assert "ikev2" not in server["supported_protocols"]
 
         response = client.post(
             "/api/vpn/profile",
@@ -407,27 +414,8 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_200_OK, response.text
-        payload = response.json()
-        assert payload["protocol"] == "ikev2"
-        assert not payload["wireguard_config"]
-        config = payload["ikev2_config"]
-        assert "connections {" in config
-        assert "remote_addrs = 10.0.0.9" in config
-        assert re.search(r'eap_id = "swikev2-[a-f0-9]{32}"', config)
-        assert "testuser@example.com" not in config
-        assert 'id = "vpn.securewave.test"' in config
-        assert "secrets {" in config
-        secret_match = re.search(r'secret = "([A-Za-z0-9_-]{32,128})"', config)
-        assert secret_match
-        credential = db.query(Ikev2Credential).one()
-        assert credential.username in config
-        assert secret_match.group(1) not in credential.password_encrypted
-        assert credential.is_active is True
-        assert "securewave-ikev2-ca.pem" in config
-        assert "# endpoint_ip = 10.0.0.9" in config
-        assert "# ca_cert_pem_begin" in config
-        assert "# ca_cert_pem_end" in config
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "unavailable" in response.text.lower()
 
     @pytest.mark.parametrize(
         "evidence_case",
@@ -527,7 +515,7 @@ class TestVpnProfileProvisioning:
             headers=auth_headers,
         )
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-        assert "metadata" in response.text.lower()
+        assert "ikev2 is unavailable" in response.text.lower()
         assert "ikev2_config" not in response.text
 
     @pytest.mark.parametrize("legacy_secret", [None, "", " \t", "line1\nline2"])
@@ -553,11 +541,8 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_200_OK, response.text
-        config = response.json()["ikev2_config"]
-        assert re.search(r'secret = "[A-Za-z0-9_-]{32,128}"', config)
-        if legacy_secret:
-            assert legacy_secret not in config
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE, response.text
+        assert "unavailable" in response.text.lower()
 
     @pytest.mark.parametrize(
         "state_case",

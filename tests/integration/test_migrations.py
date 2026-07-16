@@ -49,6 +49,37 @@ def test_fresh_migration_head_is_repeatable_and_covers_runtime_models(monkeypatc
     assert user_columns["auth_token_version"]["nullable"] is False
     assert user_columns["auth_token_version"]["default"] is not None
     assert "connection_count" in {column["name"] for column in inspector.get_columns("wireguard_peers")}
+    vpn_server_columns = {column["name"] for column in inspector.get_columns("vpn_servers")}
+    assert {
+        "openvpn_endpoint",
+        "openvpn_port",
+        "openvpn_transport",
+        "openvpn_ca_cert_pem",
+        "openvpn_requires_client_cert",
+        "openvpn_supports_userpass",
+        "protocol_runtime_evidence",
+    } <= vpn_server_columns
+
+
+def test_known_legacy_production_marker_reconciles_to_current_head(
+    monkeypatch, tmp_path
+):
+    database_url = f"sqlite:///{tmp_path / 'legacy-production.sqlite3'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("AUTO_CREATE_TABLES", "false")
+    config = _alembic_config(database_url)
+
+    # The live systemd deployment reported the private 0018 marker while its
+    # source tree lacked the repository's current OpenVPN evidence modules.
+    command.upgrade(config, "0005")
+    command.stamp(config, "0018")
+    command.upgrade(config, "head")
+    command.check(config)
+
+    engine = create_engine(database_url)
+    assert {"openvpn_credentials", "ikev2_credentials"} <= set(
+        inspect(engine).get_table_names()
+    )
 
 
 def test_legacy_nullable_subscription_timestamp_is_backfilled(monkeypatch, tmp_path):

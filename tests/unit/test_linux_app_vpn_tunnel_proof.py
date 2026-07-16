@@ -239,6 +239,36 @@ def test_wireguard_cleanup_removes_securewave_link(monkeypatch):
     assert actions[0]["ok"] is True
 
 
+def test_openvpn_cleanup_is_safe_on_a_fresh_install(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        proof,
+        "_state_path",
+        lambda filename: str(tmp_path / filename),
+    )
+    monkeypatch.setattr(
+        proof,
+        "_helper_request",
+        lambda fields: (_ for _ in ()).throw(AssertionError(fields)),
+    )
+
+    actions = proof._cleanup_protocol_residue("openvpn")
+
+    assert actions == [
+        {
+            "protocol": "openvpn",
+            "request": None,
+            "response": {
+                "ok": "true",
+                "contract": "13",
+                "status": "disconnected",
+                "message": "No OpenVPN runtime config exists; cleanup is unnecessary.",
+            },
+            "ok": True,
+            "skipped": True,
+        }
+    ]
+
+
 def test_evidence_fails_when_route_uses_physical_interface(monkeypatch):
     _passing_network_gates(monkeypatch)
 
@@ -825,6 +855,7 @@ def test_default_api_base_requires_explicit_environment_value(monkeypatch):
 
 
 def test_default_api_base_accepts_explicit_staging_and_loopback_only(monkeypatch):
+    monkeypatch.delenv("SECUREWAVE_ALLOW_PRODUCTION_PROOF", raising=False)
     monkeypatch.setenv("SECUREWAVE_API_BASE_URL", TEST_API_BASE)
 
     assert proof._default_api_base() == TEST_API_BASE
@@ -833,6 +864,14 @@ def test_default_api_base_accepts_explicit_staging_and_loopback_only(monkeypatch
     ) == "http://127.0.0.1:9443/api"
     with pytest.raises(argparse.ArgumentTypeError, match="production API"):
         proof._canonical_api_base("https://api.securewaveapp.com/api")
+
+
+def test_production_api_base_requires_explicit_live_proof_authorization(monkeypatch):
+    monkeypatch.setenv("SECUREWAVE_ALLOW_PRODUCTION_PROOF", "true")
+
+    assert proof._canonical_api_base(
+        "https://api.securewaveapp.com/api/"
+    ) == "https://api.securewaveapp.com/api"
 
 
 def test_backend_health_probe_disables_inherited_proxies(monkeypatch):

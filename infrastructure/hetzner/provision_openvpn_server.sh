@@ -31,11 +31,15 @@ done
 ((port > 0 && port < 65536)) && [[ "$transport" =~ ^(udp|tcp)$ && "$dns" =~ ^[0-9.]+$ ]] || exit 64
 
 apt-get update
-apt-get install -y --no-install-recommends openvpn openssl iptables ufw
+apt-get install -y --no-install-recommends acl openvpn openssl iptables ufw
 id "$admin_user" >/dev/null 2>&1 || { echo "Configured server admin does not exist." >&2; exit 1; }
 getent group securewave-ovpn >/dev/null || groupadd --system securewave-ovpn
 id -u securewave-ovpn >/dev/null 2>&1 || useradd --system --no-create-home --gid securewave-ovpn --shell /usr/sbin/nologin securewave-ovpn
 install -d -m 0750 -o root -g securewave-ovpn "$ROOT"
+# OpenVPN drops to securewave-ovpn before running auth-user-pass-verify. Grant
+# that service account traversal only; all credential material remains
+# owner/group-readable below this directory.
+setfacl -m g:securewave-ovpn:x /etc/securewave
 install -d -m 0700 "$PKI"
 install -d -m 0755 /etc/openvpn/server /usr/local/libexec
 touch "$DB"; chown root:securewave-ovpn "$DB"; chmod 0640 "$DB"
@@ -66,7 +70,8 @@ IFS='|' read -r stored salt hash expiry <<<"$row"
 [[ "$stored" == "$user" && "$expiry" =~ ^[0-9]+$ && "$expiry" -gt "$(date +%s)" ]] || exit 1
 [[ "$(printf '%s' "${salt}${credential_input}" | sha256sum | awk '{print $1}')" == "$hash" ]] || exit 1
 EOF
-chmod 0700 "$AUTH"
+chown root:securewave-ovpn "$AUTH"
+chmod 0750 "$AUTH"
 
 cat >"$CRED" <<'EOF'
 #!/usr/bin/env bash

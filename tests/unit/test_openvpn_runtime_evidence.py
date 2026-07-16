@@ -19,6 +19,8 @@ def _server(evidence):
         supports_openvpn=True,
         openvpn_endpoint="203.0.113.130",
         openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+        openvpn_requires_client_cert=False,
+        openvpn_supports_userpass=True,
         status="active",
         health_status="healthy",
         last_health_check=now,

@@ -970,12 +970,11 @@ def check_residue() -> list[Check]:
         )
     )
 
-    procs = _run(["pgrep", "-af", "openvpn"])
-    securewave_processes = [
-        line
-        for line in procs.stdout.splitlines()
-        if "securewave.ovpn" in line or "securewave-openvpn" in line
-    ]
+    # Match the daemon's process name exactly. Substring matching against full
+    # command lines counts the proof/verifier command itself whenever its
+    # arguments contain "openvpn", producing a false residue failure.
+    procs = _run(["pgrep", "-a", "-x", "openvpn"])
+    securewave_processes = procs.stdout.splitlines()
     checks.append(
         Check(
             "residue:openvpn_process",

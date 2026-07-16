@@ -43,6 +43,8 @@ def _ready_openvpn_server(db, *, server_id: str = "openvpn-lifecycle-1"):
                 "data_plane_observed_at": now.isoformat(),
             }
         },
+        openvpn_requires_client_cert=False,
+        openvpn_supports_userpass=True,
     )
     db.add(server)
     db.commit()
@@ -224,6 +226,9 @@ def test_openvpn_egress_proof_requires_changed_matching_source_and_active_creden
         )
         assert proof.status_code == status.HTTP_200_OK, proof.text
         assert proof.json() == {"verified": True}
+        db.refresh(server)
+        assert server.protocol_runtime_evidence["openvpn"]["data_plane_healthy"] is True
+        assert "data_plane_observed_at" in server.protocol_runtime_evidence["openvpn"]
 
         unchanged = egress_client.post("/api/vpn/egress/baseline", headers=auth_headers)
         assert unchanged.status_code == status.HTTP_200_OK
@@ -257,6 +262,46 @@ def test_openvpn_egress_proof_requires_changed_matching_source_and_active_creden
         assert revoked.status_code == status.HTTP_403_FORBIDDEN
     finally:
         egress_client.close()
+        from main import app
+
+        app.dependency_overrides.clear()
+
+
+def test_openvpn_egress_proof_accepts_independent_https_exit_for_cohosted_api(
+    db, auth_headers
+):
+    server = _ready_openvpn_server(db, server_id="openvpn-cohost-proof")
+    baseline_client = _client_from_ip(db, "198.51.100.10")
+    try:
+        issued = _profile(baseline_client, auth_headers)
+        assert issued.status_code == status.HTTP_200_OK, issued.text
+        baseline = baseline_client.post("/api/vpn/egress/baseline", headers=auth_headers)
+        assert baseline.status_code == status.HTTP_200_OK, baseline.text
+        device_id = issued.json()["device_id"]
+        baseline_fingerprint = baseline.json()["fingerprint"]
+    finally:
+        baseline_client.close()
+
+    client = _client_from_ip(db, "198.51.100.11")
+    try:
+        response = client.post(
+            "/api/vpn/egress/verify",
+            headers=auth_headers,
+            json={
+                "server_id": server.server_id,
+                "device_id": device_id,
+                "protocol": "openvpn",
+                "baseline_fingerprint": baseline_fingerprint,
+                "external_baseline_ip": "198.51.100.10",
+                "external_exit_ip": server.public_ip,
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json() == {"verified": True}
+        db.refresh(server)
+        assert server.protocol_runtime_evidence["openvpn"]["data_plane_healthy"] is True
+    finally:
+        client.close()
         from main import app
 
         app.dependency_overrides.clear()

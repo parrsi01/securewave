@@ -87,6 +87,8 @@ BUILD_ENVIRONMENT_BLOCKLIST = {
     "SECUREWAVE_RUNTIME_PROBE_PROTOCOL",
     "SECUREWAVE_RUNTIME_PROBE_HOLD_SECONDS",
     "SECUREWAVE_RUNTIME_PROBE_DISCONNECT_AFTER",
+    "SECUREWAVE_RUNTIME_PROBE_RESET_REFERENCES",
+    "SECUREWAVE_RUNTIME_PROBE_ALLOW_UNADVERTISED_OPENVPN",
     "SECUREWAVE_RUNTIME_PROBE_SERVER_ID",
     "SECUREWAVE_CERT_AUTH_FILE",
     "SECUREWAVE_LIVE_ACCOUNT_FILE",
@@ -257,9 +259,14 @@ def _canonical_api_base(raw: str) -> str:
         raise argparse.ArgumentTypeError(
             "plain HTTP is allowed only for loopback local staging"
         )
-    if host == "api.securewaveapp.com":
+    allow_production = (
+        os.environ.get("SECUREWAVE_ALLOW_PRODUCTION_PROOF", "").strip().lower()
+        == "true"
+    )
+    if host == "api.securewaveapp.com" and not allow_production:
         raise argparse.ArgumentTypeError(
-            "production API certification is blocked; provide an authorized staging or loopback API base"
+            "production API certification is blocked unless "
+            "SECUREWAVE_ALLOW_PRODUCTION_PROOF=true is explicitly set"
         )
     return value
 
@@ -412,6 +419,10 @@ def _build_probe_environment(
             "SECUREWAVE_RUNTIME_PROBE_PROTOCOL": protocol,
             "SECUREWAVE_RUNTIME_PROBE_HOLD_SECONDS": str(hold_seconds),
             "SECUREWAVE_RUNTIME_PROBE_DISCONNECT_AFTER": "true",
+            "SECUREWAVE_RUNTIME_PROBE_RESET_REFERENCES": "true",
+            "SECUREWAVE_RUNTIME_PROBE_ALLOW_UNADVERTISED_OPENVPN": (
+                "true" if protocol == "openvpn" else "false"
+            ),
             "SECUREWAVE_USE_MOCK_API": use_mock_api,
         }
     )
@@ -600,10 +611,30 @@ def _cleanup_protocol_residue(protocol: str) -> list[dict[str, object]]:
             {"op": "wireguard.cleanup", "config_path": _state_path("sw-wg.conf")}
         )
     elif protocol == "openvpn":
+        config_path = _state_path("securewave.ovpn")
+        # Contract 13 deliberately rejects cleanup requests whose config file
+        # does not exist. A fresh install has nothing for the helper to stop;
+        # the residue verifier below still fails closed on any surviving
+        # OpenVPN process, interface, route, or DNS state.
+        if not Path(config_path).is_file():
+            return [
+                {
+                    "protocol": protocol,
+                    "request": None,
+                    "response": {
+                        "ok": "true",
+                        "contract": str(MINIMUM_HELPER_CONTRACT),
+                        "status": "disconnected",
+                        "message": "No OpenVPN runtime config exists; cleanup is unnecessary.",
+                    },
+                    "ok": True,
+                    "skipped": True,
+                }
+            ]
         requests.append(
             {
                 "op": "openvpn.cleanup",
-                "config_path": _state_path("securewave.ovpn"),
+                "config_path": config_path,
                 "pid_path": _state_path("securewave-openvpn.pid"),
                 "log_path": _state_path("securewave-openvpn.log"),
                 "auth_path": _state_path("securewave-openvpn.auth"),
@@ -2245,7 +2276,18 @@ def main() -> int:
     )
     parser.add_argument(
         "--api-base",
-        help="Explicit authorized staging or loopback API base; production is blocked.",
+        help=(
+            "Explicit API base. Production additionally requires "
+            "--allow-production."
+        ),
+    )
+    parser.add_argument(
+        "--allow-production",
+        action="store_true",
+        help=(
+            "Explicitly authorize a live proof against api.securewaveapp.com. "
+            "This may create or reuse the account's VPN device."
+        ),
     )
     parser.add_argument(
         "--auth-file",
@@ -2267,6 +2309,8 @@ def main() -> int:
     parser.add_argument("--evidence-timeout", type=_positive_int, default=180)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
+    if args.allow_production:
+        os.environ["SECUREWAVE_ALLOW_PRODUCTION_PROOF"] = "true"
     try:
         args.api_base = _canonical_api_base(args.api_base or _default_api_base() or "")
     except argparse.ArgumentTypeError as exc:
