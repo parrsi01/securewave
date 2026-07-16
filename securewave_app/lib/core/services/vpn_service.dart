@@ -131,6 +131,7 @@ class ChannelVpnService extends VpnService {
 
   @override
   bool canConnectProtocol(VpnProtocol protocol) {
+    if (!VpnRuntimePolicy.isReleased(protocol)) return false;
     if (_allowFallback) return true;
     return _platformImplementsProtocol(protocol) &&
         (_protocolAvailability[protocol] ?? false);
@@ -151,15 +152,15 @@ class ChannelVpnService extends VpnService {
     VpnProtocol protocol, {
     bool backendEvidence = false,
   }) async {
-    if (_allowFallback) return true;
-    if (!_platformImplementsProtocol(protocol)) {
-      _protocolAvailability[protocol] = false;
-      return false;
-    }
     if (!VpnRuntimePolicy.isReleased(protocol)) {
       _protocolAvailability[protocol] = false;
       _protocolAvailabilityMessages[protocol] =
           VpnRuntimePolicy.unavailableReason(protocol);
+      return false;
+    }
+    if (_allowFallback) return true;
+    if (!_platformImplementsProtocol(protocol)) {
+      _protocolAvailability[protocol] = false;
       return false;
     }
     final evidenceRequired = VpnRuntimePolicy.requiresBackendEvidence(protocol);
@@ -208,6 +209,18 @@ class ChannelVpnService extends VpnService {
     }
     _status = VpnStatus.connecting;
     try {
+      if (!VpnRuntimePolicy.isReleased(protocol)) {
+        _status = VpnStatus.disconnected;
+        throw VpnServiceException(
+          'protocol_unavailable',
+          VpnRuntimePolicy.unavailableReason(protocol),
+        );
+      }
+      if (_allowFallback) {
+        _logMockUse('Mock API mode is using the demo VPN tunnel.');
+        _status = await _fallback.connect(protocol: protocol);
+        return _status;
+      }
       if (!_allowFallback && !_platformImplementsProtocol(protocol)) {
         _status = VpnStatus.disconnected;
         throw VpnServiceException(
@@ -336,6 +349,10 @@ class ChannelVpnService extends VpnService {
     }
     _status = VpnStatus.disconnecting;
     try {
+      if (_allowFallback) {
+        _status = await _fallback.disconnect();
+        return _status;
+      }
       final os = platform.operatingSystem.name.toLowerCase();
       final available = await _refreshNativeAvailability();
       if (!available) {
