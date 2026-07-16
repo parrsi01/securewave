@@ -12,6 +12,7 @@ class AppConfig {
     required this.portalUrl,
     required this.upgradeUrl,
     required this.useMockApi,
+    this.skipLoginForDevelopment = false,
     required this.resetSessionOnBoot,
   });
 
@@ -19,6 +20,7 @@ class AppConfig {
   final String portalUrl;
   final String upgradeUrl;
   final bool useMockApi;
+  final bool skipLoginForDevelopment;
   final bool resetSessionOnBoot;
   static AppConfig? _cached;
 
@@ -44,6 +46,7 @@ class AppConfig {
           defaultValue: 'false',
         ),
       ),
+      skipLoginForDevelopment: false,
       resetSessionOnBoot: false,
     );
   }
@@ -94,10 +97,17 @@ class AppConfig {
           const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
               defaultValue: 'false'),
     );
+    final skipLoginRequested = _parseBool(
+      env['SECUREWAVE_SKIP_LOGIN'] ??
+          const String.fromEnvironment('SECUREWAVE_SKIP_LOGIN',
+              defaultValue: 'false'),
+    );
     if (kIsReleaseMode && useMock) {
       AppLogger.warning('Config: mock API disabled in release builds.');
       useMock = false;
     }
+    final skipLoginForDevelopment =
+        !kIsReleaseMode && useMock && skipLoginRequested;
     final resetSessionOnBoot = _parseBool(
       env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
           const String.fromEnvironment(
@@ -111,6 +121,7 @@ class AppConfig {
       portalUrl: portalUrl,
       upgradeUrl: upgradeUrl,
       useMockApi: useMock,
+      skipLoginForDevelopment: skipLoginForDevelopment,
       resetSessionOnBoot: resetSessionOnBoot,
     );
     return _cached!;

@@ -96,12 +96,13 @@ class _AppRoot extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final boot = ref.watch(bootControllerProvider).state;
     final session = ref.watch(authSessionProvider);
+    final config = ref.watch(appConfigProvider);
 
     if (boot.status == BootStatus.initializing || !session.isInitialized) {
       return _BootView(message: boot.errorMessage);
     }
 
-    if (!session.isAuthenticated) {
+    if (!session.isAuthenticated && !config.skipLoginForDevelopment) {
       return const _AuthScreen();
     }
 
