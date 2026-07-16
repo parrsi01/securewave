@@ -58,7 +58,7 @@ except Exception:
     raise SystemExit(1)
 PY
   then
-    fail_with_fix "Python package 'cryptography' is required." "python -m pip install cryptography"
+    fail_with_fix "Python package 'cryptography' is required." "python3 -m pip install cryptography"
     return 1
   fi
 }
@@ -67,7 +67,7 @@ validate_fernet() {
   local name="$1"
   local value="${!name-}"
   if [[ -z "$value" ]]; then
-    fail_with_fix "$name is required for release." "export ${name}=\"\\$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')\""
+    fail_with_fix "$name is required for release." "export ${name}=\"\\$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')\""
     return
   fi
   local python_bin

@@ -932,11 +932,27 @@ static gboolean supported_protocol(const gchar* protocol) {
 }
 
 static gboolean safe_openvpn_username(const gchar* value) {
-  if (!value || !g_str_has_prefix(value, "swovpn-") || strlen(value) != 38) {
+  if (!value) {
     return FALSE;
   }
-  for (const gchar* cursor = value + 6; *cursor; cursor++) {
-    if (!g_ascii_isxdigit(*cursor) || g_ascii_isupper(*cursor)) {
+  const size_t length = strlen(value);
+  if (g_str_has_prefix(value, "swovpn-") && length == 38) {
+    for (const gchar* cursor = value + 6; *cursor; cursor++) {
+      if (!g_ascii_isxdigit(*cursor) || g_ascii_isupper(*cursor)) {
+        return FALSE;
+      }
+    }
+    return TRUE;
+  }
+  // The deployed user/password control plane predates the opaque swovpn UUID
+  // format and issues bounded lowercase sw-ovpn-* identifiers. They are
+  // written only to an owner-only auth file and are never shell-interpreted.
+  if (!g_str_has_prefix(value, "sw-ovpn-") || length < 9 || length > 64) {
+    return FALSE;
+  }
+  for (const gchar* cursor = value + 8; *cursor; cursor++) {
+    if (!(g_ascii_islower(*cursor) || g_ascii_isdigit(*cursor) ||
+          *cursor == '-')) {
       return FALSE;
     }
   }

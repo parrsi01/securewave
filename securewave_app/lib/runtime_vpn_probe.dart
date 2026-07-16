@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/config/app_config.dart';
 import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
+import 'core/services/secure_storage.dart';
 import 'core/state/vpn_state.dart';
 import 'services/auth_service.dart';
 
@@ -120,6 +121,25 @@ class _RuntimeProbeAppState extends ConsumerState<_RuntimeProbeApp> {
         );
       }
 
+      final allowUnadvertisedOpenVpnCertification = _environmentBool(
+        environment,
+        'SECUREWAVE_RUNTIME_PROBE_ALLOW_UNADVERTISED_OPENVPN',
+        false,
+      );
+
+      final resetRuntimeReferences = _environmentBool(
+        environment,
+        'SECUREWAVE_RUNTIME_PROBE_RESET_REFERENCES',
+        true,
+      );
+      if (resetRuntimeReferences) {
+        // The probe is an isolated, fresh-profile certification run. Clear
+        // stale device/server/profile references left by earlier installs so
+        // it deterministically exercises backend device recovery instead of
+        // failing on an obsolete identifier from the desktop keyring.
+        await SecureStorage().clearVpnRuntimeState();
+      }
+
       final auth = ref.read(authServiceProvider);
       if (authMode != 'login') {
         throw StateError(
@@ -137,7 +157,10 @@ class _RuntimeProbeAppState extends ConsumerState<_RuntimeProbeApp> {
         notifier.selectServer(serverId);
       }
 
-      await notifier.connect();
+      await notifier.connect(
+        allowUnadvertisedOpenVpnCertification:
+            allowUnadvertisedOpenVpnCertification,
+      );
       final connectedState = ref.read(vpnStateProvider);
       _printProbeEvent('connect_result', connectedState);
       if (connectedState.status != VpnStatus.connected ||

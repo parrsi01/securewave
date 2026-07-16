@@ -19,6 +19,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 });
 
 class ApiClient {
+  static const openVpnRuntimeContract = 'openvpn-evidence-v2';
   ApiClient(this._config, {AuthSession? session, Dio? dio}) {
     _dio = dio ??
         Dio(
@@ -305,6 +306,24 @@ class ApiClient {
         );
         availability[item.protocol] = item;
       }
+      final runtimeContract = response.data?['runtime_contract']?.toString();
+      if (runtimeContract != openVpnRuntimeContract) {
+        availability[VpnProtocol.openVpn] = const ProtocolAvailability(
+          protocol: VpnProtocol.openVpn,
+          enabled: false,
+          serverEnabled: false,
+          platformSupported: true,
+          reason: 'OpenVPN backend evidence contract is unavailable or stale.',
+        );
+      }
+      // IKEv2 is never enabled from server metadata or legacy API payloads.
+      availability[VpnProtocol.ikev2] = ProtocolAvailability(
+        protocol: VpnProtocol.ikev2,
+        enabled: false,
+        serverEnabled: false,
+        platformSupported: false,
+        reason: VpnRuntimePolicy.unavailableReason(VpnProtocol.ikev2),
+      );
       return availability;
     } catch (error, stackTrace) {
       AppLogger.error('Protocol availability lookup failed',
@@ -504,6 +523,8 @@ class ApiClient {
     required int deviceId,
     required VpnProtocol protocol,
     required String baselineFingerprint,
+    String? externalBaselineIp,
+    String? externalExitIp,
   }) async {
     if (_config.useMockApi) return false;
     final response = await _dio.post<Map<String, dynamic>>(
@@ -513,9 +534,42 @@ class ApiClient {
         'device_id': deviceId,
         'protocol': vpnProtocolStorageValue(protocol),
         'baseline_fingerprint': baselineFingerprint,
+        if (externalBaselineIp != null)
+          'external_baseline_ip': externalBaselineIp,
+        if (externalExitIp != null) 'external_exit_ip': externalExitIp,
       },
     );
     return response.data?['verified'] == true;
+  }
+
+  /// Observe the public IPv4 address through an independent HTTPS endpoint.
+  ///
+  /// This is the fallback proof for a single-host deployment where the VPN
+  /// endpoint and control-plane API share one IP. That endpoint must remain
+  /// outside the tunnel so the VPN transport can stay alive, which makes an
+  /// API-to-itself egress comparison impossible.
+  Future<String> captureExternalExitIp() async {
+    if (_config.useMockApi) {
+      throw StateError('Mock API cannot certify a VPN egress path.');
+    }
+    final response = await Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 8),
+        receiveTimeout: const Duration(seconds: 8),
+        responseType: ResponseType.plain,
+      ),
+    ).get<String>('https://api.ipify.org');
+    final address = (response.data ?? '').trim();
+    final octets = address.split('.');
+    final valid = octets.length == 4 &&
+        octets.every((part) {
+          final value = int.tryParse(part);
+          return value != null && value >= 0 && value <= 255;
+        });
+    if (!valid) {
+      throw StateError('External VPN egress response was malformed.');
+    }
+    return address;
   }
 
   /// Notify the backend that the VPN tunnel has been established.

@@ -75,7 +75,9 @@ class VPNHealthMonitor:
                     )
                     await self._probe_wireguard_runtime(server)
                     await self._probe_openvpn_runtime(server)
-                    await self._probe_ikev2_runtime(server)
+                    # IKEv2 is intentionally not probed or promoted by the
+                    # release monitor. Its legacy server flags/evidence are
+                    # ignored until a separately certified gateway exists.
 
                     # Update optimizer with fresh metrics
                     try:

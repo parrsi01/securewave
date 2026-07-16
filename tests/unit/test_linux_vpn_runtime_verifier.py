@@ -165,7 +165,7 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
         ("ip", "-6", "-o", "-N", "route", "show", "table", "all"): CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""
         ),
-        ("pgrep", "-af", "openvpn"): CompletedProcess(
+        ("pgrep", "-a", "-x", "openvpn"): CompletedProcess(
             args=[], returncode=0, stdout="123 openvpn --config /tmp/securewave.ovpn\n", stderr=""
         ),
         ("nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"): CompletedProcess(
@@ -358,7 +358,7 @@ def test_residue_openvpn_process_fails_closed_on_pgrep_error_without_output(
     )
 
     def fake_run(argv):
-        if argv == ["pgrep", "-af", "openvpn"]:
+        if argv == ["pgrep", "-a", "-x", "openvpn"]:
             return CompletedProcess(
                 args=argv,
                 returncode=2,

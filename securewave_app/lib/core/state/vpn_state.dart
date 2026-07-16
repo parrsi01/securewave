@@ -216,7 +216,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
   }
 
-  Future<void> connect() async {
+  Future<void> connect({
+    bool allowUnadvertisedOpenVpnCertification = false,
+  }) async {
     if (state.isBusy) return;
 
     // User intent: VPN should be on.
@@ -243,6 +245,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       String? openVpnUsername;
       String? openVpnPassword;
       String? credentialedEgressBaseline;
+      String? externalEgressBaseline;
       String? credentialedServerId;
       int? credentialedDeviceId;
       final requiresCredentialedEgress =
@@ -255,7 +258,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           deviceType: identity.type,
         );
         final readiness = backendProtocols[state.protocol];
-        if (readiness == null || !readiness.enabled) {
+        final certificationBootstrap = allowUnadvertisedOpenVpnCertification &&
+            state.protocol == VpnProtocol.openVpn &&
+            readiness?.reason ==
+                'OpenVPN data-plane evidence has not been recorded.';
+        if (readiness == null ||
+            (!readiness.enabled && !certificationBootstrap)) {
           throw VpnServiceException(
             'protocol_unavailable',
             readiness?.reason ??
@@ -280,6 +288,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           // OpenVPN must both prove encrypted HTTPS egress before UI state is
           // allowed to become connected.
           credentialedEgressBaseline = await api.captureVpnEgressBaseline();
+          if (state.protocol == VpnProtocol.openVpn) {
+            externalEgressBaseline = await api.captureExternalExitIp();
+          }
         }
         final storage = SecureStorage();
         final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
@@ -407,9 +418,34 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
                   deviceId: deviceId,
                   protocol: state.protocol,
                   baselineFingerprint: baseline,
+                  externalBaselineIp: externalEgressBaseline,
+                  externalExitIp: null,
                 );
           } catch (_) {
             egressVerified = false;
+          }
+          if (!egressVerified &&
+              state.protocol == VpnProtocol.openVpn &&
+              externalEgressBaseline != null) {
+            try {
+              final tunnelExitIp = await api.captureExternalExitIp();
+              if (baseline != null && serverId != null && deviceId != null) {
+                try {
+                  egressVerified = await api.verifyVpnEgress(
+                    serverId: serverId,
+                    deviceId: deviceId,
+                    protocol: state.protocol,
+                    baselineFingerprint: baseline,
+                    externalBaselineIp: externalEgressBaseline,
+                    externalExitIp: tunnelExitIp,
+                  );
+                } catch (_) {
+                  egressVerified = false;
+                }
+              }
+            } catch (_) {
+              egressVerified = false;
+            }
           }
           if (!egressVerified) {
             try {

@@ -209,6 +209,8 @@ def _upsert_server(
             existing.openvpn_endpoint = public_ip if supports_openvpn else None
             existing.openvpn_port = int(openvpn_port) if supports_openvpn else existing.openvpn_port
             existing.openvpn_transport = openvpn_transport if supports_openvpn else existing.openvpn_transport
+            existing.openvpn_requires_client_cert = False if supports_openvpn else None
+            existing.openvpn_supports_userpass = bool(supports_openvpn)
             if supports_openvpn and openvpn_ca_cert_pem.strip():
                 existing.openvpn_ca_cert_pem = openvpn_ca_cert_pem.strip()
             if supports_ikev2:
@@ -249,6 +251,8 @@ def _upsert_server(
             openvpn_port=int(openvpn_port) if supports_openvpn else 1194,
             openvpn_transport=openvpn_transport if supports_openvpn else "udp",
             openvpn_ca_cert_pem=openvpn_ca_cert_pem.strip() or None,
+            openvpn_requires_client_cert=False if supports_openvpn else None,
+            openvpn_supports_userpass=bool(supports_openvpn),
             ikev2_remote_id=ikev2_remote_id.strip() or None,
             ikev2_ca_cert_pem=ikev2_ca_cert_pem.strip() or None,
             status="active",

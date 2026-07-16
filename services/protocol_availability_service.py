@@ -20,6 +20,8 @@ class ProtocolReadiness:
 class ProtocolAvailabilityService:
     """Keep endpoint metadata separate from evidence that the backend is usable."""
 
+    OPENVPN_RUNTIME_CONTRACT = "openvpn-evidence-v2"
+
     _FAILURE_REASONS = frozenset({"probe_failed", "probe_exception"})
     _TRANSITIONS = frozenset(
         {"initial", "steady_healthy", "steady_failed", "failed", "recovered"}
@@ -33,7 +35,21 @@ class ProtocolAvailabilityService:
             ttl_seconds = 300
         self.evidence_ttl = timedelta(seconds=max(30, min(ttl_seconds, 3600)))
 
-    def evaluate(self, server: VPNServer, protocol: str) -> ProtocolReadiness:
+    def evaluate(
+        self,
+        server: VPNServer,
+        protocol: str,
+        *,
+        require_data_plane: bool = True,
+    ) -> ProtocolReadiness:
+        if protocol == "ikev2":
+            # IKEv2 is intentionally held out of this release. Server flags,
+            # host packages, or legacy evidence must never enable it by
+            # inference while its dedicated gateway is not certified.
+            return ProtocolReadiness(
+                False,
+                "IKEv2 is unavailable pending dedicated gateway certification.",
+            )
         if server.status not in {"active", "demo"}:
             return ProtocolReadiness(False, "Server is not active.")
         if server.health_status not in {"healthy", "degraded"}:
@@ -70,18 +86,16 @@ class ProtocolAvailabilityService:
                 )
             return ProtocolReadiness(True)
         if protocol == "openvpn":
-            if not (
-                server.supports_openvpn
-                and (server.openvpn_endpoint or server.public_ip)
-                and server.openvpn_ca_cert_pem
-            ):
+            if not self._has_usable_openvpn_metadata(server):
                 return ProtocolReadiness(False, "OpenVPN endpoint metadata is incomplete.")
             if not self._has_fresh_protocol_evidence(server, protocol):
                 return ProtocolReadiness(
                     False,
                     "OpenVPN protocol-specific runtime evidence has not been recorded.",
                 )
-            if not self._has_fresh_data_plane_evidence(server, protocol):
+            if require_data_plane and not self._has_fresh_data_plane_evidence(
+                server, protocol
+            ):
                 return ProtocolReadiness(
                     False,
                     "OpenVPN data-plane evidence has not been recorded.",
@@ -92,33 +106,16 @@ class ProtocolAvailabilityService:
                     "OpenVPN authenticated egress evidence is not configured.",
                 )
             return ProtocolReadiness(True)
-        if protocol == "ikev2":
-            if not self._has_usable_ikev2_metadata(server):
-                return ProtocolReadiness(False, "IKEv2 endpoint metadata is incomplete.")
-            # IKEv2 must never inherit the historic provider-state default.
-            # Missing state is not evidence that the host is running.
-            if (server.hcloud_server_state or "").strip().lower() != "running":
-                return ProtocolReadiness(False, "Server runtime is not running.")
-            if not self._has_fresh_protocol_evidence(server, protocol):
-                return ProtocolReadiness(
-                    False,
-                    "IKEv2 protocol-specific runtime evidence has not been recorded.",
-                )
-            if not self._has_fresh_data_plane_evidence(server, protocol):
-                return ProtocolReadiness(
-                    False,
-                    "IKEv2 data-plane evidence has not been recorded.",
-                )
-            if not self.configured_egress_evidence_secret():
-                return ProtocolReadiness(
-                    False,
-                    "IKEv2 authenticated egress evidence is not configured.",
-                )
-            return ProtocolReadiness(True)
         return ProtocolReadiness(False, "Protocol is not release-ready.")
 
     def supports(self, server: VPNServer, protocol: str) -> bool:
         return self.evaluate(server, protocol).enabled
+
+    def evaluate_for_profile(
+        self, server: VPNServer, protocol: str
+    ) -> ProtocolReadiness:
+        """Gate profile issuance before global data-plane proof exists."""
+        return self.evaluate(server, protocol, require_data_plane=False)
 
     @staticmethod
     def configured_egress_evidence_secret() -> str | None:
@@ -239,80 +236,55 @@ class ProtocolAvailabilityService:
         return timedelta(0) <= age <= self.evidence_ttl
 
     @staticmethod
-    def _has_usable_ikev2_metadata(server: VPNServer) -> bool:
-        if not server.supports_ikev2:
-            return False
-
-        endpoint = (server.endpoint or "").strip() or (server.public_ip or "").strip()
-        remote_id = (server.ikev2_remote_id or server.public_ip or "").strip()
-        ca_cert = (server.ikev2_ca_cert_pem or "").strip()
-        if not ProtocolAvailabilityService._has_usable_endpoint(endpoint) or not remote_id:
-            return False
-        try:
-            ip_address((server.public_ip or "").strip())
-        except ValueError:
-            return False
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:@-]{0,252}", remote_id):
-            return False
-        if ca_cert.count("-----BEGIN CERTIFICATE-----") != 1:
-            return False
-        if ca_cert.count("-----END CERTIFICATE-----") != 1:
-            return False
-        if "PRIVATE KEY" in ca_cert or any(
-            not character.isprintable() and character not in "\n\r\t"
-            for character in ca_cert
+    def _has_usable_openvpn_metadata(server: VPNServer) -> bool:
+        if not (
+            server.supports_openvpn
+            and bool((server.openvpn_endpoint or server.public_ip or "").strip())
+            and bool((server.openvpn_ca_cert_pem or "").strip())
+            and bool(getattr(server, "openvpn_supports_userpass", False))
+            and not bool(getattr(server, "openvpn_requires_client_cert", True))
         ):
             return False
-        return True
-
-    @staticmethod
-    def _has_usable_endpoint(value: str) -> bool:
-        if not value or any(character.isspace() for character in value):
-            return False
-        if value.startswith("["):
-            closing_bracket = value.find("]")
-            if closing_bracket <= 1:
-                return False
-            try:
-                if ip_address(value[1:closing_bracket]).version != 6:
-                    return False
-            except ValueError:
-                return False
-            suffix = value[closing_bracket + 1:]
-            if not suffix:
-                return True
-            if not suffix.startswith(":"):
-                return False
-            port = suffix[1:]
-            return port.isdigit() and 1 <= int(port) <= 65535
-        if value.count(":") == 1:
-            host, port = value.rsplit(":", 1)
-            return (
-                ProtocolAvailabilityService._has_usable_host(host)
-                and port.isdigit()
-                and 1 <= int(port) <= 65535
-            )
-        if value.count(":") > 1:
-            try:
-                return ip_address(value).version == 6
-            except ValueError:
-                return False
-        return ProtocolAvailabilityService._has_usable_host(value)
-
-    @staticmethod
-    def _has_usable_host(value: str) -> bool:
+        endpoint = (server.openvpn_endpoint or server.public_ip or "").strip()
+        host = endpoint
+        if endpoint.startswith("[") and "]" in endpoint:
+            host = endpoint[1 : endpoint.index("]")]
+        elif endpoint.count(":") == 1:
+            host = endpoint.rsplit(":", 1)[0]
         try:
-            ip_address(value)
-            return True
+            ip_address(host)
         except ValueError:
-            pass
-
-        hostname = value.rstrip(".")
-        if not hostname or len(hostname) > 253:
+            if (
+                not host
+                or len(host) > 253
+                or host.endswith(".")
+                or any(
+                    not label
+                    or len(label) > 63
+                    or label.startswith("-")
+                    or label.endswith("-")
+                    or not re.fullmatch(r"[A-Za-z0-9-]+", label)
+                    for label in host.split(".")
+                )
+            ):
+                return False
+        try:
+            port = int(server.openvpn_port or 1194)
+        except (TypeError, ValueError):
             return False
-        return all(
-            re.fullmatch(r"(?!-)[A-Za-z0-9-]{1,63}(?<!-)", label) is not None
-            for label in hostname.split(".")
+        if not 1 <= port <= 65535:
+            return False
+        if (server.openvpn_transport or "").strip().lower() not in {"udp", "tcp"}:
+            return False
+        ca = (server.openvpn_ca_cert_pem or "").strip()
+        return (
+            ca.count("-----BEGIN CERTIFICATE-----") == 1
+            and ca.count("-----END CERTIFICATE-----") == 1
+            and "PRIVATE KEY" not in ca
+            and all(
+                character.isprintable() or character in "\n\r\t"
+                for character in ca
+            )
         )
 
     @staticmethod
