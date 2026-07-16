@@ -721,6 +721,31 @@ clear_wg_quick_firewall() {
   return "$failed"
 }
 
+ensure_wireguard_firewall() {
+  local failed=0
+
+  # Keep the tunnel fail-closed while allowing WireGuard's marked transport
+  # packets and local-destination traffic through.  These rules are owned by
+  # SecureWave (and are removed by clear_wg_quick_firewall), so profiles do
+  # not need to execute backend-supplied PostUp/PostDown shell commands.
+  if ! iptables -C OUTPUT ! -o sw-wg -m mark ! --mark 51820 \
+      -m addrtype ! --dst-type LOCAL -m comment \
+      --comment "$WIREGUARD_IPV4_KILL_SWITCH_COMMENT" -j REJECT \
+      >/dev/null 2>&1; then
+    iptables -I OUTPUT 1 ! -o sw-wg -m mark ! --mark 51820 \
+      -m addrtype ! --dst-type LOCAL -m comment \
+      --comment "$WIREGUARD_IPV4_KILL_SWITCH_COMMENT" -j REJECT || failed=1
+  fi
+  if ! ip6tables -C OUTPUT -d "$PUBLIC_IPV6_PREFIX" -m mark ! --mark 51820 \
+      -m comment --comment "$WIREGUARD_IPV6_BLOCK_COMMENT" -j REJECT \
+      --reject-with icmp6-adm-prohibited >/dev/null 2>&1; then
+    ip6tables -I OUTPUT 1 -d "$PUBLIC_IPV6_PREFIX" -m mark ! --mark 51820 \
+      -m comment --comment "$WIREGUARD_IPV6_BLOCK_COMMENT" -j REJECT \
+      --reject-with icmp6-adm-prohibited || failed=1
+  fi
+  return "$failed"
+}
+
 clear_policy_state() {
   local remove_link="${1:-0}"
   local remove_firewall="${2:-1}"
@@ -812,6 +837,7 @@ if [[ "$action" == "up" ]]; then
   wg-quick up "$config"
   nmcli device set "$iface" managed no >/dev/null 2>&1 || true
   ensure_policy_state
+  ensure_wireguard_firewall
   exit 0
 fi
 

@@ -3055,6 +3055,23 @@ static Fields WireGuardStatus() {
   return Ok(fields);
 }
 
+// wg-quick returns after configuring the interface and routes, before the
+// first encrypted handshake necessarily arrives.  Do not mistake that brief
+// transition for stale privileged state and tear down a healthy tunnel.
+static bool WaitWireGuardConnected() {
+  for (guint i = 0; i < 40; i++) {
+    const Fields status = WireGuardStatus();
+    if (Field(status, "ok") == "true" &&
+        Field(status, "status") == "connected") {
+      return true;
+    }
+    g_usleep(250000);
+  }
+  const Fields status = WireGuardStatus();
+  return Field(status, "ok") == "true" &&
+         Field(status, "status") == "connected";
+}
+
 static Fields HandleWireGuard(const std::string& op, const Fields& request, uid_t peer_uid) {
   Fields contract_error;
   if (!ContractOk(&contract_error)) {
@@ -3120,12 +3137,9 @@ static Fields HandleWireGuard(const std::string& op, const Fields& request, uid_
           "vpn_connect_failed",
           "WireGuard command completed but IPv4/IPv6 route evidence did not use sw-wg.");
     }
-    Fields runtime_status = WireGuardStatus();
-    if (Field(runtime_status, "ok") == "true" &&
-        Field(runtime_status, "status") == "connected") {
-      return runtime_status;
+    if (WaitWireGuardConnected()) {
+      return WireGuardStatus();
     }
-    const std::string runtime_message = Field(runtime_status, "message");
     RunHelper({"down", config_path});
     RunHelper({"policy-clear-link", kWireGuardInterface});
     if (!WaitWireGuardClean()) {
@@ -3136,9 +3150,7 @@ static Fields HandleWireGuard(const std::string& op, const Fields& request, uid_
     }
     return Error(
         "vpn_connect_failed",
-        runtime_message.empty()
-            ? "WireGuard start did not produce authenticated tunnel evidence."
-            : runtime_message);
+        "WireGuard started but did not complete an authenticated handshake within 10 seconds.");
   }
 
   if (op == "wireguard.down") {
