@@ -314,7 +314,38 @@ class _DiagnosticsView extends ConsumerWidget {
             message: vpn.errorMessage!,
             tone: _Tone.error,
           ),
+        if (kDebugMode) ...[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => _showWireGuardErrorSequence(context),
+            icon: const Icon(Icons.bug_report_outlined),
+            label: const Text('Run WireGuard message test'),
+          ),
+        ],
       ],
     );
   }
+}
+
+void _showWireGuardErrorSequence(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (context) {
+      return SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 18,
+            right: 18,
+            bottom: 18 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.78,
+            child: const WireGuardErrorSequence(),
+          ),
+        ),
+      );
+    },
+  );
 }

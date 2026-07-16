@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/bootstrap/boot_controller.dart';
 import 'core/config/app_config.dart';
+import 'core/diagnostics/wireguard_error_catalog.dart';
 import 'core/logging/app_logger.dart';
 import 'core/models/protocol_availability.dart';
 import 'core/models/server_region.dart';
@@ -29,6 +31,7 @@ part 'ui/auth_screen.dart';
 part 'ui/main_shell.dart';
 part 'ui/connect_screen.dart';
 part 'ui/catalog_screens.dart';
+part 'ui/wireguard_debug.dart';
 
 typedef FreshTheme = AppUIv1;
 
