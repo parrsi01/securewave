@@ -562,14 +562,42 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     required String deviceType,
     required String profileConfigKey,
   }) async {
+    Future<VpnProfile> requestProfile({int? requestedDeviceId}) async {
+      try {
+        return await api.fetchVpnProfile(
+          deviceId: requestedDeviceId,
+          deviceName: deviceName,
+          deviceType: deviceType,
+          protocol: state.protocol,
+          serverId: state.selectedServerId,
+        );
+      } catch (error) {
+        if (!_isDeviceLimitReached(error)) rethrow;
+
+        // The backend can reject a name-mismatched reinstall before it has a
+        // chance to identify the existing peer. Reuse the one owner-scoped
+        // active device, when the account has exactly one, instead of asking
+        // the user to upgrade or manually revoke a still-usable device.
+        final reusableDeviceId = await api.findReusableDeviceId(
+          deviceType: deviceType,
+        );
+        if (reusableDeviceId == null || reusableDeviceId == requestedDeviceId) {
+          rethrow;
+        }
+        final profile = await api.fetchVpnProfile(
+          deviceId: reusableDeviceId,
+          deviceName: deviceName,
+          deviceType: deviceType,
+          protocol: state.protocol,
+          serverId: state.selectedServerId,
+        );
+        await storage.saveInt(SecureStorage.vpnDeviceIdKey, reusableDeviceId);
+        return profile;
+      }
+    }
+
     try {
-      final profile = await api.fetchVpnProfile(
-        deviceId: deviceId,
-        deviceName: deviceName,
-        deviceType: deviceType,
-        protocol: state.protocol,
-        serverId: state.selectedServerId,
-      );
+      final profile = await requestProfile(requestedDeviceId: deviceId);
       state = state.copyWith(
         lastProfileFetchAt: DateTime.now(),
         lastProfileFetchOk: true,
@@ -596,12 +624,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         );
       }
 
-      final profile = await api.fetchVpnProfile(
-        deviceName: deviceName,
-        deviceType: deviceType,
-        protocol: state.protocol,
-        serverId: state.selectedServerId,
-      );
+      final profile = await requestProfile();
       state = state.copyWith(
         lastProfileFetchAt: DateTime.now(),
         lastProfileFetchOk: true,
@@ -617,6 +640,27 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     final message = error.toString().toLowerCase();
     return message.contains('404') && message.contains('not found');
+  }
+
+  bool _isDeviceLimitReached(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final nested = data['error'];
+        final code = nested is Map
+            ? nested['code']?.toString()
+            : data['code']?.toString();
+        final detail = data['detail']?.toString() ??
+            (nested is Map
+                ? nested['message']?.toString()
+                : data['message']?.toString()) ??
+            '';
+        return code == 'device_limit_reached' ||
+            detail.toLowerCase().contains('device limit reached');
+      }
+      return false;
+    }
+    return error.toString().toLowerCase().contains('device limit reached');
   }
 
   void _setStatus(VpnStatus status) {

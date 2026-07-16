@@ -104,6 +104,28 @@ class TestVpnProfileProvisioning:
         assert ks.get("mode") == "enabled"
         assert ks.get("enforcement")
 
+    def test_profile_reuses_single_active_device_after_reinstall_name_change(
+        self, client, auth_headers, db
+    ):
+        """A regenerated Flutter name must not consume a second free-tier slot."""
+        _create_free_server(db, server_id="profile-reuse-linux-1")
+
+        first = client.post(
+            "/api/vpn/profile",
+            json={"device_name": "Old Linux install", "device_type": "linux"},
+            headers=auth_headers,
+        )
+        assert first.status_code == status.HTTP_200_OK, first.text
+        first_device_id = first.json()["device_id"]
+
+        second = client.post(
+            "/api/vpn/profile",
+            json={"device_name": "Linux device (fresh-install)", "device_type": "linux"},
+            headers=auth_headers,
+        )
+        assert second.status_code == status.HTTP_200_OK, second.text
+        assert second.json()["device_id"] == first_device_id
+
     def test_legacy_allocate_delegates_to_confirmed_profile_without_config_cache(
         self, client, auth_headers, db
     ):

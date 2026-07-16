@@ -442,6 +442,41 @@ class ApiClient {
     }
   }
 
+  /// Find the single active device that can safely be reused after an app
+  /// reinstall. Device names are regenerated locally, so matching by name
+  /// alone can incorrectly hit the account's device limit.
+  Future<int?> findReusableDeviceId({required String deviceType}) async {
+    if (_config.useMockApi) return null;
+    try {
+      final response = await _dio.get<Map<String, dynamic>>('/vpn/devices');
+      final rawDevices = response.data?['devices'];
+      if (rawDevices is! List) return null;
+      final active = rawDevices
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .where((item) {
+            final type = item['device_type']?.toString().toLowerCase();
+            return item['is_active'] == true &&
+                item['is_revoked'] != true &&
+                (type == null || type == deviceType.toLowerCase());
+          })
+          .map((item) => int.tryParse(item['id']?.toString() ?? ''))
+          .whereType<int>()
+          .toList();
+      return active.length == 1 ? active.single : null;
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Reusable VPN device lookup failed.',
+      );
+      AppLogger.error(
+        'Reusable VPN device lookup error',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+
   /// Capture a non-identifying pre-connect source observation.
   ///
   /// The backend returns an HMAC fingerprint, never the observed public IP.

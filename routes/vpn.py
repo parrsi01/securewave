@@ -1055,6 +1055,34 @@ async def provision_profile(
             WireGuardPeer.is_revoked == False,
         ).first()
 
+    if peer is None:
+        # A reinstall can regenerate the Flutter device name while the
+        # account still has the same single active device. Reusing that one
+        # owner-scoped peer avoids consuming a second free-tier slot and keeps
+        # reconnects tied to the existing server assignment. Never guess when
+        # more than one active peer could match.
+        query = db.query(WireGuardPeer).filter(
+            WireGuardPeer.user_id == current_user.id,
+            WireGuardPeer.is_active.is_(True),
+            WireGuardPeer.is_revoked.is_(False),
+        )
+        if device_type:
+            query = query.filter(WireGuardPeer.device_type == device_type)
+        candidates = query.order_by(WireGuardPeer.updated_at.desc()).limit(2).all()
+        if len(candidates) == 1:
+            peer = candidates[0]
+        elif not candidates:
+            # Older peers may not have device_type metadata. With no typed
+            # match, an account with exactly one active owner-scoped peer is
+            # still unambiguous and safe to reuse.
+            candidates = db.query(WireGuardPeer).filter(
+                WireGuardPeer.user_id == current_user.id,
+                WireGuardPeer.is_active.is_(True),
+                WireGuardPeer.is_revoked.is_(False),
+            ).order_by(WireGuardPeer.updated_at.desc()).limit(2).all()
+            if len(candidates) == 1:
+                peer = candidates[0]
+
     # Resolve server
     server: Optional[VPNServer] = None
     if payload.server_id:

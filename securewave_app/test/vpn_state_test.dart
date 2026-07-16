@@ -292,6 +292,24 @@ void main() {
     expect(state.errorMessage, contains('Device limit reached'));
   });
 
+  test('device limit recovery reuses the single active device', () async {
+    final service = _NativeSuccessVpnService();
+    final api = _DeviceLimitRecoveryApiClient();
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).connect();
+
+    expect(api.deviceIds, <int?>[null, 321]);
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+    expect(container.read(vpnStateProvider).lastProfileFetchOk, isTrue);
+  });
+
   test(
       'usage meter accumulates deltas, ignores counter reset, and stops cleanly',
       () async {
@@ -597,6 +615,9 @@ class _AlwaysFailingProfileApiClient extends ApiClient {
   final Map<String, dynamic> body;
 
   @override
+  Future<int?> findReusableDeviceId({required String deviceType}) async => null;
+
+  @override
   Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
     String? deviceType,
   }) async =>
@@ -620,6 +641,74 @@ class _AlwaysFailingProfileApiClient extends ApiClient {
       ),
     );
   }
+}
+
+class _DeviceLimitRecoveryApiClient extends ApiClient {
+  _DeviceLimitRecoveryApiClient() : super(AppConfig.defaults());
+
+  final deviceIds = <int?>[];
+
+  @override
+  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
+    String? deviceType,
+  }) async =>
+      _allProtocolsAvailable();
+
+  @override
+  Future<int?> findReusableDeviceId({required String deviceType}) async => 321;
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    deviceIds.add(deviceId);
+    if (deviceId == null) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/vpn/profile'),
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/vpn/profile'),
+          statusCode: 403,
+          data: {
+            'error': {
+              'code': 'device_limit_reached',
+              'message': 'Device limit reached (1).',
+            },
+          },
+        ),
+      );
+    }
+    return VpnProfile.fromJson({
+      'device_id': deviceId,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'protocol': 'wireguard',
+      'server_id': 'de-nue-1',
+      'server_location': 'Nuremberg, Germany',
+      'issued_at': DateTime.now().toIso8601String(),
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'wireguard_config':
+          '[Interface]\nPrivateKey = test\n[Peer]\nPublicKey = test\n',
+      'dns': {
+        'servers': ['94.140.14.14']
+      },
+      'peer_registered': true,
+    });
+  }
+
+  @override
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {}
+
+  @override
+  Future<void> notifyVpnDisconnected() async {}
 }
 
 class _CredentialedEgressApiClient extends ApiClient {
