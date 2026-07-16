@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 
 ROOT = Path(__file__).resolve().parents[2]
+ALEMBIC_VERSION_LIMIT = 32
 
 
 def _alembic_config(database_url: str) -> Config:
@@ -18,6 +19,17 @@ def _alembic_config(database_url: str) -> Config:
     config.set_main_option("script_location", str(ROOT / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url)
     return config
+
+
+def test_migration_revision_identifiers_fit_alembic_version_column():
+    revisions = []
+    for path in (ROOT / "alembic" / "versions").glob("*.py"):
+        namespace: dict[str, object] = {}
+        exec(path.read_text(encoding="utf-8"), namespace)
+        revisions.append(namespace["revision"])
+
+    too_long = [revision for revision in revisions if len(revision) > ALEMBIC_VERSION_LIMIT]
+    assert not too_long, f"Alembic revision identifiers exceed {ALEMBIC_VERSION_LIMIT}: {too_long}"
 
 
 def test_fresh_migration_head_is_repeatable_and_covers_runtime_models(monkeypatch, tmp_path):
