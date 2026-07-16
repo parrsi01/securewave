@@ -1165,7 +1165,7 @@ static bool WireGuardIpv4KillSwitchPresent(const std::string& output) {
   std::string line;
   while (std::getline(lines, line)) {
     const std::vector<std::string> values = IptablesSaveTokens(line);
-    if (values.size() == 21 && values[0] == "-A" &&
+    const bool rule_prefix = values.size() >= 21 && values[0] == "-A" &&
         values[1] == "OUTPUT" && values[2] == "!" && values[3] == "-o" &&
         values[4] == kWireGuardInterface && values[5] == "-m" &&
         values[6] == "mark" && values[7] == "!" &&
@@ -1175,7 +1175,11 @@ static bool WireGuardIpv4KillSwitchPresent(const std::string& output) {
         values[14] == "LOCAL" && values[15] == "-m" &&
         values[16] == "comment" && values[17] == "--comment" &&
         values[18] == "securewave-wireguard-ipv4-kill-switch-v1" &&
-        values[19] == "-j" && values[20] == "REJECT") {
+        values[19] == "-j" && values[20] == "REJECT";
+    const bool canonical_reject_suffix = values.size() == 23 &&
+        values[21] == "--reject-with" &&
+        values[22] == "icmp-port-unreachable";
+    if (rule_prefix && (values.size() == 21 || canonical_reject_suffix)) {
       return true;
     }
   }
@@ -3148,9 +3152,13 @@ static Fields HandleWireGuard(const std::string& op, const Fields& request, uid_
           std::string("WireGuard start did not produce authenticated tunnel evidence. Cleanup residue remains: ") +
               WireGuardResidueSummary());
     }
+    Fields timeout_status = WireGuardStatus();
+    timeout_status["message"] =
+        "WireGuard started but did not complete an authenticated handshake within 10 seconds.";
     return Error(
         "vpn_connect_failed",
-        "WireGuard started but did not complete an authenticated handshake within 10 seconds.");
+        timeout_status["message"],
+        timeout_status);
   }
 
   if (op == "wireguard.down") {
