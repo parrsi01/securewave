@@ -90,7 +90,7 @@ chmod 0700 "$CRED"
 cat >"$NAT" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-CHAIN4=SECUREWAVE_OPENVPN_FORWARD; CHAIN6=SECUREWAVE_OPENVPN6_FORWARD; TAG4=securewave-openvpn-v4-v1; TAG6=securewave-openvpn-v6-v1; SUBNET4=10.66.0.0/24; SUBNET6=fd53:6563:7572:6577::/64; TUN=tun-securewave-server
+CHAIN4=SECUREWAVE_OPENVPN_FORWARD; CHAIN6=SECUREWAVE_OPENVPN6_FORWARD; TAG4=securewave-openvpn-v4-v1; TAG6=securewave-openvpn-v6-v1; SUBNET4=10.66.0.0/24; SUBNET6=fd53:6563:7572:6577::/64; TUN=tun-securewave
 cleanup() { while iptables -t nat -D POSTROUTING -s "$SUBNET4" -m comment --comment "$TAG4" -j MASQUERADE >/dev/null 2>&1; do :; done; iptables -D FORWARD -j "$CHAIN4" >/dev/null 2>&1 || true; iptables -F "$CHAIN4" >/dev/null 2>&1 || true; iptables -X "$CHAIN4" >/dev/null 2>&1 || true; while ip6tables -t nat -D POSTROUTING -s "$SUBNET6" -m comment --comment "$TAG6" -j MASQUERADE >/dev/null 2>&1; do :; done; ip6tables -D FORWARD -j "$CHAIN6" >/dev/null 2>&1 || true; ip6tables -F "$CHAIN6" >/dev/null 2>&1 || true; ip6tables -X "$CHAIN6" >/dev/null 2>&1 || true; }
 case "${1:-}" in
   ensure) cleanup; trap cleanup ERR; dev="$(ip route show default | awk 'NR==1 {print $5}')"; [[ "$dev" =~ ^[A-Za-z0-9_.:-]+$ ]] || exit 1; iptables -N "$CHAIN4"; iptables -A "$CHAIN4" -i "$TUN" -o "$dev" -j ACCEPT; iptables -A "$CHAIN4" -i "$dev" -o "$TUN" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT; iptables -I FORWARD 1 -j "$CHAIN4"; iptables -t nat -A POSTROUTING -s "$SUBNET4" -o "$dev" -m comment --comment "$TAG4" -j MASQUERADE; dev6="$(ip -6 route show default | awk 'NR==1 {print $5}')"; if [[ "$dev6" =~ ^[A-Za-z0-9_.:-]+$ ]]; then ip6tables -N "$CHAIN6"; ip6tables -A "$CHAIN6" -i "$TUN" -o "$dev6" -j ACCEPT; ip6tables -A "$CHAIN6" -i "$dev6" -o "$TUN" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT; ip6tables -I FORWARD 1 -j "$CHAIN6"; ip6tables -t nat -A POSTROUTING -s "$SUBNET6" -o "$dev6" -m comment --comment "$TAG6" -j MASQUERADE; fi; trap - ERR ;;
@@ -104,7 +104,7 @@ proto=udp; socket_probe="ss -H -lun"; [[ "$transport" == tcp ]] && { proto=tcp-s
 cat >"$CONF" <<EOF
 port $port
 proto $proto
-dev tun-securewave-server
+dev tun-securewave
 topology subnet
 server 10.66.0.0 255.255.255.0
 server-ipv6 fd53:6563:7572:6577::/64
@@ -132,7 +132,7 @@ set -euo pipefail
 systemctl is-active --quiet $SERVICE
 test -s $CA && test -s $CERT && test -s $KEY
 test -x $AUTH && test -x $CRED
-$socket_probe | awk '{print \$5}' | grep -Eq '[:.]$port$'
+$socket_probe | awk '{print \$4}' | grep -Eq '[:.]$port$'
 echo OK
 EOF
 chmod 0700 "$HEALTH"
