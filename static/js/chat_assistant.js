@@ -225,7 +225,7 @@
 
       setQuickReplies([
         { label: 'Create account', value: `go:${rec.cta.href}` },
-        { label: 'Download', value: 'go:/home.html#download' },
+        { label: 'Download', value: 'go:/#download' },
         { label: 'Compare plans', value: 'go:/subscription.html' },
         { label: 'Start over', value: 'restart' },
       ]);
@@ -326,7 +326,7 @@
       setQuickReplies([
         { label: 'Start over', value: 'restart' },
         { label: 'Compare plans', value: 'go:/subscription.html' },
-        { label: 'Download', value: 'go:/home.html#download' },
+        { label: 'Download', value: 'go:/#download' },
       ]);
     }
 
@@ -383,7 +383,7 @@
       } else {
         setQuickReplies([
           { label: 'Compare plans', value: 'go:/subscription.html' },
-          { label: 'Download', value: 'go:/home.html#download' },
+          { label: 'Download', value: 'go:/#download' },
           { label: 'Start over', value: 'restart' },
         ]);
       }

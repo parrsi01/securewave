@@ -533,7 +533,9 @@ def version():
 static_directory = Path(__file__).resolve().parent / "static"
 
 page_routes = {
-    "/home": "home.html",
+    "/home": "index.html",
+    # Legacy alias: cached copies of the old index redirect pointed here.
+    "/home.html": "index.html",
     "/login": "login.html",
     "/register": "register.html",
     "/dashboard": "dashboard.html",
@@ -554,7 +556,7 @@ page_routes = {
 }
 
 html_pages = [
-    "index.html", "home.html", "login.html", "register.html",
+    "index.html", "login.html", "register.html",
     "dashboard.html", "vpn.html", "services.html", "subscription.html", "download.html", "leak_test.html",
     "about.html", "contact.html", "privacy.html", "terms.html",
     "settings.html", "diagnostics.html"
