@@ -1,47 +1,7 @@
-<svg width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="sw-title sw-desc">
-  <title id="sw-title">SecureWave</title>
-  <desc id="sw-desc">SecureWave shield logo with pink, purple, and blue neon wave energy.</desc>
-  <defs>
-    <linearGradient id="sw-shield-fill" x1="24" y1="16" x2="114" y2="124" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1A1A22"/>
-      <stop offset="0.54" stop-color="#111117"/>
-      <stop offset="1" stop-color="#050508"/>
-    </linearGradient>
-    <linearGradient id="sw-outline" x1="34" y1="26" x2="104" y2="110" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FF2BD6"/>
-      <stop offset="0.54" stop-color="#7A5CFF"/>
-      <stop offset="1" stop-color="#4CC9FF"/>
-    </linearGradient>
-    <linearGradient id="sw-wave-main" x1="42" y1="64" x2="102" y2="81" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FF2BD6"/>
-      <stop offset="0.55" stop-color="#7A5CFF"/>
-      <stop offset="1" stop-color="#4CC9FF"/>
-    </linearGradient>
-    <linearGradient id="sw-wave-accent" x1="47" y1="79" x2="95" y2="92" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FF2BD6"/>
-      <stop offset="0.42" stop-color="#7A5CFF"/>
-      <stop offset="1" stop-color="#4CC9FF"/>
-    </linearGradient>
-    <radialGradient id="sw-core" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(70 68) rotate(90) scale(33)">
-      <stop offset="0" stop-color="#1A1A22"/>
-      <stop offset="1" stop-color="#0B0B0F"/>
-    </radialGradient>
-    <radialGradient id="sw-ambient" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(70 72) rotate(90) scale(48)">
-      <stop offset="0" stop-color="#7A5CFF" stop-opacity="0.18"/>
-      <stop offset="0.58" stop-color="#FF2BD6" stop-opacity="0.12"/>
-      <stop offset="1" stop-color="#4CC9FF" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <circle cx="70" cy="72" r="42" fill="url(#sw-ambient)"/>
-  <path d="M44 69c8-7 17-10 28-9 10 1 18 4 26 9" stroke="url(#sw-wave-main)" stroke-opacity="0.2" stroke-width="10" stroke-linecap="round"/>
-  <path d="M46 81c7-6 15-8 24-7 8 1 15 3 22 7" stroke="url(#sw-wave-accent)" stroke-opacity="0.18" stroke-width="9" stroke-linecap="round"/>
-  <path d="M70 12C56 21 42 28 28 31v33c0 18 6 34 16 47 7 9 16 16 26 22 10-6 19-13 26-22 10-13 16-29 16-47V31c-14-3-28-10-42-19z" fill="url(#sw-shield-fill)"/>
-  <path d="M70 18C58 26 45 31 34 34v30c0 16 5 30 14 42 6 7 13 13 22 19 9-6 16-12 22-19 9-12 14-26 14-42V34c-11-3-24-8-36-16z" fill="none" stroke="url(#sw-outline)" stroke-opacity="0.34" stroke-width="1.8"/>
-  <path d="M70 21C59 28 48 33 38 36v28c0 14 5 27 13 37 5 7 12 12 19 17 7-5 14-10 19-17 8-10 13-23 13-37V36c-10-3-21-8-32-15z" fill="none" stroke="#FAFAFF" stroke-opacity="0.06" stroke-width="1"/>
-  <circle cx="70" cy="68" r="29" fill="url(#sw-core)"/>
-  <circle cx="70" cy="68" r="29" fill="none" stroke="#4CC9FF" stroke-opacity="0.14" stroke-width="1.1"/>
-  <path d="M44 69c8-7 17-10 28-9 10 1 18 4 26 9" stroke="url(#sw-wave-main)" stroke-width="6" stroke-linecap="round"/>
-  <path d="M46 81c7-6 15-8 24-7 8 1 15 3 22 7" stroke="url(#sw-wave-accent)" stroke-width="5" stroke-linecap="round"/>
-  <path d="M52 92c5-4 11-5 17-5 6 0 11 2 16 5" stroke="#4CC9FF" stroke-opacity="0.8" stroke-width="3" stroke-linecap="round"/>
-  <path d="M48 50c7-8 14-12 22-14" stroke="#FF2BD6" stroke-opacity="0.28" stroke-width="2.2" stroke-linecap="round"/>
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="sw-logo-title">
+  <title id="sw-logo-title">SecureWave</title>
+  <path d="M18 2L32 10V26L18 34L4 26V10L18 2Z" stroke="#1a3060" stroke-width="1" fill="none"/>
+  <path d="M18 6L28 12V20C28 25.5 18 30 18 30C18 30 8 25.5 8 20V12L18 6Z" fill="#060c18" stroke="#00b4ff" stroke-width="1.2"/>
+  <path d="M9 18 Q11.5 13 14 18 Q16.5 23 19 18 Q21.5 13 24 18 Q25.5 21 27 18" stroke="#00b4ff" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <circle cx="18" cy="6" r="1.5" fill="#00b4ff"/>
 </svg>
