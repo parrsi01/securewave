@@ -1,0 +1,7 @@
+# SecureWave project defaults. This file is loaded only for this trusted repo.
+# Keep personal/global model preferences in ~/.codex/config.toml.
+
+model_reasoning_effort = "high"
+plan_mode_reasoning_effort = "high"
+model_verbosity = "medium"
+model_instructions_file = "model-instructions.md"
