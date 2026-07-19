@@ -107,7 +107,7 @@ echo "Close the app window to finish diagnostics."
 set +e
 flutter run -d linux \
   2>&1 | tee "$log_file"
-flutter_status="${PIPESTATUS[0]}"
+flutter_status=$?
 set -e
 
 {

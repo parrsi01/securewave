@@ -368,7 +368,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           _requireThreatProtection(profile, config);
           threatProtectionVerified = true;
           threatProtectionCategories = List<String>.unmodifiable(
-            profile.blockedCategories,
+            profile.blockedCategories.isEmpty
+                ? const <String>['ads', 'trackers', 'phishing', 'malware']
+                : profile.blockedCategories,
           );
           if (state.protocol == VpnProtocol.openVpn) {
             openVpnUsername = profile.openVpnUsername;
@@ -704,12 +706,17 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   void _requireThreatProtection(VpnProfile profile, String config) {
     final requiredCategories = {'ads', 'trackers', 'phishing', 'malware'};
     final actualCategories = profile.blockedCategories.toSet();
+    const knownFilteredResolvers = {'94.140.14.14', '94.140.15.15'};
     final dnsConfigured = profile.dnsServers.isNotEmpty &&
         profile.dnsServers.every(config.contains);
+    final explicitPolicy =
+        profile.securityPolicyEngine == 'marl_xgboost_risk_assessment' &&
+            actualCategories.containsAll(requiredCategories);
+    final knownLegacyPolicy = profile.dnsServers.isNotEmpty &&
+        profile.dnsServers.every(knownFilteredResolvers.contains);
     if (profile.adMalwareBlocking.toLowerCase() != 'on' ||
         profile.dnsEnforcement.toLowerCase() != 'config' ||
-        profile.securityPolicyEngine != 'marl_xgboost_risk_assessment' ||
-        !actualCategories.containsAll(requiredCategories) ||
+        (!explicitPolicy && !knownLegacyPolicy) ||
         !dnsConfigured) {
       throw VpnServiceException(
         'threat_protection_unavailable',
