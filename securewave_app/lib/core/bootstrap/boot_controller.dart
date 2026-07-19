@@ -8,6 +8,7 @@ import '../logging/app_logger.dart';
 import '../services/auth_session.dart';
 import '../services/secure_storage.dart';
 import '../state/vpn_state.dart';
+import '../../services/auth_service.dart';
 
 enum BootStatus { initializing, ready, failed }
 
@@ -90,6 +91,24 @@ class BootController extends ChangeNotifier {
         await storage.saveBool(SecureStorage.resetSessionDoneKey, true);
         AppLogger.info('Boot: session reset');
       }
+    }
+
+    if (config.debugAutoLogin) {
+      final email = config.debugEmail?.trim() ?? '';
+      final password = config.debugPassword ?? '';
+      if (email.isEmpty || password.isEmpty) {
+        throw StateError(
+          'Debug auto-login requires SECUREWAVE_DEBUG_EMAIL and '
+          'SECUREWAVE_DEBUG_PASSWORD.',
+        );
+      }
+      // A demo launch must never inherit an older account or device session.
+      await session.clearSession();
+      await _ref.read(authServiceProvider).login(
+            email: email,
+            password: password,
+          );
+      AppLogger.info('Boot: debug demo account signed in');
     }
 
     // Step 2: Restore VPN server selection (can fail gracefully)

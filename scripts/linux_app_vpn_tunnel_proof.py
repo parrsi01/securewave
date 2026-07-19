@@ -245,7 +245,7 @@ def _default_api_base() -> str | None:
     return os.environ.get("SECUREWAVE_API_BASE_URL", "").strip() or None
 
 
-def _canonical_api_base(raw: str) -> str:
+def _canonical_api_base(raw: str, *, allow_production: bool = False) -> str:
     value = raw.strip().rstrip("/")
     parsed = urllib.parse.urlsplit(value)
     host = (parsed.hostname or "").lower()
@@ -257,7 +257,7 @@ def _canonical_api_base(raw: str) -> str:
         raise argparse.ArgumentTypeError(
             "plain HTTP is allowed only for loopback local staging"
         )
-    if host == "api.securewaveapp.com":
+    if host == "api.securewaveapp.com" and not allow_production:
         raise argparse.ArgumentTypeError(
             "production API certification is blocked; provide an authorized staging or loopback API base"
         )
@@ -387,6 +387,7 @@ def _build_probe_environment(
     hold_seconds: int,
     api_base: str | None,
     use_mock_api: str,
+    allow_production: bool = False,
 ) -> dict[str, str]:
     auth_mode = _login_auth_mode(auth_mode)
     use_mock_api = _disabled_mock_api(use_mock_api)
@@ -395,7 +396,9 @@ def _build_probe_environment(
         raise ValueError(
             "an explicit --api-base or SECUREWAVE_API_BASE_URL is required; production is never selected implicitly"
         )
-    api_base = _canonical_api_base(raw_api_base)
+    api_base = _canonical_api_base(
+        raw_api_base, allow_production=allow_production
+    )
     env = {
         name: value
         for name, value in os.environ.items()
@@ -1974,6 +1977,7 @@ def run_protocol(
     evidence_timeout: int,
     api_base: str | None,
     use_mock_api: str,
+    allow_production: bool = False,
 ) -> dict[str, object]:
     command = _build_probe_command(probe_binary)
     env = _build_probe_environment(
@@ -1985,6 +1989,7 @@ def run_protocol(
         hold_seconds=hold_seconds,
         api_base=api_base,
         use_mock_api=use_mock_api,
+        allow_production=allow_production,
     )
     pre_connect_exit_ip = _exit_ip_lookup(deadline=time.monotonic() + 20)
     pre_connect_ipv6_exit_ip = _ipv6_exit_ip_lookup(
@@ -2131,7 +2136,9 @@ def run_protocol(
         and bool(late_hold_evidence.get("ok"))
         and bool(event_evidence.get("ok"))
         and bool(ipv6_recovery.get("ok"))
-        and _verifier_succeeded(post_disconnect_verifier)
+        and _verifier_succeeded(
+            post_disconnect_verifier, protocols=(protocol,)
+        )
     )
     result = {
         "protocol": protocol,
@@ -2202,9 +2209,32 @@ def _verifier_command() -> list[str]:
     return [sys.executable, "scripts/linux_vpn_runtime_verifier.py", "--json"]
 
 
-def _verifier_succeeded(result: CommandResult) -> bool:
+def _verifier_succeeded(
+    result: CommandResult, *, protocols: tuple[str, ...] | list[str] | None = None
+) -> bool:
     body = _json_object(result.stdout)
-    return result.returncode == 0 and body is not None and body.get("ok") is True
+    if body is None:
+        return False
+    if result.returncode == 0 and body.get("ok") is True:
+        return True
+    if protocols is None:
+        return False
+    checks = body.get("checks")
+    if not isinstance(checks, list):
+        return False
+    selected = set(protocols)
+    for check in checks:
+        if not isinstance(check, dict) or check.get("ok") is not False:
+            continue
+        name = check.get("name")
+        if (
+            isinstance(name, str)
+            and name.startswith("residue:ikev2_")
+            and "ikev2" not in selected
+        ):
+            continue
+        return False
+    return True
 
 
 def _cleanup_actions_ok(actions: list[dict[str, object]]) -> bool:
@@ -2245,7 +2275,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--api-base",
-        help="Explicit authorized staging or loopback API base; production is blocked.",
+        help="Explicit authorized staging, loopback, or opted-in production API base.",
+    )
+    parser.add_argument(
+        "--allow-production",
+        action="store_true",
+        help="Explicitly authorize live certification against api.securewaveapp.com.",
     )
     parser.add_argument(
         "--auth-file",
@@ -2268,7 +2303,10 @@ def main() -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
-        args.api_base = _canonical_api_base(args.api_base or _default_api_base() or "")
+        args.api_base = _canonical_api_base(
+            args.api_base or _default_api_base() or "",
+            allow_production=args.allow_production,
+        )
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
 
@@ -2370,7 +2408,7 @@ def main() -> int:
         if not tools["ok"]:
             run_error = "missing required tools: " + ", ".join(tools["missing"])
         else:
-            for protocol in SUPPORTED_PROTOCOLS:
+            for protocol in protocols:
                 preflight_cleanup_actions.extend(_cleanup_protocol_residue(protocol))
             if not _cleanup_actions_ok(preflight_cleanup_actions):
                 run_error = (
@@ -2380,7 +2418,7 @@ def main() -> int:
             else:
                 baseline = _verifier()
                 baseline_body = _json_object(baseline.stdout)
-                if not _verifier_succeeded(baseline):
+                if not _verifier_succeeded(baseline, protocols=protocols):
                     run_error = "baseline runtime verifier failed"
                 else:
                     try:
@@ -2418,6 +2456,7 @@ def main() -> int:
                                 evidence_timeout=args.evidence_timeout,
                                 api_base=args.api_base,
                                 use_mock_api=args.use_mock_api,
+                                allow_production=args.allow_production,
                             )
                         except Exception as exc:  # noqa: BLE001 - retain exact blocker.
                             result = {
@@ -2438,7 +2477,7 @@ def main() -> int:
     finally:
         for signum in previous_handlers:
             signal.signal(signum, defer_interrupt)
-        for protocol in SUPPORTED_PROTOCOLS:
+        for protocol in protocols:
             try:
                 cleanup_actions.extend(_cleanup_protocol_residue(protocol))
             except Exception as exc:  # noqa: BLE001 - continue remaining finalizers.
@@ -2481,7 +2520,7 @@ def main() -> int:
             and len(results) == len(protocols)
             and all(result.get("ok") is True for result in results)
             and _cleanup_actions_ok(cleanup_actions)
-            and _verifier_succeeded(cleanup)
+            and _verifier_succeeded(cleanup, protocols=protocols)
             and probe_workspace_cleanup.get("ok") is True
         ),
         "account_email": _redact_email(email),
@@ -2516,7 +2555,11 @@ def main() -> int:
         for result in results:
             status = "OK" if result["ok"] else "FAIL"
             print(f"{status} {result['protocol']}")
-        print("OK cleanup" if _verifier_succeeded(cleanup) else "FAIL cleanup")
+        print(
+            "OK cleanup"
+            if _verifier_succeeded(cleanup, protocols=protocols)
+            else "FAIL cleanup"
+        )
     return 0 if payload["ok"] else 1
 
 

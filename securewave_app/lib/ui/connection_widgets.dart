@@ -48,9 +48,21 @@ class _ConnectionStrip extends StatelessWidget {
 }
 
 class _UsageSummary extends StatelessWidget {
-  const _UsageSummary({required this.plan});
+  const _UsageSummary({required this.plan, this.vpn});
 
   final UserPlan plan;
+  final VpnState? vpn;
+
+  String _bytes(int value) {
+    if (value < 1024) return '$value B';
+    if (value < 1024 * 1024) return '${(value / 1024).toStringAsFixed(1)} KB';
+    if (value < 1024 * 1024 * 1024) {
+      return '${(value / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(value / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  String _rate(double value) => '${_bytes(value.round())}/s';
 
   @override
   Widget build(BuildContext context) {
@@ -92,9 +104,29 @@ class _UsageSummary extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        _InfoRow('Used', '${plan.usedGb.toStringAsFixed(1)} GB'),
+        _InfoRow(
+          'Used',
+          plan.usedGb < 0.01
+              ? '${(plan.usedGb * 1024).toStringAsFixed(1)} MB'
+              : '${plan.usedGb.toStringAsFixed(2)} GB',
+        ),
         _InfoRow('Cap', cap),
         _InfoRow('Usage', percentText),
+        if (vpn case final live?) ...[
+          const SizedBox(height: 8),
+          _InfoRow(
+            'Live counters',
+            live.sessionCountersAvailable ? 'Active' : 'Waiting for traffic',
+          ),
+          _InfoRow(
+            'This session',
+            '↓ ${_bytes(live.sessionRxBytes)}  ↑ ${_bytes(live.sessionTxBytes)}',
+          ),
+          _InfoRow(
+            'Current rate',
+            '↓ ${_rate(live.dataRateDown)}  ↑ ${_rate(live.dataRateUp)}',
+          ),
+        ],
       ],
     );
   }
@@ -120,16 +152,19 @@ class _ProtocolPicker extends ConsumerWidget {
         protocol: VpnProtocol.wireGuard,
         title: 'WireGuard',
         detail: 'Primary Linux runtime path.',
+        comingSoon: false,
       ),
       (
         protocol: VpnProtocol.openVpn,
         title: 'OpenVPN',
-        detail: 'Requires a backend-issued OpenVPN profile.',
+        detail: 'Coming soon after production gateway certification.',
+        comingSoon: true,
       ),
       (
         protocol: VpnProtocol.ikev2,
         title: 'IKEv2/IPSec',
-        detail: 'Requires a backend-issued IKEv2 profile and strongSwan.',
+        detail: 'Coming soon after dedicated gateway certification.',
+        comingSoon: true,
       ),
     ];
 
@@ -150,11 +185,15 @@ class _ProtocolPicker extends ConsumerWidget {
                 protocol: item.protocol,
                 selected: selected == item.protocol,
                 title: item.title,
-                detail: availability.canConnect
+                detail: item.comingSoon
                     ? item.detail
-                    : availability.message,
-                enabled: availability.canConnect,
-                pending: availability.backendEvidencePending,
+                    : availability.canConnect
+                        ? item.detail
+                        : availability.message,
+                enabled: !item.comingSoon && availability.canConnect,
+                pending:
+                    !item.comingSoon && availability.backendEvidencePending,
+                comingSoon: item.comingSoon,
               );
             },
           ),
@@ -173,6 +212,7 @@ class _ProtocolTile extends ConsumerWidget {
     required this.detail,
     required this.enabled,
     required this.pending,
+    required this.comingSoon,
   });
 
   final VpnProtocol protocol;
@@ -181,6 +221,7 @@ class _ProtocolTile extends ConsumerWidget {
   final String detail;
   final bool enabled;
   final bool pending;
+  final bool comingSoon;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -195,9 +236,12 @@ class _ProtocolTile extends ConsumerWidget {
               height: 16,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : enabled
-              ? null
-              : const _StatusChip(label: 'Unavailable', tone: _Tone.warning),
+          : comingSoon
+              ? const _StatusChip(label: 'Coming soon', tone: _Tone.neutral)
+              : enabled
+                  ? null
+                  : const _StatusChip(
+                      label: 'Unavailable', tone: _Tone.warning),
       onTap: enabled
           ? () => ref.read(vpnStateProvider.notifier).selectProtocol(protocol)
           : null,

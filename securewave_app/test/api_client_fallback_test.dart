@@ -79,4 +79,35 @@ void main() {
     final account = await client.fetchCurrentUser();
     expect(account.email, isNotEmpty);
   });
+
+  test('server catalog request carries the Linux device contract', () async {
+    final config = AppConfig(
+      apiBaseUrl: 'https://example.invalid',
+      portalUrl: 'https://example.invalid',
+      upgradeUrl: 'https://example.invalid',
+      useMockApi: false,
+      resetSessionOnBoot: false,
+    );
+    final requests = <RequestOptions>[];
+    final dio = Dio(BaseOptions(baseUrl: config.apiBaseUrl));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          requests.add(options);
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              data: <String, dynamic>{'servers': <dynamic>[]},
+            ),
+          );
+        },
+      ),
+    );
+    final client = ApiClient(config, dio: dio);
+
+    await client.fetchServers(forceRefresh: true, deviceType: 'linux');
+
+    expect(requests.single.path, '/vpn/servers');
+    expect(requests.single.queryParameters['device_type'], 'linux');
+  });
 }

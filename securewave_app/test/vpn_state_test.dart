@@ -9,6 +9,7 @@ import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/vpn_profile.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/protocol_availability.dart';
+import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
@@ -71,6 +72,69 @@ void main() {
 
     await notifier.disconnect();
     expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
+  });
+
+  test('disconnect stays available while connected bookkeeping is pending',
+      () async {
+    final service = MockVpnService(
+      connectDelay: Duration.zero,
+      disconnectDelay: Duration.zero,
+    );
+    final api = _PendingConnectNotificationApiClient();
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(() {
+      api.release();
+      container.dispose();
+    });
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.ensureInitialized();
+    await notifier.connect().timeout(const Duration(seconds: 1));
+
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+    expect(container.read(vpnStateProvider).isBusy, isFalse);
+    expect(api.notificationStarted, isTrue);
+
+    await notifier.disconnect().timeout(const Duration(seconds: 1));
+    expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
+  });
+
+  test('VPN availability refresh disables itself until both providers settle',
+      () async {
+    final servers = Completer<List<ServerRegion>>();
+    final availability = Completer<Map<VpnProtocol, ProtocolAvailability>>();
+    final api = _RefreshTrackingApiClient();
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(MockVpnService()),
+        apiClientProvider.overrideWithValue(api),
+        serversProvider.overrideWith((ref) => servers.future),
+        protocolAvailabilityProvider.overrideWith((ref) => availability.future),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.ensureInitialized();
+    final refresh = notifier.refreshConnectivity();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(vpnStateProvider).isBusy, isTrue);
+    expect(container.read(vpnStateProvider).isRefreshing, isTrue);
+
+    servers.complete(const []);
+    availability.complete(const {});
+    await refresh;
+
+    expect(container.read(vpnStateProvider).isBusy, isFalse);
+    expect(container.read(vpnStateProvider).isRefreshing, isFalse);
+    expect(api.forceRefreshCalls, 1);
+    expect(api.deviceTypes, ['linux']);
   });
 
   test('VpnStateNotifier exposes one deterministic initialization future',
@@ -388,6 +452,46 @@ class _CounterVpnService extends VpnService {
     final index = trafficCalls - 1;
     return samples[index < samples.length ? index : samples.length - 1];
   }
+}
+
+class _RefreshTrackingApiClient extends ApiClient {
+  _RefreshTrackingApiClient() : super(AppConfig.defaults());
+
+  int forceRefreshCalls = 0;
+  final deviceTypes = <String?>[];
+
+  @override
+  Future<List<ServerRegion>> fetchServers({
+    bool forceRefresh = false,
+    String? deviceType,
+  }) async {
+    if (forceRefresh) forceRefreshCalls += 1;
+    deviceTypes.add(deviceType);
+    return const [];
+  }
+}
+
+class _PendingConnectNotificationApiClient extends ApiClient {
+  _PendingConnectNotificationApiClient() : super(AppConfig.defaults());
+
+  final _pending = Completer<void>();
+  bool notificationStarted = false;
+
+  void release() {
+    if (!_pending.isCompleted) _pending.complete();
+  }
+
+  @override
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {
+    notificationStarted = true;
+    await _pending.future;
+  }
+
+  @override
+  Future<void> notifyVpnDisconnected() async {}
 }
 
 class _InitializationTrackingVpnService extends VpnService {

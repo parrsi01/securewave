@@ -153,6 +153,49 @@ log_info "Starting WireGuard..."
 systemctl enable wg-quick@${WG_INTERFACE}
 systemctl start wg-quick@${WG_INTERFACE}
 
+# Keep the kernel interface available after boot and recover it if an
+# administrator or transient networking event removes it. wg-quick is a
+# Type=oneshot service, so Restart=always is not valid for that unit itself.
+cat > /usr/local/sbin/securewave-wireguard-watchdog << 'WGWATCHDOG'
+#!/bin/bash
+set -euo pipefail
+
+if ! systemctl is-active --quiet wg-quick@wg0.service ||
+   ! ip link show dev wg0 >/dev/null 2>&1 ||
+   [[ "$(sysctl -n net.ipv4.ip_forward 2>/dev/null || echo 0)" != "1" ]]; then
+  systemctl restart wg-quick@wg0.service
+fi
+WGWATCHDOG
+chmod 0755 /usr/local/sbin/securewave-wireguard-watchdog
+
+cat > /etc/systemd/system/securewave-wireguard-watchdog.service << 'WGWATCHDOGSERVICE'
+[Unit]
+Description=SecureWave WireGuard gateway availability check
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/securewave-wireguard-watchdog
+WGWATCHDOGSERVICE
+
+cat > /etc/systemd/system/securewave-wireguard-watchdog.timer << 'WGWATCHDOGTIMER'
+[Unit]
+Description=Check SecureWave WireGuard gateway availability
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+WGWATCHDOGTIMER
+
+systemctl daemon-reload
+systemctl enable --now securewave-wireguard-watchdog.timer
+
 # =============================================================================
 # 8. Create Peer Management Scripts
 # =============================================================================

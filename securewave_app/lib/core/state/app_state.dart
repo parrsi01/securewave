@@ -26,7 +26,7 @@ final deviceInfoProvider = Provider<String>((ref) {
 
 final serversProvider = FutureProvider<List<ServerRegion>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  return api.fetchServers();
+  return api.fetchServers(deviceType: 'linux');
 });
 
 final userPlanProvider = FutureProvider<UserPlan>((ref) async {
@@ -42,7 +42,13 @@ final currentUserProvider = FutureProvider<UserAccount>((ref) async {
 final protocolAvailabilityProvider =
     FutureProvider<Map<VpnProtocol, ProtocolAvailability>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  return api.fetchProtocolAvailability(deviceType: 'linux');
+  final vpn = ref.watch(vpnServiceProvider);
+  final availability = await api.fetchProtocolAvailability(deviceType: 'linux');
+  // Prime the native capability state before UI tiles evaluate canConnect.
+  // This is a local helper probe only; backend protocol evidence remains the
+  // source of truth for whether a server can actually be selected.
+  await vpn.refreshProtocolAvailability(VpnProtocol.wireGuard);
+  return availability;
 });
 
 final favoriteServersProvider =

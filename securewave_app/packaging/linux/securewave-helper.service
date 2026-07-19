@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStart=/usr/local/libexec/securewave-helperd
-Restart=on-failure
+Restart=always
 RestartSec=2s
 User=root
 Group=securewave

@@ -1,4 +1,5 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/app_constants.dart';
@@ -13,6 +14,9 @@ class AppConfig {
     required this.upgradeUrl,
     required this.useMockApi,
     required this.resetSessionOnBoot,
+    this.debugAutoLogin = false,
+    this.debugEmail,
+    this.debugPassword,
   });
 
   final String apiBaseUrl;
@@ -20,6 +24,9 @@ class AppConfig {
   final String upgradeUrl;
   final bool useMockApi;
   final bool resetSessionOnBoot;
+  final bool debugAutoLogin;
+  final String? debugEmail;
+  final String? debugPassword;
   static AppConfig? _cached;
 
   factory AppConfig.defaults() {
@@ -45,6 +52,13 @@ class AppConfig {
         ),
       ),
       resetSessionOnBoot: false,
+      debugAutoLogin: !kReleaseMode &&
+          _parseBool(const String.fromEnvironment(
+            'SECUREWAVE_DEBUG_AUTO_LOGIN',
+            defaultValue: 'false',
+          )),
+      debugEmail: const String.fromEnvironment('SECUREWAVE_DEBUG_EMAIL'),
+      debugPassword: const String.fromEnvironment('SECUREWAVE_DEBUG_PASSWORD'),
     );
   }
 
@@ -63,29 +77,20 @@ class AppConfig {
     }
 
     final env = dotenv.isInitialized ? dotenv.env : const <String, String>{};
-    final baseUrl = _envOrDefault(
+    final baseUrl = _compileTimeOrEnvOrFallback(
       env,
       'SECUREWAVE_API_BASE_URL',
-      _compileTimeOrFallback(
-        'SECUREWAVE_API_BASE_URL',
-        AppConstants.baseUrlFallback,
-      ),
+      AppConstants.baseUrlFallback,
     );
-    final portalUrl = _envOrDefault(
+    final portalUrl = _compileTimeOrEnvOrFallback(
       env,
       'SECUREWAVE_PORTAL_URL',
-      _compileTimeOrFallback(
-        'SECUREWAVE_PORTAL_URL',
-        AppConstants.portalUrlFallback,
-      ),
+      AppConstants.portalUrlFallback,
     );
-    final upgradeUrl = _envOrDefault(
+    final upgradeUrl = _compileTimeOrEnvOrFallback(
       env,
       'SECUREWAVE_UPGRADE_URL',
-      _compileTimeOrFallback(
-        'SECUREWAVE_UPGRADE_URL',
-        AppConstants.upgradeUrlFallback,
-      ),
+      AppConstants.upgradeUrlFallback,
     );
     // Mock API must be explicitly requested in every build mode.
     const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
@@ -105,6 +110,25 @@ class AppConfig {
             defaultValue: 'false',
           ),
     );
+    final debugAutoLogin = !kReleaseMode &&
+        _parseBool(_envOrDefault(
+          env,
+          'SECUREWAVE_DEBUG_AUTO_LOGIN',
+          const String.fromEnvironment(
+            'SECUREWAVE_DEBUG_AUTO_LOGIN',
+            defaultValue: 'false',
+          ),
+        ));
+    final debugEmail = _envOrDefault(
+      env,
+      'SECUREWAVE_DEBUG_EMAIL',
+      const String.fromEnvironment('SECUREWAVE_DEBUG_EMAIL'),
+    );
+    final debugPassword = _envOrDefault(
+      env,
+      'SECUREWAVE_DEBUG_PASSWORD',
+      const String.fromEnvironment('SECUREWAVE_DEBUG_PASSWORD'),
+    );
 
     _cached = AppConfig(
       apiBaseUrl: baseUrl,
@@ -112,6 +136,9 @@ class AppConfig {
       upgradeUrl: upgradeUrl,
       useMockApi: useMock,
       resetSessionOnBoot: resetSessionOnBoot,
+      debugAutoLogin: debugAutoLogin,
+      debugEmail: debugEmail.isEmpty ? null : debugEmail,
+      debugPassword: debugPassword.isEmpty ? null : debugPassword,
     );
     return _cached!;
   }
@@ -134,6 +161,13 @@ class AppConfig {
       _ => '',
     };
     return value.trim().isEmpty ? fallback : value;
+  }
+
+  static String _compileTimeOrEnvOrFallback(
+      Map<String, String> env, String key, String fallback) {
+    final compileTime = _compileTimeOrFallback(key, '');
+    if (compileTime.trim().isNotEmpty) return compileTime;
+    return _envOrDefault(env, key, fallback);
   }
 
   static bool _parseBool(String value) {

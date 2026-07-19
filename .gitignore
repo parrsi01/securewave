@@ -42,6 +42,8 @@ env/
 .env
 .env.local
 .env.production
+securewave_private/
+artifacts/flutter-live-runs/
 .secrets
 
 # Android signing
@@ -148,6 +150,8 @@ venv/
 
 # IDE
 .vscode/
+!.vscode/
+!.vscode/tasks.json
 .idea/
 
 # Local data

@@ -30,6 +30,21 @@ class _ConnectScreen extends ConsumerWidget {
     final busy = vpn.isBusy ||
         vpn.status == VpnStatus.connecting ||
         vpn.status == VpnStatus.disconnecting;
+    final refreshButton = IconButton(
+      tooltip: 'Refresh VPN availability',
+      onPressed: busy
+          ? null
+          : () => unawaited(
+                ref.read(vpnStateProvider.notifier).refreshConnectivity(),
+              ),
+      icon: vpn.isRefreshing
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.refresh_rounded),
+    );
 
     return ListView(
       children: [
@@ -73,7 +88,13 @@ class _ConnectScreen extends ConsumerWidget {
                       children: [
                         connectButton,
                         const SizedBox(height: 8),
-                        diagnosticsButton,
+                        Row(
+                          children: [
+                            Expanded(child: diagnosticsButton),
+                            const SizedBox(width: 8),
+                            refreshButton,
+                          ],
+                        ),
                       ],
                     );
                   }
@@ -82,6 +103,8 @@ class _ConnectScreen extends ConsumerWidget {
                       Expanded(child: connectButton),
                       const SizedBox(width: 10),
                       diagnosticsButton,
+                      const SizedBox(width: 4),
+                      refreshButton,
                     ],
                   );
                 },
@@ -116,10 +139,14 @@ class _ConnectScreen extends ConsumerWidget {
                       : _Tone.warning,
                   actionLabel: availability.backendEvidencePending
                       ? null
-                      : 'Refresh servers',
+                      : 'Refresh VPN',
                   onAction: availability.backendEvidencePending
                       ? null
-                      : () => ref.invalidate(serversProvider),
+                      : () => unawaited(
+                            ref
+                                .read(vpnStateProvider.notifier)
+                                .refreshConnectivity(),
+                          ),
                 ),
               ],
               if (config.useMockApi) ...[
@@ -159,7 +186,7 @@ class _ConnectScreen extends ConsumerWidget {
                 const _SectionTitle('Data'),
                 const SizedBox(height: 12),
                 plan.when(
-                  data: (value) => _UsageSummary(plan: value),
+                  data: (value) => _UsageSummary(plan: value, vpn: vpn),
                   loading: () => const _LoadingLine('Loading usage'),
                   error: (_, __) => _InlineMessage(
                     icon: Icons.warning_amber_rounded,

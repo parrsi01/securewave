@@ -1,12 +1,17 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/app.dart';
 import 'package:securewave_app/core/config/app_config.dart';
+import 'package:securewave_app/core/models/protocol_availability.dart';
 import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
+import 'package:securewave_app/core/models/vpn_protocol.dart';
+import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
+import 'package:securewave_app/services/api_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -105,12 +110,83 @@ void main() {
     expect(find.text('Unlimited'), findsOneWidget);
     expect(find.textContaining('NaN'), findsNothing);
   });
+
+  testWidgets(
+      'VPN availability refresh is enabled at idle and disabled while connecting',
+      (tester) async {
+    await _pumpApp(
+      tester,
+      apiClientOverride: apiClientProvider.overrideWithValue(
+        ApiClient(
+          AppConfig(
+            apiBaseUrl: 'https://api.example.test',
+            portalUrl: 'https://portal.example.test',
+            upgradeUrl: 'https://upgrade.example.test',
+            useMockApi: true,
+            resetSessionOnBoot: false,
+          ),
+        ),
+      ),
+      protocolAvailabilityOverride: protocolAvailabilityProvider.overrideWith(
+        (ref) async => const {
+          VpnProtocol.wireGuard: ProtocolAvailability(
+            protocol: VpnProtocol.wireGuard,
+            enabled: true,
+            serverEnabled: true,
+            platformSupported: true,
+          ),
+          VpnProtocol.openVpn: ProtocolAvailability(
+            protocol: VpnProtocol.openVpn,
+            enabled: false,
+            serverEnabled: false,
+            platformSupported: false,
+          ),
+          VpnProtocol.ikev2: ProtocolAvailability(
+            protocol: VpnProtocol.ikev2,
+            enabled: false,
+            serverEnabled: false,
+            platformSupported: false,
+          ),
+        },
+      ),
+      serversOverride: serversProvider.overrideWith(
+        (ref) async => const [
+          ServerRegion(
+            id: 'us-chi',
+            name: 'Chicago',
+            country: 'United States',
+            latencyMs: 24,
+            supportedProtocols: ['wireguard'],
+          ),
+        ],
+      ),
+      vpnServiceOverride: vpnServiceProvider.overrideWithValue(
+        MockVpnService(
+          connectDelay: const Duration(milliseconds: 100),
+          disconnectDelay: Duration.zero,
+        ),
+      ),
+    );
+
+    final refresh = find.widgetWithIcon(IconButton, Icons.refresh_rounded);
+    expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Connect'));
+    await tester.pump();
+    expect(tester.widget<IconButton>(refresh).onPressed, isNull);
+
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
+  });
 }
 
 Future<void> _pumpApp(
   WidgetTester tester, {
   Override? serversOverride,
   Override? planOverride,
+  Override? apiClientOverride,
+  Override? protocolAvailabilityOverride,
+  Override? vpnServiceOverride,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -120,6 +196,10 @@ Future<void> _pumpApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        apiClientOverride ??
+            apiClientProvider.overrideWith(
+              (ref) => ApiClient(AppConfig.defaults()),
+            ),
         appConfigProvider.overrideWith(
           (ref) => AppConfig(
             apiBaseUrl: 'https://api.example.test',
@@ -159,6 +239,12 @@ Future<void> _pumpApp(
                 ),
               ],
             ),
+        protocolAvailabilityOverride ??
+            protocolAvailabilityProvider.overrideWith(
+              (ref) async => const {},
+            ),
+        vpnServiceOverride ??
+            vpnServiceProvider.overrideWithValue(MockVpnService()),
       ],
       child: const SecureWaveApp(),
     ),

@@ -1165,7 +1165,11 @@ static bool WireGuardIpv4KillSwitchPresent(const std::string& output) {
   std::string line;
   while (std::getline(lines, line)) {
     const std::vector<std::string> values = IptablesSaveTokens(line);
-    if (values.size() == 21 && values[0] == "-A" &&
+    const bool valid_reject_suffix =
+        values.size() == 21 ||
+        (values.size() == 23 && values[21] == "--reject-with" &&
+         values[22] == "icmp-port-unreachable");
+    if (valid_reject_suffix && values[0] == "-A" &&
         values[1] == "OUTPUT" && values[2] == "!" && values[3] == "-o" &&
         values[4] == kWireGuardInterface && values[5] == "-m" &&
         values[6] == "mark" && values[7] == "!" &&
@@ -3184,7 +3188,7 @@ static Fields OpenVpnStatus(const Fields& request, uid_t peer_uid) {
   const std::string config_path = Field(request, "config_path");
   const std::string pid_path = Field(request, "pid_path");
   const std::string log_path = Field(request, "log_path");
-  if (!ValidateConfigPath(config_path, "securewave.ovpn", peer_uid) ||
+  if (!ValidateRuntimeFilePath(config_path, "securewave.ovpn", peer_uid) ||
       !ValidateRuntimeFilePath(pid_path, kOpenVpnPidName, peer_uid) ||
       !ValidateRuntimeFilePath(log_path, kOpenVpnLogName, peer_uid)) {
     return Error("invalid_path", "OpenVPN runtime path is not approved.");
@@ -3256,9 +3260,12 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
   const std::string pid_path = Field(request, "pid_path");
   const std::string log_path = Field(request, "log_path");
   const std::string auth_path = Field(request, "auth_path");
-  if ((op == "openvpn.start" || op == "openvpn.stop" ||
-       op == "openvpn.cleanup") &&
+  if ((op == "openvpn.start" || op == "openvpn.stop") &&
       !ValidateConfigPath(config_path, "securewave.ovpn", peer_uid)) {
+    return Error("invalid_path", "OpenVPN config path is not approved.");
+  }
+  if (op == "openvpn.cleanup" &&
+      !ValidateRuntimeFilePath(config_path, "securewave.ovpn", peer_uid)) {
     return Error("invalid_path", "OpenVPN config path is not approved.");
   }
   if (!ValidateRuntimeFilePath(pid_path, kOpenVpnPidName, peer_uid)) {

@@ -21,6 +21,7 @@ class VpnState {
     this.protocol = VpnProtocol.wireGuard,
     this.desiredOn = false,
     this.isBusy = false,
+    this.isRefreshing = false,
     this.dataRateDown = 0,
     this.dataRateUp = 0,
     this.sessionRxBytes = 0,
@@ -40,6 +41,7 @@ class VpnState {
   final VpnProtocol protocol;
   final bool desiredOn;
   final bool isBusy;
+  final bool isRefreshing;
   final double dataRateDown;
   final double dataRateUp;
   final int sessionRxBytes;
@@ -59,6 +61,7 @@ class VpnState {
     VpnProtocol? protocol,
     bool? desiredOn,
     bool? isBusy,
+    bool? isRefreshing,
     double? dataRateDown,
     double? dataRateUp,
     int? sessionRxBytes,
@@ -82,6 +85,7 @@ class VpnState {
       protocol: protocol ?? this.protocol,
       desiredOn: desiredOn ?? this.desiredOn,
       isBusy: isBusy ?? this.isBusy,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
       dataRateDown: dataRateDown ?? this.dataRateDown,
       dataRateUp: dataRateUp ?? this.dataRateUp,
       sessionRxBytes: sessionRxBytes ?? this.sessionRxBytes,
@@ -130,6 +134,42 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   Future<void> ensureInitialized() => _initialization;
 
+  Future<void> refreshConnectivity() async {
+    if (state.isBusy) return;
+
+    state = state.copyWith(
+      isBusy: true,
+      isRefreshing: true,
+      clearError: true,
+    );
+    try {
+      final api = _ref.read(apiClientProvider);
+      _ref.invalidate(serversProvider);
+      _ref.invalidate(protocolAvailabilityProvider);
+      // Riverpod invalidation does not bypass ApiClient's catalog cache. Force
+      // the network retry first, then let the provider consume the refreshed
+      // cache and publish its result to the UI.
+      await api.fetchServers(forceRefresh: true, deviceType: 'linux');
+      _ref.invalidate(serversProvider);
+      await Future.wait<void>([
+        _ref.read(serversProvider.future),
+        _ref.read(protocolAvailabilityProvider.future),
+      ]);
+    } catch (error, stackTrace) {
+      // The provider errors remain visible to the UI; keep VPN state out of
+      // the connected/error tunnel state machine for a catalog retry failure.
+      AppLogger.error(
+        'VPN availability refresh failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } finally {
+      if (mounted) {
+        state = state.copyWith(isBusy: false, isRefreshing: false);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _usageTimer?.cancel();
@@ -140,6 +180,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   Future<void> _initialize() async {
     await _loadProtocol();
+    if (!mounted) return;
     final service = _ref.read(vpnServiceProvider);
     for (final protocol in VpnProtocol.values) {
       await service.refreshProtocolAvailability(protocol);
@@ -192,7 +233,18 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final storage = SecureStorage();
     final stored = await storage.getString(SecureStorage.vpnProtocolKey);
     if (!mounted) return;
-    state = state.copyWith(protocol: vpnProtocolFromStorage(stored));
+    final identity = await DeviceIdentity.load();
+    if (!mounted) return;
+    final protocol = identity.type == 'linux'
+        ? VpnProtocol.wireGuard
+        : vpnProtocolFromStorage(stored);
+    state = state.copyWith(protocol: protocol);
+    if (identity.type == 'linux' && stored != 'wireguard') {
+      await storage.saveString(
+        SecureStorage.vpnProtocolKey,
+        vpnProtocolStorageValue(VpnProtocol.wireGuard),
+      );
+    }
   }
 
   void selectServer(String? serverId) {
@@ -367,17 +419,6 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             rethrow;
           }
         }
-      } else {
-        // Demo/mock path: notify the backend so it tracks the session,
-        // but do not block on failures since the mock tunnel is local-only.
-        try {
-          await api.notifyVpnConnected(
-            serverId: state.selectedServerId,
-            protocol: state.protocol,
-          );
-        } catch (_) {
-          AppLogger.info('Backend connect notification skipped (demo mode).');
-        }
       }
       final nextStatus = await service.connect(
         protocol: state.protocol,
@@ -418,21 +459,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             );
           }
         }
-        try {
-          await api.notifyVpnConnected(
-            serverId: state.selectedServerId,
-            protocol: state.protocol,
-          );
-        } catch (_) {
-          AppLogger.info('Backend connect notification skipped.');
-        }
         state = state.copyWith(
           lastTunnelStartAt: DateTime.now(),
           lastTunnelStartOk: true,
+          isBusy: false,
         );
         _updateStability(success: true);
-        await _startUsageSession(api);
         _startRateUpdates();
+        // The tunnel is already usable. Keep disconnect immediately available
+        // while control-plane bookkeeping completes in the background.
+        unawaited(_startConnectedBookkeeping(api));
       } else {
         state = state.copyWith(
           lastTunnelStartAt: DateTime.now(),
@@ -458,6 +494,21 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     } finally {
       state = state.copyWith(isBusy: false);
     }
+  }
+
+  Future<void> _startConnectedBookkeeping(ApiClient api) async {
+    try {
+      await api.notifyVpnConnected(
+        serverId: state.selectedServerId,
+        protocol: state.protocol,
+      );
+    } catch (_) {
+      AppLogger.info('Backend connect notification skipped.');
+    }
+    if (!mounted || !state.desiredOn || state.status != VpnStatus.connected) {
+      return;
+    }
+    await _startUsageSession(api);
   }
 
   Future<void> disconnect() async {

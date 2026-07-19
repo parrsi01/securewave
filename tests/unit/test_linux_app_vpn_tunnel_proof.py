@@ -833,6 +833,9 @@ def test_default_api_base_accepts_explicit_staging_and_loopback_only(monkeypatch
     ) == "http://127.0.0.1:9443/api"
     with pytest.raises(argparse.ArgumentTypeError, match="production API"):
         proof._canonical_api_base("https://api.securewaveapp.com/api")
+    assert proof._canonical_api_base(
+        "https://api.securewaveapp.com/api", allow_production=True
+    ) == "https://api.securewaveapp.com/api"
 
 
 def test_backend_health_probe_disables_inherited_proxies(monkeypatch):
@@ -1077,6 +1080,28 @@ def test_verifier_success_requires_zero_exit_and_explicit_json_true():
     result = proof.CommandResult(0, '{"ok": true, "checks": []}', "")
 
     assert proof._verifier_succeeded(result) is True
+
+
+def test_wireguard_verifier_ignores_only_ikev2_specific_residue():
+    result = proof.CommandResult(
+        1,
+        json.dumps(
+            {
+                "ok": False,
+                "checks": [
+                    {
+                        "name": "residue:ikev2_legacy_policy_loop",
+                        "ok": False,
+                    },
+                    {"name": "residue:wireguard_interface", "ok": True},
+                ],
+            }
+        ),
+        "",
+    )
+
+    assert proof._verifier_succeeded(result, protocols=("wireguard",)) is True
+    assert proof._verifier_succeeded(result, protocols=("ikev2",)) is False
 
 
 @pytest.mark.parametrize(
@@ -2151,7 +2176,7 @@ def test_explicit_single_protocol_invocation_runs_exactly_once(
 
     assert proof.main() == 0
     assert run_calls == ["ikev2"]
-    assert cleanup_calls == list(proof.SUPPORTED_PROTOCOLS) * 2
+    assert cleanup_calls == ["ikev2", "ikev2"]
     assert len(verifier_calls) == 2
     assert workspace_calls == {
         "prepare": 1,

@@ -52,7 +52,10 @@ class ApiClient {
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
 
-  Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
+  Future<List<ServerRegion>> fetchServers({
+    bool forceRefresh = false,
+    String? deviceType,
+  }) async {
     if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
       final age = DateTime.now().difference(_serversFetchedAt!);
       if (age < _serversCacheTtl) {
@@ -67,7 +70,13 @@ class ApiClient {
       return data;
     }
     try {
-      final response = await _dio.get<Map<String, dynamic>>('/vpn/servers');
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/vpn/servers',
+        queryParameters: {
+          if (deviceType != null && deviceType.isNotEmpty)
+            'device_type': deviceType,
+        },
+      );
       final data = response.data ?? <String, dynamic>{};
       final rawList =
           data['servers'] is List ? data['servers'] as List : <dynamic>[];
