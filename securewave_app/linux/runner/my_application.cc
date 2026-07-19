@@ -936,8 +936,9 @@ static gboolean safe_openvpn_username(const gchar* value) {
     return FALSE;
   }
   const size_t length = strlen(value);
-  if (g_str_has_prefix(value, "swovpn-") && length == 38) {
-    for (const gchar* cursor = value + 6; *cursor; cursor++) {
+  // "swovpn-" is seven characters and the backend appends 32 hex digits.
+  if (g_str_has_prefix(value, "swovpn-") && length == 39) {
+    for (const gchar* cursor = value + 7; *cursor; cursor++) {
       if (!g_ascii_isxdigit(*cursor) || g_ascii_isupper(*cursor)) {
         return FALSE;
       }
