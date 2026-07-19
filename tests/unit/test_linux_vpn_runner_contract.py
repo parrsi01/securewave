@@ -15,6 +15,7 @@ BUILD_APPS = Path("scripts/build_apps.sh")
 DOWNLOAD_INSTALLER = Path("static/downloads/install-linux.sh")
 HELPER_INSTALLER = Path("securewave_app/scripts/install_linux_helper.sh")
 LINUX_CMAKE = Path("securewave_app/linux/CMakeLists.txt")
+OPENVPN_CREDENTIAL_MANAGER = Path("services/openvpn_credential_manager.py")
 
 
 def _runner_source() -> str:
@@ -347,3 +348,20 @@ def test_helper_service_owns_runtime_socket_path():
     assert "After=network-online.target NetworkManager.service" in service
     assert "strongswan-starter.service" not in service
     assert "d /run/securewave 0750 root securewave -" in tmpfiles
+
+
+def test_runner_accepts_issued_swovpn_username_format():
+    source = _runner_source()
+    manager = OPENVPN_CREDENTIAL_MANAGER.read_text(encoding="utf-8")
+
+    # Cross-layer contract: the backend issues "swovpn-" + token_hex(16),
+    # a 7-char prefix plus 32 lowercase hex digits = 39 characters. The
+    # runner validator must accept exactly that shape (regression: the
+    # 38 / value + 6 variant rejected 100% of issued credentials).
+    assert '"swovpn-" + secrets.token_hex(16)' in manager
+    assert 'g_str_has_prefix(value, "swovpn-") && length == 39' in source
+    assert "for (const gchar* cursor = value + 7; *cursor; cursor++)" in source
+    assert "length == 38" not in source
+    assert "value + 6" not in source
+    # The legacy control-plane identifier path must remain accepted.
+    assert 'g_str_has_prefix(value, "sw-ovpn-")' in source
