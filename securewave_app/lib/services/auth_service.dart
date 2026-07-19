@@ -17,13 +17,25 @@ class AuthService {
   final ApiClient _api;
   final AuthSession _session;
 
-  Future<void> login({required String email, required String password}) async {
+  Future<void> login({
+    required String email,
+    required String password,
+    bool preserveVpnRuntime = false,
+  }) async {
     final tokens = await _api.login(email: email, password: password);
-    await SecureStorage().clearVpnRuntimeState();
+    final storage = SecureStorage();
+    final normalizedEmail = email.trim().toLowerCase();
+    final previousOwner =
+        (await storage.getAccountOwnerEmail())?.trim().toLowerCase();
+    final sameKnownAccount = previousOwner == normalizedEmail;
+    if (!sameKnownAccount && !preserveVpnRuntime) {
+      await storage.clearVpnRuntimeState();
+    }
     await _session.setSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     );
+    await storage.saveAccountOwnerEmail(normalizedEmail);
   }
 
   Future<void> register(
@@ -40,11 +52,13 @@ class AuthService {
         );
       }
     }
-    await SecureStorage().clearVpnRuntimeState();
+    final storage = SecureStorage();
+    await storage.clearVpnRuntimeState();
     await _session.setSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     );
+    await storage.saveAccountOwnerEmail(email.trim().toLowerCase());
   }
 
   Future<void> logout() async {
@@ -54,7 +68,9 @@ class AuthService {
       // Local credentials must be removed even when the control plane is
       // unreachable, so logout never strands a usable session on disk.
       await _session.clearSession();
-      await SecureStorage().clearVpnRuntimeState();
+      final storage = SecureStorage();
+      await storage.clearVpnRuntimeState();
+      await storage.clearAccountOwnerEmail();
     }
   }
 }

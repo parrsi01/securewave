@@ -114,11 +114,6 @@ class _RuntimeProbeAppState extends ConsumerState<_RuntimeProbeApp> {
         'SECUREWAVE_RUNTIME_PROBE_DISCONNECT_AFTER',
         true,
       );
-      if (!disconnectAfter) {
-        throw StateError(
-          'SECUREWAVE_RUNTIME_PROBE_DISCONNECT_AFTER must remain true for proof runs.',
-        );
-      }
 
       final auth = ref.read(authServiceProvider);
       if (authMode != 'login') {
@@ -157,6 +152,16 @@ class _RuntimeProbeAppState extends ConsumerState<_RuntimeProbeApp> {
       });
       await stdout.flush();
       await Future<void>.delayed(Duration(seconds: holdSeconds));
+
+      if (!disconnectAfter) {
+        _printMessage({
+          'event': 'app_closed_with_tunnel_active',
+          'protocol': vpnProtocolStorageValue(protocol),
+        });
+        await stdout.flush();
+        exitCode = 0;
+        exit(0);
+      }
 
       await notifier.disconnect();
       final disconnectedState = ref.read(vpnStateProvider);

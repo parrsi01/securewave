@@ -289,6 +289,35 @@ void main() {
     expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
   });
 
+  test('WireGuard runtime restoration resumes protected durable metering',
+      () async {
+    await SecureStorage().saveInt(SecureStorage.vpnDeviceIdKey, 7);
+    await SecureStorage()
+        .saveString(SecureStorage.vpnActiveServerIdKey, 'metering-server');
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileConfigKeyFor('wireguard'),
+      '[Interface]\nDNS = 94.140.14.14\n',
+    );
+    final service = _RestoredCredentialedVpnService(VpnProtocol.wireGuard);
+    final api = _UsageTrackingApiClient(failFirstReport: false);
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).ensureInitialized();
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.connected);
+    expect(state.threatProtectionActive, isTrue);
+    expect(state.selectedServerId, 'metering-server');
+    expect(api.startSessionCalls, 1);
+  });
+
   test('stale stored VPN device id is cleared and profile fetch retries',
       () async {
     final service = _NativeSuccessVpnService();
@@ -590,6 +619,7 @@ class _UsageTrackingApiClient extends ApiClient {
   final bool includeThreatProtection;
   final List<({int sequence, int sent, int received})> reportAttempts = [];
   final List<int> finalizedSessionIds = [];
+  int startSessionCalls = 0;
 
   @override
   Future<VpnProfile> fetchVpnProfile({
@@ -616,8 +646,10 @@ class _UsageTrackingApiClient extends ApiClient {
     required String serverId,
     required VpnProtocol protocol,
     required String idempotencyKey,
-  }) async =>
-      42;
+  }) async {
+    startSessionCalls += 1;
+    return 42;
+  }
 
   @override
   Future<void> reportUsage({

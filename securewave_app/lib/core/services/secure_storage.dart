@@ -7,10 +7,12 @@ class SecureStorage {
   static const _refreshTokenKey = 'refresh_token';
   static const selectedServerKey = 'selected_server_id';
   static const resetSessionDoneKey = 'reset_session_done';
+  static const accountOwnerEmailKey = 'account_owner_email';
   static const vpnProtocolKey = 'vpn_protocol';
   static const deviceInstallIdKey = 'device_install_id';
   static const deviceNameKey = 'device_name';
   static const vpnDeviceIdKey = 'vpn_device_id';
+  static const vpnActiveServerIdKey = 'vpn_active_server_id';
   static const vpnProfileConfigKey = 'vpn_profile_wireguard_config';
   static const vpnProfileExpiresAtKey = 'vpn_profile_expires_at';
 
@@ -35,9 +37,19 @@ class SecureStorage {
     await _storage.delete(key: _refreshTokenKey);
   }
 
+  Future<String?> getAccountOwnerEmail() =>
+      _storage.read(key: accountOwnerEmailKey);
+
+  Future<void> saveAccountOwnerEmail(String email) =>
+      _storage.write(key: accountOwnerEmailKey, value: email);
+
+  Future<void> clearAccountOwnerEmail() =>
+      _storage.delete(key: accountOwnerEmailKey);
+
   Future<void> clearVpnRuntimeState() async {
     await _storage.delete(key: selectedServerKey);
     await _storage.delete(key: vpnDeviceIdKey);
+    await _storage.delete(key: vpnActiveServerIdKey);
     await _storage.delete(key: vpnProfileExpiresAtKey);
     await _storage.delete(key: vpnProfileConfigKeyFor('wireguard'));
     await _storage.delete(key: vpnProfileConfigKeyFor('openvpn'));

@@ -9,6 +9,7 @@ import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 import '../optimization/marlxgb.dart';
 import '../services/device_identity.dart';
+import '../services/auth_session.dart';
 import '../services/secure_storage.dart';
 import '../../services/api_client.dart';
 import '../services/vpn_service.dart';
@@ -225,14 +226,55 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         }
         return;
       }
+      final storage = SecureStorage();
+      final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
+      final serverId =
+          await storage.getString(SecureStorage.vpnActiveServerIdKey);
+      final cachedConfig = await storage.getString(
+        SecureStorage.vpnProfileConfigKeyFor('wireguard'),
+      );
+      if (deviceId == null ||
+          deviceId <= 0 ||
+          serverId == null ||
+          serverId.isEmpty ||
+          cachedConfig == null ||
+          cachedConfig.trim().isEmpty) {
+        await service.disconnect();
+        AppLogger.warning(
+          'Restored WireGuard tunnel lacked durable metering identity; disconnected.',
+        );
+        return;
+      }
+      try {
+        _requireCachedThreatProtection(cachedConfig);
+      } catch (_) {
+        await service.disconnect();
+        AppLogger.warning(
+          'Restored WireGuard tunnel lacked proven threat protection; disconnected.',
+        );
+        return;
+      }
+      _activeDeviceId = deviceId;
+      _activeServerId = serverId;
+      await _ref.read(authSessionProvider).ensureInitialized();
+      if (!mounted) return;
       state = state.copyWith(
         status: VpnStatus.connected,
         protocol: activeProtocol,
+        selectedServerId: serverId,
         desiredOn: true,
+        threatProtectionActive: true,
+        threatProtectionCategories: const <String>[
+          'ads',
+          'trackers',
+          'phishing',
+          'malware',
+        ],
         lastTunnelStartAt: DateTime.now(),
         lastTunnelStartOk: true,
       );
       _startRateUpdates();
+      unawaited(_startConnectedBookkeeping(_ref.read(apiClientProvider)));
     } catch (error, stackTrace) {
       AppLogger.error(
         'VPN runtime restore failed',
@@ -345,6 +387,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         }
         final storage = SecureStorage();
         final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
+        final storedActiveServerId =
+            await storage.getString(SecureStorage.vpnActiveServerIdKey);
+        if (deviceId != null && deviceId > 0) {
+          _activeDeviceId = deviceId;
+        }
+        if (storedActiveServerId != null && storedActiveServerId.isNotEmpty) {
+          _activeServerId = storedActiveServerId;
+        }
         final protocolKey = vpnProtocolStorageValue(state.protocol);
         final profileConfigKey = SecureStorage.vpnProfileConfigKeyFor(
           protocolKey,
@@ -393,6 +443,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             );
           }
           _activeServerId = profile.serverId;
+          await storage.saveString(
+            SecureStorage.vpnActiveServerIdKey,
+            profile.serverId,
+          );
           if (requiresCredentialedEgress) {
             credentialedServerId = profile.serverId;
             credentialedDeviceId = profile.deviceId;
@@ -945,6 +999,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _pendingUsageRxBytes = 0;
     _activeDeviceId = null;
     _activeServerId = null;
+    await SecureStorage().delete(SecureStorage.vpnActiveServerIdKey);
     if (sessionId == null) return;
     try {
       await _ref.read(apiClientProvider).finalizeUsageSession(

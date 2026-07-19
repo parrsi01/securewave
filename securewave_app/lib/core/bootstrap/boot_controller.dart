@@ -7,7 +7,9 @@ import '../config/app_config.dart';
 import '../logging/app_logger.dart';
 import '../services/auth_session.dart';
 import '../services/secure_storage.dart';
+import '../state/app_state.dart';
 import '../state/vpn_state.dart';
+import '../../services/api_client.dart';
 import '../../services/auth_service.dart';
 
 enum BootStatus { initializing, ready, failed }
@@ -102,13 +104,49 @@ class BootController extends ChangeNotifier {
           'SECUREWAVE_DEBUG_PASSWORD.',
         );
       }
-      // A demo launch must never inherit an older account or device session.
-      await session.clearSession();
-      await _ref.read(authServiceProvider).login(
-            email: email,
-            password: password,
+      final normalizedEmail = email.toLowerCase();
+      final storedOwner =
+          (await storage.getAccountOwnerEmail())?.trim().toLowerCase();
+      var restoredSameAccount = false;
+      if (session.isAuthenticated) {
+        try {
+          final account = await _ref.read(apiClientProvider).fetchCurrentUser();
+          restoredSameAccount =
+              account.email.trim().toLowerCase() == normalizedEmail;
+          if (restoredSameAccount) {
+            await storage.saveAccountOwnerEmail(normalizedEmail);
+            AppLogger.info('Boot: verified existing debug account session');
+          }
+        } catch (_) {
+          AppLogger.warning(
+            'Boot: stored debug session was not accepted; refreshing login.',
           );
-      AppLogger.info('Boot: debug demo account signed in');
+        }
+      }
+      if (!restoredSameAccount) {
+        try {
+          await _ref.read(authServiceProvider).login(
+                email: email,
+                password: password,
+                preserveVpnRuntime:
+                    storedOwner == null || storedOwner == normalizedEmail,
+              );
+        } catch (_) {
+          // Never leave an expired token looking like a valid signed-in
+          // session. The app can then present the real sign-in screen instead
+          // of cascading 401 errors in account-backed panels.
+          await session.clearSession();
+          rethrow;
+        }
+        AppLogger.info('Boot: debug demo account signed in');
+      }
+
+      // A provider may have attempted an authenticated request while the
+      // stored token was being verified. Drop any cached failure now that the
+      // session is known-good so account data loads with the current token.
+      _ref.invalidate(currentUserProvider);
+      _ref.invalidate(userPlanProvider);
+      _ref.invalidate(serversProvider);
     }
 
     // Step 2: Restore VPN server selection (can fail gracefully)
