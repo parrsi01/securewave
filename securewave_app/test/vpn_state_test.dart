@@ -17,6 +17,14 @@ import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/core/state/vpn_state.dart';
 import 'package:securewave_app/services/api_client.dart';
 
+Map<String, dynamic> _threatDnsFixture() => {
+      'servers': ['94.140.14.14'],
+      'ad_malware_blocking': 'on',
+      'enforcement': 'config',
+      'blocked_categories': ['ads', 'trackers', 'phishing', 'malware'],
+      'policy_engine': 'marl_xgboost_risk_assessment',
+    };
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -390,6 +398,66 @@ void main() {
     expect(container.read(vpnStateProvider).dataRateDown, 0);
   });
 
+  test('usage reporting sends deltas serially and retries without double count',
+      () async {
+    final service = _CounterVpnService([
+      const VpnTrafficStats(rxBytes: 100, txBytes: 200),
+      const VpnTrafficStats(rxBytes: 160, txBytes: 260),
+      const VpnTrafficStats(rxBytes: 190, txBytes: 280),
+    ], nativeAvailable: true);
+    final api = _UsageTrackingApiClient(failFirstReport: true);
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.connect();
+    expect(container.read(vpnStateProvider).threatProtectionActive, isTrue);
+    expect(
+      container.read(vpnStateProvider).threatProtectionCategories,
+      containsAll(['ads', 'trackers', 'phishing', 'malware']),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 2150));
+    await notifier.disconnect();
+
+    expect(api.reportAttempts, [
+      (sequence: 1, sent: 60, received: 60),
+      (sequence: 1, sent: 80, received: 90),
+    ]);
+    expect(api.finalizedSessionIds, [42]);
+    expect(container.read(vpnStateProvider).threatProtectionActive, isFalse);
+  });
+
+  test('native connect fails closed without proven DNS threat protection',
+      () async {
+    final service = _CounterVpnService(
+      const [VpnTrafficStats(rxBytes: 0, txBytes: 0)],
+      nativeAvailable: true,
+    );
+    final api = _UsageTrackingApiClient(
+      failFirstReport: false,
+      includeThreatProtection: false,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).connect();
+
+    expect(container.read(vpnStateProvider).status, VpnStatus.error);
+    expect(container.read(vpnStateProvider).threatProtectionActive, isFalse);
+    expect(container.read(vpnStateProvider).errorMessage,
+        contains('threat protection'));
+  });
+
   test('usage meter prevents overlapping counter polls', () async {
     final service = _CounterVpnService(
       const [VpnTrafficStats(rxBytes: 100, txBytes: 200)],
@@ -408,21 +476,33 @@ void main() {
 }
 
 class _CounterVpnService extends VpnService {
-  _CounterVpnService(this.samples, {this.statsDelay = Duration.zero});
+  _CounterVpnService(
+    this.samples, {
+    this.statsDelay = Duration.zero,
+    this.nativeAvailable = false,
+  });
 
   final List<VpnTrafficStats> samples;
   final Duration statsDelay;
+  final bool nativeAvailable;
   VpnStatus _status = VpnStatus.disconnected;
   int trafficCalls = 0;
 
   @override
-  bool get isNativeAvailable => false;
+  bool get isNativeAvailable => nativeAvailable;
 
   @override
   bool canConnectProtocol(VpnProtocol protocol) => true;
 
   @override
   String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<bool> refreshProtocolAvailability(
+    VpnProtocol protocol, {
+    bool backendEvidence = false,
+  }) async =>
+      true;
 
   @override
   Future<VpnStatus> connect({
@@ -492,6 +572,79 @@ class _PendingConnectNotificationApiClient extends ApiClient {
 
   @override
   Future<void> notifyVpnDisconnected() async {}
+}
+
+class _UsageTrackingApiClient extends ApiClient {
+  _UsageTrackingApiClient({
+    required this.failFirstReport,
+    this.includeThreatProtection = true,
+  }) : super(AppConfig(
+          apiBaseUrl: 'https://api.example.test',
+          portalUrl: 'https://portal.example.test',
+          upgradeUrl: 'https://upgrade.example.test',
+          useMockApi: true,
+          resetSessionOnBoot: false,
+        ));
+
+  final bool failFirstReport;
+  final bool includeThreatProtection;
+  final List<({int sequence, int sent, int received})> reportAttempts = [];
+  final List<int> finalizedSessionIds = [];
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    return VpnProfile.fromJson({
+      'device_id': 7,
+      'server_id': serverId ?? 'metering-server',
+      'protocol': 'wireguard',
+      'wireguard_config': '[Interface]\nPrivateKey = test\nDNS = 94.140.14.14',
+      if (includeThreatProtection) 'dns': _threatDnsFixture(),
+      'peer_registered': true,
+    });
+  }
+
+  @override
+  Future<int?> startUsageSession({
+    required int deviceId,
+    required String serverId,
+    required VpnProtocol protocol,
+    required String idempotencyKey,
+  }) async =>
+      42;
+
+  @override
+  Future<void> reportUsage({
+    required int sessionId,
+    required int sequence,
+    required int bytesSent,
+    required int bytesReceived,
+    required String idempotencyKey,
+  }) async {
+    reportAttempts.add((
+      sequence: sequence,
+      sent: bytesSent,
+      received: bytesReceived,
+    ));
+    if (failFirstReport && reportAttempts.length == 1) {
+      throw StateError('transient metering failure');
+    }
+  }
+
+  @override
+  Future<void> finalizeUsageSession({
+    required int sessionId,
+    required String idempotencyKey,
+    String reason = 'client_disconnect',
+  }) async {
+    finalizedSessionIds.add(sessionId);
+  }
 }
 
 class _InitializationTrackingVpnService extends VpnService {
@@ -664,13 +817,10 @@ class _ReferenceRecoveryApiClient extends ApiClient {
       'expires_at':
           DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
       'wireguard_config':
-          '[Interface]\nPrivateKey = test\n[Peer]\nPublicKey = test\n',
-      'openvpn_config': 'client\n',
+          '[Interface]\nPrivateKey = test\nDNS = 94.140.14.14\n[Peer]\nPublicKey = test\n',
+      'openvpn_config': 'client\ndhcp-option DNS 94.140.14.14\n',
       'ikev2_config': '',
-      'dns': {
-        'servers': ['94.140.14.14'],
-        'enforcement': 'config',
-      },
+      'dns': _threatDnsFixture(),
       'kill_switch': {
         'mode': 'enabled',
         'enforcement': 'best effort',
@@ -782,8 +932,9 @@ class _CredentialedEgressApiClient extends ApiClient {
       'issued_at': DateTime.now().toIso8601String(),
       'expires_at':
           DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
-      'openvpn_config':
-          this.protocol == VpnProtocol.openVpn ? 'client\ndev tun\n' : '',
+      'openvpn_config': this.protocol == VpnProtocol.openVpn
+          ? 'client\ndev tun\ndhcp-option DNS 94.140.14.14\n'
+          : '',
       'openvpn_username': this.protocol == VpnProtocol.openVpn
           ? 'swovpn-0123456789abcdef0123456789abcdef'
           : null,
@@ -791,12 +942,9 @@ class _CredentialedEgressApiClient extends ApiClient {
           ? 'fresh-openvpn-password-012345'
           : null,
       'ikev2_config': this.protocol == VpnProtocol.ikev2
-          ? 'connections { securewave {} }\n# endpoint_ip = 192.0.2.10\n'
+          ? 'connections { securewave {} }\n# endpoint_ip = 192.0.2.10\n# dns = 94.140.14.14\n'
           : '',
-      'dns': {
-        'servers': ['94.140.14.14'],
-        'enforcement': 'config',
-      },
+      'dns': _threatDnsFixture(),
       'kill_switch': {
         'mode': 'enabled',
         'enforcement': 'best effort',

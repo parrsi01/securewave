@@ -18,6 +18,8 @@ class VpnProfile {
     required this.dnsServers,
     required this.adMalwareBlocking,
     required this.dnsEnforcement,
+    required this.blockedCategories,
+    required this.securityPolicyEngine,
     required this.killSwitchMode,
     required this.killSwitchEnforcement,
     required this.peerRegistered,
@@ -41,6 +43,8 @@ class VpnProfile {
   final List<String> dnsServers;
   final String adMalwareBlocking;
   final String dnsEnforcement;
+  final List<String> blockedCategories;
+  final String securityPolicyEngine;
 
   final String killSwitchMode;
   final String killSwitchEnforcement;
@@ -76,6 +80,14 @@ class VpnProfile {
             .whereType<Object>()
             .map((e) => e.toString())
             .where((e) => e.isNotEmpty)
+            .toList()
+        : <String>[];
+    final blockedCategoriesRaw = dns['blocked_categories'];
+    final blockedCategories = blockedCategoriesRaw is List
+        ? blockedCategoriesRaw
+            .whereType<Object>()
+            .map((item) => item.toString().trim().toLowerCase())
+            .where((item) => item.isNotEmpty)
             .toList()
         : <String>[];
 
@@ -117,6 +129,8 @@ class VpnProfile {
       dnsServers: dnsServers,
       adMalwareBlocking: dns['ad_malware_blocking']?.toString() ?? 'on',
       dnsEnforcement: dns['enforcement']?.toString() ?? 'best_effort',
+      blockedCategories: blockedCategories,
+      securityPolicyEngine: dns['policy_engine']?.toString() ?? '',
       killSwitchMode: killSwitch['mode']?.toString() ?? 'enabled',
       killSwitchEnforcement:
           killSwitch['enforcement']?.toString() ?? 'best_effort',

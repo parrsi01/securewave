@@ -27,6 +27,8 @@ class VpnState {
     this.sessionRxBytes = 0,
     this.sessionTxBytes = 0,
     this.sessionCountersAvailable = false,
+    this.threatProtectionActive = false,
+    this.threatProtectionCategories = const <String>[],
     this.stabilityScore = 1.0,
     this.errorMessage,
     this.errorKind,
@@ -47,6 +49,8 @@ class VpnState {
   final int sessionRxBytes;
   final int sessionTxBytes;
   final bool sessionCountersAvailable;
+  final bool threatProtectionActive;
+  final List<String> threatProtectionCategories;
   final double stabilityScore;
   final String? errorMessage;
   final VpnErrorKind? errorKind;
@@ -67,6 +71,8 @@ class VpnState {
     int? sessionRxBytes,
     int? sessionTxBytes,
     bool? sessionCountersAvailable,
+    bool? threatProtectionActive,
+    List<String>? threatProtectionCategories,
     double? stabilityScore,
     String? errorMessage,
     VpnErrorKind? errorKind,
@@ -92,6 +98,10 @@ class VpnState {
       sessionTxBytes: sessionTxBytes ?? this.sessionTxBytes,
       sessionCountersAvailable:
           sessionCountersAvailable ?? this.sessionCountersAvailable,
+      threatProtectionActive:
+          threatProtectionActive ?? this.threatProtectionActive,
+      threatProtectionCategories:
+          threatProtectionCategories ?? this.threatProtectionCategories,
       stabilityScore: stabilityScore ?? this.stabilityScore,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       errorKind: clearError ? null : (errorKind ?? this.errorKind),
@@ -131,6 +141,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   String? _activeServerId;
   int? _usageSessionId;
   int _usageSequence = 0;
+  int _pendingUsageTxBytes = 0;
+  int _pendingUsageRxBytes = 0;
+  Future<void>? _usageFlushFuture;
 
   Future<void> ensureInitialized() => _initialization;
 
@@ -291,6 +304,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       String? credentialedEgressBaseline;
       String? credentialedServerId;
       int? credentialedDeviceId;
+      var threatProtectionVerified = false;
+      var threatProtectionCategories = const <String>[];
       final requiresCredentialedEgress =
           state.protocol == VpnProtocol.openVpn ||
               state.protocol == VpnProtocol.ikev2;
@@ -350,6 +365,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
               '${vpnProtocolLabel(state.protocol)} profile did not include a runnable Linux configuration.',
             );
           }
+          _requireThreatProtection(profile, config);
+          threatProtectionVerified = true;
+          threatProtectionCategories = List<String>.unmodifiable(
+            profile.blockedCategories,
+          );
           if (state.protocol == VpnProtocol.openVpn) {
             openVpnUsername = profile.openVpnUsername;
             openVpnPassword = profile.openVpnPassword;
@@ -411,6 +431,14 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           // Fallback: try last known config from secure storage for resilience.
           final cached = await storage.getString(profileConfigKey);
           if (cached != null && cached.trim().isNotEmpty) {
+            _requireCachedThreatProtection(cached);
+            threatProtectionVerified = true;
+            threatProtectionCategories = const <String>[
+              'ads',
+              'trackers',
+              'phishing',
+              'malware',
+            ];
             AppLogger.warning(
               'Using cached ${vpnProtocolLabel(state.protocol)} profile (profile fetch failed).',
             );
@@ -463,6 +491,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           lastTunnelStartAt: DateTime.now(),
           lastTunnelStartOk: true,
           isBusy: false,
+          threatProtectionActive: threatProtectionVerified,
+          threatProtectionCategories: threatProtectionCategories,
         );
         _updateStability(success: true);
         _startRateUpdates();
@@ -484,6 +514,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         errorKind: classified.kind,
         lastTunnelStartAt: DateTime.now(),
         lastTunnelStartOk: false,
+        threatProtectionActive: false,
+        threatProtectionCategories: const <String>[],
       );
       _updateStability(success: false);
       AppLogger.error(
@@ -523,6 +555,10 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       _stopRateUpdates();
       final nextStatus = await service.disconnect();
       _setStatus(nextStatus);
+      state = state.copyWith(
+        threatProtectionActive: false,
+        threatProtectionCategories: const <String>[],
+      );
       _updateStability(success: true);
       // Notify the backend so demo/live session tracking stays in sync.
       try {
@@ -665,6 +701,36 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     return message.contains('404') && message.contains('not found');
   }
 
+  void _requireThreatProtection(VpnProfile profile, String config) {
+    final requiredCategories = {'ads', 'trackers', 'phishing', 'malware'};
+    final actualCategories = profile.blockedCategories.toSet();
+    final dnsConfigured = profile.dnsServers.isNotEmpty &&
+        profile.dnsServers.every(config.contains);
+    if (profile.adMalwareBlocking.toLowerCase() != 'on' ||
+        profile.dnsEnforcement.toLowerCase() != 'config' ||
+        profile.securityPolicyEngine != 'marl_xgboost_risk_assessment' ||
+        !actualCategories.containsAll(requiredCategories) ||
+        !dnsConfigured) {
+      throw VpnServiceException(
+        'threat_protection_unavailable',
+        'Secure DNS threat protection was not proven in the VPN profile.',
+      );
+    }
+  }
+
+  void _requireCachedThreatProtection(String config) {
+    final hasTunnelDns = RegExp(
+      r'(^|\n)(DNS\s*=|dhcp-option\s+DNS\s+|#\s*dns\s*=)',
+      caseSensitive: false,
+    ).hasMatch(config);
+    if (!hasTunnelDns) {
+      throw VpnServiceException(
+        'threat_protection_unavailable',
+        'Cached VPN profile does not contain tunnel DNS threat protection.',
+      );
+    }
+  }
+
   void _setStatus(VpnStatus status) {
     if (state.status != status) {
       AppLogger.info('VPN state -> ${status.name}');
@@ -679,6 +745,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     _lastTrafficStats = null;
     _lastTrafficStatsAt = null;
     _trafficPollInFlight = false;
+    if (resetSession) {
+      _pendingUsageTxBytes = 0;
+      _pendingUsageRxBytes = 0;
+      _usageFlushFuture = null;
+    }
     state = state.copyWith(
       dataRateDown: 0,
       dataRateUp: 0,
@@ -751,7 +822,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         sessionTxBytes: nextTxBytes,
         sessionCountersAvailable: true,
       );
-      unawaited(_reportUsage(nextTxBytes, nextRxBytes));
+      _queueUsage(txDelta, rxDelta);
     } catch (error, stackTrace) {
       AppLogger.error(
         'VPN traffic counter poll failed',
@@ -790,6 +861,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         idempotencyKey:
             'client-start-$deviceId-${DateTime.now().microsecondsSinceEpoch}',
       );
+      if (_usageSessionId != null) {
+        unawaited(_ensureUsageFlush());
+      }
     } catch (error, stackTrace) {
       _usageSessionId = null;
       AppLogger.warning(
@@ -799,30 +873,69 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
   }
 
-  Future<void> _reportUsage(int bytesSent, int bytesReceived) async {
-    final sessionId = _usageSessionId;
-    if (sessionId == null) return;
-    final sequence = ++_usageSequence;
-    try {
-      await _ref.read(apiClientProvider).reportUsage(
-            sessionId: sessionId,
-            sequence: sequence,
-            bytesSent: bytesSent,
-            bytesReceived: bytesReceived,
-            idempotencyKey: 'client-increment-$sessionId-$sequence',
-          );
-    } catch (error, stackTrace) {
-      AppLogger.warning(
-          'VPN usage report failed; will retry on the next counter poll.');
-      AppLogger.error('VPN usage report error',
-          error: error, stackTrace: stackTrace);
+  void _queueUsage(int bytesSent, int bytesReceived) {
+    if (bytesSent <= 0 && bytesReceived <= 0) return;
+    _pendingUsageTxBytes += bytesSent;
+    _pendingUsageRxBytes += bytesReceived;
+    unawaited(_ensureUsageFlush());
+  }
+
+  Future<void> _ensureUsageFlush() {
+    final existing = _usageFlushFuture;
+    if (existing != null) return existing;
+    final next = _drainUsageReports();
+    _usageFlushFuture = next.whenComplete(() {
+      _usageFlushFuture = null;
+    });
+    return _usageFlushFuture!;
+  }
+
+  Future<void> _drainUsageReports() async {
+    while (_usageSessionId != null &&
+        (_pendingUsageTxBytes > 0 || _pendingUsageRxBytes > 0)) {
+      final sessionId = _usageSessionId!;
+      final bytesSent = _pendingUsageTxBytes;
+      final bytesReceived = _pendingUsageRxBytes;
+      final sequence = _usageSequence + 1;
+      try {
+        await _ref.read(apiClientProvider).reportUsage(
+              sessionId: sessionId,
+              sequence: sequence,
+              bytesSent: bytesSent,
+              bytesReceived: bytesReceived,
+              idempotencyKey: 'client-increment-$sessionId-$sequence',
+            );
+      } catch (error, stackTrace) {
+        // Retain the unsent deltas and the sequence number. The next traffic
+        // poll or disconnect flush retries the identical idempotent event.
+        AppLogger.warning(
+            'VPN usage report failed; retained for an idempotent retry.');
+        AppLogger.error('VPN usage report error',
+            error: error, stackTrace: stackTrace);
+        return;
+      }
+      if (_usageSessionId != sessionId) return;
+      _usageSequence = sequence;
+      final remainingSent = _pendingUsageTxBytes - bytesSent;
+      final remainingReceived = _pendingUsageRxBytes - bytesReceived;
+      _pendingUsageTxBytes = remainingSent < 0 ? 0 : remainingSent;
+      _pendingUsageRxBytes = remainingReceived < 0 ? 0 : remainingReceived;
     }
   }
 
   Future<void> _finalizeUsageSession() async {
     final sessionId = _usageSessionId;
+    if (sessionId != null) {
+      await _ensureUsageFlush();
+      // A failed first attempt leaves the same idempotent payload queued.
+      if (_pendingUsageTxBytes > 0 || _pendingUsageRxBytes > 0) {
+        await _ensureUsageFlush();
+      }
+    }
     _usageSessionId = null;
     _usageSequence = 0;
+    _pendingUsageTxBytes = 0;
+    _pendingUsageRxBytes = 0;
     _activeDeviceId = null;
     _activeServerId = null;
     if (sessionId == null) return;
@@ -832,6 +945,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             idempotencyKey:
                 'client-disconnect-$sessionId-${DateTime.now().microsecondsSinceEpoch}',
           );
+      _ref.invalidate(userPlanProvider);
     } catch (error, stackTrace) {
       AppLogger.warning('VPN usage session finalization failed.');
       AppLogger.error('VPN usage finalization error',

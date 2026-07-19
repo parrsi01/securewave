@@ -115,6 +115,12 @@ class _UsageSummary extends StatelessWidget {
         if (vpn case final live?) ...[
           const SizedBox(height: 8),
           _InfoRow(
+            'Threat protection',
+            live.threatProtectionActive
+                ? 'Active · Ads, trackers, phishing & malware'
+                : 'Unavailable',
+          ),
+          _InfoRow(
             'Live counters',
             live.sessionCountersAvailable ? 'Active' : 'Waiting for traffic',
           ),

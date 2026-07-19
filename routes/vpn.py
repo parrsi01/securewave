@@ -246,6 +246,10 @@ class VpnProfileDns(BaseModel):
     servers: List[str]
     ad_malware_blocking: str = "on"
     enforcement: str = "best_effort"
+    blocked_categories: List[str] = Field(
+        default_factory=lambda: ["ads", "trackers", "phishing", "malware"]
+    )
+    policy_engine: str = "marl_xgboost_risk_assessment"
 
 
 class VpnProfileKillSwitch(BaseModel):
@@ -338,8 +342,14 @@ def _profile_dns_servers() -> list[str]:
     raw = os.getenv("SECUREWAVE_TUNNEL_DNS", "").strip()
     if not raw:
         raw = "94.140.14.14,94.140.15.15"  # AdGuard DNS (ads + malware)
+    elif os.getenv("SECUREWAVE_TUNNEL_DNS_FILTERING_CONFIRMED", "false").lower() != "true":
+        raise RuntimeError(
+            "Custom tunnel DNS requires the filtering-confirmed setting to be true"
+        )
     parts = [p.strip() for p in raw.split(",") if p.strip()]
-    return parts or ["94.140.14.14", "94.140.15.15"]
+    if not parts:
+        raise RuntimeError("At least one filtered tunnel DNS server is required")
+    return parts
 
 
 def _profile_keepalive_seconds() -> int:

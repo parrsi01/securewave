@@ -189,6 +189,73 @@ def test_reconnect_finalizes_old_session_and_login_persists_metering(client, db,
     assert persisted_increment.json()["bytes_sent"] == 3
 
 
+def test_account_plan_accumulates_usage_across_disconnect_reconnect_and_login(
+    client, db, test_user, auth_headers
+):
+    server = _server(db, server_id="metering-durable-plan")
+    peer = _peer(db, test_user, server, suffix="8")
+    one_hundred_mb = 100 * 1024 * 1024
+    thirty_mb = 30 * 1024 * 1024
+
+    first = _start(client, auth_headers, peer, server, key="durable-start-1")
+    first_id = first.json()["session_id"]
+    assert client.post(
+        f"/api/vpn/usage/sessions/{first_id}/increment",
+        headers=auth_headers,
+        json={
+            "sequence": 1,
+            "bytes_sent": one_hundred_mb,
+            "bytes_received": 0,
+            "idempotency_key": "durable-usage-100mb",
+        },
+    ).status_code == status.HTTP_200_OK
+    assert client.post(
+        f"/api/vpn/usage/sessions/{first_id}/disconnect",
+        headers=auth_headers,
+        json={"idempotency_key": "durable-disconnect-1", "reason": "client_disconnect"},
+    ).status_code == status.HTTP_200_OK
+
+    first_plan = client.get("/api/user/plan", headers=auth_headers)
+    assert first_plan.status_code == status.HTTP_200_OK
+    assert first_plan.json()["data_cap_gb"] == 5.0
+    assert first_plan.json()["used_gb"] == pytest.approx(0.098, abs=0.001)
+
+    logout = client.post("/api/auth/logout", headers=auth_headers)
+    assert logout.status_code == status.HTTP_200_OK
+    login = client.post(
+        "/api/auth/login",
+        json={"email": test_user.email, "password": "TestPass123"},
+    )
+    assert login.status_code == status.HTTP_200_OK
+    new_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    persisted_plan = client.get("/api/user/plan", headers=new_headers)
+    assert persisted_plan.status_code == status.HTTP_200_OK
+    assert persisted_plan.json()["used_gb"] == first_plan.json()["used_gb"]
+
+    second = _start(client, new_headers, peer, server, key="durable-start-2")
+    second_id = second.json()["session_id"]
+    assert client.post(
+        f"/api/vpn/usage/sessions/{second_id}/increment",
+        headers=new_headers,
+        json={
+            "sequence": 1,
+            "bytes_sent": 0,
+            "bytes_received": thirty_mb,
+            "idempotency_key": "durable-usage-30mb",
+        },
+    ).status_code == status.HTTP_200_OK
+    assert client.post(
+        f"/api/vpn/usage/sessions/{second_id}/disconnect",
+        headers=new_headers,
+        json={"idempotency_key": "durable-disconnect-2", "reason": "client_disconnect"},
+    ).status_code == status.HTTP_200_OK
+
+    final_plan = client.get("/api/user/plan", headers=new_headers)
+    assert final_plan.status_code == status.HTTP_200_OK
+    assert final_plan.json()["used_gb"] == pytest.approx(0.127, abs=0.001)
+
+
 def test_usage_session_isolated_between_accounts(client, db, test_user, auth_headers):
     server = _server(db, server_id="metering-us-3")
     peer = _peer(db, test_user, server, suffix="3")

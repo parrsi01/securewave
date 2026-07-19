@@ -75,6 +75,18 @@ def _ready_ikev2_server(db, *, server_id="profile-ikev2-us-1", **overrides):
     return _create_free_server(db, server_id=server_id, **data)
 
 
+def test_custom_tunnel_dns_requires_explicit_filtering_confirmation(monkeypatch):
+    from routes.vpn import _profile_dns_servers
+
+    monkeypatch.setenv("SECUREWAVE_TUNNEL_DNS", "192.0.2.53")
+    monkeypatch.delenv("SECUREWAVE_TUNNEL_DNS_FILTERING_CONFIRMED", raising=False)
+    with pytest.raises(RuntimeError, match="filtering-confirmed"):
+        _profile_dns_servers()
+
+    monkeypatch.setenv("SECUREWAVE_TUNNEL_DNS_FILTERING_CONFIRMED", "true")
+    assert _profile_dns_servers() == ["192.0.2.53"]
+
+
 class TestVpnProfileProvisioning:
     def test_profile_returns_config_and_metadata(self, client, auth_headers, db):
         _create_free_server(db)
@@ -99,6 +111,13 @@ class TestVpnProfileProvisioning:
         assert dns.get("ad_malware_blocking") == "on"
         assert isinstance(dns.get("servers"), list)
         assert len(dns.get("servers")) >= 1
+        assert set(dns.get("blocked_categories") or []) == {
+            "ads",
+            "trackers",
+            "phishing",
+            "malware",
+        }
+        assert dns.get("policy_engine") == "marl_xgboost_risk_assessment"
 
         ks = data.get("kill_switch") or {}
         assert ks.get("mode") == "enabled"
