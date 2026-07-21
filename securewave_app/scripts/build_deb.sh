@@ -10,8 +10,10 @@ cd "$ROOT_DIR"
 REPO_DIR="$ROOT_DIR/.."
 source_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
 source_tree_state="clean"
-if ! git -C "$REPO_DIR" diff --quiet --ignore-submodules HEAD -- ||
-   [[ -n "$(git -C "$REPO_DIR" ls-files --others --exclude-standard)" ]]; then
+if ! git -C "$REPO_DIR" diff --quiet --ignore-submodules HEAD -- \
+     . ':(exclude)artifacts/**' ||
+   [[ -n "$(git -C "$REPO_DIR" ls-files --others --exclude-standard -- \
+     . ':(exclude)artifacts/**')" ]]; then
   source_tree_state="dirty"
 fi
 
