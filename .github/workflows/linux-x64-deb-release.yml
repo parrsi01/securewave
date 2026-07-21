@@ -84,7 +84,6 @@ jobs:
           set -euo pipefail
           mkdir -p "$EVIDENCE_DIR"
           cd securewave_app
-          flutter pub get
           bash scripts/build_deb.sh 2>&1 | tee "../$EVIDENCE_DIR/build-deb.log"
 
       - name: Collect generated deb

@@ -47,6 +47,18 @@ def test_package_embeds_release_identity_and_dirty_tree_marker():
     assert source.index('source_tree_state="clean"') < source.index("flutter pub get")
 
 
+def test_x64_evidence_workflow_does_not_mutate_tree_before_packager_snapshot():
+    source = (
+        ROOT / ".github" / "workflows" / "linux-x64-deb-release.yml"
+    ).read_text()
+    build_step = source.split("- name: Build Linux x64 deb", maxsplit=1)[1].split(
+        "- name: Collect generated deb", maxsplit=1
+    )[0]
+
+    assert "flutter pub get" not in build_step
+    assert "bash scripts/build_deb.sh" in build_step
+
+
 def test_runbook_covers_wireguard_tester_acceptance_without_production():
     source = RUNBOOK.read_text()
     required = (
