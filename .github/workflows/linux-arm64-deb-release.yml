@@ -69,14 +69,19 @@ jobs:
             systemd-resolved
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
-        with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
-          cache: true
+        run: |
+          set -euo pipefail
+          flutter_root="$RUNNER_TEMP/flutter"
+          git init "$flutter_root"
+          git -C "$flutter_root" remote add origin https://github.com/flutter/flutter.git
+          git -C "$flutter_root" fetch --depth=1 origin ff37bef603469fb030f2b72995ab929ccfc227f0
+          git -C "$flutter_root" checkout --detach FETCH_HEAD
+          printf '%s/bin\n' "$flutter_root" >> "$GITHUB_PATH"
 
       - name: Show Flutter environment
         run: |
           set -euo pipefail
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)" = "ff37bef603469fb030f2b72995ab929ccfc227f0"
           flutter --version | tee "$EVIDENCE_DIR/flutter-version.txt"
           flutter doctor -v | tee "$EVIDENCE_DIR/flutter-doctor.txt"
 

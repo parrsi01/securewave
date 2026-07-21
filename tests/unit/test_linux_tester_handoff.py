@@ -48,6 +48,9 @@ def test_arm64_package_evidence_uses_native_pinned_lifecycle_gate():
     assert "runs-on: ubuntu-24.04-arm" in source
     assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0" in source
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in source
+    assert "ff37bef603469fb030f2b72995ab929ccfc227f0" in source
+    assert "https://github.com/flutter/flutter.git" in source
+    assert "subosito/flutter-action" not in source
     assert 'test "$(uname -m)" = "aarch64"' in source
     assert 'test "$(dpkg --print-architecture)" = "arm64"' in source
     assert 'Architecture)" = "arm64"' in source
