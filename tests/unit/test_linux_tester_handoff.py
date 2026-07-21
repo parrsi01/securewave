@@ -62,6 +62,25 @@ def test_arm64_package_evidence_uses_native_pinned_lifecycle_gate():
     assert "source-tree-state" in source
     assert 'helper-contract")" = "13"' in source
     assert "openvpn strongswan network-manager" in source
+    assert 'SUDO_USER="$USER"' in source
+    assert "malformed helper IPC was not rejected" in source
+    assert "unauthorized helper IPC was not rejected" in source
+    assert "securewave-vpn-predecessor.deb" in source
+    assert "Version: 4.0.0+2" in source
+    assert "sudo apt-get remove -y securewave-vpn" in source
+
+
+def test_both_architecture_gates_cover_install_restart_upgrade_remove_and_purge():
+    for name in ("linux-x64-deb-release.yml", "linux-arm64-deb-release.yml"):
+        source = (ROOT / ".github" / "workflows" / name).read_text()
+        for marker in (
+            'sudo env SUDO_USER="$USER" dpkg -i "$DEB_OUTPUT"',
+            "sudo systemctl restart securewave-helper.service",
+            "sudo apt-get remove -y securewave-vpn",
+            'dpkg -i "$predecessor_deb"',
+            "sudo apt-get purge -y securewave-vpn",
+        ):
+            assert marker in source
 
 
 def test_package_embeds_release_identity_and_dirty_tree_marker():

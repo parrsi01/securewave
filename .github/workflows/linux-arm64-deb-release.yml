@@ -195,13 +195,56 @@ jobs:
             exit "$status"
           }
           trap cleanup_on_exit EXIT
-          sudo dpkg -i "$DEB_OUTPUT"
+          predecessor_root="$(mktemp -d)"
+          predecessor_deb="$RUNNER_TEMP/securewave-vpn-predecessor.deb"
+          dpkg-deb -R "$DEB_OUTPUT" "$predecessor_root"
+          sed -i 's/^Version: .*/Version: 4.0.0+2/' "$predecessor_root/DEBIAN/control"
+          dpkg-deb --root-owner-group --build "$predecessor_root" "$predecessor_deb" >/dev/null
+
+          sudo env SUDO_USER="$USER" dpkg -i "$DEB_OUTPUT"
           sudo systemctl enable --now securewave-helper.service
           systemctl is-enabled securewave-helper.service | tee "$EVIDENCE_DIR/service-enabled.txt"
           systemctl is-active securewave-helper.service | tee "$EVIDENCE_DIR/service-active.txt"
           sudo stat -c '%U %G %a %n' /run/securewave/helper.sock | tee "$EVIDENCE_DIR/socket.txt"
           test "$(sudo stat -c '%a' /run/securewave/helper.sock)" = "660"
           test "$(sudo cat /usr/local/libexec/securewave-wg-quick.contract)" = "13"
+          test "$(sudo awk 'NF {print}' /etc/securewave/helper-users)" = "$(id -u)"
+          python3 - <<'PY'
+          import socket
+
+          with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+              client.connect("/run/securewave/helper.sock")
+              client.sendall(b"malformed-request\n")
+              client.shutdown(socket.SHUT_WR)
+              response = client.recv(65536).decode("utf-8", errors="replace")
+          if "code=invalid_request" not in response:
+              raise SystemExit("malformed helper IPC was not rejected")
+          PY
+          sudo -u nobody python3 - <<'PY'
+          import socket
+
+          try:
+              with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                  client.connect("/run/securewave/helper.sock")
+                  client.sendall(b"version=1\nop=probe\nprotocol=wireguard\n")
+                  client.shutdown(socket.SHUT_WR)
+                  response = client.recv(65536).decode("utf-8", errors="replace")
+          except PermissionError:
+              raise SystemExit(0)
+          if "code=unauthorized" not in response:
+              raise SystemExit("unauthorized helper IPC was not rejected")
+          PY
+          sudo env SUDO_USER="$USER" dpkg -i "$DEB_OUTPUT"
+          sudo systemctl restart securewave-helper.service
+          systemctl is-active --quiet securewave-helper.service
+          sudo apt-get remove -y securewave-vpn
+          test ! -e /run/securewave/helper.sock
+          test ! -e /usr/local/libexec/securewave-helperd
+          sudo env SUDO_USER="$USER" dpkg -i "$predecessor_deb"
+          test "$(dpkg-query -W -f='${Version}' securewave-vpn)" = "4.0.0+2"
+          sudo env SUDO_USER="$USER" dpkg -i "$DEB_OUTPUT"
+          test "$(dpkg-query -W -f='${Version}' securewave-vpn)" = "$(dpkg-deb --field "$DEB_OUTPUT" Version)"
+          systemctl is-active --quiet securewave-helper.service
           sudo python3 scripts/linux_vpn_runtime_verifier.py \
             --skip-build-checks --json | tee "$EVIDENCE_DIR/pre-purge-verifier.json" || true
           if ! sudo python3 - <<'PY' | tee "$EVIDENCE_DIR/pre-purge-verifier-status.txt" >/dev/null
