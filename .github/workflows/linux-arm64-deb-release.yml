@@ -74,8 +74,9 @@ jobs:
           flutter_root="$RUNNER_TEMP/flutter"
           git init "$flutter_root"
           git -C "$flutter_root" remote add origin https://github.com/flutter/flutter.git
-          git -C "$flutter_root" fetch --depth=1 origin ff37bef603469fb030f2b72995ab929ccfc227f0
-          git -C "$flutter_root" checkout --detach FETCH_HEAD
+          git -C "$flutter_root" fetch --depth=1 origin refs/tags/3.41.4:refs/tags/3.41.4
+          git -C "$flutter_root" checkout --detach refs/tags/3.41.4
+          test "$(git -C "$flutter_root" rev-parse HEAD)" = "ff37bef603469fb030f2b72995ab929ccfc227f0"
           printf '%s/bin\n' "$flutter_root" >> "$GITHUB_PATH"
 
       - name: Show Flutter environment
