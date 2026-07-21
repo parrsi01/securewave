@@ -168,7 +168,7 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "securewave-helper.tmpfiles" in build
     assert "securewave-helperd" in build
     assert "securewave-wg-quick.contract" in build
-    assert "securewave-strongswan-routing.conf" in build
+    assert "cp -f \"$ROOT_DIR/packaging/linux/securewave-strongswan-routing.conf\"" not in build
     assert "systemctl enable --now securewave-helper.service" in build
     assert "done < /etc/passwd" not in build
     assert "helper_request wireguard.cleanup" in build
@@ -179,14 +179,14 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "groupdel securewave" in build
     assert "rm -f /run/securewave/helper.sock" in build
     assert (
-        "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan-nm, libcharon-extra-plugins, libcharon-extauth-plugins, libstrongswan-standard-plugins, libstrongswan-extra-plugins, iproute2, iptables, nftables, acl, systemd, systemd-resolved"
+        "Depends: wireguard-tools, iproute2, iptables, nftables, acl, systemd, systemd-resolved"
         in build
     )
     assert "strongswan-swanctl" not in build
     assert "strongswan-charon" not in build
     assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build
     assert "render_polkit_rule" not in build
-    assert "find_strongswan_fwmark_conflict" in build
+    assert "find_strongswan_fwmark_conflict" not in build
     assert "charon_nm_running" in build
     assert "DEBIAN/preinst" in build
     assert "systemctl try-restart strongswan-starter.service" not in build

@@ -65,40 +65,15 @@ def test_maintainer_script_actions_are_scoped_for_dpkg_rollback():
     )
 
 
-@pytest.mark.parametrize("source_name", ("POSTINST", "installer"))
-@pytest.mark.parametrize(
-    ("config", "conflicts"),
-    (
-        ("charon-nm {\n  kernel-netlink {\n    fwmark = !0xdc\n  }\n}\n", True),
-        ("charon-nm {\n  include /etc/strongswan.d/other.conf\n}\n", True),
-        ("charon-nm.kernel-netlink.routing_table = 210\n", True),
-        ("charon {\n  include /etc/strongswan.d/other.conf\n}\n", False),
-        ("charon-nm {\n  # include /etc/strongswan.d/other.conf\n}\n", False),
-    ),
-)
-def test_strongswan_conflict_scanner_fails_closed_inside_charon_nm(
-    tmp_path: Path, source_name: str, config: str, conflicts: bool
-):
-    source = (
-        _maintainer_script("POSTINST")
-        if source_name == "POSTINST"
-        else HELPER_INSTALLER.read_text(encoding="utf-8")
-    )
-    scanner = _function_region(
-        source,
-        "strongswan_file_has_charon_nm_routing_settings() {",
-        "find_strongswan_fwmark_conflict() {",
-    )
-    config_path = tmp_path / "strongswan.conf"
-    config_path.write_text(config, encoding="utf-8")
-    result = subprocess.run(
-        ["bash", "-c", scanner + '\nstrongswan_file_has_charon_nm_routing_settings "$1"', "_", str(config_path)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def test_install_paths_do_not_inspect_or_modify_strongswan_configuration():
+    postinst = _maintainer_script("POSTINST")
+    installer = HELPER_INSTALLER.read_text(encoding="utf-8")
 
-    assert (result.returncode == 0) is conflicts, result.stderr
+    for source in (postinst, installer):
+        assert "strongswan_file_has_charon_nm_routing_settings" not in source
+        assert "find_strongswan_fwmark_conflict" not in source
+        assert "install_strongswan_routing_config" not in source
+        assert "/etc/strongswan.d" not in source
 
 
 def test_allowlist_is_preserved_except_on_explicit_purge():
@@ -117,22 +92,11 @@ def test_allowlist_is_preserved_except_on_explicit_purge():
     )
 
 
-def test_charon_nm_detection_requires_root_and_the_expected_executable():
-    sources = (
-        _maintainer_script("PREINST"),
-        _maintainer_script("POSTINST"),
-        _maintainer_script("PRERM"),
-        HELPER_INSTALLER.read_text(encoding="utf-8"),
-    )
-
-    for source in sources:
-        detector = _function_region(
-            source, "charon_nm_running() {", "\n}\n"
-        )
-        assert 'stat -c %u "$proc_dir"' in detector
-        assert '[[ "$process_owner" == "0" ]]' in detector
-        assert '"/usr/lib/ipsec/charon-nm"' in detector
-        assert '"/usr/lib/ipsec/charon-nm (deleted)"' in detector
+def test_legacy_charon_cleanup_detection_stays_in_prerm_only():
+    assert "charon_nm_running()" not in _maintainer_script("PREINST")
+    assert "charon_nm_running()" not in _maintainer_script("POSTINST")
+    assert "charon_nm_running()" in _maintainer_script("PRERM")
+    assert "charon_nm_running()" not in HELPER_INSTALLER.read_text(encoding="utf-8")
 
 
 def _write_fake_helperd(path: Path):
