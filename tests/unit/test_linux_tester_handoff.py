@@ -60,6 +60,23 @@ def test_x64_evidence_workflow_does_not_mutate_tree_before_packager_snapshot():
     assert "bash scripts/build_deb.sh" in build_step
 
 
+def test_x64_evidence_host_has_runtime_verifier_tools_not_package_dependencies():
+    source = (
+        ROOT / ".github" / "workflows" / "linux-x64-deb-release.yml"
+    ).read_text()
+    install_step = source.split(
+        "- name: Install Linux build and runtime dependency set", maxsplit=1
+    )[1].split("- name: Set up Flutter", maxsplit=1)[0]
+    metadata_step = source.split(
+        "- name: Verify helper payload and dependency metadata", maxsplit=1
+    )[1].split(
+        "- name: Install, launch, verify, purge, and inspect cleanup", maxsplit=1
+    )[0]
+
+    assert "network-manager" in install_step
+    assert "forbidden in openvpn strongswan network-manager" in metadata_step
+
+
 def test_runbook_covers_wireguard_tester_acceptance_without_production():
     source = RUNBOOK.read_text()
     required = (

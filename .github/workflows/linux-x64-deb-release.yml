@@ -62,6 +62,7 @@ jobs:
             iptables \
             nftables \
             acl \
+            network-manager \
             systemd-resolved
 
       - name: Set up Flutter
