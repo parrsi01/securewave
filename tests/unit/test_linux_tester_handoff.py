@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[2]
 COLLECTOR = ROOT / "scripts" / "collect_linux_tester_diagnostics.sh"
 RUNBOOK = ROOT / "docs" / "LINUX_WIREGUARD_PRERELEASE_TESTER_RUNBOOK.md"
 BUILDER = ROOT / "securewave_app" / "scripts" / "build_deb.sh"
+ARM64_WORKFLOW = ROOT / ".github" / "workflows" / "linux-arm64-deb-release.yml"
 
 
 def test_collector_is_allowlisted_and_never_captures_secret_sources():
@@ -39,6 +40,22 @@ def test_collector_libc_probe_is_pipefail_safe():
 
     assert "ldd --version 2>&1 | head" not in source
     assert "ldd --version 2>&1 | sed -n" in source
+
+
+def test_arm64_package_evidence_uses_native_pinned_lifecycle_gate():
+    source = ARM64_WORKFLOW.read_text()
+
+    assert "runs-on: ubuntu-24.04-arm" in source
+    assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0" in source
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in source
+    assert 'test "$(uname -m)" = "aarch64"' in source
+    assert 'test "$(dpkg --print-architecture)" = "arm64"' in source
+    assert 'Architecture)" = "arm64"' in source
+    assert "ELF 64-bit LSB pie executable, ARM aarch64" in source
+    assert "Install, launch, verify, purge, and inspect cleanup" in source
+    assert "source-tree-state" in source
+    assert 'helper-contract")" = "13"' in source
+    assert "openvpn strongswan network-manager" in source
 
 
 def test_package_embeds_release_identity_and_dirty_tree_marker():

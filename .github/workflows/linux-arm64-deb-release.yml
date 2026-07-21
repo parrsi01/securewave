@@ -1,0 +1,305 @@
+name: Linux ARM64 Deb Build Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-arm64-deb-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_CHANNEL: stable
+  EVIDENCE_DIR: artifacts/linux-arm64-deb
+  DEB_OUTPUT: artifacts/linux-arm64-deb/securewave-linux-arm64.deb
+
+jobs:
+  build-linux-arm64-deb:
+    name: Build Linux ARM64 .deb Evidence
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Assert aarch64 Ubuntu runner
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          uname -m | tee "$EVIDENCE_DIR/architecture.txt"
+          dpkg --print-architecture | tee "$EVIDENCE_DIR/dpkg-architecture.txt"
+          test "$(uname -m)" = "aarch64"
+          test "$(dpkg --print-architecture)" = "arm64"
+
+      - name: Install Linux build and runtime dependency set
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \
+            curl \
+            unzip \
+            xz-utils \
+            zip \
+            ca-certificates \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            clang \
+            libgtk-3-dev \
+            liblzma-dev \
+            libsecret-1-dev \
+            dpkg-dev \
+            dpkg \
+            xvfb \
+            xauth \
+            python3-pip \
+            python3-venv \
+            wireguard-tools \
+            iproute2 \
+            iptables \
+            nftables \
+            acl \
+            network-manager \
+            systemd-resolved
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Show Flutter environment
+        run: |
+          set -euo pipefail
+          flutter --version | tee "$EVIDENCE_DIR/flutter-version.txt"
+          flutter doctor -v | tee "$EVIDENCE_DIR/flutter-doctor.txt"
+
+      - name: Prepare Flutter env asset
+        run: FORCE_FLUTTER_ENV=true bash scripts/prepare_flutter_env.sh
+
+      - name: Build Linux ARM64 deb
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          cd securewave_app
+          bash scripts/build_deb.sh 2>&1 | tee "../$EVIDENCE_DIR/build-deb.log"
+
+      - name: Collect generated deb
+        run: |
+          set -euo pipefail
+          deb_path="$(find securewave_app/build/packaging -maxdepth 1 -type f -name '*.deb' | sort | tail -n 1)"
+          if [ -z "$deb_path" ]; then
+            echo "No .deb found under securewave_app/build/packaging" >&2
+            exit 1
+          fi
+          printf '%s\n' "$deb_path" | tee "$EVIDENCE_DIR/generated-deb-path.txt"
+          cp "$deb_path" "$DEB_OUTPUT"
+          du -h "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-size.txt"
+          sha256sum "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/securewave-linux-arm64.deb.sha256"
+          file "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-file.txt"
+          dpkg-deb --info "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-info.txt"
+          dpkg-deb --contents "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-contents.txt"
+
+      - name: Verify ARM64 ELF architecture and contract 13
+        run: |
+          set -euo pipefail
+          test "$(dpkg-deb --field "$DEB_OUTPUT" Architecture)" = "arm64"
+          payload_root="$(mktemp -d)"
+          trap 'rm -rf "$payload_root"' EXIT
+          dpkg-deb -x "$DEB_OUTPUT" "$payload_root"
+          tr -d '\r\n' < "$payload_root/usr/share/securewave/packaging/linux/securewave-wg-quick.contract" |
+            tee "$EVIDENCE_DIR/contract-version.txt"
+          printf '\n'
+          test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/packaging/linux/securewave-wg-quick.contract")" = "13"
+          file "$payload_root/usr/lib/securewave/securewave_app" | tee "$EVIDENCE_DIR/app-elf.txt"
+          file "$payload_root/usr/share/securewave/packaging/linux/securewave-helperd" | tee "$EVIDENCE_DIR/helperd-elf.txt"
+          grep -F 'ELF 64-bit LSB pie executable, ARM aarch64' "$EVIDENCE_DIR/app-elf.txt" >/dev/null
+          grep -F 'ELF 64-bit LSB pie executable, ARM aarch64' "$EVIDENCE_DIR/helperd-elf.txt" >/dev/null
+
+      - name: Verify helper payload and dependency metadata
+        run: |
+          set -euo pipefail
+          contents="$EVIDENCE_DIR/package-contents.txt"
+          depends="$(dpkg-deb --field "$DEB_OUTPUT" Depends)"
+          printf '%s\n' "$depends" | tee "$EVIDENCE_DIR/package-depends.txt"
+
+          for payload in \
+            "usr/lib/securewave/securewave_app" \
+            "usr/share/applications/securewave-vpn.desktop" \
+            "usr/share/securewave/packaging/linux/securewave-helperd" \
+            "usr/share/securewave/packaging/linux/securewave-wg-quick" \
+            "usr/share/securewave/packaging/linux/securewave-wg-quick.contract" \
+            "usr/share/securewave/packaging/linux/securewave-helper.service" \
+            "usr/share/securewave/packaging/linux/securewave-helper.tmpfiles" \
+            "usr/share/securewave/release/source-sha" \
+            "usr/share/securewave/release/source-tree-state" \
+            "usr/share/securewave/release/helper-contract" \
+            "usr/lib/tmpfiles.d/securewave-helper.conf"
+          do
+            grep -F "$payload" "$contents" >/dev/null
+            printf 'payload-ok %s\n' "$payload"
+          done | tee "$EVIDENCE_DIR/helper-payload-checks.txt"
+
+          for package in \
+            wireguard-tools \
+            iproute2 \
+            iptables \
+            nftables \
+            acl \
+            systemd \
+            systemd-resolved
+          do
+            printf '%s\n' "$depends" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -Fx "$package" >/dev/null
+            printf 'depends-ok %s\n' "$package"
+          done | tee "$EVIDENCE_DIR/package-requirements-check.txt"
+
+          for forbidden in openvpn strongswan network-manager; do
+            if printf '%s\n' "$depends" | grep -Eiq "(^|[, ])${forbidden}([, ]|$)"; then
+              echo "Forbidden Linux v1 dependency: $forbidden" >&2
+              exit 1
+            fi
+          done
+
+          payload_root="$(mktemp -d)"
+          trap 'rm -rf "$payload_root"' EXIT
+          dpkg-deb -x "$DEB_OUTPUT" "$payload_root"
+          test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/source-sha")" = "$GITHUB_SHA"
+          test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/source-tree-state")" = "clean"
+          test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/helper-contract")" = "13"
+
+      - name: Install, launch, verify, purge, and inspect cleanup
+        run: |
+          set -euo pipefail
+          cleanup_on_exit() {
+            status="$?"
+            if dpkg-query -W -f='${Status}' securewave-vpn 2>/dev/null | grep -Fxq 'install ok installed'; then
+              sudo systemctl disable --now securewave-helper.service >/dev/null 2>&1 || true
+              sudo apt-get purge -y securewave-vpn \
+                2>&1 | sudo tee "$EVIDENCE_DIR/emergency-purge.log" >/dev/null || true
+            fi
+            exit "$status"
+          }
+          trap cleanup_on_exit EXIT
+          sudo dpkg -i "$DEB_OUTPUT"
+          sudo systemctl enable --now securewave-helper.service
+          systemctl is-enabled securewave-helper.service | tee "$EVIDENCE_DIR/service-enabled.txt"
+          systemctl is-active securewave-helper.service | tee "$EVIDENCE_DIR/service-active.txt"
+          sudo stat -c '%U %G %a %n' /run/securewave/helper.sock | tee "$EVIDENCE_DIR/socket.txt"
+          test "$(sudo stat -c '%a' /run/securewave/helper.sock)" = "660"
+          test "$(sudo cat /usr/local/libexec/securewave-wg-quick.contract)" = "13"
+          sudo python3 scripts/linux_vpn_runtime_verifier.py \
+            --skip-build-checks --json | tee "$EVIDENCE_DIR/pre-purge-verifier.json" || true
+          if ! sudo python3 - <<'PY' | tee "$EVIDENCE_DIR/pre-purge-verifier-status.txt" >/dev/null
+          import json
+          from pathlib import Path
+          payload = json.loads(Path("artifacts/linux-arm64-deb/pre-purge-verifier.json").read_text())
+          allowed_unavailable_secondary_protocol_checks = {
+              "tool:openvpn",
+              "tool:charon-nm",
+              "tool:nm-strongswan-service.name",
+              "tool:libstrongswan-eap-mschapv2.so",
+              "privilege:strongswan_routing_config",
+          }
+          unexpected_failures = [
+              check for check in payload.get("checks", [])
+              if check.get("ok") is not True
+              and check.get("name") not in allowed_unavailable_secondary_protocol_checks
+          ]
+          raise SystemExit(1 if unexpected_failures else 0)
+          PY
+          then
+            echo "Runtime verifier did not pass before purge." >&2
+            exit 1
+          fi
+          sudo timeout --signal=TERM 20s xvfb-run -a \
+            --server-args='-screen 0 1280x720x24' \
+            /usr/lib/securewave/securewave_app --disable-gpu \
+            2>&1 | tee "$EVIDENCE_DIR/application-launch.log" >/dev/null || launch_status=$?
+          launch_status="${launch_status:-0}"
+          test "$launch_status" = "124" || test "$launch_status" = "143"
+          sudo apt-get purge -y securewave-vpn
+          test ! -e /run/securewave/helper.sock
+          test ! -e /usr/local/libexec/securewave-helperd
+          test ! -e /usr/local/libexec/securewave-wg-quick
+          test ! -e /usr/local/libexec/securewave-wg-quick.contract
+          if ip link show sw-wg >/dev/null 2>&1; then exit 1; fi
+          if ip link show tun-securewave >/dev/null 2>&1; then exit 1; fi
+          if ip link show nm-xfrm-sw >/dev/null 2>&1; then exit 1; fi
+          if sudo ip -4 route show table 51820 | grep -E 'sw-wg|tun-securewave' >/dev/null; then exit 1; fi
+          if sudo ip -6 route show table 51820 | grep -E 'sw-wg|tun-securewave' >/dev/null; then exit 1; fi
+          if sudo ip -4 rule show | grep -E '51820|securewave' >/dev/null; then exit 1; fi
+          if sudo ip -6 rule show | grep -E '51820|securewave' >/dev/null; then exit 1; fi
+          if sudo iptables-save | grep -E 'securewave-|wg-quick\(8\) rule for sw-wg' >/dev/null; then exit 1; fi
+          if sudo ip6tables-save | grep -E 'securewave-|wg-quick\(8\) rule for sw-wg' >/dev/null; then exit 1; fi
+
+      - name: Check manifest syntax and status
+        run: |
+          set -euo pipefail
+          python3 -m json.tool static/downloads/manifest.json | tee "$EVIDENCE_DIR/manifest-json-check.txt" >/dev/null
+          python3 - <<'PY' | tee "artifacts/linux-arm64-deb/manifest-arm64-status.txt"
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("static/downloads/manifest.json").read_text())
+          entries = [
+              item for item in manifest["downloads"]
+              if item["platform"] == "linux"
+              and item["architecture"] == "arm64"
+              and item["filename"] == "securewave-linux-arm64.deb"
+          ]
+          if entries and any(item["status"] != "coming_soon" for item in entries):
+              raise SystemExit("linux ARM64 deb must remain absent or coming_soon")
+          print("linux-arm64-deb-publication=absent-or-coming_soon")
+          PY
+
+      - name: Run downloads manifest unit test when dependencies are available
+        run: |
+          set -euo pipefail
+          python3 -m venv .venv-manifest-tests
+          . .venv-manifest-tests/bin/activate
+          if ! {
+            python -m pip install --upgrade pip
+            python -m pip install -r requirements.txt pytest==9.0.3
+          } > "$EVIDENCE_DIR/manifest-test-dependency-install.log" 2>&1; then
+            {
+              echo "blocked"
+              echo "Reason: Python dependencies for tests/unit/test_downloads_manifest.py were unavailable."
+            } | tee "$EVIDENCE_DIR/downloads-manifest-tests.blocked.txt"
+            exit 0
+          fi
+          python -m pytest tests/unit/test_downloads_manifest.py -q 2>&1 | tee "$EVIDENCE_DIR/downloads-manifest-tests.txt"
+
+      - name: Write evidence summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "# Linux ARM64 Deb Build Evidence"
+            echo
+            echo "- Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "- Ref: $GITHUB_REF"
+            echo "- SHA: $GITHUB_SHA"
+            echo "- Runner architecture: $(cat "$EVIDENCE_DIR/architecture.txt" 2>/dev/null || echo unknown)"
+            echo "- Dpkg architecture: $(cat "$EVIDENCE_DIR/dpkg-architecture.txt" 2>/dev/null || echo unknown)"
+            echo "- Artifact path: $DEB_OUTPUT"
+            if [ -f "$EVIDENCE_DIR/package-size.txt" ]; then
+              echo "- Package size: $(cat "$EVIDENCE_DIR/package-size.txt")"
+            fi
+            if [ -f "$EVIDENCE_DIR/securewave-linux-arm64.deb.sha256" ]; then
+              echo "- SHA256: $(cat "$EVIDENCE_DIR/securewave-linux-arm64.deb.sha256")"
+            fi
+            echo
+            echo "This evidence proves an aarch64 GitHub-hosted Ubuntu runner built the package, verified arm64 ELF payloads and contract 13, installed it on the ephemeral runner, started the helper/socket, ran the structural verifier, launched the app, purged the package, and checked SecureWave networking residue. It does not prove a clean VM or live WireGuard/OpenVPN/IKEv2 routing/data-plane evidence."
+          } | tee "$EVIDENCE_DIR/README.md"
+
+      - name: Upload ARM64 deb and evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: securewave-linux-arm64-deb-evidence-${{ github.run_number }}
+          path: artifacts/linux-arm64-deb/
+          if-no-files-found: error
+          retention-days: 14
