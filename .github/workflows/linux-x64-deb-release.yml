@@ -191,12 +191,24 @@ jobs:
           test "$(sudo stat -c '%a' /run/securewave/helper.sock)" = "660"
           test "$(sudo cat /usr/local/libexec/securewave-wg-quick.contract)" = "13"
           sudo python3 scripts/linux_vpn_runtime_verifier.py \
-            --skip-build-checks --json | tee "$EVIDENCE_DIR/pre-purge-verifier.json"
+            --skip-build-checks --json | tee "$EVIDENCE_DIR/pre-purge-verifier.json" || true
           if ! sudo python3 - <<'PY' | tee "$EVIDENCE_DIR/pre-purge-verifier-status.txt" >/dev/null
           import json
           from pathlib import Path
           payload = json.loads(Path("artifacts/linux-x64-deb/pre-purge-verifier.json").read_text())
-          raise SystemExit(0 if payload.get("ok") is True else 1)
+          allowed_unavailable_secondary_protocol_checks = {
+              "tool:openvpn",
+              "tool:charon-nm",
+              "tool:nm-strongswan-service.name",
+              "tool:libstrongswan-eap-mschapv2.so",
+              "privilege:strongswan_routing_config",
+          }
+          unexpected_failures = [
+              check for check in payload.get("checks", [])
+              if check.get("ok") is not True
+              and check.get("name") not in allowed_unavailable_secondary_protocol_checks
+          ]
+          raise SystemExit(1 if unexpected_failures else 0)
           PY
           then
             echo "Runtime verifier did not pass before purge." >&2

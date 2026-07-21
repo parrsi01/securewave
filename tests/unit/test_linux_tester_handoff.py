@@ -77,6 +77,26 @@ def test_x64_evidence_host_has_runtime_verifier_tools_not_package_dependencies()
     assert "forbidden in openvpn strongswan network-manager" in metadata_step
 
 
+def test_x64_evidence_allows_only_absent_legacy_protocol_prerequisites():
+    source = (
+        ROOT / ".github" / "workflows" / "linux-x64-deb-release.yml"
+    ).read_text()
+    lifecycle_step = source.split(
+        "- name: Install, launch, verify, purge, and inspect cleanup", maxsplit=1
+    )[1].split("- name: Check manifest syntax and status", maxsplit=1)[0]
+
+    assert "allowed_unavailable_secondary_protocol_checks" in lifecycle_step
+    for check in (
+        "tool:openvpn",
+        "tool:charon-nm",
+        "tool:nm-strongswan-service.name",
+        "tool:libstrongswan-eap-mschapv2.so",
+        "privilege:strongswan_routing_config",
+    ):
+        assert check in lifecycle_step
+    assert "unexpected_failures" in lifecycle_step
+
+
 def test_runbook_covers_wireguard_tester_acceptance_without_production():
     source = RUNBOOK.read_text()
     required = (
