@@ -44,6 +44,7 @@ def test_package_embeds_release_identity_and_dirty_tree_marker():
         "source-tree-state",
     ):
         assert name in source
+    assert source.index('source_tree_state="clean"') < source.index("flutter pub get")
 
 
 def test_runbook_covers_wireguard_tester_acceptance_without_production():

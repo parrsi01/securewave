@@ -4,6 +4,17 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Snapshot the source inputs before Flutter generates or refreshes build files.
+# Package evidence describes the checkout supplied to the build, not harmless
+# tool output produced during the build itself.
+REPO_DIR="$ROOT_DIR/.."
+source_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
+source_tree_state="clean"
+if ! git -C "$REPO_DIR" diff --quiet --ignore-submodules HEAD -- ||
+   [[ -n "$(git -C "$REPO_DIR" ls-files --others --exclude-standard)" ]]; then
+  source_tree_state="dirty"
+fi
+
 # Guard against packaging when WireGuard tooling is missing on the target platform.
 if ! command -v wg-quick >/dev/null 2>&1; then
   echo "ERROR: wg-quick not found. Install WireGuard tools before packaging." >&2
@@ -45,12 +56,6 @@ fi
 
 arch="$(dpkg --print-architecture)"
 package_name="securewave-vpn"
-source_sha="$(git -C "$ROOT_DIR/.." rev-parse HEAD)"
-source_tree_state="clean"
-if ! git -C "$ROOT_DIR/.." diff --quiet --ignore-submodules HEAD -- ||
-   [[ -n "$(git -C "$ROOT_DIR/.." ls-files --others --exclude-standard)" ]]; then
-  source_tree_state="dirty"
-fi
 
 staging_dir="$ROOT_DIR/build/packaging/deb"
 output_dir="$ROOT_DIR/build/packaging"
