@@ -98,7 +98,11 @@ jobs:
           printf '%s\n' "$deb_path" | tee "$EVIDENCE_DIR/generated-deb-path.txt"
           cp "$deb_path" "$DEB_OUTPUT"
           du -h "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-size.txt"
-          sha256sum "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/securewave-linux-x64.deb.sha256"
+          (
+            cd "$EVIDENCE_DIR"
+            sha256sum securewave-linux-x64.deb | tee securewave-linux-x64.deb.sha256
+            sha256sum --check securewave-linux-x64.deb.sha256
+          )
           file "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-file.txt"
           dpkg-deb --info "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-info.txt"
           dpkg-deb --contents "$DEB_OUTPUT" | tee "$EVIDENCE_DIR/package-contents.txt"

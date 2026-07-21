@@ -83,6 +83,16 @@ def test_both_architecture_gates_cover_install_restart_upgrade_remove_and_purge(
             assert marker in source
 
 
+def test_package_workflows_emit_portable_verified_checksums():
+    for workflow, artifact in (
+        (ARM64_WORKFLOW, "securewave-linux-arm64.deb"),
+        (ROOT / ".github" / "workflows" / "linux-x64-deb-release.yml", "securewave-linux-x64.deb"),
+    ):
+        source = workflow.read_text()
+        assert f"sha256sum {artifact} | tee {artifact}.sha256" in source
+        assert f"sha256sum --check {artifact}.sha256" in source
+
+
 def test_package_embeds_release_identity_and_dirty_tree_marker():
     source = BUILDER.read_text()
     for name in (
