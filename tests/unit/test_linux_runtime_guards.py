@@ -205,6 +205,6 @@ def test_install_helper_script_installs_payload_and_removes_old_polkit_rule():
     assert 'rm -f "$OLD_POLKIT_RULE"' in installer
     assert "systemctl daemon-reload" in installer
     assert "systemctl enable --now securewave-helper.service" in installer
-    assert "find_strongswan_fwmark_conflict" in installer
-    assert "charon_nm_running" in installer
+    assert "find_strongswan_fwmark_conflict" not in installer
+    assert "charon_nm_running" not in installer
     assert "systemctl try-restart strongswan-starter.service" not in installer
