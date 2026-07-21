@@ -58,13 +58,6 @@ jobs:
             python3-pip \
             python3-venv \
             wireguard-tools \
-            openvpn \
-            network-manager \
-            network-manager-strongswan \
-            libcharon-extra-plugins \
-            libcharon-extauth-plugins \
-            libstrongswan-standard-plugins \
-            libstrongswan-extra-plugins \
             iproute2 \
             iptables \
             nftables \
@@ -141,6 +134,9 @@ jobs:
             "usr/share/securewave/packaging/linux/securewave-wg-quick.contract" \
             "usr/share/securewave/packaging/linux/securewave-helper.service" \
             "usr/share/securewave/packaging/linux/securewave-helper.tmpfiles" \
+            "usr/share/securewave/release/source-sha" \
+            "usr/share/securewave/release/source-tree-state" \
+            "usr/share/securewave/release/helper-contract" \
             "usr/lib/tmpfiles.d/securewave-helper.conf"
           do
             grep -F "$payload" "$contents" >/dev/null
@@ -149,13 +145,6 @@ jobs:
 
           for package in \
             wireguard-tools \
-            openvpn \
-            network-manager \
-            network-manager-strongswan \
-            libcharon-extra-plugins \
-            libcharon-extauth-plugins \
-            libstrongswan-standard-plugins \
-            libstrongswan-extra-plugins \
             iproute2 \
             iptables \
             nftables \
@@ -166,6 +155,20 @@ jobs:
             printf '%s\n' "$depends" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -Fx "$package" >/dev/null
             printf 'depends-ok %s\n' "$package"
           done | tee "$EVIDENCE_DIR/package-requirements-check.txt"
+
+          for forbidden in openvpn strongswan network-manager; do
+            if printf '%s\n' "$depends" | grep -Eiq "(^|[, ])${forbidden}([, ]|$)"; then
+              echo "Forbidden Linux v1 dependency: $forbidden" >&2
+              exit 1
+            fi
+          done
+
+          payload_root="$(mktemp -d)"
+          trap 'rm -rf "$payload_root"' EXIT
+          dpkg-deb -x "$DEB_OUTPUT" "$payload_root"
+          test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/source-sha")" = "$GITHUB_SHA"
+          test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/source-tree-state")" = "clean"
+          test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/helper-contract")" = "13"
 
       - name: Install, launch, verify, purge, and inspect cleanup
         run: |
