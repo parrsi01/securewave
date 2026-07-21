@@ -288,31 +288,28 @@ def test_helper_installer_installs_service_socket_model():
     assert "securewave-helper.service" in helper_installer
     assert "securewave-helper.tmpfiles" in helper_installer
     assert "wireguard-tools" in helper_installer
-    assert "openvpn" in helper_installer
+    assert "packages+=(openvpn)" not in helper_installer
     assert "systemd-resolved" in helper_installer
     assert "nftables" in helper_installer
-    assert "network-manager-strongswan" in helper_installer
-    assert "package_installed strongswan " not in helper_installer
+    assert "network-manager-strongswan" not in helper_installer
     assert "strongswan-swanctl" not in helper_installer
     assert "strongswan-charon" not in helper_installer
-    assert "libcharon-extauth-plugins" in helper_installer
-    assert "libstrongswan-standard-plugins" in helper_installer
-    assert "libstrongswan-extra-plugins" in helper_installer
+    assert "libcharon-extauth-plugins" not in helper_installer
+    assert "libstrongswan-standard-plugins" not in helper_installer
+    assert "libstrongswan-extra-plugins" not in helper_installer
     assert "acl" in helper_installer
     assert "SECUREWAVE_ALLOWED_USER" in helper_installer
     assert (
         'install -m 0755 "$SOURCE_HELPER_DAEMON" "$HELPER_DAEMON"' in helper_installer
     )
     assert 'install -m 0644 "$SOURCE_CONTRACT" "$HELPER_CONTRACT"' in helper_installer
-    assert (
-        'install -m 0644 "$SOURCE_STRONGSWAN_ROUTING" "$STRONGSWAN_ROUTING_FILE"'
-        in helper_installer
-    )
-    assert "find_strongswan_fwmark_conflict" in helper_installer
-    assert "charon_nm_running" in helper_installer
-    assert helper_installer.count("preflight_install") == 3
-    assert helper_installer.index("preflight_install\ninstall_apt_dependencies") < (
-        helper_installer.index("ensure_runtime_group\ninstall_strongswan_routing_config")
+    assert "SOURCE_STRONGSWAN_ROUTING" not in helper_installer
+    assert "find_strongswan_fwmark_conflict" not in helper_installer
+    assert "charon_nm_running" not in helper_installer
+    assert helper_installer.count("preflight_install") == 2
+    calls = helper_installer.rsplit("install_systemd_service()", 1)[1]
+    assert calls.index("preflight_install\ninstall_apt_dependencies") < (
+        calls.index("ensure_runtime_group")
     )
     assert "systemctl try-restart strongswan-starter.service" not in helper_installer
     assert "systemctl enable --now securewave-helper.service" in helper_installer

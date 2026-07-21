@@ -292,12 +292,9 @@ def test_standalone_installer_runs_read_only_gates_before_mutation():
 
     first_preflight = calls.index("preflight_install")
     dependency_install = calls.index("install_apt_dependencies")
-    second_preflight = calls.index("preflight_install", first_preflight + 1)
     group_mutation = calls.index("ensure_runtime_group")
-    config_mutation = calls.index("install_strongswan_routing_config")
 
-    assert first_preflight < dependency_install < second_preflight
-    assert second_preflight < group_mutation < config_mutation
+    assert first_preflight < dependency_install < group_mutation
     assert "command -v systemctl" in installer.split("preflight_install() {", 1)[1]
     assert "[[ -d /run/systemd/system ]]" in installer.split(
         "preflight_install() {", 1
