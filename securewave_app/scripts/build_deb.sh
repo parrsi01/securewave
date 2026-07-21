@@ -45,6 +45,12 @@ fi
 
 arch="$(dpkg --print-architecture)"
 package_name="securewave-vpn"
+source_sha="$(git -C "$ROOT_DIR/.." rev-parse HEAD)"
+source_tree_state="clean"
+if ! git -C "$ROOT_DIR/.." diff --quiet --ignore-submodules HEAD -- ||
+   [[ -n "$(git -C "$ROOT_DIR/.." ls-files --others --exclude-standard)" ]]; then
+  source_tree_state="dirty"
+fi
 
 staging_dir="$ROOT_DIR/build/packaging/deb"
 output_dir="$ROOT_DIR/build/packaging"
@@ -56,6 +62,7 @@ mkdir -p "$staging_dir/DEBIAN" \
   "$staging_dir/usr/lib/tmpfiles.d" \
   "$staging_dir/usr/share/applications" \
   "$staging_dir/usr/share/icons/hicolor/256x256/apps" \
+  "$staging_dir/usr/share/securewave/release" \
   "$staging_dir/usr/share/securewave/packaging/linux"
 
 cp -a "$bundle_dir/"* "$staging_dir/usr/lib/securewave/"
@@ -70,9 +77,16 @@ cp -f "$ROOT_DIR/packaging/linux/securewave-helper.service" "$staging_dir/usr/sh
 cp -f "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" "$staging_dir/usr/share/securewave/packaging/linux/securewave-helper.tmpfiles"
 cp -f "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" "$staging_dir/usr/lib/tmpfiles.d/securewave-helper.conf"
 cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
-cp -f "$ROOT_DIR/packaging/linux/securewave-strongswan-routing.conf" "$staging_dir/usr/share/securewave/packaging/linux/securewave-strongswan-routing.conf"
 chmod 0755 "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick" \
   "$staging_dir/usr/share/securewave/packaging/linux/securewave-helperd"
+
+printf '%s\n' "$source_sha" > "$staging_dir/usr/share/securewave/release/source-sha"
+printf '%s\n' "$version" > "$staging_dir/usr/share/securewave/release/app-version"
+printf '%s\n' "$arch" > "$staging_dir/usr/share/securewave/release/package-architecture"
+printf '%s\n' "$source_tree_state" > "$staging_dir/usr/share/securewave/release/source-tree-state"
+cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" \
+  "$staging_dir/usr/share/securewave/release/helper-contract"
+chmod 0644 "$staging_dir/usr/share/securewave/release/"*
 
 cat <<CONTROL > "$staging_dir/DEBIAN/control"
 Package: $package_name
@@ -80,7 +94,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
-Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan-nm, libcharon-extra-plugins, libcharon-extauth-plugins, libstrongswan-standard-plugins, libstrongswan-extra-plugins, iproute2, iptables, nftables, acl, systemd, systemd-resolved
+Depends: wireguard-tools, iproute2, iptables, nftables, acl, systemd, systemd-resolved
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave VPN desktop client
 CONTROL
@@ -116,27 +130,6 @@ case "${1:-}" in
     exit 0
     ;;
 esac
-charon_nm_running() {
-  local proc_dir
-  local process_name
-  local process_owner
-  local process_exe
-  for proc_dir in /proc/[0-9]*; do
-    [[ -r "$proc_dir/comm" && -L "$proc_dir/exe" ]] || continue
-    IFS= read -r process_name < "$proc_dir/comm" || continue
-    [[ "$process_name" == "charon-nm" ]] || continue
-    process_owner="$(stat -c %u "$proc_dir" 2>/dev/null || true)"
-    [[ "$process_owner" == "0" ]] || continue
-    process_exe="$(readlink "$proc_dir/exe" 2>/dev/null || true)"
-    [[ "$process_exe" == "/usr/lib/ipsec/charon-nm" ||
-       "$process_exe" == "/usr/lib/ipsec/charon-nm (deleted)" ]] && return 0
-  done
-  return 1
-}
-if charon_nm_running; then
-  echo "charon-nm is running; disconnect all NetworkManager strongSwan VPNs before installing SecureWave." >&2
-  exit 1
-fi
 PREINST
 
 cat <<'POSTINST' > "$staging_dir/DEBIAN/postinst"
@@ -152,10 +145,8 @@ SOURCE_HELPERD=$SOURCE_DIR/securewave-helperd
 SOURCE_CONTRACT=$SOURCE_DIR/securewave-wg-quick.contract
 SOURCE_SERVICE=$SOURCE_DIR/securewave-helper.service
 SOURCE_TMPFILES=$SOURCE_DIR/securewave-helper.tmpfiles
-SOURCE_STRONGSWAN_ROUTING=$SOURCE_DIR/securewave-strongswan-routing.conf
 SERVICE_FILE=/etc/systemd/system/securewave-helper.service
 TMPFILES_FILE=/usr/lib/tmpfiles.d/securewave-helper.conf
-STRONGSWAN_ROUTING_FILE=/etc/strongswan.d/securewave-routing.conf
 RUNTIME_GROUP=securewave
 RUNTIME_DIR=/run/securewave
 AUTH_DIR=/etc/securewave
@@ -174,102 +165,6 @@ case "${1:-}" in
     exit 0
     ;;
 esac
-strongswan_file_has_charon_nm_routing_settings() {
-  awk '
-    BEGIN { depth = 0; nm_depth = 0; pending_nm = 0; found = 0 }
-    {
-      line = $0
-      sub(/[[:space:]]*#.*/, "", line)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
-      if (line == "") {
-        next
-      }
-      if (line ~ /^charon-nm[.].*(fwmark|routing_table|routing_table_prio)[[:space:]]*=/) {
-        found = 1
-      }
-      if (line ~ /^charon-nm[[:space:]]*\{/) {
-        nm_depth = depth + 1
-        pending_nm = 0
-      } else if (line == "charon-nm") {
-        pending_nm = 1
-      } else if (pending_nm && line ~ /^\{/) {
-        nm_depth = depth + 1
-        pending_nm = 0
-      } else if (pending_nm) {
-        pending_nm = 0
-      }
-      if (nm_depth > 0 &&
-          line ~ /(^|[.[:space:]])(fwmark|routing_table|routing_table_prio)[[:space:]]*=/) {
-        found = 1
-      }
-      if (nm_depth > 0 && line ~ /^include[[:space:]]+/) {
-        found = 1
-      }
-      braces = line
-      opens = gsub(/\{/, "{", braces)
-      braces = line
-      closes = gsub(/\}/, "}", braces)
-      depth += opens - closes
-      if (nm_depth > 0 && depth < nm_depth) {
-        nm_depth = 0
-      }
-    }
-    END { exit found ? 0 : 1 }
-  ' "$1"
-}
-find_strongswan_fwmark_conflict() {
-  local candidate
-  local candidates=()
-  [[ -f /etc/strongswan.conf ]] && candidates+=(/etc/strongswan.conf)
-  if [[ -d /etc/strongswan.d ]]; then
-    while IFS= read -r -d '' candidate; do
-      candidates+=("$candidate")
-    done < <(find /etc/strongswan.d -type f -name '*.conf' -print0)
-  fi
-  for candidate in "${candidates[@]}"; do
-    [[ "$candidate" != "$STRONGSWAN_ROUTING_FILE" ]] || continue
-    if strongswan_file_has_charon_nm_routing_settings "$candidate"; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-  return 1
-}
-charon_nm_running() {
-  local proc_dir
-  local process_name
-  local process_owner
-  local process_exe
-  for proc_dir in /proc/[0-9]*; do
-    [[ -r "$proc_dir/comm" && -L "$proc_dir/exe" ]] || continue
-    IFS= read -r process_name < "$proc_dir/comm" || continue
-    [[ "$process_name" == "charon-nm" ]] || continue
-    process_owner="$(stat -c %u "$proc_dir" 2>/dev/null || true)"
-    [[ "$process_owner" == "0" ]] || continue
-    process_exe="$(readlink "$proc_dir/exe" 2>/dev/null || true)"
-    [[ "$process_exe" == "/usr/lib/ipsec/charon-nm" ||
-       "$process_exe" == "/usr/lib/ipsec/charon-nm (deleted)" ]] && return 0
-  done
-  return 1
-}
-if charon_nm_running; then
-  echo "charon-nm started during installation; disconnect all NetworkManager strongSwan VPNs and reconfigure this package." >&2
-  exit 1
-fi
-if conflict="$(find_strongswan_fwmark_conflict)"; then
-  echo "Existing charon-nm routing/mark configuration conflicts with SecureWave: $conflict" >&2
-  exit 1
-fi
-legacy_system_charon_config=0
-if [[ -f "$STRONGSWAN_ROUTING_FILE" ]] &&
-   grep -Eq '^[[:space:]]*charon[[:space:]]*\{' "$STRONGSWAN_ROUTING_FILE"; then
-  legacy_system_charon_config=1
-fi
-install -d -o root -g root -m 0755 /etc/strongswan.d
-install -m 0644 "$SOURCE_STRONGSWAN_ROUTING" "$STRONGSWAN_ROUTING_FILE"
-if [[ "$legacy_system_charon_config" == "1" ]]; then
-  echo "SecureWave removed its legacy system-charon configuration. If a regular strongSwan daemon was already running, it may retain the old packet marks and pref-220 rule until an administrator-approved restart or reboot. SecureWave did not restart it because doing so could interrupt unrelated IPsec SAs. Review active SAs and restart only during a maintenance window." >&2
-fi
 install -d -m 0755 "$HELPER_DIR"
 install -m 0755 "$SOURCE_HELPER" "$HELPER"
 install -m 0755 "$SOURCE_HELPERD" "$HELPERD"
@@ -425,7 +320,6 @@ offline_owned_runtime_clean() {
   local xfrm_policy
   local xfrm_state
   command -v ip >/dev/null 2>&1 || return 1
-  command -v nmcli >/dev/null 2>&1 || return 1
   command -v nft >/dev/null 2>&1 || return 1
   command -v iptables-save >/dev/null 2>&1 || return 1
   command -v ip6tables-save >/dev/null 2>&1 || return 1
@@ -443,8 +337,10 @@ offline_owned_runtime_clean() {
     ' <<< "$links"; then
     return 1
   fi
-  connections="$(nmcli -t -f NAME,TYPE connection show)" || return 1
-  grep -Fqx 'SecureWave-IKEv2:vpn' <<< "$connections" && return 1
+  if command -v nmcli >/dev/null 2>&1; then
+    connections="$(nmcli -t -f NAME,TYPE connection show)" || return 1
+    grep -Fqx 'SecureWave-IKEv2:vpn' <<< "$connections" && return 1
+  fi
   [[ -z "$(securewave_openvpn_pids)" ]] || return 1
   for family in -4 -6; do
     routes="$(ip "$family" -o route show table all)" || return 1
@@ -542,6 +438,25 @@ offline_owned_runtime_clean() {
      ! -e /run/securewave/ikev2-endpoint ]] || return 1
   return 0
 }
+legacy_ikev2_residue_present() {
+  [[ -e /run/securewave/ikev2-xfrm-if-id ||
+     -e /run/securewave/ikev2-endpoint ]] && return 0
+  if command -v nmcli >/dev/null 2>&1; then
+    nmcli -t -f NAME,TYPE connection show 2>/dev/null |
+      grep -Fqx 'SecureWave-IKEv2:vpn' && return 0
+  fi
+  return 1
+}
+legacy_openvpn_residue_present() {
+  [[ -n "$(securewave_openvpn_pids)" ]] && return 0
+  command -v ip >/dev/null 2>&1 &&
+    ip link show dev tun-securewave >/dev/null 2>&1 && return 0
+  return 1
+}
+legacy_ikev2_residue=0
+legacy_openvpn_residue=0
+legacy_ikev2_residue_present && legacy_ikev2_residue=1
+legacy_openvpn_residue_present && legacy_openvpn_residue=1
 helper_service_active=0
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
   if systemctl is-active --quiet securewave-helper.service; then
@@ -555,7 +470,7 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
 fi
 if [[ "$helper_service_active" == "1" && -x "$HELPER" && -x "$HELPERD" ]]; then
   helper_request wireguard.cleanup
-  if ! helper_request ikev2.cleanup; then
+  if [[ "$legacy_ikev2_residue" == "1" ]] && ! helper_request ikev2.cleanup; then
     if ! offline_owned_runtime_clean; then
       echo "SecureWave IKEv2 cleanup failed and offline ownership inspection was not clean; refusing package removal." >&2
       exit 1
@@ -565,6 +480,7 @@ elif ! offline_owned_runtime_clean; then
   echo "SecureWave cleanup service is unavailable and owned runtime state could not be verified clean; refusing package removal." >&2
   exit 1
 fi
+if [[ "$legacy_openvpn_residue" == "1" ]]; then
 for proc_dir in /proc/[0-9]*; do
   [[ -r "$proc_dir/comm" && -r "$proc_dir/cmdline" ]] || continue
   [[ "$(cat "$proc_dir/comm" 2>/dev/null)" == "openvpn" ]] || continue
@@ -603,6 +519,8 @@ for family in -4 -6; do
     exit 1
   fi
 done
+fi
+if [[ "$legacy_ikev2_residue" == "1" ]]; then
 for _ in $(seq 1 20); do
   charon_nm_running || break
   sleep 0.25
@@ -610,6 +528,7 @@ done
 if charon_nm_running; then
   echo "charon-nm is still running after SecureWave cleanup; another NetworkManager strongSwan VPN may be active. Refusing to remove shared charon-nm routing configuration." >&2
   exit 1
+fi
 fi
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
   if ! systemctl stop securewave-helper.service; then
