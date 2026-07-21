@@ -2,6 +2,9 @@ name: Linux ARM64 Deb Build Evidence
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - codex/linux-wireguard-tester-handoff
 
 permissions:
   contents: read
