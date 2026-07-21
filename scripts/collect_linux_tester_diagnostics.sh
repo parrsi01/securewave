@@ -78,7 +78,7 @@ if [[ -r /etc/os-release ]]; then
   os_id="$(. /etc/os-release; printf '%s' "${ID:-unknown}")"
   os_version="$(. /etc/os-release; printf '%s' "${VERSION_ID:-unknown}")"
 fi
-libc="$(ldd --version 2>&1 | head -n 1 | sed -E 's/[[:space:]]+/ /g')"
+libc="$(ldd --version 2>&1 | sed -n '1{s/[[:space:]]\+/ /g;p;}')"
 init_system="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]')"
 display_protocol=unknown
 if [[ "${XDG_SESSION_TYPE:-}" =~ ^(x11|wayland)$ ]]; then

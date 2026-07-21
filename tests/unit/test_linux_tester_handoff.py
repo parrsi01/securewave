@@ -34,6 +34,13 @@ def test_collector_rejects_checksum_and_architecture_mismatch():
     assert "^(amd64|arm64)$" in source
 
 
+def test_collector_libc_probe_is_pipefail_safe():
+    source = COLLECTOR.read_text()
+
+    assert "ldd --version 2>&1 | head" not in source
+    assert "ldd --version 2>&1 | sed -n" in source
+
+
 def test_package_embeds_release_identity_and_dirty_tree_marker():
     source = BUILDER.read_text()
     for name in (
