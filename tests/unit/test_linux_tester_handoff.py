@@ -51,6 +51,9 @@ def test_arm64_package_evidence_uses_native_pinned_lifecycle_gate():
     assert "ff37bef603469fb030f2b72995ab929ccfc227f0" in source
     assert "https://github.com/flutter/flutter.git" in source
     assert "subosito/flutter-action" not in source
+    assert "SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}" in source
+    assert "ref: ${{ github.event.pull_request.head.sha || github.sha }}" in source
+    assert 'source-sha\")\" = \"$SOURCE_SHA\"' in source
     assert 'test "$(uname -m)" = "aarch64"' in source
     assert 'test "$(dpkg --print-architecture)" = "arm64"' in source
     assert 'Architecture)" = "arm64"' in source

@@ -17,6 +17,7 @@ env:
   FLUTTER_CHANNEL: stable
   EVIDENCE_DIR: artifacts/linux-arm64-deb
   DEB_OUTPUT: artifacts/linux-arm64-deb/securewave-linux-arm64.deb
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   build-linux-arm64-deb:
@@ -25,6 +26,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Assert aarch64 Ubuntu runner
         run: |
@@ -175,7 +178,7 @@ jobs:
           payload_root="$(mktemp -d)"
           trap 'rm -rf "$payload_root"' EXIT
           dpkg-deb -x "$DEB_OUTPUT" "$payload_root"
-          test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/source-sha")" = "$GITHUB_SHA"
+          test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/source-sha")" = "$SOURCE_SHA"
           test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/source-tree-state")" = "clean"
           test "$(tr -d '\r\n' < "$payload_root/usr/share/securewave/release/helper-contract")" = "13"
 
@@ -290,7 +293,7 @@ jobs:
             echo
             echo "- Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             echo "- Ref: $GITHUB_REF"
-            echo "- SHA: $GITHUB_SHA"
+            echo "- SHA: $SOURCE_SHA"
             echo "- Runner architecture: $(cat "$EVIDENCE_DIR/architecture.txt" 2>/dev/null || echo unknown)"
             echo "- Dpkg architecture: $(cat "$EVIDENCE_DIR/dpkg-architecture.txt" 2>/dev/null || echo unknown)"
             echo "- Artifact path: $DEB_OUTPUT"
