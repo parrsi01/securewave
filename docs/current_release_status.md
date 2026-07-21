@@ -1,19 +1,18 @@
 # SecureWave - Current Release Status
 
-Last audited: 2026-07-15 UTC
+Last audited: 2026-07-21 UTC
 
 ## Candidate under certification
 
-- Branch: `codex/linux-runtime-final`
-- Source: current PR #48 candidate; use the PR head SHA rather than a checksum
-  copied from an earlier workflow run.
-- Base incorporated: `origin/master` at
-  `56d3126116120176152e98ab213d0fa1b19e1fdc`
+- Branch: `codex/linux-wireguard-arm64-gates`
+- Source: use the current clean PR #67 head and require the package-embedded
+  source SHA to match it exactly.
+- Release work began from clean source
+  `cfd9dd5b44ff58050a26bcd620f964c76fbeab7e`; confirmed gate fixes produced
+  the current exact clean candidate above.
 - Application/package version: `4.0.0+3`
-- Local ARM64 package: `securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb`
-- Local ARM64 package SHA-256: record the checksum from the exact retained build
-  in the private PR evidence; local Debian archive timestamps make a checksum
-  from an earlier rebuild unsafe to copy forward.
+- Record ARM64 and amd64 checksums from the exact retained workflow artifacts;
+  do not copy a checksum from an earlier source revision into a later candidate.
 - No artifact was published, signed, or deployed by this certification.
 
 ## Protocol truth
@@ -25,13 +24,9 @@ socket validation, malformed and unauthorized IPC rejection, verifier, bounded
 application launch, same-version upgrade, purge, and networking-residue checks
 in a fresh Ubuntu 24.04 ARM64 systemd container.
 
-OpenVPN remains unavailable unless both backend server evidence and fresh
-data-plane evidence are usable. Local helper capability alone does not enable it.
-IKEv2 remains unavailable because the backend/runtime and authorized external
-data-plane proof gates are not all green. Its isolated local lab passed EAP,
-ESP/XFRM, endpoint-bypass, private DNS/HTTPS egress, rekey, failed-authentication,
-reconnect, disconnect, and cleanup assertions. No unsupported protocol is
-presented as release-ready.
+OpenVPN and IKEv2 are outside the Linux v1 release boundary. They remain Coming
+soon or unavailable and must fail closed regardless of installed binaries,
+legacy metadata, or retained future implementation source.
 
 ## Verified candidate behavior
 
@@ -48,9 +43,9 @@ presented as release-ready.
 - Compose app/PostgreSQL/Redis health and migration checks pass with a production-
   style environment that does not inherit production dotenv settings.
 - The candidate package definition includes the helper daemon, wrapper, contract
-  13, systemd, systemd-resolved, nftables, tmpfiles, and paired strongSwan
-  routing-mark payload. The current local ARM64 rebuild is the recorded
-  contract-13 package; it has not been published or deployed.
+  13, systemd, systemd-resolved, nftables, and tmpfiles. Neither package depends
+  on OpenVPN, strongSwan, or NetworkManager. The exact-head native ARM64 and
+  amd64 artifacts have not been published or deployed.
 - The packaged release Flutter binary remained running for a bounded ten-second
   Xvfb launch in the clean ARM64 container. Headless graphics and keyring
   warnings are environment diagnostics; no crash was observed.
@@ -62,12 +57,10 @@ presented as release-ready.
 
 ## Artifact and platform limits
 
-- The local ARM64 `.deb` is not a public download. Install it from its local path
-  only after verifying the checksum.
-- The Linux x64 `.deb` remains `coming_soon` in the public manifest. Exact-head
-  package evidence and its checksum are recorded in the private workflow and PR
-  review, never copied forward from an earlier source revision. No x64 artifact
-  is public because live authenticated data-plane evidence is still absent.
+- Both Linux `.deb` entries remain `coming_soon` in the public manifest.
+  Exact-head package evidence and checksums are recorded in their private
+  workflows and PR review. Neither artifact is public because authorized live
+  WireGuard data-plane evidence is still absent.
 
 ## Current private x64 workflow evidence
 
@@ -79,7 +72,7 @@ and networking residue checks. It does not prove live protocol routing or
 release readiness.
 - Portable archives are UI/runtime-independent packaging and do not install the
   privileged Linux helper.
-- Windows, macOS VPN tunneling, and IKEv2 have no release claim from this pass.
+- Windows and macOS VPN tunneling have no release claim from this pass.
 
 ## Canonical branch model
 
@@ -87,20 +80,20 @@ release readiness.
 on updated `origin/master`, and merged through a single review. Documentation and
 release commands must not instruct users to treat a feature branch as canonical.
 
-## Install the verified local ARM64 package
+## Install the verified private ARM64 workflow package
 
 ```bash
-cd /path/to/securewave-linux-runtime-final
-deb="$PWD/securewave_app/build/packaging/securewave-vpn_4.0.0+3_arm64.deb"
-sha256sum "$deb"
+evidence_dir="/private/path/securewave-linux-arm64-deb-evidence"
+deb="$evidence_dir/securewave-linux-arm64.deb"
+(cd "$evidence_dir" && sha256sum --check securewave-linux-arm64.deb.sha256)
 sudo apt install "$deb"
 systemctl is-enabled securewave-helper.service
 systemctl is-active securewave-helper.service
 cat /usr/local/libexec/securewave-wg-quick.contract
 ```
 
-Compare the output with the checksum attached to the exact build in the private
-PR evidence. Never substitute a checksum from an earlier local rebuild.
+The checksum file and package-embedded source SHA must match the retained CI run
+for the reviewed head. Never substitute evidence from an earlier rebuild.
 
 Upgrade with `sudo apt install /path/to/securewave-vpn_NEW.deb`; purge with
 `sudo apt purge securewave-vpn`, then run the disconnected runtime verifier and

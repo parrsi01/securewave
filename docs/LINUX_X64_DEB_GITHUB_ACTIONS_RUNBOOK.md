@@ -32,7 +32,7 @@ Trigger the workflow from the reviewed branch or canonical `master` only after
 the source head is identified:
 
 ```bash
-gh workflow run linux-x64-deb-release.yml --ref codex/linux-runtime-final
+gh workflow run linux-x64-deb-release.yml --ref <exact-release-branch>
 ```
 
 Watch the run:
@@ -93,9 +93,9 @@ The workflow proves:
   and contents listing.
 - The package contains the SecureWave app binary, desktop entry, helper daemon,
   runner helper, helper contract, systemd unit, and tmpfiles payload.
-- The package declares the expected Linux VPN runtime dependencies:
-  WireGuard tools, OpenVPN, NetworkManager/strongSwan packages, `iproute2`,
-  `iptables`, `nftables`, `acl`, `systemd`, and `systemd-resolved`.
+- The package declares only the WireGuard Linux runtime dependencies:
+  `wireguard-tools`, `iproute2`, `iptables`, `nftables`, `acl`, `systemd`, and
+  `systemd-resolved`.
 - The public downloads manifest remains truthful: Linux x64 `.deb` stays
   `coming_soon` until publish evidence is accepted.
 
@@ -109,34 +109,32 @@ It does not prove:
 
 - Clean x86_64 VM installation with `dpkg -i` or `apt install -f`.
 - Connect/disconnect with a real authenticated staging profile.
-- Live WireGuard, OpenVPN, or IKEv2 routing, DNS, HTTPS, exit-IP, handshake,
-  or counter evidence.
+- Live WireGuard routing, DNS, HTTPS, exit-IP, handshake, or counter evidence.
 - That the `.deb` is publicly downloadable or release-ready.
 
 Keep public claims limited to private beta/build-and-lifecycle evidence until
 the exact source revision also has authorized live protocol proof.
 
-## Current private workflow evidence
+## Record private workflow evidence
 
-The current contract-13 workflow evidence is:
+For the exact reviewed head, record:
 
-- Source head: `164098b136c9d6eeba7d0a94ec8a4ab38c0d19e9`
-- Workflow run: `29348878602`
-- SHA-256:
-  `48768524c4682d5d85027531fae9a499acd6eb4f45f6cc83b9d13f8bae54fd91`
+- full source SHA embedded in the package;
+- workflow run URL;
+- independently verified package SHA-256.
 
-The run passed amd64 ELF and contract-13 checks, dependency and helper payload
+The accepted run must pass amd64 ELF and contract-13 checks, dependency and helper payload
 checks, ephemeral install/service/socket verification, structural verifier,
 bounded application launch, purge, and SecureWave-owned networking residue
-checks. Keep the artifact private: live authenticated WireGuard/OpenVPN/IKEv2
-data-plane proof and a clean VM are still required.
+checks. Keep the artifact private: live authenticated WireGuard data-plane proof
+is still required.
 
 ## Superseded evidence
 
 Pre-contract-13 package evidence is intentionally excluded from this runbook.
 It is not compatible with the current helper/runtime and must not be downloaded,
 installed, or used for release decisions. Trigger this workflow on the exact
-current `codex/linux-runtime-final` head and record only that artifact's source
+current exact release head and record only that artifact's source
 SHA, checksum, and lifecycle evidence.
 
 ## Clean x86_64 VM certification
@@ -189,7 +187,7 @@ Only when approved test credentials and infrastructure are available:
 1. Capture the pre-tunnel public IP to a private file outside the repository.
 2. Connect through the normal Flutter -> MethodChannel -> helper -> backend
    profile path. A connect-time `sudo`, `pkexec`, or password prompt is a failure.
-3. Run, once for each enabled protocol:
+3. Run the WireGuard verifier:
 
 ```bash
 python3 scripts/linux_vpn_runtime_verifier.py \
@@ -200,10 +198,8 @@ python3 scripts/linux_vpn_runtime_verifier.py \
   --json > /tmp/securewave-wireguard-active.json
 ```
 
-Repeat with `openvpn` and `ikev2` only if the helper probe and backend profile
-both advertise them. IKEv2 must fail if XFRM ESP evidence is absent or an
-expected safe charon-nm table-210 rule is missing, duplicated, or replaced by
-an unsafe rule. The verifier output redacts public addresses and counter values.
+OpenVPN and IKEv2 are not enabled for Linux v1 and must remain unavailable or
+Coming soon. The verifier output redacts public addresses and counter values.
 
 4. Disconnect through the app and rerun the disconnected verifier. No process,
    interface, route, DNS, charon-nm table-210 route, ESP-template policy, or
@@ -236,8 +232,7 @@ After evidence is accepted:
 3. Install the `.deb` on a clean x86_64 Debian/Ubuntu/systemd VM.
 4. Capture helper service, socket, contract, launch, uninstall, and runtime
    verifier evidence.
-5. Run live WireGuard/OpenVPN/IKEv2 proof if credentials and authorization are
-   available.
+5. Run live WireGuard proof if credentials and authorization are available.
 6. Open a separate publish PR that adds the accepted artifact to the intended
    download location and updates `static/downloads/manifest.json`.
 

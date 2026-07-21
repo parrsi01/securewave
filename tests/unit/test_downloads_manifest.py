@@ -86,13 +86,24 @@ def test_linux_x64_deb_is_withheld_build_evidence_not_release_download():
     assert linux_x64_deb.architecture == "x64"
     assert linux_x64_deb.status == "coming_soon"
     assert linux_x64_deb.url == "#"
-    assert linux_x64_deb.evidence_url == (
-        "https://github.com/parrsi01/securewave/actions/runs/29348878602"
+    assert linux_x64_deb.evidence_url is None
+    assert linux_x64_deb.checksum_sha256 is None
+    assert "authorized staging" in (linux_x64_deb.notes or "")
+
+
+def test_linux_arm64_deb_is_withheld_exact_head_build_evidence():
+    entries = downloads._build_download_entries()
+    linux_arm64_deb = next(
+        entry for entry in entries
+        if entry.filename == "securewave-linux-arm64.deb"
     )
-    assert linux_x64_deb.checksum_sha256 == (
-        "48768524c4682d5d85027531fae9a499acd6eb4f45f6cc83b9d13f8bae54fd91"
-    )
-    assert "clean x86_64 VM install" in (linux_x64_deb.notes or "")
+
+    assert linux_arm64_deb.platform == "linux"
+    assert linux_arm64_deb.architecture == "arm64"
+    assert linux_arm64_deb.status == "coming_soon"
+    assert linux_arm64_deb.url == "#"
+    assert linux_arm64_deb.evidence_url is None
+    assert linux_arm64_deb.checksum_sha256 is None
 
 
 def test_apple_review_page_and_handoff_docs_are_public():
@@ -229,9 +240,7 @@ def test_invalid_manifest_structure_uses_safe_fallback(monkeypatch, tmp_path, cl
     withheld = next(entry for entry in entries if entry["filename"] == "securewave-linux-x64.deb")
     assert withheld["status"] == "coming_soon"
     assert withheld["url"] == "#"
-    assert withheld["evidence_url"] == (
-        "https://github.com/parrsi01/securewave/actions/runs/29348878602"
-    )
+    assert withheld.get("evidence_url") is None
 
 
 def test_unlisted_and_traversal_files_are_not_served(monkeypatch, tmp_path, client):
