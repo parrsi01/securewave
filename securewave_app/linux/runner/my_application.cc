@@ -417,7 +417,7 @@ static gboolean helper_daemon_installed() {
 }
 
 static gboolean linux_native_runtime_available(gchar** detail) {
-  const gchar* protocols[] = {"wireguard", "openvpn", "ikev2"};
+  const gchar* protocols[] = {"wireguard"};
   g_autofree gchar* last_detail = nullptr;
   gboolean service_seen = FALSE;
   for (const gchar* protocol : protocols) {
@@ -441,7 +441,7 @@ static gboolean linux_native_runtime_available(gchar** detail) {
                              ? last_detail
                              : "SecureWave helper service is unavailable.");
     } else {
-      *detail = g_strdup("No supported Linux VPN runtime tools are available. Install WireGuard, OpenVPN, or NetworkManager strongSwan support.");
+      *detail = g_strdup("The WireGuard Linux runtime is unavailable. Install the SecureWave .deb package and wireguard-tools.");
     }
   }
   return FALSE;
@@ -486,12 +486,11 @@ static const gchar* load_active_protocol(VpnChannelState* state) {
     return "wireguard";
   }
   g_strstrip(stored);
-  if (g_strcmp0(stored, "openvpn") == 0 ||
-      g_strcmp0(stored, "ikev2") == 0 ||
-      g_strcmp0(stored, "wireguard") == 0) {
+  if (g_strcmp0(stored, "wireguard") == 0) {
     state->active_protocol = g_strdup(stored);
     return state->active_protocol;
   }
+  g_unlink(state->active_protocol_path);
   return "wireguard";
 }
 
@@ -564,7 +563,7 @@ static void respond_runtime_install_state(FlMethodCall* method_call) {
   gboolean openvpn_helper_probe = FALSE;
   gboolean ikev2_helper_probe = FALSE;
   g_autofree gchar* probe_detail = nullptr;
-  const gchar* protocols[] = {"wireguard", "openvpn", "ikev2"};
+  const gchar* protocols[] = {"wireguard"};
   for (const gchar* protocol : protocols) {
     HelperResponse probe_response {};
     g_autofree gchar* op_detail = nullptr;
@@ -926,9 +925,7 @@ static const gchar* config_file_for_protocol(const gchar* protocol) {
 }
 
 static gboolean supported_protocol(const gchar* protocol) {
-  return g_strcmp0(protocol, "wireguard") == 0 ||
-         g_strcmp0(protocol, "openvpn") == 0 ||
-         g_strcmp0(protocol, "ikev2") == 0;
+  return g_strcmp0(protocol, "wireguard") == 0;
 }
 
 static gboolean safe_openvpn_username(const gchar* value) {

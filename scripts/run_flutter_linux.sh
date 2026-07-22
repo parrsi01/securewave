@@ -15,18 +15,36 @@ command -v flutter >/dev/null 2>&1 || {
   exit 2
 }
 
-api_base="${SECUREWAVE_API_BASE_URL:-https://api.securewaveapp.com/api}"
+api_base="${SECUREWAVE_API_BASE_URL:-}"
+[[ -n "$api_base" ]] || {
+  echo "SECUREWAVE_API_BASE_URL must explicitly identify an authorized staging API." >&2
+  exit 2
+}
 [[ "$api_base" =~ ^https?://[^[:space:]]+$ ]] || {
   echo "SECUREWAVE_API_BASE_URL must be an http(s) URL." >&2
   exit 2
 }
+[[ "$api_base" != "https://api.securewaveapp.com/api" ]] || {
+  echo "Production cannot be selected by scripts/run_flutter_linux.sh." >&2
+  exit 2
+}
 
 credential_file="${SECUREWAVE_CERT_AUTH_FILE:-$repo_root/securewave_private/live_certification_account.env}"
-[[ -f "$credential_file" ]] || {
+[[ -f "$credential_file" && ! -L "$credential_file" ]] || {
   echo "Live test credentials are missing: $credential_file" >&2
   echo "Create it with SECUREWAVE_RUNTIME_PROBE_EMAIL and SECUREWAVE_RUNTIME_PROBE_PASSWORD." >&2
   exit 2
 }
+[[ "$(stat -c '%u' "$credential_file")" == "$(id -u)" ]] || {
+  echo "The live credential file must be owned by the current user." >&2
+  exit 2
+}
+[[ "$(stat -c '%a' "$credential_file")" == "600" ]] || {
+  echo "The live credential file must have mode 0600." >&2
+  exit 2
+}
+python3 "$repo_root/scripts/check_live_certification_inputs.py" \
+  --api-base "$api_base" --auth-file "$credential_file" >/dev/null
 
 read_credential() {
   local key="$1"
@@ -35,26 +53,24 @@ read_credential() {
   printf '%s' "$value"
 }
 
-test_email="${SECUREWAVE_TEST_EMAIL:-${SECUREWAVE_RUNTIME_PROBE_EMAIL:-${DEMO_EMAIL:-}}}"
-test_credential="${SECUREWAVE_TEST_PASSWORD:-${SECUREWAVE_RUNTIME_PROBE_PASSWORD:-${DEMO_PASSWORD:-}}}"
-if [[ -z "$test_email" ]]; then
-  test_email="$(read_credential SECUREWAVE_RUNTIME_PROBE_EMAIL)"
-  [[ -n "$test_email" ]] || test_email="$(read_credential SECUREWAVE_TEST_EMAIL)"
-  [[ -n "$test_email" ]] || test_email="$(read_credential DEMO_EMAIL)"
-fi
-if [[ -z "$test_credential" ]]; then
-  test_credential="$(read_credential SECUREWAVE_RUNTIME_PROBE_PASSWORD)"
-  [[ -n "$test_credential" ]] || test_credential="$(read_credential SECUREWAVE_TEST_PASSWORD)"
-  [[ -n "$test_credential" ]] || test_credential="$(read_credential DEMO_PASSWORD)"
-fi
+test_email="$(read_credential SECUREWAVE_RUNTIME_PROBE_EMAIL)"
+test_credential="$(read_credential SECUREWAVE_RUNTIME_PROBE_PASSWORD)"
 [[ -n "$test_email" && -n "$test_credential" ]] || {
   echo "The live test credential file does not contain a supported email/password pair." >&2
   exit 2
 }
 
-login_payload="$(jq -nc --arg email "$test_email" --arg password "$test_credential" '{email:$email,password:$password}')"
-login_status="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' \
-  -H 'Content-Type: application/json' -d "$login_payload" "$api_base/auth/login")"
+login_payload_file="$(mktemp)"
+chmod 600 "$login_payload_file"
+jq -nc --arg email "$test_email" --arg password "$test_credential" \
+  '{email:$email,password:$password}' >"$login_payload_file"
+if ! login_status="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' \
+  -H 'Content-Type: application/json' --data-binary "@$login_payload_file" "$api_base/auth/login")"; then
+  rm -f "$login_payload_file"
+  echo "Live test account preflight could not reach the explicit staging API." >&2
+  exit 3
+fi
+rm -f "$login_payload_file"
 [[ "$login_status" == "200" ]] || {
   echo "Live test account preflight failed against $api_base (HTTP $login_status)." >&2
   exit 3
@@ -74,9 +90,9 @@ fi
 
 FORCE_FLUTTER_ENV=true bash "$repo_root/scripts/prepare_flutter_env.sh" >/dev/null
 
-# Flutter desktop does not inherit arbitrary shell environment values. Keep the
-# debug-only account in the ignored app environment file rather than exposing
-# its password in dart-define process arguments.
+# Flutter desktop does not inherit arbitrary shell environment values. Keep
+# credentials exclusively in the protected auth file; the app must use its
+# valid restored session or an interactive login with that same account.
 app_env="$app_dir/.env"
 umask 077
 {
@@ -84,10 +100,8 @@ umask 077
   printf 'SECUREWAVE_PORTAL_URL=https://securewaveapp.com/account\n'
   printf 'SECUREWAVE_UPGRADE_URL=https://securewaveapp.com/subscription\n'
   printf 'SECUREWAVE_USE_MOCK_API=false\n'
-  printf 'SECUREWAVE_RESET_SESSION_ON_BOOT=true\n'
-  printf 'SECUREWAVE_DEBUG_AUTO_LOGIN=true\n'
-  printf 'SECUREWAVE_DEBUG_EMAIL=%s\n' "$test_email"
-  printf 'SECUREWAVE_DEBUG_PASSWORD=%s\n' "$test_credential"
+  printf 'SECUREWAVE_RESET_SESSION_ON_BOOT=false\n'
+  printf 'SECUREWAVE_DEBUG_AUTO_LOGIN=false\n'
 } > "$app_env"
 chmod 600 "$app_env"
 
@@ -101,7 +115,6 @@ log_file="$report_dir/$run_id.log"
 report_file="$report_dir/$run_id-summary.txt"
 
 echo "Opening the native SecureWave Linux app."
-echo "Test account: $test_email"
 echo "Close the app window to finish diagnostics."
 
 set +e
@@ -113,8 +126,8 @@ set -e
 {
   echo "SecureWave native Flutter run summary"
   echo "Run: $run_id"
-  echo "API: $api_base"
-  echo "Account: $test_email"
+  echo "API: explicitly authorized staging target"
+  echo "Account: authenticated existing account"
   echo "Exit code: $flutter_status"
   echo
   echo "Linux VPN runtime preflight:"

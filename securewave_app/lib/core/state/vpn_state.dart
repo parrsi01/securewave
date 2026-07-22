@@ -316,6 +316,18 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> selectProtocol(VpnProtocol protocol) async {
+    final identity = await DeviceIdentity.load();
+    if (identity.type == 'linux' && protocol != VpnProtocol.wireGuard) {
+      state = state.copyWith(protocol: VpnProtocol.wireGuard);
+      await SecureStorage().saveString(
+        SecureStorage.vpnProtocolKey,
+        vpnProtocolStorageValue(VpnProtocol.wireGuard),
+      );
+      AppLogger.warning(
+        'Ignored unavailable Linux v1 protocol selection; WireGuard retained.',
+      );
+      return;
+    }
     state = state.copyWith(protocol: protocol);
     await SecureStorage().saveString(
       SecureStorage.vpnProtocolKey,

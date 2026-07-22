@@ -221,7 +221,7 @@ void main() {
     expect(state.lastTunnelStartOk, isFalse);
   });
 
-  test('OpenVPN rolls back when authenticated egress proof fails', () async {
+  test('Linux v1 ignores OpenVPN selection even when mocks advertise it', () async {
     final service = _NativeSuccessVpnService();
     final api = _CredentialedEgressApiClient(
       protocol: VpnProtocol.openVpn,
@@ -238,17 +238,15 @@ void main() {
     final notifier = container.read(vpnStateProvider.notifier);
     await notifier.ensureInitialized();
     await notifier.selectProtocol(VpnProtocol.openVpn);
-    await notifier.connect();
 
     final state = container.read(vpnStateProvider);
-    expect(api.baselineCalls, 1);
-    expect(api.verifyCalls, 1);
-    expect(service.disconnectCalls, 1);
-    expect(state.status, VpnStatus.error);
-    expect(state.lastTunnelStartOk, isFalse);
+    expect(state.protocol, VpnProtocol.wireGuard);
+    expect(api.baselineCalls, 0);
+    expect(api.verifyCalls, 0);
+    expect(service.disconnectCalls, 0);
   });
 
-  test('IKEv2 rolls back when authenticated egress proof fails', () async {
+  test('Linux v1 ignores IKEv2 selection even when mocks advertise it', () async {
     final service = _NativeSuccessVpnService();
     final api = _CredentialedEgressApiClient(
       protocol: VpnProtocol.ikev2,
@@ -265,14 +263,12 @@ void main() {
     final notifier = container.read(vpnStateProvider.notifier);
     await notifier.ensureInitialized();
     await notifier.selectProtocol(VpnProtocol.ikev2);
-    await notifier.connect();
 
     final state = container.read(vpnStateProvider);
-    expect(api.baselineCalls, 1);
-    expect(api.verifyCalls, 1);
-    expect(service.disconnectCalls, 1);
-    expect(state.status, VpnStatus.error);
-    expect(state.lastTunnelStartOk, isFalse);
+    expect(state.protocol, VpnProtocol.wireGuard);
+    expect(api.baselineCalls, 0);
+    expect(api.verifyCalls, 0);
+    expect(service.disconnectCalls, 0);
   });
 
   test('IKEv2 runtime restoration disconnects without a fresh egress baseline',

@@ -54,11 +54,17 @@ if [[ "$(tr -d '[:space:]' < securewave_app/packaging/linux/securewave-wg-quick.
   echo "ERROR: Linux helper contract is not version 13."
   exit 1
 fi
-for protocol in wireguard openvpn ikev2; do
-  if ! grep -qn "${protocol}.up\|${protocol}.start" securewave_app/linux/runner/my_application.cc; then
-    echo "ERROR: Linux VPN bridge missing ${protocol} connect operation."
-    exit 1
-  fi
-done
+if ! grep -qn 'return g_strcmp0(protocol, "wireguard") == 0;' securewave_app/linux/runner/my_application.cc; then
+  echo "ERROR: Linux v1 native protocol allowlist is not WireGuard-only."
+  exit 1
+fi
+if ! grep -qn 'RELEASE_PROTOCOLS = ("wireguard",)' scripts/linux_app_vpn_tunnel_proof.py; then
+  echo "ERROR: Linux live certification is not WireGuard-only."
+  exit 1
+fi
+if grep -qn '/auth/register' scripts/live_flutter_runtime_smoke.py; then
+  echo "ERROR: Live smoke script must never register accounts."
+  exit 1
+fi
 
 echo "All release guards and VPN bridges verified successfully."

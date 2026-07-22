@@ -53,7 +53,7 @@ def _ready_openvpn_server(db, *, server_id: str = "openvpn-lifecycle-1"):
 def _profile(client, headers, *, force_rotate=False, device_id=None):
     payload = {
         "device_name": "OpenVPN Lifecycle Laptop",
-        "device_type": "linux",
+        "device_type": "future-protocol-fixture",
         "protocol": "openvpn",
         "force_rotate_keys": force_rotate,
     }

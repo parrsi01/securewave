@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-"""
-Live SecureWave app-control-plane smoke test.
-
-This checks the backend paths the Flutter app depends on: health, registration,
-login, account, usage plan, server inventory, and per-protocol profile issuance.
-It does not start a local VPN tunnel and never prints bearer tokens.
-"""
+"""Run a redacted WireGuard-only control-plane smoke with an existing account."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import secrets
+import os
 import sys
-import time
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+try:
+    from scripts import linux_app_vpn_tunnel_proof as certification
+except ModuleNotFoundError:  # Direct execution from scripts/.
+    import linux_app_vpn_tunnel_proof as certification
 
 
-DEFAULT_API_BASE = "https://api.securewaveapp.com/api"
-PROTOCOLS = ("wireguard", "openvpn", "ikev2")
+PROTOCOL = "wireguard"
 
 
 def _json_request(
@@ -39,120 +37,131 @@ def _json_request(
         headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(request, timeout=timeout) as response:
             body = response.read().decode("utf-8")
             return response.status, json.loads(body) if body else {}
     except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8")
-        try:
-            parsed = json.loads(body) if body else {}
-        except json.JSONDecodeError:
-            parsed = {"detail": body}
-        return error.code, parsed
+        return error.code, {}
 
 
-def _require(status: int, expected: set[int], label: str, body: dict) -> None:
+def _require(status: int, expected: set[int], label: str) -> None:
     if status not in expected:
-        raise RuntimeError(f"{label} failed: HTTP {status} {body}")
+        raise RuntimeError(f"{label} failed with HTTP {status}")
 
 
-def _default_email() -> str:
-    stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
-    suffix = secrets.token_hex(3)
-    return f"securewave.qa.{stamp}.{suffix}@gmail.com"
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--api-base", default=DEFAULT_API_BASE)
-    parser.add_argument("--email", default=_default_email())
-    parser.add_argument("--password", default=f"SwSmoke{secrets.token_hex(4)}!A1")
-    parser.add_argument("--profile-repeats", type=int, default=1)
-    args = parser.parse_args()
-
-    api_base = args.api_base.rstrip("/")
-
-    status, body = _json_request("GET", f"{api_base}/health")
-    _require(status, {200}, "health", body)
-
-    register_payload = {
-        "email": args.email,
-        "password": args.password,
-        "password_confirm": args.password,
-    }
-    status, body = _json_request(
-        "POST", f"{api_base}/auth/register", payload=register_payload
+def _load_credentials(auth_file: str | None) -> tuple[str, str]:
+    path = certification._credential_file_path(auth_file)
+    if path is None or not path.is_file():
+        raise ValueError("a protected stable-account auth file is required")
+    security_error = certification._credential_file_security_error(path)
+    if security_error:
+        raise ValueError(security_error)
+    values = certification._parse_env_file(path)
+    email = certification._file_default(
+        values,
+        "SECUREWAVE_RUNTIME_PROBE_EMAIL",
+        "SECUREWAVE_TEST_EMAIL",
+        "DEMO_EMAIL",
     )
-    _require(status, {201, 400, 429}, "registration", body)
-    if status == 400 and "registered" not in str(body).lower():
-        raise RuntimeError(f"registration failed: HTTP {status} {body}")
-    if status == 429:
-        # This script is often rerun with an existing QA account while the live
-        # registration limiter is active. Continue to login so existing-account
-        # smoke checks remain usable without weakening production rate limits.
-        print("registration skipped: live rate limit active; continuing to login")
+    password = certification._file_default(
+        values,
+        "SECUREWAVE_RUNTIME_PROBE_PASSWORD",
+        "SECUREWAVE_TEST_PASSWORD",
+        "DEMO_PASSWORD",
+    )
+    error = certification._credential_error(email, password)
+    if error:
+        raise ValueError(error)
+    return email.strip(), password.strip()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--api-base",
+        default=os.environ.get("SECUREWAVE_API_BASE_URL"),
+        help="Explicit authorized staging API base.",
+    )
+    parser.add_argument(
+        "--auth-file",
+        default=os.environ.get("SECUREWAVE_CERT_AUTH_FILE"),
+        help="Protected key-value file for one existing stable account.",
+    )
+    parser.add_argument(
+        "--allow-production",
+        action="store_true",
+        help="Explicitly authorize the repository's production API guard.",
+    )
+    parser.add_argument("--profile-repeats", type=int, default=1)
+    args = parser.parse_args(argv)
+
+    try:
+        api_base = certification._canonical_api_base(
+            args.api_base or "", allow_production=args.allow_production
+        )
+        email, password = _load_credentials(args.auth_file)
+    except (argparse.ArgumentTypeError, ValueError) as error:
+        parser.error(str(error))
+    if args.profile_repeats < 1:
+        parser.error("--profile-repeats must be positive")
+
+    status, _ = _json_request("GET", f"{api_base}/health")
+    _require(status, {200}, "health")
 
     status, body = _json_request(
         "POST",
         f"{api_base}/auth/login",
-        payload={"email": args.email, "password": args.password},
+        payload={"email": email, "password": password},
     )
-    _require(status, {200}, "login", body)
+    _require(status, {200}, "login")
     token = body.get("access_token")
-    if not token:
-        raise RuntimeError("login succeeded without access_token")
+    if not isinstance(token, str) or not token:
+        raise RuntimeError("login succeeded without an access token")
 
-    status, account = _json_request("GET", f"{api_base}/auth/me", token=token)
-    _require(status, {200}, "account", account)
-
+    status, _ = _json_request("GET", f"{api_base}/auth/me", token=token)
+    _require(status, {200}, "account")
     status, plan = _json_request("GET", f"{api_base}/user/plan", token=token)
-    _require(status, {200}, "usage plan", plan)
-
-    status, servers = _json_request("GET", f"{api_base}/vpn/servers", token=token)
-    _require(status, {200}, "server inventory", servers)
+    _require(status, {200}, "usage plan")
+    status, servers = _json_request(
+        "GET", f"{api_base}/vpn/servers?device_type=linux", token=token
+    )
+    _require(status, {200}, "server inventory")
     server_items = servers.get("servers") or []
     if not server_items:
         raise RuntimeError("server inventory returned zero servers")
 
-    profile_results: dict[str, list[int]] = {protocol: [] for protocol in PROTOCOLS}
-    for repeat in range(args.profile_repeats):
-        for protocol in PROTOCOLS:
-            status, body = _json_request(
-                "POST",
-                f"{api_base}/vpn/profile",
-                token=token,
-                payload={
-                    "device_name": "Codex Linux live smoke",
-                    "device_type": "linux",
-                    "protocol": protocol,
-                    "server_id": server_items[0].get("id")
-                    or server_items[0].get("server_id"),
-                },
-            )
-            profile_results[protocol].append(status)
-            if protocol in {"wireguard", "openvpn"}:
-                _require(status, {200}, f"{protocol} profile", body)
+    profile_statuses: list[int] = []
+    for _ in range(args.profile_repeats):
+        status, _ = _json_request(
+            "POST",
+            f"{api_base}/vpn/profile",
+            token=token,
+            payload={
+                "device_name": "SecureWave Linux certification",
+                "device_type": "linux",
+                "protocol": PROTOCOL,
+                "server_id": server_items[0].get("id")
+                or server_items[0].get("server_id"),
+            },
+        )
+        _require(status, {200}, "WireGuard profile")
+        profile_statuses.append(status)
 
-    summary = {
-        "api_base": api_base,
-        "email": args.email,
-        "password": args.password,
-        "account_email": account.get("email"),
-        "plan": plan.get("plan_name") or plan.get("plan"),
-        "usage": {
-            "used_gb": plan.get("used_gb"),
-            "limit_gb": plan.get("data_cap_gb")
-            or plan.get("data_limit_gb")
-            or plan.get("limit_gb"),
-        },
-        "server_count": len(server_items),
-        "server_ids": [
-            item.get("id") or item.get("server_id") for item in server_items
-        ],
-        "profile_statuses": profile_results,
-        "note": "IKEv2 may return a typed non-200 until Linux strongSwan issuance is live.",
-    }
-    print(json.dumps(summary, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "account": "authenticated-existing-account",
+                "plan_available": bool(plan),
+                "server_count": len(server_items),
+                "protocol": PROTOCOL,
+                "profile_statuses": profile_statuses,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 

@@ -104,6 +104,15 @@ def test_runner_does_not_enable_secondary_protocols_from_local_tools_alone():
     assert '"ikev2_available"' not in source
 
 
+def test_linux_v1_runner_exposes_only_wireguard_to_flutter():
+    source = _runner_source()
+
+    assert 'static gboolean supported_protocol(const gchar* protocol) {\n  return g_strcmp0(protocol, "wireguard") == 0;\n}' in source
+    assert 'const gchar* protocols[] = {"wireguard"};' in source
+    assert 'if (g_strcmp0(stored, "wireguard") == 0)' in source
+    assert 'g_unlink(state->active_protocol_path);' in source
+
+
 def test_runner_exposes_runtime_status_and_traffic_stats_from_helper():
     source = _runner_source()
 

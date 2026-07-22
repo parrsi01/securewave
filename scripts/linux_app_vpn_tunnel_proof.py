@@ -18,6 +18,7 @@ import select
 import shutil
 import signal
 import socket
+import stat
 import subprocess  # nosec B404
 import sys
 import tempfile
@@ -36,7 +37,8 @@ PROBE_TARGET = "lib/runtime_vpn_probe.dart"
 DEFAULT_AUTH_FILE = REPO_ROOT / "securewave_private" / "live_certification_account.env"
 SHARED_AUTH_RELATIVE_PATH = Path("securewave_private/live_certification_account.env")
 SUPPORTED_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
-DEFAULT_PROTOCOLS = SUPPORTED_PROTOCOLS
+RELEASE_PROTOCOLS = ("wireguard",)
+DEFAULT_PROTOCOLS = RELEASE_PROTOCOLS
 DEFAULT_API_BASE: str | None = None
 MINIMUM_HELPER_CONTRACT = 13
 RELEASE_PROBE_BUILD_TIMEOUT_SECONDS = 120
@@ -179,10 +181,14 @@ def _credential_file_path(auth_file: str | None) -> Path | None:
 
 
 def _credential_file_security_error(path: Path) -> str | None:
+    if path.is_symlink():
+        return f"credential file must not be a symbolic link: {path}"
     try:
         file_stat = path.stat()
     except OSError as exc:
         return f"credential file cannot be inspected: {type(exc).__name__}"
+    if not stat.S_ISREG(file_stat.st_mode):
+        return f"credential file must be a regular file: {path}"
     if file_stat.st_uid != os.getuid():
         return f"credential file must be owned by the current user: {path}"
     mode = file_stat.st_mode & 0o777
@@ -2297,7 +2303,7 @@ def main() -> int:
         type=_disabled_mock_api,
         default=os.environ.get("SECUREWAVE_USE_MOCK_API", "false"),
     )
-    parser.add_argument("--protocol", action="append", choices=SUPPORTED_PROTOCOLS)
+    parser.add_argument("--protocol", action="append", choices=RELEASE_PROTOCOLS)
     parser.add_argument("--hold-seconds", type=_positive_int, default=60)
     parser.add_argument("--evidence-timeout", type=_positive_int, default=180)
     parser.add_argument("--json", action="store_true")

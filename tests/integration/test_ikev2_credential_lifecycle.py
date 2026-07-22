@@ -54,7 +54,7 @@ def _ready_ikev2_server(db, *, server_id: str = "ikev2-lifecycle-1"):
 def _profile(client, headers, *, force_rotate=False, device_id=None):
     payload = {
         "device_name": "IKEv2 Lifecycle Laptop",
-        "device_type": "linux",
+        "device_type": "future-protocol-fixture",
         "protocol": "ikev2",
         "force_rotate_keys": force_rotate,
     }

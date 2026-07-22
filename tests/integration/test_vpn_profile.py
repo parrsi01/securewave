@@ -162,7 +162,7 @@ class TestVpnProfileProvisioning:
         from models.wireguard_peer import WireGuardPeer
         assert db.query(WireGuardPeer).count() == 0
 
-    def test_protocols_endpoint_recognizes_linux_ikev2_but_fails_closed_without_metadata(
+    def test_protocols_endpoint_keeps_linux_secondary_protocols_unavailable(
         self, client, auth_headers, db
     ):
         _create_free_server(db, supports_openvpn=True, supports_ikev2=True)
@@ -177,8 +177,9 @@ class TestVpnProfileProvisioning:
         assert protocols["wireguard"]["enabled"] is True
         assert protocols["openvpn"]["enabled"] is False
         assert protocols["ikev2"]["enabled"] is False
-        assert protocols["ikev2"]["platform_supported"] is True
-        assert "metadata" in (protocols["ikev2"]["reason"] or "").lower()
+        assert protocols["openvpn"]["platform_supported"] is False
+        assert protocols["ikev2"]["platform_supported"] is False
+        assert "not release-ready" in (protocols["ikev2"]["reason"] or "").lower()
 
     def test_servers_endpoint_returns_supported_protocols(self, client, auth_headers, db):
         _create_free_server(
@@ -204,7 +205,8 @@ class TestVpnProfileProvisioning:
         )
         assert resp.status_code == 200, resp.text
         server = resp.json()["servers"][0]
-        assert server["supported_protocols"] == ["wireguard", "openvpn"]
+        assert server["supported_protocols"] == ["wireguard"]
+        assert server["supports_openvpn"] is False
         assert server["supports_ikev2"] is False
 
     def test_server_inventory_does_not_advertise_unauthenticated_wireguard(
@@ -277,10 +279,10 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert resp.status_code == 503, resp.text
-        assert "No usable openvpn VPN servers available" in resp.text
+        assert resp.status_code == 400, resp.text
+        assert "WireGuard-only Linux v1" in resp.text
 
-    def test_openvpn_profile_returns_protocol_config_when_server_supports_it(self, client, auth_headers, db):
+    def test_openvpn_profile_stays_blocked_when_server_supports_it(self, client, auth_headers, db):
         _create_free_server(
             db,
             server_id="profile-openvpn-us-1",
@@ -312,12 +314,9 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert resp.status_code == 200, resp.text
-        data = resp.json()
-        assert data.get("protocol") == "openvpn"
-        assert not data.get("wireguard_config")
-        assert "client" in data.get("openvpn_config", "")
-        assert "<ca>" in data.get("openvpn_config", "")
+        assert resp.status_code == 400, resp.text
+        assert "WireGuard-only Linux v1" in resp.text
+        assert "openvpn_config" not in resp.text
 
     def test_openvpn_metadata_without_protocol_probe_evidence_fails_closed(self, client, auth_headers, db):
         _create_free_server(
@@ -330,7 +329,8 @@ class TestVpnProfileProvisioning:
         response = client.get("/api/vpn/protocols?device_type=linux", headers=auth_headers)
         openvpn = next(item for item in response.json()["protocols"] if item["protocol"] == "openvpn")
         assert openvpn["enabled"] is False
-        assert "protocol-specific" in (openvpn["reason"] or "")
+        assert openvpn["platform_supported"] is False
+        assert "not release-ready" in (openvpn["reason"] or "")
 
     def test_openvpn_runtime_without_data_plane_evidence_fails_closed(
         self, client, auth_headers, db
@@ -352,7 +352,8 @@ class TestVpnProfileProvisioning:
         response = client.get("/api/vpn/protocols?device_type=linux", headers=auth_headers)
         openvpn = next(item for item in response.json()["protocols"] if item["protocol"] == "openvpn")
         assert openvpn["enabled"] is False
-        assert "data-plane" in (openvpn["reason"] or "")
+        assert openvpn["platform_supported"] is False
+        assert "not release-ready" in (openvpn["reason"] or "")
 
         profile = client.post(
             "/api/vpn/profile",
@@ -364,9 +365,9 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert profile.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert profile.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_ikev2_profile_requires_complete_fresh_evidence_and_opaque_credential(
+    def test_ikev2_profile_stays_blocked_with_complete_fresh_evidence(
         self, client, auth_headers, db
     ):
         from models.ikev2_credential import Ikev2Credential
@@ -383,17 +384,17 @@ class TestVpnProfileProvisioning:
             for item in protocols_response.json()["protocols"]
             if item["protocol"] == "ikev2"
         )
-        assert ikev2["enabled"] is True
+        assert ikev2["enabled"] is False
         assert ikev2["server_enabled"] is True
-        assert ikev2["platform_supported"] is True
+        assert ikev2["platform_supported"] is False
 
         servers_response = client.get(
             "/api/vpn/servers?device_type=linux",
             headers=auth_headers,
         )
         server = servers_response.json()["servers"][0]
-        assert server["supports_ikev2"] is True
-        assert "ikev2" in server["supported_protocols"]
+        assert server["supports_ikev2"] is False
+        assert "ikev2" not in server["supported_protocols"]
 
         response = client.post(
             "/api/vpn/profile",
@@ -404,27 +405,10 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_200_OK, response.text
-        payload = response.json()
-        assert payload["protocol"] == "ikev2"
-        assert not payload["wireguard_config"]
-        config = payload["ikev2_config"]
-        assert "connections {" in config
-        assert "remote_addrs = 10.0.0.9" in config
-        assert re.search(r'eap_id = "swikev2-[a-f0-9]{32}"', config)
-        assert "testuser@example.com" not in config
-        assert 'id = "vpn.securewave.test"' in config
-        assert "secrets {" in config
-        secret_match = re.search(r'secret = "([A-Za-z0-9_-]{32,128})"', config)
-        assert secret_match
-        credential = db.query(Ikev2Credential).one()
-        assert credential.username in config
-        assert secret_match.group(1) not in credential.password_encrypted
-        assert credential.is_active is True
-        assert "securewave-ikev2-ca.pem" in config
-        assert "# endpoint_ip = 10.0.0.9" in config
-        assert "# ca_cert_pem_begin" in config
-        assert "# ca_cert_pem_end" in config
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+        assert "WireGuard-only Linux v1" in response.text
+        assert "ikev2_config" not in response.text
+        assert db.query(Ikev2Credential).count() == 0
 
     @pytest.mark.parametrize(
         "evidence_case",
@@ -480,7 +464,8 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "WireGuard-only Linux v1" in response.text
         assert "ikev2_config" not in response.text
 
     @pytest.mark.parametrize(
@@ -523,8 +508,8 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-        assert "metadata" in response.text.lower()
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "WireGuard-only Linux v1" in response.text
         assert "ikev2_config" not in response.text
 
     @pytest.mark.parametrize("legacy_secret", [None, "", " \t", "line1\nline2"])
@@ -550,11 +535,9 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_200_OK, response.text
-        config = response.json()["ikev2_config"]
-        assert re.search(r'secret = "[A-Za-z0-9_-]{32,128}"', config)
-        if legacy_secret:
-            assert legacy_secret not in config
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+        assert "WireGuard-only Linux v1" in response.text
+        assert "ikev2_config" not in response.text
 
     @pytest.mark.parametrize(
         "state_case",
@@ -603,7 +586,8 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "WireGuard-only Linux v1" in response.text
         assert "ikev2_config" not in response.text
 
     def test_stale_runtime_evidence_fails_closed_for_listing_and_profile(self, client, auth_headers, db):

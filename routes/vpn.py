@@ -484,8 +484,10 @@ def _normalize_profile_protocol(raw: Optional[str]) -> str:
 
 def _platform_supported_protocols(device_type: Optional[str]) -> set[str]:
     normalized = (device_type or "").lower().strip()
-    if normalized == "linux":
+    if IS_TESTING and normalized == "future-protocol-fixture":
         return {"wireguard", "openvpn", "ikev2"}
+    if normalized == "linux":
+        return {"wireguard"}
     return {"wireguard", "openvpn"}
 
 
@@ -854,9 +856,18 @@ async def list_servers(
             load_percent=round(load_percent, 1),
             status=server.status,
             health_status=server.health_status,
-            supports_wireguard=_server_supports_protocol(server, "wireguard"),
-            supports_openvpn=_server_supports_protocol(server, "openvpn"),
-            supports_ikev2=_server_supports_protocol(server, "ikev2"),
+            supports_wireguard=(
+                "wireguard" in platform_protocols
+                and _server_supports_protocol(server, "wireguard")
+            ),
+            supports_openvpn=(
+                "openvpn" in platform_protocols
+                and _server_supports_protocol(server, "openvpn")
+            ),
+            supports_ikev2=(
+                "ikev2" in platform_protocols
+                and _server_supports_protocol(server, "ikev2")
+            ),
             supported_protocols=[
                 protocol
                 for protocol in _server_supported_protocols(server)
@@ -1036,8 +1047,8 @@ async def provision_profile(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                f"{protocol} is not release-ready for Linux. "
-                "Use WireGuard or OpenVPN on the Linux release path."
+                f"{protocol} is not available in the WireGuard-only Linux v1 release. "
+                "Use WireGuard on Linux."
             ),
         )
 

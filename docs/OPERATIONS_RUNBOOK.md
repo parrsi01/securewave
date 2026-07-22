@@ -1,8 +1,7 @@
 # SecureWave Linux Support and Certification Runbook
 
-Run this certification from the checked-out `codex/linux-runtime-final` worktree
-at the exact source head recorded in the current release status. Do not use the
-sibling `/home/sp/cyber-course/projects/securewave` worktree. Never place
+Run this certification from the reviewed clean worktree at the exact source head
+recorded in the package evidence. Never place
 credentials, raw VPN profiles, private keys, or unredacted public/internal
 addresses in the repository or captured logs.
 
@@ -30,9 +29,10 @@ python -m alembic upgrade head
 python -m alembic check
 ```
 
-The PostgreSQL concurrency test requires `SECUREWAVE_TEST_POSTGRES_URL` and must
-use disposable PostgreSQL, never production. A fresh migration, a repeat upgrade,
-and the upgrade-path migration must all pass.
+Use `scripts/run_local_postgres_concurrency.sh` for a digest-pinned disposable
+PostgreSQL instance, or supply `SECUREWAVE_TEST_POSTGRES_URL` for an explicitly
+authorized disposable database. Never use production. A fresh migration, a
+repeat upgrade, and the upgrade-path migration must all pass.
 
 ## Flutter Linux checks
 
@@ -95,7 +95,8 @@ DNS changes, policy rules, NetworkManager connections, or temporary profiles.
 
 ## Account and VPN lifecycle certification
 
-Exercise registration, login, session restoration, device creation, server/profile
+Exercise manual registration once when an authorized staging account does not
+yet exist, then use login only for certification. Exercise session restoration, device creation, server/profile
 retrieval, connect/reconnect, key rotation, revocation, usage increments during a
 session, disconnect persistence, logout/login persistence, API failures, retries,
 rollback, monitoring failure/recovery, and cleanup. Use disposable accounts or
@@ -116,10 +117,10 @@ python scripts/linux_vpn_runtime_verifier.py --skip-build-checks \
 
 Require handshake/process evidence, DNS correctness, HTTPS success, endpoint
 bypass, changed exit IP, counters that move, disconnect, and residue cleanup.
-Repeat for OpenVPN only when backend server and data-plane evidence are usable.
-Keep IKEv2 unavailable unless backend advertising and clean Linux runtime proof
-both pass. Never run these probes or concurrency tests against production by
-inference.
+OpenVPN and IKEv2 remain unavailable or Coming soon for Linux v1 and must not be
+selected or inferred from installed binaries. Never run these probes or
+concurrency tests against production by inference. See
+`docs/LIVE_CERTIFICATION_INPUTS.md` for the protected stable-account contract.
 
 The repository's isolated IKEv2 lab is safe for deterministic local negotiation
 and cleanup proof and does not contact staging:
