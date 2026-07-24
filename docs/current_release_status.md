@@ -48,18 +48,19 @@ legacy metadata, or retained future implementation source.
 - The packaged release Flutter binary remained running for a bounded ten-second
   Xvfb launch in the clean ARM64 container. Headless graphics and keyring
   warnings are environment diagnostics; no crash was observed.
-- Prior authorized staging runs recorded real interface, handshake,
-  endpoint-bypass, IPv4/IPv6 route, DNS, HTTPS, exit-IP, counter, disconnect,
-  reconnect, and cleanup evidence. Those runs were against an earlier staging
-  image revision and are not evidence for the current candidate until staging
-  is rebuilt from this exact SHA.
+- The staging app was rebuilt from this exact SHA and the profile smoke passed.
+  The WireGuard proof reached connected state and recorded handshake/data-plane,
+  DNS, routes, counters, disconnect, reconnect, and cleanup events. The overall
+  proof command remains blocked by two pre-existing unqualified IKEv2 policy
+  rules reported by the host verifier; SecureWave-owned WireGuard residue
+  checks passed. This is an environment gate, not evidence to enable IKEv2.
 
 ## Artifact and platform limits
 
 - Both Linux `.deb` entries remain `coming_soon` in the public manifest.
   Exact-head ARM64 package evidence and checksum are local-only. Neither
-  artifact is public because current-SHA staging data-plane evidence, ARM64
-  lifecycle evidence, and repeated manual Flutter acceptance remain incomplete.
+  artifact is public because the host residue gate, ARM64 lifecycle evidence,
+  and repeated manual Flutter acceptance remain incomplete.
 
 ## Current private x64 workflow evidence
 
