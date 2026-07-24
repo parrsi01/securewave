@@ -1,15 +1,14 @@
 # SecureWave - Current Release Status
 
-Last audited: 2026-07-21 UTC
+Last audited: 2026-07-24 UTC
 
 ## Candidate under certification
 
-- Branch: `codex/linux-wireguard-arm64-gates`
-- Source: use the current clean PR #67 head and require the package-embedded
-  source SHA to match it exactly.
-- Release work began from clean source
-  `cfd9dd5b44ff58050a26bcd620f964c76fbeab7e`; confirmed gate fixes produced
-  the current exact clean candidate above.
+- Branch: `codex/linux-wireguard-arm64-beta`
+- Source: `59d524329cff8ca43fc066447e66c6b470b222d5`; the package-embedded
+  source SHA and clean-tree marker match this candidate.
+- The candidate includes the checksum-generation fix in
+  `securewave_app/scripts/build_deb.sh`.
 - Application/package version: `4.0.0+3`
 - Record ARM64 and amd64 checksums from the exact retained workflow artifacts;
   do not copy a checksum from an earlier source revision into a later candidate.
@@ -49,18 +48,18 @@ legacy metadata, or retained future implementation source.
 - The packaged release Flutter binary remained running for a bounded ten-second
   Xvfb launch in the clean ARM64 container. Headless graphics and keyring
   warnings are environment diagnostics; no crash was observed.
-- Real interface, handshake, endpoint-bypass, IPv4/IPv6 route, DNS, HTTPS,
-  exit-IP, counter, and disconnect evidence requires an explicitly authorized
-  staging account. It was not claimed from local mocks or helper capability
-  probes; package upgrade, purge, and disconnected residue proof are recorded
-  separately above.
+- Prior authorized staging runs recorded real interface, handshake,
+  endpoint-bypass, IPv4/IPv6 route, DNS, HTTPS, exit-IP, counter, disconnect,
+  reconnect, and cleanup evidence. Those runs were against an earlier staging
+  image revision and are not evidence for the current candidate until staging
+  is rebuilt from this exact SHA.
 
 ## Artifact and platform limits
 
 - Both Linux `.deb` entries remain `coming_soon` in the public manifest.
-  Exact-head package evidence and checksums are recorded in their private
-  workflows and PR review. Neither artifact is public because authorized live
-  WireGuard data-plane evidence is still absent.
+  Exact-head ARM64 package evidence and checksum are local-only. Neither
+  artifact is public because current-SHA staging data-plane evidence, ARM64
+  lifecycle evidence, and repeated manual Flutter acceptance remain incomplete.
 
 ## Current private x64 workflow evidence
 
