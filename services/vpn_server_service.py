@@ -198,17 +198,32 @@ class VPNServerService:
         # Check for critical issues
         if metrics.get("cpu_load", 0) > 0.95:
             return "unhealthy"
-        if metrics.get("packet_loss", 0) > 0.10:  # >10% packet loss
+        authenticated_runtime_healthy = (
+            metrics.get("authenticated_runtime_healthy") is True
+        )
+        if (
+            not authenticated_runtime_healthy
+            and metrics.get("packet_loss", 0) > 0.10
+        ):  # >10% packet loss without authenticated runtime proof
             return "unhealthy"
-        if metrics.get("latency_ms", 0) > 1000:  # >1 second latency
+        if (
+            not authenticated_runtime_healthy
+            and metrics.get("latency_ms", 0) > 1000
+        ):  # >1 second latency without authenticated runtime proof
             return "unhealthy"
 
         # Check for degraded performance
         if metrics.get("cpu_load", 0) > 0.80:
             return "degraded"
-        if metrics.get("packet_loss", 0) > 0.05:  # >5% packet loss
+        if (
+            not authenticated_runtime_healthy
+            and metrics.get("packet_loss", 0) > 0.05
+        ):  # >5% packet loss without authenticated runtime proof
             return "degraded"
-        if metrics.get("latency_ms", 0) > 500:  # >500ms latency
+        if (
+            not authenticated_runtime_healthy
+            and metrics.get("latency_ms", 0) > 500
+        ):  # >500ms latency without authenticated runtime proof
             return "degraded"
         if metrics.get("current_connections", 0) > metrics.get("max_connections", 1000) * 0.9:
             return "degraded"

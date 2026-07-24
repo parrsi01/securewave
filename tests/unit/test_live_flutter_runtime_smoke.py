@@ -47,6 +47,8 @@ def test_flutter_runner_requires_protected_file_and_explicit_staging():
     assert "SECUREWAVE_DEBUG_AUTO_LOGIN=false" in source
     assert "SECUREWAVE_DEBUG_EMAIL" not in source
     assert "SECUREWAVE_DEBUG_PASSWORD" not in source
+    assert '--dart-define="SECUREWAVE_API_BASE_URL=$api_base"' in source
+    assert '--dart-define="SECUREWAVE_USE_MOCK_API=false"' in source
 
 
 def test_local_postgres_runner_is_pinned_loopback_and_disposable():

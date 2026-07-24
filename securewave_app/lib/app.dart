@@ -19,6 +19,7 @@ import 'core/state/app_state.dart';
 import 'core/state/vpn_state.dart';
 import 'core/utils/api_error.dart';
 import 'services/auth_service.dart';
+import 'services/api_client.dart';
 import 'services/external_links.dart';
 import 'ui/app_ui_v1.dart';
 

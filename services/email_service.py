@@ -337,6 +337,8 @@ SecureWave VPN
             </p>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #667eea;">{reset_url}</p>
+            <p><strong>Reset token:</strong></p>
+            <p style="word-break: break-all; font-family: monospace;">{reset_token}</p>
             <div class="warning">
                 <strong>Important:</strong>
                 <ul>
@@ -363,6 +365,9 @@ We received a request to reset your password for your SecureWave VPN account.
 
 Reset Link:
 {reset_url}
+
+Reset Token:
+{reset_token}
 
 IMPORTANT:
 - This link will expire in 15 minutes

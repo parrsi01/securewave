@@ -705,6 +705,32 @@ class TestVpnProfileProvisioning:
 
         assert db.query(WireGuardPeer).count() == 1
 
+    def test_free_linux_profile_recovers_only_existing_device_after_local_identity_loss(
+        self, client, auth_headers, db
+    ):
+        _create_free_server(db, server_id="profile-free-linux-recovery")
+        first = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "SecureWave Linux certification",
+                "device_type": "linux",
+            },
+            headers=auth_headers,
+        )
+        recovered = client.post(
+            "/api/vpn/profile",
+            json={"device_name": "Linux device (ABCD)", "device_type": "linux"},
+            headers=auth_headers,
+        )
+
+        assert first.status_code == status.HTTP_200_OK, first.text
+        assert recovered.status_code == status.HTTP_200_OK, recovered.text
+        assert recovered.json()["device_id"] == first.json()["device_id"]
+
+        from models.wireguard_peer import WireGuardPeer
+
+        assert db.query(WireGuardPeer).count() == 1
+
 
 @pytest.mark.asyncio
 async def test_background_wireguard_probe_records_only_compact_runtime_evidence(

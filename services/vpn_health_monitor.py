@@ -70,12 +70,15 @@ class VPNHealthMonitor:
             for server in servers:
                 try:
                     metrics = await self.probe_server(server)
+                    wireguard_ready = await self._probe_wireguard_runtime(server)
+                    openvpn_ready = await self._probe_openvpn_runtime(server)
+                    ikev2_ready = await self._probe_ikev2_runtime(server)
+                    metrics["authenticated_runtime_healthy"] = any(
+                        (wireguard_ready, openvpn_ready, ikev2_ready)
+                    )
                     self.server_service.update_server_metrics(
                         self.db, server.server_id, metrics
                     )
-                    await self._probe_wireguard_runtime(server)
-                    await self._probe_openvpn_runtime(server)
-                    await self._probe_ikev2_runtime(server)
 
                     # Update optimizer with fresh metrics
                     try:
@@ -149,7 +152,7 @@ class VPNHealthMonitor:
                 type(exc).__name__,
             )
             return False
-        return healthy
+        return healthy and authenticated
 
     async def _probe_openvpn_runtime(self, server: VPNServer) -> bool:
         """Refresh authenticated OpenVPN health without treating it as data proof."""
@@ -193,7 +196,7 @@ class VPNHealthMonitor:
                 type(exc).__name__,
             )
             return False
-        return healthy
+        return healthy and authenticated
 
     async def _probe_ikev2_runtime(self, server: VPNServer) -> bool:
         """Refresh authenticated IKEv2 server health without claiming egress proof."""
@@ -237,7 +240,7 @@ class VPNHealthMonitor:
                 type(exc).__name__,
             )
             return False
-        return healthy
+        return healthy and authenticated
 
     async def probe_server(self, server: VPNServer) -> Dict:
         """

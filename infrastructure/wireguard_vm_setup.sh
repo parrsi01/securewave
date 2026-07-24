@@ -348,6 +348,7 @@ from urllib.parse import urlparse, parse_qs
 import hmac
 import hashlib
 import time
+import ipaddress
 
 # API key for authentication (set via environment variable)
 API_KEY = os.environ.get('WG_API_KEY', 'change-me-in-production')
@@ -361,7 +362,7 @@ def verify_api_key(headers):
 def run_command(cmd):
     """Run a shell command and return output"""
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, shell=False, capture_output=True, text=True, timeout=30)
         return result.returncode == 0, result.stdout.strip(), result.stderr.strip()
     except subprocess.TimeoutExpired:
         return False, '', 'Command timed out'
@@ -383,21 +384,21 @@ class WireGuardAPIHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
 
         if parsed.path == '/status':
-            success, output, error = run_command('wg-server-status')
+            success, output, error = run_command(['wg-server-status'])
             if success:
                 self.send_json_response(200, json.loads(output))
             else:
                 self.send_json_response(500, {'error': error or 'Failed to get status'})
 
         elif parsed.path == '/peers':
-            success, output, error = run_command('wg-list-peers')
+            success, output, error = run_command(['wg-list-peers'])
             if success:
                 self.send_json_response(200, json.loads(output))
             else:
                 self.send_json_response(500, {'error': error or 'Failed to list peers'})
 
         elif parsed.path == '/health':
-            success, _, _ = run_command('wg show wg0')
+            success, _, _ = run_command(['wg', 'show', 'wg0'])
             self.send_json_response(200 if success else 503, {
                 'healthy': success,
                 'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
@@ -435,7 +436,13 @@ class WireGuardAPIHandler(BaseHTTPRequestHandler):
                 self.send_json_response(400, {'error': 'Invalid public key format'})
                 return
 
-            cmd = f'wg-add-peer "{public_key}" "{allowed_ips}"'
+            try:
+                ipaddress.ip_network(allowed_ips, strict=False)
+            except ValueError:
+                self.send_json_response(400, {'error': 'Invalid allowed IPs format'})
+                return
+
+            cmd = ['wg-add-peer', public_key, allowed_ips]
             success, output, error = run_command(cmd)
 
             if success:
@@ -450,7 +457,11 @@ class WireGuardAPIHandler(BaseHTTPRequestHandler):
                 self.send_json_response(400, {'error': 'Missing public_key'})
                 return
 
-            cmd = f'wg-remove-peer "{public_key}"'
+            if len(public_key) != 44 or not public_key.replace('+', '').replace('/', '').replace('=', '').isalnum():
+                self.send_json_response(400, {'error': 'Invalid public key format'})
+                return
+
+            cmd = ['wg-remove-peer', public_key]
             success, output, error = run_command(cmd)
 
             if success:

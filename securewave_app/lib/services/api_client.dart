@@ -226,6 +226,31 @@ class ApiClient {
     }
   }
 
+  Future<void> requestPasswordReset({required String email}) async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return;
+    }
+    await _dio.post<Map<String, dynamic>>(
+      '/auth/password-reset/request',
+      data: {'email': email},
+    );
+  }
+
+  Future<void> confirmPasswordReset({
+    required String token,
+    required String newPassword,
+  }) async {
+    if (_config.useMockApi) {
+      _logMockApi();
+      return;
+    }
+    await _dio.post<Map<String, dynamic>>(
+      '/auth/password-reset/confirm',
+      data: {'token': token, 'new_password': newPassword},
+    );
+  }
+
   Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
     String? deviceType,
   }) async {

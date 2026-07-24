@@ -123,6 +123,51 @@ async def test_runtime_evidence_persistence_rolls_back(monkeypatch):
     assert session.rolled_back is True
 
 
+@pytest.mark.asyncio
+async def test_unauthenticated_wireguard_probe_does_not_report_runtime_ready(
+    monkeypatch,
+):
+    import services.vpn_health_monitor as monitor_module
+    from services.vpn_health_monitor import VPNHealthMonitor
+
+    class Session:
+        def add(self, _server):
+            return None
+
+        def commit(self):
+            return None
+
+        def rollback(self):
+            return None
+
+    class FakeManager:
+        async def authenticated_health_check(self, _connection):
+            return True, False, "untrusted response"
+
+    monkeypatch.setattr(monitor_module, "wg_mock_mode_enabled", lambda: False)
+    monkeypatch.setattr(monitor_module, "get_wireguard_server_manager", lambda: FakeManager())
+    monkeypatch.setattr(monitor_module, "server_connection_from_db", lambda _server: object())
+
+    monitor = VPNHealthMonitor()
+    monitor.db = Session()
+    assert await monitor._probe_wireguard_runtime(_server()) is False
+
+
+def test_authenticated_runtime_health_is_not_overridden_by_blocked_icmp():
+    from services.vpn_server_service import VPNServerService
+
+    metrics = {
+        "cpu_load": 0.15,
+        "packet_loss": 1.0,
+        "latency_ms": 999.0,
+        "authenticated_runtime_healthy": True,
+    }
+
+    assert VPNServerService._calculate_health_status(metrics) == "healthy"
+    metrics["authenticated_runtime_healthy"] = False
+    assert VPNServerService._calculate_health_status(metrics) == "unhealthy"
+
+
 def test_operational_diagnostics_is_admin_only_and_redacted(
     client, admin_auth_headers, auth_headers, db
 ):

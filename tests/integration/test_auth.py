@@ -2,6 +2,8 @@
 Authentication tests
 """
 
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi import status
 
@@ -35,6 +37,7 @@ class TestRegistration:
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+
     def test_register_weak_password(self, client):
         """Test registration with weak password"""
         response = client.post(
@@ -46,6 +49,24 @@ class TestRegistration:
             }
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+class TestEmailVerificationLink:
+    def test_browser_verification_link_verifies_one_time_token(self, client, db, unverified_user):
+        from services.auth_service import _hash_one_time_token
+
+        token = "browser-verification-token-123456"
+        unverified_user.email_verification_token = _hash_one_time_token(token)
+        unverified_user.email_verification_token_expires = datetime.utcnow() + timedelta(hours=1)
+        db.commit()
+
+        response = client.get("/api/auth/verify-email", params={"token": token})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "Email verified" in response.text
+        db.refresh(unverified_user)
+        assert unverified_user.email_verified is True
+        assert token not in response.text
 
 
 class TestLogin:

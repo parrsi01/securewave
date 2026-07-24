@@ -8,8 +8,8 @@ import os
 import secrets
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Response, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Response, BackgroundTasks, Query
+from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import func
@@ -514,8 +514,30 @@ async def get_session_info(request: Request, db: Session = Depends(get_db)):
 # EMAIL VERIFICATION
 # ===========================
 
+@router.get("/verify-email", response_class=HTMLResponse)
+async def verify_email_link(token: str = Query(..., min_length=16), db: Session = Depends(get_db)):
+    """Verify an email from the one-time browser link sent by SecureWave."""
+    try:
+        success, _ = AuthService(db).verify_email(token)
+    except Exception:
+        logger.error("Email link verification error")
+        success = False
+
+    if success:
+        return HTMLResponse(
+            "<html><body><h1>Email verified</h1>"
+            "<p>You can return to SecureWave and sign in.</p></body></html>"
+        )
+    return HTMLResponse(
+        "<html><body><h1>Verification link unavailable</h1>"
+        "<p>Request a new verification email and try again.</p></body></html>",
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
 @router.post("/verify-email")
 async def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
+
     """Verify email address with token"""
     try:
         auth_service = AuthService(db)

@@ -283,8 +283,12 @@ def _sanitized_build_environment() -> dict[str, str]:
     return env
 
 
-def _build_release_probe(app_root: Path = APP_ROOT) -> CommandResult:
-    command = _release_probe_build_command()
+def _build_release_probe(
+    app_root: Path = APP_ROOT,
+    *,
+    api_base: str | None = None,
+) -> CommandResult:
+    command = _release_probe_build_command(api_base=api_base)
     try:
         completed = subprocess.run(  # nosec B603
             command,
@@ -317,8 +321,16 @@ def _build_release_probe(app_root: Path = APP_ROOT) -> CommandResult:
         )
 
 
-def _release_probe_build_command() -> list[str]:
-    return ["flutter", "build", "linux", "--release", "-t", PROBE_TARGET]
+def _release_probe_build_command(*, api_base: str | None = None) -> list[str]:
+    command = ["flutter", "build", "linux", "--release", "-t", PROBE_TARGET]
+    if api_base:
+        command.extend(
+            [
+                f"--dart-define=SECUREWAVE_API_BASE_URL={api_base}",
+                "--dart-define=SECUREWAVE_USE_MOCK_API=false",
+            ]
+        )
+    return command
 
 
 def _probe_binary_path(app_root: Path = APP_ROOT) -> Path:
@@ -2248,10 +2260,13 @@ def _cleanup_actions_ok(actions: list[dict[str, object]]) -> bool:
 
 
 def _build_result_evidence(
-    result: CommandResult, *, lines: int = 40
+    result: CommandResult,
+    *,
+    api_base: str | None = None,
+    lines: int = 40,
 ) -> dict[str, object]:
     evidence: dict[str, object] = {
-        "command": _release_probe_build_command(),
+        "command": _release_probe_build_command(api_base=api_base),
         "returncode": result.returncode,
     }
     if result.returncode == 0:
@@ -2429,7 +2444,10 @@ def main() -> int:
                 else:
                     try:
                         probe_app_root = _prepare_probe_workspace()
-                        probe_build = _build_release_probe(probe_app_root)
+                        probe_build = _build_release_probe(
+                            probe_app_root,
+                            api_base=args.api_base,
+                        )
                         if probe_build.returncode != 0:
                             run_error = "release runtime probe build failed"
                         else:
@@ -2539,7 +2557,9 @@ def main() -> int:
         "baseline": baseline.as_dict() if baseline is not None else None,
         "baseline_checks": baseline_body,
         "probe_build": (
-            _build_result_evidence(probe_build) if probe_build is not None else None
+            _build_result_evidence(probe_build, api_base=args.api_base)
+            if probe_build is not None
+            else None
         ),
         "probe_binary": str(probe_binary) if probe_binary is not None else None,
         "probe_workspace_isolated": bool(

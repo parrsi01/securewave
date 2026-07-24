@@ -119,6 +119,10 @@ echo "Close the app window to finish diagnostics."
 
 set +e
 flutter run -d linux \
+  --dart-define="SECUREWAVE_API_BASE_URL=$api_base" \
+  --dart-define="SECUREWAVE_USE_MOCK_API=false" \
+  --dart-define="SECUREWAVE_RESET_SESSION_ON_BOOT=false" \
+  --dart-define="SECUREWAVE_DEBUG_AUTO_LOGIN=false" \
   2>&1 | tee "$log_file"
 flutter_status=$?
 set -e

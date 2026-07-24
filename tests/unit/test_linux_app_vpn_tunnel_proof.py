@@ -950,7 +950,7 @@ def test_release_probe_build_uses_fixed_release_target(monkeypatch, tmp_path):
     monkeypatch.setattr(proof.subprocess, "run", fake_run)
 
     app_root = tmp_path / "isolated" / "securewave_app"
-    result = proof._build_release_probe(app_root)
+    result = proof._build_release_probe(app_root, api_base=TEST_API_BASE)
 
     assert result.returncode == 0
     assert calls[0][0] == [
@@ -960,6 +960,8 @@ def test_release_probe_build_uses_fixed_release_target(monkeypatch, tmp_path):
         "--release",
         "-t",
         proof.PROBE_TARGET,
+        f"--dart-define=SECUREWAVE_API_BASE_URL={TEST_API_BASE}",
+        "--dart-define=SECUREWAVE_USE_MOCK_API=false",
     ]
     build_environment = calls[0][1]["env"]
     assert all(
@@ -2138,8 +2140,8 @@ def _prepare_main_test(monkeypatch, tmp_path, protocols):
         workspace_calls["prepare"] += 1
         return probe_app_root
 
-    def fake_build_release(app_root):
-        workspace_calls["build"].append(app_root)
+    def fake_build_release(app_root, *, api_base=None):
+        workspace_calls["build"].append((app_root, api_base))
         return proof.CommandResult(0, "", "")
 
     def fake_probe_binary(app_root):
@@ -2186,7 +2188,7 @@ def test_explicit_single_protocol_invocation_runs_exactly_once(
     assert len(verifier_calls) == 2
     assert workspace_calls == {
         "prepare": 1,
-        "build": [probe_app_root],
+        "build": [(probe_app_root, TEST_API_BASE)],
         "binary": [probe_app_root],
         "remove": [probe_app_root],
     }

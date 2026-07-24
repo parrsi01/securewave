@@ -12,7 +12,10 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _confirm = TextEditingController();
+  final _resetToken = TextEditingController();
   bool _register = false;
+  bool _forgotPassword = false;
+  bool _resetRequested = false;
   bool _busy = false;
   bool _hidePassword = true;
   String? _error;
@@ -22,14 +25,17 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
     _email.dispose();
     _password.dispose();
     _confirm.dispose();
+    _resetToken.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final copy = _register
-        ? 'Create an account to start using SecureWave.'
-        : 'Sign in to manage your VPN session.';
+    final copy = _forgotPassword
+        ? 'Request a reset email and choose a new SecureWave password.'
+        : _register
+            ? 'Create an account to start using SecureWave.'
+            : 'Sign in to manage your VPN session.';
 
     return Scaffold(
       body: SafeArea(
@@ -77,50 +83,71 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _password,
-                          obscureText: _hidePassword,
-                          autofillHints: [
-                            _register
-                                ? AutofillHints.newPassword
-                                : AutofillHints.password,
-                          ],
-                          textInputAction: _register
-                              ? TextInputAction.next
-                              : TextInputAction.done,
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            suffixIcon: IconButton(
-                              tooltip: _hidePassword
-                                  ? 'Show password'
-                                  : 'Hide password',
-                              icon: Icon(
-                                _hidePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                              ),
-                              onPressed: () {
-                                setState(() => _hidePassword = !_hidePassword);
-                              },
+                        if (_forgotPassword && _resetRequested) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _resetToken,
+                            decoration: const InputDecoration(
+                              labelText: 'Reset token',
+                              helperText:
+                                  'Paste the token from the reset link.',
                             ),
+                            validator: (value) =>
+                                value == null || value.trim().isEmpty
+                                    ? 'Enter the reset token.'
+                                    : null,
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Enter your password.';
-                            }
-                            if (value.length < 8) {
-                              return 'Use at least 8 characters.';
-                            }
-                            if (!RegExp(r'[A-Za-z]').hasMatch(value) ||
-                                !RegExp(r'[0-9]').hasMatch(value) ||
-                                !RegExp(r'[^A-Za-z0-9]').hasMatch(value)) {
-                              return 'Use letters, numbers, and a special character.';
-                            }
-                            return null;
-                          },
-                        ),
-                        if (_register) ...[
+                        ],
+                        if (!_forgotPassword || _resetRequested) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _password,
+                            obscureText: _hidePassword,
+                            autofillHints: [
+                              _register
+                                  ? AutofillHints.newPassword
+                                  : AutofillHints.password,
+                            ],
+                            textInputAction: _register
+                                ? TextInputAction.next
+                                : TextInputAction.done,
+                            decoration: InputDecoration(
+                              labelText: _forgotPassword
+                                  ? 'New SecureWave password'
+                                  : 'Password',
+                              suffixIcon: IconButton(
+                                tooltip: _hidePassword
+                                    ? 'Show password'
+                                    : 'Hide password',
+                                icon: Icon(
+                                  _hidePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                ),
+                                onPressed: () {
+                                  setState(
+                                      () => _hidePassword = !_hidePassword);
+                                },
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Enter your password.';
+                              }
+                              if (value.length < 8) {
+                                return 'Use at least 8 characters.';
+                              }
+                              if (!RegExp(r'[A-Za-z]').hasMatch(value) ||
+                                  !RegExp(r'[0-9]').hasMatch(value) ||
+                                  !RegExp(r'[^A-Za-z0-9]').hasMatch(value)) {
+                                return 'Use letters, numbers, and a special character.';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                        if (_register ||
+                            (_forgotPassword && _resetRequested)) ...[
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _confirm,
@@ -163,22 +190,48 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : Text(_register ? 'Create account' : 'Sign in'),
+                              : Text(_forgotPassword
+                                  ? (_resetRequested
+                                      ? 'Set new password'
+                                      : 'Send reset email')
+                                  : (_register ? 'Create account' : 'Sign in')),
                         ),
                         const SizedBox(height: 8),
+                        if (!_register)
+                          TextButton(
+                            onPressed: _busy
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _forgotPassword = !_forgotPassword;
+                                      _resetRequested = false;
+                                      _error = null;
+                                      _password.clear();
+                                      _confirm.clear();
+                                      _resetToken.clear();
+                                    });
+                                  },
+                            child: Text(_forgotPassword
+                                ? 'Back to sign in'
+                                : 'Forgot password?'),
+                          ),
                         TextButton(
                           onPressed: _busy
                               ? null
                               : () {
                                   setState(() {
+                                    _forgotPassword = false;
+                                    _resetRequested = false;
                                     _register = !_register;
                                     _error = null;
                                   });
                                 },
                           child: Text(
-                            _register
+                            _forgotPassword
                                 ? 'Use an existing account'
-                                : 'Create a new account',
+                                : _register
+                                    ? 'Use an existing account'
+                                    : 'Create a new account',
                           ),
                         ),
                       ],
@@ -202,7 +255,38 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
 
     try {
       final auth = ref.read(authServiceProvider);
-      if (_register) {
+      if (_forgotPassword) {
+        final api = ref.read(apiClientProvider);
+        if (!_resetRequested) {
+          await api.requestPasswordReset(email: _email.text.trim());
+          if (mounted) {
+            setState(() => _resetRequested = true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content:
+                      Text('If the email exists, a reset link has been sent.')),
+            );
+          }
+        } else {
+          await api.confirmPasswordReset(
+            token: _resetToken.text.trim(),
+            newPassword: _password.text,
+          );
+          if (mounted) {
+            setState(() {
+              _forgotPassword = false;
+              _resetRequested = false;
+              _password.clear();
+              _confirm.clear();
+              _resetToken.clear();
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Password updated. You can now sign in.')),
+            );
+          }
+        }
+      } else if (_register) {
         await auth.register(
           email: _email.text.trim(),
           password: _password.text.trim(),

@@ -110,4 +110,42 @@ void main() {
     expect(requests.single.path, '/vpn/servers');
     expect(requests.single.queryParameters['device_type'], 'linux');
   });
+
+  test('password reset uses the authenticated API contract', () async {
+    final config = AppConfig(
+      apiBaseUrl: 'https://example.invalid',
+      portalUrl: 'https://example.invalid',
+      upgradeUrl: 'https://example.invalid',
+      useMockApi: false,
+      resetSessionOnBoot: false,
+    );
+    final requests = <RequestOptions>[];
+    final dio = Dio(BaseOptions(baseUrl: config.apiBaseUrl));
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        requests.add(options);
+        handler.resolve(Response<Map<String, dynamic>>(
+          requestOptions: options,
+          data: <String, dynamic>{'message': 'ok'},
+        ));
+      },
+    ));
+    final client = ApiClient(config, dio: dio);
+
+    await client.requestPasswordReset(email: 'user@example.com');
+    await client.confirmPasswordReset(
+      token: 'reset-token',
+      newPassword: 'NewPassword!123',
+    );
+
+    expect(requests.map((request) => request.path), [
+      '/auth/password-reset/request',
+      '/auth/password-reset/confirm',
+    ]);
+    expect(requests.first.data, {'email': 'user@example.com'});
+    expect(requests.last.data, {
+      'token': 'reset-token',
+      'new_password': 'NewPassword!123',
+    });
+  });
 }

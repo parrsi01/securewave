@@ -1055,6 +1055,9 @@ async def provision_profile(
     user_tier = get_user_tier(current_user, db)
     peer_manager = get_peer_manager(db)
     device_name = (payload.device_name or "This device").strip()[:64]
+    from services.subscription_access import get_effective_device_limit
+
+    device_limit = get_effective_device_limit(db, current_user)
 
     # Resolve device/peer
     peer: Optional[WireGuardPeer] = None
@@ -1075,6 +1078,26 @@ async def provision_profile(
             func.lower(WireGuardPeer.device_name) == device_name.lower(),
             WireGuardPeer.is_revoked == False,
         ).first()
+
+    if peer is None and device_limit == 1 and device_type == "linux":
+        # A free Linux account can own only one active device. Recover that
+        # user-scoped identity after local secure-storage loss or a clean app
+        # reinstall instead of attempting to consume a second, impossible
+        # slot. Paid plans still require an explicit ID or matching name so
+        # distinct devices are never conflated.
+        active_linux_peers = (
+            db.query(WireGuardPeer)
+            .filter(
+                WireGuardPeer.user_id == current_user.id,
+                WireGuardPeer.is_revoked == False,
+                WireGuardPeer.is_active == True,
+                func.lower(WireGuardPeer.device_type) == "linux",
+            )
+            .limit(2)
+            .all()
+        )
+        if len(active_linux_peers) == 1:
+            peer = active_linux_peers[0]
 
     # Resolve server
     server: Optional[VPNServer] = None
@@ -1139,25 +1162,22 @@ async def provision_profile(
     # must not consume an account's device slot.
     created_peer = False
     if peer is None:
-        from services.subscription_access import get_effective_device_limit
-
-        limit = get_effective_device_limit(db, current_user)
         active_count = db.query(WireGuardPeer).filter(
             WireGuardPeer.user_id == current_user.id,
             WireGuardPeer.is_revoked == False,
             WireGuardPeer.is_active == True,
         ).count()
-        if active_count >= limit:
+        if active_count >= device_limit:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Device limit reached ({limit}). Upgrade your plan or revoke an existing device.",
+                detail=f"Device limit reached ({device_limit}). Upgrade your plan or revoke an existing device.",
             )
         peer = peer_manager.create_peer(
             user=current_user,
             server=None,
             device_name=device_name,
             device_type=device_type,
-            max_active_devices=limit,
+            max_active_devices=device_limit,
             reuse_existing_device=True,
         )
         created_peer = True
