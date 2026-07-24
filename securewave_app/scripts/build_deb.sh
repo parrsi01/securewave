@@ -593,5 +593,9 @@ output_file="$output_dir/${package_name}_${version}_${arch}.deb"
 
 dpkg-deb --root-owner-group --build "$staging_dir" "$output_file" >/dev/null
 
+checksum_file="${output_file}.sha256"
+(cd "$output_dir" && sha256sum "$(basename "$output_file")" > "$(basename "$checksum_file")")
+
 echo "OK: Built $output_file"
+echo "OK: SHA-256 written to $checksum_file"
 echo "OK: Local package only; no release artifact was published."

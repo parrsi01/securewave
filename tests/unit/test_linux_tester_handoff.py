@@ -105,6 +105,7 @@ def test_package_embeds_release_identity_and_dirty_tree_marker():
         assert name in source
     assert source.index('source_tree_state="clean"') < source.index("flutter pub get")
     assert source.count("':(exclude)artifacts/**'") == 2
+    assert 'sha256sum "$(basename "$output_file")"' in source
 
 
 def test_x64_evidence_workflow_does_not_mutate_tree_before_packager_snapshot():
