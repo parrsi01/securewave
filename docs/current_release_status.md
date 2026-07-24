@@ -58,9 +58,10 @@ legacy metadata, or retained future implementation source.
 ## Artifact and platform limits
 
 - Both Linux `.deb` entries remain `coming_soon` in the public manifest.
-  Exact-head ARM64 package evidence and checksum are local-only. Neither
-  artifact is public because the host residue gate, ARM64 lifecycle evidence,
-  and repeated manual Flutter acceptance remain incomplete.
+  Exact-SHA ARM64 and x64 package workflow gates passed, including architecture,
+  helper, install, upgrade, remove, purge, and residue checks. Neither artifact
+  is public because the host residue gate and repeated manual Flutter
+  acceptance remain incomplete.
 
 ## Current private x64 workflow evidence
 
