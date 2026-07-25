@@ -5,17 +5,32 @@ Last audited: 2026-07-25 UTC
 ## Candidate under certification
 
 - Branch: `codex/production-wireguard-beta-prep`
-- Source: `d52bc7457c9ac11ff0b46b20655c45aeda9a75b8`; this is the exact
-  source commit checked out before this release-status correction.
+- Source: `d52bc7457c9ac11ff0b46b20655c45aeda9a75b8`; this is the candidate
+  source selected before remediation.
 - The checkout was clean before this documentation edit. The blue website
   changes are committed on this branch.
 - The candidate includes the current Linux ARM64 WireGuard-only release gates.
 - Application/package version: `4.0.0+3`
 - Record ARM64 and amd64 checksums from the exact retained workflow artifacts;
   do not copy a checksum from an earlier source revision into a later candidate.
-- No production artifact has been created or published, and no production
-  deployment or public publication has occurred. This candidate is not yet
+- Production has not been deployed. No production artifact has been created or
+  published, and no public publication has occurred. This candidate is not yet
   production-ready.
+
+## Source and staging evidence lineage
+
+- Candidate source SHA before remediation: `d52bc7457c9ac11ff0b46b20655c45aeda9a75b8`.
+- Final remediation commit SHA: not created. The current `c987837b33e6ce3fa6a04c5b93f7660bafed3cdd`
+  commit changes only this release documentation; it is not a source
+  remediation and must not be recorded as the final remediation SHA.
+- Historical staging evidence SHA: `59d524329cff8ca43fc066447e66c6b470b222d5`.
+  Commit `29afdb05b9d4e04a921e30ecab3483787a6042b4` is the repository record
+  that introduced the exact-SHA staging statement, and its candidate source was
+  `59d524329cff8ca43fc066447e66c6b470b222d5`.
+- Fresh staging evidence for the final source SHA: none; blocked. Repository
+  history does not prove a fresh staging rebuild from `d52bc7457c9ac11ff0b46b20655c45aeda9a75b8`,
+  and no final remediation source SHA exists. Historical staging evidence cannot
+  substitute for final-SHA evidence.
 
 ## Protocol truth
 
@@ -26,9 +41,9 @@ socket validation, malformed and unauthorized IPC rejection, verifier, bounded
 application launch, same-version upgrade, purge, and networking-residue checks
 in a fresh Ubuntu 24.04 ARM64 systemd container.
 
-OpenVPN and IKEv2 are outside the Linux v1 release boundary. They remain Coming
-soon or unavailable and must fail closed regardless of installed binaries,
-legacy metadata, or retained future implementation source.
+OpenVPN and IKEv2 are unavailable for Linux v1. They remain outside the release
+boundary and must fail closed regardless of installed binaries, legacy metadata,
+or retained future implementation source.
 
 ## Verified candidate behavior
 
@@ -51,17 +66,20 @@ legacy metadata, or retained future implementation source.
 - The packaged release Flutter binary remained running for a bounded ten-second
   Xvfb launch in the clean ARM64 container. Headless graphics and keyring
   warnings are environment diagnostics; no crash was observed.
-- The staging app was rebuilt from this exact SHA and the profile smoke passed.
-  The WireGuard proof reached connected state, completed the evidence hold, and
-  disconnected successfully with IPv6 recovery. SecureWave-owned WireGuard
-  residue checks passed. The overall proof remains blocked by pre-existing
-  host-level IKEv2 residue at preference 220/table 220 reported by the host
-  verifier; ownership is unproven and no cleanup was performed. This remains an
-  environment limitation, not evidence to enable IKEv2.
+- The historical staging record for source SHA `59d524329cff8ca43fc066447e66c6b470b222d5`
+  reports a profile smoke pass and WireGuard proof that reached connected state,
+  completed the evidence hold, and disconnected successfully with IPv6 recovery.
+  It predates the current candidate and is not fresh evidence for the candidate
+  or a final remediation source. The overall proof remains blocked by
+  pre-existing host-level IKEv2 residue at preference 220/table 220 reported by
+  the host verifier; ownership of that residue is unresolved and no cleanup was
+  performed. This remains an environment limitation, not evidence to enable
+  IKEv2.
 
 ## Artifact and platform limits
 
-- Both Linux `.deb` entries remain `coming_soon` in the public manifest.
+- The public ARM64 download remains `coming_soon`; both Linux `.deb` entries
+  remain `coming_soon` in the public manifest.
   Exact-SHA package workflow evidence is retained separately; neither artifact
   is public because production image/deployment access is unavailable and the
   host residue gate remains unresolved.
