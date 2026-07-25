@@ -4,17 +4,18 @@ Last audited: 2026-07-25 UTC
 
 ## Candidate under certification
 
-- Branch: `codex/linux-wireguard-arm64-beta`
-- Source: `6e0517cc379bd6f64b123297d5dc756a6453d9c1`; this is the reviewed
-  candidate commit and it tracks `origin/codex/linux-wireguard-arm64-beta`.
-- The current checkout contains scoped uncommitted website/brand/docs/test
-  edits from this task; no release artifact was built or published from that
-  dirty checkout.
+- Branch: `codex/production-wireguard-beta-prep`
+- Source: `d52bc7457c9ac11ff0b46b20655c45aeda9a75b8`; this is the exact
+  source commit checked out before this release-status correction.
+- The checkout was clean before this documentation edit. The blue website
+  changes are committed on this branch.
 - The candidate includes the current Linux ARM64 WireGuard-only release gates.
 - Application/package version: `4.0.0+3`
 - Record ARM64 and amd64 checksums from the exact retained workflow artifacts;
   do not copy a checksum from an earlier source revision into a later candidate.
-- No artifact was published, signed, or deployed by this certification.
+- No production artifact has been created or published, and no production
+  deployment or public publication has occurred. This candidate is not yet
+  production-ready.
 
 ## Protocol truth
 
@@ -53,10 +54,10 @@ legacy metadata, or retained future implementation source.
 - The staging app was rebuilt from this exact SHA and the profile smoke passed.
   The WireGuard proof reached connected state, completed the evidence hold, and
   disconnected successfully with IPv6 recovery. SecureWave-owned WireGuard
-  residue checks passed. The overall proof remains blocked by two pre-existing
-  unqualified IKEv2 policy rules reported by the host verifier; ownership is
-  unproven and no cleanup was performed. This is an environment gate, not
-  evidence to enable IKEv2.
+  residue checks passed. The overall proof remains blocked by pre-existing
+  host-level IKEv2 residue at preference 220/table 220 reported by the host
+  verifier; ownership is unproven and no cleanup was performed. This remains an
+  environment limitation, not evidence to enable IKEv2.
 
 ## Artifact and platform limits
 
