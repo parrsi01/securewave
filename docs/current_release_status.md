@@ -1,14 +1,16 @@
 # SecureWave - Current Release Status
 
-Last audited: 2026-07-24 UTC
+Last audited: 2026-07-25 UTC
 
 ## Candidate under certification
 
 - Branch: `codex/linux-wireguard-arm64-beta`
-- Source: `59d524329cff8ca43fc066447e66c6b470b222d5`; the package-embedded
-  source SHA and clean-tree marker match this candidate.
-- The candidate includes the checksum-generation fix in
-  `securewave_app/scripts/build_deb.sh`.
+- Source: `6e0517cc379bd6f64b123297d5dc756a6453d9c1`; this is the reviewed
+  candidate commit and it tracks `origin/codex/linux-wireguard-arm64-beta`.
+- The current checkout contains scoped uncommitted website/brand/docs/test
+  edits from this task; no release artifact was built or published from that
+  dirty checkout.
+- The candidate includes the current Linux ARM64 WireGuard-only release gates.
 - Application/package version: `4.0.0+3`
 - Record ARM64 and amd64 checksums from the exact retained workflow artifacts;
   do not copy a checksum from an earlier source revision into a later candidate.
@@ -49,19 +51,19 @@ legacy metadata, or retained future implementation source.
   Xvfb launch in the clean ARM64 container. Headless graphics and keyring
   warnings are environment diagnostics; no crash was observed.
 - The staging app was rebuilt from this exact SHA and the profile smoke passed.
-  The WireGuard proof reached connected state and recorded handshake/data-plane,
-  DNS, routes, counters, disconnect, reconnect, and cleanup events. The overall
-  proof command remains blocked by two pre-existing unqualified IKEv2 policy
-  rules reported by the host verifier; SecureWave-owned WireGuard residue
-  checks passed. This is an environment gate, not evidence to enable IKEv2.
+  The WireGuard proof reached connected state, completed the evidence hold, and
+  disconnected successfully with IPv6 recovery. SecureWave-owned WireGuard
+  residue checks passed. The overall proof remains blocked by two pre-existing
+  unqualified IKEv2 policy rules reported by the host verifier; ownership is
+  unproven and no cleanup was performed. This is an environment gate, not
+  evidence to enable IKEv2.
 
 ## Artifact and platform limits
 
 - Both Linux `.deb` entries remain `coming_soon` in the public manifest.
-  Exact-SHA ARM64 and x64 package workflow gates passed, including architecture,
-  helper, install, upgrade, remove, purge, and residue checks. Neither artifact
-  is public because the host residue gate and repeated manual Flutter
-  acceptance remain incomplete.
+  Exact-SHA package workflow evidence is retained separately; neither artifact
+  is public because production image/deployment access is unavailable and the
+  host residue gate remains unresolved.
 
 ## Current private x64 workflow evidence
 

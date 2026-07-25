@@ -39,7 +39,7 @@
       "filename": "securewave-linux-x64.deb",
       "url": "#",
       "status": "coming_soon",
-      "notes": "The amd64 WireGuard-only package remains unpublished until exact-head package gates and authorized staging data-plane acceptance pass."
+      "notes": "The amd64 WireGuard-only package remains unpublished until the clean runtime gate, production release workflow, and public verification pass."
     },
     {
       "platform": "linux",
@@ -47,7 +47,7 @@
       "filename": "securewave-linux-arm64.deb",
       "url": "#",
       "status": "coming_soon",
-      "notes": "The arm64 WireGuard-only package remains unpublished until exact-head package gates and authorized staging data-plane acceptance pass."
+      "notes": "The arm64 WireGuard-only package remains unpublished until the clean runtime gate, production release workflow, and public verification pass."
     },
     {
       "platform": "linux",

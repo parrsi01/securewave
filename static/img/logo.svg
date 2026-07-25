@@ -3,13 +3,13 @@
   <desc id="sw-desc">Shield mark with wave detail.</desc>
   <defs>
     <linearGradient id="sw-stroke" x1="30" y1="18" x2="110" y2="118" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#A78BFA"/>
-      <stop offset="0.55" stop-color="#8B5CF6"/>
-      <stop offset="1" stop-color="#6D28D9"/>
+      <stop offset="0" stop-color="#68DCFF"/>
+      <stop offset="0.55" stop-color="#16B8FF"/>
+      <stop offset="1" stop-color="#0787C8"/>
     </linearGradient>
   </defs>
   <path d="M70 10C46 24 28 28 28 28v34c0 33.5 22 58 42 68 20-10 42-34.5 42-68V28s-18-4-42-18z" fill="#0B0914" stroke="url(#sw-stroke)" stroke-width="4"/>
-  <path d="M48 60c7 0 13 2 22 6 7 3 14 5 22 5 6 0 11-1 17-4" stroke="#A78BFA" stroke-width="5.5" stroke-linecap="round"/>
-  <path d="M44 75c8-2 17-2 27 2 8 3 14 5 23 5 6 0 11-1 16-3" stroke="#8B5CF6" stroke-width="5.5" stroke-linecap="round"/>
-  <path d="M48 90c7-2 16-2 25 1 7 3 13 4 21 4 5 0 10-1 15-3" stroke="#6D28D9" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M48 60c7 0 13 2 22 6 7 3 14 5 22 5 6 0 11-1 17-4" stroke="#68DCFF" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M44 75c8-2 17-2 27 2 8 3 14 5 23 5 6 0 11-1 16-3" stroke="#16B8FF" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M48 90c7-2 16-2 25 1 7 3 13 4 21 4 5 0 10-1 15-3" stroke="#0787C8" stroke-width="5.5" stroke-linecap="round"/>
 </svg>
