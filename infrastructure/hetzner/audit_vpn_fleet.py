@@ -10,7 +10,7 @@ What this script does:
 5) Optionally compares the live fleet to backend vpn_servers rows
 
 Production usage (Ubuntu 22.04 / Hetzner):
-  export HETZNER_API_TOKEN=...
+  # Uses HETZNER_API_TOKEN when set, otherwise the active hcloud CLI context.
   python infrastructure/hetzner/audit_vpn_fleet.py --json-out /tmp/securewave_fleet_audit.json
 
 Add SSH checks (recommended):
@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess  # nosec B404 - operator-controlled commands
 import sys
 from datetime import datetime, timezone
@@ -67,6 +68,51 @@ def _hcloud_paginated(token: str, path: str, key: str) -> list[dict[str, Any]]:
             break
         page = int(next_page)
     return out
+
+
+def _hcloud_cli_list(resource: str) -> list[dict[str, Any]]:
+    """Read inventory through the authenticated hcloud CLI without exposing its token."""
+    if shutil.which("hcloud") is None:
+        raise RuntimeError("hcloud CLI is unavailable")
+    completed = subprocess.run(  # nosec B603 - fixed executable and arguments
+        ["hcloud", resource, "list", "-o", "json"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(completed.stdout)
+    if not isinstance(payload, list) or not all(isinstance(item, dict) for item in payload):
+        raise RuntimeError(f"Unexpected hcloud CLI payload for {resource} list")
+    return payload
+
+
+def _normalize_cli_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize hcloud CLI output to the API shape consumed by the audit."""
+    normalized: list[dict[str, Any]] = []
+    for server in servers:
+        item = dict(server)
+        if not item.get("datacenter") and isinstance(item.get("location"), dict):
+            item["datacenter"] = {"location": item["location"]}
+        normalized.append(item)
+    return normalized
+
+
+def _load_hcloud_inventory(token: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
+    if token:
+        return (
+            _hcloud_paginated(token, "/servers", "servers"),
+            _hcloud_paginated(token, "/firewalls", "firewalls"),
+            "api_token",
+        )
+    try:
+        servers = _normalize_cli_servers(_hcloud_cli_list("server"))
+        firewalls = _hcloud_cli_list("firewall")
+    except (FileNotFoundError, json.JSONDecodeError, subprocess.CalledProcessError, RuntimeError) as exc:
+        raise SystemExit(
+            "Hetzner inventory authentication is unavailable: set HETZNER_API_TOKEN "
+            "or authenticate an hcloud CLI context"
+        ) from exc
+    return servers, firewalls, "hcloud_context"
 
 
 def _rdns_values(server: dict[str, Any]) -> dict[str, Any]:
@@ -588,15 +634,12 @@ def main() -> int:
     args = parser.parse_args()
 
     token = os.getenv("HETZNER_API_TOKEN", "").strip()
-    if not token:
-        raise SystemExit("HETZNER_API_TOKEN must be set")
 
     ssh_key_path = Path(args.ssh_key_path).expanduser().resolve() if args.ssh_key_path else None
     if args.ssh_checks and args.ssh_key_path and not ssh_key_path.exists():
         raise SystemExit(f"SSH key not found: {ssh_key_path}")
 
-    servers_raw = _hcloud_paginated(token, "/servers", "servers")
-    firewalls = _hcloud_paginated(token, "/firewalls", "firewalls")
+    servers_raw, firewalls, inventory_source = _load_hcloud_inventory(token)
 
     fleet: list[dict[str, Any]] = []
     for server in servers_raw:
@@ -685,6 +728,7 @@ def main() -> int:
             "only_running": bool(args.only_running),
             "name_prefix": args.name_prefix or None,
         },
+        "inventory_source": inventory_source,
         "barbados_routing_priority_order": [
             "10: US East / Ashburn",
             "20: Miami (if available)",
@@ -712,7 +756,6 @@ def main() -> int:
     for row in fleet:
         fw_ok = row["validation"]["firewall_attached"]
         rdns_ok = row["validation"]["reverse_dns_ipv4_present"]
-        priv_ok = row["validation"]["has_private_network"]
         print(
             f"- prio={row['latency_priority']:>3} {row['name']} "
             f"[{row.get('hcloud_location') or '-'} {row.get('city') or '-'} {row.get('country_code') or '-'}] "

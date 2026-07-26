@@ -11,17 +11,28 @@ before marking Linux ARM64/x64, Windows, or macOS artifacts available.
 Local pre-release evidence on 2026-07-15 completed the ARM64 package lifecycle,
 contract-13 verifier, isolated IKEv2 lab, disposable PostgreSQL concurrency,
 Flutter/Linux build, Docker/Compose syntax/build, and repository/security
-checks. This does not check off any production, publication, external staging,
-or x86-64 exact-head item below. Ruff still has repository-wide baseline
-findings, and authorized external proof is unavailable; both remain explicit
-release blockers.
+checks. Production Compose, Hetzner fleet, and public ARM64 publication
+evidence were added on 2026-07-26. External load testing, fresh final-package
+tunnel proof, monitoring ownership, x86-64 publication, and repository-wide
+Ruff baseline findings remain separate work.
 
-- [ ] Production Compose validation: on the authorized production host, run `docker compose --env-file .env -f deploy/hetzner/compose.yaml config --quiet` with the reviewed image tag and record redacted pass/fail evidence.
-- [ ] Hetzner fleet audit: with `HETZNER_API_TOKEN` set, run `python3 infrastructure/hetzner/audit_vpn_fleet.py --json-out artifacts/post-merge-enterprise-release/hetzner-fleet-audit.json`; do not include token values in logs or artifacts.
+- [x] Production Compose validation: completed 2026-07-26 on
+  `securewave-prod` with the protected production environment file and a
+  reviewed commit-tag-shaped placeholder image reference. `docker compose
+  config --quiet` passed; no image was pulled and no service was changed.
+- [x] Hetzner fleet audit: completed 2026-07-26 through the authenticated
+  `hcloud` context without copying or printing a token. Production, staging API,
+  and staging WireGuard had attached firewalls; the separate test-client host
+  did not.
 - [ ] Authorized external load test: run the approved load plan only against SecureWave-owned infrastructure, including WireGuard/OpenVPN/IKEv2 profile fetches and usage reporting, and record p95/p99 latency plus error rate.
 - [ ] x64 Linux `.deb` publication: build the signed x64 Linux package, publish it to the release/download location, and verify install, launch, helper service registration, connect, disconnect, and uninstall on a clean x64 Linux VM.
-- [ ] Public download manifest verification: fetch the public manifest and every referenced Linux artifact URL, verify checksums and MIME types, and confirm no stale branch, local, or placeholder URLs remain.
-- [ ] Protocol documentation truth update: update `README.md`, `docs/current_release_status.md`, and user-facing protocol docs so WireGuard/OpenVPN/IKEv2 claims match the final production evidence.
+- [x] Public download manifest verification: completed 2026-07-26. The public
+  manifest exposes macOS and Windows as `coming_soon` plus the verified Linux
+  ARM64 package; the two obsolete Linux archive URLs return 404 and the public
+  package SHA-256 matches the manifest.
+- [x] Protocol documentation truth update: `README.md` and
+  `docs/current_release_status.md` identify WireGuard as the only public Linux
+  v1 protocol and keep OpenVPN/IKEv2 fail-closed.
 - [ ] Monitoring and alerting requirements: configure health, login, profile issuance, VPN usage reporting, container, database, Redis, disk, CPU, memory, and protocol-specific failure alerts with named owners and escalation paths.
 - [ ] Support/debug runbook: publish a user-support runbook covering install logs, helper status, WireGuard/OpenVPN/IKEv2 diagnostics, DNS/routing checks, usage-metering checks, redaction rules, and escalation bundles.
 

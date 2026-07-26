@@ -85,6 +85,20 @@ Fetch the server public key (required for clients):
 ssh securewave@<server-ip> 'sudo cat /etc/wireguard/keys/server_public.key'
 ```
 
+## Audit the Active Fleet
+
+The fleet audit accepts either `HETZNER_API_TOKEN` or the active authenticated
+`hcloud` CLI context. The CLI-context path avoids copying or printing the API
+token:
+
+```bash
+hcloud context active
+python3 infrastructure/hetzner/audit_vpn_fleet.py \
+  --only-running \
+  --name-prefix securewave \
+  --json-out /tmp/securewave-fleet-audit.json
+```
+
 ## Register Servers In SecureWave (Control Plane)
 
 SecureWave issues real WireGuard profiles based on the VPN server registry in the database (`vpn_servers`).

@@ -2,11 +2,11 @@
 
 SecureWave is a full-stack VPN platform repository that combines a Python/FastAPI backend, a Flutter client app, VPN provisioning logic, payment flows, and infrastructure automation.
 
-Current app truth is Linux desktop first. WireGuard, OpenVPN, and IKEv2 share
-the contract-13 Linux helper boundary, but each protocol remains unavailable
-until its local runtime, backend evidence, and live data-plane checks pass.
-The Flutter client must never mark a VPN as connected unless the native
-runtime reports success.
+Current public app truth is Linux ARM64 desktop with WireGuard only. Retained
+OpenVPN and IKEv2 implementation paths are future-facing and must remain
+unavailable unless their local runtime, backend evidence, and live data-plane
+checks independently pass. The Flutter client must never mark a VPN as
+connected unless the native runtime reports success.
 
 Apple/iOS work currently means signed archive preparation and App Store review
 support, not a public mobile release. The iOS target uses NetworkExtension
@@ -14,10 +14,11 @@ Packet Tunnel Provider entitlement scope, not Hotspot Helper. Final signed
 archive/export must be run on macOS with Xcode via
 `securewave_app/scripts/archive_ios_release.sh`.
 
-The Apple Silicon macOS target is published as a downloadable UI/account demo
-zip on the website. It can be rebuilt on a Mac with
-`securewave_app/scripts/package_macos_ui_demo.sh`; macOS VPN tunneling remains
-disabled until a signed macOS Network Extension target is added.
+The public download page currently lists macOS and Windows as coming soon.
+The retained macOS UI/account demo packaging workflow can be rebuilt on a Mac
+with `securewave_app/scripts/package_macos_ui_demo.sh`, but it is not a public
+VPN release and macOS tunneling remains disabled until a signed macOS Network
+Extension target is added.
 
 The repository now targets **Hetzner Cloud only**. Older retired-provider assumptions are not part of the supported deployment story; provisioning and production operations are centered on the Terraform module in `infrastructure/hetzner/` and the Hetzner runbook in `docs/HETZNER_RUNBOOK.md`.
 

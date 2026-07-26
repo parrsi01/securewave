@@ -1,123 +1,146 @@
 # SecureWave - Current Release Status
 
-Last audited: 2026-07-25 UTC
+Last audited: 2026-07-26 UTC
 
-## Candidate under certification
+## Current release lineage
 
 - Branch: `codex/production-wireguard-beta-prep`
-- Source: `d52bc7457c9ac11ff0b46b20655c45aeda9a75b8`; this is the candidate
-  source selected before remediation.
-- The checkout was clean before this documentation edit. The blue website
-  changes are committed on this branch.
-- The candidate includes the current Linux ARM64 WireGuard-only release gates.
+- Provider-migration baseline SHA:
+  `43ccbb0ea29f604b654d62de3f8bcd98aa932d06`
+- Linux ARM64 package source SHA:
+  `7595425fba5ae542d72153e0b3f50e91bb06a05e`
+- Public download commit:
+  `7e4ed5be3d9d88170ace2dabadb2cf6296c04e15`
+- Hetzner operator-contract follow-up:
+  `43ccbb0ea29f604b654d62de3f8bcd98aa932d06`
 - Application/package version: `4.0.0+3`
-- Record ARM64 and amd64 checksums from the exact retained workflow artifacts;
-  do not copy a checksum from an earlier source revision into a later candidate.
-- Production has not been deployed. No production artifact has been created or
-  published, and no public publication has occurred. This candidate is not yet
-  production-ready.
 
-## Source and staging evidence lineage
+The package source SHA intentionally predates the publication commit. The
+publication commit adds the already-verified binary, checksum, manifest, and
+website metadata; it does not claim that the binary was built from the later
+metadata-only commit. Documentation or audit-tool follow-ups may have a newer
+repository SHA without changing the published package lineage.
 
-- Candidate source SHA before remediation: `d52bc7457c9ac11ff0b46b20655c45aeda9a75b8`.
-- Final remediation commit SHA: not created. The current `c987837b33e6ce3fa6a04c5b93f7660bafed3cdd`
-  commit changes only this release documentation; it is not a source
-  remediation and must not be recorded as the final remediation SHA.
-- Historical staging evidence SHA: `59d524329cff8ca43fc066447e66c6b470b222d5`.
-  Commit `29afdb05b9d4e04a921e30ecab3483787a6042b4` is the repository record
-  that introduced the exact-SHA staging statement, and its candidate source was
-  `59d524329cff8ca43fc066447e66c6b470b222d5`.
-- Fresh staging evidence for the final source SHA: none; blocked. Repository
-  history does not prove a fresh staging rebuild from `d52bc7457c9ac11ff0b46b20655c45aeda9a75b8`,
-  and no final remediation source SHA exists. Historical staging evidence cannot
-  substitute for final-SHA evidence.
+## Production and provider truth
+
+Hetzner Cloud is the only active SecureWave infrastructure provider.
+
+- `securewaveapp.com`, `www.securewaveapp.com`, and
+  `api.securewaveapp.com` resolve to the Hetzner production server
+  `securewave-prod`.
+- `staging-api.securewaveapp.com` resolves to the Hetzner staging API server.
+- Production and API health endpoints return HTTP 200.
+- The obsolete provider credential was removed from GitHub Actions.
+- Current tracked source, CI/CD, infrastructure, and operational documentation
+  contain no active retired-provider integration.
+- The former external subscription is cancelled.
+
+The active fleet can be audited without copying a raw token when an
+authenticated `hcloud` context is available:
+
+```bash
+python3 infrastructure/hetzner/audit_vpn_fleet.py \
+  --only-running \
+  --name-prefix securewave \
+  --json-out /tmp/securewave-fleet-audit.json
+```
+
+The 2026-07-26 audit found four running SecureWave-prefixed Hetzner servers.
+Production, staging API, and staging WireGuard had attached firewalls. The
+separate test-client host did not have an attached firewall; that is a
+test-environment configuration finding, not evidence about production ingress.
+The production host also passed `docker compose config --quiet` against the
+protected production environment file. That validation did not pull an image
+or change a running service.
+
+## Public Linux ARM64 beta
+
+The WireGuard-only Linux ARM64 beta is publicly available:
+
+- URL:
+  `https://securewaveapp.com/downloads/securewave-linux-arm64.deb`
+- Package: `securewave-vpn`
+- Version: `4.0.0+3`
+- Architecture: `arm64`
+- SHA-256:
+  `b9885574860b434bf0b9ad1187fd7ebe93f548001d25b759299f7a00ec7dc8b2`
+- Dependencies: `wireguard-tools`, `iproute2`, `iptables`, `nftables`, `acl`,
+  `systemd`, and `systemd-resolved`
+
+The public manifest exposes exactly three desktop choices:
+
+- macOS universal: `coming_soon`, URL `#`
+- Windows x64: `coming_soon`, URL `#`
+- Linux ARM64: `available`, guarded local download URL and matching checksum
+
+The two obsolete Linux portable archives were removed from the public download
+directory and their former URLs return HTTP 404.
+
+## Package and CI evidence
+
+The retained ARM64 workflow proved:
+
+- native ARM64 package and ELF architecture;
+- embedded package source SHA and clean-source marker;
+- contract-13 helper payload;
+- WireGuard-only runtime dependencies;
+- package install, helper/socket startup, structural verifier, and bounded
+  non-root application launch;
+- package purge and networking-residue cleanup;
+- manifest checksum and guarded-publication contract.
+
+The publication commit passed repository guards, Python tests, dependency and
+code security checks, Flutter analysis/tests, Android compilation, Linux
+release build, Docker build, and the ARM64 package lifecycle workflow. The
+Hetzner operator follow-up passed the same repository CI checks.
 
 ## Protocol truth
 
-WireGuard is the primary Linux protocol. The normal Flutter -> backend profile ->
-helper IPC path is implemented. The candidate source and release bundle require
-helper contract 13. The rebuilt ARM64 package passed install, helper/service and
-socket validation, malformed and unauthorized IPC rejection, verifier, bounded
-application launch, same-version upgrade, purge, and networking-residue checks
-in a fresh Ubuntu 24.04 ARM64 systemd container.
+WireGuard is the only Linux v1 protocol advertised by the public beta.
+OpenVPN and IKEv2 remain unavailable in the Linux v1 product boundary and must
+fail closed regardless of legacy host packages, retained future source, or
+server metadata.
 
-OpenVPN and IKEv2 are unavailable for Linux v1. They remain outside the release
-boundary and must fail closed regardless of installed binaries, legacy metadata,
-or retained future implementation source.
+Historical staging evidence for source SHA
+`59d524329cff8ca43fc066447e66c6b470b222d5` proves an earlier WireGuard
+connect/hold/disconnect run. It is not fresh runtime evidence for the published
+package source SHA. The same historical environment reported unresolved
+host-level IKEv2 residue at preference/table 220; no ownership was established
+and no cleanup was performed. This limitation must not be used to enable or
+advertise IKEv2.
 
-## Verified candidate behavior
+## Platform limits and remaining work
 
-- Registration, login, logout, restoration, device/profile allocation, retry and
-  rollback paths, key rotation, revocation, usage accumulation/idempotency,
-  disconnect persistence, and API failure handling are covered by the backend and
-  Flutter suites.
-- Fresh and repeatable Alembic migrations pass on SQLite and disposable
-  PostgreSQL; PostgreSQL `alembic check` and the concurrent usage single-winner
-  test pass.
-- The documented infrastructure target is Hetzner Cloud, with managed
-  PostgreSQL and Redis; no provider or production endpoint was contacted by
-  this local certification.
-- Compose app/PostgreSQL/Redis health and migration checks pass with a production-
-  style environment that does not inherit production dotenv settings.
-- The candidate package definition includes the helper daemon, wrapper, contract
-  13, systemd, systemd-resolved, nftables, and tmpfiles. Neither package depends
-  on OpenVPN, strongSwan, or NetworkManager. The exact-head native ARM64 and
-  amd64 artifacts have not been published or deployed.
-- The packaged release Flutter binary remained running for a bounded ten-second
-  Xvfb launch in the clean ARM64 container. Headless graphics and keyring
-  warnings are environment diagnostics; no crash was observed.
-- The historical staging record for source SHA `59d524329cff8ca43fc066447e66c6b470b222d5`
-  reports a profile smoke pass and WireGuard proof that reached connected state,
-  completed the evidence hold, and disconnected successfully with IPv6 recovery.
-  It predates the current candidate and is not fresh evidence for the candidate
-  or a final remediation source. The overall proof remains blocked by
-  pre-existing host-level IKEv2 residue at preference 220/table 220 reported by
-  the host verifier; ownership of that residue is unresolved and no cleanup was
-  performed. This remains an environment limitation, not evidence to enable
-  IKEv2.
+- Linux x64 remains unpublished and `coming_soon`; no x64 public package claim
+  is made.
+- macOS and Windows remain `coming_soon`.
+- The public ARM64 package has CI lifecycle evidence, but a friend/user
+  acceptance test on the downloaded public file remains valuable beta feedback,
+  not a prerequisite for accurately serving the verified artifact.
+- Fresh final-package staging tunnel proof remains separate from package
+  lifecycle and publication proof.
+- Monitoring ownership, external load testing, and production container
+  migration remain operations work; they are not attributed to the retired
+  provider.
 
-## Artifact and platform limits
-
-- The public ARM64 download remains `coming_soon`; both Linux `.deb` entries
-  remain `coming_soon` in the public manifest.
-  Exact-SHA package workflow evidence is retained separately; neither artifact
-  is public because production image/deployment access is unavailable and the
-  host residue gate remains unresolved.
-
-## Current private x64 workflow evidence
-
-The exact-head x64 evidence and checksum belong in the private GitHub Actions
-run and PR review record; they are not a public download. The workflow proves
-x86_64/amd64 ELF payloads, contract 13, declared dependencies, ephemeral
-install, active helper/socket, structural verifier, bounded app launch, purge,
-and networking residue checks. It does not prove live protocol routing or
-release readiness.
-- Portable archives are UI/runtime-independent packaging and do not install the
-  privileged Linux helper.
-- Windows and macOS VPN tunneling have no release claim from this pass.
-
-## Canonical branch model
-
-`master` is canonical. Focused work is performed on short-lived branches, based
-on updated `origin/master`, and merged through a single review. Documentation and
-release commands must not instruct users to treat a feature branch as canonical.
-
-## Install the verified private ARM64 workflow package
+## Install and verify
 
 ```bash
-evidence_dir="/private/path/securewave-linux-arm64-deb-evidence"
-deb="$evidence_dir/securewave-linux-arm64.deb"
-(cd "$evidence_dir" && sha256sum --check securewave-linux-arm64.deb.sha256)
-sudo apt install "$deb"
+curl -fLO https://securewaveapp.com/downloads/securewave-linux-arm64.deb
+echo "b9885574860b434bf0b9ad1187fd7ebe93f548001d25b759299f7a00ec7dc8b2  securewave-linux-arm64.deb" \
+  | sha256sum --check
+sudo apt install ./securewave-linux-arm64.deb
 systemctl is-enabled securewave-helper.service
 systemctl is-active securewave-helper.service
 cat /usr/local/libexec/securewave-wg-quick.contract
 ```
 
-The checksum file and package-embedded source SHA must match the retained CI run
-for the reviewed head. Never substitute evidence from an earlier rebuild.
+Upgrade with `sudo apt install ./securewave-linux-arm64.deb`. Purge with
+`sudo apt purge securewave-vpn`, then verify that the helper socket, service
+payload, contract file, routes, rules, and firewall residue are absent.
 
-Upgrade with `sudo apt install /path/to/securewave-vpn_NEW.deb`; purge with
-`sudo apt purge securewave-vpn`, then run the disconnected runtime verifier and
-check that the helper socket, service payload, and contract are gone. An ARM64
-package cannot be installed on an x86_64 host; use the matching architecture.
+## Branch model
+
+`master` remains canonical. Focused work is performed on reviewed branches and
+merged through the repository review process. Production state must be
+described by public runtime evidence and exact-SHA CI, not by branch names.
