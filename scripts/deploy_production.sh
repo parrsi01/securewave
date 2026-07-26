@@ -222,12 +222,14 @@ ssh_opts=(
 
 echo "Deploying ${SECUREWAVE_PRODUCTION_IMAGE} to ${remote}:${remote_dir}"
 
+# shellcheck disable=SC2016 # Remote positional parameters must expand remotely.
 readonly REMOTE_MKDIR_SCRIPT='
 set -euo pipefail
 remote_dir="$1"
 mkdir -p -- "$remote_dir"
 '
 
+# shellcheck disable=SC2016 # Remote positional parameters must expand remotely.
 readonly REMOTE_DEPLOY_SCRIPT='
 set -euo pipefail
 remote_dir="$1"
