@@ -273,7 +273,7 @@ jobs:
             echo "Runtime verifier did not pass before purge." >&2
             exit 1
           fi
-          sudo timeout --signal=TERM 20s xvfb-run -a \
+          timeout --signal=TERM 20s xvfb-run -a \
             --server-args='-screen 0 1280x720x24' \
             /usr/lib/securewave/securewave_app --disable-gpu \
             2>&1 | tee "$EVIDENCE_DIR/application-launch.log" >/dev/null || launch_status=$?
