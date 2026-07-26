@@ -294,12 +294,14 @@ jobs:
           if sudo iptables-save | grep -E 'securewave-|wg-quick\(8\) rule for sw-wg' >/dev/null; then exit 1; fi
           if sudo ip6tables-save | grep -E 'securewave-|wg-quick\(8\) rule for sw-wg' >/dev/null; then exit 1; fi
 
-      - name: Check manifest syntax and status
+      - name: Check manifest syntax and guarded publication
         run: |
           set -euo pipefail
           python3 -m json.tool static/downloads/manifest.json | tee "$EVIDENCE_DIR/manifest-json-check.txt" >/dev/null
           python3 - <<'PY' | tee "artifacts/linux-arm64-deb/manifest-arm64-status.txt"
+          import hashlib
           import json
+          import subprocess
           from pathlib import Path
 
           manifest = json.loads(Path("static/downloads/manifest.json").read_text())
@@ -309,9 +311,37 @@ jobs:
               and item["architecture"] == "arm64"
               and item["filename"] == "securewave-linux-arm64.deb"
           ]
-          if entries and any(item["status"] != "coming_soon" for item in entries):
-              raise SystemExit("linux ARM64 deb must remain absent or coming_soon")
-          print("linux-arm64-deb-publication=absent-or-coming_soon")
+          if not entries:
+              print("linux-arm64-deb-publication=absent")
+              raise SystemExit(0)
+          if len(entries) != 1:
+              raise SystemExit("linux ARM64 deb manifest entry must be unique")
+
+          entry = entries[0]
+          if entry["status"] == "coming_soon":
+              if entry["url"] != "#":
+                  raise SystemExit("coming-soon Linux ARM64 entry must use URL #")
+              print("linux-arm64-deb-publication=coming_soon")
+              raise SystemExit(0)
+          if entry["status"] != "available":
+              raise SystemExit(f"unsupported Linux ARM64 publication status: {entry['status']!r}")
+
+          artifact = Path("static/downloads/securewave-linux-arm64.deb")
+          if entry["url"] != f"/downloads/{artifact.name}":
+              raise SystemExit("available Linux ARM64 entry must use the guarded local URL")
+          if not artifact.is_file():
+              raise SystemExit("available Linux ARM64 artifact is missing")
+          expected = entry.get("checksum_sha256")
+          actual = hashlib.sha256(artifact.read_bytes()).hexdigest()
+          if not expected or actual != expected:
+              raise SystemExit("available Linux ARM64 artifact checksum mismatch")
+          architecture = subprocess.check_output(
+              ["dpkg-deb", "--field", str(artifact), "Architecture"],
+              text=True,
+          ).strip()
+          if architecture != "arm64":
+              raise SystemExit(f"available Linux artifact architecture is {architecture!r}, not arm64")
+          print("linux-arm64-deb-publication=available-verified")
           PY
 
       - name: Run downloads manifest unit test when dependencies are available

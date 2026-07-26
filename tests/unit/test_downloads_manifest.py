@@ -39,71 +39,23 @@ def _configure_downloads(monkeypatch, tmp_path, rows) -> Path:
     return downloads_dir
 
 
-def test_download_manifest_exposes_apple_handoff_zip():
+def test_download_manifest_exposes_exactly_three_desktop_choices():
     entries = downloads._build_download_entries()
-    handoff = next(
-        entry for entry in entries
-        if entry.filename == "securewave-apple-release-handoff.zip"
+    assert [entry.platform for entry in entries] == ["macos", "windows", "linux"]
+    assert len(entries) == 3
+
+    macos, windows, linux = entries
+    assert macos.status == "coming_soon"
+    assert macos.url == "#"
+    assert windows.status == "coming_soon"
+    assert windows.url == "#"
+    assert linux.architecture == "arm64"
+    assert linux.filename == "securewave-linux-arm64.deb"
+    assert linux.status == "available"
+    assert linux.url == "/downloads/securewave-linux-arm64.deb"
+    assert linux.checksum_sha256 == (
+        "b9885574860b434bf0b9ad1187fd7ebe93f548001d25b759299f7a00ec7dc8b2"
     )
-
-    assert handoff.platform == "macos"
-    assert handoff.architecture == "universal"
-    assert handoff.status == "available"
-    assert handoff.url == "/downloads/securewave-apple-release-handoff.zip"
-
-
-def test_download_manifest_exposes_macos_demo_slots():
-    entries = downloads._build_download_entries()
-    by_name = {entry.filename: entry for entry in entries}
-
-    arm64_demo = by_name["securewave-macos-arm64-ui-demo.zip"]
-    x64_demo = by_name["securewave-macos-x64-ui-demo.zip"]
-
-    assert arm64_demo.platform == "macos"
-    assert arm64_demo.architecture == "arm64"
-    assert x64_demo.platform == "macos"
-    assert x64_demo.architecture == "x64"
-    if (downloads.DOWNLOADS_DIR / arm64_demo.filename).exists():
-        assert arm64_demo.status == "available"
-        assert arm64_demo.url == f"/downloads/{arm64_demo.filename}"
-    else:
-        assert arm64_demo.status == "coming_soon"
-        assert arm64_demo.url == "#"
-
-    # Presence alone must not publish an artifact the manifest still withholds.
-    assert x64_demo.status == "coming_soon"
-    assert x64_demo.url == "#"
-
-
-def test_linux_x64_deb_is_withheld_build_evidence_not_release_download():
-    entries = downloads._build_download_entries()
-    linux_x64_deb = next(
-        entry for entry in entries
-        if entry.filename == "securewave-linux-x64.deb"
-    )
-
-    assert linux_x64_deb.platform == "linux"
-    assert linux_x64_deb.architecture == "x64"
-    assert linux_x64_deb.status == "coming_soon"
-    assert linux_x64_deb.url == "#"
-    assert linux_x64_deb.evidence_url is None
-    assert linux_x64_deb.checksum_sha256 is None
-    assert "authorized staging" in (linux_x64_deb.notes or "")
-
-
-def test_linux_arm64_deb_is_withheld_exact_head_build_evidence():
-    entries = downloads._build_download_entries()
-    linux_arm64_deb = next(
-        entry for entry in entries
-        if entry.filename == "securewave-linux-arm64.deb"
-    )
-
-    assert linux_arm64_deb.platform == "linux"
-    assert linux_arm64_deb.architecture == "arm64"
-    assert linux_arm64_deb.status == "coming_soon"
-    assert linux_arm64_deb.url == "#"
-    assert linux_arm64_deb.evidence_url is None
-    assert linux_arm64_deb.checksum_sha256 is None
 
 
 def test_apple_review_page_and_handoff_docs_are_public():
@@ -121,8 +73,7 @@ def test_apple_review_page_and_handoff_docs_are_public():
     assert "/privacy.html" in apple_page
     assert "/contact.html" in apple_page
     assert "/apple-review.html" in downloads_page
-    assert "securewave-apple-release-handoff.zip" in manifest
-    assert "securewave-macos-arm64-ui-demo.zip" in manifest
+    assert "securewave-linux-arm64.deb" in manifest
     assert "package_macos_ui_demo.sh" in handoff
     assert "com.securewave.vpn.PacketTunnel" in handoff
     assert "vpn_not_configured" in macos_script
@@ -140,22 +91,23 @@ def test_apple_review_page_and_handoff_docs_are_public():
     assert "SECUREWAVE_IOS_RELEASE_SIGNING=1" in apple_release
 
 
-def test_macos_detection_can_recommend_universal_handoff():
+def test_macos_detection_does_not_recommend_coming_soon_build():
     detected = downloads.detect_platform(
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15",
     )
 
     assert detected == {"platform": "macos", "architecture": "x64"}
-    recommended = None
-    for item in downloads._load_download_manifest():
-        if item["platform"] == detected["platform"] and item["architecture"] in (
-            detected["architecture"],
-            "universal",
-        ):
-            recommended = item["url"]
-            break
+    recommended = next(
+        (
+            item["url"]
+            for item in downloads._load_download_manifest()
+            if item["platform"] == detected["platform"]
+            and item["status"] == "available"
+        ),
+        None,
+    )
 
-    assert recommended == "/downloads/securewave-apple-release-handoff.zip"
+    assert recommended is None
 
 
 def test_coming_soon_status_is_not_promoted_or_served_when_file_exists(
@@ -237,7 +189,7 @@ def test_invalid_manifest_structure_uses_safe_fallback(monkeypatch, tmp_path, cl
 
     assert response.status_code == 200
     entries = response.json()["downloads"]
-    withheld = next(entry for entry in entries if entry["filename"] == "securewave-linux-x64.deb")
+    withheld = next(entry for entry in entries if entry["platform"] == "macos")
     assert withheld["status"] == "coming_soon"
     assert withheld["url"] == "#"
     assert withheld.get("evidence_url") is None

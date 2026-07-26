@@ -178,98 +178,30 @@ def _format_size(size_bytes: int) -> str:
 # ---------------------------------------------------------------------------
 
 DEFAULT_DOWNLOAD_MANIFEST = [
-    # Apple handoff
     {
         "platform": "macos",
         "architecture": "universal",
-        "filename": "securewave-apple-release-handoff.zip",
-        "url": "/downloads/securewave-apple-release-handoff.zip",
-        "status": "available",
-        "notes": "Mac/Xcode handoff kit for producing the signed macOS/iOS archive. Not a notarized app bundle.",
-    },
-    {
-        "platform": "macos",
-        "architecture": "arm64",
-        "filename": "securewave-macos-arm64-ui-demo.zip",
-        "url": "/downloads/securewave-macos-arm64-ui-demo.zip",
-        "status": "available",
-        "notes": "macOS UI demo app package. Build this on an Apple Silicon Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
-    },
-    {
-        "platform": "macos",
-        "architecture": "x64",
-        "filename": "securewave-macos-x64-ui-demo.zip",
-        "url": "/downloads/securewave-macos-x64-ui-demo.zip",
+        "filename": "securewave-macos.pkg",
+        "url": "#",
         "status": "coming_soon",
-        "notes": "macOS UI demo app package. Build this on an Intel Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
+        "notes": "The macOS beta is coming soon.",
     },
-    # Windows
     {
         "platform": "windows",
         "architecture": "x64",
         "filename": "securewave-windows-x64-setup.exe",
-        "url": "/downloads/securewave-windows-x64-setup.exe",
-        "status": "coming_soon",
-        "notes": "Windows 10+. NSIS installer (may be unsigned in early builds).",
-    },
-    # Linux
-    {
-        "platform": "linux",
-        "architecture": "x64",
-        "filename": "securewave-linux-x64.deb",
         "url": "#",
         "status": "coming_soon",
-        "notes": "The amd64 WireGuard-only package remains unpublished until exact-head package gates and authorized staging data-plane acceptance pass.",
+        "notes": "The Windows beta is coming soon.",
     },
     {
         "platform": "linux",
         "architecture": "arm64",
         "filename": "securewave-linux-arm64.deb",
-        "url": "#",
-        "status": "coming_soon",
-        "notes": "The arm64 WireGuard-only package remains unpublished until exact-head package gates and authorized staging data-plane acceptance pass.",
-    },
-    {
-        "platform": "linux",
-        "architecture": "x64",
-        "filename": "securewave-linux-x64.AppImage",
-        "url": "/downloads/securewave-linux-x64.AppImage",
-        "status": "coming_soon",
-        "notes": "Portable AppImage build (coming soon).",
-    },
-    {
-        "platform": "linux",
-        "architecture": "x64",
-        "filename": "securewave-linux-x64.tar.gz",
-        "url": "/downloads/securewave-linux-x64.tar.gz",
+        "url": "/downloads/securewave-linux-arm64.deb",
         "status": "available",
-        "notes": "Portable tarball (x64).",
-    },
-    {
-        "platform": "linux",
-        "architecture": "arm64",
-        "filename": "securewave-app-linux-arm64.zip",
-        "url": "/downloads/securewave-app-linux-arm64.zip",
-        "status": "available",
-        "notes": "Portable zip (ARM64).",
-    },
-    # Apple
-    {
-        "platform": "ios",
-        "architecture": "arm64",
-        "filename": "",
-        "url": "#",
-        "status": "coming_soon",
-        "notes": "Coming soon. Will be available on the Apple App Store / TestFlight.",
-    },
-    # Android
-    {
-        "platform": "android",
-        "architecture": "universal",
-        "filename": "securewave-android.apk",
-        "url": "/downloads/securewave-android.apk",
-        "status": "coming_soon",
-        "notes": "Android 10+. APK link appears here when published.",
+        "notes": "Latest WireGuard-only Linux ARM64 beta for testing and coding feedback. Built from source 7595425fba5ae542d72153e0b3f50e91bb06a05e.",
+        "checksum_sha256": "b9885574860b434bf0b9ad1187fd7ebe93f548001d25b759299f7a00ec7dc8b2",
     },
 ]
 

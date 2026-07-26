@@ -27,7 +27,7 @@ function platformLabel(platform) {
 function renderCard(entry) {
   const title = `${platformLabel(entry.platform)}${entry.architecture ? ` (${entry.architecture})` : ''}`;
   const statusMap = {
-    available: ['Available', 'badge-primary'],
+    available: ['Beta available', 'badge-primary'],
     beta: ['Beta build', 'badge-muted'],
     coming_soon: ['Coming soon', 'badge-muted'],
   };
@@ -42,7 +42,7 @@ function renderCard(entry) {
     : '';
 
   const action = entry.status === 'available' && entry.url && entry.url !== '#'
-    ? `<a class="btn btn-primary btn-block" href="${escapeHtml(entry.url)}" rel="nofollow">Download</a>`
+    ? `<a class="btn btn-primary btn-block" href="${escapeHtml(entry.url)}" rel="nofollow">Download beta</a>`
     : entry.status === 'beta' && evidence
       ? evidence
       : `<button class="btn btn-secondary btn-block" type="button" disabled>Coming soon</button>`;
