@@ -285,10 +285,6 @@ String _serverSubtitle(ServerRegion server) {
 }
 
 Future<void> _signOut(BuildContext context, WidgetRef ref) async {
-  final vpn = ref.read(vpnStateProvider);
-  if (vpn.status == VpnStatus.connected || vpn.status == VpnStatus.connecting) {
-    await ref.read(vpnStateProvider.notifier).disconnect();
-  }
   try {
     await ref.read(authServiceProvider).logout();
   } catch (_) {

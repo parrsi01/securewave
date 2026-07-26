@@ -145,6 +145,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   int _pendingUsageTxBytes = 0;
   int _pendingUsageRxBytes = 0;
   Future<void>? _usageFlushFuture;
+  Future<void>? _vpnOperation;
 
   Future<void> ensureInitialized() => _initialization;
 
@@ -210,8 +211,17 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       return;
     }
     try {
+      final session = _ref.read(authSessionProvider);
+      await session.ensureInitialized();
       final snapshot = await service.refreshRuntimeStatus();
       if (!mounted || snapshot.status != VpnStatus.connected) return;
+      if (!session.isAuthenticated || !session.isSessionValidated) {
+        await service.forceDisconnect();
+        AppLogger.warning(
+          'Stored VPN runtime was not restored because the session was not validated.',
+        );
+        return;
+      }
       final activeProtocol = snapshot.protocol ?? state.protocol;
       if (activeProtocol == VpnProtocol.openVpn ||
           activeProtocol == VpnProtocol.ikev2) {
@@ -256,7 +266,6 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       }
       _activeDeviceId = deviceId;
       _activeServerId = serverId;
-      await _ref.read(authSessionProvider).ensureInitialized();
       if (!mounted) return;
       state = state.copyWith(
         status: VpnStatus.connected,
@@ -335,8 +344,68 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
   }
 
-  Future<void> connect() async {
+  Future<void> connect() {
+    final active = _vpnOperation;
+    if (active != null) return active;
+    final operation = _connectAfterInitialization();
+    return _trackVpnOperation(operation);
+  }
+
+  Future<void> _connectAfterInitialization() async {
+    try {
+      await _initialization;
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      _setStatus(VpnStatus.error);
+      final classified = _classifyVpnError(error);
+      state = state.copyWith(
+        desiredOn: false,
+        errorKind: classified.kind,
+        errorMessage: classified.message,
+        lastTunnelStartAt: DateTime.now(),
+        lastTunnelStartOk: false,
+      );
+      AppLogger.error(
+        'VPN connect blocked because initialization failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return;
+    }
+    await _connectInternal();
+  }
+
+  Future<void> _connectInternal() async {
     if (state.isBusy) return;
+
+    final session = _ref.read(authSessionProvider);
+    try {
+      await session.ensureInitialized();
+    } catch (error, stackTrace) {
+      _setStatus(VpnStatus.error);
+      state = state.copyWith(
+        desiredOn: false,
+        errorKind: VpnErrorKind.unknown,
+        errorMessage: 'The saved session could not be read. Retry sign-in.',
+        lastTunnelStartOk: false,
+      );
+      AppLogger.error(
+        'VPN connect could not initialize the session',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return;
+    }
+    if (!session.isAuthenticated) {
+      _setStatus(VpnStatus.error);
+      state = state.copyWith(
+        desiredOn: false,
+        errorKind: VpnErrorKind.auth,
+        errorMessage: 'Sign in before connecting the VPN.',
+        lastTunnelStartOk: false,
+      );
+      return;
+    }
 
     // User intent: VPN should be on.
     final now = DateTime.now();
@@ -611,8 +680,21 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     await _startUsageSession(api);
   }
 
-  Future<void> disconnect() async {
-    if (state.isBusy) return;
+  Future<void> disconnect({bool force = false}) {
+    final active = _vpnOperation;
+    if (active != null) {
+      if (!force) return Future<void>.value();
+      return active.then<void>((_) {
+        final operation = _disconnectInternal(force: true);
+        return _trackVpnOperation(operation);
+      });
+    }
+    final operation = _disconnectInternal(force: force);
+    return _trackVpnOperation(operation);
+  }
+
+  Future<void> _disconnectInternal({required bool force}) async {
+    if (state.isBusy && !force) return;
 
     // User intent: VPN should be off.
     state = state.copyWith(isBusy: true, desiredOn: false, clearError: true);
@@ -621,7 +703,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     try {
       final service = _ref.read(vpnServiceProvider);
       _stopRateUpdates();
-      final nextStatus = await service.disconnect();
+      final nextStatus =
+          force ? await service.forceDisconnect() : await service.disconnect();
       _setStatus(nextStatus);
       state = state.copyWith(
         threatProtectionActive: false,
@@ -652,6 +735,32 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       await _finalizeUsageSession();
       state = state.copyWith(isBusy: false);
     }
+  }
+
+  Future<void> disconnectForSessionInvalidation() async {
+    try {
+      await _initialization;
+    } catch (_) {
+      // The forced native teardown below remains the authoritative cleanup.
+    }
+    final active = _vpnOperation;
+    if (active != null) {
+      await active;
+    }
+    await disconnect(force: true);
+  }
+
+  Future<void> _trackVpnOperation(Future<void> operation) {
+    _vpnOperation = operation;
+    operation.then<void>(
+      (_) {
+        if (identical(_vpnOperation, operation)) _vpnOperation = null;
+      },
+      onError: (Object _, StackTrace __) {
+        if (identical(_vpnOperation, operation)) _vpnOperation = null;
+      },
+    );
+    return operation;
   }
 
   Future<void> handleConnectivityChange({required bool hasNetwork}) async {
@@ -686,6 +795,9 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     if (!state.desiredOn) return;
     if (state.isBusy) return;
+    final session = _ref.read(authSessionProvider);
+    await session.ensureInitialized();
+    if (!session.isAuthenticated || !session.isSessionValidated) return;
     if (state.status == VpnStatus.connected ||
         state.status == VpnStatus.connecting ||
         state.status == VpnStatus.disconnecting) {

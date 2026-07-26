@@ -11,6 +11,7 @@ import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/protocol_availability.dart';
 import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
@@ -28,9 +29,11 @@ Map<String, dynamic> _threatDnsFixture() => {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  late Map<String, String?> secureStore;
+
   setUp(() {
     // Stub flutter_secure_storage platform channel (unavailable in test harness)
-    final store = <String, String?>{};
+    secureStore = <String, String?>{'access_token': 'test-token'};
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
@@ -41,19 +44,19 @@ void main() {
         final key = args['key']?.toString();
         switch (methodCall.method) {
           case 'read':
-            return key == null ? null : store[key];
+            return key == null ? null : secureStore[key];
           case 'write':
-            if (key != null) store[key] = args['value']?.toString();
+            if (key != null) secureStore[key] = args['value']?.toString();
             return null;
           case 'delete':
-            if (key != null) store.remove(key);
+            if (key != null) secureStore.remove(key);
             return null;
           case 'deleteAll':
-            store.clear();
+            secureStore.clear();
             return null;
           case 'readAll':
             return Map<String, String>.fromEntries(
-              store.entries
+              secureStore.entries
                   .where((e) => e.value != null)
                   .map((e) => MapEntry(e.key, e.value!)),
             );
@@ -221,7 +224,8 @@ void main() {
     expect(state.lastTunnelStartOk, isFalse);
   });
 
-  test('Linux v1 ignores OpenVPN selection even when mocks advertise it', () async {
+  test('Linux v1 ignores OpenVPN selection even when mocks advertise it',
+      () async {
     final service = _NativeSuccessVpnService();
     final api = _CredentialedEgressApiClient(
       protocol: VpnProtocol.openVpn,
@@ -246,7 +250,8 @@ void main() {
     expect(service.disconnectCalls, 0);
   });
 
-  test('Linux v1 ignores IKEv2 selection even when mocks advertise it', () async {
+  test('Linux v1 ignores IKEv2 selection even when mocks advertise it',
+      () async {
     final service = _NativeSuccessVpnService();
     final api = _CredentialedEgressApiClient(
       protocol: VpnProtocol.ikev2,
@@ -273,9 +278,15 @@ void main() {
 
   test('IKEv2 runtime restoration disconnects without a fresh egress baseline',
       () async {
+    final session = AuthSession();
+    await session.ensureInitialized();
+    session.markSessionValidated();
     final service = _RestoredCredentialedVpnService(VpnProtocol.ikev2);
     final container = ProviderContainer(
-      overrides: [vpnServiceProvider.overrideWithValue(service)],
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        authSessionProvider.overrideWith((ref) => session),
+      ],
     );
     addTearDown(container.dispose);
 
@@ -296,10 +307,14 @@ void main() {
     );
     final service = _RestoredCredentialedVpnService(VpnProtocol.wireGuard);
     final api = _UsageTrackingApiClient(failFirstReport: false);
+    final session = AuthSession();
+    await session.ensureInitialized();
+    session.markSessionValidated();
     final container = ProviderContainer(
       overrides: [
         vpnServiceProvider.overrideWithValue(service),
         apiClientProvider.overrideWithValue(api),
+        authSessionProvider.overrideWith((ref) => session),
       ],
     );
     addTearDown(container.dispose);
@@ -312,6 +327,27 @@ void main() {
     expect(state.threatProtectionActive, isTrue);
     expect(state.selectedServerId, 'metering-server');
     expect(api.startSessionCalls, 1);
+  });
+
+  test('WireGuard runtime is not restored without native connected evidence',
+      () async {
+    await SecureStorage().saveInt(SecureStorage.vpnDeviceIdKey, 7);
+    await SecureStorage()
+        .saveString(SecureStorage.vpnActiveServerIdKey, 'stored-server');
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileConfigKeyFor('wireguard'),
+      '[Interface]\nDNS = 94.140.14.14\n',
+    );
+    final service = _NativeSuccessVpnService();
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).ensureInitialized();
+
+    expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
+    expect(service.disconnectCalls, 0);
   });
 
   test('stale stored VPN device id is cleared and profile fetch retries',

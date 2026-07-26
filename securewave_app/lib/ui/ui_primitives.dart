@@ -391,9 +391,17 @@ class _CenteredState extends StatelessWidget {
 }
 
 class _BootView extends StatelessWidget {
-  const _BootView({this.message});
+  const _BootView({
+    this.message,
+    this.offline = false,
+    this.failure = false,
+    this.onRetry,
+  });
 
   final String? message;
+  final bool offline;
+  final bool failure;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -404,14 +412,26 @@ class _BootView extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ),
+                if (!offline && !failure)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                else
+                  Icon(
+                    failure
+                        ? Icons.error_outline_rounded
+                        : Icons.cloud_off_rounded,
+                    size: 28,
+                  ),
                 const SizedBox(height: 14),
                 Text(
-                  'Starting SecureWave',
+                  offline
+                      ? 'SecureWave is offline'
+                      : failure
+                          ? 'SecureWave needs attention'
+                          : 'Starting SecureWave',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 if (message != null) ...[
@@ -420,6 +440,13 @@ class _BootView extends StatelessWidget {
                     message!,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                if (onRetry != null) ...[
+                  const SizedBox(height: 16),
+                  OutlinedButton(
+                    onPressed: onRetry,
+                    child: const Text('Retry'),
                   ),
                 ],
               ],

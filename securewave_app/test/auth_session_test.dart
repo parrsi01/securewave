@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
 import 'package:securewave_app/core/services/auth_session.dart';
+import 'package:securewave_app/core/services/secure_storage.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -69,6 +70,20 @@ void main() {
     expect(session.isAuthenticated, isTrue);
     expect(session.accessToken, 'new-token');
     expect(store['access_token'], 'new-token');
+  });
+
+  test('saving a session without refresh token removes stale refresh state',
+      () async {
+    final storage = SecureStorage();
+    await storage.saveTokens(
+      accessToken: 'first-token',
+      refreshToken: 'first-refresh',
+    );
+
+    await storage.saveTokens(accessToken: 'second-token');
+
+    expect(await storage.getAccessToken(), 'second-token');
+    expect(await storage.getRefreshToken(), isNull);
   });
 
   test('UserPlan usage gauge handles zero-cap plans without NaN', () {

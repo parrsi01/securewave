@@ -15,6 +15,7 @@ abstract class VpnService {
     bool backendEvidence = false,
   });
   Future<VpnStatus> disconnect();
+  Future<VpnStatus> forceDisconnect() => disconnect();
   Future<VpnTrafficStats> getTrafficStats(VpnProtocol protocol) async =>
       VpnTrafficStats.unavailable;
   VpnStatus getStatus();
@@ -319,8 +320,7 @@ class ChannelVpnService extends VpnService {
 
   @override
   Future<VpnStatus> disconnect() async {
-    if (_status == VpnStatus.disconnected ||
-        _status == VpnStatus.disconnecting) {
+    if (_status == VpnStatus.disconnecting) {
       return _status;
     }
     _status = VpnStatus.disconnecting;

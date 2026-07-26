@@ -1,7 +1,13 @@
 part of '../app.dart';
 
 class _AuthScreen extends ConsumerStatefulWidget {
-  const _AuthScreen();
+  const _AuthScreen({
+    this.initialRegister = false,
+    this.initialMessage,
+  });
+
+  final bool initialRegister;
+  final String? initialMessage;
 
   @override
   ConsumerState<_AuthScreen> createState() => _AuthScreenState();
@@ -19,6 +25,13 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
   bool _busy = false;
   bool _hidePassword = true;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _register = widget.initialRegister;
+    _error = widget.initialMessage;
+  }
 
   @override
   void dispose() {
@@ -297,6 +310,7 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
           password: _password.text.trim(),
         );
       }
+      ref.read(bootControllerProvider).markSessionAuthenticated();
       ref.invalidate(currentUserProvider);
       ref.invalidate(userPlanProvider);
       ref.invalidate(serversProvider);

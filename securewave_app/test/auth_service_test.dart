@@ -83,6 +83,25 @@ void main() {
     expect(await storage.getAccountOwnerEmail(), 'new@example.com');
   });
 
+  test('account switch shuts down VPN before clearing runtime state', () async {
+    await seedVpnRuntime();
+    await storage.saveAccountOwnerEmail('old@example.com');
+    var disconnectCalls = 0;
+    final switchingAuth = AuthService(
+      _AuthApiClient(),
+      session,
+      disconnectVpn: () async => disconnectCalls += 1,
+    );
+
+    await switchingAuth.login(
+      email: 'new@example.com',
+      password: 'valid-password',
+    );
+
+    expect(disconnectCalls, 1);
+    expect(await storage.getString(SecureStorage.vpnActiveServerIdKey), isNull);
+  });
+
   test('verified debug reauthentication can preserve legacy runtime ownership',
       () async {
     await seedVpnRuntime();

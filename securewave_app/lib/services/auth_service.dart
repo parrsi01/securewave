@@ -3,19 +3,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/logging/app_logger.dart';
 import '../core/services/auth_session.dart';
 import '../core/services/secure_storage.dart';
+import '../core/state/vpn_state.dart';
 import 'api_client.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
   final api = ref.watch(apiClientProvider);
   final session = ref.watch(authSessionProvider);
-  return AuthService(api, session);
+  return AuthService(
+    api,
+    session,
+    disconnectVpn: () =>
+        ref.read(vpnStateProvider.notifier).disconnectForSessionInvalidation(),
+  );
 });
 
 class AuthService {
-  AuthService(this._api, this._session);
+  AuthService(
+    this._api,
+    this._session, {
+    Future<void> Function()? disconnectVpn,
+  }) : _disconnectVpn = disconnectVpn;
 
   final ApiClient _api;
   final AuthSession _session;
+  final Future<void> Function()? _disconnectVpn;
 
   Future<void> login({
     required String email,
@@ -29,6 +40,7 @@ class AuthService {
         (await storage.getAccountOwnerEmail())?.trim().toLowerCase();
     final sameKnownAccount = previousOwner == normalizedEmail;
     if (!sameKnownAccount && !preserveVpnRuntime) {
+      await _disconnectVpn?.call();
       await storage.clearVpnRuntimeState();
     }
     await _session.setSession(
@@ -53,6 +65,7 @@ class AuthService {
       }
     }
     final storage = SecureStorage();
+    await _disconnectVpn?.call();
     await storage.clearVpnRuntimeState();
     await _session.setSession(
       accessToken: tokens.accessToken,
@@ -67,10 +80,23 @@ class AuthService {
     } finally {
       // Local credentials must be removed even when the control plane is
       // unreachable, so logout never strands a usable session on disk.
-      await _session.clearSession();
-      final storage = SecureStorage();
-      await storage.clearVpnRuntimeState();
-      await storage.clearAccountOwnerEmail();
+      try {
+        await _disconnectVpn?.call();
+      } catch (error, stackTrace) {
+        AppLogger.error(
+          'Local VPN shutdown during logout failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+      await clearLocalSessionState();
     }
+  }
+
+  Future<void> clearLocalSessionState() async {
+    await _session.clearSession();
+    final storage = SecureStorage();
+    await storage.clearVpnRuntimeState();
+    await storage.clearAccountOwnerEmail();
   }
 }

@@ -25,6 +25,10 @@ class SecureStorage {
     await _storage.write(key: _accessTokenKey, value: accessToken);
     if (refreshToken != null) {
       await _storage.write(key: _refreshTokenKey, value: refreshToken);
+    } else {
+      // A login response without a refresh token must not leave a previous
+      // account's refresh credential behind.
+      await _storage.delete(key: _refreshTokenKey);
     }
   }
 

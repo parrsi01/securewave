@@ -51,11 +51,15 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     WidgetsBinding.instance.addObserver(_observer);
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final hasNetwork = !results.contains(ConnectivityResult.none);
-      unawaited(
-        ref
+      unawaited(() async {
+        final boot = ref.read(bootControllerProvider);
+        if (hasNetwork) await boot.retry();
+        await boot.ensureInitialized();
+        if (!mounted) return;
+        await ref
             .read(vpnStateProvider.notifier)
-            .handleConnectivityChange(hasNetwork: hasNetwork),
-      );
+            .handleConnectivityChange(hasNetwork: hasNetwork);
+      }());
     });
   }
 
@@ -71,6 +75,7 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
       final config = await AppConfig.load();
       if (!mounted) return;
       ref.read(appConfigProvider.notifier).state = config;
+      unawaited(ref.read(bootControllerProvider).retry());
       ref.read(vpnStateProvider.notifier).resumeRateUpdates();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
@@ -102,8 +107,26 @@ class _AppRoot extends ConsumerWidget {
       return _BootView(message: boot.errorMessage);
     }
 
+    if (boot.status == BootStatus.offline || boot.status == BootStatus.failed) {
+      return _BootView(
+        message: boot.errorMessage,
+        offline: boot.status == BootStatus.offline,
+        failure: boot.status == BootStatus.failed,
+        onRetry: () => unawaited(
+          ref.read(bootControllerProvider).retry(),
+        ),
+      );
+    }
+
+    if (boot.status == BootStatus.authRejected && !session.isAuthenticated) {
+      return _AuthScreen(
+        initialRegister: true,
+        initialMessage: boot.errorMessage,
+      );
+    }
+
     if (!session.isAuthenticated) {
-      return const _AuthScreen();
+      return const _AuthScreen(initialRegister: true);
     }
 
     return const _MainShell();
