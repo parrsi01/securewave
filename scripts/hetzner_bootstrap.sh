@@ -25,7 +25,6 @@ systemctl enable --now docker
 
 if ! id "${ADMIN_USER}" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "${ADMIN_USER}"
-  usermod -aG sudo,docker "${ADMIN_USER}"
 
   if [ -f /root/.ssh/authorized_keys ]; then
     install -d -m 700 "/home/${ADMIN_USER}/.ssh"
@@ -34,6 +33,12 @@ if ! id "${ADMIN_USER}" >/dev/null 2>&1; then
     chmod 600 "/home/${ADMIN_USER}/.ssh/authorized_keys"
   fi
 fi
+
+# Keep an existing deployment user aligned with the supported Hetzner
+# operator contract as well. Previously these groups were assigned only when
+# the account was created by this script, leaving older hosts unable to run
+# the repository-supported Docker deployment.
+usermod -aG sudo,docker "${ADMIN_USER}"
 
 cat <<'EOF' > /etc/ssh/sshd_config.d/securewave.conf
 PasswordAuthentication no
