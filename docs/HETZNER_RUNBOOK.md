@@ -99,6 +99,32 @@ python3 infrastructure/hetzner/audit_vpn_fleet.py \
   --json-out /tmp/securewave-fleet-audit.json
 ```
 
+## Install the Read-Only Production Health Monitor
+
+The repository-provided monitor checks the existing local health, readiness,
+and download-manifest routes every five minutes. It runs as the unprivileged
+`securewave` user, is restricted to loopback HTTP, and does not restart
+services, change networking, connect a tunnel, or modify repository state:
+
+```bash
+sudo install -m 0755 scripts/monitor_production_health.sh \
+  /opt/securewave/scripts/monitor_production_health.sh
+sudo install -m 0644 infrastructure/systemd/securewave-health-monitor.service \
+  /etc/systemd/system/securewave-health-monitor.service
+sudo install -m 0644 infrastructure/systemd/securewave-health-monitor.timer \
+  /etc/systemd/system/securewave-health-monitor.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now securewave-health-monitor.timer
+sudo systemctl start securewave-health-monitor.service
+sudo systemctl status securewave-health-monitor.timer --no-pager
+sudo journalctl -u securewave-health-monitor.service --since today --no-pager
+```
+
+This local timer provides a bounded health signal only. External alert
+delivery, dashboards, named ownership, escalation, and broader resource,
+database, login, profile, metering, and VPN data-plane monitoring remain
+separate production requirements.
+
 ## Register Servers In SecureWave (Control Plane)
 
 SecureWave issues real WireGuard profiles based on the VPN server registry in the database (`vpn_servers`).

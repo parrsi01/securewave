@@ -53,6 +53,13 @@ The production host also passed `docker compose config --quiet` against the
 protected production environment file. That validation did not pull an image
 or change a running service.
 
+The obsolete mutable production watchdog was retired and replaced by the
+repository-provided `securewave-health-monitor.timer`. Its unprivileged,
+read-only probe checks the existing local health, readiness, and guarded
+download-manifest routes every five minutes. The replacement passed a live
+production invocation. This does not prove external alert delivery or complete
+production observability.
+
 ## Public Linux ARM64 beta
 
 The WireGuard-only Linux ARM64 beta is publicly available:
@@ -119,9 +126,9 @@ advertise IKEv2.
   not a prerequisite for accurately serving the verified artifact.
 - Fresh final-package staging tunnel proof remains separate from package
   lifecycle and publication proof.
-- Monitoring ownership, external load testing, and production container
-  migration remain operations work; they are not attributed to the retired
-  provider.
+- External alert delivery and monitoring ownership, external load testing, and
+  production container migration remain operations work; they are not
+  attributed to the retired provider.
 
 ## Install and verify
 

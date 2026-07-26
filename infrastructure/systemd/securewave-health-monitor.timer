@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the SecureWave production health monitor every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=securewave-health-monitor.service
+
+[Install]
+WantedBy=timers.target

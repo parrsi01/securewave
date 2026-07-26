@@ -1,0 +1,21 @@
+[Unit]
+Description=SecureWave read-only production health monitor
+After=network-online.target securewave-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=securewave
+Group=securewave
+ExecStart=/opt/securewave/scripts/monitor_production_health.sh
+Environment=SECUREWAVE_HEALTH_BASE_URL=http://127.0.0.1:8080
+Environment=SECUREWAVE_HEALTH_TIMEOUT_SECONDS=8
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+
