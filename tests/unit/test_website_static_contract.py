@@ -74,6 +74,6 @@ def test_download_page_keeps_three_platform_release_truth():
     assert "macOS and Windows builds are coming soon" in download
     assert "Only the verified Linux ARM64 beta is downloadable today" in download
     assert "Mac/Xcode handoff kit is available" not in download
-    assert downloads_js.index("fetch('/downloads/manifest.json'") < downloads_js.index(
+    assert downloads_js.index("fetch('/static/downloads/manifest.json'") < downloads_js.index(
         "fetch('/api/downloads')"
     )

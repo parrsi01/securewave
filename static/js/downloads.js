@@ -71,7 +71,7 @@ async function safeJson(res) {
 }
 
 async function fetchDownloadData() {
-  const staticRes = await fetch('/downloads/manifest.json', { cache: 'no-store' });
+  const staticRes = await fetch('/static/downloads/manifest.json', { cache: 'no-store' });
   const staticData = await safeJson(staticRes);
   if (staticRes.ok && Array.isArray(staticData.downloads)) return staticData;
 
