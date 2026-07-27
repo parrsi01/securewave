@@ -55,6 +55,15 @@ function setText(sel, text) {
   if (el) el.textContent = text;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function buildServerOptions(servers, selectedId) {
   const options = [];
   options.push(`<option value="auto"${selectedId ? '' : ' selected'}>Auto (fastest)</option>`);
@@ -63,7 +72,7 @@ function buildServerOptions(servers, selectedId) {
     const label = s.location || s.name || id;
     const selected = selectedId && id === selectedId ? ' selected' : '';
     if (!id) return;
-    options.push(`<option value="${id}"${selected}>${label}</option>`);
+    options.push(`<option value="${escapeHtml(id)}"${selected}>${escapeHtml(label)}</option>`);
   });
   return options.join('');
 }
@@ -106,19 +115,20 @@ function renderDevices({ devices = [], servers = [] }) {
       const statusBadge = isOnline(last) ? 'badge-primary' : 'badge-muted';
       const serverId = d.server_id || null;
       const optionsHtml = buildServerOptions(servers, serverId);
+      const safeId = escapeHtml(d.id);
       return `
-        <tr data-device-row="${d.id}">
-          <td><strong>${name}</strong><br><span class="muted">${d.ip_address || ''}</span></td>
-          <td>${type}</td>
+        <tr data-device-row="${safeId}">
+          <td><strong>${escapeHtml(name)}</strong><br><span class="muted">${escapeHtml(d.ip_address || '')}</span></td>
+          <td>${escapeHtml(type)}</td>
           <td><span class="badge ${statusBadge}">${status}</span></td>
           <td>${relativeTime(last)}</td>
           <td>
-            <select class="form-select" data-device-server="${d.id}">
+            <select class="form-select" data-device-server="${safeId}">
               ${optionsHtml}
             </select>
           </td>
           <td style="text-align:right">
-            <button class="btn btn-ghost btn-sm" type="button" data-device-revoke="${d.id}">Revoke</button>
+            <button class="btn btn-ghost btn-sm" type="button" data-device-revoke="${safeId}">Revoke</button>
           </td>
         </tr>
       `;
@@ -222,4 +232,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     setText('[data-backend-fleet]', 'No servers');
   }
 });
-

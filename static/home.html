@@ -6,252 +6,297 @@
   <meta name="build-timestamp" content="BUILD_TIMESTAMP">
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>SecureWave VPN</title>
-  <meta name="description" content="SecureWave delivers fast, app-first VPN protection for work, travel, and daily browsing." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta name="description" content="SecureWave brings VPN download, account state, device registration, diagnostics, and billing into one direct product path." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260727">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260727">
 </head>
-<body>
+<body class="page-home">
   <div class="page">
-    <header class="navbar navbar-expand-lg">
-      <div class="container navbar-row">
-        <a class="brand navbar-brand" href="/home.html">
-          <img src="/img/logo.svg" alt="SecureWave logo">
-          <span>SecureWave</span>
+    <header class="navbar">
+      <div class="navbar-row">
+        <a class="brand" href="/">
+          <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M18 2L32 10V26L18 34L4 26V10L18 2Z" stroke="#1a3060" stroke-width="1" fill="none"/>
+            <path d="M18 6L28 12V20C28 25.5 18 30 18 30C18 30 8 25.5 8 20V12L18 6Z" fill="#060c18" stroke="#00b4ff" stroke-width="1.2"/>
+            <path d="M9 18 Q11.5 13 14 18 Q16.5 23 19 18 Q21.5 13 24 18 Q25.5 21 27 18" stroke="#00b4ff" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            <circle cx="18" cy="6" r="1.5" fill="#00b4ff"/>
+          </svg>
+          <span>Secure<em>Wave</em></span>
         </a>
         <div class="nav-panel">
           <nav class="nav-links nav" aria-label="Primary">
-            <a class="nav-link active" href="/home.html" aria-current="page">Home</a>
-            <a class="nav-link" href="/services.html">Services</a>
-            <a class="nav-link" href="/subscription.html">Plans</a>
+            <a class="nav-link" href="/services.html">Features</a>
+            <a class="nav-link" href="/subscription.html">Pricing</a>
             <a class="nav-link" href="/download.html">Download</a>
-            <a class="nav-link" href="/apple-review.html">Apple review</a>
-            <a class="nav-link" href="/dashboard.html">Dashboard</a>
-            <a class="nav-link" href="/contact.html">Support</a>
+            <a class="nav-link" href="/about.html">About</a>
           </nav>
           <div class="nav-actions">
-            <a class="btn btn-ghost" href="/login.html">Sign in</a>
-            <a class="btn btn-primary" href="#download">Download app</a>
+            <a class="nav-link" href="/login.html">Sign in</a>
+            <a class="nav-link nav-cta" href="/register.html">Create account</a>
           </div>
         </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
-          <span></span>
-        </button>
+        <button class="nav-toggle" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
       </div>
     </header>
 
     <main>
-      <section class="section">
-        <div class="container hero-shell">
-          <div class="hero-copy">
-            <div class="section-header">
-              <span class="badge">Enterprise-grade VPN, built for clarity</span>
-              <h1>Stay protected without slowing down.</h1>
-              <p class="text-measure">SecureWave combines a clean desktop and mobile VPN app with a streamlined account portal. Download the app, sign in once, and keep work, travel, and daily browsing protected with one connection flow.</p>
-            </div>
-            <div class="stat-list">
-              <a class="btn btn-primary" href="/download.html">Download SecureWave</a>
-              <a class="btn btn-secondary" href="/register.html">Create account</a>
-              <a class="btn btn-ghost" href="/login.html">Open dashboard</a>
-            </div>
-            <div class="hero-kpis">
-              <div class="status-tile">
-                <span class="value">3</span>
-                <span class="label">VPN protocols ready</span>
-              </div>
-              <div class="status-tile">
-                <span class="value">26+</span>
-                <span class="label">Regions available</span>
-              </div>
-              <div class="status-tile">
-                <span class="value">24/7</span>
-                <span class="label">Diagnostics and support access</span>
-              </div>
-            </div>
+      <!-- ── HERO ─────────────────────────────────────────── -->
+      <section class="sw-hero">
+        <div class="hero-left reveal">
+          <p class="hero-eyebrow">Private VPN Routing</p>
+          <h1>Private routing without a <em>maze</em> of setup screens.</h1>
+          <p class="hero-body">SecureWave brings VPN download, account state, device registration, diagnostics, and billing into one direct product path — from first install to account control.</p>
+          <div class="cta-group">
+            <a class="cta-primary" href="/register.html">Start free &rarr;</a>
+            <a class="cta-secondary" href="/download.html">Download client</a>
           </div>
-
-          <aside class="hero-panel card-strong">
-            <span class="eyebrow">Connection preview</span>
-            <div class="status-ring" aria-hidden="true"></div>
-            <div class="status-summary">
-              <strong>Ready to connect</strong>
-              <p>SecureWave keeps the tunnel experience in the app and the account experience on the web, so you always know where to go next.</p>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Server location</span>
-              <span class="info-value">Auto-select</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Protocol priority</span>
-              <span class="info-value">WireGuard first</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Best next action</span>
-              <span class="info-value">Download the app</span>
-            </div>
-          </aside>
+          <div class="hero-stats">
+            <div class="stat"><span class="v">1</span><span class="l">WireGuard protocol</span></div>
+            <div class="stat"><span class="v">5 GB</span><span class="l">Free transfer</span></div>
+            <div class="stat"><span class="v">1</span><span class="l">Account surface</span></div>
+          </div>
         </div>
-      </section>
-
-      <section class="section-tight">
-        <div class="container content-stack">
-          <div class="section-header">
-            <span class="eyebrow">Why teams and travelers choose SecureWave</span>
-            <h2>Fast to understand, calm to operate.</h2>
-            <p class="text-measure">Everything on the website points you toward the next useful action: create your account, pick your plan, install the app, and connect with confidence.</p>
-          </div>
-          <div class="feature-grid">
-            <article class="card">
-              <div class="icon-circle" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z"/></svg>
-              </div>
-              <h3>Clear protection status</h3>
-              <p>No ambiguous language, no hidden settings. You always know whether to go to the dashboard, diagnostics, or the VPN app.</p>
-            </article>
-            <article class="card">
-              <div class="icon-circle" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/></svg>
-              </div>
-              <h3>One product system</h3>
-              <p>The website, dashboard, and app share one dark-navy system with clear blue and cyan signals, so every surface feels connected and intentional.</p>
-            </article>
-            <article class="card">
-              <div class="icon-circle" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6v12"/><path d="M6 12h12"/></svg>
-              </div>
-              <h3>Built for quick deployment</h3>
-              <p>Download links, account flows, and device guidance stay front-and-center so the site converts directly into app installs.</p>
-            </article>
+        <div class="hero-right" aria-hidden="true">
+          <div id="netviz"></div>
+          <div class="net-status">
+            <span class="ns-title">STATUS</span>
+            <span class="ns-state">&#9679; CONNECTED</span>
+            <span>Protocol: WireGuard</span>
+            <span>Transfer: 3.2/5 GB</span>
           </div>
         </div>
       </section>
 
-      <section class="section-tight">
-        <div class="container split-grid">
-          <div class="card">
-            <span class="eyebrow">Connection flow</span>
-            <h2>Three steps to protected traffic.</h2>
-            <div class="content-stack">
-              <div class="card-row">
-                <div class="icon-circle" aria-hidden="true">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5z"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
-                </div>
-                <div>
-                  <h3>Create your account</h3>
-                  <p>Start with Free Starter or go straight to Pro. Your dashboard opens immediately after sign-up.</p>
-                </div>
+      <!-- ── 01 HOW IT WORKS ──────────────────────────────── -->
+      <section class="sw-section sw-section-pad">
+        <p class="sec-label"><span class="n">01</span> How it works</p>
+        <div class="steps">
+          <article class="step reveal">
+            <div class="step-fig">
+              <svg viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg">
+                <rect width="320" height="180" fill="#060c18"/>
+                <rect x="28" y="36" width="64" height="24" fill="none" stroke="#1a3060"/>
+                <text x="60" y="51" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#4a72a8">Mac</text>
+                <rect x="28" y="70" width="64" height="24" fill="none" stroke="#1a3060"/>
+                <text x="60" y="85" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#4a72a8">iOS</text>
+                <rect x="28" y="104" width="64" height="24" fill="none" stroke="#1a3060"/>
+                <text x="60" y="119" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#4a72a8">Win</text>
+                <path d="M104 82 L192 82" stroke="#00b4ff" stroke-width="1" stroke-dasharray="4 4"/>
+                <path d="M186 77 L194 82 L186 87" fill="none" stroke="#00b4ff" stroke-width="1"/>
+                <rect x="204" y="62" width="76" height="40" fill="none" stroke="#00b4ff"/>
+                <text x="242" y="86" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#00b4ff">.pkg</text>
+                <text x="28" y="152" font-family="JetBrains Mono, monospace" font-size="8" letter-spacing="1" fill="#1a3055">PLATFORM DETECTED</text>
+                <text x="28" y="164" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">Linux ARM64 — beta 4.0.0+3</text>
+              </svg>
+            </div>
+            <span class="step-num">01</span>
+            <h3>Choose a build</h3>
+            <p>Platform detection picks the right client. Release metadata, checksums, and signing notes are visible before you download.</p>
+          </article>
+          <article class="step reveal">
+            <div class="step-fig">
+              <svg viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg">
+                <rect width="320" height="180" fill="#060c18"/>
+                <rect x="24" y="60" width="72" height="40" fill="#1a3055" stroke="#03060d"/>
+                <text x="60" y="83" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#d0e8ff">DEVICE</text>
+                <text x="60" y="116" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#00b4ff">registered</text>
+                <rect x="138" y="72" width="12" height="12" fill="none" stroke="#00b4ff"/>
+                <rect x="156" y="76" width="12" height="12" fill="none" stroke="#00b4ff"/>
+                <path d="M150 80 L156 80" stroke="#00b4ff" stroke-width="1.2"/>
+                <rect x="200" y="46" width="94" height="76" fill="none" stroke="#00b4ff"/>
+                <text x="212" y="64" font-family="JetBrains Mono, monospace" font-size="8" fill="#d0e8ff">ACCOUNT</text>
+                <text x="212" y="82" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">&#9679; Billing active</text>
+                <text x="212" y="96" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">&#9679; Dashboard</text>
+                <text x="212" y="110" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">&#9679; Support</text>
+                <text x="24" y="158" font-family="JetBrains Mono, monospace" font-size="8" letter-spacing="1" fill="#1a3055">DEVICE &#8594; ACCOUNT LINKED</text>
+              </svg>
+            </div>
+            <span class="step-num">02</span>
+            <h3>Attach your account</h3>
+            <p>One account ties a device to billing, support history, and dashboard controls. No separate portals, no re-login cycles.</p>
+          </article>
+          <article class="step reveal">
+            <div class="step-fig">
+              <svg viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg">
+                <rect width="320" height="180" fill="#060c18"/>
+                <line x1="160" y1="90" x2="70" y2="42" stroke="#0f1e3a"/>
+                <line x1="160" y1="90" x2="250" y2="42" stroke="#0f1e3a"/>
+                <line x1="160" y1="90" x2="70" y2="138" stroke="#0f1e3a"/>
+                <line x1="160" y1="90" x2="250" y2="138" stroke="#0f1e3a"/>
+                <circle cx="160" cy="90" r="24" fill="#060c18" stroke="#00b4ff"/>
+                <text x="160" y="88" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#00b4ff">CTRL</text>
+                <text x="160" y="99" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">hub</text>
+                <rect x="30" y="28" width="80" height="28" fill="#060c18" stroke="#00b4ff"/>
+                <text x="38" y="41" font-family="JetBrains Mono, monospace" font-size="8" fill="#d0e8ff">MacBook</text>
+                <text x="38" y="52" font-family="JetBrains Mono, monospace" font-size="7" fill="#00e5a0">&#9679; active</text>
+                <rect x="210" y="28" width="80" height="28" fill="#060c18" stroke="#1a3055"/>
+                <text x="218" y="41" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">iPhone</text>
+                <text x="218" y="52" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">&#9675; idle</text>
+                <rect x="30" y="124" width="80" height="28" fill="#060c18" stroke="#1a3055"/>
+                <text x="38" y="137" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">ThinkPad</text>
+                <text x="38" y="148" font-family="JetBrains Mono, monospace" font-size="7" fill="#ff4060">&#10005; revoked</text>
+                <rect x="210" y="124" width="80" height="28" fill="none" stroke="#1a3055" stroke-dasharray="4 3"/>
+                <text x="250" y="141" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">+Add device</text>
+              </svg>
+            </div>
+            <span class="step-num">03</span>
+            <h3>Control devices</h3>
+            <p>Registered devices can be inspected, toggled, and revoked from the same surface you use to manage invoices and run diagnostics.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ── 02 FEATURES ──────────────────────────────────── -->
+      <section class="sw-section">
+        <div class="feat-head">
+          <p class="sec-label"><span class="n">02</span> Features</p>
+        </div>
+        <div class="feat-grid">
+          <div class="feat-main reveal">
+            <svg viewBox="0 0 480 200" xmlns="http://www.w3.org/2000/svg">
+              <text x="14" y="40" font-family="JetBrains Mono, monospace" font-size="11" fill="#00b4ff">WG</text>
+              <text x="14" y="54" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">WireGuard &#183; fast daily routing</text>
+              <circle cx="80" cy="44" r="3" fill="none" stroke="#00b4ff"/>
+              <circle cx="450" cy="44" r="3" fill="none" stroke="#00b4ff"/>
+              <path id="wgpath" d="M80,44 L450,44" stroke="#00b4ff" stroke-width="2"/>
+              <circle r="3.5" fill="#00b4ff"><animateMotion dur="2s" repeatCount="indefinite"><mpath href="#wgpath"/></animateMotion></circle>
+              <circle r="2.5" fill="#00b4ff" opacity="0.6"><animateMotion dur="2.7s" begin="0.9s" repeatCount="indefinite"><mpath href="#wgpath"/></animateMotion></circle>
+              <line x1="14" y1="73" x2="466" y2="73" stroke="#0f1e3a"/>
+              <text x="14" y="94" font-family="JetBrains Mono, monospace" font-size="11" fill="#4a72a8">DNS</text>
+              <text x="14" y="108" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">Protected DNS resolution</text>
+              <path id="dnspath" d="M80,98 L120,88 L160,108 L200,88 L240,108 L280,88 L320,108 L360,88 L400,108 L450,98" stroke="#4a72a8" stroke-width="1.5" fill="none" opacity="0.6"/>
+              <circle r="3" fill="#4a72a8"><animateMotion dur="3.5s" repeatCount="indefinite"><mpath href="#dnspath"/></animateMotion></circle>
+              <line x1="14" y1="127" x2="466" y2="127" stroke="#0f1e3a"/>
+              <text x="14" y="148" font-family="JetBrains Mono, monospace" font-size="11" fill="#00e5a0">ROUTE</text>
+              <text x="14" y="162" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">IPv4 and IPv6 protection</text>
+              <path id="routepath" d="M80,152 L200,152 Q220,152 220,160 Q220,168 240,168 L450,168" stroke="#00e5a0" stroke-width="1.5" fill="none"/>
+              <text x="186" y="144" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">wi-fi</text>
+              <text x="246" y="182" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">cellular</text>
+              <circle r="3" fill="#00e5a0"><animateMotion dur="3s" repeatCount="indefinite"><mpath href="#routepath"/></animateMotion></circle>
+            </svg>
+            <span class="tag">WireGuard-only transport</span>
+            <h3>One supported path, protected end to end.</h3>
+            <p>WireGuard carries the Linux beta while protected DNS, route controls, and the kill switch guard the connection lifecycle.</p>
+          </div>
+          <div class="feat-side">
+            <div class="feat-sub reveal">
+              <div>
+                <span class="tag">Device management</span>
+                <h3>Registered devices, full visibility.</h3>
+                <p>Inspect activity, set server preferences, and revoke access — all from the account dashboard.</p>
               </div>
-              <div class="card-row">
-                <div class="icon-circle" aria-hidden="true">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-                </div>
-                <div>
-                  <h3>Install the SecureWave app</h3>
-                  <p>The app handles tunnel setup, traffic routing, diagnostics, and protocol selection on your device.</p>
-                </div>
+              <svg viewBox="0 0 180 135" xmlns="http://www.w3.org/2000/svg">
+                <line x1="90" y1="68" x2="30" y2="28" stroke="#00b4ff" stroke-width="1"/>
+                <line x1="90" y1="68" x2="150" y2="28" stroke="#1a3055" stroke-dasharray="3 3"/>
+                <line x1="90" y1="68" x2="30" y2="108" stroke="#1a3055" stroke-dasharray="3 3"/>
+                <circle cx="90" cy="68" r="16" fill="#060c18" stroke="#00b4ff"/>
+                <rect x="8" y="14" width="60" height="22" fill="#060c18" stroke="#00b4ff"/>
+                <text x="14" y="28" font-family="JetBrains Mono, monospace" font-size="8" fill="#d0e8ff">MacBook</text>
+                <rect x="118" y="14" width="54" height="22" fill="#060c18" stroke="#1a3055"/>
+                <text x="124" y="28" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">iPhone</text>
+                <rect x="8" y="96" width="60" height="22" fill="#060c18" stroke="#1a3055"/>
+                <text x="14" y="110" font-family="JetBrains Mono, monospace" font-size="8" fill="#ff4060">revoked</text>
+              </svg>
+            </div>
+            <div class="feat-sub reveal">
+              <div>
+                <span class="tag">Diagnostics + billing</span>
+                <h3>Health and invoices inside the product.</h3>
+                <p>Leak testing, status, and plan invoices stay beside device controls — not behind a separate portal.</p>
               </div>
-              <div class="card-row">
-                <div class="icon-circle" aria-hidden="true">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/><path d="M12 4v16"/></svg>
-                </div>
-                <div>
-                  <h3>Connect in one tap</h3>
-                  <p>SecureWave selects the best route available and keeps your account settings accessible from the web dashboard.</p>
-                </div>
-              </div>
+              <svg viewBox="0 0 180 135" xmlns="http://www.w3.org/2000/svg">
+                <line x1="10" y1="52" x2="170" y2="52" stroke="#0f1e3a"/>
+                <path d="M10,52 Q22,30 34,52 Q46,74 58,52 Q70,34 82,52 Q94,70 106,52 Q118,32 130,52 Q142,72 154,52 Q162,44 170,52" stroke="#00b4ff" stroke-width="1.5" fill="none"/>
+                <rect x="10" y="76" width="56" height="16" fill="none" stroke="#00e5a0"/>
+                <text x="16" y="87" font-family="JetBrains Mono, monospace" font-size="8" fill="#00e5a0">leak: pass</text>
+                <rect x="10" y="104" width="160" height="6" fill="#1a3055"/>
+                <rect x="10" y="104" width="102" height="6" fill="#00b4ff" opacity="0.6"/>
+                <text x="10" y="126" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">3.2 / 5 GB</text>
+                <text x="170" y="126" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="8" fill="#4a72a8">Basic</text>
+              </svg>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div class="highlight-panel card-strong">
-            <span class="eyebrow">Built for real use</span>
-            <h3>Ideal for remote work, hotel Wi‑Fi, shared networks, and daily browsing.</h3>
-            <p>SecureWave keeps the website focused on account clarity while the app handles the VPN tunnel itself. That separation makes troubleshooting faster and onboarding simpler.</p>
-            <ul class="list">
-              <li>Download page shows live builds, Apple handoffs, and platform status in one place.</li>
-              <li>Simple plan selection without confusing upsell screens.</li>
-              <li>Support pages point directly to the most useful recovery actions.</li>
+      <!-- ── 03 PRICING ───────────────────────────────────── -->
+      <section class="pricing">
+        <div class="price-left reveal">
+          <p class="sec-label"><span class="n">03</span> Pricing</p>
+          <h2>Install first. Upgrade when it earns it.</h2>
+          <p>Basic gives enough room to verify the product path before moving to a paid plan. 5 GB monthly. No card required.</p>
+          <a class="price-link" href="/subscription.html">Compare all plans <span>&rarr;</span></a>
+        </div>
+        <div class="price-right">
+          <div class="plan reveal">
+            <span class="plan-name">Basic</span>
+            <span class="plan-price">Free</span>
+            <span class="plan-cycle">Forever &#183; No card needed</span>
+            <ul class="plan-feats">
+              <li>5 GB monthly transfer</li>
+              <li>WireGuard routing</li>
+              <li>Device management</li>
+              <li>Diagnostics + leak test</li>
+              <li class="off">Priority support</li>
+              <li class="off">Unlimited transfer</li>
             </ul>
           </div>
-        </div>
-      </section>
-
-      <section class="section-tight">
-        <div class="container content-stack">
-          <div class="section-header">
-            <span class="eyebrow">Core product promises</span>
-            <h2>Everything you need to stay secure.</h2>
-            <p class="text-measure">The experience is designed to feel minimal, but the message is concrete: strong protocols, transparent account management, and a clear path to support.</p>
-          </div>
-          <div class="metric-grid">
-            <article class="card">
-              <h3>Modern protocol stack</h3>
-              <p>WireGuard-first behavior with support for alternative protocols where your device or network requires them.</p>
-            </article>
-            <article class="card">
-              <h3>Direct release downloads</h3>
-              <p>Platform downloads come from one maintained release source so desktop users can install quickly without guesswork.</p>
-            </article>
-            <article class="card">
-              <h3>Actionable support</h3>
-              <p>Diagnostics, settings, and help pages point to the same next step instead of scattering users across disconnected UI states.</p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="download">
-        <div class="container">
-          <div class="cta-band card-strong">
-            <div class="content-stack">
-              <span class="eyebrow">Download SecureWave</span>
-              <h2>Install the app and connect in minutes.</h2>
-              <p class="text-measure">Choose your platform below. Create an account first if you want your dashboard and plan ready when the app opens.</p>
-            </div>
-            <div class="download-grid">
-              <a class="btn download-btn" href="/download.html">macOS</a>
-              <a class="btn download-btn" href="/download.html">Windows</a>
-              <a class="btn download-btn" href="/download.html">Linux</a>
-              <a class="btn download-btn" href="/download.html">Android</a>
-              <a class="btn download-btn" href="/apple-review.html">iOS status</a>
-            </div>
+          <div class="plan pro reveal" style="transition-delay: .1s;">
+            <span class="plan-badge">Most used</span>
+            <span class="plan-name">Pro</span>
+            <span class="plan-price">$8</span>
+            <span class="plan-cycle">Per month &#183; Billed annually</span>
+            <ul class="plan-feats">
+              <li>Unlimited transfer</li>
+              <li>WireGuard routing</li>
+              <li>Device management</li>
+              <li>Diagnostics + leak test</li>
+              <li>Priority support</li>
+            </ul>
           </div>
         </div>
       </section>
     </main>
 
-    <footer class="footer">
-      <div class="container footer-top">
-        <div class="footer-brand">
-          <strong>SecureWave VPN</strong>
-          <p>Secure VPN access with a calm account experience, a direct app download flow, and clear next steps for every page.</p>
+    <!-- ── FOOTER ─────────────────────────────────────────── -->
+    <footer class="sw-footer">
+      <div class="sw-footer-cols">
+        <div class="sw-footer-col">
+          <p class="sw-footer-brand">
+            <img src="/img/logo.svg?v=20260727" alt="SecureWave logo">
+            <span>Secure<em>Wave</em></span>
+          </p>
+          <p class="sw-footer-tag">Private VPN access with direct downloads, device controls, diagnostics, and billing in one product path.</p>
         </div>
-        <div class="footer-columns">
-          <div class="footer-column">
-            <div class="footer-title">Product</div>
-            <a href="/services.html">Services</a>
-            <a href="/subscription.html">Plans</a>
-            <a href="/vpn.html">VPN app</a>
-            <a href="/apple-review.html">Apple review</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Company</div>
-            <a href="/about.html">About</a>
-            <a href="/contact.html">Support</a>
-            <a href="/dashboard.html">Dashboard</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Legal</div>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/terms.html">Terms</a>
-          </div>
+        <div class="sw-footer-col">
+          <p class="sw-footer-title">Product</p>
+          <a href="/services.html">Features</a>
+          <a href="/subscription.html">Pricing</a>
+          <a href="/download.html">Download</a>
+        </div>
+        <div class="sw-footer-col">
+          <p class="sw-footer-title">Support</p>
+          <a href="/diagnostics.html">Status</a>
+          <a href="/diagnostics.html">Diagnostics</a>
+          <a href="/leak_test.html">Leak test</a>
+          <a href="/contact.html">Contact</a>
+        </div>
+        <div class="sw-footer-col">
+          <p class="sw-footer-title">Company</p>
+          <a href="/about.html">About</a>
+          <a href="/privacy.html">Privacy</a>
+          <a href="/terms.html">Terms</a>
         </div>
       </div>
-      <div class="container footer-bottom">
-        <span data-year>2026</span> SecureWave. All rights reserved.
+      <div class="sw-footer-bottom">
+        <span>&copy; 2026 SecureWave</span>
+        <span>Private routing and account control</span>
       </div>
     </footer>
   </div>
 
-  <script src="/js/bootstrap.bundle.min.js" defer></script>
-  <script src="/js/site.js" defer></script>
+  <script src="/js/site.js?v=20260727" defer></script>
 </body>
 </html>

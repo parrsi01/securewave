@@ -46,3 +46,30 @@ def test_active_website_brand_palette_is_navy_blue_cyan_not_purple():
     for path in active_assets:
         content = path.read_text(encoding="utf-8").lower()
         assert not any(token in content for token in forbidden), path
+
+
+def test_restored_homepage_is_wireguard_only_and_home_route_matches():
+    index = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    home = (ROOT / "static/home.html").read_text(encoding="utf-8")
+
+    assert home == index
+    assert "WireGuard-only transport" in index
+    assert "WireGuard protocol" in index
+    assert "OpenVPN" not in index
+    assert "IKEv2" not in index
+    assert "3 protocol paths" not in index
+
+
+def test_public_pages_do_not_link_to_removed_home_download_anchor():
+    for page in (ROOT / "static").glob("*.html"):
+        content = page.read_text(encoding="utf-8")
+        assert 'href="/#download"' not in content, page
+
+
+def test_download_page_keeps_three_platform_release_truth():
+    download = (ROOT / "static/download.html").read_text(encoding="utf-8")
+
+    assert "WireGuard-only Linux ARM64 beta is available" in download
+    assert "macOS and Windows builds are coming soon" in download
+    assert "Only the verified Linux ARM64 beta is downloadable today" in download
+    assert "Mac/Xcode handoff kit is available" not in download

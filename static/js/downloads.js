@@ -158,7 +158,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
       return;
     }
-    grid.innerHTML = downloads.map(renderCard).join('');
+    grid.innerHTML = downloads
+      .map((entry) => renderCard({
+        ...entry,
+        version: entry.version || data.version,
+      }))
+      .join('');
   } catch (_) {
     if (grid) {
       grid.innerHTML = `
