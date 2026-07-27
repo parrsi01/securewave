@@ -7,7 +7,7 @@
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>Dashboard - SecureWave</title>
   <meta name="description" content="Use the SecureWave dashboard to review plan status, downloads, and account actions." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260727">
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260727-2">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260727">
 </head>
 <body>
@@ -50,18 +50,39 @@
           </div>
 
           <aside class="card layout-side">
-            <span class="eyebrow">Account status</span>
+            <span class="eyebrow">Account details</span>
+            <div class="form-message visible" data-dashboard-message aria-live="polite">Loading your account details…</div>
+            <div class="info-row">
+              <span class="info-label">Environment</span>
+              <span class="info-value" data-account-environment>—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Email</span>
+              <span class="info-value info-value-wrap" data-account-email>—</span>
+            </div>
             <div class="info-row" style="margin-top: var(--space-4);">
               <span class="info-label">Plan</span>
               <span class="info-value" data-plan-label>Starter (Free)</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Connection</span>
-              <span class="info-value">Ready in app</span>
+              <span class="info-label">Account</span>
+              <span class="info-value" data-account-status>—</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Preferred route</span>
-              <span class="info-value">Auto-select</span>
+              <span class="info-label">Email verification</span>
+              <span class="info-value" data-email-verified>—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Two-factor security</span>
+              <span class="info-value" data-two-factor>—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Member since</span>
+              <span class="info-value" data-created-at>—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Last sign in</span>
+              <span class="info-value" data-last-login>—</span>
             </div>
           </aside>
         </div>
@@ -120,6 +141,6 @@
 
   <script src="/js/bootstrap.bundle.min.js" defer></script>
   <script src="/js/site.js?v=20260727" defer></script>
-  <script src="/js/dashboard.js" defer></script>
+  <script src="/js/dashboard.js?v=20260727-2" defer></script>
 </body>
 </html>

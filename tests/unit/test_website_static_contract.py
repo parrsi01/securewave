@@ -14,6 +14,64 @@ def test_public_static_pages_use_non_error_session_probe():
     assert "fetch('/api/auth/me'" not in auth
 
 
+def test_browser_auth_handles_two_factor_verification_and_session_state():
+    auth = (ROOT / "static/js/auth.js").read_text(encoding="utf-8")
+    login = (ROOT / "static/login.html").read_text(encoding="utf-8")
+    register = (ROOT / "static/register.html").read_text(encoding="utf-8")
+
+    assert "data.requires_2fa" in auth
+    assert "totp_code" in auth
+    assert "data?.error?.message" in auth
+    assert "action === 'register' && !data.access_token" in auth
+    assert "hasAuthenticatedSession()" in auth
+    assert "data-totp-field" in login
+    assert "autocomplete=\"current-password\"" in login
+    assert "autocomplete=\"new-password\"" in register
+
+
+def test_staging_account_portal_is_explicit_and_same_origin_after_selection():
+    auth = (ROOT / "static/js/auth.js").read_text(encoding="utf-8")
+    login = (ROOT / "static/login.html").read_text(encoding="utf-8")
+    nginx = (ROOT / "deploy/hetzner/staging-api.nginx").read_text(encoding="utf-8")
+
+    assert 'href="https://staging-api.securewaveapp.com/login"' in login
+    assert "data-staging-login" in login
+    assert "staging-api.securewaveapp.com" in auth
+    assert "root /var/www/securewave-staging;" in nginx
+    assert "try_files $uri $uri.html /404.html;" in nginx
+    assert "location ^~ /downloads/" in nginx
+    assert "return 404;" in nginx
+    assert "proxy_pass http://127.0.0.1:8080;" in nginx
+
+
+def test_dashboard_uses_supported_account_routes_without_obsolete_requests():
+    dashboard = (ROOT / "static/js/dashboard.js").read_text(encoding="utf-8")
+    html = (ROOT / "static/dashboard.html").read_text(encoding="utf-8")
+
+    session_index = dashboard.index("fetch('/api/auth/session'")
+    details_index = dashboard.index("fetch('/api/auth/me'")
+    dashboard_index = dashboard.index("fetch('/api/dashboard/info'")
+    assert session_index < details_index < dashboard_index
+    assert "/api/vpn/devices" not in dashboard
+    assert "/api/vpn/servers" not in dashboard
+    assert "temporarily unavailable" in dashboard
+    assert "data-account-email" in html
+    assert "data-email-verified" in html
+    assert "data-two-factor" in html
+    assert "data-dashboard-message" in html
+
+
+def test_account_pages_offer_only_three_current_platform_choices():
+    for filename in ("login.html", "register.html"):
+        content = (ROOT / "static" / filename).read_text(encoding="utf-8")
+        assert content.count('class="btn download-btn"') == 3
+        assert "macOS soon" in content
+        assert "Windows soon" in content
+        assert "Linux beta" in content
+        assert "Android" not in content
+        assert "iOS" not in content
+
+
 def test_contact_form_posts_to_existing_submit_endpoint():
     contact = (ROOT / "static/js/contact.js").read_text(encoding="utf-8")
 

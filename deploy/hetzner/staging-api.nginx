@@ -36,7 +36,12 @@ server {
         proxy_read_timeout 120s;
     }
 
-    location / {
+    location ^~ /downloads/ {
         return 404;
+    }
+
+    location / {
+        root /var/www/securewave-staging;
+        try_files $uri $uri.html /404.html;
     }
 }
