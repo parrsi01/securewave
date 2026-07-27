@@ -68,8 +68,12 @@ def test_public_pages_do_not_link_to_removed_home_download_anchor():
 
 def test_download_page_keeps_three_platform_release_truth():
     download = (ROOT / "static/download.html").read_text(encoding="utf-8")
+    downloads_js = (ROOT / "static/js/downloads.js").read_text(encoding="utf-8")
 
     assert "WireGuard-only Linux ARM64 beta is available" in download
     assert "macOS and Windows builds are coming soon" in download
     assert "Only the verified Linux ARM64 beta is downloadable today" in download
     assert "Mac/Xcode handoff kit is available" not in download
+    assert downloads_js.index("fetch('/downloads/manifest.json'") < downloads_js.index(
+        "fetch('/api/downloads')"
+    )

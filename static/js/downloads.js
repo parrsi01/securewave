@@ -71,13 +71,13 @@ async function safeJson(res) {
 }
 
 async function fetchDownloadData() {
-  const apiRes = await fetch('/api/downloads');
-  const apiData = await safeJson(apiRes);
-  if (apiRes.ok && Array.isArray(apiData.downloads)) return apiData;
-
   const staticRes = await fetch('/downloads/manifest.json', { cache: 'no-store' });
   const staticData = await safeJson(staticRes);
   if (staticRes.ok && Array.isArray(staticData.downloads)) return staticData;
+
+  const apiRes = await fetch('/api/downloads');
+  const apiData = await safeJson(apiRes);
+  if (apiRes.ok && Array.isArray(apiData.downloads)) return apiData;
 
   return { downloads: [] };
 }
