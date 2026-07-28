@@ -101,7 +101,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
-Depends: wireguard-tools, iproute2, iptables, nftables, acl, systemd, systemd-resolved
+Depends: wireguard-tools, iproute2, iptables, nftables, acl, systemd, systemd-resolved, libgtk-3-0, libsecret-1-0, libegl1, libgles2
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave VPN desktop client
 CONTROL

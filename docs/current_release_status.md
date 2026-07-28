@@ -7,8 +7,8 @@ Last audited: 2026-07-28 UTC
 - Branch: `codex/linux-arm64-wireguard-beta-final`
 - Release-lineage base: `6e0517cc379bd6f64b123297d5dc756a6453d9c1`.
   The authoritative final source is the exact clean workflow head recorded in
-  the next package's embedded `source-sha`; no package for this final branch
-  head has been retained or published yet.
+  the package's embedded `source-sha`; local packages are certification
+  evidence only and no package for this final branch has been published.
 - The candidate includes the checksum-generation fix in
   `securewave_app/scripts/build_deb.sh`.
 - Application/package version: `4.0.0+4`

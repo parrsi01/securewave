@@ -154,7 +154,11 @@ jobs:
             nftables \
             acl \
             systemd \
-            systemd-resolved
+            systemd-resolved \
+            libgtk-3-0 \
+            libsecret-1-0 \
+            libegl1 \
+            libgles2
           do
             printf '%s\n' "$depends" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -Fx "$package" >/dev/null
             printf 'depends-ok %s\n' "$package"

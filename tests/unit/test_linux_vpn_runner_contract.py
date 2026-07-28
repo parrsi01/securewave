@@ -202,7 +202,7 @@ def test_linux_package_installs_privileged_helper_service_and_dependencies():
     assert "groupdel securewave" in build
     assert "rm -f /run/securewave/helper.sock" in build
     assert (
-        "Depends: wireguard-tools, iproute2, iptables, nftables, acl, systemd, systemd-resolved"
+        "Depends: wireguard-tools, iproute2, iptables, nftables, acl, systemd, systemd-resolved, libgtk-3-0, libsecret-1-0, libegl1, libgles2"
         in build
     )
     assert "strongswan-swanctl" not in build
