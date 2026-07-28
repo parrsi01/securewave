@@ -10,6 +10,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 try:
     from scripts import linux_app_vpn_tunnel_proof as certification
@@ -18,6 +19,38 @@ except ModuleNotFoundError:  # Direct execution from scripts/.
 
 
 PROTOCOL = "wireguard"
+
+
+def _redact_error_text(value: str, payload: dict | None) -> str:
+    """Keep diagnostics useful without echoing credentials from a response."""
+    redacted = value
+    if payload:
+        for key in ("email", "password"):
+            secret = payload.get(key)
+            if isinstance(secret, str) and secret:
+                redacted = redacted.replace(secret, "[redacted]")
+    return redacted[:240]
+
+
+def _safe_error_body(error: urllib.error.HTTPError, payload: dict | None) -> dict[str, str]:
+    """Extract only bounded, non-secret fields from an HTTP error response."""
+    safe: dict[str, str] = {}
+    try:
+        raw_body = error.read().decode("utf-8", errors="replace")
+        decoded: Any = json.loads(raw_body) if raw_body else {}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        decoded = {}
+
+    if isinstance(decoded, dict):
+        for key in ("detail", "code", "message"):
+            value = decoded.get(key)
+            if isinstance(value, str) and value.strip():
+                safe[f"_error_{key}"] = _redact_error_text(value.strip(), payload)
+
+    request_id = error.headers.get("X-Request-ID") or error.headers.get("X-Request-Id")
+    if request_id:
+        safe["_request_id"] = _redact_error_text(str(request_id), None)
+    return safe
 
 
 def _json_request(
@@ -42,12 +75,24 @@ def _json_request(
             body = response.read().decode("utf-8")
             return response.status, json.loads(body) if body else {}
     except urllib.error.HTTPError as error:
-        return error.code, {}
+        return error.code, _safe_error_body(error, payload)
 
 
-def _require(status: int, expected: set[int], label: str) -> None:
+def _require(status: int, expected: set[int], label: str, body: dict | None = None) -> None:
     if status not in expected:
-        raise RuntimeError(f"{label} failed with HTTP {status}")
+        context: list[str] = []
+        if body:
+            for key, label_name in (
+                ("_error_detail", "detail"),
+                ("_error_code", "code"),
+                ("_error_message", "message"),
+                ("_request_id", "request_id"),
+            ):
+                value = body.get(key)
+                if isinstance(value, str) and value:
+                    context.append(f"{label_name}={value}")
+        suffix = f" ({', '.join(context)})" if context else ""
+        raise RuntimeError(f"{label} failed with HTTP {status}{suffix}")
 
 
 def _load_credentials(auth_file: str | None) -> tuple[str, str]:
@@ -106,34 +151,34 @@ def main(argv: list[str] | None = None) -> int:
     if args.profile_repeats < 1:
         parser.error("--profile-repeats must be positive")
 
-    status, _ = _json_request("GET", f"{api_base}/health")
-    _require(status, {200}, "health")
+    status, body = _json_request("GET", f"{api_base}/health")
+    _require(status, {200}, "health", body)
 
     status, body = _json_request(
         "POST",
         f"{api_base}/auth/login",
         payload={"email": email, "password": password},
     )
-    _require(status, {200}, "login")
+    _require(status, {200}, "login", body)
     token = body.get("access_token")
     if not isinstance(token, str) or not token:
         raise RuntimeError("login succeeded without an access token")
 
-    status, _ = _json_request("GET", f"{api_base}/auth/me", token=token)
-    _require(status, {200}, "account")
+    status, body = _json_request("GET", f"{api_base}/auth/me", token=token)
+    _require(status, {200}, "account", body)
     status, plan = _json_request("GET", f"{api_base}/user/plan", token=token)
-    _require(status, {200}, "usage plan")
+    _require(status, {200}, "usage plan", plan)
     status, servers = _json_request(
         "GET", f"{api_base}/vpn/servers?device_type=linux", token=token
     )
-    _require(status, {200}, "server inventory")
+    _require(status, {200}, "server inventory", servers)
     server_items = servers.get("servers") or []
     if not server_items:
         raise RuntimeError("server inventory returned zero servers")
 
     profile_statuses: list[int] = []
     for _ in range(args.profile_repeats):
-        status, _ = _json_request(
+        status, body = _json_request(
             "POST",
             f"{api_base}/vpn/profile",
             token=token,
@@ -145,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
                 or server_items[0].get("server_id"),
             },
         )
-        _require(status, {200}, "WireGuard profile")
+        _require(status, {200}, "WireGuard profile", body)
         profile_statuses.append(status)
 
     print(

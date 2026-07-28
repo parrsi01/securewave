@@ -1,4 +1,6 @@
 import json
+import io
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -171,3 +173,66 @@ def test_live_smoke_uses_stable_login_and_redacts_output(tmp_path, monkeypatch, 
     ):
         assert secret not in output
     assert not any(url.endswith("/auth/register") for _, url, _, _ in calls)
+
+
+def test_http_error_diagnostic_keeps_safe_fields_and_request_id(monkeypatch):
+    error = urllib.error.HTTPError(
+        STAGING_API,
+        401,
+        "Unauthorized",
+        {"X-Request-ID": "req-login-123"},
+        io.BytesIO(
+            json.dumps(
+                {
+                    "detail": "Invalid credentials",
+                    "code": "invalid_credentials",
+                    "access_token": "must-not-be-kept",
+                }
+            ).encode("utf-8")
+        ),
+    )
+
+    class _Opener:
+        def open(self, request, timeout):
+            raise error
+
+    monkeypatch.setattr(smoke.urllib.request, "build_opener", lambda _: _Opener())
+
+    status, body = smoke._json_request(
+        "POST",
+        f"{STAGING_API}/auth/login",
+        payload={"email": "stable@example.test", "password": "StableSecret!A1"},
+    )
+
+    assert status == 401
+    assert body == {
+        "_error_detail": "Invalid credentials",
+        "_error_code": "invalid_credentials",
+        "_request_id": "req-login-123",
+    }
+    assert "must-not-be-kept" not in json.dumps(body)
+
+
+def test_http_error_diagnostic_redacts_credentials_and_require_explains_failure():
+    error = urllib.error.HTTPError(
+        STAGING_API,
+        403,
+        "Forbidden",
+        {},
+        io.BytesIO(
+            b'{"detail":"Please verify stable@example.test using StableSecret!A1"}'
+        ),
+    )
+
+    body = smoke._safe_error_body(
+        error,
+        {"email": "stable@example.test", "password": "StableSecret!A1"},
+    )
+
+    assert body == {"_error_detail": "Please verify [redacted] using [redacted]"}
+    with pytest.raises(RuntimeError, match="login failed with HTTP 403") as raised:
+        smoke._require(403, {200}, "login", body)
+    message = str(raised.value)
+    assert "Please verify [redacted] using [redacted]" in message
+    assert "stable@example.test" not in message
+    assert "StableSecret!A1" not in message
