@@ -88,14 +88,23 @@ class Check:
 
 
 def _run(argv: Iterable[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # nosec B603
-        list(argv),
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=10,
-    )
+    command = list(argv)
+    try:
+        return subprocess.run(  # nosec B603
+            command,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=127,
+            stdout="",
+            stderr=f"{command[0]} is not installed",
+        )
 
 
 def _ikev2_rule_targets_table_210(line: str) -> bool:
@@ -1058,49 +1067,95 @@ def check_residue() -> list[Check]:
         )
     )
 
-    dns = _run(
-        ["nmcli", "-t", "-f", "GENERAL.DEVICE,IP4.DNS,IP6.DNS", "device", "show"]
-    )
     stale_dns_devices: set[str] = set()
-    current_device = ""
-    for line in dns.stdout.splitlines():
-        if line.startswith("GENERAL.DEVICE:"):
-            current_device = line.split(":", 1)[1]
-            continue
-        if line.startswith(("IP4.DNS", "IP6.DNS")) and line.split(":", 1)[-1]:
-            if (
-                current_device == WIREGUARD_INTERFACE
-                or current_device == OPENVPN_INTERFACE
-                or current_device == IKEV2_INTERFACE
-            ):
-                stale_dns_devices.add(current_device)
+    if shutil.which("nmcli"):
+        dns = _run(
+            [
+                "nmcli",
+                "-t",
+                "-f",
+                "GENERAL.DEVICE,IP4.DNS,IP6.DNS",
+                "device",
+                "show",
+            ]
+        )
+        current_device = ""
+        for line in dns.stdout.splitlines():
+            if line.startswith("GENERAL.DEVICE:"):
+                current_device = line.split(":", 1)[1]
+                continue
+            if line.startswith(("IP4.DNS", "IP6.DNS")) and line.split(":", 1)[-1]:
+                if current_device in {
+                    WIREGUARD_INTERFACE,
+                    OPENVPN_INTERFACE,
+                    IKEV2_INTERFACE,
+                }:
+                    stale_dns_devices.add(current_device)
+        dns_inspection_ok = dns.returncode == 0
+        dns_inspector = "NetworkManager"
+    else:
+        dns_statuses = {
+            interface: _run(["resolvectl", "status", interface])
+            for interface in (
+                WIREGUARD_INTERFACE,
+                OPENVPN_INTERFACE,
+                IKEV2_INTERFACE,
+            )
+        }
+        dns_inspection_ok = all(
+            result.returncode == 0 for result in dns_statuses.values()
+        )
+        for interface, result in dns_statuses.items():
+            detail = f"{result.stdout}\n{result.stderr}"
+            if "DNS Servers:" in detail and "No such device" not in detail:
+                stale_dns_devices.add(interface)
+        dns_inspector = "systemd-resolved"
     checks.append(
         Check(
             "residue:vpn_dns",
-            dns.returncode == 0 and not stale_dns_devices,
+            dns_inspection_ok and not stale_dns_devices,
             "no DNS state remains on SecureWave tunnel interfaces"
-            if dns.returncode == 0 and not stale_dns_devices
+            if dns_inspection_ok and not stale_dns_devices
             else (
                 f"DNS state remains on {len(stale_dns_devices)} tunnel interfaces; server addresses redacted"
                 if stale_dns_devices
-                else "NetworkManager DNS inspection failed"
+                else f"{dns_inspector} DNS inspection failed"
             ),
         )
     )
 
-    active = _run(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"])
-    active_ikev2 = [
-        line
-        for line in active.stdout.splitlines()
-        if line == f"{IKEV2_CONNECTION}:vpn"
-    ]
+    if shutil.which("nmcli"):
+        active = _run(
+            ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"]
+        )
+        active_ikev2 = [
+            line
+            for line in active.stdout.splitlines()
+            if line == f"{IKEV2_CONNECTION}:vpn"
+        ]
+        nm_inspection_ok = active.returncode == 0
+        nm_detail = (
+            f"no active {IKEV2_CONNECTION} NetworkManager VPN"
+            if nm_inspection_ok and not active_ikev2
+            else "\n".join(active_ikev2)
+            or active.stderr.strip()
+            or "nmcli active connection check failed"
+        )
+    else:
+        active = _run(["pgrep", "-x", "NetworkManager"])
+        active_ikev2 = []
+        nm_running = active.returncode == 0 and bool(active.stdout.strip())
+        nm_inspection_ok = active.returncode in {0, 1} and not nm_running
+        nm_detail = (
+            "NetworkManager is absent; no active IKEv2 connection can remain"
+            if nm_inspection_ok
+            else "NetworkManager is running but nmcli is unavailable"
+        )
     checks.append(
         Check(
             "residue:ikev2_nm_connection",
-            active.returncode == 0 and not active_ikev2,
-            f"no active {IKEV2_CONNECTION} NetworkManager VPN"
-            if active.returncode == 0 and not active_ikev2
-            else "\n".join(active_ikev2) or active.stderr.strip() or "nmcli active connection check failed",
+            nm_inspection_ok and not active_ikev2,
+            nm_detail,
         )
     )
 

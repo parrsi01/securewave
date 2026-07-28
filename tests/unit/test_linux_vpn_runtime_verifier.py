@@ -31,6 +31,18 @@ def test_runtime_tool_contract_includes_nftables_inspection():
     assert "nft" in verifier.REQUIRED_TOOLS
 
 
+def test_run_reports_missing_optional_command_without_crashing(monkeypatch):
+    def missing_command(*args, **kwargs):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(verifier.subprocess, "run", missing_command)
+
+    result = verifier._run(["nmcli", "--version"])
+
+    assert result.returncode == 127
+    assert result.stderr == "nmcli is not installed"
+
+
 def test_build_artifact_check_reports_missing_build(monkeypatch, tmp_path):
     _, debug_bundle = use_build_bundles(monkeypatch, tmp_path)
 
@@ -316,6 +328,20 @@ def test_residue_privileged_checks_accept_clean_wireguard_and_ikev2_status(monke
 
     assert checks["residue:wireguard_firewall"].ok
     assert checks["residue:ikev2_sa"].ok
+
+
+def test_residue_uses_systemd_resolved_when_network_manager_is_absent(monkeypatch):
+    _mock_clean_disconnected_runtime(
+        monkeypatch,
+        _clean_disconnected_ikev2_status(),
+    )
+    monkeypatch.setattr(verifier.shutil, "which", lambda command: None)
+
+    checks = {check.name: check for check in verifier.check_residue()}
+
+    assert checks["residue:vpn_dns"].ok
+    assert checks["residue:ikev2_nm_connection"].ok
+    assert "NetworkManager is absent" in checks["residue:ikev2_nm_connection"].detail
 
 
 def test_residue_interfaces_fail_closed_when_all_links_inspection_fails(monkeypatch):
