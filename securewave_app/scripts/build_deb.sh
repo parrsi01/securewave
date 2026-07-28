@@ -312,12 +312,54 @@ securewave_openvpn_pids() {
     fi
   done
 }
+pref220_ikev2_rule_present() {
+  local family
+  local rules
+  command -v ip >/dev/null 2>&1 || return 2
+  for family in -4 -6; do
+    if ! rules="$(ip "$family" -N rule show 2>&1)"; then
+      return 2
+    fi
+    if awk '
+        NF == 5 && $1 == "220:" && $2 == "from" && $3 == "all" &&
+          ($4 == "lookup" || $4 == "table") && $5 == "220" { found = 1 }
+        END { exit found ? 0 : 1 }
+      ' <<< "$rules"; then
+      return 0
+    fi
+  done
+  return 1
+}
+wireguard_owned_policy_rule_present() {
+  local rules="$1"
+  awk \
+    -v policy_priority="32764:" \
+    -v suppress_priority="32765:" \
+    -v table="51820" '
+      function is_mark(value) {
+        return value == "0xca6c" || value == "0xca6c/0xffffffff" ||
+               value == "51820" || value == "51820/0xffffffff"
+      }
+      {
+        policy = NF == 8 && $1 == policy_priority &&
+          (($2 == "not" && $3 == "from" && $4 == "all" && $5 == "fwmark") ||
+           ($2 == "from" && $3 == "all" && $4 == "not" && $5 == "fwmark")) &&
+          is_mark($6) && ($7 == "lookup" || $7 == "table") && $8 == table
+        suppress = NF == 7 && $1 == suppress_priority && $2 == "from" &&
+          $3 == "all" && ($4 == "lookup" || $4 == "table") &&
+          $5 == "main" && $6 == "suppress_prefixlength" && $7 == "0"
+        if (policy || suppress) found = 1
+      }
+      END { exit found ? 0 : 1 }
+    ' <<< "$rules"
+}
 offline_owned_runtime_clean() {
   local connections
   local family
   local ip6tables_rules
   local iptables_rules
   local links
+  local pref220_status
   local routes
   local safe_rule_count
   local -a safe_rule_counts=()
@@ -331,6 +373,13 @@ offline_owned_runtime_clean() {
   command -v iptables-save >/dev/null 2>&1 || return 1
   command -v ip6tables-save >/dev/null 2>&1 || return 1
   command -v resolvectl >/dev/null 2>&1 || return 1
+  if pref220_ikev2_rule_present; then
+    echo "Unowned pref-220/table-220 IKEv2 routing state remains; refusing package removal." >&2
+    return 1
+  else
+    pref220_status=$?
+    [[ "$pref220_status" == "1" ]] || return 1
+  fi
   links="$(ip -o link show)" || return 1
   if awk -F: '
       NF >= 2 {
@@ -352,6 +401,16 @@ offline_owned_runtime_clean() {
   for family in -4 -6; do
     routes="$(ip "$family" -o route show table all)" || return 1
     if awk '
+        {
+          for (i = 1; i < NF; i++) {
+            if ($i == "table" && $(i + 1) == "51820") found = 1
+          }
+        }
+        END { exit found ? 0 : 1 }
+      ' <<< "$routes"; then
+      return 1
+    fi
+    if awk '
         /(^|[[:space:]])dev[[:space:]]+(sw-wg|tun-securewave|nm-xfrm-sw)([[:space:]]|$)/ {
           found = 1
         }
@@ -372,16 +431,7 @@ offline_owned_runtime_clean() {
       return 1
     fi
     rules="$(ip "$family" -N rule show)" || return 1
-    if awk '
-        {
-          for (i = 1; i < NF; i++) {
-            if (($i == "lookup" || $i == "table") && $(i + 1) == "51820") {
-              found = 1
-            }
-          }
-        }
-        END { exit found ? 0 : 1 }
-      ' <<< "$rules"; then
+    if wireguard_owned_policy_rule_present "$rules"; then
       return 1
     fi
     safe_rule_count="$(awk '
@@ -423,7 +473,7 @@ offline_owned_runtime_clean() {
     return 1
   fi
   resolved_status="$(resolvectl status)" || return 1
-  if grep -Eq '(^|[[:space:]])(sw-wg|tun-securewave|nm-xfrm-sw)([[:space:]]|$)' <<< "$resolved_status"; then
+  if grep -Eq '(^|[[:space:]()])(sw-wg|tun-securewave|nm-xfrm-sw)([[:space:]()]|$)' <<< "$resolved_status"; then
     return 1
   fi
   tables="$(nft list tables)" || return 1
@@ -435,10 +485,15 @@ offline_owned_runtime_clean() {
     return 1
   fi
   iptables_rules="$(iptables-save)" || return 1
-  grep -Fq 'wg-quick(8) rule for sw-wg' <<< "$iptables_rules" && return 1
+  if grep -Eq '^:SECUREWAVE_ADBLOCK([[:space:]]|$)|^-A [^ ]+ .* -j SECUREWAVE_ADBLOCK([[:space:]]|$)' <<< "$iptables_rules"; then
+    return 1
+  fi
+  grep -Eq -- '-m comment --comment "wg-quick\(8\) rule for sw-wg"' <<< "$iptables_rules" && return 1
+  grep -Eq -- '--comment "securewave-wireguard-ipv4-kill-switch-v1"' <<< "$iptables_rules" && return 1
   ip6tables_rules="$(ip6tables-save)" || return 1
-  grep -Fq 'wg-quick(8) rule for sw-wg' <<< "$ip6tables_rules" && return 1
-  grep -Fq 'securewave-ikev2-ipv6-block-v1' <<< "$ip6tables_rules" && return 1
+  grep -Eq -- '-m comment --comment "wg-quick\(8\) rule for sw-wg"' <<< "$ip6tables_rules" && return 1
+  grep -Eq -- '--comment "securewave-wireguard-ipv6-block-v1"' <<< "$ip6tables_rules" && return 1
+  grep -Eq -- '--comment "securewave-ikev2-ipv6-block-v1"' <<< "$ip6tables_rules" && return 1
   [[ ! -e /run/securewave/sw-wg.output-policy &&
      ! -e /run/securewave/sw-wg.endpoint-ips &&
      ! -e /run/securewave/ikev2-xfrm-if-id &&
@@ -464,6 +519,16 @@ legacy_ikev2_residue=0
 legacy_openvpn_residue=0
 legacy_ikev2_residue_present && legacy_ikev2_residue=1
 legacy_openvpn_residue_present && legacy_openvpn_residue=1
+if pref220_ikev2_rule_present; then
+  echo "Unowned pref-220/table-220 IKEv2 routing state remains; refusing package removal." >&2
+  exit 1
+else
+  pref220_status=$?
+  if [[ "$pref220_status" != "1" ]]; then
+    echo "Unable to inspect pref-220/table-220 IKEv2 routing state; refusing package removal." >&2
+    exit 1
+  fi
+fi
 helper_service_active=0
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
   if systemctl is-active --quiet securewave-helper.service; then
@@ -476,7 +541,10 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
   fi
 fi
 if [[ "$helper_service_active" == "1" && -x "$HELPER" && -x "$HELPERD" ]]; then
-  helper_request wireguard.cleanup
+  if ! helper_request wireguard.cleanup; then
+    echo "SecureWave WireGuard cleanup failed; refusing package removal." >&2
+    exit 1
+  fi
   if [[ "$legacy_ikev2_residue" == "1" ]] && ! helper_request ikev2.cleanup; then
     if ! offline_owned_runtime_clean; then
       echo "SecureWave IKEv2 cleanup failed and offline ownership inspection was not clean; refusing package removal." >&2
@@ -488,14 +556,20 @@ elif ! offline_owned_runtime_clean; then
   exit 1
 fi
 if [[ "$legacy_openvpn_residue" == "1" ]]; then
-for proc_dir in /proc/[0-9]*; do
-  [[ -r "$proc_dir/comm" && -r "$proc_dir/cmdline" ]] || continue
-  [[ "$(cat "$proc_dir/comm" 2>/dev/null)" == "openvpn" ]] || continue
-  [[ "$(stat -c %u "$proc_dir" 2>/dev/null)" == "0" ]] || continue
-  if tr '\0' '\n' < "$proc_dir/cmdline" | grep -Eq '/(\.config/securewave|run/securewave)/securewave\.ovpn$'; then
-    kill -TERM "${proc_dir##*/}" >/dev/null 2>&1 || true
+if [[ ! -x "$HELPER" ]]; then
+  echo "SecureWave wrapper is unavailable for OpenVPN cleanup; refusing package removal." >&2
+  exit 1
+fi
+while IFS= read -r pid; do
+  [[ "$pid" =~ ^[0-9]+$ ]] || {
+    echo "SecureWave OpenVPN ownership check returned an invalid pid; refusing package removal." >&2
+    exit 1
+  }
+  if ! "$HELPER" openvpn-stop "$pid"; then
+    echo "SecureWave OpenVPN wrapper cleanup failed; refusing package removal." >&2
+    exit 1
   fi
-done
+done < <(securewave_openvpn_pids)
 for _ in $(seq 1 40); do
   [[ -z "$(securewave_openvpn_pids)" ]] && break
   sleep 0.25
@@ -536,6 +610,10 @@ if charon_nm_running; then
   echo "charon-nm is still running after SecureWave cleanup; another NetworkManager strongSwan VPN may be active. Refusing to remove shared charon-nm routing configuration." >&2
   exit 1
 fi
+fi
+if ! offline_owned_runtime_clean; then
+  echo "SecureWave post-cleanup ownership inspection was not clean; refusing package removal." >&2
+  exit 1
 fi
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
   if ! systemctl stop securewave-helper.service; then

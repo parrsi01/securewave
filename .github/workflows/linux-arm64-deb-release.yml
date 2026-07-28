@@ -202,7 +202,7 @@ jobs:
           predecessor_root="$(mktemp -d)"
           predecessor_deb="$RUNNER_TEMP/securewave-vpn-predecessor.deb"
           dpkg-deb -R "$DEB_OUTPUT" "$predecessor_root"
-          sed -i 's/^Version: .*/Version: 4.0.0+2/' "$predecessor_root/DEBIAN/control"
+          sed -i 's/^Version: .*/Version: 4.0.0+3/' "$predecessor_root/DEBIAN/control"
           dpkg-deb --root-owner-group --build "$predecessor_root" "$predecessor_deb" >/dev/null
 
           sudo env SUDO_USER="$USER" dpkg -i "$DEB_OUTPUT"
@@ -245,7 +245,7 @@ jobs:
           test ! -e /run/securewave/helper.sock
           test ! -e /usr/local/libexec/securewave-helperd
           sudo env SUDO_USER="$USER" dpkg -i "$predecessor_deb"
-          test "$(dpkg-query -W -f='${Version}' securewave-vpn)" = "4.0.0+2"
+          test "$(dpkg-query -W -f='${Version}' securewave-vpn)" = "4.0.0+3"
           sudo env SUDO_USER="$USER" dpkg -i "$DEB_OUTPUT"
           test "$(dpkg-query -W -f='${Version}' securewave-vpn)" = "$(dpkg-deb --field "$DEB_OUTPUT" Version)"
           systemctl is-active --quiet securewave-helper.service

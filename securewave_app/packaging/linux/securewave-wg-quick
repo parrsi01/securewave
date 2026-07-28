@@ -331,19 +331,29 @@ case "$action" in
 policy_rule_count() {
   local family="$1"
   ip "$family" -N rule show | awk \
-    -v table="$WIREGUARD_ROUTING_TABLE" '
-      $0 ~ /(^| )not( |$)/ &&
-      $0 ~ /(^| )fwmark (0xca6c|0xca6c\/0xffffffff|51820)( |$)/ &&
-      $0 ~ ("(^| )(lookup|table) " table "( |$)") { count++ }
+    -v table="$WIREGUARD_ROUTING_TABLE" \
+    -v priority="${WIREGUARD_POLICY_PRIORITY}:" '
+      function is_mark(value) {
+        return value == "0xca6c" || value == "0xca6c/0xffffffff" ||
+               value == "51820" || value == "51820/0xffffffff"
+      }
+      NF == 8 && $1 == priority &&
+        (($2 == "not" && $3 == "from" && $4 == "all" && $5 == "fwmark") ||
+         ($2 == "from" && $3 == "all" && $4 == "not" && $5 == "fwmark")) &&
+        is_mark($6) && ($7 == "lookup" || $7 == "table") && $8 == table {
+        count++
+      }
       END { print count + 0 }
     '
 }
 
 main_suppress_count() {
   local family="$1"
-  ip "$family" -N rule show | awk '
-      $0 ~ /(^| )(lookup|table) main( |$)/ &&
-      $0 ~ /(^| )suppress_prefixlength 0( |$)/ { count++ }
+  ip "$family" -N rule show | awk \
+    -v priority="${WIREGUARD_SUPPRESS_PRIORITY}:" '
+      NF == 7 && $1 == priority && $2 == "from" && $3 == "all" &&
+        ($4 == "lookup" || $4 == "table") && $5 == "main" &&
+        $6 == "suppress_prefixlength" && $7 == "0" { count++ }
       END { print count + 0 }
     '
 }
@@ -735,7 +745,8 @@ clear_policy_state() {
     if count="$(policy_rule_count "$family")"; then
       for ((index = 0; index < count; index++)); do
         ip "$family" rule del not fwmark "$WIREGUARD_ROUTING_TABLE" \
-          table "$WIREGUARD_ROUTING_TABLE" >/dev/null 2>&1 || {
+          table "$WIREGUARD_ROUTING_TABLE" \
+          priority "$WIREGUARD_POLICY_PRIORITY" >/dev/null 2>&1 || {
             failed=1
             break
           }
@@ -746,6 +757,7 @@ clear_policy_state() {
     if count="$(main_suppress_count "$family")"; then
       for ((index = 0; index < count; index++)); do
         ip "$family" rule del table main suppress_prefixlength 0 \
+          priority "$WIREGUARD_SUPPRESS_PRIORITY" \
           >/dev/null 2>&1 || {
             failed=1
             break

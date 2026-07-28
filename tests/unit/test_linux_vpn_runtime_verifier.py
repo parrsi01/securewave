@@ -14,7 +14,7 @@ def use_build_bundles(monkeypatch, tmp_path):
     return release_bundle, debug_bundle
 
 
-def test_runner_contract_covers_all_protocol_runtime_evidence():
+def test_runner_contract_covers_wireguard_only_runtime_evidence():
     checks = {check.name: check for check in verifier.check_runner_contract()}
 
     assert checks["runner:method_channel"].ok
@@ -22,11 +22,7 @@ def test_runner_contract_covers_all_protocol_runtime_evidence():
     assert checks["runner:helper_request"].ok
     assert checks["runner:wireguard_connect_op"].ok
     assert checks["runner:wireguard_disconnect_op"].ok
-    assert checks["runner:openvpn_connect_op"].ok
-    assert checks["runner:openvpn_disconnect_op"].ok
-    assert checks["runner:ikev2_connect_op"].ok
-    assert checks["runner:ikev2_disconnect_op"].ok
-    assert checks["runner:secondary_protocol_backend_gate"].ok
+    assert checks["runner:wireguard_only_boundary"].ok
     assert checks["runner:securewave_helper_contract"].ok
     assert checks["runner:no_implicit_mock"].ok
 
@@ -81,9 +77,8 @@ def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
     helperd = bundle / "packaging/linux/securewave-helperd"
     service = bundle / "packaging/linux/securewave-helper.service"
     tmpfiles = bundle / "packaging/linux/securewave-helper.tmpfiles"
-    strongswan_routing = bundle / "packaging/linux/securewave-strongswan-routing.conf"
     installer = bundle / "scripts/install_linux_helper.sh"
-    for path in (helper, contract, helperd, service, tmpfiles, strongswan_routing, installer):
+    for path in (helper, contract, helperd, service, tmpfiles, installer):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("x", encoding="utf-8")
 
@@ -94,7 +89,6 @@ def test_build_helper_payload_reports_bundle_payload(monkeypatch, tmp_path):
     assert checks["build:helper_service_payload"].ok
     assert checks["build:helper_tmpfiles_payload"].ok
     assert checks["build:helper_contract_payload"].ok
-    assert checks["build:strongswan_routing_payload"].ok
     assert checks["build:helper_installer_payload"].ok
     assert all(str(bundle) in check.detail for check in checks.values())
 
@@ -143,7 +137,8 @@ def test_residue_checks_fail_on_securewave_leftovers(monkeypatch):
             returncode=0,
             stdout=(
                 "210: from all lookup 210\n"
-                "32765: from all lookup 51820\n"
+                "32764: not from all fwmark 0xca6c lookup 51820\n"
+                "32765: from all lookup main suppress_prefixlength 0\n"
             ),
             stderr="",
         ),
@@ -634,14 +629,6 @@ def test_helper_ipc_reports_promptless_service_probe(monkeypatch):
         op = fields["op"]
         if op == "probe" and fields["protocol"] == "wireguard":
             return {"ok": "true", "service_version": "1", "message": "OK"}
-        if op == "probe" and fields["protocol"] == "openvpn":
-            return {"ok": "false", "code": "tool_missing", "service_version": "1", "message": "missing"}
-        if op == "probe" and fields["protocol"] == "ikev2":
-            return {
-                "ok": "true",
-                "service_version": "1",
-                "message": "OK",
-            }
         if op == "shell":
             return {
                 "ok": "false",
@@ -656,32 +643,26 @@ def test_helper_ipc_reports_promptless_service_probe(monkeypatch):
     checks = {check.name: check for check in verifier.check_helper_ipc()}
 
     assert checks["privilege:helper_probe:wireguard"].ok
-    assert checks["privilege:helper_probe:openvpn"].ok
-    assert checks["privilege:helper_probe:ikev2"].ok
+    assert set(checks) == {
+        "privilege:helper_probe:wireguard",
+        "privilege:helper_invalid_op_fails_closed",
+    }
     assert checks["privilege:helper_invalid_op_fails_closed"].ok
 
 
-def test_helper_ipc_rejects_disabled_ikev2_probe(monkeypatch):
-    def fake_helper_request(fields, timeout=5.0):
-        if fields["op"] == "probe":
-            return {
-                "ok": "false",
-                "code": "protocol_unavailable",
-                "service_version": "1",
-                "message": "IKEv2 disabled",
-            }
-        return {
-            "ok": "false",
-            "code": "invalid_operation",
-            "service_version": "1",
-            "message": "no",
-        }
-
-    monkeypatch.setattr(verifier, "helper_request", fake_helper_request)
-
-    checks = {check.name: check for check in verifier.check_helper_ipc()}
-
-    assert not checks["privilege:helper_probe:ikev2"].ok
+def test_wireguard_policy_ownership_requires_canonical_priorities():
+    assert verifier._wireguard_policy_rule_is_owned(
+        "32764: not from all fwmark 0xca6c lookup 51820"
+    )
+    assert verifier._wireguard_suppress_rule_is_owned(
+        "32765: from all lookup main suppress_prefixlength 0"
+    )
+    assert not verifier._wireguard_rule_is_owned(
+        "219: not from all fwmark 0xca6c lookup 51820"
+    )
+    assert not verifier._wireguard_rule_is_owned(
+        "218: from all lookup main suppress_prefixlength 0"
+    )
 
 
 def test_installed_helper_contract_requires_ikev2_contract(monkeypatch, tmp_path):

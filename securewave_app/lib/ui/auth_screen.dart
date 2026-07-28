@@ -34,8 +34,8 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
     final copy = _forgotPassword
         ? 'Request a reset email and choose a new SecureWave password.'
         : _register
-            ? 'Create an account to start using SecureWave.'
-            : 'Sign in to manage your VPN session.';
+        ? 'Create an account to start using SecureWave.'
+        : 'Sign in to manage your VPN session.';
 
     return Scaffold(
       body: SafeArea(
@@ -94,8 +94,8 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
                             ),
                             validator: (value) =>
                                 value == null || value.trim().isEmpty
-                                    ? 'Enter the reset token.'
-                                    : null,
+                                ? 'Enter the reset token.'
+                                : null,
                           ),
                         ],
                         if (!_forgotPassword || _resetRequested) ...[
@@ -126,7 +126,8 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
                                 ),
                                 onPressed: () {
                                   setState(
-                                      () => _hidePassword = !_hidePassword);
+                                    () => _hidePassword = !_hidePassword,
+                                  );
                                 },
                               ),
                             ),
@@ -190,11 +191,15 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : Text(_forgotPassword
-                                  ? (_resetRequested
-                                      ? 'Set new password'
-                                      : 'Send reset email')
-                                  : (_register ? 'Create account' : 'Sign in')),
+                              : Text(
+                                  _forgotPassword
+                                      ? (_resetRequested
+                                            ? 'Set new password'
+                                            : 'Send reset email')
+                                      : (_register
+                                            ? 'Create account'
+                                            : 'Sign in'),
+                                ),
                         ),
                         const SizedBox(height: 8),
                         if (!_register)
@@ -211,9 +216,11 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
                                       _resetToken.clear();
                                     });
                                   },
-                            child: Text(_forgotPassword
-                                ? 'Back to sign in'
-                                : 'Forgot password?'),
+                            child: Text(
+                              _forgotPassword
+                                  ? 'Back to sign in'
+                                  : 'Forgot password?',
+                            ),
                           ),
                         TextButton(
                           onPressed: _busy
@@ -230,8 +237,8 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
                             _forgotPassword
                                 ? 'Use an existing account'
                                 : _register
-                                    ? 'Use an existing account'
-                                    : 'Create a new account',
+                                ? 'Use an existing account'
+                                : 'Create a new account',
                           ),
                         ),
                       ],
@@ -263,8 +270,10 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
             setState(() => _resetRequested = true);
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                  content:
-                      Text('If the email exists, a reset link has been sent.')),
+                content: Text(
+                  'If the email exists, a reset link has been sent.',
+                ),
+              ),
             );
           }
         } else {
@@ -282,15 +291,30 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
             });
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                  content: Text('Password updated. You can now sign in.')),
+                content: Text('Password updated. You can now sign in.'),
+              ),
             );
           }
         }
       } else if (_register) {
-        await auth.register(
+        final authenticated = await auth.register(
           email: _email.text.trim(),
           password: _password.text.trim(),
         );
+        if (!authenticated && mounted) {
+          setState(() {
+            _register = false;
+            _password.clear();
+            _confirm.clear();
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Account created. Verify your email, then sign in.',
+              ),
+            ),
+          );
+        }
       } else {
         await auth.login(
           email: _email.text.trim(),

@@ -21,6 +21,7 @@ class AuthSession extends ChangeNotifier {
 
   bool get isInitialized => _isInitialized;
   bool get isAuthenticated => _isAuthenticated;
+  bool get hasStoredSession => _accessToken != null && _accessToken!.isNotEmpty;
   String? get accessToken => _accessToken;
 
   Future<void> _initializeSession() async {
@@ -35,7 +36,9 @@ class AuthSession extends ChangeNotifier {
       final token = await _storage.getAccessToken();
       if (token != null && token.isNotEmpty) {
         _accessToken = token;
-        _isAuthenticated = true;
+        // A stored token is only a restoration candidate until /auth/me
+        // accepts it during application boot.
+        _isAuthenticated = false;
       }
     } finally {
       _isInitialized = true;
@@ -43,13 +46,25 @@ class AuthSession extends ChangeNotifier {
     }
   }
 
-  Future<void> setSession(
-      {required String accessToken, String? refreshToken}) async {
+  Future<void> setSession({
+    required String accessToken,
+    String? refreshToken,
+  }) async {
     await ensureInitialized();
     _accessToken = accessToken;
     _isAuthenticated = true;
     await _storage.saveTokens(
-        accessToken: accessToken, refreshToken: refreshToken);
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+    notifyListeners();
+  }
+
+  void acceptRestoredSession() {
+    if (!hasStoredSession) {
+      throw StateError('No stored session is available to accept.');
+    }
+    _isAuthenticated = true;
     notifyListeners();
   }
 

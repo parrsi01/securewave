@@ -157,8 +157,18 @@ def _write_fake_runtime_commands(bin_dir: Path):
         "ip": """#!/bin/bash
 if [[ "${FAKE_MODE:-clean}" == "unsafe_route" && "$*" == *"route show table all"* ]]; then
   printf '%s\n' 'default dev eth0 table 210'
+elif [[ "${FAKE_MODE:-clean}" == "wireguard_table_route" && "$*" == *"route show table all"* ]]; then
+  printf '%s\n' 'default dev eth0 table 51820'
 elif [[ "${FAKE_MODE:-clean}" == "unsafe_rule" && "$*" == *"rule show"* ]]; then
   printf '%s\n' '210: from all lookup 210'
+elif [[ "${FAKE_MODE:-clean}" == "owned_wireguard_rule" && "$*" == *"rule show"* ]]; then
+  printf '%s\n' '32764: not from all fwmark 0xca6c lookup 51820'
+  printf '%s\n' '32765: from all lookup main suppress_prefixlength 0'
+elif [[ "${FAKE_MODE:-clean}" == "unknown_priority_rules" && "$*" == *"rule show"* ]]; then
+  printf '%s\n' '218: from all lookup main suppress_prefixlength 0'
+  printf '%s\n' '219: not from all fwmark 0xca6c lookup 51820'
+elif [[ "${FAKE_MODE:-clean}" == "legacy_pref220" && "$*" == *"rule show"* ]]; then
+  printf '%s\n' '220: from all lookup 220'
 elif [[ "${FAKE_MODE:-clean}" == "asymmetric_safe_rule" && "$1" == "-4" && "$*" == *"rule show"* ]]; then
   printf '%s\n' '210: not from all fwmark 0xdc lookup 210'
 elif [[ "${FAKE_MODE:-clean}" == "paired_safe_rule" && "$*" == *"rule show"* ]]; then
@@ -173,10 +183,13 @@ fi
         "nft": "#!/bin/bash\nexit 0\n",
         "iptables-save": """#!/bin/bash
 [[ "${FAKE_MODE:-clean}" != "iptables_failure" ]] || exit 1
-[[ "${FAKE_MODE:-clean}" != "wireguard_firewall" ]] || printf '%s\n' 'wg-quick(8) rule for sw-wg'
+[[ "${FAKE_MODE:-clean}" != "adblock" ]] || printf '%s\n' ':SECUREWAVE_ADBLOCK - [0:0]'
+[[ "${FAKE_MODE:-clean}" != "wireguard_firewall" ]] || printf '%s\n' '-A OUTPUT -m comment --comment "wg-quick(8) rule for sw-wg" -j REJECT'
+[[ "${FAKE_MODE:-clean}" != "wireguard_ipv4_firewall" ]] || printf '%s\n' '-A OUTPUT -m comment --comment "securewave-wireguard-ipv4-kill-switch-v1" -j REJECT'
 """,
         "ip6tables-save": """#!/bin/bash
-[[ "${FAKE_MODE:-clean}" != "ikev2_firewall" ]] || printf '%s\\n' 'securewave-ikev2-ipv6-block-v1'
+[[ "${FAKE_MODE:-clean}" != "wireguard_ipv6_firewall" ]] || printf '%s\\n' '-A OUTPUT -m comment --comment "securewave-wireguard-ipv6-block-v1" -j REJECT'
+[[ "${FAKE_MODE:-clean}" != "ikev2_firewall" ]] || printf '%s\\n' '-A OUTPUT -m comment --comment "securewave-ikev2-ipv6-block-v1" -j REJECT'
 """,
     }
     for name, contents in commands.items():
@@ -190,11 +203,18 @@ fi
     (
         ("clean", True),
         ("paired_safe_rule", True),
+        ("unknown_priority_rules", True),
         ("unsafe_route", False),
+        ("wireguard_table_route", False),
         ("unsafe_rule", False),
+        ("owned_wireguard_rule", False),
+        ("legacy_pref220", False),
+        ("adblock", False),
         ("asymmetric_safe_rule", False),
         ("iptables_failure", False),
         ("wireguard_firewall", False),
+        ("wireguard_ipv4_firewall", False),
+        ("wireguard_ipv6_firewall", False),
         ("unsafe_xfrm", False),
         ("unsafe_xfrm_policy", False),
         ("ikev2_firewall", False),
@@ -284,6 +304,18 @@ def test_prerm_half_configured_removal_and_service_retry_are_idempotent():
     assert "if ! systemctl stop securewave-helper.service; then" in prerm
     assert "systemctl is-active --quiet securewave-helper.service" in prerm
     assert "systemctl disable securewave-helper.service >/dev/null 2>&1 || true" in prerm
+
+
+def test_prerm_keeps_pref220_as_a_hard_blocker_and_has_no_force_path():
+    prerm = _maintainer_script("PRERM")
+
+    assert "pref220_ikev2_rule_present()" in prerm
+    assert "Unowned pref-220/table-220 IKEv2 routing state remains" in prerm
+    assert "if ! helper_request wireguard.cleanup; then" in prerm
+    assert '"$HELPER" openvpn-stop "$pid"' in prerm
+    assert "kill -TERM" not in prerm
+    assert "dpkg --force" not in prerm
+    assert "--force-" not in prerm
 
 
 def test_standalone_installer_runs_read_only_gates_before_mutation():

@@ -19,28 +19,28 @@ void main() {
     values = <String, String?>{};
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
-      (call) async {
-        final args = call.arguments is Map
-            ? Map<String, dynamic>.from(call.arguments as Map)
-            : const <String, dynamic>{};
-        final key = args['key']?.toString();
-        switch (call.method) {
-          case 'read':
-            return key == null ? null : values[key];
-          case 'write':
-            if (key != null) values[key] = args['value']?.toString();
+          const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+          (call) async {
+            final args = call.arguments is Map
+                ? Map<String, dynamic>.from(call.arguments as Map)
+                : const <String, dynamic>{};
+            final key = args['key']?.toString();
+            switch (call.method) {
+              case 'read':
+                return key == null ? null : values[key];
+              case 'write':
+                if (key != null) values[key] = args['value']?.toString();
+                return null;
+              case 'delete':
+                if (key != null) values.remove(key);
+                return null;
+              case 'deleteAll':
+                values.clear();
+                return null;
+            }
             return null;
-          case 'delete':
-            if (key != null) values.remove(key);
-            return null;
-          case 'deleteAll':
-            values.clear();
-            return null;
-        }
-        return null;
-      },
-    );
+          },
+        );
     storage = SecureStorage();
     session = AuthSession();
     auth = AuthService(_AuthApiClient(), session);
@@ -63,9 +63,13 @@ void main() {
     await auth.login(email: 'Same@Example.com', password: 'valid-password');
 
     expect(
-        await storage.getString(SecureStorage.selectedServerKey), 'server-1');
-    expect(await storage.getString(SecureStorage.vpnActiveServerIdKey),
-        'server-1');
+      await storage.getString(SecureStorage.selectedServerKey),
+      'server-1',
+    );
+    expect(
+      await storage.getString(SecureStorage.vpnActiveServerIdKey),
+      'server-1',
+    );
     expect(await storage.getInt(SecureStorage.vpnDeviceIdKey), 7);
     expect(await storage.getAccountOwnerEmail(), 'same@example.com');
     expect(session.isAuthenticated, isTrue);
@@ -83,20 +87,24 @@ void main() {
     expect(await storage.getAccountOwnerEmail(), 'new@example.com');
   });
 
-  test('verified debug reauthentication can preserve legacy runtime ownership',
-      () async {
-    await seedVpnRuntime();
+  test(
+    'verified debug reauthentication can preserve legacy runtime ownership',
+    () async {
+      await seedVpnRuntime();
 
-    await auth.login(
-      email: 'demo@example.com',
-      password: 'valid-password',
-      preserveVpnRuntime: true,
-    );
+      await auth.login(
+        email: 'demo@example.com',
+        password: 'valid-password',
+        preserveVpnRuntime: true,
+      );
 
-    expect(
-        await storage.getString(SecureStorage.selectedServerKey), 'server-1');
-    expect(await storage.getAccountOwnerEmail(), 'demo@example.com');
-  });
+      expect(
+        await storage.getString(SecureStorage.selectedServerKey),
+        'server-1',
+      );
+      expect(await storage.getAccountOwnerEmail(), 'demo@example.com');
+    },
+  );
 
   test('logout clears credentials, ownership, and VPN runtime state', () async {
     await seedVpnRuntime();
@@ -109,21 +117,64 @@ void main() {
     expect(await storage.getAccountOwnerEmail(), isNull);
     expect(await storage.getString(SecureStorage.selectedServerKey), isNull);
   });
+
+  test(
+    'verification-required registration never falls back to login',
+    () async {
+      final api = _RegistrationApiClient(tokens: null);
+      final registrationAuth = AuthService(api, session);
+
+      final authenticated = await registrationAuth.register(
+        email: 'New.User@Example.com',
+        password: 'valid-password',
+      );
+
+      expect(authenticated, isFalse);
+      expect(api.loginCalls, 0);
+      expect(session.isAuthenticated, isFalse);
+    },
+  );
+
+  test('token-bearing registration clears previous account runtime', () async {
+    await seedVpnRuntime();
+    await storage.saveAccountOwnerEmail('old@example.com');
+    final api = _RegistrationApiClient(
+      tokens: const AuthTokens(
+        accessToken: 'registered-access-token',
+        refreshToken: 'registered-refresh-token',
+      ),
+    );
+    final registrationAuth = AuthService(api, session);
+
+    final authenticated = await registrationAuth.register(
+      email: 'New.User@Example.com',
+      password: 'valid-password',
+    );
+
+    expect(authenticated, isTrue);
+    expect(await storage.getString(SecureStorage.selectedServerKey), isNull);
+    expect(await storage.getAccountOwnerEmail(), 'new.user@example.com');
+    expect(session.isAuthenticated, isTrue);
+  });
 }
 
 class _AuthApiClient extends ApiClient {
   _AuthApiClient()
-      : super(AppConfig(
+    : super(
+        AppConfig(
           apiBaseUrl: 'https://api.example.test',
           portalUrl: 'https://portal.example.test',
           upgradeUrl: 'https://upgrade.example.test',
           useMockApi: false,
           resetSessionOnBoot: false,
-        ));
+        ),
+      );
 
   @override
-  Future<AuthTokens> login(
-      {required String email, required String password}) async {
+  Future<AuthTokens> login({
+    required String email,
+    required String password,
+  }) async {
     return const AuthTokens(
       accessToken: 'test-access-token',
       refreshToken: 'test-refresh-token',
@@ -132,4 +183,28 @@ class _AuthApiClient extends ApiClient {
 
   @override
   Future<void> logout() async {}
+}
+
+class _RegistrationApiClient extends _AuthApiClient {
+  _RegistrationApiClient({required this.tokens});
+
+  final AuthTokens? tokens;
+  int loginCalls = 0;
+
+  @override
+  Future<AuthTokens?> register({
+    required String email,
+    required String password,
+  }) async {
+    return tokens;
+  }
+
+  @override
+  Future<AuthTokens> login({
+    required String email,
+    required String password,
+  }) async {
+    loginCalls += 1;
+    return super.login(email: email, password: password);
+  }
 }

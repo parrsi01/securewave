@@ -54,6 +54,7 @@ const char* kIkev2IfIdPath = "/run/securewave/ikev2-xfrm-if-id";
 const char* kIkev2EndpointPath = "/run/securewave/ikev2-endpoint";
 const char* kAdblockChainName = "SECUREWAVE_ADBLOCK";
 const guint kContractVersion = 13;
+const bool kWireGuardOnlyRelease = true;
 const gsize kMaxRequestBytes = 64 * 1024;
 const size_t kMaxDnsServers = 8;
 
@@ -1058,10 +1059,41 @@ static bool WireGuardFullTunnelRoutesPresent() {
       ReadFullTunnelRouteEvidence(kWireGuardInterface));
 }
 
+static bool WireGuardMarkToken(const std::string& token) {
+  return token == "0xca6c" || token == "0xca6c/0xffffffff" ||
+         token == "51820" || token == "51820/0xffffffff";
+}
+
 static bool WireGuardPolicyRuleOutputPresent(const std::string& output) {
-  return output.find("lookup 51820") != std::string::npos ||
-         output.find("table 51820") != std::string::npos ||
-         output.find("suppress_prefixlength 0") != std::string::npos;
+  std::istringstream lines(output);
+  std::string line;
+  while (std::getline(lines, line)) {
+    std::istringstream fields(Trim(line));
+    std::vector<std::string> tokens;
+    std::string token;
+    while (fields >> token) {
+      tokens.push_back(token);
+    }
+    const bool policy_rule =
+        tokens.size() == 8 && tokens[0] == "32764:" &&
+        ((tokens[1] == "not" && tokens[2] == "from" &&
+          tokens[3] == "all" && tokens[4] == "fwmark") ||
+         (tokens[1] == "from" && tokens[2] == "all" &&
+          tokens[3] == "not" && tokens[4] == "fwmark")) &&
+        WireGuardMarkToken(tokens[5]) &&
+        (tokens[6] == "lookup" || tokens[6] == "table") &&
+        tokens[7] == "51820";
+    const bool suppress_rule =
+        tokens.size() == 7 && tokens[0] == "32765:" &&
+        tokens[1] == "from" && tokens[2] == "all" &&
+        (tokens[3] == "lookup" || tokens[3] == "table") &&
+        tokens[4] == "main" && tokens[5] == "suppress_prefixlength" &&
+        tokens[6] == "0";
+    if (policy_rule || suppress_rule) {
+      return true;
+    }
+  }
+  return false;
 }
 
 struct WireGuardPolicyRuleEvidence {
@@ -1153,11 +1185,6 @@ static std::vector<std::string> IptablesSaveTokens(std::string line) {
     tokens.push_back(token);
   }
   return tokens;
-}
-
-static bool WireGuardMarkToken(const std::string& token) {
-  return token == "0xca6c" || token == "0xca6c/0xffffffff" ||
-         token == "51820" || token == "51820/0xffffffff";
 }
 
 static bool WireGuardIpv4KillSwitchPresent(const std::string& output) {
@@ -2918,6 +2945,11 @@ static Fields HandleProbe(const Fields& request) {
   if (!ValidateProtocol(protocol)) {
     return Error("invalid_protocol", "Unsupported VPN protocol.");
   }
+  if (protocol != "wireguard") {
+    return Error(
+        "protocol_unavailable",
+        "OpenVPN and IKEv2 are unavailable in the Linux v1 release.");
+  }
   CommandResult probe = RunHelper({"probe", protocol});
   if (!probe.ok) {
     return Error("tool_missing", protocol + " runtime tooling is unavailable.");
@@ -3789,6 +3821,12 @@ static Fields HandleRequest(const Fields& request, uid_t peer_uid) {
     return HandleWireGuard(op, request, peer_uid);
   }
   if (StartsWith(op, "openvpn.")) {
+    if (kWireGuardOnlyRelease && op != "openvpn.stop" &&
+        op != "openvpn.cleanup" && op != "openvpn.dns_revert") {
+      return Error(
+          "protocol_unavailable",
+          "OpenVPN is unavailable in this WireGuard-only Linux release.");
+    }
     if (!RequestFieldsAllowed(
             request,
             {"version", "op", "config_path", "pid_path", "log_path", "auth_path"})) {
@@ -3797,6 +3835,12 @@ static Fields HandleRequest(const Fields& request, uid_t peer_uid) {
     return HandleOpenVpn(op, request, peer_uid);
   }
   if (StartsWith(op, "ikev2.")) {
+    if (kWireGuardOnlyRelease && op != "ikev2.stop" &&
+        op != "ikev2.cleanup") {
+      return Error(
+          "protocol_unavailable",
+          "IKEv2 is unavailable in this WireGuard-only Linux release.");
+    }
     if (!RequestFieldsAllowed(request, {"version", "op", "config_path"})) {
       return Error("invalid_request", "Unexpected helper request field.");
     }

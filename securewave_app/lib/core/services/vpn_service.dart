@@ -25,8 +25,7 @@ abstract class VpnService {
   Future<bool> refreshProtocolAvailability(
     VpnProtocol protocol, {
     bool backendEvidence = false,
-  }) async =>
-      canConnectProtocol(protocol);
+  }) async => canConnectProtocol(protocol);
   String? protocolUnavailableReason(VpnProtocol protocol);
 }
 
@@ -88,8 +87,9 @@ class VpnTrafficStats {
       countersAvailable: parseBool(
         json['counters_available'] ?? json['available'],
       ),
-      interfaceName:
-          interfaceName == null || interfaceName.isEmpty ? null : interfaceName,
+      interfaceName: interfaceName == null || interfaceName.isEmpty
+          ? null
+          : interfaceName,
       unavailableReason: unavailableReason == null || unavailableReason.isEmpty
           ? null
           : unavailableReason,
@@ -110,8 +110,8 @@ class VpnServiceException implements Exception {
 
 class ChannelVpnService extends VpnService {
   ChannelVpnService({VpnService? fallback, bool allowFallback = false})
-      : _fallback = fallback ?? MockVpnService(),
-        _allowFallback = allowFallback {
+    : _fallback = fallback ?? MockVpnService(),
+      _allowFallback = allowFallback {
     _nativeAvailable = false;
   }
 
@@ -137,7 +137,7 @@ class ChannelVpnService extends VpnService {
 
   bool _platformImplementsProtocol(VpnProtocol protocol) {
     final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'linux') return true;
+    if (os == 'linux') return protocol == VpnProtocol.wireGuard;
     if (os == 'windows' || os == 'android' || os == 'ios') {
       return protocol == VpnProtocol.wireGuard;
     }
@@ -152,13 +152,15 @@ class ChannelVpnService extends VpnService {
     if (_allowFallback) return true;
     if (!_platformImplementsProtocol(protocol)) {
       _protocolAvailability[protocol] = false;
+      _protocolAvailabilityMessages[protocol] =
+          '${vpnProtocolLabel(protocol)} is Coming soon on Linux.';
+      _nativeAvailable = _protocolAvailability.values.any((value) => value);
       return false;
     }
-    final evidenceRequired = protocol != VpnProtocol.wireGuard;
-    if (evidenceRequired && !backendEvidence) {
+    if (!backendEvidence) {
       _protocolAvailability[protocol] = false;
       _protocolAvailabilityMessages[protocol] =
-          '${vpnProtocolLabel(protocol)} requires fresh backend runtime and data-plane evidence.';
+          '${vpnProtocolLabel(protocol)} requires fresh backend runtime evidence.';
       _nativeAvailable = _protocolAvailability.values.any((value) => value);
       return false;
     }
@@ -176,6 +178,9 @@ class ChannelVpnService extends VpnService {
       return 'VPN tunneling is unavailable on macOS because this build has no Network Extension provider.';
     }
     if (!_platformImplementsProtocol(protocol)) {
+      if (os == 'linux') {
+        return '${vpnProtocolLabel(protocol)} is Coming soon on Linux.';
+      }
       return '${vpnProtocolLabel(protocol)} is not implemented by this $os runtime.';
     }
     return _protocolAvailabilityMessages[protocol] ??
@@ -456,10 +461,6 @@ class ChannelVpnService extends VpnService {
             : {
                 'protocol': vpnProtocolStorageValue(protocol),
                 if (backendEvidence) 'backend_evidence': true,
-                // Availability tiles need a local capability probe before a
-                // backend profile is fetched. Connect still passes fresh
-                // backend evidence and remains fail-closed in the runner.
-                if (!backendEvidence) 'runtime_only': true,
               },
       );
       if (available != null) {

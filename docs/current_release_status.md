@@ -1,15 +1,17 @@
 # SecureWave - Current Release Status
 
-Last audited: 2026-07-24 UTC
+Last audited: 2026-07-28 UTC
 
 ## Candidate under certification
 
-- Branch: `codex/linux-wireguard-arm64-beta`
-- Source: `59d524329cff8ca43fc066447e66c6b470b222d5`; the package-embedded
-  source SHA and clean-tree marker match this candidate.
+- Branch: `codex/linux-arm64-wireguard-beta-final`
+- Release-lineage base: `6e0517cc379bd6f64b123297d5dc756a6453d9c1`.
+  The authoritative final source is the exact clean workflow head recorded in
+  the next package's embedded `source-sha`; no package for this final branch
+  head has been retained or published yet.
 - The candidate includes the checksum-generation fix in
   `securewave_app/scripts/build_deb.sh`.
-- Application/package version: `4.0.0+3`
+- Application/package version: `4.0.0+4`
 - Record ARM64 and amd64 checksums from the exact retained workflow artifacts;
   do not copy a checksum from an earlier source revision into a later candidate.
 - No artifact was published, signed, or deployed by this certification.
@@ -48,20 +50,21 @@ legacy metadata, or retained future implementation source.
 - The packaged release Flutter binary remained running for a bounded ten-second
   Xvfb launch in the clean ARM64 container. Headless graphics and keyring
   warnings are environment diagnostics; no crash was observed.
-- The staging app was rebuilt from this exact SHA and the profile smoke passed.
-  The WireGuard proof reached connected state and recorded handshake/data-plane,
-  DNS, routes, counters, disconnect, reconnect, and cleanup events. The overall
-  proof command remains blocked by two pre-existing unqualified IKEv2 policy
-  rules reported by the host verifier; SecureWave-owned WireGuard residue
-  checks passed. This is an environment gate, not evidence to enable IKEv2.
+- Historical staging evidence belongs to the earlier `6e0517cc...` candidate,
+  not this final branch head. That run reached connected state and recorded
+  handshake/data-plane, DNS, routes, counters, disconnect, reconnect, and
+  SecureWave-owned cleanup evidence, but the host also had two pre-existing
+  unqualified IKEv2 policy rules. Fresh authentication, WireGuard, repeatability,
+  and uninstall acceptance from the final package are still required.
 
 ## Artifact and platform limits
 
 - Both Linux `.deb` entries remain `coming_soon` in the public manifest.
-  Exact-SHA ARM64 and x64 package workflow gates passed, including architecture,
-  helper, install, upgrade, remove, purge, and residue checks. Neither artifact
-  is public because the host residue gate and repeated manual Flutter
-  acceptance remain incomplete.
+  Exact-SHA ARM64 and x64 package workflow gates passed for the earlier
+  `6e0517cc...` source, including architecture, helper, install, upgrade, remove,
+  purge, and residue checks. Those artifacts are superseded by version
+  `4.0.0+4`; a new exact-head build and acceptance run are required before
+  publication.
 
 ## Current private x64 workflow evidence
 

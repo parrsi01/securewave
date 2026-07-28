@@ -43,7 +43,7 @@ void main() {
         .setMockMethodCallHandler(channel, (call) async {
       final arguments = Map<Object?, Object?>.from(call.arguments as Map);
       calls.add(arguments);
-      return arguments['protocol'] == 'ikev2' &&
+      return arguments['protocol'] == 'wireguard' &&
           arguments['backend_evidence'] == true;
     });
     addTearDown(
@@ -52,22 +52,22 @@ void main() {
     );
 
     final service = ChannelVpnService(allowFallback: false);
-    expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
+    expect(service.canConnectProtocol(VpnProtocol.wireGuard), isFalse);
     expect(
-      await service.refreshProtocolAvailability(VpnProtocol.ikev2),
+      await service.refreshProtocolAvailability(VpnProtocol.wireGuard),
       isFalse,
     );
     expect(calls, isEmpty);
     expect(
       await service.refreshProtocolAvailability(
-        VpnProtocol.ikev2,
+        VpnProtocol.wireGuard,
         backendEvidence: true,
       ),
       isTrue,
     );
     expect(calls.single['backend_evidence'], isTrue);
-    expect(service.canConnectProtocol(VpnProtocol.ikev2), isTrue);
-    expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNull);
+    expect(service.canConnectProtocol(VpnProtocol.wireGuard), isTrue);
+    expect(service.protocolUnavailableReason(VpnProtocol.wireGuard), isNull);
   }, testOn: 'linux');
 
   test(
@@ -94,7 +94,10 @@ void main() {
 
       final service = ChannelVpnService(allowFallback: false);
       expect(
-        await service.refreshProtocolAvailability(VpnProtocol.wireGuard),
+        await service.refreshProtocolAvailability(
+          VpnProtocol.wireGuard,
+          backendEvidence: true,
+        ),
         isTrue,
       );
       expect(service.isNativeAvailable, isTrue);
@@ -110,14 +113,13 @@ void main() {
       expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
       expect(
         service.protocolUnavailableReason(VpnProtocol.ikev2),
-        'IKEv2 helper probe could not find swanctl.',
+        'IKEv2/IPSec is Coming soon on Linux.',
       );
     },
     testOn: 'linux',
   );
 
-  test('ChannelVpnService requires and forwards fresh OpenVPN credentials',
-      () async {
+  test('ChannelVpnService rejects OpenVPN before native invocation', () async {
     const channel = MethodChannel('securewave/vpn');
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -135,21 +137,19 @@ void main() {
       service.connect(
         protocol: VpnProtocol.openVpn,
         config: 'client\ndev tun\n',
+        openVpnUsername: 'swovpn-0123456789abcdef0123456789abcdef',
+        openVpnPassword: 'fresh-openvpn-password-012345',
         backendEvidence: true,
       ),
-      throwsA(isA<VpnServiceException>()),
-    );
-    await service.connect(
-      protocol: VpnProtocol.openVpn,
-      config: 'client\ndev tun\n',
-      openVpnUsername: 'swovpn-0123456789abcdef0123456789abcdef',
-      openVpnPassword: 'fresh-openvpn-password-012345',
-      backendEvidence: true,
+      throwsA(
+        isA<VpnServiceException>().having(
+          (error) => error.code,
+          'code',
+          'protocol_unavailable',
+        ),
+      ),
     );
 
-    final connect = calls.lastWhere((call) => call.method == 'connect');
-    final arguments = Map<Object?, Object?>.from(connect.arguments as Map);
-    expect(arguments['openvpn_username'], startsWith('swovpn-'));
-    expect(arguments['openvpn_password'], isNotEmpty);
+    expect(calls, isEmpty);
   }, testOn: 'linux');
 }

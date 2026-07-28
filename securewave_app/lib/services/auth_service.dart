@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/logging/app_logger.dart';
 import '../core/services/auth_session.dart';
 import '../core/services/secure_storage.dart';
 import 'api_client.dart';
@@ -25,8 +24,9 @@ class AuthService {
     final tokens = await _api.login(email: email, password: password);
     final storage = SecureStorage();
     final normalizedEmail = email.trim().toLowerCase();
-    final previousOwner =
-        (await storage.getAccountOwnerEmail())?.trim().toLowerCase();
+    final previousOwner = (await storage.getAccountOwnerEmail())
+        ?.trim()
+        .toLowerCase();
     final sameKnownAccount = previousOwner == normalizedEmail;
     if (!sameKnownAccount && !preserveVpnRuntime) {
       await storage.clearVpnRuntimeState();
@@ -38,19 +38,13 @@ class AuthService {
     await storage.saveAccountOwnerEmail(normalizedEmail);
   }
 
-  Future<void> register(
-      {required String email, required String password}) async {
-    var tokens = await _api.register(email: email, password: password);
+  Future<bool> register({
+    required String email,
+    required String password,
+  }) async {
+    final tokens = await _api.register(email: email, password: password);
     if (tokens == null) {
-      AppLogger.warning(
-          'Registration completed without token payload; attempting sign-in.');
-      try {
-        tokens = await _api.login(email: email, password: password);
-      } catch (_) {
-        throw StateError(
-          'Registration completed, but automatic sign-in failed. Verify the account, then sign in.',
-        );
-      }
+      return false;
     }
     final storage = SecureStorage();
     await storage.clearVpnRuntimeState();
@@ -59,6 +53,7 @@ class AuthService {
       refreshToken: tokens.refreshToken,
     );
     await storage.saveAccountOwnerEmail(email.trim().toLowerCase());
+    return true;
   }
 
   Future<void> logout() async {

@@ -154,7 +154,6 @@ install(FILES
   "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-wg-quick.contract"
   "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-helper.service"
   "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-helper.tmpfiles"
-  "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-strongswan-routing.conf"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"
   COMPONENT Runtime)
 

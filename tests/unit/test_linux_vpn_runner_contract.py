@@ -95,13 +95,27 @@ def test_helper_exposes_socket_only_openvpn_dns_revert_operation():
 def test_runner_does_not_enable_secondary_protocols_from_local_tools_alone():
     source = _runner_source()
 
-    assert 'get_bool_arg(args, "backend_evidence")' in source
-    assert 'get_bool_arg(args, "runtime_only")' in source
-    assert '"OpenVPN and IKEv2 require fresh backend runtime and data-plane evidence."' in source
+    assert 'return g_strcmp0(protocol, "wireguard") == 0;' in source
+    assert '"OpenVPN and IKEv2 are Coming soon on Linux."' in source
+    assert 'const gchar* protocols[] = {"wireguard"};' in source
+    assert "g_unlink(state->active_protocol_path)" in source
     assert '"openvpn_helper_probe"' in source
     assert '"ikev2_helper_probe"' in source
     assert '"openvpn_available"' not in source
     assert '"ikev2_available"' not in source
+
+
+def test_packaged_helper_exposes_secondary_protocol_cleanup_only():
+    source = HELPERD_SOURCE.read_text(encoding="utf-8")
+
+    assert "const bool kWireGuardOnlyRelease = true;" in source
+    assert 'op != "openvpn.stop"' in source
+    assert 'op != "openvpn.cleanup"' in source
+    assert 'op != "openvpn.dns_revert"' in source
+    assert 'op != "ikev2.stop"' in source
+    assert 'op != "ikev2.cleanup"' in source
+    assert "OpenVPN is unavailable in this WireGuard-only Linux release." in source
+    assert "IKEv2 is unavailable in this WireGuard-only Linux release." in source
 
 
 def test_linux_v1_runner_exposes_only_wireguard_to_flutter():
@@ -333,7 +347,7 @@ def test_flutter_linux_bundle_ships_deb_runtime_payload():
     assert "../packaging/linux/securewave-wg-quick.contract" in cmake
     assert "../packaging/linux/securewave-helper.service" in cmake
     assert "../packaging/linux/securewave-helper.tmpfiles" in cmake
-    assert "../packaging/linux/securewave-strongswan-routing.conf" in cmake
+    assert "../packaging/linux/securewave-strongswan-routing.conf" not in cmake
     assert "../scripts/install_linux_helper.sh" in cmake
     assert 'DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"' in cmake
     assert 'DESTINATION "${CMAKE_INSTALL_PREFIX}/scripts"' in cmake

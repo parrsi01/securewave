@@ -10,8 +10,10 @@ import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
+import 'package:securewave_app/services/api_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -141,10 +143,25 @@ Future<void> _pumpEvidence(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  final session = AuthSession();
+  await session.ensureInitialized();
+  session.acceptRestoredSession();
 
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        authSessionProvider.overrideWith((ref) => session),
+        apiClientProvider.overrideWithValue(
+          ApiClient(
+            AppConfig(
+              apiBaseUrl: 'https://api.example.test',
+              portalUrl: 'https://portal.example.test',
+              upgradeUrl: 'https://upgrade.example.test',
+              useMockApi: true,
+              resetSessionOnBoot: false,
+            ),
+          ),
+        ),
         vpnServiceProvider.overrideWithValue(_VisualVpnService(status)),
         appConfigProvider.overrideWith(
           (ref) => AppConfig(

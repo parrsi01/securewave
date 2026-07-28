@@ -66,7 +66,7 @@ def test_arm64_package_evidence_uses_native_pinned_lifecycle_gate():
     assert "malformed helper IPC was not rejected" in source
     assert "unauthorized helper IPC was not rejected" in source
     assert "securewave-vpn-predecessor.deb" in source
-    assert "Version: 4.0.0+2" in source
+    assert "Version: 4.0.0+3" in source
     assert "sudo apt-get remove -y securewave-vpn" in source
 
 

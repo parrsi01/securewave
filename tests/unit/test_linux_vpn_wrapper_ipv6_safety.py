@@ -106,12 +106,14 @@ exit 64
         assert "32764: not from all fwmark 0xca6c lookup 51820" in rules
         assert "32765: from all lookup main suppress_prefixlength 0" in rules
 
-    # wg-quick normally lets the kernel allocate these two priorities in the
-    # opposite order from the wrapper's deterministic repair priorities. Both
-    # shapes are owned and must be preserved instead of duplicated.
+    # Rules at unrelated priorities may resemble SecureWave's rules, but they
+    # are not owned by the wrapper and must be preserved. The canonical rules
+    # at 32764/32765 must also be preserved instead of duplicated.
     state_paths["rules4"].write_text(
-        "32765: not from all fwmark 0xca6c lookup 51820\n"
-        "32764: from all lookup main suppress_prefixlength 0\n",
+        "218: from all lookup main suppress_prefixlength 0\n"
+        "219: not from all fwmark 0xca6c lookup 51820\n"
+        "32764: not from all fwmark 0xca6c lookup 51820\n"
+        "32765: from all lookup main suppress_prefixlength 0\n",
         encoding="utf-8",
     )
     state_paths["routes6"].write_text("", encoding="utf-8")
@@ -131,6 +133,10 @@ exit 64
     assert "ip -6 rule add table main suppress_prefixlength 0 priority 32765" in events
     assert "ip -4 route replace" not in events
     assert "ip -4 rule add" not in events
+    assert "ip -4 rule del" not in events
+    rules4 = state_paths["rules4"].read_text(encoding="utf-8")
+    assert "218: from all lookup main suppress_prefixlength 0" in rules4
+    assert "219: not from all fwmark 0xca6c lookup 51820" in rules4
 
 
 def test_wireguard_cleanup_removes_versioned_rules_and_preserves_unmarked_rules(tmp_path: Path):

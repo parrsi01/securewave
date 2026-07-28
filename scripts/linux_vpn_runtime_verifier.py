@@ -56,8 +56,6 @@ STRONGSWAN_ROUTING_SOURCE_PATH = (
 REQUIRED_TOOLS = (
     "wg-quick",
     "wg",
-    "openvpn",
-    "nmcli",
     "resolvectl",
     "ip",
     "nft",
@@ -69,6 +67,9 @@ REQUIRED_IKEV2_RUNTIME_FILES = (
     Path("/usr/lib/ipsec/plugins/libstrongswan-eap-mschapv2.so"),
 )
 WIREGUARD_INTERFACE = "sw-wg"
+WIREGUARD_ROUTING_TABLE = "51820"
+WIREGUARD_POLICY_PRIORITY = "32764:"
+WIREGUARD_SUPPRESS_PRIORITY = "32765:"
 OPENVPN_INTERFACE = "tun-securewave"
 IKEV2_CONNECTION = "SecureWave-IKEv2"
 IKEV2_INTERFACE = "nm-xfrm-sw"
@@ -136,6 +137,48 @@ def _is_unqualified_legacy_ikev2_rule(line: str) -> bool:
     )
 
 
+def _wireguard_policy_rule_is_owned(line: str) -> bool:
+    """Match only the canonical SecureWave WireGuard policy-rule shape."""
+    tokens = line.split()
+    if len(tokens) != 8 or tokens[0] != WIREGUARD_POLICY_PRIORITY:
+        return False
+    if (
+        tokens[6] not in {"lookup", "table"}
+        or tokens[7] != WIREGUARD_ROUTING_TABLE
+    ):
+        return False
+    if tokens[5] not in {
+        "0xca6c",
+        "0xca6c/0xffffffff",
+        "51820",
+        "51820/0xffffffff",
+    }:
+        return False
+    return tokens[1:5] in (
+        ["not", "from", "all", "fwmark"],
+        ["from", "all", "not", "fwmark"],
+    )
+
+
+def _wireguard_suppress_rule_is_owned(line: str) -> bool:
+    """Match only the canonical SecureWave main-table suppress rule."""
+    tokens = line.split()
+    return (
+        len(tokens) == 7
+        and tokens[0] == WIREGUARD_SUPPRESS_PRIORITY
+        and tokens[1:3] == ["from", "all"]
+        and tokens[3] in {"lookup", "table"}
+        and tokens[4] == "main"
+        and tokens[5:] == ["suppress_prefixlength", "0"]
+    )
+
+
+def _wireguard_rule_is_owned(line: str) -> bool:
+    return _wireguard_policy_rule_is_owned(
+        line,
+    ) or _wireguard_suppress_rule_is_owned(line)
+
+
 def _escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
 
@@ -191,17 +234,6 @@ def check_tools() -> list[Check]:
                 name=f"tool:{tool}",
                 ok=path is not None,
                 detail=path or f"{tool} not found in PATH",
-            )
-        )
-    for path in REQUIRED_IKEV2_RUNTIME_FILES:
-        available = path.is_file() and (
-            path.name != "charon-nm" or os.access(path, os.X_OK)
-        )
-        checks.append(
-            Check(
-                name=f"tool:{path.name}",
-                ok=available,
-                detail=str(path) if available else f"{path} is unavailable",
             )
         )
     return checks
@@ -367,7 +399,7 @@ def check_helper_socket() -> list[Check]:
 
 def check_helper_ipc() -> list[Check]:
     checks: list[Check] = []
-    for protocol in ("wireguard", "openvpn", "ikev2"):
+    for protocol in ("wireguard",):
         try:
             response = helper_request({"op": "probe", "protocol": protocol})
         except OSError as exc:
@@ -420,11 +452,7 @@ def check_runner_contract() -> list[Check]:
         "runner:helper_request": "helper_request(",
         "runner:wireguard_connect_op": '"wireguard.up"',
         "runner:wireguard_disconnect_op": '"wireguard.down"',
-        "runner:openvpn_connect_op": '"openvpn.start"',
-        "runner:openvpn_disconnect_op": '"openvpn.stop"',
-        "runner:ikev2_connect_op": '"ikev2.start"',
-        "runner:ikev2_disconnect_op": '"ikev2.stop"',
-        "runner:secondary_protocol_backend_gate": 'get_bool_arg(args, "backend_evidence")',
+        "runner:wireguard_only_boundary": 'return g_strcmp0(protocol, "wireguard") == 0;',
         "runner:securewave_helper_contract": "kSecureWaveHelperContractVersion = 13",
         "runner:no_implicit_mock": "securewave/vpn",
     }
@@ -462,7 +490,6 @@ def check_build_helper_payload() -> list[Check]:
         "build:helper_service_payload": bundle_dir / "packaging/linux/securewave-helper.service",
         "build:helper_tmpfiles_payload": bundle_dir / "packaging/linux/securewave-helper.tmpfiles",
         "build:helper_contract_payload": bundle_dir / "packaging/linux/securewave-wg-quick.contract",
-        "build:strongswan_routing_payload": bundle_dir / "packaging/linux/securewave-strongswan-routing.conf",
         "build:helper_installer_payload": bundle_dir / "scripts/install_linux_helper.sh",
     }
     return [
@@ -804,11 +831,7 @@ def check_residue() -> list[Check]:
     securewave_rules = [
         (family, line)
         for family, line in rule_lines
-        if (
-            "lookup 51820" in line
-            or "table 51820" in line
-            or "suppress_prefixlength 0" in line
-        )
+        if _wireguard_rule_is_owned(line)
     ]
     checks.append(
         Check(
@@ -1094,7 +1117,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--active-protocol",
-        choices=("wireguard", "openvpn", "ikev2"),
+        choices=("wireguard",),
         help="validate an intentionally active protocol instead of disconnected cleanup",
     )
     parser.add_argument(
@@ -1128,7 +1151,6 @@ def main() -> int:
         *check_tools(),
         *check_no_polkit_source(),
         check_installed_helper_contract(),
-        check_strongswan_routing_install(),
         *check_helper_service_install(),
         *check_helper_socket(),
         *check_helper_ipc(),
@@ -1170,7 +1192,12 @@ def main() -> int:
             )
         )
     else:
-        checks.extend(check_residue())
+        checks.extend(
+            check
+            for check in check_residue()
+            if check.name == "residue:ikev2_legacy_policy_loop"
+            or not check.name.startswith("residue:ikev2_")
+        )
     payload = {
         "ok": all(check.ok for check in checks),
         "checks": [check.as_dict() for check in checks],

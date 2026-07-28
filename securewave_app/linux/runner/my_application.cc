@@ -82,17 +82,6 @@ static const gchar* get_string_arg(FlValue* args, const gchar* key) {
   return fl_value_get_string(value);
 }
 
-static gboolean get_bool_arg(FlValue* args, const gchar* key) {
-  if (!args || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
-    return FALSE;
-  }
-  FlValue* value = fl_value_lookup_string(args, key);
-  if (!value || fl_value_get_type(value) != FL_VALUE_TYPE_BOOL) {
-    return FALSE;
-  }
-  return fl_value_get_bool(value);
-}
-
 static std::string field(const Fields& fields, const std::string& key) {
   const auto it = fields.find(key);
   return it == fields.end() ? "" : it->second;
@@ -994,17 +983,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
         respond_error(
             method_call,
             "protocol_unavailable",
-            "Unsupported VPN protocol.",
-            nullptr);
-        return;
-      }
-      if (g_strcmp0(protocol, "wireguard") != 0 &&
-          !get_bool_arg(args, "backend_evidence") &&
-          !get_bool_arg(args, "runtime_only")) {
-        respond_error(
-            method_call,
-            "protocol_unavailable",
-            "OpenVPN and IKEv2 require fresh backend runtime and data-plane evidence.",
+            "OpenVPN and IKEv2 are Coming soon on Linux.",
             nullptr);
         return;
       }
@@ -1059,15 +1038,10 @@ static void handle_vpn_call(FlMethodChannel* channel,
       protocol = "wireguard";
     }
     if (!supported_protocol(protocol)) {
-      respond_error(method_call, "protocol_unavailable", "Unsupported VPN protocol.", nullptr);
-      return;
-    }
-    if (g_strcmp0(protocol, "wireguard") != 0 &&
-        !get_bool_arg(args, "backend_evidence")) {
       respond_error(
           method_call,
           "protocol_unavailable",
-          "OpenVPN and IKEv2 require fresh backend runtime and data-plane evidence.",
+          "OpenVPN and IKEv2 are Coming soon on Linux.",
           nullptr);
       return;
     }

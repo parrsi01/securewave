@@ -15,10 +15,7 @@ import '../../services/auth_service.dart';
 enum BootStatus { initializing, ready, failed }
 
 class BootState {
-  const BootState({
-    required this.status,
-    this.errorMessage,
-  });
+  const BootState({required this.status, this.errorMessage});
 
   final BootStatus status;
   final String? errorMessage;
@@ -70,7 +67,8 @@ class BootController extends ChangeNotifier {
       const Duration(seconds: 10),
       onTimeout: () {
         throw TimeoutException(
-            'Boot initialization timed out after 10 seconds');
+          'Boot initialization timed out after 10 seconds',
+        );
       },
     );
   }
@@ -95,6 +93,23 @@ class BootController extends ChangeNotifier {
       }
     }
 
+    if (session.hasStoredSession && !config.debugAutoLogin) {
+      try {
+        final account = await _ref.read(apiClientProvider).fetchCurrentUser();
+        if (!account.isActive) {
+          throw StateError('Stored account is inactive.');
+        }
+        session.acceptRestoredSession();
+        await storage.saveAccountOwnerEmail(account.email.trim().toLowerCase());
+        AppLogger.info('Boot: stored session verified');
+      } catch (_) {
+        await session.clearSession();
+        await storage.clearVpnRuntimeState();
+        await storage.clearAccountOwnerEmail();
+        AppLogger.warning('Boot: stored session rejected and cleared');
+      }
+    }
+
     if (config.debugAutoLogin) {
       final email = config.debugEmail?.trim() ?? '';
       final password = config.debugPassword ?? '';
@@ -105,15 +120,17 @@ class BootController extends ChangeNotifier {
         );
       }
       final normalizedEmail = email.toLowerCase();
-      final storedOwner =
-          (await storage.getAccountOwnerEmail())?.trim().toLowerCase();
+      final storedOwner = (await storage.getAccountOwnerEmail())
+          ?.trim()
+          .toLowerCase();
       var restoredSameAccount = false;
-      if (session.isAuthenticated) {
+      if (session.hasStoredSession) {
         try {
           final account = await _ref.read(apiClientProvider).fetchCurrentUser();
           restoredSameAccount =
               account.email.trim().toLowerCase() == normalizedEmail;
           if (restoredSameAccount) {
+            session.acceptRestoredSession();
             await storage.saveAccountOwnerEmail(normalizedEmail);
             AppLogger.info('Boot: verified existing debug account session');
           }
@@ -125,7 +142,9 @@ class BootController extends ChangeNotifier {
       }
       if (!restoredSameAccount) {
         try {
-          await _ref.read(authServiceProvider).login(
+          await _ref
+              .read(authServiceProvider)
+              .login(
                 email: email,
                 password: password,
                 preserveVpnRuntime:
@@ -151,8 +170,9 @@ class BootController extends ChangeNotifier {
 
     // Step 2: Restore VPN server selection (can fail gracefully)
     try {
-      final selectedServer =
-          await storage.getString(SecureStorage.selectedServerKey);
+      final selectedServer = await storage.getString(
+        SecureStorage.selectedServerKey,
+      );
       if (selectedServer != null) {
         _ref.read(vpnStateProvider.notifier).selectServer(selectedServer);
         AppLogger.info('Boot: restored server $selectedServer');

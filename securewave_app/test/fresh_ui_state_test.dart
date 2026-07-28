@@ -10,6 +10,7 @@ import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
+import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/state/app_state.dart';
 import 'package:securewave_app/services/api_client.dart';
 
@@ -70,8 +71,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No regions available'), findsOneWidget);
-    expect(find.text('Auto-select will stay active until the catalog returns.'),
-        findsOneWidget);
+    expect(
+      find.text('Auto-select will stay active until the catalog returns.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('server screen renders error state', (tester) async {
@@ -112,72 +115,73 @@ void main() {
   });
 
   testWidgets(
-      'VPN availability refresh is enabled at idle and disabled while connecting',
-      (tester) async {
-    await _pumpApp(
-      tester,
-      apiClientOverride: apiClientProvider.overrideWithValue(
-        ApiClient(
-          AppConfig(
-            apiBaseUrl: 'https://api.example.test',
-            portalUrl: 'https://portal.example.test',
-            upgradeUrl: 'https://upgrade.example.test',
-            useMockApi: true,
-            resetSessionOnBoot: false,
+    'VPN availability refresh is enabled at idle and disabled while connecting',
+    (tester) async {
+      await _pumpApp(
+        tester,
+        apiClientOverride: apiClientProvider.overrideWithValue(
+          ApiClient(
+            AppConfig(
+              apiBaseUrl: 'https://api.example.test',
+              portalUrl: 'https://portal.example.test',
+              upgradeUrl: 'https://upgrade.example.test',
+              useMockApi: true,
+              resetSessionOnBoot: false,
+            ),
           ),
         ),
-      ),
-      protocolAvailabilityOverride: protocolAvailabilityProvider.overrideWith(
-        (ref) async => const {
-          VpnProtocol.wireGuard: ProtocolAvailability(
-            protocol: VpnProtocol.wireGuard,
-            enabled: true,
-            serverEnabled: true,
-            platformSupported: true,
-          ),
-          VpnProtocol.openVpn: ProtocolAvailability(
-            protocol: VpnProtocol.openVpn,
-            enabled: false,
-            serverEnabled: false,
-            platformSupported: false,
-          ),
-          VpnProtocol.ikev2: ProtocolAvailability(
-            protocol: VpnProtocol.ikev2,
-            enabled: false,
-            serverEnabled: false,
-            platformSupported: false,
-          ),
-        },
-      ),
-      serversOverride: serversProvider.overrideWith(
-        (ref) async => const [
-          ServerRegion(
-            id: 'us-chi',
-            name: 'Chicago',
-            country: 'United States',
-            latencyMs: 24,
-            supportedProtocols: ['wireguard'],
-          ),
-        ],
-      ),
-      vpnServiceOverride: vpnServiceProvider.overrideWithValue(
-        MockVpnService(
-          connectDelay: const Duration(milliseconds: 100),
-          disconnectDelay: Duration.zero,
+        protocolAvailabilityOverride: protocolAvailabilityProvider.overrideWith(
+          (ref) async => const {
+            VpnProtocol.wireGuard: ProtocolAvailability(
+              protocol: VpnProtocol.wireGuard,
+              enabled: true,
+              serverEnabled: true,
+              platformSupported: true,
+            ),
+            VpnProtocol.openVpn: ProtocolAvailability(
+              protocol: VpnProtocol.openVpn,
+              enabled: false,
+              serverEnabled: false,
+              platformSupported: false,
+            ),
+            VpnProtocol.ikev2: ProtocolAvailability(
+              protocol: VpnProtocol.ikev2,
+              enabled: false,
+              serverEnabled: false,
+              platformSupported: false,
+            ),
+          },
         ),
-      ),
-    );
+        serversOverride: serversProvider.overrideWith(
+          (ref) async => const [
+            ServerRegion(
+              id: 'us-chi',
+              name: 'Chicago',
+              country: 'United States',
+              latencyMs: 24,
+              supportedProtocols: ['wireguard'],
+            ),
+          ],
+        ),
+        vpnServiceOverride: vpnServiceProvider.overrideWithValue(
+          MockVpnService(
+            connectDelay: const Duration(milliseconds: 100),
+            disconnectDelay: Duration.zero,
+          ),
+        ),
+      );
 
-    final refresh = find.widgetWithIcon(IconButton, Icons.refresh_rounded);
-    expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
+      final refresh = find.widgetWithIcon(IconButton, Icons.refresh_rounded);
+      expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Connect'));
-    await tester.pump();
-    expect(tester.widget<IconButton>(refresh).onPressed, isNull);
+      await tester.tap(find.widgetWithText(FilledButton, 'Connect'));
+      await tester.pump();
+      expect(tester.widget<IconButton>(refresh).onPressed, isNull);
 
-    await tester.pumpAndSettle();
-    expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
-  });
+      await tester.pumpAndSettle();
+      expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
+    },
+  );
 }
 
 Future<void> _pumpApp(
@@ -192,13 +196,25 @@ Future<void> _pumpApp(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  final session = AuthSession();
+  await session.ensureInitialized();
+  session.acceptRestoredSession();
 
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        authSessionProvider.overrideWith((ref) => session),
         apiClientOverride ??
-            apiClientProvider.overrideWith(
-              (ref) => ApiClient(AppConfig.defaults()),
+            apiClientProvider.overrideWithValue(
+              ApiClient(
+                AppConfig(
+                  apiBaseUrl: 'https://api.example.test',
+                  portalUrl: 'https://portal.example.test',
+                  upgradeUrl: 'https://upgrade.example.test',
+                  useMockApi: true,
+                  resetSessionOnBoot: false,
+                ),
+              ),
             ),
         appConfigProvider.overrideWith(
           (ref) => AppConfig(
@@ -240,9 +256,7 @@ Future<void> _pumpApp(
               ],
             ),
         protocolAvailabilityOverride ??
-            protocolAvailabilityProvider.overrideWith(
-              (ref) async => const {},
-            ),
+            protocolAvailabilityProvider.overrideWith((ref) async => const {}),
         vpnServiceOverride ??
             vpnServiceProvider.overrideWithValue(MockVpnService()),
       ],
