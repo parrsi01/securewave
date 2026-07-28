@@ -289,11 +289,13 @@ def _build_release_probe(
     api_base: str | None = None,
 ) -> CommandResult:
     command = _release_probe_build_command(api_base=api_base)
+    build_environment = _sanitized_build_environment()
+    build_environment["SECUREWAVE_RUNTIME_PROBE_BUILD"] = "1"
     try:
         completed = subprocess.run(  # nosec B603
             command,
             cwd=app_root,
-            env=_sanitized_build_environment(),
+            env=build_environment,
             check=False,
             text=True,
             stdout=subprocess.PIPE,

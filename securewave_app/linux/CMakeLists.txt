@@ -8,6 +8,11 @@ set(BINARY_NAME "securewave_app")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
 set(APPLICATION_ID "com.example.securewave_app")
+if("$ENV{SECUREWAVE_RUNTIME_PROBE_BUILD}" STREQUAL "1")
+  # The certification probe must be able to run beside the installed app
+  # without making the user-facing application non-unique.
+  set(APPLICATION_ID "com.example.securewave_app.runtime_probe")
+endif()
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.

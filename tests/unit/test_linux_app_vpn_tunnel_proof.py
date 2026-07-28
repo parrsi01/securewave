@@ -967,6 +967,7 @@ def test_release_probe_build_uses_fixed_release_target(monkeypatch, tmp_path):
     assert all(
         name not in build_environment for name in proof.BUILD_ENVIRONMENT_BLOCKLIST
     )
+    assert build_environment["SECUREWAVE_RUNTIME_PROBE_BUILD"] == "1"
     assert calls[0][1]["cwd"] == app_root
 
 

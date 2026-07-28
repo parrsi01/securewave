@@ -56,6 +56,12 @@ legacy metadata, or retained future implementation source.
   SecureWave-owned cleanup evidence, but the host also had two pre-existing
   unqualified IKEv2 policy rules. Fresh authentication, WireGuard, repeatability,
   and uninstall acceptance from the final package are still required.
+- Offline ARM64 acceptance now confirms that the packaged application is
+  single-instance, a second normal launch activates the existing process, and
+  the application starts again after a clean stop. The isolated certification
+  probe uses a separate GTK application ID so live proof can still run beside
+  an installed application without weakening the packaged single-instance
+  boundary.
 
 ## Artifact and platform limits
 

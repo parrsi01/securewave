@@ -57,12 +57,15 @@ def test_runner_rejects_missing_malformed_and_outdated_helper_contracts():
     assert "contract > 0 && contract < kSecureWaveHelperContractVersion" not in source
 
 
-def test_runner_allows_probe_launch_when_installed_app_is_already_running():
+def test_packaged_runner_is_single_instance_and_probe_uses_a_separate_id():
     source = _runner_source()
+    cmake = LINUX_CMAKE.read_text(encoding="utf-8")
 
     assert "G_APPLICATION_HANDLES_COMMAND_LINE" in source
-    assert "G_APPLICATION_NON_UNIQUE" in source
+    assert "G_APPLICATION_NON_UNIQUE" not in source
     assert "gtk_widget_show(GTK_WIDGET(window))" in source
+    assert 'if("$ENV{SECUREWAVE_RUNTIME_PROBE_BUILD}" STREQUAL "1")' in cmake
+    assert 'set(APPLICATION_ID "com.example.securewave_app.runtime_probe")' in cmake
 
 
 def test_runner_connect_disconnect_use_allowlisted_helper_operations():
