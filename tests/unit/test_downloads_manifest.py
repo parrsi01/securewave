@@ -228,7 +228,11 @@ def test_malformed_manifest_rows_are_skipped_without_api_failure(monkeypatch, tm
     assert [entry["filename"] for entry in response.json()["downloads"]] == ["valid.bin"]
 
 
-def test_invalid_manifest_structure_uses_safe_fallback(monkeypatch, tmp_path, client):
+def test_invalid_manifest_structure_fails_closed_without_stale_release_rows(
+    monkeypatch,
+    tmp_path,
+    client,
+):
     downloads_dir = _configure_downloads(monkeypatch, tmp_path, [])
     manifest_path = downloads_dir / "manifest.json"
     manifest_path.write_text("{}")
@@ -236,11 +240,7 @@ def test_invalid_manifest_structure_uses_safe_fallback(monkeypatch, tmp_path, cl
     response = client.get("/api/downloads")
 
     assert response.status_code == 200
-    entries = response.json()["downloads"]
-    withheld = next(entry for entry in entries if entry["filename"] == "securewave-linux-x64.deb")
-    assert withheld["status"] == "coming_soon"
-    assert withheld["url"] == "#"
-    assert withheld.get("evidence_url") is None
+    assert response.json()["downloads"] == []
 
 
 def test_unlisted_and_traversal_files_are_not_served(monkeypatch, tmp_path, client):

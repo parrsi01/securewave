@@ -177,101 +177,10 @@ def _format_size(size_bytes: int) -> str:
 # Download manifest -- canonical list of all platform builds
 # ---------------------------------------------------------------------------
 
-DEFAULT_DOWNLOAD_MANIFEST = [
-    # Apple handoff
-    {
-        "platform": "macos",
-        "architecture": "universal",
-        "filename": "securewave-apple-release-handoff.zip",
-        "url": "/downloads/securewave-apple-release-handoff.zip",
-        "status": "available",
-        "notes": "Mac/Xcode handoff kit for producing the signed macOS/iOS archive. Not a notarized app bundle.",
-    },
-    {
-        "platform": "macos",
-        "architecture": "arm64",
-        "filename": "securewave-macos-arm64-ui-demo.zip",
-        "url": "/downloads/securewave-macos-arm64-ui-demo.zip",
-        "status": "available",
-        "notes": "macOS UI demo app package. Build this on an Apple Silicon Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
-    },
-    {
-        "platform": "macos",
-        "architecture": "x64",
-        "filename": "securewave-macos-x64-ui-demo.zip",
-        "url": "/downloads/securewave-macos-x64-ui-demo.zip",
-        "status": "coming_soon",
-        "notes": "macOS UI demo app package. Build this on an Intel Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
-    },
-    # Windows
-    {
-        "platform": "windows",
-        "architecture": "x64",
-        "filename": "securewave-windows-x64-setup.exe",
-        "url": "/downloads/securewave-windows-x64-setup.exe",
-        "status": "coming_soon",
-        "notes": "Windows 10+. NSIS installer (may be unsigned in early builds).",
-    },
-    # Linux
-    {
-        "platform": "linux",
-        "architecture": "x64",
-        "filename": "securewave-linux-x64.deb",
-        "url": "#",
-        "status": "coming_soon",
-        "notes": "The amd64 WireGuard-only package remains unpublished until exact-head package gates and authorized staging data-plane acceptance pass.",
-    },
-    {
-        "platform": "linux",
-        "architecture": "arm64",
-        "filename": "securewave-linux-arm64.deb",
-        "url": "#",
-        "status": "coming_soon",
-        "notes": "The arm64 WireGuard-only package remains unpublished until exact-head package gates and authorized staging data-plane acceptance pass.",
-    },
-    {
-        "platform": "linux",
-        "architecture": "x64",
-        "filename": "securewave-linux-x64.AppImage",
-        "url": "/downloads/securewave-linux-x64.AppImage",
-        "status": "coming_soon",
-        "notes": "Portable AppImage build (coming soon).",
-    },
-    {
-        "platform": "linux",
-        "architecture": "x64",
-        "filename": "securewave-linux-x64.tar.gz",
-        "url": "/downloads/securewave-linux-x64.tar.gz",
-        "status": "available",
-        "notes": "Portable tarball (x64).",
-    },
-    {
-        "platform": "linux",
-        "architecture": "arm64",
-        "filename": "securewave-app-linux-arm64.zip",
-        "url": "/downloads/securewave-app-linux-arm64.zip",
-        "status": "available",
-        "notes": "Portable zip (ARM64).",
-    },
-    # Apple
-    {
-        "platform": "ios",
-        "architecture": "arm64",
-        "filename": "",
-        "url": "#",
-        "status": "coming_soon",
-        "notes": "Coming soon. Will be available on the Apple App Store / TestFlight.",
-    },
-    # Android
-    {
-        "platform": "android",
-        "architecture": "universal",
-        "filename": "securewave-android.apk",
-        "url": "/downloads/securewave-android.apk",
-        "status": "coming_soon",
-        "notes": "Android 10+. APK link appears here when published.",
-    },
-]
+# The checked-in static manifest is the only release metadata source. An empty
+# fallback keeps the API fail-closed if that source is missing or malformed,
+# rather than re-advertising a stale artifact from a duplicated copy.
+DEFAULT_DOWNLOAD_MANIFEST: list[dict] = []
 
 
 def _validate_manifest_rows(rows: object, *, source: str) -> List[DownloadManifestEntry]:
