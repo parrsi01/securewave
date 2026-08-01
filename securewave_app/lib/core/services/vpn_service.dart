@@ -110,10 +110,13 @@ class VpnServiceException implements Exception {
 
 class ChannelVpnService extends VpnService {
   ChannelVpnService({VpnService? fallback, bool allowFallback = false})
-    : _fallback = fallback ?? MockVpnService(),
-      _allowFallback = allowFallback {
+      : _fallback = fallback ?? MockVpnService(),
+        _allowFallback = allowFallback && !_isLinuxPlatform {
     _nativeAvailable = false;
   }
+
+  static bool get _isLinuxPlatform =>
+      platform.operatingSystem.name.toLowerCase() == 'linux';
 
   final MethodChannel _channel = const MethodChannel('securewave/vpn');
   final VpnService _fallback;

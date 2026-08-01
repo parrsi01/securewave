@@ -73,7 +73,9 @@ build_linux() {
   check_flutter
 
   cd "$APP_DIR"
-  flutter build linux --release
+  flutter build linux --release \
+    --dart-define=SECUREWAVE_USE_MOCK_API=false \
+    --dart-define=SECUREWAVE_DEBUG_AUTO_LOGIN=false
 
   # Flutter outputs to build/linux/<arch>/release/bundle
   BUNDLE_DIR="$APP_DIR/build/linux/$FLUTTER_ARCH/release/bundle"

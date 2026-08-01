@@ -35,7 +35,9 @@ if ! command -v dpkg-deb >/dev/null 2>&1; then
 fi
 
 flutter pub get
-flutter build linux --release
+flutter build linux --release \
+  --dart-define=SECUREWAVE_USE_MOCK_API=false \
+  --dart-define=SECUREWAVE_DEBUG_AUTO_LOGIN=false
 
 bundle_dir=""
 for candidate in build/linux/*/release/bundle; do

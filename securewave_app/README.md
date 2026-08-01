@@ -30,7 +30,10 @@ storage, and hands it to the Linux runner.
 1. Install Flutter SDK and run `flutter doctor`.
 2. From the repository root:
    - `make flutter-run`
-   - Add `--dart-define=SECUREWAVE_USE_MOCK_API=true` only for isolated demo UI work.
+   - Linux customer builds always use the live API and native helper. The
+     `SECUREWAVE_USE_MOCK_API` and `SECUREWAVE_DEBUG_AUTO_LOGIN` flags are
+     ignored by the Linux runtime; mock data is for isolated non-customer test
+     overrides only.
 3. For Linux VPN connect/disconnect, install the privileged runtime once:
    - `make linux-runtime-install`
    - rerun `make flutter-run`

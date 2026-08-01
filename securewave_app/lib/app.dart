@@ -95,11 +95,16 @@ class _AppRoot extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final boot = ref.watch(bootControllerProvider).state;
+    final bootController = ref.watch(bootControllerProvider);
+    final boot = bootController.state;
     final session = ref.watch(authSessionProvider);
 
-    if (boot.status == BootStatus.initializing || !session.isInitialized) {
-      return _BootView(message: boot.errorMessage);
+    if (boot.status != BootStatus.ready || !session.isInitialized) {
+      return _BootView(
+        message: boot.errorMessage,
+        failed: boot.status == BootStatus.failed,
+        onRetry: boot.status == BootStatus.failed ? bootController.retry : null,
+      );
     }
 
     if (!session.isAuthenticated) {

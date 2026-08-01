@@ -29,9 +29,17 @@ class AppConfig {
   final String? debugPassword;
   static AppConfig? _cached;
 
+  /// Linux distribution builds always use the real control plane and native
+  /// helper.  Test-only callers can still construct an [AppConfig] with mock
+  /// mode explicitly, but environment configuration must not turn a Linux
+  /// customer build into a demo client.
+  static bool get isLinuxRuntime =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
+
   factory AppConfig.defaults() {
     // Daily-use builds default to the live control plane. Mock data is opt-in
     // through SECUREWAVE_USE_MOCK_API for isolated UI tests and demos.
+    final liveLinuxRuntime = isLinuxRuntime;
     return AppConfig(
       apiBaseUrl: _compileTimeOrFallback(
         'SECUREWAVE_API_BASE_URL',
@@ -45,14 +53,14 @@ class AppConfig {
         'SECUREWAVE_UPGRADE_URL',
         AppConstants.upgradeUrlFallback,
       ),
-      useMockApi: _parseBool(
-        const String.fromEnvironment(
-          'SECUREWAVE_USE_MOCK_API',
-          defaultValue: 'false',
-        ),
-      ),
+      useMockApi: !liveLinuxRuntime &&
+          _parseBool(const String.fromEnvironment(
+            'SECUREWAVE_USE_MOCK_API',
+            defaultValue: 'false',
+          )),
       resetSessionOnBoot: false,
-      debugAutoLogin: !kReleaseMode &&
+      debugAutoLogin: !liveLinuxRuntime &&
+          !kReleaseMode &&
           _parseBool(const String.fromEnvironment(
             'SECUREWAVE_DEBUG_AUTO_LOGIN',
             defaultValue: 'false',
@@ -92,15 +100,19 @@ class AppConfig {
       'SECUREWAVE_UPGRADE_URL',
       AppConstants.upgradeUrlFallback,
     );
-    // Mock API must be explicitly requested in every build mode.
-    const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
+    // Mock API must be explicitly requested in test/demo builds. It is never
+    // permitted for a Linux customer runtime, including a debug-launched
+    // binary that happens to inherit a demo .env file.
+    final liveLinuxRuntime = isLinuxRuntime;
     var useMock = _parseBool(
       env['SECUREWAVE_USE_MOCK_API'] ??
           const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
               defaultValue: 'false'),
     );
-    if (kIsReleaseMode && useMock) {
-      AppLogger.warning('Config: mock API disabled in release builds.');
+    if ((kReleaseMode || liveLinuxRuntime) && useMock) {
+      AppLogger.warning(
+        'Config: mock API disabled for release/Linux customer builds.',
+      );
       useMock = false;
     }
     final resetSessionOnBoot = _parseBool(
@@ -110,7 +122,8 @@ class AppConfig {
             defaultValue: 'false',
           ),
     );
-    final debugAutoLogin = !kReleaseMode &&
+    final debugAutoLogin = !liveLinuxRuntime &&
+        !kReleaseMode &&
         _parseBool(_envOrDefault(
           env,
           'SECUREWAVE_DEBUG_AUTO_LOGIN',

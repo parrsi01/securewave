@@ -51,15 +51,24 @@ class BootController extends ChangeNotifier {
       AppLogger.info('Boot: complete');
     } catch (error, stackTrace) {
       AppLogger.error('Boot failed', error: error, stackTrace: stackTrace);
-      // Safe mode: mark as ready but with error message
-      // This allows UI to render with limited functionality
+      // Do not present account-backed panels after a failed startup. That
+      // state can look like a usable home screen while its live providers or
+      // native runtime are unavailable.
       _state = _state.copyWith(
-        status: BootStatus.ready,
-        errorMessage: 'Started in safe mode: ${error.toString()}',
+        status: BootStatus.failed,
+        errorMessage:
+            'SecureWave could not start. Check your connection and try again.',
       );
-      AppLogger.warning('Boot: entering safe mode');
+      AppLogger.warning('Boot: startup blocked; retry is required.');
     }
     notifyListeners();
+  }
+
+  Future<void> retry() async {
+    if (_state.status == BootStatus.initializing) return;
+    _state = const BootState(status: BootStatus.initializing);
+    notifyListeners();
+    await _initialize();
   }
 
   Future<void> _initializeWithTimeout() async {

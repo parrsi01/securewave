@@ -40,6 +40,13 @@ void main() {
     );
   });
 
+  test('Linux customer defaults stay on the live runtime', () {
+    if (!AppConfig.isLinuxRuntime) return;
+
+    expect(AppConfig.defaults().useMockApi, isFalse);
+    expect(AppConfig.defaults().debugAutoLogin, isFalse);
+  }, testOn: 'linux');
+
   test('BootState has correct initial values', () {
     const state = BootState(status: BootStatus.initializing);
     expect(state.status, BootStatus.initializing);

@@ -32,7 +32,9 @@ command -v flutter >/dev/null 2>&1 || {
 FORCE_FLUTTER_ENV=true bash "$repo_root/scripts/prepare_flutter_env.sh" >/dev/null
 cd "$app_dir"
 flutter pub get
-flutter build linux --release
+flutter build linux --release \
+  --dart-define=SECUREWAVE_USE_MOCK_API=false \
+  --dart-define=SECUREWAVE_DEBUG_AUTO_LOGIN=false
 
 case "$(uname -m)" in
   x86_64) bundle_arch=x64 ;;

@@ -9,7 +9,6 @@ class _ConnectScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final plan = ref.watch(userPlanProvider);
     final servers = ref.watch(serversProvider);
-    final config = ref.watch(appConfigProvider);
     final vpnService = ref.watch(vpnServiceProvider);
     final backendAvailability = ref.watch(protocolAvailabilityProvider);
     final availability = _protocolAvailability(
@@ -147,15 +146,6 @@ class _ConnectScreen extends ConsumerWidget {
                                 .read(vpnStateProvider.notifier)
                                 .refreshConnectivity(),
                           ),
-                ),
-              ],
-              if (config.useMockApi) ...[
-                const SizedBox(height: 12),
-                const _InlineMessage(
-                  icon: Icons.info_outline_rounded,
-                  message:
-                      'Demo API mode is enabled. Do not treat a demo connection as a real tunnel.',
-                  tone: _Tone.warning,
                 ),
               ],
             ],

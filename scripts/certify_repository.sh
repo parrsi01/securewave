@@ -81,7 +81,7 @@ if command -v flutter >/dev/null 2>&1; then
   run_check "Flutter dependency resolution" bash -c 'cd securewave_app && flutter pub get'
   run_check "Flutter analyze" bash -c 'cd securewave_app && flutter analyze'
   run_check "Flutter tests" bash -c 'cd securewave_app && flutter test --reporter compact'
-  run_check "Flutter Linux release build" bash -c 'cd securewave_app && flutter build linux --release'
+  run_check "Flutter Linux release build" bash -c 'cd securewave_app && flutter build linux --release --dart-define=SECUREWAVE_USE_MOCK_API=false --dart-define=SECUREWAVE_DEBUG_AUTO_LOGIN=false'
   if command -v java >/dev/null 2>&1; then
     run_check "Flutter Android debug build" bash -c \
       'cd securewave_app && flutter build apk --debug'

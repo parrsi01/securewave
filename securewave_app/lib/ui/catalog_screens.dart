@@ -205,7 +205,6 @@ class _SettingsScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               _InfoRow('Device', device),
               _InfoRow('API', config.apiBaseUrl),
-              _InfoRow('Mock API', config.useMockApi ? 'On' : 'Off'),
               _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
               _InfoRow(
                 'VPN bridge',

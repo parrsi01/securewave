@@ -34,6 +34,21 @@ void main() {
     expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNotNull);
   }, testOn: 'linux');
 
+  test('Linux channel never enables a mock fallback', () async {
+    final service = ChannelVpnService(allowFallback: true);
+
+    expect(service.canConnectProtocol(VpnProtocol.wireGuard), isFalse);
+    expect(
+      await service.refreshProtocolAvailability(
+        VpnProtocol.wireGuard,
+        backendEvidence: true,
+      ),
+      isFalse,
+    );
+    expect(service.canConnectProtocol(VpnProtocol.openVpn), isFalse);
+    expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
+  }, testOn: 'linux');
+
   test(
       'ChannelVpnService requires backend evidence in addition to its helper probe',
       () async {

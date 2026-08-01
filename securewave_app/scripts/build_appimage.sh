@@ -23,7 +23,9 @@ if ! command -v appimage-builder >/dev/null 2>&1; then
 fi
 
 flutter pub get
-flutter build linux --release
+flutter build linux --release \
+  --dart-define=SECUREWAVE_USE_MOCK_API=false \
+  --dart-define=SECUREWAVE_DEBUG_AUTO_LOGIN=false
 
 cp -f assets/icon.png packaging/appimage/securewave.png
 

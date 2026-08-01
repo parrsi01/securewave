@@ -14,7 +14,7 @@ final vpnServiceProvider = Provider<VpnService>((ref) {
   final config = ref.watch(appConfigProvider);
   return ChannelVpnService(
     fallback: MockVpnService(),
-    allowFallback: config.useMockApi,
+    allowFallback: config.useMockApi && !AppConfig.isLinuxRuntime,
   );
 });
 

@@ -391,9 +391,11 @@ class _CenteredState extends StatelessWidget {
 }
 
 class _BootView extends StatelessWidget {
-  const _BootView({this.message});
+  const _BootView({this.message, this.failed = false, this.onRetry});
 
   final String? message;
+  final bool failed;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -404,14 +406,21 @@ class _BootView extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ),
+                if (failed)
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    size: 30,
+                    color: FreshTheme.graphiteMuted,
+                  )
+                else
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
                 const SizedBox(height: 14),
                 Text(
-                  'Starting SecureWave',
+                  failed ? 'SecureWave could not start' : 'Starting SecureWave',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 if (message != null) ...[
@@ -420,6 +429,13 @@ class _BootView extends StatelessWidget {
                     message!,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                if (failed && onRetry != null) ...[
+                  const SizedBox(height: 14),
+                  OutlinedButton(
+                    onPressed: onRetry,
+                    child: const Text('Retry startup'),
                   ),
                 ],
               ],

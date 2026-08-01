@@ -19,7 +19,6 @@ class _MainShellState extends ConsumerState<_MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    final bootMessage = ref.watch(bootControllerProvider).state.errorMessage;
     final wide = MediaQuery.sizeOf(context).width >= FreshTheme.mobileMax;
     final title = _tabs[_index].label;
     final child = switch (_index) {
@@ -44,21 +43,7 @@ class _MainShellState extends ConsumerState<_MainShell> {
             : null,
       ),
       body: _PageFrame(
-        child: Column(
-          children: [
-            if (bootMessage != null) ...[
-              _InlineMessage(
-                icon: Icons.warning_amber_rounded,
-                message: 'Limited mode: some local startup checks failed.',
-                tone: _Tone.warning,
-                actionLabel: 'Open diagnostics',
-                onAction: () => _showDiagnostics(context),
-              ),
-              const SizedBox(height: 12),
-            ],
-            Expanded(child: child),
-          ],
-        ),
+        child: child,
       ),
       bottomNavigationBar: wide
           ? null
